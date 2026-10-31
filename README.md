@@ -27,6 +27,14 @@ Configuration (environment): `IEL_DATA_DIR`, `IEL_DATABASE_URL`, `IEL_ARTIFACT_D
 `IEL_RUNNER_MEMORY_MB`, `IEL_RUNNER_CPU_SECONDS`, `IEL_SKIP_SEED=1`, `ANTHROPIC_API_KEY` (optional AI adapter for
 research extraction; absent ⇒ rule-based extraction, shown in the UI).
 
+## Hosted demo (GitHub Pages)
+
+GitHub Pages serves static files only, so the backend (API, fixtures, job queue) is **not** hosted there. The workflow
+`.github/workflows/pages.yml` runs the tests, then `scripts/build_static_site.py` boots the real app against a throw-away
+database, executes the seeded fixtures, snapshots every API response the UI uses, and publishes a **read-only** copy of the
+UI. Browsing, drill-downs, comparisons and evidence downloads work; every write is disabled with an explanation. One-time
+setup: repository Settings → Pages → Source: **GitHub Actions**. Local preview: `python3 scripts/build_static_site.py site && python3 -m http.server -d site`.
+
 ## Tests
 
 ```bash

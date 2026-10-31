@@ -78,7 +78,7 @@ def build_body(profile: dict, project, current: dict | None, requirements, reaso
     if profile["family"] == "RSA" and current and current.get("family") == "RSA":
         tradeoffs.append("Larger modulus increases verify time roughly cubically in modulus size for schoolbook implementations.")
     return {
-        "what_changes": f"Replace {cur_label} with {profile['label']} for {catalog.PURPOSES.get(purpose, purpose)}. "
+        "what_changes": f"Replace {cur_label} with {profile['label']} for {catalog.PURPOSES.get(purpose, purpose).rstrip(".")}. "
                         f"Library/profile: {', '.join(profile['libraries'][:3])}. The deliverable is a versioned candidate "
                         "implementation plus a proposed change record; nothing is deployed automatically.",
         "why": reason,

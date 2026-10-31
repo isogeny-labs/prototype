@@ -12,7 +12,16 @@ const nl = (arr) => (arr && arr.length) ? `<ul class="tight">${arr.map(x => `<li
 const json = (o) => `<pre>${esc(JSON.stringify(o, null, 1))}</pre>`;
 let TOKEN = localStorage.getItem("iel_token"), ME = null;
 
+function staticApi(path, opts) {
+  const S = window.IEL_STATIC;
+  if ((opts.method || "GET") !== "GET") throw new Error("Read-only static demo: changes are disabled here. Run the app locally (see README) to use the full workflow.");
+  if (path === "/api/auth/me") return Promise.resolve(S.get["/api/auth/me"]);
+  const v = S.get[path];
+  if (v === undefined) return Promise.reject(new Error("Not part of the static snapshot: " + path));
+  return Promise.resolve(JSON.parse(JSON.stringify(v)));
+}
 async function api(path, opts = {}) {
+  if (window.IEL_STATIC) return staticApi(path, opts);
   const headers = {"Content-Type": "application/json", ...(TOKEN ? {Authorization: "Bearer " + TOKEN} : {})};
   if (opts.body && typeof opts.body !== "string" && !(opts.body instanceof FormData)) opts.body = JSON.stringify(opts.body);
   if (opts.body instanceof FormData) delete headers["Content-Type"];
@@ -31,6 +40,7 @@ const routes = [];
 const route = (re, fn) => routes.push([re, fn]);
 async function render() {
   const app = $("#app");
+  if (window.IEL_STATIC && !TOKEN) TOKEN = "static-demo";
   if (!TOKEN) { $("#projnav").innerHTML = ""; $("#whoami").textContent = ""; return app.innerHTML = loginView(); }
   if (!ME) { try { ME = await api("/api/auth/me"); } catch { return; } }
   $("#whoami").textContent = `${ME.name}${ME.is_admin ? " (admin)" : ""}`;
@@ -41,7 +51,7 @@ async function render() {
   app.innerHTML = "<p>Not found.</p>";
 }
 window.addEventListener("hashchange", render);
-$("#logout").onclick = async () => { try { await api("/api/auth/logout", {method: "POST"}); } catch {} TOKEN = null; ME = null; localStorage.removeItem("iel_token"); location.hash = "#/"; render(); };
+$("#logout").onclick = async () => { if (window.IEL_STATIC) return toast("Static demo: signed in as the seeded demo engineer (read-only)."); try { await api("/api/auth/logout", {method: "POST"}); } catch {} TOKEN = null; ME = null; localStorage.removeItem("iel_token"); location.hash = "#/"; render(); };
 
 function loginView() {
   setTimeout(() => { $("#loginform").onsubmit = async (e) => { e.preventDefault(); try { const r = await api("/api/auth/login", {method: "POST", body: {email: $("#email").value, password: $("#password").value}}); TOKEN = r.token; localStorage.setItem("iel_token", TOKEN); ME = r.user; render(); } catch (err) { $("#loginerr").textContent = err.message; } }; });
@@ -87,7 +97,7 @@ route(/^\/p\/([^/]+)$/, async (pid) => {
   <div class="panel"><h2>Recent activity</h2><ul class="tight timeline">${o.recent_audit.map(a => `<li><span class="muted">${when(a.created_at)}</span> ${esc(a.action)} <span class="muted">${esc(a.subject_type)}</span></li>`).join("")}</ul></div></div>
   <p><a href="/api/projects/${pid}/export" onclick="return dl(event,'/api/projects/${pid}/export','evidence.zip')"><button class="ghost">Export reproducible evidence package (zip)</button></a></p>`;
 });
-window.dl = (e, url, name) => { e.preventDefault(); fetch(url, {headers: {Authorization: "Bearer " + TOKEN}}).then(async r => { if (!r.ok) throw new Error(await r.text()); const b = await r.blob(); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (r.headers.get("content-disposition") || "").match(/filename="([^"]+)"/)?.[1] || name; a.click(); toast("Downloaded. SHA-256: " + r.headers.get("X-SHA256")); }).catch(err => toast(err.message, true)); return false; };
+window.dl = (e, url, name) => { e.preventDefault(); const sf = window.IEL_STATIC && window.IEL_STATIC.files[url]; fetch(sf || url, sf ? {} : {headers: {Authorization: "Bearer " + TOKEN}}).then(async r => { if (!r.ok) throw new Error(await r.text()); const b = await r.blob(); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (r.headers.get("content-disposition") || "").match(/filename="([^"]+)"/)?.[1] || name; a.click(); toast("Downloaded. SHA-256: " + r.headers.get("X-SHA256")); }).catch(err => toast(err.message, true)); return false; };
 
 // ------------------------------------------------------------------ inventory
 route(/^\/p\/([^/]+)\/inventory$/, async (pid) => {
