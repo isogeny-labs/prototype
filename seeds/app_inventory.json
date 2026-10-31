@@ -1,0 +1,30 @@
+{
+  "platform": {
+    "runtime": "python:3.13-slim container image",
+    "orchestration": "Kubernetes (customer-managed)",
+    "cpu": "x86-64 (AES-NI available)",
+    "software_versions": {"service": "token-service 1.4.2", "PyJWT": "2.8.0", "cryptography": "42.0.5"}
+  },
+  "items": [
+    {"category": "purpose", "name": "API token signing (JWS)", "purpose": "token_signing", "provenance": "user_reported"},
+    {"category": "algorithm", "name": "RS256 (RSA-2048 PKCS#1 v1.5 SHA-256)", "purpose": "token_signing",
+     "parameters": {"modulus_bits": 2048}, "provenance": "imported", "provenance_detail": "From pip freeze + config export 2026-09-20"},
+    {"category": "library", "name": "PyJWT", "version": "2.8.0", "purpose": "token_signing", "provenance": "imported", "provenance_detail": "pip freeze"},
+    {"category": "library", "name": "cryptography (Python)", "version": "42.0.5", "purpose": "token_signing", "provenance": "imported", "provenance_detail": "pip freeze"},
+    {"category": "algorithm", "name": "AES-128-GCM", "purpose": "payload_encryption", "parameters": {"key_bits": 128},
+     "provenance": "imported", "provenance_detail": "config export"},
+    {"category": "key_storage", "name": "Token signing key", "purpose": "token_signing",
+     "parameters": {"location": "cloud KMS, non-exportable", "rotation": "annual"}, "provenance": "user_reported"},
+    {"category": "trust_dependency", "name": "TLS termination at ingress controller", "purpose": "transport_security", "provenance": "user_reported"},
+    {"category": "process", "name": "CI builds image; staged rollout via Helm; no automated crypto config changes", "provenance": "user_reported"}
+  ],
+  "requirements": [
+    {"name": "Token signing throughput", "metric": "sign_throughput_per_s", "operator": ">=", "threshold": 4000, "unit": "tokens/s per core",
+     "rationale": "Peak login burst of 3000 tokens/s per replica with headroom.", "applies_to": "measured"},
+    {"name": "Token verify p95 latency", "metric": "verify_time_ms_p95", "operator": "<=", "threshold": 2.0, "unit": "ms", "applies_to": "measured"},
+    {"name": "Token size", "metric": "token_bytes", "operator": "<=", "threshold": 1024, "unit": "bytes",
+     "rationale": "Cookie size budget.", "applies_to": "all"},
+    {"name": "All functional scenarios pass", "metric": "functional_pass", "operator": "==", "threshold": 1, "unit": "", "applies_to": "all"},
+    {"name": "All rejection scenarios pass", "metric": "rejection_scenarios_all_pass", "operator": "==", "threshold": 1, "unit": "", "applies_to": "all"}
+  ]
+}

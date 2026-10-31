@@ -1,0 +1,47 @@
+{
+  "platform": {
+    "hardware": "STM32F4-class Cortex-M4 @ 168 MHz, 192 KB SRAM, 1 MB flash",
+    "os": "bare-metal firmware with custom bootloader v2.3",
+    "software_versions": {"bootloader": "2.3.0", "application": "fw-2.3.0", "mbedTLS": "2.16.12"},
+    "bootloader_supported_families": ["RSA", "ECDSA"],
+    "signature_slot_bytes": 2560,
+    "update_channel": "LTE-M, ~50 KB/s effective",
+    "bootloader_mutable": true
+  },
+  "items": [
+    {"category": "purpose", "name": "Firmware signing and update verification", "purpose": "firmware_signing",
+     "provenance": "user_reported", "notes": "Primary purpose evaluated in this project."},
+    {"category": "algorithm", "name": "RSA-2048 PKCS#1 v1.5 SHA-256", "purpose": "firmware_signing",
+     "parameters": {"modulus_bits": 2048, "public_exponent": 65537, "padding": "PKCS#1 v1.5", "hash": "SHA-256"},
+     "provenance": "imported", "provenance_detail": "From customer firmware BOM export 2026-09-12",
+     "notes": "Identifying the algorithm says nothing about the implementation's correctness or side-channel behaviour."},
+    {"category": "library", "name": "mbedTLS", "version": "2.16.12", "purpose": "firmware_signing",
+     "provenance": "imported", "provenance_detail": "From customer firmware BOM export 2026-09-12",
+     "notes": "2.16 LTS branch is end-of-life upstream."},
+    {"category": "key_storage", "name": "Firmware signing key", "purpose": "firmware_signing",
+     "parameters": {"location": "offline HSM at customer release facility", "device_side": "public key hash in OTP"},
+     "provenance": "user_reported", "notes": "No private key material is stored in this platform."},
+    {"category": "trust_dependency", "name": "Root public key hash in OTP", "purpose": "firmware_signing",
+     "parameters": {"rotatable": false, "note": "Changing the trust anchor requires a factory process"},
+     "provenance": "user_reported"},
+    {"category": "process", "name": "OTA update via MQTT broker; packages <= 512 KB; A/B slots", "purpose": "firmware_signing",
+     "provenance": "user_reported"},
+    {"category": "algorithm", "name": "AES-128-GCM", "purpose": "payload_encryption",
+     "parameters": {"key_bits": 128}, "provenance": "imported", "provenance_detail": "BOM export",
+     "notes": "Telemetry payload encryption. Separate purpose from firmware signing; never compared with signature schemes."},
+    {"category": "algorithm", "name": "TLS 1.2 ECDHE-ECDSA-AES128-GCM-SHA256", "purpose": "transport_security",
+     "provenance": "imported", "provenance_detail": "BOM export"}
+  ],
+  "requirements": [
+    {"name": "Signature fits bootloader slot", "metric": "signature_bytes", "operator": "<=", "threshold": 2560, "unit": "bytes",
+     "rationale": "Manifest layout reserves 2560 B for the signature; larger needs a bootloader change.", "applies_to": "all"},
+    {"name": "Update overhead budget", "metric": "update_overhead_bytes", "operator": "<=", "threshold": 6144, "unit": "bytes",
+     "rationale": "Header + manifest + signature must stay under 6 KB on the LTE-M channel.", "applies_to": "all"},
+    {"name": "On-device verify time", "metric": "verify_time_ms_median", "operator": "<=", "threshold": 400, "unit": "ms",
+     "rationale": "Boot-time budget for signature verification on the Cortex-M4.", "applies_to": "imported"},
+    {"name": "On-device verify stack", "metric": "verify_stack_bytes", "operator": "<=", "threshold": 40960, "unit": "bytes",
+     "rationale": "Bootloader stack region is 40 KB.", "applies_to": "imported"},
+    {"name": "All functional scenarios pass", "metric": "functional_pass", "operator": "==", "threshold": 1, "unit": "", "applies_to": "all"},
+    {"name": "All rejection scenarios pass", "metric": "rejection_scenarios_all_pass", "operator": "==", "threshold": 1, "unit": "", "applies_to": "all"}
+  ]
+}
