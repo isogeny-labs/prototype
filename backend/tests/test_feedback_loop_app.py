@@ -21,10 +21,10 @@ def test_app_loop(engineer, reviewer):
     r0 = ok(engineer.post(f"/api/projects/{pid}/runs", json={"experiment_id": fx["id"], "implementation_id": base["id"], "wait": True}))
     assert r0["status"] == "completed" and r0["runner_kind"] == "local_fixture" and r0["environment"]["isolation"] == "subprocess+rlimit"
     assert r0["metrics"]["functional_pass"] == 1 and r0["metrics"]["rejection_scenarios_all_pass"] == 1
-    assert r0["overall_pass"] is False  # RSA-2048 signing cannot reach 4000 tokens/s per core
+    assert r0["overall_pass"] is False  # deterministic: an RS256 token (708 B) exceeds the 600 B cookie budget on any host
     failed = {x["metric"] for x in r0["requirement_results"] if x["pass"] is False}
-    assert "sign_throughput_per_s" in failed
-    f = next(x for x in ok(engineer.get(f"/api/projects/{pid}/findings")) if "throughput" in x["title"].lower())
+    assert "token_bytes" in failed  # other (timing) limits may also fail on slow hosts; the size failure cannot vary
+    f = next(x for x in ok(engineer.get(f"/api/projects/{pid}/findings")) if "token size" in x["title"].lower())
     # research finding with an independently reproduced claim
     ok(engineer.post(f"/api/projects/{pid}/research/sources", json={"title": "jws guidance", "content": (SEEDS / "research_docs" / "jws_alg_guidance.txt").read_text(), "wait": True}))
     rf = next(x for x in ok(engineer.get(f"/api/projects/{pid}/findings")) if x["origin"] == "research")
@@ -32,7 +32,7 @@ def test_app_loop(engineer, reviewer):
     assert "PyJWT" in rf["affected"]["libraries"]
     # remediation: EdDSA/ES256 within token_signing only
     rec = ok(engineer.post(f"/api/projects/{pid}/recommendations/from-finding/{f['id']}"))
-    assert rec["purpose"] == "token_signing" and rec["catalog_profile_id"].startswith("jws_")
+    assert rec["purpose"] == "token_signing" and rec["catalog_profile_id"] in ("jws_es256", "jws_eddsa")  # PS256 has the same size, so it is excluded
     ok(reviewer.post(f"/api/projects/{pid}/recommendations/{rec['id']}/decide", json={"decision": "approved"}))
     cand = ok(engineer.post(f"/api/projects/{pid}/recommendations/{rec['id']}/implement", json={"name": "token-service", "version": "1.5.0", "delivery_mode": "container",
                                                                                                   "configuration": {"fixture_params": {"payload_bytes": 256}}}))

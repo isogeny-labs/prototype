@@ -9,6 +9,8 @@ from __future__ import annotations
 from . import catalog
 
 SIZE_METRICS = ("signature_bytes", "public_key_bytes", "key_bytes", "overhead_bytes")
+# encoded-size metrics that grow with the signature size but are not catalog fields themselves
+SIZE_PROXY_METRICS = ("token_bytes", "update_package_bytes", "update_overhead_bytes")
 
 THREAT_MODELS = {
     "firmware_signing": ("Attacker can supply arbitrary update packages to the device (compromised update server, "
@@ -200,6 +202,12 @@ def remediation_for_finding(finding, project, requirements, target_impl, impleme
         body = build_body(prof, project, cur, reqs, "", "remediation")
         if failed_metric and any(c["metric"] == failed_metric and not c["pass"] for c in body["size_checks"]):
             continue  # still violates the failed size requirement
+        if failed_metric in SIZE_PROXY_METRICS and cur:
+            cs, ns = cur.get("sizes", {}).get("signature_bytes"), cp.get("sizes", {}).get("signature_bytes")
+            if cs and ns and ns >= cs:
+                continue  # an encoded-size metric failed; a candidate with an equal or larger signature cannot improve it
+            body["expected_performance_basis"] = (f"'{failed_metric}' includes the encoded signature: catalog signature size {cs} B -> {ns} B. "
+                                                  "The requirement must still be confirmed by a run.")
         if perf_op:
             cls = cp.get("perf_class", {}).get(perf_op)
             if cls == "slow" or (cur_class and cls == cur_class):

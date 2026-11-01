@@ -31,6 +31,8 @@ jobs:
       - name: Build static demo
         run: python scripts/build_static_site.py site
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
