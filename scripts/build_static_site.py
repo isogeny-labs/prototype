@@ -32,14 +32,13 @@ sys.path.insert(0, str(ROOT / "backend"))
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 
-snap = {"get": {}, "files": {}}
-files_dir = OUT / "data" / "files"
+snap = {"get": {}, "filedata": {}}
 
 
 def main():
     if OUT.exists():
         shutil.rmtree(OUT)
-    files_dir.mkdir(parents=True)
+    OUT.mkdir(parents=True)
     with TestClient(app) as c:
         tok = c.post("/api/auth/login", json={"email": "engineer@customer.local", "password": "engineer-demo-password"}).json()["token"]
         H = {"Authorization": f"Bearer {tok}"}
@@ -83,12 +82,10 @@ def main():
                 get(f"{b}/compare?baseline_run_id={x}&candidate_run_id={y}")
             for a in snap["get"][b + "/artifacts"]:
                 r = c.get(f"{b}/artifacts/{a['id']}/download", headers=H)
-                (files_dir / a["id"]).write_bytes(r.content)
-                snap["files"][f"{b}/artifacts/{a['id']}/download"] = f"data/files/{a['id']}"
+                snap["filedata"][f"{b}/artifacts/{a['id']}/download"] = {"name": a["filename"], "b64": base64.b64encode(r.content).decode()}
             r = c.get(f"{b}/export", headers=H)
-            (files_dir / f"export_{p['id']}.zip").write_bytes(r.content)
-            snap["files"][f"{b}/export"] = f"data/files/export_{p['id']}.zip"
-    print(f"snapshot: {len(snap['get'])} responses, {len(snap['files'])} files")
+            snap["filedata"][f"{b}/export"] = {"name": "evidence_package.zip", "b64": base64.b64encode(r.content).decode()}
+    print(f"snapshot: {len(snap['get'])} responses, {len(snap['filedata'])} files")
 
     for name in ("index.html", "styles.css", "app.js"):
         s = (ROOT / "frontend" / name).read_text()
@@ -97,10 +94,17 @@ def main():
             s = s.replace("<main", '<div id="demobanner">Static read-only demo: a snapshot of real output from the seeded app (fixtures were executed at build time). '
                           'Writes are disabled. Run the app locally to use the full workflow &mdash; see the README.</div>\n<main', 1)
         (OUT / name).write_text(s)
-    (OUT / "snapshot.js").write_text("window.IEL_STATIC = " + json.dumps(snap, separators=(",", ":")) + ";\n")
-    (OUT / ".nojekyll").write_text("")
     with open(OUT / "styles.css", "a") as f:
         f.write("\n#demobanner{background:#fff4e0;color:#7a4b00;border-bottom:1px solid #f0d9a8;padding:6px 18px;font-size:12.5px;text-align:center}\n")
+    (OUT / "snapshot.js").write_text("window.IEL_STATIC = " + json.dumps(snap, separators=(",", ":")) + ";\n")
+    # single self-contained file: open by double-clicking, no server needed
+    idx = (OUT / "index.html").read_text()
+    idx = idx.replace('<link rel="stylesheet" href="styles.css">', "<style>\n" + (OUT / "styles.css").read_text() + "\n</style>")
+    idx = idx.replace('<script src="snapshot.js"></script>', "<script>\n" + (OUT / "snapshot.js").read_text() + "</script>")
+    idx = idx.replace('<script src="app.js"></script>', "<script>\n" + (OUT / "app.js").read_text() + "\n</script>")
+    assert 'src="' not in idx and "href=\"styles.css\"" not in idx, "single-file build still references external assets"
+    (OUT / "iel-demo.html").write_text(idx)
+    (OUT / ".nojekyll").write_text("")
     print("site written to", OUT, f"({sum(p.stat().st_size for p in OUT.rglob('*') if p.is_file())//1024} KB)")
 
 
