@@ -63,13 +63,13 @@ def main():
             if p["kind"] == "iot":
                 f = next(x for x in get(f"/api/projects/{p['id']}/findings", False) if x["origin"] == "measurement" and "slot" in x["title"].lower())
                 post(f"/api/projects/{p['id']}/recommendations/from-finding/{f['id']}")
-        for path in ("/api/projects", "/api/auth/me", "/api/catalog", "/api/runners", "/api/jobs"):
+        for path in ("/api/projects", "/api/auth/me", "/api/catalog", "/api/runners", "/api/jobs", "/api/toolkit", "/api/research/portfolio"):
             get(path)
         for p in projects:
             b = f"/api/projects/{p['id']}"
             for sub in ("", "/overview", "/inventory", "/requirements", "/implementations", "/runs", "/experiments", "/recommendations",
                         "/findings", "/research/sources", "/research/status", "/attack-assessments", "/sandbox", "/sandbox/allowlist",
-                        "/revalidation", "/audit", "/artifacts"):
+                        "/revalidation", "/audit", "/artifacts", "/toolkit/runs"):
                 get(b + sub)
             for kind, ids in (("implementations", [i["id"] for i in snap["get"][b + "/implementations"]]),
                               ("runs", [r["id"] for r in snap["get"][b + "/runs"]]),
@@ -77,8 +77,13 @@ def main():
                               ("findings", [f["id"] for f in snap["get"][b + "/findings"]])):
                 for i in ids:
                     get(f"{b}/{kind}/{i}")
-            done = [r["id"] for r in snap["get"][b + "/runs"] if r["status"] == "completed"]
-            for x, y in itertools.permutations(done, 2):
+            fixture_of = {e["id"]: e["fixture"] for e in snap["get"][b + "/experiments"]}
+            done = [r for r in snap["get"][b + "/runs"] if r["status"] == "completed"]
+            # only like-for-like comparisons (same fixture/tool); cross-tool pairs are not meaningful and grow quadratically
+            for rx, ry in itertools.permutations(done, 2):
+                if fixture_of.get(rx["experiment_id"]) != fixture_of.get(ry["experiment_id"]):
+                    continue
+                x, y = rx["id"], ry["id"]
                 get(f"{b}/compare?baseline_run_id={x}&candidate_run_id={y}")
             for a in snap["get"][b + "/artifacts"]:
                 r = c.get(f"{b}/artifacts/{a['id']}/download", headers=H)
