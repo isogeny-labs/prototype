@@ -166,7 +166,7 @@ route(/^\/p\/([^/]+)\/implementations\/([^/]+)$/, async (pid, iid) => {
 route(/^\/p\/([^/]+)\/tests$/, async (pid, q) => {
   projNav(pid, "/tests");
   const [tests, impls, runs, runners, keys] = await Promise.all([api(`/api/projects/${pid}/tests`), api(`/api/projects/${pid}/implementations`), api(`/api/projects/${pid}/runs`), api("/api/runners"), api(`/api/projects/${pid}/trusted-keys`)]);
-  const core = tests.filter(t => t.fixture !== "external" && t.fixture !== "malformed_input_sweep" && t.fixture !== "toy_factoring");
+  const core = tests.filter(t => t.fixture === "signature_library");  // toolkit tools run from Research & Experiments
   const selT = q.test || (core[0] && core[0].id), selI = q.impl || (impls.slice().reverse().find(i => i.compatibility?.status === "compatible") || impls[impls.length - 1] || {}).id;
   let pf = null; if (selT && selI) { try { pf = await api(`/api/projects/${pid}/tests/${selT}/preflight?implementation_id=${selI}&execution_mode=platform_sandbox`); } catch (e) { pf = {error: e.message}; } }
   const sandbox = runners.find(r => r.kind === "platform_sandbox");

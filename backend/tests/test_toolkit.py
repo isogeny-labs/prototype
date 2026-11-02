@@ -134,6 +134,10 @@ def test_toolkit_api_catalog_run_and_portfolio(engineer, reviewer, monkeypatch, 
     assert run["bundle_id"]                                                                  # platform-signed like every sandbox run
     listed = ok(engineer.get(f"/api/projects/{pid}/toolkit/runs"))
     assert listed[0]["tool"] == "suite_rsa_key_audit" and listed[0]["metrics"]["weak_moduli"] == 2
+    # toolkit runs must not leak into the core coverage table, untested list or latest-benchmark panel
+    ov = ok(engineer.get(f"/api/projects/{pid}/overview"))
+    assert list(ov["coverage"][0]["tests"]) == ["signature-library-core"] and not any("Toolkit" in u for u in ov["untested"])
+    assert ov["latest_benchmark"] is None or ov["latest_benchmark"]["execution_mode"] != "platform_sandbox" or "weak_moduli" not in ov["latest_benchmark"]["metrics"]
     detail = ok(engineer.get(f"/api/projects/{pid}/runs/{run['id']}"))
     assert detail["test"]["definition"]["contract"].startswith("crax --json rsa") and detail["inputs"]["tool"] == "suite_rsa_key_audit"
     # a real (non-synthetic) weak finding opens an implementation_defect finding with the recovered secret redacted

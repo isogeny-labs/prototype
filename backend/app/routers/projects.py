@@ -122,7 +122,7 @@ def overview(ctx=Depends(viewer)):
     latest = _latest_runs(runs)
     cur = next((i for i in reversed(impls) if i.status not in ("retired",)), None)
     prev = next((i for i in reversed(impls) if cur and i.id == cur.parent_id), None) or (impls[-2] if len(impls) > 1 else None)
-    core_tests = [t for t in tests if t.fixture != "external" and t.fixture != "toy_factoring" and t.fixture != "malformed_input_sweep"]
+    core_tests = [t for t in tests if t.fixture == "signature_library"]  # core coverage only; experiments and toolkit tools are tracked elsewhere
 
     def status_for(impl, test):
         r = latest.get((impl.id, test.id))
