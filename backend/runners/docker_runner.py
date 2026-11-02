@@ -24,6 +24,7 @@ class DockerFixtureRunner(Runner):
     kind = "docker_sandbox"
     version = "0.1.0"
     provenance = "measured"
+    fixtures = tuple(sorted(ALLOWED_FIXTURES))
     implemented = True
     tested_here = False
     description = ("Optional: runs the fixture in a Docker container (--network none, memory/cpu/pids limits, "

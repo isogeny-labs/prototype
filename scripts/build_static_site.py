@@ -51,13 +51,13 @@ def main():
             return r
 
         projects = get("/api/projects")
-        for path in ("/api/auth/me", "/api/catalog", "/api/runners", "/api/jobs", "/api/platform-key"):
+        for path in ("/api/auth/me", "/api/catalog", "/api/runners", "/api/jobs", "/api/platform-key", "/api/toolkit", "/api/research/portfolio"):
             get(path)
         for p in projects:
             b = f"/api/projects/{p['id']}"
             for sub in ("", "/overview", "/inventory", "/requirements", "/implementations", "/tests", "/runs", "/research/status", "/research/sources",
                         "/experiments", "/experiments/allowlist", "/attack-assessments", "/findings", "/recommendations", "/bundles", "/trusted-keys",
-                        "/audit", "/artifacts", "/export/handoff"):
+                        "/audit", "/artifacts", "/export/handoff", "/toolkit/runs"):
                 get(b + sub)
             for kind in ("implementations", "runs", "experiments", "findings", "recommendations", "bundles"):
                 for it in snap["get"][b + "/" + kind]:
@@ -68,9 +68,12 @@ def main():
             for t in tests:
                 for i in snap["get"][b + "/implementations"]:
                     get(f"{b}/tests/{t['id']}/preflight?implementation_id={i['id']}&execution_mode=platform_sandbox")
-            done = [r["id"] for r in snap["get"][b + "/runs"] if r["status"] == "completed"]
-            for x, y in itertools.permutations(done, 2):
-                get(f"{b}/compare?baseline_run_id={x}&candidate_run_id={y}")
+            # like-for-like comparisons only (same test definition); cross-tool pairs are not meaningful and grow quadratically
+            done = [r for r in snap["get"][b + "/runs"] if r["status"] == "completed"]
+            for rx, ry in itertools.permutations(done, 2):
+                if rx["test_definition_id"] != ry["test_definition_id"]:
+                    continue
+                get(f"{b}/compare?baseline_run_id={rx['id']}&candidate_run_id={ry['id']}")
             post_json(f"{b}/export/compliance", {"applicability": {}, "format": "json"})
             for a in snap["get"][b + "/artifacts"]:
                 r = c.get(f"{b}/artifacts/{a['id']}/download", headers=H)

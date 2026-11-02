@@ -43,14 +43,21 @@ adapter for research extraction; absent ⇒ rule-based, labelled in the UI).
 ```
 backend/app       FastAPI app: models, auth, audit, jobs, compat (static snapshot checks), services (runs, bundles, import,
                   replay, findings, retest), research (autoresearcher), recommend, attackcost, export, signing, seed, routers/
-backend/runners   platform_sandbox (unshare net ns + rlimits), imported_results, docker_sandbox (untested)
+backend/runners   platform_sandbox (unshare net ns + rlimits), imported_results, docker_sandbox (untested), cryptanalysis_suite + suite_tools
 backend/fixtures  signature_library (core), malformed_input_sweep (experiment), toy_factoring (experiment), adapters, vectors
 iel_tools         attest.py (DSSE + in-toto), runner.py (customer-side), verify.py (standalone), Dockerfile (untested)
 frontend          dark-mode single-page UI; assets/ holds the supplied logos (trimmed crops only)
-seeds             sample manifests, sample adapters (1.0.0 defect, 1.1.0 fix), demonstration research document
-docs              SCOPE.md, ATTESTATION.md, RUNNER_INTERFACE.md, DATA_MODEL.md
+seeds             sample manifests, sample adapters (1.0.0 defect, 1.1.0 fix), demonstration research document, research_portfolio.json
+docs              SCOPE.md, ATTESTATION.md, RUNNER_INTERFACE.md, DATA_MODEL.md, SUITE_INTEGRATION.md
 scripts           dev_server.sh, build_static_site.py (read-only demo for GitHub Pages / single file), package_runner.sh
 ```
+
+## Cryptanalysis toolkit and research portfolio (supporting components)
+Under Research & Experiments: the Isogeny Labs cryptanalysis suite (`crax`) connected as ten bounded tools (curve audits,
+weak-curve analysis, ECDSA transcript and RSA key audits, ML-KEM/ML-DSA lattice estimates, toy demos), each with negative
+and positive controls, and a read-only, hash-pinned snapshot of the index-calculus research leaderboard. Build `crax`
+and point the app at it with `IEL_CRAX_BIN` (the Pages workflow does this); without it the runner reports itself
+unavailable and nothing is simulated. Details and bounds: `docs/SUITE_INTEGRATION.md`.
 
 ## Customer-side runner and verifier
 See `iel_tools/README.md` and `docs/ATTESTATION.md`. Bundles are in-toto Statements in DSSE envelopes signed with Ed25519

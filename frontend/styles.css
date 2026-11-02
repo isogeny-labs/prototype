@@ -44,3 +44,13 @@ details summary{cursor:pointer;color:var(--accent)}.err{color:var(--bad);margin:
 .toast{position:fixed;bottom:20px;right:20px;max-width:440px;z-index:9;box-shadow:0 8px 28px rgba(0,0,0,.5)}.toast.ro{top:72px;bottom:auto;left:50%;right:auto;transform:translateX(-50%);width:min(560px,92vw);font-size:14px;background:var(--panel2)}
 .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}.tag{font-size:11px;color:var(--muted)}
 #demobanner{background:rgba(216,203,174,.12);color:var(--accent2);border-bottom:1px solid var(--line);padding:6px 18px;font-size:12.5px;text-align:center}
+
+/* toolkit + research portfolio (dark) */
+.toolgrid{grid-template-columns:minmax(200px,260px) 1fr}@media(max-width:820px){.toolgrid{grid-template-columns:1fr}}
+.toollist{list-style:none;padding-left:0}.toollist a{text-decoration:none;color:var(--muted)}.toollist a.cur{font-weight:600;color:var(--ink)}
+.b-ctl-positive{color:var(--info);border-color:rgba(118,184,244,.4)}.b-ctl-negative{color:var(--ok);border-color:rgba(95,203,138,.4)}.b-ctl-reference{color:var(--muted)}
+.b-validated{color:var(--ok);border-color:rgba(95,203,138,.4)}.b-unvalidated{color:var(--warn);border-color:rgba(232,184,109,.4)}.b-engineering,.b-diagnostic{color:var(--muted)}
+.chart{width:100%;height:auto;display:block}.chart .grid{stroke:#29364A;stroke-width:1}.chart .parity{stroke:#A4B2C8;stroke-width:1;stroke-dasharray:4 3}
+.chart .tick{fill:var(--muted);font-size:10px}.chart .dlabel{fill:var(--ink);font-size:11px}.chart .pt:hover circle:first-child{stroke-width:3}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.pfield label{margin-top:6px}

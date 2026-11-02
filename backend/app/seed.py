@@ -94,6 +94,73 @@ def _customer_bundle(project_id: str, impl_name: str, impl_version: str, adapter
     return json.loads(out.read_text())
 
 
+def _tool(db, project, impl, actor, tool_id, params=None, name="", control=None):
+    """Record and execute one bounded suite tool (or generated control) when the optional suite binary is connected."""
+    from . import controls, jobs
+    from .routers.toolkit import create_tool_run
+    if not get_runner("cryptanalysis_suite").available()[0]:
+        return None
+    note = None
+    if control:
+        tool_id, params, note = controls.generate(control)
+    _, run = create_tool_run(db, project, impl, actor, tool_id, params or {}, name, note)
+    jobs.process_pending()
+    db.expire_all()
+    return run
+
+
+def _tool_preset(db, project, impl, actor, tool_id, index, name=""):
+    """Run the static control preset `index` of a suite tool (when the suite binary is connected)."""
+    from runners.suite_tools import TOOLS
+    from . import jobs
+    from .routers.toolkit import create_tool_run
+    if not get_runner("cryptanalysis_suite").available()[0]:
+        return None
+    c = TOOLS[tool_id].controls[index]
+    note = {"control": f"{tool_id}:{index}", "kind": c["kind"], "name": c["name"], "source": "static preset in runners/suite_tools.py"}
+    _, run = create_tool_run(db, project, impl, actor, tool_id, c["params"], name, note)
+    jobs.process_pending()
+    db.expire_all()
+    return run
+
+
+def seed_toolkit_controls(db, admin, eng, rev):
+    """Demonstration project exercising every suite tool family once with its controls. Created only when `crax` is connected."""
+    if not get_runner("cryptanalysis_suite").available()[0]:
+        return None
+    p = Project(name="Cryptanalysis toolkit controls (demonstration)", workflow="signature_library", is_demo=True, created_by=admin.id,
+                description="Exercises every bounded crax tool family with its negative and positive controls, so the detectors can be seen working. Not a customer system.",
+                intended_use="Research-facing demonstration only.", threat_assumptions="Every target is public, synthetic or a toy instance.",
+                runtime_environment={"deployment": "seeding host"})
+    db.add(p)
+    db.flush()
+    db.add_all([ProjectMember(project_id=p.id, user_id=eng.id, role="editor"), ProjectMember(project_id=p.id, user_id=rev.id, role="reviewer")])
+    db.add_all(default_test_definitions(p.id))
+    suite = Implementation(project_id=p.id, name="crax cryptanalysis suite", version="pinned build", status="imported", adapter_kind="results_only",
+                           algorithm="Isogeny Labs cryptanalysis toolkit (Rust suite)", library="isogeny-labs/cryptanalysis suite/",
+                           library_version="see each run's suite_version and binary SHA-256", source_revision="pinned in .github/workflows/pages.yml",
+                           build_identity={"cargo": "--release --locked"}, is_demo=True, created_by=eng.id,
+                           compatibility={"status": "unsupported", "report": ["subject of toolkit runs only; no adapter"], "problems": [], "warnings": []},
+                           notes="Subject record for toolkit control runs; each run records the exact binary hash.")
+    db.add(suite)
+    db.flush()
+    _tool_preset(db, p, suite, eng, "suite_curve_audit", 0)
+    _tool(db, p, suite, eng, "suite_curve_audit", {"curve": "secp256k1"}, "Curve parameter audit: secp256k1")
+    _tool_preset(db, p, suite, eng, "suite_curve_estimate", 0)
+    _tool_preset(db, p, suite, eng, "suite_weak_curve", 1)
+    _tool_preset(db, p, suite, eng, "suite_weak_curve", 3)
+    _tool_preset(db, p, suite, eng, "suite_mlwe_estimate", 1)
+    _tool(db, p, suite, eng, "suite_mlwe_estimate", {"scheme": "ml-kem-768", "model": "gate-count", "tours": True}, "ML-KEM-768 lattice estimate")
+    _tool_preset(db, p, suite, eng, "suite_generic_rho", 0, "Pollard rho, generic-26 toy curve, seed 1")
+    _tool(db, p, suite, eng, "suite_generic_rho", {"curve": "generic-26", "secret": "123456", "negation": False, "seed": 1}, "Pollard rho, generic-26 toy curve, no negation map")
+    _tool_preset(db, p, suite, eng, "suite_factor_toy", 0)
+    _tool_preset(db, p, suite, eng, "suite_aes_reduced", 0)
+    _tool_preset(db, p, suite, eng, "suite_aes_reduced", 1)
+    _tool_preset(db, p, suite, eng, "suite_hash_kat", 0)
+    db.commit()
+    return p
+
+
 def seed_sample(db, admin, eng, rev):
     p = Project(name="Sample: acme-signer (demonstration)", workflow="signature_library", is_demo=True, created_by=admin.id,
                 description="Sample project showing the full loop on a small Ed25519 wrapper with a clearly labelled seeded defect.",
@@ -179,6 +246,12 @@ def seed_sample(db, admin, eng, rev):
     defect.evidence_run_ids = defect.evidence_run_ids + [r2.id]
     services.set_finding_status(db, defect, ev["outcome"], eng.id, f"retest run #{r2.sequence}: {ev['reason']}")
     db.commit()
+    # cryptanalysis toolkit (only when crax is connected): controls so a reviewer can see the detectors work
+    _tool(db, p, v11, eng, None, name="Signing-key hygiene: fresh RSA-2048 public keys (negative control)", control="rsa_real_keys")
+    _tool(db, p, v11, eng, None, name="Control: planted shared-prime and close-prime moduli (positive)", control="rsa_weak_moduli")
+    _tool_preset(db, p, v11, eng, "suite_curve_audit", 0, "Curve parameter audit: P-256 (negative control)")
+    _tool_preset(db, p, v11, eng, "suite_ecdsa_audit", 0, "Control: planted 192-bit ECDSA nonce bias (positive)")
+    _tool(db, p, v11, eng, None, name="Digest cross-check: suite SHA-256 vs Python hashlib", control="firmware_digest")
     # attack assessments tied to the implementation
     db.add_all([
         AttackAssessment(project_id=p.id, implementation_id=v10.id, category="reproduced_weakness", attack_model="classical", target="acme-signer 1.0.0 verify() (adapter wrapper)",
@@ -228,8 +301,9 @@ def ensure_seed():
         db.flush()
         signing.ensure_platform_key_registered(db, users["admin@isogeny.local"].id)
         p = seed_sample(db, users["admin@isogeny.local"], users["engineer@customer.local"], users["reviewer@isogeny.local"])
-        audit.record(db, users["admin@isogeny.local"].id, "seed.completed", "system", None, None, {"project": p.id}, commit=True)
-        print(f"seeded sample project: {p.name}")
+        t = seed_toolkit_controls(db, users["admin@isogeny.local"], users["engineer@customer.local"], users["reviewer@isogeny.local"])
+        audit.record(db, users["admin@isogeny.local"].id, "seed.completed", "system", None, None, {"project": p.id, "toolkit_project": t.id if t else None}, commit=True)
+        print(f"seeded sample project: {p.name}" + (f" | {t.name}" if t else " (crax not connected: toolkit control runs skipped)"))
 
 
 if __name__ == "__main__":

@@ -53,6 +53,7 @@ class LocalFixtureRunner(Runner):
     kind = "platform_sandbox"
     version = "2.0.0"
     provenance = "measured"
+    fixtures = tuple(sorted(ALLOWED_FIXTURES))
     description = ("Supported: executes an allowlisted test fixture in an isolated subprocess (network namespace or socket block, "
                    "CPU/memory/process rlimits, empty environment, read-only snapshot). Process isolation, not a container.")
 

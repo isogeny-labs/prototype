@@ -20,6 +20,10 @@ Allowed imports: cryptography, hashlib, hmac, secrets, struct, typing, dataclass
 | `platform_sandbox` | measured | platform, isolated subprocess | (platform-signed bundle) |
 | `customer_runner` | measured | customer, locally, signed bundle | imported, hash_checked, signature_verified (+ independently_replayed after a matching platform replay) |
 | `imported_results` | imported / illustrative | nobody (document import) | imported |
+| `platform_sandbox` with runner `cryptanalysis_suite` | measured | platform, bounded `crax` subprocess (typed parameters, fixed argv, minimal env, rlimits) | (platform-signed bundle) |
+
+The cryptanalysis-suite tools (`suite_*` fixtures, `backend/runners/suite_tools.py`) are not Python fixtures; they are
+bounded adapters around the suite's JSON interface. See `SUITE_INTEGRATION.md`. They never load the customer adapter.
 
 ## Result document (schema version 1)
 ```json

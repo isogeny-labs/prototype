@@ -15,6 +15,8 @@
 | Recommendations & handoff | Rule-built recommendation with evidence refs, authoritative guidance, retest plan; JSON/HTML engineering handoff; compliance evidence template (PCI DSS v4.0.1 12.3.3, EU 2024/1774 Art. 6(4)-(5)) with not_mapped / not_applicable / insufficient_evidence statuses and the required disclaimer. |
 | Versioned retest | Import revised version linked to a recommendation → awaiting_retest → retest evaluation (resolved within tested scope / still failing / inconclusive), comparison with limits. |
 | Platform | Auth, project roles, audit with secret scrubbing, append-only runs, job queue, evidence package export with SHA-256 manifest. |
+| Cryptanalysis toolkit (supporting component) | Optional `cryptanalysis_suite` runner with ten allowlisted, bounded `crax` tools (`backend/runners/suite_tools.py`): curve parameter audit, attack-cost model, structural weak-curve analysis, ECDSA transcript audit, RSA public-key hygiene audit, ML-KEM/ML-DSA lattice estimate, toy rho, toy factoring, reduced-round AES, digest KAT. Typed parameters; adapter builds argv; minimal environment; rlimits; negative and positive controls; recovered secrets from non-synthetic targets redacted. Shown under Research & Experiments. The binary is built in CI; it is **not** present in the build environment used here, so tool execution was tested only against a fake suite (parameter bounds, argv, redaction, API). |
+| Research portfolio (supporting component) | Read-only imported snapshot of the index-calculus leaderboard (`seeds/research_portfolio.json`, commit and SHA-256 pinned). Nothing recomputed. |
 
 ## Imported
 Customer-runner bundles and unsigned existing-result documents are imported evidence. The sample project's customer bundle is
@@ -25,6 +27,7 @@ The sample project, its seeded defect (`acme-signer 1.0.0` keeps only the first 
 document, the published attack-cost entries and the compliance control summaries. Control mappings are provisional.
 
 ## Unavailable here
+The `crax` suite binary (toolkit runs are skipped at seed time and the runner reports itself unavailable; CI builds it),
 Cairn checker (no endpoint; the `cairn_verified` label is never applied), AI provider (rule-based unless `ANTHROPIC_API_KEY`
 is set), Docker sandbox and the runner container image (no daemon in the build environment; untested).
 

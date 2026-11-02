@@ -19,12 +19,33 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      IEL_CRAX_BIN: ${{ github.workspace }}/cryptanalysis/suite/target/release/crax
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout the pinned cryptanalysis suite
+        uses: actions/checkout@v4
+        with:
+          repository: isogeny-labs/cryptanalysis
+          ref: 318b27bf3427ff9e349f5850c742fde703fcf6a8
+          path: cryptanalysis
+          # `crates` is needed from this revision on (suite depends on crates/hashed-ecdl-tensor).
+          sparse-checkout: |
+            suite
+            bindings/rust
+            crates
+            src
+            include
+            cuda
+            challenges
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
           cache: pip
+      - name: Select the suite's supported Rust toolchain
+        run: rustup toolchain install 1.89.0 --profile minimal
+      - name: Build the pinned crax integration binary
+        run: cargo +1.89.0 build --release --locked --manifest-path cryptanalysis/suite/Cargo.toml --bin crax
       - run: pip install -r requirements.txt
       - name: Run tests
         run: cd backend && python -m pytest tests -q

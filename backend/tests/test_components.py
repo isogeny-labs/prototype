@@ -72,6 +72,119 @@ def test_signature_fixture_profiles(profile):
     assert "not device RAM" in r.metric_definitions["verify_peak_alloc_kb"]
 
 
+def _fake_crax(tmp_path: Path) -> Path:
+    binary = tmp_path / "crax"
+    binary.write_text(f"""#!{sys.executable}
+import json
+import sys
+
+if sys.argv[1:] == ["--version"]:
+    print("crax 0.1.0-test")
+    raise SystemExit(0)
+
+operation = sys.argv[3]
+curve = sys.argv[4]
+software = {{"version": "0.1.0-test", "os": "test", "arch": "test", "field_backend": "portable"}}
+if operation == "inspect":
+    print(json.dumps({{
+        "schema_version": 1,
+        "operation": "inspect",
+        "status": "checks_passed",
+        "curve": {{
+            "name": curve,
+            "family": "prime",
+            "field": {{"kind": "prime", "label": "Fp", "bits": 256}},
+            "order_bits": 256,
+            "cofactor": "1",
+            "rho_security_bits": 128.0,
+        }},
+        "checks": [
+            {{"name": "generator_on_curve", "status": "pass", "detail": "equation holds"}},
+            {{"name": "subgroup_order", "status": "pass", "detail": "nG = O"}},
+        ],
+        "verified": True,
+        "software": software,
+    }}))
+elif operation == "estimate":
+    print(json.dumps({{
+        "schema_version": 1,
+        "operation": "estimate",
+        "status": "complete",
+        "curve": curve,
+        "family": "prime",
+        "field": "Fp",
+        "field_bits": 256,
+        "order_bits": 256,
+        "generic_attack": {{"algorithm": "pollard-rho", "log2_operations": 128.0, "security_bits": 128.0}},
+        "index_calculus": {{"relevant": False, "regime": "generic"}},
+        "notes": [],
+        "software": software,
+    }}))
+else:
+    raise SystemExit(2)
+""")
+    binary.chmod(0o755)
+    return binary
+
+
+def test_cryptanalysis_suite_runner_maps_bounded_json(monkeypatch, tmp_path):
+    monkeypatch.setenv("IEL_CRAX_BIN", str(_fake_crax(tmp_path)))
+    runner = get_runner("cryptanalysis_suite")
+    assert runner.available() == (True, "")
+    assert {"suite_curve_audit", "suite_curve_estimate", "suite_ecdsa_audit", "suite_rsa_key_audit"} <= set(runner.describe()["fixtures"])
+
+    audit_result = runner.run(RunRequest(
+        "suite_curve_audit", {"curve": "p256"}, {}, {},
+        limits={"timeout_s": 10, "memory_mb": 256, "cpu_s": 5},
+    ))
+    assert audit_result.status == "completed" and audit_result.provenance == "measured"
+    assert audit_result.metrics["suite_verified"] == 1
+    assert audit_result.metrics["suite_checks_passed"] == audit_result.metrics["suite_checks_total"] == 2
+    assert audit_result.metrics["rho_security_bits"] == 128.0
+    assert all(s["pass"] for s in audit_result.scenarios)
+    assert audit_result.commands[0]["argv"][-2:] == ["inspect", "p256"]
+    assert len(audit_result.environment["suite_binary_sha256"]) == 64
+
+    estimate_result = runner.run(RunRequest(
+        "suite_curve_estimate", {"curve": "secp256k1", "envelope_bits": 64}, {}, {},
+        limits={"timeout_s": 10, "memory_mb": 256, "cpu_s": 5},
+    ))
+    assert estimate_result.status == "completed"
+    assert estimate_result.metrics["rho_log2_operations"] == 128.0
+    assert estimate_result.metrics["index_calculus_relevant"] == 0
+    assert estimate_result.commands[0]["argv"][-2:] == ["--envelope", "64"]
+
+
+def test_cryptanalysis_suite_runner_rejects_unbounded_inputs(monkeypatch, tmp_path):
+    monkeypatch.setenv("IEL_CRAX_BIN", str(_fake_crax(tmp_path)))
+    runner = get_runner("cryptanalysis_suite")
+    bad_curve = runner.run(RunRequest("suite_curve_audit", {"curve": "--help"}, {}, {}))
+    assert bad_curve.status == "failed" and "curve must" in bad_curve.failures[0]
+    bad_envelope = runner.run(RunRequest("suite_curve_estimate", {"curve": "p256", "envelope_bits": 10000}, {}, {}))
+    assert bad_envelope.status == "failed" and "envelope_bits" in bad_envelope.failures[0]
+    fractional_envelope = runner.run(RunRequest("suite_curve_estimate", {"curve": "p256", "envelope_bits": 64.5}, {}, {}))
+    assert fractional_envelope.status == "failed" and "envelope_bits" in fractional_envelope.failures[0]
+    string_envelope = runner.run(RunRequest("suite_curve_estimate", {"curve": "p256", "envelope_bits": "64"}, {}, {}))
+    assert string_envelope.status == "failed" and "envelope_bits" in string_envelope.failures[0]
+    wrong_fixture = runner.run(RunRequest("firmware_signing", {"curve": "p256"}, {}, {}))
+    assert wrong_fixture.status == "failed" and "not allowlisted" in wrong_fixture.failures[0]
+
+    monkeypatch.setenv("IEL_CRAX_BIN", "relative/crax")
+    available, why = runner.available()
+    assert available is False and "absolute path" in why
+
+
+def test_run_api_rejects_incompatible_or_unknown_runner(engineer, reviewer):
+    pid = new_project(engineer, reviewer, name="runner compatibility")["id"]
+    impl = ok(engineer.post(f"/api/projects/{pid}/implementations/import", json={"manifest": {"name": "svc", "version": "1", "adapter_kind": "profile", "profile_id": "ecdsa_p256_sha256"}}))
+    test = ok(engineer.post(f"/api/projects/{pid}/tests", json={"test_id": "suite-curve-audit", "name": "curve audit", "fixture": "suite_curve_audit", "definition": {"params": {"curve": "p256"}}}))
+    body = {"test_definition_id": test["id"], "implementation_id": impl["id"]}
+    assert engineer.post(f"/api/projects/{pid}/runs", json={**body, "runner_kind": "docker_sandbox"}).status_code == 400   # docker sandbox does not support suite tools
+    assert engineer.post(f"/api/projects/{pid}/runs", json={**body, "runner_kind": "does_not_exist"}).status_code == 400
+    core = next(t for t in ok(engineer.get(f"/api/projects/{pid}/tests")) if t["test_id"] == "signature-library-core")
+    assert engineer.post(f"/api/projects/{pid}/runs", json={"test_definition_id": core["id"], "implementation_id": impl["id"], "runner_kind": "cryptanalysis_suite"}).status_code == 400
+
+
 def test_toy_factoring_bounds():
     assert get_runner("platform_sandbox").run(RunRequest("toy_factoring", {"modulus_bits": 128, "trials": 1}, {}, {})).status == "failed"
     r = get_runner("platform_sandbox").run(RunRequest("toy_factoring", {"modulus_bits": 36, "trials": 2, "seed": 3}, {}, {}))

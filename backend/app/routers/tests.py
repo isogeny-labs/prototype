@@ -8,11 +8,12 @@ from sqlalchemy import select
 from ..models import TestDefinition, Run, Implementation, Artifact, Job, EvidenceBundle
 from .. import audit, jobs, services
 from .. import artifacts as artstore
-from runners import list_runners, get_runner, RunRequest
+from runners import list_runners, get_runner, RunRequest, RunnerUnavailable
+from runners.suite_tools import TOOLS as SUITE_TOOLS
 from .common import row, rows, viewer, editor, get_or_404
 
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["tests", "runs"])
-FIXTURES = {"signature_library", "malformed_input_sweep", "toy_factoring", "external"}
+FIXTURES = {"signature_library", "malformed_input_sweep", "toy_factoring", "external", *SUITE_TOOLS}
 
 
 class TestIn(BaseModel):
@@ -84,12 +85,18 @@ def create_run(body: RunIn, ctx=Depends(editor)):
     i = get_or_404(db, Implementation, body.implementation_id, project.id)
     if t.fixture == "external":
         raise HTTPException(400, "this test definition is import-only")
-    if body.runner_kind not in ("platform_sandbox", "docker_sandbox"):
-        raise HTTPException(400, "runner_kind must be platform_sandbox or docker_sandbox")
-    runner = get_runner(body.runner_kind)
+    runner_kind = "cryptanalysis_suite" if t.fixture in SUITE_TOOLS and body.runner_kind == "platform_sandbox" else body.runner_kind
+    if runner_kind not in ("platform_sandbox", "docker_sandbox", "cryptanalysis_suite"):
+        raise HTTPException(400, "runner_kind must be platform_sandbox, docker_sandbox or cryptanalysis_suite")
+    try:
+        runner = get_runner(runner_kind)
+    except RunnerUnavailable as exc:
+        raise HTTPException(400, str(exc)) from exc
+    if not runner.supports(t.fixture):
+        raise HTTPException(400, f"runner '{runner_kind}' does not support fixture '{t.fixture}'")
     ok, why = runner.available()
     if not ok:
-        raise HTTPException(409, f"runner '{body.runner_kind}' unavailable: {why}")
+        raise HTTPException(409, f"runner '{runner_kind}' unavailable: {why}")
     pf = services.preflight(db, t, i, "platform_sandbox")
     if not pf["can_execute"]:
         raise HTTPException(409, "cannot execute: " + "; ".join(pf["problems"]) + ". Use the results-import or customer-runner path.")
@@ -97,8 +104,8 @@ def create_run(body: RunIn, ctx=Depends(editor)):
         get_or_404(db, Run, body.supersedes_run_id, project.id)
         if not body.correction_note:
             raise HTTPException(400, "a correction must carry a correction_note")
-    run = services.create_run_record(db, project.id, t.id, i.id, "platform_sandbox", body.runner_kind, "measured", user.id, body.supersedes_run_id, body.correction_note)
-    job = jobs.enqueue(db, "run_test", {"run_id": run.id, "runner_kind": body.runner_kind, "params": body.params, "actor_id": user.id})
+    run = services.create_run_record(db, project.id, t.id, i.id, "platform_sandbox", runner_kind, "measured", user.id, body.supersedes_run_id, body.correction_note)
+    job = jobs.enqueue(db, "run_test", {"run_id": run.id, "runner_kind": runner_kind, "params": body.params, "actor_id": user.id})
     run.job_id = job.id
     audit.record(db, user.id, "run.queued", "run", run.id, project.id, {"test": t.test_id, "implementation": i.version, "preflight": {k: pf[k] for k in ("execution_mode", "resource_limits", "result_provenance")}})
     db.commit()

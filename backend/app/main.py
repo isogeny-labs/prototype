@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from .config import FRONTEND_DIR, WORKER_MODE  # noqa: E402
 from .db import init_db  # noqa: E402
 from . import jobs, services  # noqa: E402,F401
-from .routers import auth_routes, projects, implementations, tests, research, findings, evidence  # noqa: E402
+from .routers import auth_routes, projects, implementations, tests, research, findings, evidence, toolkit  # noqa: E402
 
 
 class RedactFilter(logging.Filter):
@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Isogeny Evidence Lab", version="0.2.0", lifespan=lifespan)
-for r in (auth_routes, projects, implementations, tests, research, findings, evidence):
+for r in (auth_routes, projects, implementations, tests, research, findings, evidence, toolkit):
     app.include_router(r.router)
 
 

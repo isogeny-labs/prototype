@@ -80,8 +80,14 @@ def adapter_spec(db, impl: Implementation) -> tuple[dict, list[str]]:
 
 def preflight(db, test: TestDefinition, impl: Implementation, execution_mode: str) -> dict:
     """What the UI shows before execution."""
-    spec, problems = adapter_spec(db, impl)
-    runner = get_runner("platform_sandbox")
+    from runners.suite_tools import TOOLS as SUITE_TOOLS
+    if test.fixture in SUITE_TOOLS:
+        runner = get_runner("cryptanalysis_suite")
+        ok, why = runner.available()
+        spec, problems = {"adapter": "none (suite tool: typed public parameters only)"}, ([] if ok else [f"cryptanalysis suite unavailable: {why}"])
+    else:
+        spec, problems = adapter_spec(db, impl)
+        runner = get_runner("platform_sandbox")
     limits = {"timeout_s": RUNNER_TIMEOUT_SECONDS, "memory_mb": RUNNER_MEMORY_LIMIT_MB, "cpu_s": RUNNER_CPU_SECONDS, **(test.resource_limits or {})}
     return {"implementation": {"id": impl.id, "name": impl.name, "version": impl.version, "source_digest": impl.source_digest, "adapter_kind": impl.adapter_kind,
                                "compatibility": impl.compatibility},
@@ -97,13 +103,20 @@ def preflight(db, test: TestDefinition, impl: Implementation, execution_mode: st
 
 
 def build_run_request(db, test: TestDefinition, impl: Implementation, extra_params=None, fixture=None, params=None, limits=None) -> RunRequest:
+    from runners.suite_tools import TOOLS as SUITE_TOOLS
     p = dict((test.definition or {}).get("params", {}))
-    spec, problems = adapter_spec(db, impl)
-    if problems:
-        raise RuntimeError("unsupported: " + "; ".join(problems))
-    p.update(spec)
-    p.update(params or {})
-    p.update(extra_params or {})
+    if (fixture or test.fixture) in SUITE_TOOLS:
+        # Suite tools analyse public material passed as typed parameters; they never load the customer adapter and take
+        # only the parameters the test definition / call recorded, so no profile or snapshot value can change the argv.
+        p.update(params or {})
+        p.update(extra_params or {})
+    else:
+        spec, problems = adapter_spec(db, impl)
+        if problems:
+            raise RuntimeError("unsupported: " + "; ".join(problems))
+        p.update(spec)
+        p.update(params or {})
+        p.update(extra_params or {})
     lim = {"timeout_s": RUNNER_TIMEOUT_SECONDS, "memory_mb": RUNNER_MEMORY_LIMIT_MB, "cpu_s": RUNNER_CPU_SECONDS, **(test.resource_limits or {}), **(limits or {})}
     return RunRequest(fixture=fixture or test.fixture, params=p, implementation=_snapshot(impl), experiment=_snapshot(test), limits=lim)
 
@@ -115,7 +128,11 @@ def persist_result(db, run: Run, result: RunResult, actor_id=None, sign_platform
     run.fixture_version, run.environment, run.commands = result.fixture_version, result.environment, result.commands
     run.repeat_count, run.metrics, run.metric_definitions = result.repeat_count, result.metrics, result.metric_definitions
     run.scenarios, run.failures, run.exclusions, run.limitations = result.scenarios, result.failures, result.exclusions, result.limitations
-    run.inputs = result.extra.get("parameters", {}) | ({"adapter": result.extra["adapter"]} if "adapter" in result.extra else {})
+    inputs = dict(run.inputs or {})  # keep what was recorded at creation (tool, typed params, control note)
+    inputs.update(result.extra.get("parameters", {}))
+    if "adapter" in result.extra:
+        inputs["adapter"] = result.extra["adapter"]
+    run.inputs = inputs
     run.resource_limits = (result.commands[0].get("limits") if result.commands else {}) or run.resource_limits
     run.completed_at = utcnow()
     if result.raw_output:
@@ -125,7 +142,9 @@ def persist_result(db, run: Run, result: RunResult, actor_id=None, sign_platform
         run.artifact_hashes = {**run.artifact_hashes, "raw_output": art.sha256}
     reqs = db.scalars(select(Requirement).where(Requirement.project_id == project_id)).all()
     # operational requirements apply to the core test, not to research experiments
-    run.requirement_results = [] if run.experiment_proposal_id else evaluate.evaluate(reqs, run.metrics, run.provenance)
+    test_fixture = db.get(TestDefinition, run.test_definition_id).fixture
+    run.requirement_results = ([] if (run.experiment_proposal_id or test_fixture not in ("signature_library", "external"))
+                               else evaluate.evaluate(reqs, run.metrics, run.provenance))
     run.overall_pass = evaluate.overall(run.scenarios, run.requirement_results, run.status)
     run.classification = classify(run)
     db.flush()
