@@ -12,11 +12,11 @@ from .base import Runner, RunRequest, RunResult, validate_fixture_output, regist
 
 
 class ImportRunner(Runner):
-    kind = "import"
+    kind = "imported_results"
     version = "1.0.0"
     provenance = "imported"
-    description = ("Ingests externally produced measurements (device labs, onsite runs) that follow the result "
-                   "schema. Records who imported them and the file hash; does not execute anything.")
+    description = ("Ingests existing, unsigned result documents that follow the result schema (e.g. a customer's own benchmark "
+                   "export). Records the file hash; executes nothing. Signed runner bundles use the bundle import path instead.")
 
     def run(self, req: RunRequest) -> RunResult:
         data = req.params.get("document")

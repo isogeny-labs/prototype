@@ -5,53 +5,66 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from ..db import get_db
 from ..auth import current_user, accessible_project_ids
-from ..models import (Project, ProjectMember, InventoryItem, Requirement, Implementation, Run, Finding, Recommendation,
-                      User, AuditEvent, Approval)
+from ..models import (Project, ProjectMember, InventoryItem, Requirement, Implementation, Run, Finding, Recommendation, User, AuditEvent,
+                      TestDefinition, ExperimentProposal, Approval)
 from .. import audit
 from .common import row, rows, viewer, editor, owner, get_or_404
 
 router = APIRouter(prefix="/api", tags=["projects"])
-PROVENANCE = {"user_reported", "imported", "verified"}
+PROVENANCE = {"user_reported", "detected", "independently_tested"}
+PURPOSES = {"signatures", "key_establishment", "encryption"}
 
 
 class ProjectIn(BaseModel):
     name: str
-    kind: str
-    business_purpose: str = ""
-    deployment_environment: str = ""
-    support_period_end: str | None = None
-    data_protection_requirements: str = ""
-    update_process: str = ""
-    platform: dict = {}
+    description: str = ""
+    intended_use: str = ""
+    threat_assumptions: str = ""
+    runtime_environment: dict = {}
+    workflow: str = "signature_library"
+
+
+def _latest_runs(runs):
+    """latest completed, non-duplicate, non-stale run per (implementation, test)."""
+    out = {}
+    for r in runs:
+        if r.status in ("queued", "running") or r.duplicate_of_run_id or r.stale_reason:
+            continue
+        out[(r.implementation_id, r.test_definition_id)] = r
+    return out
 
 
 @router.get("/projects")
 def list_projects(db: Session = Depends(get_db), user: User = Depends(current_user)):
     ids = accessible_project_ids(db, user)
     out = []
-    for p in db.scalars(select(Project).where(Project.id.in_(ids))).all() if ids else []:
+    for p in (db.scalars(select(Project).where(Project.id.in_(ids))).all() if ids else []):
         runs = db.scalars(select(Run).where(Run.project_id == p.id)).all()
+        latest = _latest_runs(runs)
+        impls = db.scalars(select(Implementation).where(Implementation.project_id == p.id).order_by(Implementation.imported_at)).all()
+        cur = impls[-1] if impls else None
         findings = db.scalars(select(Finding).where(Finding.project_id == p.id)).all()
-        last = max(runs, key=lambda r: r.sequence, default=None)
-        out.append({**row(p),
-                    "counts": {"implementations": db.query(Implementation).filter_by(project_id=p.id).count(),
-                               "runs": len(runs), "runs_failed": sum(1 for r in runs if r.overall_pass is False),
-                               "findings_open": sum(1 for f in findings if f.status not in ("closed", "not_relevant")),
-                               "recommendations_pending": db.query(Recommendation).filter(Recommendation.project_id == p.id,
-                                                                                          Recommendation.status.in_(["draft", "under_review"])).count()},
-                    "last_run": row(last) and {"sequence": last.sequence, "overall_pass": last.overall_pass, "provenance": last.provenance,
-                                               "created_at": last.created_at.isoformat()} if last else None})
+        out.append({**row(p), "current_implementation": f"{cur.name} {cur.version}" if cur else None,
+                    "counts": {"implementations": len(impls), "runs": len([r for r in runs if not r.duplicate_of_run_id]),
+                               "failed": sum(1 for r in latest.values() if r.classification == "failed"),
+                               "open_findings": sum(1 for f in findings if f.status not in ("resolved_within_tested_scope", "not_relevant")),
+                               "proposals_awaiting": db.query(ExperimentProposal).filter_by(project_id=p.id, status="proposed").count(),
+                               "recommendations_awaiting_implementation": db.query(Recommendation).filter(Recommendation.project_id == p.id, Recommendation.status == "approved",
+                                                                                                           Recommendation.resulting_implementation_id.is_(None)).count()}})
     return out
 
 
 @router.post("/projects")
 def create_project(body: ProjectIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    if body.kind not in ("iot", "application"):
-        raise HTTPException(400, "kind must be iot|application")
+    if body.workflow != "signature_library":
+        raise HTTPException(400, "only the 'signature_library' workflow is supported in this MVP (IoT and application adapters are future placeholders)")
     p = Project(**body.model_dump(), created_by=user.id)
     db.add(p)
     db.flush()
     db.add(ProjectMember(project_id=p.id, user_id=user.id, role="owner"))
+    from ..seed import default_test_definitions
+    for t in default_test_definitions(p.id):
+        db.add(t)
     audit.record(db, user.id, "project.created", "project", p.id, p.id, {"name": p.name}, commit=True)
     return row(p)
 
@@ -60,14 +73,14 @@ def create_project(body: ProjectIn, db: Session = Depends(get_db), user: User = 
 def get_project(ctx=Depends(viewer)):
     project, db, user = ctx
     members = db.scalars(select(ProjectMember).where(ProjectMember.project_id == project.id)).all()
-    return {**row(project), "members": [{**row(m), "email": db.get(User, m.user_id).email, "name": db.get(User, m.user_id).name} for m in members]}
+    return {**row(project), "members": [{**row(m), "email": db.get(User, m.user_id).email} for m in members]}
 
 
 @router.patch("/projects/{project_id}")
 def update_project(body: dict, ctx=Depends(editor)):
     project, db, user = ctx
     for k, v in body.items():
-        if k in ProjectIn.model_fields:
+        if k in ProjectIn.model_fields and k != "workflow":
             setattr(project, k, v)
     audit.record(db, user.id, "project.updated", "project", project.id, project.id, {"fields": list(body)}, commit=True)
     return row(project)
@@ -99,69 +112,84 @@ def add_member(body: MemberIn, ctx=Depends(owner)):
 # ---------------------------------------------------------------- overview
 @router.get("/projects/{project_id}/overview")
 def overview(ctx=Depends(viewer)):
-    """What changed, what did we test, what did we learn, what should engineering do next."""
-    project, db, user = ctx
-    impls = db.scalars(select(Implementation).where(Implementation.project_id == project.id).order_by(Implementation.created_at)).all()
+    project, db, _ = ctx
+    impls = db.scalars(select(Implementation).where(Implementation.project_id == project.id).order_by(Implementation.imported_at)).all()
+    tests = db.scalars(select(TestDefinition).where(TestDefinition.project_id == project.id)).all()
     runs = db.scalars(select(Run).where(Run.project_id == project.id).order_by(Run.sequence)).all()
     findings = db.scalars(select(Finding).where(Finding.project_id == project.id).order_by(Finding.created_at)).all()
-    recs = db.scalars(select(Recommendation).where(Recommendation.project_id == project.id).order_by(Recommendation.created_at)).all()
-    approvals = db.scalars(select(Approval).where(Approval.project_id == project.id).order_by(Approval.created_at.desc()).limit(10)).all()
-    reqs = db.scalars(select(Requirement).where(Requirement.project_id == project.id)).all()
-    audit_ev = db.scalars(select(AuditEvent).where(AuditEvent.project_id == project.id).order_by(AuditEvent.created_at.desc()).limit(15)).all()
-    impl_by = {i.id: i for i in impls}
-    latest_by_impl = {}
-    for r in runs:
-        if r.status == "completed":
-            latest_by_impl[r.implementation_id] = r
-    what_changed = [{"implementation": f"{i.name} {i.version}", "status": i.status, "role": i.role, "created_at": i.created_at.isoformat(),
-                     "parent": (impl_by.get(i.parent_id).version if i.parent_id in impl_by else None)} for i in impls[-6:]]
-    what_tested = [{"run": r.sequence, "implementation": f"{impl_by[r.implementation_id].name} {impl_by[r.implementation_id].version}" if r.implementation_id in impl_by else "?",
-                    "provenance": r.provenance, "overall_pass": r.overall_pass, "status": r.status,
-                    "failed_requirements": [x["name"] for x in r.requirement_results if x.get("pass") is False],
-                    "created_at": r.created_at.isoformat()} for r in runs[-8:]]
-    what_learned = [{"id": f.id, "title": f.title, "origin": f.origin, "status": f.status, "is_demo": f.is_demo} for f in findings if f.status not in ("closed",)][-8:]
-    next_actions = []
-    for f in findings:
-        if f.status in ("new", "triage"):
-            next_actions.append({"action": "Triage research/measurement finding", "ref": f.id, "kind": "finding", "label": f.title})
-        elif f.status in ("relevant", "experiment_proposed") and not f.recommendation_id:
-            next_actions.append({"action": "Generate remediation proposal", "ref": f.id, "kind": "finding", "label": f.title})
-        elif f.status == "action_approved":
-            next_actions.append({"action": "Rerun / import tests for the approved candidate", "ref": f.id, "kind": "finding", "label": f.title})
-        elif f.status == "retested":
-            next_actions.append({"action": "Compare evidence and close or reopen", "ref": f.id, "kind": "finding", "label": f.title})
-    for rc in recs:
-        if rc.status in ("draft", "under_review"):
-            next_actions.append({"action": "Human review of recommendation", "ref": rc.id, "kind": "recommendation", "label": rc.title})
-        elif rc.status == "approved" and not rc.resulting_implementation_id:
-            next_actions.append({"action": "Create implementation candidate from approved recommendation", "ref": rc.id, "kind": "recommendation", "label": rc.title})
-    for i in impls:
-        if i.status == "proposed":
-            next_actions.append({"action": "Approve or reject implementation candidate", "ref": i.id, "kind": "implementation", "label": f"{i.name} {i.version}"})
-        if i.status in ("approved", "proposed") and i.id not in latest_by_impl:
-            next_actions.append({"action": "No evidence yet: run fixture or import measurements", "ref": i.id, "kind": "implementation", "label": f"{i.name} {i.version}"})
-    req_status = []
-    for rq in reqs:
-        obs = []
-        for impl_id, r in latest_by_impl.items():
-            for x in r.requirement_results:
-                if x["requirement_id"] == rq.id and x.get("pass") is not None:
-                    obs.append({"implementation": f"{impl_by[impl_id].name} {impl_by[impl_id].version}", "observed": x["observed"], "pass": x["pass"], "provenance": r.provenance})
-        req_status.append({**row(rq), "latest": obs})
-    return {"project": row(project), "what_changed": what_changed, "what_tested": what_tested, "what_learned": what_learned,
-            "next_actions": next_actions[:12], "requirements": req_status, "recent_approvals": rows(approvals),
-            "recent_audit": rows(audit_ev)}
+    recs = db.scalars(select(Recommendation).where(Recommendation.project_id == project.id)).all()
+    props = db.scalars(select(ExperimentProposal).where(ExperimentProposal.project_id == project.id)).all()
+    latest = _latest_runs(runs)
+    cur = next((i for i in reversed(impls) if i.status not in ("retired",)), None)
+    prev = next((i for i in reversed(impls) if cur and i.id == cur.parent_id), None) or (impls[-2] if len(impls) > 1 else None)
+    core_tests = [t for t in tests if t.fixture != "external" and t.fixture != "toy_factoring" and t.fixture != "malformed_input_sweep"]
+
+    def status_for(impl, test):
+        r = latest.get((impl.id, test.id))
+        if not r:
+            return {"status": "not_tested"}
+        return {"status": r.classification, "run_id": r.id, "sequence": r.sequence, "execution_mode": r.execution_mode, "labels": [l["label"] for l in r.evidence_labels],
+                "failing": [s["id"] for s in r.scenarios if s.get("pass") is False]}
+
+    coverage = [{"implementation": {"id": i.id, "label": f"{i.name} {i.version}", "status": i.status}, "tests": {t.test_id: status_for(i, t) for t in core_tests}} for i in impls]
+    untested = []
+    if cur:
+        for t in core_tests:
+            if (cur.id, t.id) not in latest:
+                untested.append(f"{t.name} not run against {cur.name} {cur.version}")
+        if cur.adapter_kind == "results_only":
+            untested.append("implementation is results-only: no sandbox execution possible")
+        if cur.compatibility.get("status") == "unsupported":
+            untested.append("source snapshot is unsupported; only imported results are available")
+    untested += ["Key management, protocol integration and side-channel behaviour are outside the test definitions."]
+    latest_bench = None
+    if cur:
+        for t in core_tests:
+            r = latest.get((cur.id, t.id))
+            if r and r.metrics:
+                latest_bench = {"run_id": r.id, "sequence": r.sequence, "execution_mode": r.execution_mode, "classification": r.classification,
+                                "metrics": {k: r.metrics.get(k) for k in ("sign_time_ms_median", "verify_time_ms_median", "verify_time_ms_p95", "sign_throughput_per_s",
+                                                                           "verify_throughput_per_s", "signature_bytes", "public_key_bytes", "verify_peak_alloc_kb", "official_vectors") if k in r.metrics},
+                                "requirement_results": r.requirement_results}
+    changes = None
+    if cur and prev:
+        diff = {}
+        for k in ("algorithm", "library", "library_version", "source_revision", "source_digest", "dependencies", "configuration"):
+            a, b = getattr(prev, k), getattr(cur, k)
+            if a != b:
+                diff[k] = {"previous": a, "current": b}
+        sc = {}
+        for t in core_tests:
+            ra, rb = latest.get((prev.id, t.id)), latest.get((cur.id, t.id))
+            if ra and rb:
+                sa, sb = {s["id"]: s.get("pass") for s in ra.scenarios}, {s["id"]: s.get("pass") for s in rb.scenarios}
+                sc[t.test_id] = {"fixed": [i for i in sa if sa[i] is False and sb.get(i) is True], "regressed": [i for i in sa if sa[i] is True and sb.get(i) is False],
+                                 "classification": {"previous": ra.classification, "current": rb.classification}}
+        changes = {"previous": f"{prev.name} {prev.version}", "current": f"{cur.name} {cur.version}", "manifest_diff": diff, "test_outcomes": sc,
+                   "change_report": cur.change_report}
+    open_f = [f for f in findings if f.status not in ("resolved_within_tested_scope", "not_relevant")]
+    next_experiment = next(({"id": p.id, "title": p.title, "status": p.status, "executable": bool(p.allowlisted_fixture)} for p in props if p.status in ("proposed", "approved")), None)
+    consider = [{"id": r.id, "title": r.title, "guidance_kind": r.guidance_kind, "status": r.status, "awaiting_external_implementation": r.status == "approved" and not r.resulting_implementation_id} for r in recs if r.status in ("approved", "under_review", "draft")]
+    return {"project": row(project),
+            "current_implementation": ({**row(cur), "seeded_defect": cur.seeded_defect} if cur else None),
+            "coverage": coverage, "untested": untested, "latest_benchmark": latest_bench,
+            "open_findings": [{"id": f.id, "title": f.title, "kind": f.kind, "status": f.status, "is_demo": f.is_demo, "reproduction_status": f.reproduction_status} for f in open_f],
+            "proposals_awaiting_approval": [{"id": p.id, "title": p.title, "executable": bool(p.allowlisted_fixture)} for p in props if p.status == "proposed"],
+            "recommendations": consider, "next_experiment": next_experiment, "changes_since_previous": changes,
+            "status_legend": {"not_tested": "No run of this test against this version", "passed_defined_checks": "All defined scenarios and applicable limits passed",
+                              "failed": "At least one scenario or limit failed", "inconclusive": "The run did not complete or could not be interpreted",
+                              "unsupported": "The implementation cannot be executed by this test", "awaiting_review": "Imported evidence pending human review"}}
 
 
 @router.get("/projects/{project_id}/audit")
 def audit_log(ctx=Depends(viewer)):
-    project, db, user = ctx
-    evs = db.scalars(select(AuditEvent).where(AuditEvent.project_id == project.id).order_by(AuditEvent.created_at.desc()).limit(200)).all()
+    project, db, _ = ctx
+    evs = db.scalars(select(AuditEvent).where(AuditEvent.project_id == project.id).order_by(AuditEvent.created_at.desc()).limit(300)).all()
     users = {u.id: u.email for u in db.scalars(select(User)).all()}
     return [{**row(e), "actor": users.get(e.actor_id)} for e in evs]
 
 
-# ---------------------------------------------------------------- inventory
+# ---------------------------------------------------------------- inventory / requirements
 class InventoryIn(BaseModel):
     category: str
     name: str
@@ -171,6 +199,7 @@ class InventoryIn(BaseModel):
     notes: str = ""
     provenance: str = "user_reported"
     provenance_detail: str = ""
+    implementation_id: str | None = None
 
 
 @router.get("/projects/{project_id}/inventory")
@@ -184,56 +213,17 @@ def add_inventory(body: InventoryIn, ctx=Depends(editor)):
     project, db, user = ctx
     if body.provenance not in PROVENANCE:
         raise HTTPException(400, f"provenance must be one of {sorted(PROVENANCE)}")
-    if body.provenance == "verified" and not body.provenance_detail:
-        raise HTTPException(400, "verified facts must say how they were verified (provenance_detail)")
-    if body.category == "key_storage" and any(k in str(body.parameters).lower() for k in ("private_key", "-----begin")):
-        raise HTTPException(400, "do not upload private key material")
+    if body.provenance == "independently_tested" and not body.provenance_detail:
+        raise HTTPException(400, "independently_tested facts must reference the run or review that established them")
+    if body.purpose and body.purpose not in PURPOSES:
+        raise HTTPException(400, f"purpose must be one of {sorted(PURPOSES)}")
+    from ..compat import scan_secrets
+    if scan_secrets(str(body.model_dump()).encode()):
+        raise HTTPException(400, "inventory entries must not contain private keys or credentials")
     it = InventoryItem(project_id=project.id, **body.model_dump())
     db.add(it)
     db.flush()
     audit.record(db, user.id, "inventory.added", "inventory_item", it.id, project.id, {"name": it.name, "provenance": it.provenance}, commit=True)
-    return row(it)
-
-
-@router.post("/projects/{project_id}/inventory/import")
-def import_inventory(body: dict, ctx=Depends(editor)):
-    """Structured JSON inventory import. Format: {"items": [InventoryIn...], "requirements": [RequirementIn...], "platform": {...}}.
-    Every imported fact is labelled provenance=imported unless the document says user_reported."""
-    project, db, user = ctx
-    created, reqs = [], []
-    for raw in body.get("items", []):
-        item = InventoryIn(**raw)
-        if item.provenance == "verified":
-            item.provenance = "imported"  # an import cannot assert verification
-            item.provenance_detail = (item.provenance_detail + " (downgraded from 'verified' on import)").strip()
-        if item.provenance not in PROVENANCE:
-            item.provenance = "imported"
-        if "-----begin" in str(raw).lower():
-            raise HTTPException(400, "import contains key material; rejected")
-        it = InventoryItem(project_id=project.id, **item.model_dump())
-        db.add(it)
-        created.append(it)
-    for raw in body.get("requirements", []):
-        rq = Requirement(project_id=project.id, **RequirementIn(**raw).model_dump())
-        db.add(rq)
-        reqs.append(rq)
-    if body.get("platform"):
-        project.platform = {**(project.platform or {}), **body["platform"]}
-    db.flush()
-    audit.record(db, user.id, "inventory.imported", "project", project.id, project.id, {"items": len(created), "requirements": len(reqs)}, commit=True)
-    return {"items": rows(created), "requirements": rows(reqs), "platform": project.platform}
-
-
-@router.patch("/projects/{project_id}/inventory/{item_id}")
-def update_inventory(item_id: str, body: dict, ctx=Depends(editor)):
-    project, db, user = ctx
-    it = get_or_404(db, InventoryItem, item_id, project.id)
-    if body.get("provenance") == "verified" and not body.get("provenance_detail", it.provenance_detail):
-        raise HTTPException(400, "verified facts must say how they were verified")
-    for k, v in body.items():
-        if k in InventoryIn.model_fields:
-            setattr(it, k, v)
-    audit.record(db, user.id, "inventory.updated", "inventory_item", it.id, project.id, {"fields": list(body)}, commit=True)
     return row(it)
 
 
@@ -246,7 +236,6 @@ def delete_inventory(item_id: str, ctx=Depends(editor)):
     return {"ok": True}
 
 
-# ---------------------------------------------------------------- requirements
 class RequirementIn(BaseModel):
     name: str
     metric: str

@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from .config import FRONTEND_DIR, WORKER_MODE  # noqa: E402
 from .db import init_db  # noqa: E402
 from . import jobs, services  # noqa: E402,F401
-from .routers import auth_routes, projects, implementations, experiments, recommendations, research, attack, sandbox, misc  # noqa: E402
+from .routers import auth_routes, projects, implementations, tests, research, findings, evidence  # noqa: E402
 
 
 class RedactFilter(logging.Filter):
@@ -24,11 +24,16 @@ class RedactFilter(logging.Filter):
     PATTERNS = [re.compile(r"(?i)(bearer\s+)[A-Za-z0-9_\-\.=]+"), re.compile(r"(?i)(password[\"']?\s*[:=]\s*[\"']?)[^\"'\s,}]+"),
                 re.compile(r"sk-ant-[A-Za-z0-9_\-]+"), re.compile(r"(?i)(api[_-]?key[\"']?\s*[:=]\s*[\"']?)[^\"'\s,}]+")]
 
-    def filter(self, record):
-        msg = str(record.getMessage())
+    def _red(self, text):
         for p in self.PATTERNS:
-            msg = p.sub(lambda m: (m.group(1) if m.lastindex else "") + "[REDACTED]", msg)
-        record.msg, record.args = msg, ()
+            text = p.sub(lambda m: (m.group(1) if m.lastindex else "") + "[REDACTED]", text)
+        return text
+
+    def filter(self, record):
+        if record.args:  # keep the args tuple intact (uvicorn's access formatter unpacks it); redact string args in place
+            record.args = tuple(self._red(a) if isinstance(a, str) else a for a in record.args) if isinstance(record.args, tuple) else record.args
+        if isinstance(record.msg, str):
+            record.msg = self._red(record.msg)
         return True
 
 
@@ -41,14 +46,18 @@ async def lifespan(app: FastAPI):
     init_db()
     from .seed import ensure_seed
     ensure_seed()
+    from .db import SessionLocal
+    from . import signing
+    with SessionLocal() as db:
+        signing.ensure_platform_key_registered(db)
     if WORKER_MODE == "thread":
         jobs.start_worker_thread()
     yield
     jobs.stop_worker_thread()
 
 
-app = FastAPI(title="Isogeny Evidence Lab", version="0.1.0", lifespan=lifespan)
-for r in (auth_routes, projects, implementations, experiments, recommendations, research, attack, sandbox, misc):
+app = FastAPI(title="Isogeny Evidence Lab", version="0.2.0", lifespan=lifespan)
+for r in (auth_routes, projects, implementations, tests, research, findings, evidence):
     app.include_router(r.router)
 
 
@@ -58,8 +67,4 @@ def health():
 
 
 if FRONTEND_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
-
-    @app.get("/", include_in_schema=False)
-    def index():
-        return FileResponse(str(FRONTEND_DIR / "index.html"))
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

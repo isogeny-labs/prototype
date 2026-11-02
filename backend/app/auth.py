@@ -92,6 +92,10 @@ def require_project_role(db: Session, user: User, project_id: str, minimum: str 
     if not project:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
     role = role_in_project(db, user, project_id)
+    if minimum == "reviewer":  # approval is a distinct duty: reviewers and owners only, not editors
+        if role not in ("reviewer", "owner"):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "requires the reviewer (or owner) role")
+        return project
     if role is None or ROLE_RANK[role] < ROLE_RANK[minimum]:
         raise HTTPException(status.HTTP_403_FORBIDDEN, f"requires project role >= {minimum}")
     return project

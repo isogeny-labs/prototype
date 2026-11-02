@@ -11,6 +11,7 @@ from typing import Any
 
 RESULT_SCHEMA_VERSION = "1"
 REQUIRED_RESULT_KEYS = {"fixture", "fixture_version", "status", "metrics", "scenarios"}
+EXECUTION_MODES = ("platform_sandbox", "customer_runner", "imported_results")
 
 
 class RunnerUnavailable(RuntimeError):
