@@ -25,6 +25,8 @@ def toolkit(user: User = Depends(current_user)):
     tools = []
     for t in TOOLS.values():
         d = t.describe()
+        ok, why = get_runner(t.runner).available()
+        d["available"], d["unavailable_reason"] = ok, ("" if ok else why)
         d["controls"] = [{**c, "generated": False} for c in d["controls"]] + [g for g in generated.values() if g["tool"] == t.id]
         tools.append(d)
     return {"suite": suite_identity(), "families": list(FAMILIES), "tools": tools,
@@ -55,7 +57,7 @@ def create_tool_run(db, project, impl, user, tool_id: str, params: dict, name: s
                      description=tool.question)
     db.add(exp)
     db.flush()
-    runner = get_runner("cryptanalysis_suite")
+    runner = get_runner(tool.runner)
     run = services.create_run_record(db, project.id, exp.id, impl.id, runner.kind, runner.provenance, user.id)
     job = jobs.enqueue(db, "run_fixture", {"run_id": run.id, "runner_kind": runner.kind, "params": {}, "actor_id": user.id})
     run.job_id = job.id
@@ -68,10 +70,6 @@ def create_tool_run(db, project, impl, user, tool_id: str, params: dict, name: s
 def run_tool(body: ToolRunIn, ctx=Depends(editor)):
     project, db, user = ctx
     impl = get_or_404(db, Implementation, body.implementation_id, project.id)
-    runner = get_runner("cryptanalysis_suite")
-    ok, why = runner.available()
-    if not ok:
-        raise HTTPException(409, f"cryptanalysis suite unavailable: {why}")
     note = None
     tool_id, params = body.tool, body.params
     if body.control:
@@ -80,6 +78,9 @@ def run_tool(body: ToolRunIn, ctx=Depends(editor)):
         tool_id, params, note = controls.generate(body.control)
     if tool_id not in TOOLS:
         raise HTTPException(400, f"tool must be one of {sorted(TOOLS)}")
+    ok, why = get_runner(TOOLS[tool_id].runner).available()
+    if not ok:
+        raise HTTPException(409, f"runner for {tool_id} unavailable: {why}")
     try:
         _, run = create_tool_run(db, project, impl, user, tool_id, params, body.name, note)
     except ParamError as exc:
@@ -102,6 +103,7 @@ def tool_runs(ctx=Depends(viewer)):
         out.append({"id": r.id, "sequence": r.sequence, "status": r.status, "overall_pass": r.overall_pass, "metrics": r.metrics,
                     "created_at": r.created_at.isoformat() if r.created_at else None, "tool": e.fixture, "experiment_name": e.name,
                     "control": (e.definition or {}).get("control"), "implementation_label": f"{i.name} {i.version}" if i else "?",
+                    "provenance": r.provenance, "runner_kind": r.runner_kind,
                     "scenarios_passed": sum(1 for s in r.scenarios or [] if s.get("pass")), "scenarios_total": len(r.scenarios or []),
                     "failures": r.failures, "exclusions": r.exclusions})
     return out

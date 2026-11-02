@@ -31,7 +31,7 @@ the Isogeny Labs cryptanalysis suite's `crax` binary). When `IEL_CRAX_BIN` is ab
 
 ## Cryptanalysis toolkit and research portfolio
 
-The Isogeny Labs cryptanalysis suite (`crax`) is connected as ten bounded tools, each answering one engineering
+The Isogeny Labs cryptanalysis suite (`crax`) and the `crypto` crate's side-channel harness are connected as eleven bounded tools, each answering one engineering
 question and leaving an append-only evidence record:
 
 | Family | Tools |
@@ -40,6 +40,7 @@ question and leaving an append-only evidence record:
 | Signatures & keys | ECDSA signature-transcript audit (biased / reused nonces, lattice key recovery) · RSA public-key hygiene audit (batch GCD, Fermat, Wiener) |
 | Post-quantum | ML-KEM / ML-DSA lattice-attack estimate under named cost models |
 | Symmetric & hash | reduced-round AES key recovery · digest known-answer cross-check |
+| Side channels | dynamic constant-time audit of the `crypto` crate under Valgrind (secret-dependent branches/addresses, instruction counts) |
 | Research demos | Pollard rho on toy curves · toy integer factoring |
 
 Every tool ships **controls**: negative controls must come back clean on correctly generated material (a real ES256
@@ -55,6 +56,10 @@ Build `crax` (Rust ≥ 1.87) from the cryptanalysis repository and point the app
 cargo build --release --locked --manifest-path /path/to/cryptanalysis/suite/Cargo.toml --bin crax
 export IEL_CRAX_BIN=/path/to/cryptanalysis/suite/target/release/crax
 ```
+
+For the side-channel tool, build `ct_dynamic_audit` in the crypto repository
+(`cargo build --release --bin ct_dynamic_audit`), install Valgrind, and set `IEL_CT_AUDIT_BIN`; without it, the frozen
+results of isogeny-labs/crypto #3296 are shown as imported evidence (`scripts/import_ct_audit.py` refreshes them).
 
 Seeding then runs 26 suite tool runs across three demo projects (about 35 s, most of it the full ECDSA lattice sweep).
 Details, bounds and the redaction rule: [`docs/SUITE_INTEGRATION.md`](docs/SUITE_INTEGRATION.md).

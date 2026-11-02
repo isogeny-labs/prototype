@@ -247,6 +247,8 @@ function toolHeadline(tool, m) {
     case "suite_factor_toy": return `${f("prime_factors")} factors of a ${f("n_bits")}-bit N · complete ${f("complete")}`;
     case "suite_aes_reduced": return `${f("rounds")}-round instance · ${f("pairs_used")} pairs · verified ${f("verified")}`;
     case "suite_hash_kat": return `${f("input_bytes")} B · KAT match ${f("kat_match")}`;
+    case "sidechannel_ct_audit": return [m.taint_sites_library !== undefined ? `${f("taint_sites_library")} secret-dependent site(s)${m.taint_sites_harness ? ` (+${f("taint_sites_harness")} harness)` : ""}` : "",
+      m.ir_deterministic === 0 ? "Ir: not applicable (A/A varies)" : m.ir_secret_dependent !== undefined ? (m.ir_secret_dependent ? `Ir varies ${f("ir_min")}–${f("ir_max")}` : `Ir constant ${f("ir_min")}`) : ""].filter(Boolean).join(" · ");
   }
   return "";
 }
@@ -290,11 +292,11 @@ route(/^\/toolkit$/, async () => {
   $("#projnav").innerHTML = "";
   const [tk, ps] = await Promise.all([toolkit(), api("/api/projects")]);
   const showcase = ps.find(p => /showcase/i.test(p.name)) || ps[0];
-  return `<h1>Cryptanalysis toolkit</h1><p class="sub">The Isogeny Labs cryptanalysis suite (<code>crax</code>), connected as ${tk.tools.length} bounded tools. Each answers one engineering question, runs with typed parameters inside resource limits, and leaves an append-only evidence record. Every tool ships controls: a <b>negative control</b> must come back clean on real, correctly generated material; a <b>positive control</b> plants a weakness the tool must find.</p>
+  return `<h1>Cryptanalysis toolkit</h1><p class="sub">The Isogeny Labs cryptanalysis suite (<code>crax</code>) and the <code>crypto</code> crate's side-channel harness, connected as ${tk.tools.length} bounded tools. Each answers one engineering question, runs with typed parameters inside resource limits, and leaves an append-only evidence record. Every tool ships controls: a <b>negative control</b> must come back clean on real, correctly generated material; a <b>positive control</b> plants a weakness the tool must find.</p>
   ${suiteBanner(tk.suite)}
   <div class="panel"><h2>Execution boundary</h2>${nl(tk.boundary)}</div>
   ${tk.families.map(fam => `<h2>${esc(fam)}</h2><div class="grid g2">${tk.tools.filter(t => t.family === fam).map(t => `<div class="panel tool">
-    <h3 style="margin-top:0">${esc(t.title)}</h3><p>${esc(t.question)}</p><p class="muted" style="font-size:12px"><code>${esc(t.operation)}</code></p>
+    <h3 style="margin-top:0">${esc(t.title)}</h3><p>${esc(t.question)}</p>${t.available ? "" : `<p class="muted" style="font-size:12px">Runner <code>${esc(t.runner)}</code> not connected here: recorded and imported evidence remains browsable.</p>`}<p class="muted" style="font-size:12px"><code>${esc(t.operation)}</code></p>
     ${t.controls.length ? `<p style="font-size:12px">${t.controls.map(c => `${kindBadge(c.kind)} ${esc(c.name)}`).join("<br>")}</p>` : ""}
     <details><summary>Limitations</summary>${nl(t.limitations)}</details>
     ${showcase ? `<p><a href="#/p/${showcase.id}/suite?tool=${t.id}"><button class="ghost sm">Open in ${/showcase/i.test(showcase.name) ? "showcase project" : esc(showcase.name)}</button></a></p>` : ""}</div>`).join("")}</div>`).join("")}`;
@@ -306,7 +308,7 @@ route(/^\/p\/([^/]+)\/suite$/, async (pid, q) => {
   const tool = tk.tools.find(t => t.id === q.tool) || tk.tools.find(t => runs.some(r => r.tool === t.id)) || tk.tools[0];
   const preset = q.preset !== undefined ? tool.controls.filter(c => !c.generated)[+q.preset] : null;
   setTimeout(() => syncWhen($("#toolform")));
-  const canRun = tk.suite.available && impls.length && !window.IEL_STATIC;
+  const canRun = tool.available && impls.length && !window.IEL_STATIC;
   const implSel = `<select name="implementation_id">${impls.map(i => `<option value="${i.id}">${esc(i.name)} ${esc(i.version)} (${esc(i.role)})</option>`).join("")}</select>`;
   const runControl = (c, i) => c.generated
     ? `<button class="ghost sm" ${on("click", function(e){ return toolRun(e, pid, tool, {control: c.id}); })}>Run</button>`
@@ -314,7 +316,7 @@ route(/^\/p\/([^/]+)\/suite$/, async (pid, q) => {
   return `<h1>Cryptanalysis toolkit</h1><p class="sub">Run any suite tool against an implementation in this project. Results land in Evidence as measured, append-only runs. <a href="#/toolkit">Tool catalog</a> · <a href="#/research">Research portfolio</a></p>
   ${suiteBanner(tk.suite)}
   <div class="grid toolgrid"><div class="panel"><h2>Tools</h2>${tk.families.map(fam => `<h3>${esc(fam)}</h3><ul class="tight toollist">${tk.tools.filter(t => t.family === fam).map(t => `<li><a href="#/p/${pid}/suite?tool=${t.id}" class="${t.id === tool.id ? "cur" : ""}">${esc(t.title)}</a> <span class="muted">${runs.filter(r => r.tool === t.id).length || ""}</span></li>`).join("")}</ul>`).join("")}</div>
-  <div><div class="panel"><h2>${esc(tool.title)}</h2><p>${esc(tool.question)}</p><p class="muted"><code>${esc(tool.operation)}</code> · acceptance: ${esc(tool.acceptance.join("; "))}</p>
+  <div><div class="panel"><h2>${esc(tool.title)}</h2><p>${esc(tool.question)}</p>${tool.runner !== "cryptanalysis_suite" ? (tool.available ? `<div class="callout info">Runner <code>${esc(tool.runner)}</code> connected.</div>` : `<div class="callout">Runner <code>${esc(tool.runner)}</code> not connected here: ${esc(tool.unavailable_reason)} Recorded evidence below remains readable.</div>`) : ""}<p class="muted"><code>${esc(tool.operation)}</code> · acceptance: ${esc(tool.acceptance.join("; "))}</p>
     ${tool.controls.length ? `<h3>Controls</h3><table>${tool.controls.map((c, i) => `<tr><td>${kindBadge(c.kind)}</td><td>${esc(c.name)}${c.generated ? ' <span class="muted">(fresh material generated server-side)</span>' : ""}</td><td>${canRun || !c.generated ? runControl(c, tool.controls.filter(x => !x.generated).indexOf(c)) : ""}</td></tr>`).join("")}</table>` : ""}
     <h3>${preset ? `Parameters — loaded from control “${esc(preset.name)}”` : "Parameters"}</h3>
     <form id="toolform" ${on("change", function(){ syncWhen(this); })} ${on("submit", function(e){ return toolRun(e, pid, tool); })}><div class="grid g2">${tool.params.map(p => paramField(p, preset?.params?.[p.name])).join("")}</div>
@@ -322,7 +324,7 @@ route(/^\/p\/([^/]+)\/suite$/, async (pid, q) => {
     <p><button ${canRun ? "" : "disabled"}>Run tool</button> <span class="muted" style="font-size:12px">${window.IEL_STATIC ? "Static demo: browse the recorded runs below." : "Typed fields only — the runner builds argv itself and never accepts a command, flag, path or environment value."}</span></p></form>
     <details><summary>Limitations</summary>${nl(tool.limitations)}</details></div></div></div>
   <div class="panel"><h2>Toolkit evidence in this project</h2><table><tr><th>Run</th><th>Tool</th><th>Record</th><th>Against</th><th>Status</th><th>Checks</th><th>Headline</th><th>When</th></tr>
-  ${runs.map(r => `<tr class="clickable" ${on("click", function(){ location.hash = `#/p/${pid}/runs/${r.id}`; })}><td>#${r.sequence}</td><td>${esc(tk.tools.find(t => t.id === r.tool)?.title || r.tool)}</td><td>${r.control ? kindBadge(r.control.kind) + " " : ""}${esc(r.experiment_name)}${r.exclusions?.length ? ' <span class="badge b-demo" title="secret material redacted">redacted</span>' : ""}</td><td class="muted">${esc(r.implementation_label)}</td><td>${badge(r.status)}</td><td>${passmark(r.overall_pass)} <span class="muted">${r.scenarios_passed}/${r.scenarios_total}</span></td><td style="font-size:12px">${toolHeadline(r.tool, r.metrics || {})}</td><td class="muted">${when(r.created_at)}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No toolkit evidence yet. Pick a tool and run a control first.</td></tr>'}</table></div>`;
+  ${runs.map(r => `<tr class="clickable" ${on("click", function(){ location.hash = `#/p/${pid}/runs/${r.id}`; })}><td>#${r.sequence}</td><td>${esc(tk.tools.find(t => t.id === r.tool)?.title || r.tool)}</td><td>${r.control ? kindBadge(r.control.kind) + " " : ""}${esc(r.experiment_name)}${r.exclusions?.length ? ' <span class="badge b-demo" title="secret material redacted">redacted</span>' : ""}</td><td class="muted">${esc(r.implementation_label)}</td><td>${badge(r.status)} ${r.provenance ? prov(r.provenance) : ""}</td><td>${passmark(r.overall_pass)} <span class="muted">${r.scenarios_passed}/${r.scenarios_total}</span></td><td style="font-size:12px">${toolHeadline(r.tool, r.metrics || {})}</td><td class="muted">${when(r.created_at)}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No toolkit evidence yet. Pick a tool and run a control first.</td></tr>'}</table></div>`;
 });
 window.toolRun = (e, pid, tool, extra = {}) => {
   e.preventDefault();

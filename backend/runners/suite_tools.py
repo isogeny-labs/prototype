@@ -176,9 +176,10 @@ class Tool:
     acceptance: list[str] = field(default_factory=list)
     nonzero_exit_ok: bool = False   # True when exit 1 + JSON means "attack found nothing" (a negative result)
     min_crax: str = "0.1.0"
+    runner: str = "cryptanalysis_suite"  # runner kind that executes this tool
 
     def describe(self) -> dict:
-        return {"id": self.id, "family": self.family, "title": self.title, "question": self.question,
+        return {"id": self.id, "family": self.family, "title": self.title, "question": self.question, "runner": self.runner,
                 "operation": self.operation, "params": [p.spec() for p in self.params], "limitations": self.limitations,
                 "controls": self.controls, "acceptance": self.acceptance}
 
@@ -798,8 +799,37 @@ HASH = Tool(
 )
 
 
-TOOLS: dict[str, Tool] = {t.id: t for t in (CURVE_AUDIT, CURVE_ESTIMATE, WEAK_CURVE, ECDSA_AUDIT, RSA_AUDIT, MLWE, RHO, FACTOR, AES, HASH)}
-FAMILIES = ("Curves & parameters", "Signatures & keys", "Post-quantum", "Symmetric & hash", "Research demos")
+# --------------------------------------------------------------------------- 11: dynamic constant-time audit (runner: ct_audit)
+
+CT_TARGETS = ("ctrl_pos_branch", "ctrl_neg_masked", "x25519", "smul_p256", "smul_secp256k1", "smul_sm2_generic",
+              "inv_prime_ct", "inv_euclid", "ed25519_sign", "ecdsa_p256_sign", "sm2_sign")
+
+CT_AUDIT = Tool(
+    id="sidechannel_ct_audit", family="Side channels", title="Dynamic constant-time audit (Valgrind)",
+    question="Does this secret-handling code branch on, index memory by, or vary its instruction count with the secret?",
+    operation="valgrind memcheck|callgrind ct_dynamic_audit taint|ir TARGET",
+    params=[Param("target", "choice", "Secret-handling path", "x25519", True, choices=CT_TARGETS,
+                  help="Entry points of the crypto crate audited in isogeny-labs/crypto PR #3296; ctrl_* are the controls."),
+            Param("instrument", "choice", "Instrument", "both", choices=("both", "taint", "ir"),
+                  help="taint: Memcheck with the secret marked undefined. ir: Callgrind instruction count per call over four secret classes."),
+            Param("expect", "choice", "Expected outcome", "clean", choices=("clean", "leak_detected"))],
+    build=lambda p: [], parse=lambda p, r: Parsed(),  # executed by runners/ct_audit_runner.py, not by crax
+    runner="ct_audit",
+    limitations=[
+        "Taint covers one build, 4 calls with independent secrets and Memcheck's model: it does not see conditional moves, cache-line or port effects.",
+        "The instruction-count verdict is 'not applicable' when repeating one secret already varies the count (randomness, allocator state).",
+        "A clean result is not proof of constant-time behaviour, and no wall-clock timing is measured.",
+        "Sites in the harness itself (BigUint conversion of the secret) are reported separately from library sites.",
+    ],
+    acceptance=["no secret-dependent site and no instruction-count dependence (or, for the positive control, both detected)"],
+    controls=[{"name": "Positive control: secret-dependent trip count + secret-indexed load", "kind": "positive",
+               "params": {"target": "ctrl_pos_branch", "instrument": "both", "expect": "leak_detected"}},
+              {"name": "Negative control: masked fixed-trip arithmetic", "kind": "negative",
+               "params": {"target": "ctrl_neg_masked", "instrument": "both", "expect": "clean"}}],
+)
+
+TOOLS: dict[str, Tool] = {t.id: t for t in (CURVE_AUDIT, CURVE_ESTIMATE, WEAK_CURVE, ECDSA_AUDIT, RSA_AUDIT, MLWE, RHO, FACTOR, AES, HASH, CT_AUDIT)}
+FAMILIES = ("Curves & parameters", "Signatures & keys", "Side channels", "Post-quantum", "Symmetric & hash", "Research demos")
 
 
 def catalog() -> list[dict]:

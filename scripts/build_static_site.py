@@ -77,7 +77,11 @@ def main():
                               ("findings", [f["id"] for f in snap["get"][b + "/findings"]])):
                 for i in ids:
                     get(f"{b}/{kind}/{i}")
-            fixture_of = {e["id"]: e["fixture"] for e in snap["get"][b + "/experiments"]}
+            # like-for-like key: the fixture, plus the audited target for the side-channel tool (comparing two
+            # different code paths is not meaningful)
+            fixture_of = {e["id"]: (e["fixture"], (e.get("definition") or {}).get("params", {}).get("target")
+                                    if e["fixture"] == "sidechannel_ct_audit" else None)
+                          for e in snap["get"][b + "/experiments"]}
             done = [r for r in snap["get"][b + "/runs"] if r["status"] == "completed"]
             # only like-for-like comparisons (same fixture/tool); cross-tool pairs are not meaningful and grow quadratically
             for rx, ry in itertools.permutations(done, 2):

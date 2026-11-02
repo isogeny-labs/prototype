@@ -67,9 +67,11 @@ def _run_suite(db, project, exp, impl, actor):
 
 def _tool(db, project, impl, actor, tool_id, params=None, name="", control=None):
     """Record and execute one bounded suite tool (or generated control) when the optional suite binary is connected."""
+    from runners.suite_tools import TOOLS
     from . import controls, jobs
     from .routers.toolkit import create_tool_run
-    if not get_runner("cryptanalysis_suite").available()[0]:
+    runner_kind = TOOLS[controls.GENERATED[control][0] if control else tool_id].runner
+    if not get_runner(runner_kind).available()[0]:
         return None
     note = None
     if control:
@@ -85,7 +87,7 @@ def _tool_preset(db, project, impl, actor, tool_id, index, name=""):
     from runners.suite_tools import TOOLS
     from . import jobs
     from .routers.toolkit import create_tool_run
-    if not get_runner("cryptanalysis_suite").available()[0]:
+    if not get_runner(TOOLS[tool_id].runner).available()[0]:
         return None
     c = TOOLS[tool_id].controls[index]
     note = {"control": f"{tool_id}:{index}", "kind": c["kind"], "name": c["name"], "source": "static preset in runners/suite_tools.py"}
@@ -317,6 +319,46 @@ def seed_app(db, admin, engineer, reviewer):
     return p
 
 
+def seed_ct_audit(db, p, engineer):
+    """Side-channel evidence for the crypto crate: the frozen run of isogeny-labs/crypto #3296 imported (always), plus
+    live controls and two targets when the ct_dynamic_audit binary and Valgrind are available."""
+    from runners.ct_audit_runner import METRIC_DEFINITIONS, map_entry
+    from runners.suite_tools import TOOLS
+    snap = _load("ct_audit_snapshot.json")
+    src = snap["source"]
+    impl = Implementation(project_id=p.id, name="crypto crate: secret-handling paths", version=src["run_commit"][:9], role="baseline",
+                          status="approved", algorithm="ECDSA, SM2, Ed25519, X25519 and scalar multiplication (isogeny-labs/crypto)",
+                          library="isogeny-labs/crypto crypto_lib", library_version=src["run_commit"],
+                          source_revision=f"{src['repository']}@{src['run_commit'][:12]}", configuration={},
+                          target_environment={"build": "release, line tables", "instrument": "Valgrind 3.22"},
+                          build_identity={"card": src["card_id"]}, delivery_mode="container", created_by=engineer.id,
+                          notes="Audited with the dynamic constant-time harness of crypto PR #3296; results also imported from that run.")
+    db.add(impl)
+    db.flush()
+    tool = TOOLS["sidechannel_ct_audit"]
+    for e in snap["targets"]:
+        expect = "leak_detected" if e["target"] == "ctrl_pos_branch" else "clean"
+        mapped = map_entry(e, "both", expect)
+        exp = Experiment(project_id=p.id, name=f"Side-channel audit: {e['target']} (imported, crypto #3296)", fixture="sidechannel_ct_audit",
+                         definition={"params": {"target": e["target"], "instrument": "both", "expect": expect}, "tool": tool.id,
+                                     "contract": tool.operation, "imported_from": src},
+                         acceptance_criteria=tool.acceptance, description=e.get("description", tool.question))
+        db.add(exp)
+        db.flush()
+        _import_run(db, p, exp, impl, engineer, {
+            "fixture": "sidechannel_ct_audit", "fixture_version": f"ct_dynamic_audit@{src['run_commit'][:12]}", "status": "completed",
+            "metrics": mapped["metrics"], "metric_definitions": METRIC_DEFINITIONS, "scenarios": mapped["scenarios"],
+            "environment": {"measured_by": f"{src['repository']} task card {src['card_id']}", "summary_sha256": src["summary_sha256"],
+                            "receipt_sha256": src["receipt_sha256"], "report": src["report"], "pull_request": src["pull_request"]},
+            "limitations": snap["limitations"], "repeat_count": 1, "raw_summary_entry": e}, illustrative=False)
+    if get_runner("ct_audit").available()[0]:
+        _tool_preset(db, p, impl, engineer, "sidechannel_ct_audit", 0)
+        _tool_preset(db, p, impl, engineer, "sidechannel_ct_audit", 1)
+        _tool(db, p, impl, engineer, "sidechannel_ct_audit", {"target": "x25519"}, "Side-channel audit (live): x25519")
+        _tool(db, p, impl, engineer, "sidechannel_ct_audit", {"target": "inv_euclid", "instrument": "taint"},
+              "Side-channel audit (live): SM2 private-key inverse, taint only")
+
+
 def seed_showcase(db, admin, engineer, reviewer):
     """A research-facing project that exercises every suite tool family once, with its controls."""
     p = Project(name="Isogeny Labs cryptanalysis suite — showcase", kind="application", is_demo=True, created_by=admin.id,
@@ -351,6 +393,7 @@ def seed_showcase(db, admin, engineer, reviewer):
     _tool_preset(db, p, suite, engineer, "suite_aes_reduced", 0)
     _tool_preset(db, p, suite, engineer, "suite_aes_reduced", 1)
     _tool_preset(db, p, suite, engineer, "suite_hash_kat", 0)
+    seed_ct_audit(db, p, engineer)
     db.commit()
     return p
 
