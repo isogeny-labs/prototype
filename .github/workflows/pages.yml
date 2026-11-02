@@ -27,11 +27,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: isogeny-labs/cryptanalysis
-          ref: c273e62140071fe4370fbe6946dcb898c95b4eb2
+          ref: 318b27bf3427ff9e349f5850c742fde703fcf6a8
           path: cryptanalysis
+          # `crates` is needed from this revision on (suite depends on crates/hashed-ecdl-tensor).
           sparse-checkout: |
             suite
             bindings/rust
+            crates
             src
             include
             cuda

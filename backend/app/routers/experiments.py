@@ -12,14 +12,9 @@ from runners import RunnerUnavailable, list_runners, get_runner, RunRequest
 from .common import row, rows, viewer, editor, get_or_404
 
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["experiments", "runs"])
-FIXTURES = {
-    "firmware_signing",
-    "app_service_crypto",
-    "toy_factoring",
-    "suite_curve_audit",
-    "suite_curve_estimate",
-    "external",
-}
+from runners.suite_tools import TOOLS as SUITE_TOOLS
+
+FIXTURES = {"firmware_signing", "app_service_crypto", "toy_factoring", "external", *SUITE_TOOLS}
 
 
 class ExperimentIn(BaseModel):

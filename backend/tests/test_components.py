@@ -90,7 +90,7 @@ def test_cryptanalysis_suite_runner_maps_bounded_json(monkeypatch, tmp_path):
     monkeypatch.setenv("IEL_CRAX_BIN", str(_fake_crax(tmp_path)))
     runner = get_runner("cryptanalysis_suite")
     assert runner.available() == (True, "")
-    assert set(runner.describe()["fixtures"]) == {"suite_curve_audit", "suite_curve_estimate"}
+    assert {"suite_curve_audit", "suite_curve_estimate", "suite_ecdsa_audit", "suite_rsa_key_audit"} <= set(runner.describe()["fixtures"])
 
     audit_result = runner.run(RunRequest(
         "suite_curve_audit", {"curve": "p256"}, {}, {},

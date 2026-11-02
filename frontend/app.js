@@ -75,7 +75,7 @@ function loginView() {
 }
 
 function projNav(pid, cur) {
-  const items = [["", "Overview"], ["/inventory", "Inventory"], ["/recommendations", "Recommendations"], ["/implementations", "Implementation"], ["/runs", "Evidence"], ["/suite", "Suite"], ["/compare", "Compare"], ["/research", "Research inbox"], ["/attack", "Attack cost"], ["/sandbox", "Sandbox"], ["/revalidation", "Revalidation"], ["/audit", "Audit"]];
+  const items = [["", "Overview"], ["/inventory", "Inventory"], ["/recommendations", "Recommendations"], ["/implementations", "Implementation"], ["/runs", "Evidence"], ["/suite", "Toolkit"], ["/compare", "Compare"], ["/research", "Research inbox"], ["/attack", "Attack cost"], ["/sandbox", "Sandbox"], ["/revalidation", "Revalidation"], ["/audit", "Audit"]];
   $("#projnav").innerHTML = items.map(([p, l]) => `<a href="#/p/${pid}${p}" class="${cur === p ? "active" : ""}">${l}</a>`).join("");
 }
 
@@ -222,33 +222,168 @@ route(/^\/p\/([^/]+)\/runs$/, async (pid) => {
   <div class="panel"><table><tr><th>#</th><th>Experiment</th><th>Implementation</th><th>Runner</th><th>Provenance</th><th>Status</th><th>Result</th><th>Failed requirements / scenarios</th><th>Supersedes</th><th>When</th></tr>
   ${runs.slice().reverse().map(r => `<tr class="clickable" ${on("click", function(event){ return location.hash=`#/p/${pid}/runs/${r.id}`; })}><td>${r.sequence}</td><td>${esc(r.experiment_name)}</td><td>${esc(r.implementation_label)}</td><td>${esc(r.runner_kind)} <span class="muted">${esc(r.runner_version)}</span></td><td>${prov(r.provenance)}</td><td>${badge(r.status)}</td><td>${passmark(r.overall_pass)}</td><td class="bad" style="font-size:12px">${esc([...r.requirement_results.filter(x => x.pass === false).map(x => x.name), ...r.scenarios.filter(s => s.pass === false).map(s => s.id)].join(", "))}</td><td>${r.supersedes_run_id ? "yes" : ""}</td><td class="muted">${when(r.created_at)}</td></tr>`).join("")}</table></div>
   <div class="panel"><h2>Experiments (definitions &amp; acceptance criteria)</h2><table><tr><th>Name</th><th>Fixture</th><th>Definition</th><th>Acceptance criteria</th></tr>${exps.map(e => `<tr><td><b>${esc(e.name)}</b><br><span class="muted">${esc(e.description)}</span></td><td><code>${esc(e.fixture)}</code></td><td><code>${esc(JSON.stringify(e.definition))}</code></td><td>${nl(e.acceptance_criteria)}</td></tr>`).join("")}</table>
-  <h3>New experiment</h3><form ${on("submit", function(event){ return newExp(event,`${pid}`); })}><div class="grid g3"><div><label>Name</label><input name="name" required></div><div><label>Fixture</label><select name="fixture"><option>firmware_signing</option><option>app_service_crypto</option><option>toy_factoring</option><option>suite_curve_audit</option><option>suite_curve_estimate</option><option value="external">external (import only)</option></select></div><div><label>Definition (JSON, e.g. {"params":{"curve":"p256"}})</label><input name="definition" value='{"params": {}}'></div></div><label>Description</label><input name="description"><p><button>Create</button></p></form></div>`;
+  <h3>New experiment</h3><form ${on("submit", function(event){ return newExp(event,`${pid}`); })}><div class="grid g3"><div><label>Name</label><input name="name" required></div><div><label>Fixture</label><select name="fixture"><option>firmware_signing</option><option>app_service_crypto</option><option>toy_factoring</option><option value="external">external (import only)</option></select></div><div><label>Definition (JSON, e.g. {"params":{"curve":"p256"}})</label><input name="definition" value='{"params": {}}'></div></div><label>Description</label><input name="description"><p><button>Create</button></p></form></div>`;
 });
 window.newExp = (e, pid) => { e.preventDefault(); const b = Object.fromEntries(new FormData(e.target).entries()); try { b.definition = JSON.parse(b.definition); } catch { return toast("definition must be JSON", true), false; } act(() => api(`/api/projects/${pid}/experiments`, {method: "POST", body: b}), "Experiment created"); return false; };
 
-// ------------------------------------------------------------------ cryptanalysis suite
-route(/^\/p\/([^/]+)\/suite$/, async (pid) => {
-  projNav(pid, "/suite");
-  const [runners, exps, runs, impls] = await Promise.all([
-    api("/api/runners"), api(`/api/projects/${pid}/experiments`), api(`/api/projects/${pid}/runs`), api(`/api/projects/${pid}/implementations`),
-  ]);
-  const runner = runners.find(r => r.kind === "cryptanalysis_suite");
-  const suiteExps = exps.filter(e => e.fixture === "suite_curve_audit" || e.fixture === "suite_curve_estimate");
-  const suiteRuns = runs.filter(r => r.runner_kind === "cryptanalysis_suite").slice().reverse();
-  const expById = Object.fromEntries(suiteExps.map(e => [e.id, e]));
-  const curveFor = (r) => expById[r.experiment_id]?.definition?.params?.curve || "—";
-  return `<h1>Cryptanalysis suite</h1><p class="sub">Bounded access to the suite's machine-readable curve audit and attack-model operations. Every execution becomes an append-only evidence record with the exact argv, binary hash, raw JSON and limitations.</p>
-  ${runner?.available ? `<div class="callout info"><b>Connected.</b> <code>crax</code> is available to this environment. Supported fixtures: <code>${esc((runner.fixtures || []).join(", "))}</code>.</div>` : `<div class="callout bad"><b>Not connected.</b> ${esc(runner?.unavailable_reason || "suite runner is not registered")} Existing evidence remains readable.</div>`}
-  <div class="grid g2">
-    <div class="panel"><h2>Curve parameter audit</h2><p>Runs <code>crax --json icx inspect CURVE</code> and records each catalog/group check as a scenario.</p><ul class="tight"><li>Generator satisfies the curve equation</li><li>Generator has the stated subgroup order</li><li>Positive cofactor and Hasse-bound checks</li></ul><p class="muted">This does not inspect application code, protocol use, key generation, side channels or fault resistance.</p></div>
-    <div class="panel"><h2>Attack-model estimate</h2><p>Runs <code>crax --json icx estimate CURVE --envelope N</code> and records generic-rho operations/security plus the index-calculus classification.</p><p class="muted">These are operation-count model outputs—not elapsed-time measurements, exploit demonstrations or practical-break claims.</p></div>
-  </div>
-  <div class="panel"><h2>Suite evidence</h2><table><tr><th>#</th><th>Curve</th><th>Operation</th><th>Status</th><th>Result</th><th>Key output</th><th>When</th></tr>
-  ${suiteRuns.map(r => `<tr class="clickable" ${on("click", function(event){ return location.hash=`#/p/${pid}/runs/${r.id}`; })}><td>${r.sequence}</td><td><code>${esc(curveFor(r))}</code></td><td>${esc(r.experiment_name)}</td><td>${badge(r.status)}</td><td>${passmark(r.overall_pass)}</td><td>${r.metrics.suite_verified !== undefined ? `checks ${fmt(r.metrics.suite_checks_passed)}/${fmt(r.metrics.suite_checks_total)} · verified ${fmt(r.metrics.suite_verified)}` : `rho 2^${fmt(r.metrics.rho_log2_operations)} ops · ${fmt(r.metrics.rho_security_bits)} bits · IC relevant ${fmt(r.metrics.index_calculus_relevant)}`}</td><td class="muted">${when(r.created_at)}</td></tr>`).join("") || '<tr><td colspan="7" class="muted">No suite evidence yet. Connect <code>crax</code>, create an experiment below, then run it from an implementation.</td></tr>'}</table></div>
-  <div class="grid g2"><div class="panel"><h2>Configured suite experiments</h2><table><tr><th>Name</th><th>Fixture</th><th>Parameters</th></tr>${suiteExps.map(e => `<tr><td>${esc(e.name)}</td><td><code>${esc(e.fixture)}</code></td><td><code>${esc(JSON.stringify(e.definition?.params || {}))}</code></td></tr>`).join("") || '<tr><td colspan="3" class="muted">None configured.</td></tr>'}</table></div>
-  <div class="panel"><h2>Create bounded suite experiment</h2><form ${on("submit", function(event){ return newSuiteExp(event,`${pid}`); })}><label>Name</label><input name="name" placeholder="P-256 suite review"><div class="grid g2"><div><label>Operation</label><select name="fixture"><option value="suite_curve_audit">Curve parameter audit</option><option value="suite_curve_estimate">Attack-model estimate</option></select></div><div><label>Suite curve identifier</label><input name="curve" value="p256" pattern="[A-Za-z0-9][A-Za-z0-9._+\\-]{0,63}" required></div><div><label>Estimate envelope bits (estimate only)</label><input name="envelope_bits" type="number" min="8" max="512" value="64"></div><div><label>Run against</label><select disabled><option>Select from an implementation after creation</option></select></div></div><p><button ${runner?.available && impls.length ? "" : "disabled"}>Create experiment</button></p><p class="muted">The runner constructs argv from these bounded fields. It never accepts a command, flag, executable path or environment value from this form.</p></form></div></div>`;
+// ------------------------------------------------------------------ cryptanalysis-suite toolkit
+let TOOLKIT = null;
+const toolkit = async () => TOOLKIT || (TOOLKIT = await api("/api/toolkit"));
+const kindBadge = (k) => `<span class="badge b-ctl-${esc(k)}">${esc(k)} control</span>`;
+const suiteBanner = (s) => s.available
+  ? `<div class="callout info"><b>Suite connected.</b> <code>${esc(s.version)}</code> · binary SHA-256 <code title="${esc(s.sha256)}">${esc(s.sha256.slice(0, 16))}…</code>. Every run records the exact argv, this hash, the raw JSON and its limitations.</div>`
+  : `<div class="callout bad"><b>Suite not connected.</b> ${esc(s.reason)} Existing evidence remains readable; set <code>IEL_CRAX_BIN</code> to run tools.</div>`;
+
+function toolHeadline(tool, m) {
+  const f = (k) => fmt(m[k]);
+  switch (tool) {
+    case "suite_curve_audit": return `checks ${f("suite_checks_passed")}/${f("suite_checks_total")} · rho ${f("rho_security_bits")} bits`;
+    case "suite_curve_estimate": return `rho 2^${f("rho_log2_operations")} ops · IC relevant ${f("index_calculus_relevant")}`;
+    case "suite_weak_curve": return `${f("structural_attacks_applicable")} of ${f("checks_evaluated")} structural attacks apply${m.planted_secret_recovered !== undefined ? ` · planted secret recovered ${f("planted_secret_recovered")}` : ""}`;
+    case "suite_ecdsa_audit": return `${f("signatures_audited")} sigs · bias ${f("bias_score")} · key recovered ${f("key_recovered")}`;
+    case "suite_rsa_key_audit": return `${f("weak_moduli")} weak of ${f("moduli_audited")} (shared ${f("shared_prime_moduli")}, Fermat ${f("fermat_factored")}, Wiener ${f("wiener_factored")})`;
+    case "suite_mlwe_estimate": return `cheapest 2^${f("cheapest_log2_cost")}${m.margin_vs_nist_floor_bits !== undefined ? ` · ${m.margin_vs_nist_floor_bits >= 0 ? "+" : ""}${f("margin_vs_nist_floor_bits")} bits vs NIST floor` : ""}`;
+    case "suite_generic_rho": return `${f("group_ops")} group ops · ${f("ops_per_sqrt_order")}·√n`;
+    case "suite_factor_toy": return `${f("prime_factors")} factors of a ${f("n_bits")}-bit N · complete ${f("complete")}`;
+    case "suite_aes_reduced": return `${f("rounds")}-round instance · ${f("pairs_used")} pairs · verified ${f("verified")}`;
+    case "suite_hash_kat": return `${f("input_bytes")} B · KAT match ${f("kat_match")}`;
+  }
+  return "";
+}
+
+function paramField(p, v) {
+  const val = v ?? p.default ?? "";
+  const when = p.when ? ` data-when='${esc(JSON.stringify(p.when))}'` : "";
+  const help = p.help ? `<span class="muted" style="font-size:11px">${esc(p.help)}</span>` : "";
+  const bounds = p.kind === "int" ? ` (${p.min}–${p.max})` : p.kind === "uint" ? ` (≤ ${p.max} bits)` : p.kind === "uint_list" || p.kind === "signatures" ? ` (≤ ${p.max})` : "";
+  let input;
+  if (p.kind === "choice") input = `<select name="${esc(p.name)}">${p.choices.map(c => `<option ${String(c) === String(val) ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>`;
+  else if (p.kind === "bool") input = `<select name="${esc(p.name)}"><option value="true" ${val === true ? "selected" : ""}>yes</option><option value="false" ${val !== true ? "selected" : ""}>no</option></select>`;
+  else if (p.kind === "int") input = `<input name="${esc(p.name)}" type="number" min="${p.min}" max="${p.max}" value="${esc(val)}">`;
+  else if (p.kind === "uint_list") input = `<textarea name="${esc(p.name)}" placeholder="one decimal integer per line">${esc(Array.isArray(val) ? val.join("\n") : val)}</textarea>`;
+  else if (p.kind === "signatures") input = `<textarea name="${esc(p.name)}" placeholder='[{"r":"…","s":"…","z":"…"}]'>${esc(val && typeof val !== "string" ? JSON.stringify(val) : val)}</textarea>`;
+  else input = `<input name="${esc(p.name)}" value="${esc(val)}" ${p.kind === "point" ? 'placeholder="x,y"' : ""}>`;
+  return `<div class="pfield"${when}><label>${esc(p.label)}${bounds}${p.required ? " *" : ""}</label>${input}${help}</div>`;
+}
+function syncWhen(form) {
+  if (!form) return;
+  const vals = Object.fromEntries(new FormData(form).entries());
+  form.querySelectorAll(".pfield[data-when]").forEach(el => { const w = JSON.parse(el.dataset.when); el.style.display = Object.entries(w).every(([k, vs]) => vs.includes(vals[k])) ? "" : "none"; });
+}
+function collectParams(form, tool) {
+  const raw = Object.fromEntries(new FormData(form).entries()), out = {};
+  for (const p of tool.params) {
+    const el = form.querySelector(`.pfield [name="${p.name}"]`);
+    if (!el || el.closest(".pfield").style.display === "none") continue;
+    const v = (raw[p.name] ?? "").trim();
+    if (v === "") continue;
+    if (p.kind === "int") out[p.name] = Number(v);
+    else if (p.kind === "bool") out[p.name] = v === "true";
+    else if (p.kind === "uint_list") out[p.name] = v.split(/[\s,]+/).filter(Boolean);
+    else if (p.kind === "signatures") { try { out[p.name] = JSON.parse(v); } catch { throw new Error(`${p.label}: must be a JSON list of {r, s, z}`); } }
+    else out[p.name] = v;
+  }
+  return out;
+}
+
+route(/^\/toolkit$/, async () => {
+  $("#projnav").innerHTML = "";
+  const [tk, ps] = await Promise.all([toolkit(), api("/api/projects")]);
+  const showcase = ps.find(p => /showcase/i.test(p.name)) || ps[0];
+  return `<h1>Cryptanalysis toolkit</h1><p class="sub">The Isogeny Labs cryptanalysis suite (<code>crax</code>), connected as ${tk.tools.length} bounded tools. Each answers one engineering question, runs with typed parameters inside resource limits, and leaves an append-only evidence record. Every tool ships controls: a <b>negative control</b> must come back clean on real, correctly generated material; a <b>positive control</b> plants a weakness the tool must find.</p>
+  ${suiteBanner(tk.suite)}
+  <div class="panel"><h2>Execution boundary</h2>${nl(tk.boundary)}</div>
+  ${tk.families.map(fam => `<h2>${esc(fam)}</h2><div class="grid g2">${tk.tools.filter(t => t.family === fam).map(t => `<div class="panel tool">
+    <h3 style="margin-top:0">${esc(t.title)}</h3><p>${esc(t.question)}</p><p class="muted" style="font-size:12px"><code>${esc(t.operation)}</code></p>
+    ${t.controls.length ? `<p style="font-size:12px">${t.controls.map(c => `${kindBadge(c.kind)} ${esc(c.name)}`).join("<br>")}</p>` : ""}
+    <details><summary>Limitations</summary>${nl(t.limitations)}</details>
+    ${showcase ? `<p><a href="#/p/${showcase.id}/suite?tool=${t.id}"><button class="ghost sm">Open in ${/showcase/i.test(showcase.name) ? "showcase project" : esc(showcase.name)}</button></a></p>` : ""}</div>`).join("")}</div>`).join("")}`;
 });
-window.newSuiteExp = (e, pid) => { e.preventDefault(); const b = Object.fromEntries(new FormData(e.target).entries()); const curve = String(b.curve || "").trim(); if (!/^[A-Za-z0-9][A-Za-z0-9._+\-]{0,63}$/.test(curve)) return toast("curve must be a suite identifier, not an option or command", true), false; const params = {curve}; if (b.fixture === "suite_curve_estimate") { const n = Number(b.envelope_bits); if (!Number.isInteger(n) || n < 8 || n > 512) return toast("envelope bits must be an integer from 8 through 512", true), false; params.envelope_bits = n; } const body = {name: b.name || `${curve} ${b.fixture === "suite_curve_audit" ? "parameter audit" : "attack-model estimate"}`, fixture: b.fixture, definition: {params, contract: b.fixture === "suite_curve_audit" ? "crax --json icx inspect" : "crax --json icx estimate"}, acceptance_criteria: b.fixture === "suite_curve_audit" ? ["every suite parameter check passes", "suite_verified == 1"] : ["suite report completes", "result remains labelled as an operation-count model"], description: b.fixture === "suite_curve_audit" ? "Bounded cryptanalysis-suite parameter audit." : "Bounded cryptanalysis-suite attack-model estimate."}; return act(()=>api(`/api/projects/${pid}/experiments`,{method:"POST",body}),"Suite experiment created — open an implementation to run it"), false; };
+
+route(/^\/p\/([^/]+)\/suite$/, async (pid, q) => {
+  projNav(pid, "/suite");
+  const [tk, impls, runs] = await Promise.all([toolkit(), api(`/api/projects/${pid}/implementations`), api(`/api/projects/${pid}/toolkit/runs`)]);
+  const tool = tk.tools.find(t => t.id === q.tool) || tk.tools.find(t => runs.some(r => r.tool === t.id)) || tk.tools[0];
+  const preset = q.preset !== undefined ? tool.controls.filter(c => !c.generated)[+q.preset] : null;
+  setTimeout(() => syncWhen($("#toolform")));
+  const canRun = tk.suite.available && impls.length && !window.IEL_STATIC;
+  const implSel = `<select name="implementation_id">${impls.map(i => `<option value="${i.id}">${esc(i.name)} ${esc(i.version)} (${esc(i.role)})</option>`).join("")}</select>`;
+  const runControl = (c, i) => c.generated
+    ? `<button class="ghost sm" ${on("click", function(e){ return toolRun(e, pid, tool, {control: c.id}); })}>Run</button>`
+    : `<a href="#/p/${pid}/suite?tool=${tool.id}&preset=${i}"><button class="ghost sm">Load</button></a>`;
+  return `<h1>Cryptanalysis toolkit</h1><p class="sub">Run any suite tool against an implementation in this project. Results land in Evidence as measured, append-only runs. <a href="#/toolkit">Tool catalog</a> · <a href="#/research">Research portfolio</a></p>
+  ${suiteBanner(tk.suite)}
+  <div class="grid toolgrid"><div class="panel"><h2>Tools</h2>${tk.families.map(fam => `<h3>${esc(fam)}</h3><ul class="tight toollist">${tk.tools.filter(t => t.family === fam).map(t => `<li><a href="#/p/${pid}/suite?tool=${t.id}" class="${t.id === tool.id ? "cur" : ""}">${esc(t.title)}</a> <span class="muted">${runs.filter(r => r.tool === t.id).length || ""}</span></li>`).join("")}</ul>`).join("")}</div>
+  <div><div class="panel"><h2>${esc(tool.title)}</h2><p>${esc(tool.question)}</p><p class="muted"><code>${esc(tool.operation)}</code> · acceptance: ${esc(tool.acceptance.join("; "))}</p>
+    ${tool.controls.length ? `<h3>Controls</h3><table>${tool.controls.map((c, i) => `<tr><td>${kindBadge(c.kind)}</td><td>${esc(c.name)}${c.generated ? ' <span class="muted">(fresh material generated server-side)</span>' : ""}</td><td>${canRun || !c.generated ? runControl(c, tool.controls.filter(x => !x.generated).indexOf(c)) : ""}</td></tr>`).join("")}</table>` : ""}
+    <h3>${preset ? `Parameters — loaded from control “${esc(preset.name)}”` : "Parameters"}</h3>
+    <form id="toolform" ${on("change", function(){ syncWhen(this); })} ${on("submit", function(e){ return toolRun(e, pid, tool); })}><div class="grid g2">${tool.params.map(p => paramField(p, preset?.params?.[p.name])).join("")}</div>
+    <div class="grid g2"><div><label>Run against implementation</label>${implSel}</div><div><label>Record name (optional)</label><input name="__name" value="${preset ? esc("Control: " + preset.name) : ""}"></div></div>
+    <p><button ${canRun ? "" : "disabled"}>Run tool</button> <span class="muted" style="font-size:12px">${window.IEL_STATIC ? "Static demo: browse the recorded runs below." : "Typed fields only — the runner builds argv itself and never accepts a command, flag, path or environment value."}</span></p></form>
+    <details><summary>Limitations</summary>${nl(tool.limitations)}</details></div></div></div>
+  <div class="panel"><h2>Toolkit evidence in this project</h2><table><tr><th>Run</th><th>Tool</th><th>Record</th><th>Against</th><th>Status</th><th>Checks</th><th>Headline</th><th>When</th></tr>
+  ${runs.map(r => `<tr class="clickable" ${on("click", function(){ location.hash = `#/p/${pid}/runs/${r.id}`; })}><td>#${r.sequence}</td><td>${esc(tk.tools.find(t => t.id === r.tool)?.title || r.tool)}</td><td>${r.control ? kindBadge(r.control.kind) + " " : ""}${esc(r.experiment_name)}${r.exclusions?.length ? ' <span class="badge b-demo" title="secret material redacted">redacted</span>' : ""}</td><td class="muted">${esc(r.implementation_label)}</td><td>${badge(r.status)}</td><td>${passmark(r.overall_pass)} <span class="muted">${r.scenarios_passed}/${r.scenarios_total}</span></td><td style="font-size:12px">${toolHeadline(r.tool, r.metrics || {})}</td><td class="muted">${when(r.created_at)}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No toolkit evidence yet. Pick a tool and run a control first.</td></tr>'}</table></div>`;
+});
+window.toolRun = (e, pid, tool, extra = {}) => {
+  e.preventDefault();
+  const form = $("#toolform");
+  let body;
+  try { body = {tool: tool.id, implementation_id: form.querySelector('[name="implementation_id"]').value, name: form.querySelector('[name="__name"]').value, ...(extra.control ? {control: extra.control} : {params: collectParams(form, tool)})}; } catch (err) { return toast(err.message, true), false; }
+  toast("Running " + tool.title + " … (bounded; a full ECDSA sweep can take ~20 s)");
+  return act(async () => { const r = await api(`/api/projects/${pid}/toolkit/run`, {method: "POST", body}); location.hash = `#/p/${pid}/runs/${r.id}`; }, "Tool run recorded"), false;
+};
+
+// ------------------------------------------------------------------ research portfolio (imported, read-only)
+const REGIME_COLOR = {prime: "#2a78d6", char2: "#eb6834", koblitz: "#1baf7a", koblitz_batch: "#eda100"};
+const REGIME_LABEL = {prime: "prime field", char2: "random binary", koblitz: "Koblitz", koblitz_batch: "Koblitz, batch"};
+function familyChart(fam, rows) {
+  const W = 560, H = 230, L = 46, R = 96, T = 14, B = 34;
+  const xs = rows.map(r => r.log2_r), ys = rows.map(r => r.ratio_rho);
+  const x0 = Math.floor(Math.min(...xs)) - 1, x1 = Math.ceil(Math.max(...xs)) + 1;
+  const y0 = 0, y1 = Math.ceil(Math.log2(Math.max(...ys, 2)));
+  const X = (v) => L + (v - x0) / (x1 - x0) * (W - L - R), Y = (v) => T + (1 - (Math.log2(v) - y0) / (y1 - y0)) * (H - T - B);
+  const series = [...new Set(rows.map(r => r.regime))];
+  let g = "";
+  for (let k = y0; k <= y1; k++) g += `<line x1="${L}" x2="${W - R}" y1="${Y(2 ** k)}" y2="${Y(2 ** k)}" class="grid"/><text x="${L - 6}" y="${Y(2 ** k) + 4}" text-anchor="end" class="tick">${2 ** k}×</text>`;
+  for (let k = Math.ceil(x0 / 4) * 4; k <= x1; k += 4) g += `<text x="${X(k)}" y="${H - B + 16}" text-anchor="middle" class="tick">2^${k}</text>`;
+  g += `<line x1="${L}" x2="${W - R}" y1="${Y(1)}" y2="${Y(1)}" class="parity"/><text x="${W - R + 4}" y="${Y(1) + 4}" class="tick">parity (1×)</text>`;
+  g += `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle" class="tick">subgroup size r (log₂)</text>`;
+  for (const s of series) {
+    const pts = rows.filter(r => r.regime === s).sort((a, b) => a.log2_r - b.log2_r), c = REGIME_COLOR[s] || "#666";
+    g += `<polyline fill="none" stroke="${c}" stroke-width="2" points="${pts.map(r => `${X(r.log2_r)},${Y(r.ratio_rho)}`).join(" ")}"/>`;
+    for (const r of pts) {
+      const tip = `${r.slug}\n${REGIME_LABEL[r.regime] || r.regime}, r ≈ 2^${r.log2_r.toFixed(1)}\n${r.ratio_rho.toFixed(2)}× the matched rho (distance remaining)\nbest recipe: ${r.best_recipe}\nvalidation: ${r.validation_status}`;
+      g += `<g class="pt"><circle cx="${X(r.log2_r)}" cy="${Y(r.ratio_rho)}" r="${r.validation_status === "validated" ? 4.5 : 4}" fill="${r.validation_status === "validated" ? c : "#fff"}" stroke="${c}" stroke-width="2"/><circle cx="${X(r.log2_r)}" cy="${Y(r.ratio_rho)}" r="11" fill="transparent"><title>${esc(tip)}</title></circle></g>`;
+    }
+    const last = pts[pts.length - 1];
+    g += `<text x="${X(last.log2_r) + 8}" y="${Y(last.ratio_rho) + 4}" class="dlabel">${esc(REGIME_LABEL[s] || s)}</text>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="${esc(fam.title)}: ratio to matched rho by subgroup size">${g}</svg>`;
+}
+
+route(/^\/research$/, async () => {
+  $("#projnav").innerHTML = "";
+  const d = await api("/api/research/portfolio");
+  const s = d.source, vg = d.validation_gate?.status_counts || {};
+  const fams = Object.entries(d.families);
+  const leaders = Object.entries(d.leaders || {});
+  return `<h1>Research portfolio: index calculus vs Pollard rho</h1><p class="sub">${esc(d.what_this_is || "")}</p>
+  <div class="callout info"><b>Imported, read-only.</b> ${prov("imported")} Snapshot of <code>${esc(s.repository)}/${esc(s.path)}</code> at commit <code>${esc(s.commit.slice(0, 12))}</code> (file last changed ${esc(s.file_last_changed)}), SHA-256 <code title="${esc(s.sha256)}">${esc(s.sha256.slice(0, 16))}…</code>. Nothing is recomputed or re-ranked here. Refresh with <code>scripts/import_research_portfolio.py</code>.</div>
+  <div class="callout"><b>How to read this.</b> ${esc(d.success_criterion)} The leaderboard is not ${esc((d.what_this_is_not || []).join(", "))}.</div>
+  <div class="grid g4">
+    <div class="panel"><div class="stat">${d.rows.length}<small>board rows (curve sizes × families)</small></div></div>
+    <div class="panel"><div class="stat">${vg["validated"] ?? 0}<small>rows validated (replay certificate, validator report, matched rho)</small></div></div>
+    <div class="panel"><div class="stat">${vg["unvalidated (pre-gate)"] ?? 0}<small>rows unvalidated (pre-gate)</small></div></div>
+    <div class="panel"><div class="stat">${leaders.length ? Math.min(...leaders.map(([, l]) => l.ratio_rho)).toFixed(2) + "×" : "—"}<small>closest distance to the matched rho on any family</small></div></div>
+  </div>
+  <div class="panel"><h2>Distance remaining to the matched rho, by subgroup size</h2><p class="muted" style="font-size:12px">One panel per family because each family has its own unit and its own rho reference; ratios compare within a panel, never across. Filled dots: validated rows; hollow: unvalidated (pre-gate). Lower is closer; the dashed line is parity. Hover a point for its row.</p>
+    <div class="grid g3">${fams.map(([k, f]) => { const rs = d.rows.filter(r => r.family === k); return rs.length ? `<div><h3>${esc(k)}. ${esc(f.title)}</h3><p class="muted" style="font-size:11px;margin:0">unit: ${esc(f.unit_short)} · reference: ${esc(f.ref_short)}</p>${familyChart(f, rs)}</div>` : ""; }).join("")}</div>
+    <p class="legend">${Object.entries(REGIME_LABEL).map(([k, l]) => `<span><i style="background:${REGIME_COLOR[k]}"></i>${esc(l)}</span>`).join("")}</p></div>
+  <div class="panel"><h2>Current leaders</h2><table><tr><th>Family</th><th>Row</th><th>r</th><th>Recipe</th><th>× matched rho</th><th>Largest row</th></tr>${leaders.map(([k, l]) => `<tr><td>${esc(REGIME_LABEL[k] || k)}</td><td><code>${esc(l.slug)}</code></td><td>2^${fmt(l.log2_r)}</td><td>${esc(l.recipe)}</td><td><b>${fmt(l.ratio_rho)}×</b></td><td class="muted"><code>${esc(l.largest?.slug)}</code> 2^${fmt(l.largest?.log2_r)} at ${fmt(l.largest?.ratio_rho)}×</td></tr>`).join("")}</table></div>
+  <div class="panel"><h2>Every board row (table view)</h2><table><tr><th>Family</th><th>Regime</th><th>Row</th><th>r</th><th>Best recipe</th><th>× matched rho</th><th>× floor</th><th>Verified / reps</th><th>Validation gate</th></tr>${d.rows.map(r => `<tr><td>${esc(r.family)}</td><td>${esc(REGIME_LABEL[r.regime] || r.regime)}</td><td><code style="font-size:11px">${esc(r.slug)}</code></td><td>2^${r.log2_r.toFixed(1)}</td><td style="font-size:12px">${esc(r.best_recipe)}</td><td><b>${r.ratio_rho.toFixed(2)}×</b></td><td>${r.ratio_floor ? r.ratio_floor.toFixed(1) + "×" : "—"}</td><td>${r.verified ? '<span class="ok">yes</span>' : "—"} / ${fmt(r.repetitions)}</td><td>${badge(r.validation_status === "validated" ? "validated" : "unvalidated")} <span class="muted" style="font-size:11px">${esc(r.validation_verdict || "")}${r.validation_caveats.length ? "; caveats: " + esc(r.validation_caveats.join(", ")) : ""}</span></td></tr>`).join("")}</table></div>
+  <div class="panel"><h2>Research timeline: ${esc(d.progress.label || "")}</h2><table><tr><th>Date</th><th>Entry</th><th>Value</th><th>Class</th><th>Reference</th></tr>${d.progress.points.slice().reverse().map(p => `<tr><td class="muted">${esc(p.date)}</td><td>${esc(p.label)}<details><summary>detail</summary><p style="font-size:12px">${esc(p.detail)}</p></details></td><td>${fmt(p.value)}</td><td>${badge(p.class)}</td><td class="${p.reference === "matched" ? "" : "warn"}">${esc(p.reference)} rho</td></tr>`).join("")}</table></div>
+  <div class="panel"><h2>Family definitions</h2><dl class="kv">${fams.map(([k, f]) => `<dt>${esc(k)}. ${esc(f.title)}</dt><dd><b>Unit:</b> ${esc(f.unit)}<br><b>Reference:</b> ${esc(f.reference)}<br><b>Floor:</b> ${esc(f.floor)}</dd>`).join("")}</dl></div>`;
+});
 
 route(/^\/p\/([^/]+)\/runs\/([^/]+)$/, async (pid, rid) => {
   projNav(pid, "/runs");
@@ -256,10 +391,11 @@ route(/^\/p\/([^/]+)\/runs\/([^/]+)$/, async (pid, rid) => {
   const mdef = (k) => r.metric_definitions[k] || Object.entries(r.metric_definitions).find(([kk]) => kk.endsWith("*") && k.startsWith(kk.slice(0, -1)))?.[1] || "";
   return `<h1>Run #${r.sequence} ${badge(r.status)} ${prov(r.provenance)} ${passmark(r.overall_pass)}</h1><p class="sub">${esc(r.experiment.name)} · ${esc(r.implementation.name)} ${esc(r.implementation.version)} · runner ${esc(r.runner_kind)} ${esc(r.runner_version)} · fixture ${esc(r.fixture_version)} · ${when(r.created_at)}</p>
   ${r.provenance === "illustrative" ? '<div class="callout">ILLUSTRATIVE DATA — demonstration numbers, not a measurement.</div>' : r.provenance === "imported" ? '<div class="callout info">Imported evidence — measured outside this platform; schema and hash verified only.</div>' : ""}
+  ${r.experiment.definition?.control ? `<div class="callout info"><b>${esc(r.experiment.definition.control.kind)} control.</b> ${esc(r.experiment.definition.control.name)}${r.experiment.definition.control.source ? ` — ${esc(r.experiment.definition.control.source)}` : ""}${r.experiment.definition.control.planted ? `<br>Planted: ${esc(r.experiment.definition.control.planted.join("; "))}` : ""}</div>` : ""}
   ${r.supersedes_run_id ? `<div class="callout info">Correction of <a href="#/p/${pid}/runs/${r.supersedes_run_id}">an earlier run</a>: ${esc(r.correction_note)}</div>` : ""}${r.superseded_by.length ? `<div class="callout">Superseded by ${r.superseded_by.map(s => `<a href="#/p/${pid}/runs/${s.id}">run #${s.sequence}</a>`).join(", ")} (this record is kept unchanged).</div>` : ""}
   ${r.failures.length ? `<div class="callout bad"><b>Failures</b>${nl(r.failures)}</div>` : ""}
   <div class="grid g2"><div>
-  <div class="panel"><h2>Requirement evaluation</h2><table><tr><th>Requirement</th><th>Limit</th><th>Observed</th><th></th></tr>${r.requirement_results.map(x => `<tr><td>${esc(x.name)}</td><td><code>${esc(x.metric)} ${esc(x.operator)} ${x.threshold} ${esc(x.unit)}</code></td><td>${fmt(x.observed)}</td><td>${passmark(x.pass)} <span class="muted">${esc(x.note || "")}</span></td></tr>`).join("")}</table></div>
+  <div class="panel"><h2>Requirement evaluation</h2>${(() => { const suite = r.runner_kind === "cryptanalysis_suite"; const reqs = suite ? r.requirement_results.filter(x => x.observed !== null && x.observed !== undefined) : r.requirement_results; return (suite && !reqs.length ? '<p class="muted">No project requirement applies to the metrics this suite tool reports.</p>' : "") + `<table><tr><th>Requirement</th><th>Limit</th><th>Observed</th><th></th></tr>${reqs.map(x => `<tr><td>${esc(x.name)}</td><td><code>${esc(x.metric)} ${esc(x.operator)} ${x.threshold} ${esc(x.unit)}</code></td><td>${fmt(x.observed)}</td><td>${passmark(x.pass)} <span class="muted">${esc(x.note || "")}</span></td></tr>`).join("")}</table>`; })()}</div>
   <div class="panel"><h2>Checks &amp; scenarios</h2><table><tr><th>Check / scenario</th><th>Expected</th><th>Observed</th><th></th></tr>${r.scenarios.map(s => `<tr><td>${esc(s.name || s.id)}<br><span class="muted">${esc(s.detail || "")}</span></td><td>${esc(s.expected)}</td><td>${esc(s.observed)}</td><td>${passmark(s.pass)}</td></tr>`).join("")}</table><p class="muted">A pass means only that these recorded checks met their stated expectations. It is not proof of security.</p></div>
   <div class="panel"><h2>Metrics (with measurement definitions)</h2><table><tr><th>Metric</th><th>Value</th><th>Definition</th></tr>${Object.entries(r.metrics).map(([k, v]) => `<tr><td><code>${esc(k)}</code></td><td>${fmt(v)}</td><td class="muted" style="font-size:12px">${esc(mdef(k))}</td></tr>`).join("")}</table></div>
   </div><div>
@@ -276,8 +412,10 @@ route(/^\/p\/([^/]+)\/compare$/, async (pid, q) => {
   const opts = (sel) => runs.map(r => `<option value="${r.id}" ${r.id === sel ? "selected" : ""}>#${r.sequence} ${esc(r.implementation_label)} — ${esc(r.experiment_name)} [${r.provenance}]</option>`).join("");
   let body = "";
   if (q.b && q.c) {
-    const c = await api(`/api/projects/${pid}/compare?baseline_run_id=${q.b}&candidate_run_id=${q.c}`);
-    body = `<div class="callout ${c.comparable ? "info" : ""}">${esc(c.comparability_note)}</div>
+    let c;
+    try { c = await api(`/api/projects/${pid}/compare?baseline_run_id=${q.b}&candidate_run_id=${q.c}`); }
+    catch (e) { if (!window.IEL_STATIC) throw e; c = null; }
+    body = !c ? `<div class="callout">The static demo snapshots like-for-like pairs only (both runs from the same fixture or suite tool). Pick two runs of the same experiment type, or run the app locally to compare any pair.</div>` : `<div class="callout ${c.comparable ? "info" : ""}">${esc(c.comparability_note)}</div>
     <div class="grid g2"><div class="panel"><h3>Baseline: run #${c.baseline.sequence} ${prov(c.baseline.provenance)}</h3>${esc(c.baseline.implementation.name)} ${esc(c.baseline.implementation.version)} — ${esc(c.baseline.implementation.algorithm)} ${passmark(c.baseline.overall_pass)}</div><div class="panel"><h3>Candidate: run #${c.candidate.sequence} ${prov(c.candidate.provenance)}</h3>${esc(c.candidate.implementation.name)} ${esc(c.candidate.implementation.version)} — ${esc(c.candidate.implementation.algorithm)} ${passmark(c.candidate.overall_pass)}</div></div>
     <div class="panel"><h2>Metrics</h2><table><tr><th>Metric</th><th>Baseline</th><th>Candidate</th><th>Δ</th><th>Δ %</th><th>Definition</th></tr>${c.metrics.map(m => `<tr><td><code>${esc(m.metric)}</code></td><td>${fmt(m.baseline)}</td><td>${fmt(m.candidate)}</td><td>${fmt(m.delta)}</td><td>${m.delta_pct === null || m.delta_pct === undefined ? "—" : m.delta_pct.toFixed(1) + "%"}</td><td class="muted" style="font-size:12px">${esc(m.definition)}</td></tr>`).join("")}</table></div>
     <div class="grid g2"><div class="panel"><h2>Requirements</h2><table><tr><th>Requirement</th><th>Baseline</th><th>Candidate</th></tr>${c.requirements.candidate.map((x, i) => `<tr><td>${esc(x.name)}</td><td>${fmt(c.requirements.baseline[i]?.observed)} ${passmark(c.requirements.baseline[i]?.pass)}</td><td>${fmt(x.observed)} ${passmark(x.pass)}</td></tr>`).join("")}</table></div>

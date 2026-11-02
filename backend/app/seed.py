@@ -65,6 +65,36 @@ def _run_suite(db, project, exp, impl, actor):
     return run
 
 
+def _tool(db, project, impl, actor, tool_id, params=None, name="", control=None):
+    """Record and execute one bounded suite tool (or generated control) when the optional suite binary is connected."""
+    from . import controls, jobs
+    from .routers.toolkit import create_tool_run
+    if not get_runner("cryptanalysis_suite").available()[0]:
+        return None
+    note = None
+    if control:
+        tool_id, params, note = controls.generate(control)
+    _, run = create_tool_run(db, project, impl, actor, tool_id, params or {}, name, note)
+    jobs.process_pending()
+    db.expire_all()
+    return run
+
+
+def _tool_preset(db, project, impl, actor, tool_id, index, name=""):
+    """Run the static control preset `index` of a suite tool."""
+    from runners.suite_tools import TOOLS
+    from . import jobs
+    from .routers.toolkit import create_tool_run
+    if not get_runner("cryptanalysis_suite").available()[0]:
+        return None
+    c = TOOLS[tool_id].controls[index]
+    note = {"control": f"{tool_id}:{index}", "kind": c["kind"], "name": c["name"], "source": "static preset in runners/suite_tools.py"}
+    _, run = create_tool_run(db, project, impl, actor, tool_id, c["params"], name, note)
+    jobs.process_pending()
+    db.expire_all()
+    return run
+
+
 def _import_run(db, project, exp, impl, actor, doc, illustrative=True):
     run = services.create_run_record(db, project.id, exp.id, impl.id, "import", "imported", actor.id)
     doc = dict(doc)
@@ -134,6 +164,15 @@ def seed_iot(db, admin, engineer, reviewer):
     r2 = _run_fixture(db, p, fx, cand, engineer)          # fails: signature 3309 B > 2560 B slot -> opens measurement finding
     r3 = _import_run(db, p, hw, base, engineer, _load("hw_baseline_rsa2048.json"))
     r4 = _import_run(db, p, hw, cand, engineer, _load("hw_candidate_mldsa65.json"))  # also fails stack + slot
+    # --- cryptanalysis-suite toolkit (only when crax is connected): key hygiene, lattice margins, digest cross-check
+    _tool(db, p, base, engineer, None, name="Fleet signing-key hygiene: RSA-2048 public keys (negative control)", control="rsa_real_keys")
+    _tool(db, p, base, engineer, None, name="Control: planted shared-prime and close-prime moduli (positive)", control="rsa_weak_moduli")
+    _tool(db, p, base, engineer, None, name="Control: planted small private exponent (positive, Wiener)", control="rsa_wiener")
+    _tool(db, p, cand, engineer, "suite_mlwe_estimate", {"scheme": "ml-dsa-65", "model": "gate-count", "tours": True},
+          name="ML-DSA-65 lattice key-recovery estimate (gate-count + BKZ tours)")
+    _tool(db, p, cand, engineer, "suite_mlwe_estimate", {"scheme": "ml-dsa-44", "model": "gate-count", "tours": True},
+          name="ML-DSA-44 lattice key-recovery estimate (smaller-signature alternative)")
+    _tool(db, p, cand, engineer, None, name="Manifest digest cross-check: suite SHA-256 vs build hashlib", control="firmware_digest")
     _source(db, p, engineer, "Draft PQC transition timeline (paraphrase, demonstration)", "pqc_transition_guidance.txt")
     _source(db, p, engineer, "PKCS#1 v1.5 lenient-parser class of bugs (paraphrase, demonstration)", "pkcs1v15_parser_bugs.txt")
     # --- attack-cost view (classical/quantum separated; C = published, D = unknown)
@@ -263,6 +302,10 @@ def seed_app(db, admin, engineer, reviewer):
     _run_fixture(db, p, fx, base, engineer)  # RS256 sign throughput typically < 2000/s -> requirement failure -> finding
     _run_suite(db, p, suite_audit, curve_candidate, engineer)
     _run_suite(db, p, suite_estimate, curve_candidate, engineer)
+    _tool_preset(db, p, curve_candidate, engineer, "suite_weak_curve", 0, "P-256 structural weak-curve analysis (negative control)")
+    _tool_preset(db, p, curve_candidate, engineer, "suite_weak_curve", 2, "Control: anomalous toy curve, Smart attack (positive)")
+    _tool(db, p, curve_candidate, engineer, None, name="ES256 signature-transcript audit: 32 real signatures, full lattice sweep", control="es256_transcript")
+    _tool_preset(db, p, curve_candidate, engineer, "suite_ecdsa_audit", 0, "Control: planted 192-bit nonce bias (positive)")
     _source(db, p, engineer, "JWS algorithm guidance for RS256 deployments (paraphrase, demonstration)", "jws_alg_guidance.txt")
     db.add(AttackAssessment(project_id=p.id, category="D", attack_model="classical", target="RS256 token forgery via algorithm confusion (implementation)",
                             target_parameters={"library": "PyJWT", "version": "2.8.0"}, objective="Have the verifier accept a token under an unintended algorithm.",
@@ -270,6 +313,44 @@ def seed_app(db, admin, engineer, reviewer):
                             source="Research inbox (demonstration).", expected_work=None,
                             uncertainty="Configuration-dependent; verify by code review and the fixture's rejection scenarios.",
                             applicability_limits="Not a cryptanalytic cost; an integration check.", is_demo=True))
+    db.commit()
+    return p
+
+
+def seed_showcase(db, admin, engineer, reviewer):
+    """A research-facing project that exercises every suite tool family once, with its controls."""
+    p = Project(name="Isogeny Labs cryptanalysis suite — showcase", kind="application", is_demo=True, created_by=admin.id,
+                business_purpose="Demonstrates the bounded crax toolkit end to end: every tool family, its controls, and the evidence each run leaves.",
+                deployment_environment="Research workstation; no customer system is involved.", support_period_end="2030-12-31",
+                data_protection_requirements="None: every target here is public, synthetic or a toy instance.",
+                update_process="Suite revision pinned in .github/workflows/pages.yml; bumping it is a reviewed source change.")
+    db.add(p)
+    db.flush()
+    db.add_all([ProjectMember(project_id=p.id, user_id=engineer.id, role="editor"), ProjectMember(project_id=p.id, user_id=reviewer.id, role="reviewer")])
+    suite = Implementation(project_id=p.id, name="crax cryptanalysis suite", version="pinned build", role="baseline", status="approved",
+                           algorithm="Isogeny Labs cryptanalysis toolkit (Rust suite)", library="isogeny-labs/cryptanalysis suite/",
+                           library_version="see each run's suite_version and binary SHA-256", source_revision="pinned in .github/workflows/pages.yml",
+                           configuration={}, target_environment={"host": "seeding host"}, build_identity={"cargo": "--release --locked"},
+                           delivery_mode="container", created_by=engineer.id,
+                           notes="Each run records the exact binary hash; the static demo pins the suite revision.")
+    db.add(suite)
+    db.flush()
+    _tool_preset(db, p, suite, engineer, "suite_curve_audit", 0)
+    _tool(db, p, suite, engineer, "suite_curve_audit", {"curve": "secp256k1"}, "Curve parameter audit: secp256k1")
+    _tool_preset(db, p, suite, engineer, "suite_curve_estimate", 0)
+    _tool_preset(db, p, suite, engineer, "suite_weak_curve", 1)
+    _tool_preset(db, p, suite, engineer, "suite_weak_curve", 3)
+    _tool_preset(db, p, suite, engineer, "suite_mlwe_estimate", 1)
+    _tool(db, p, suite, engineer, "suite_mlwe_estimate", {"scheme": "ml-kem-768", "model": "gate-count", "tours": True}, "ML-KEM-768 lattice estimate")
+    _tool_preset(db, p, suite, engineer, "suite_generic_rho", 0, "Pollard rho, generic-26 toy curve, seed 1")
+    _tool(db, p, suite, engineer, "suite_generic_rho", {"curve": "generic-26", "secret": "123456", "negation": True, "seed": 2},
+          "Pollard rho, generic-26 toy curve, seed 2")
+    _tool(db, p, suite, engineer, "suite_generic_rho", {"curve": "generic-26", "secret": "123456", "negation": False, "seed": 1},
+          "Pollard rho, generic-26 toy curve, no negation map")
+    _tool_preset(db, p, suite, engineer, "suite_factor_toy", 0)
+    _tool_preset(db, p, suite, engineer, "suite_aes_reduced", 0)
+    _tool_preset(db, p, suite, engineer, "suite_aes_reduced", 1)
+    _tool_preset(db, p, suite, engineer, "suite_hash_kat", 0)
     db.commit()
     return p
 
@@ -290,8 +371,9 @@ def ensure_seed():
         admin, eng, rev = users["admin@isogeny.local"], users["engineer@customer.local"], users["reviewer@isogeny.local"]
         p1 = seed_iot(db, admin, eng, rev)
         p2 = seed_app(db, admin, eng, rev)
-        audit.record(db, admin.id, "seed.completed", "system", None, None, {"projects": [p1.id, p2.id]}, commit=True)
-        print(f"seeded demo projects: {p1.name} | {p2.name}")
+        p3 = seed_showcase(db, admin, eng, rev)
+        audit.record(db, admin.id, "seed.completed", "system", None, None, {"projects": [p1.id, p2.id, p3.id]}, commit=True)
+        print(f"seeded demo projects: {p1.name} | {p2.name} | {p3.name}")
 
 
 if __name__ == "__main__":

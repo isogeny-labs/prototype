@@ -12,7 +12,7 @@ imported or illustrative, and what is out of scope.
 
 ```bash
 pip install -r requirements.txt
-./scripts/dev_server.sh start          # seeds two demo projects on first start; http://127.0.0.1:8008
+./scripts/dev_server.sh start          # seeds three demo projects on first start; http://127.0.0.1:8008
 ./scripts/dev_server.sh stop
 ```
 
@@ -29,12 +29,42 @@ research extraction; absent ⇒ rule-based extraction, shown in the UI), and `IE
 the Isogeny Labs cryptanalysis suite's `crax` binary). When `IEL_CRAX_BIN` is absent, the suite runner also checks
 `PATH`; if no binary is found, the runner is shown as unavailable rather than silently simulated.
 
+## Cryptanalysis toolkit and research portfolio
+
+The Isogeny Labs cryptanalysis suite (`crax`) is connected as ten bounded tools, each answering one engineering
+question and leaving an append-only evidence record:
+
+| Family | Tools |
+|---|---|
+| Curves & parameters | curve parameter audit · attack-cost model (rho / index calculus) · structural weak-curve analysis (singular, Smart, Pohlig–Hellman, MOV) |
+| Signatures & keys | ECDSA signature-transcript audit (biased / reused nonces, lattice key recovery) · RSA public-key hygiene audit (batch GCD, Fermat, Wiener) |
+| Post-quantum | ML-KEM / ML-DSA lattice-attack estimate under named cost models |
+| Symmetric & hash | reduced-round AES key recovery · digest known-answer cross-check |
+| Research demos | Pollard rho on toy curves · toy integer factoring |
+
+Every tool ships **controls**: negative controls must come back clean on correctly generated material (a real ES256
+transcript, fresh RSA-2048 keys, P-256); positive controls plant the weakness the tool claims to find (an anomalous
+curve, a biased nonce, a shared prime, a small private exponent). Screens: **Toolkit** (catalog, top bar), per-project
+**Toolkit** (forms rendered from each tool's typed parameters, controls, run history) and **Research** — a read-only,
+hash-pinned snapshot of the index-calculus leaderboard showing each row's distance remaining to the matched Pollard rho
+and its validation-gate status. Refresh it with `python3 scripts/import_research_portfolio.py /path/to/crypto`.
+
+Build `crax` (Rust ≥ 1.87) from the cryptanalysis repository and point the app at it:
+
+```bash
+cargo build --release --locked --manifest-path /path/to/cryptanalysis/suite/Cargo.toml --bin crax
+export IEL_CRAX_BIN=/path/to/cryptanalysis/suite/target/release/crax
+```
+
+Seeding then runs 26 suite tool runs across three demo projects (about 35 s, most of it the full ECDSA lattice sweep).
+Details, bounds and the redaction rule: [`docs/SUITE_INTEGRATION.md`](docs/SUITE_INTEGRATION.md).
+
 ## Hosted demo (GitHub Pages)
 
 GitHub Pages serves static files only, so the backend (API, fixtures, job queue) is **not** hosted there. The workflow
 `.github/workflows/pages.yml` runs the tests, checks out the cryptanalysis repository at the pinned revision recorded in
 that workflow, builds `crax`, then runs `scripts/build_static_site.py`. The builder boots the real app against a throw-away
-database, executes the seeded fixtures and bounded suite audit/estimate, snapshots every API response the UI uses, and
+database, executes the seeded fixtures and every suite tool's controls, snapshots every API response the UI uses, and
 publishes a **read-only** copy of the UI. Browsing, drill-downs, comparisons and evidence downloads work; every write is
 disabled with an explanation. One-time setup: repository Settings → Pages → Source: **GitHub Actions**. Local preview:
 `python3 scripts/build_static_site.py site && python3 -m http.server -d site`.
@@ -53,16 +83,18 @@ signature-slot requirement, add a research finding, generate/review a remediatio
 rerun/import (including a failed retest that keeps the finding open and an append-only correction), compare, close,
 export and verify the evidence package. `test_feedback_loop_app.py` does the same on the containerised service with a
 real fixture run. `test_components.py` covers fixtures, runners, attack-cost rules, sandbox gating, auth and redaction.
+`test_toolkit.py` covers suite-tool parameter bounds, argv construction, secret redaction and the toolkit API with a fake
+suite; with `IEL_CRAX_BIN` set it also runs every tool's controls against the real binary (skipped otherwise).
 
 ## Layout
 
 ```
 backend/app        FastAPI app: models, auth, audit, jobs, catalog, recommend, evaluate, research, attackcost, export, seed, routers/
-backend/runners    Runner interface + local/import/docker/hardware + bounded cryptanalysis-suite adapter
+backend/runners    Runner interface + local/import/docker/hardware + cryptanalysis-suite adapter and tool registry (suite_tools.py)
 backend/fixtures   Standalone fixtures: firmware_signing, app_service_crypto, toy_factoring (stdin JSON → stdout JSON)
 backend/tests      Feedback-loop and component tests
 frontend/          Vanilla-JS single-page UI served by the backend
-seeds/             Inventories, illustrative hardware results, demonstration research documents
+seeds/             Inventories, illustrative hardware results, demonstration research documents, research_portfolio.json
 docs/              SCOPE.md, RUNNER_INTERFACE.md, DATA_MODEL.md
 ```
 
@@ -70,7 +102,7 @@ docs/              SCOPE.md, RUNNER_INTERFACE.md, DATA_MODEL.md
 
 Portfolio · Project overview (what changed / what we tested / what we learned / what to do next) · Inventory &
 requirements · Recommendation workspace & detail · Implementation workspace & detail · Evidence (runs, raw output,
-artifacts) · Cryptanalysis-suite workspace · Baseline-vs-candidate comparison · Research inbox & finding detail · Attack-cost research view ·
+artifacts) · Toolkit (catalog + per-project workspace) · Research portfolio · Baseline-vs-candidate comparison · Research inbox & finding detail · Attack-cost research view ·
 Cryptanalysis sandbox · Version-to-version revalidation history · Audit · System (runners, catalog, jobs).
 
 ## Principles enforced in code

@@ -125,11 +125,15 @@ def set_finding_status(db, finding: Finding, status: str, actor_id, note: str = 
 def build_run_request(db, experiment: Experiment, impl: Implementation, extra_params: dict | None = None) -> RunRequest:
     from . import catalog
     params = dict(experiment.definition.get("params", {}))
-    prof = catalog.profile(impl.profile_id) if impl.profile_id else None
-    if prof:
-        params.update(prof.get("fixture_params", {}))
-    params.update(impl.configuration.get("fixture_params", {}))
-    params.update(extra_params or {})
+    from runners.suite_tools import TOOLS
+    if experiment.fixture not in TOOLS:
+        # Local fixtures inherit profile/implementation parameters. Suite tools take only the parameters their
+        # experiment recorded, so a profile key (e.g. `scheme`) can never change what the suite is asked to do.
+        prof = catalog.profile(impl.profile_id) if impl.profile_id else None
+        if prof:
+            params.update(prof.get("fixture_params", {}))
+        params.update(impl.configuration.get("fixture_params", {}))
+        params.update(extra_params or {})
     return RunRequest(fixture=experiment.fixture, params=params, implementation=_snapshot(impl),
                       experiment=_snapshot(experiment),
                       limits={"timeout_s": RUNNER_TIMEOUT_SECONDS, "memory_mb": RUNNER_MEMORY_LIMIT_MB, "cpu_s": RUNNER_CPU_SECONDS})
