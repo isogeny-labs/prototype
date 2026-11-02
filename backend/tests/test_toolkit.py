@@ -72,7 +72,7 @@ def test_weak_rsa_controls_plant_what_they_claim():
     s = math.isqrt(n2)
     assert (s + 1) ** 2 - n2 < 2 ** 200                             # close primes: n2 is near a square
     v = controls.wiener_rsa_modulus()
-    assert int(v["public_exponent"]).bit_length() > 900             # large e, small d
+    assert int(v["public_exponent"]).bit_length() > 1900            # large e, small d
 
 
 # ---------------------------------------------------------------- redaction with a fake suite

@@ -70,32 +70,33 @@ def _next_prime(n: int) -> int:
     return n
 
 
-def _primes(bits: int) -> tuple[int, int]:
-    k = rsa.generate_private_key(65537, bits * 2).private_numbers()
+def _primes() -> tuple[int, int]:
+    """Two 1024-bit primes taken from a standard RSA-2048 key generation."""
+    k = rsa.generate_private_key(65537, 2048).private_numbers()
     return k.p, k.q
 
 
 def weak_rsa_moduli() -> dict:
-    """Shared-prime pair + close-primes modulus + two honest moduli, all 1024-bit, e = 65537."""
-    p, q1 = _primes(512)
-    _, q2 = _primes(512)
-    a, _ = _primes(512)
+    """Shared-prime pair + close-primes modulus + two honest moduli, all 2048-bit, e = 65537."""
+    p, q1 = _primes()
+    _, q2 = _primes()
+    a, _ = _primes()
     b = _next_prime(a + (1 << 40) + secrets.randbelow(1 << 20))
-    honest = [str(rsa.generate_private_key(65537, 1024).public_key().public_numbers().n) for _ in range(2)]
+    honest = [str(rsa.generate_private_key(65537, 2048).public_key().public_numbers().n) for _ in range(2)]
     return {"moduli": [str(p * q1), str(p * q2), str(a * b), *honest], "public_exponent": "65537",
             "planted": ["#0 and #1 share a prime", "#2 has |p − q| ≈ 2^40 (Fermat)", "#3, #4 honest"],
-            "source": "synthetic 1024-bit moduli generated for this control"}
+            "source": "synthetic 2048-bit moduli generated for this control"}
 
 
 def wiener_rsa_modulus() -> dict:
-    """One 1024-bit modulus whose private exponent is below N^0.25 / 3 (Wiener-vulnerable)."""
+    """One 2048-bit modulus whose private exponent is below N^0.25 / 3 (Wiener-vulnerable)."""
     while True:
-        p, q = _primes(512)
+        p, q = _primes()
         n, phi = p * q, (p - 1) * (q - 1)
-        d = secrets.randbits(240) | 1
+        d = secrets.randbits(500) | 1
         if math.gcd(d, phi) == 1 and 3 * d < math.isqrt(math.isqrt(n)):
             return {"moduli": [str(n)], "public_exponent": str(pow(d, -1, phi)),
-                    "planted": ["#0 has a ~240-bit private exponent"], "source": "synthetic 1024-bit Wiener control"}
+                    "planted": ["#0 has a ~500-bit private exponent"], "source": "synthetic 2048-bit Wiener control"}
 
 
 def _lib_version() -> str:

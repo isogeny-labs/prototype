@@ -64,7 +64,7 @@ Every tool ships controls so a reviewer can see the detector work before trustin
   keys, a hashlib-computed firmware digest.
 * **Positive controls** plant the weakness the tool claims to find: an anomalous curve (#E = p, Smart) and a k = 2
   pairing-friendly curve (MOV / Pohlig–Hellman) with planted secrets, a planted 192-bit ECDSA nonce bias, an RSA batch
-  with a shared prime and a close-prime modulus, and a modulus with a ~240-bit private exponent (Wiener).
+  with a shared prime and a close-prime modulus, and a modulus with a ~500-bit private exponent (Wiener); all synthetic RSA controls are 2048-bit moduli.
 
 Static presets live beside each tool; controls that need fresh key material are generated server-side by
 `backend/app/controls.py` and record their source and what was planted in the experiment definition.
