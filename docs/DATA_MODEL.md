@@ -7,7 +7,7 @@ Project ─┬─ ProjectMember (role)            Job (queue: run_fixture | rese
          ├─ Implementation (role baseline|candidate, status, profile_id, source_revision, configuration,
          │                  target_environment, build_identity, delivery_mode, parent_id, recommendation_id)
          │     └─ Task
-         ├─ Experiment (fixture, definition, acceptance_criteria)
+         ├─ Experiment (fixture, definition, acceptance_criteria; includes bounded suite audit/estimate operations)
          ├─ Run  (APPEND-ONLY: provenance measured|imported|illustrative, runner/fixture versions, environment,
          │        commands, repeat_count, metrics, metric_definitions, scenarios, raw_output_artifact_id,
          │        failures, exclusions, limitations, artifact_hashes, requirement_results, overall_pass,

@@ -25,15 +25,21 @@ sessions are bearer tokens stored hashed; logs redact tokens/keys.
 
 Configuration (environment): `IEL_DATA_DIR`, `IEL_DATABASE_URL`, `IEL_ARTIFACT_DIR`, `IEL_WORKER`, `IEL_RUNNER_TIMEOUT`,
 `IEL_RUNNER_MEMORY_MB`, `IEL_RUNNER_CPU_SECONDS`, `IEL_SKIP_SEED=1`, `ANTHROPIC_API_KEY` (optional AI adapter for
-research extraction; absent ⇒ rule-based extraction, shown in the UI).
+research extraction; absent ⇒ rule-based extraction, shown in the UI), and `IEL_CRAX_BIN` (optional absolute path to
+the Isogeny Labs cryptanalysis suite's `crax` binary). When `IEL_CRAX_BIN` is absent, the suite runner also checks
+`PATH`; if no binary is found, the runner is shown as unavailable rather than silently simulated.
 
 ## Hosted demo (GitHub Pages)
 
 GitHub Pages serves static files only, so the backend (API, fixtures, job queue) is **not** hosted there. The workflow
-`.github/workflows/pages.yml` runs the tests, then `scripts/build_static_site.py` boots the real app against a throw-away
-database, executes the seeded fixtures, snapshots every API response the UI uses, and publishes a **read-only** copy of the
-UI. Browsing, drill-downs, comparisons and evidence downloads work; every write is disabled with an explanation. One-time
-setup: repository Settings → Pages → Source: **GitHub Actions**. Local preview: `python3 scripts/build_static_site.py site && python3 -m http.server -d site`.
+`.github/workflows/pages.yml` runs the tests, checks out the cryptanalysis repository at the pinned revision recorded in
+that workflow, builds `crax`, then runs `scripts/build_static_site.py`. The builder boots the real app against a throw-away
+database, executes the seeded fixtures and bounded suite audit/estimate, snapshots every API response the UI uses, and
+publishes a **read-only** copy of the UI. Browsing, drill-downs, comparisons and evidence downloads work; every write is
+disabled with an explanation. One-time setup: repository Settings → Pages → Source: **GitHub Actions**. Local preview:
+`python3 scripts/build_static_site.py site && python3 -m http.server -d site`.
+
+The suite boundary and source review are documented in [`docs/SUITE_INTEGRATION.md`](docs/SUITE_INTEGRATION.md).
 
 ## Tests
 
@@ -52,7 +58,7 @@ real fixture run. `test_components.py` covers fixtures, runners, attack-cost rul
 
 ```
 backend/app        FastAPI app: models, auth, audit, jobs, catalog, recommend, evaluate, research, attackcost, export, seed, routers/
-backend/runners    Runner interface + local_fixture / import / docker (untested) / hardware (interface only)
+backend/runners    Runner interface + local/import/docker/hardware + bounded cryptanalysis-suite adapter
 backend/fixtures   Standalone fixtures: firmware_signing, app_service_crypto, toy_factoring (stdin JSON → stdout JSON)
 backend/tests      Feedback-loop and component tests
 frontend/          Vanilla-JS single-page UI served by the backend
@@ -64,7 +70,7 @@ docs/              SCOPE.md, RUNNER_INTERFACE.md, DATA_MODEL.md
 
 Portfolio · Project overview (what changed / what we tested / what we learned / what to do next) · Inventory &
 requirements · Recommendation workspace & detail · Implementation workspace & detail · Evidence (runs, raw output,
-artifacts) · Baseline-vs-candidate comparison · Research inbox & finding detail · Attack-cost research view ·
+artifacts) · Cryptanalysis-suite workspace · Baseline-vs-candidate comparison · Research inbox & finding detail · Attack-cost research view ·
 Cryptanalysis sandbox · Version-to-version revalidation history · Audit · System (runners, catalog, jobs).
 
 ## Principles enforced in code

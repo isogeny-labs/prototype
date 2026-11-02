@@ -8,11 +8,18 @@ from sqlalchemy import select
 from ..models import Experiment, Run, Implementation, Artifact, Requirement, Job
 from .. import audit, jobs, services
 from .. import artifacts as artstore
-from runners import list_runners, get_runner, RunRequest
+from runners import RunnerUnavailable, list_runners, get_runner, RunRequest
 from .common import row, rows, viewer, editor, get_or_404
 
 router = APIRouter(prefix="/api/projects/{project_id}", tags=["experiments", "runs"])
-FIXTURES = {"firmware_signing", "app_service_crypto", "toy_factoring", "external"}
+FIXTURES = {
+    "firmware_signing",
+    "app_service_crypto",
+    "toy_factoring",
+    "suite_curve_audit",
+    "suite_curve_estimate",
+    "external",
+}
 
 
 class ExperimentIn(BaseModel):
@@ -68,10 +75,15 @@ def create_run(body: RunIn, ctx=Depends(editor)):
     project, db, user = ctx
     exp = get_or_404(db, Experiment, body.experiment_id, project.id)
     impl = get_or_404(db, Implementation, body.implementation_id, project.id)
-    runner = get_runner(body.runner_kind)
+    try:
+        runner = get_runner(body.runner_kind)
+    except RunnerUnavailable as exc:
+        raise HTTPException(400, str(exc)) from exc
     ok, why = runner.available()
     if not ok:
         raise HTTPException(409, f"runner '{body.runner_kind}' unavailable: {why}")
+    if not runner.supports(exp.fixture):
+        raise HTTPException(400, f"runner '{body.runner_kind}' does not support fixture '{exp.fixture}'")
     if exp.fixture == "external":
         raise HTTPException(400, "experiment is import-only; use /runs/import")
     if body.supersedes_run_id:

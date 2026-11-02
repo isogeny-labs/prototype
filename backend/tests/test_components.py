@@ -1,5 +1,6 @@
 """Fixtures, runners, attack-cost rules, sandbox gating, auth & audit redaction."""
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,122 @@ def test_app_fixture_aead():
 def test_runner_refuses_non_allowlisted_fixture():
     r = get_runner("local_fixture").run(RunRequest("rm_rf", {}, {}, {}))
     assert r.status == "failed" and "allowlisted" in r.failures[0]
+
+
+def _fake_crax(tmp_path: Path) -> Path:
+    binary = tmp_path / "crax"
+    binary.write_text(f"""#!{sys.executable}
+import json
+import sys
+
+if sys.argv[1:] == ["--version"]:
+    print("crax 0.1.0-test")
+    raise SystemExit(0)
+
+operation = sys.argv[3]
+curve = sys.argv[4]
+software = {{"version": "0.1.0-test", "os": "test", "arch": "test", "field_backend": "portable"}}
+if operation == "inspect":
+    print(json.dumps({{
+        "schema_version": 1,
+        "operation": "inspect",
+        "status": "checks_passed",
+        "curve": {{
+            "name": curve,
+            "family": "prime",
+            "field": {{"kind": "prime", "label": "Fp", "bits": 256}},
+            "order_bits": 256,
+            "cofactor": "1",
+            "rho_security_bits": 128.0,
+        }},
+        "checks": [
+            {{"name": "generator_on_curve", "status": "pass", "detail": "equation holds"}},
+            {{"name": "subgroup_order", "status": "pass", "detail": "nG = O"}},
+        ],
+        "verified": True,
+        "software": software,
+    }}))
+elif operation == "estimate":
+    print(json.dumps({{
+        "schema_version": 1,
+        "operation": "estimate",
+        "status": "complete",
+        "curve": curve,
+        "family": "prime",
+        "field": "Fp",
+        "field_bits": 256,
+        "order_bits": 256,
+        "generic_attack": {{"algorithm": "pollard-rho", "log2_operations": 128.0, "security_bits": 128.0}},
+        "index_calculus": {{"relevant": False, "regime": "generic"}},
+        "notes": [],
+        "software": software,
+    }}))
+else:
+    raise SystemExit(2)
+""")
+    binary.chmod(0o755)
+    return binary
+
+
+def test_cryptanalysis_suite_runner_maps_bounded_json(monkeypatch, tmp_path):
+    monkeypatch.setenv("IEL_CRAX_BIN", str(_fake_crax(tmp_path)))
+    runner = get_runner("cryptanalysis_suite")
+    assert runner.available() == (True, "")
+    assert set(runner.describe()["fixtures"]) == {"suite_curve_audit", "suite_curve_estimate"}
+
+    audit_result = runner.run(RunRequest(
+        "suite_curve_audit", {"curve": "p256"}, {}, {},
+        limits={"timeout_s": 10, "memory_mb": 256, "cpu_s": 5},
+    ))
+    assert audit_result.status == "completed" and audit_result.provenance == "measured"
+    assert audit_result.metrics["suite_verified"] == 1
+    assert audit_result.metrics["suite_checks_passed"] == audit_result.metrics["suite_checks_total"] == 2
+    assert audit_result.metrics["rho_security_bits"] == 128.0
+    assert all(s["pass"] for s in audit_result.scenarios)
+    assert audit_result.commands[0]["argv"][-2:] == ["inspect", "p256"]
+    assert len(audit_result.environment["suite_binary_sha256"]) == 64
+
+    estimate_result = runner.run(RunRequest(
+        "suite_curve_estimate", {"curve": "secp256k1", "envelope_bits": 64}, {}, {},
+        limits={"timeout_s": 10, "memory_mb": 256, "cpu_s": 5},
+    ))
+    assert estimate_result.status == "completed"
+    assert estimate_result.metrics["rho_log2_operations"] == 128.0
+    assert estimate_result.metrics["index_calculus_relevant"] == 0
+    assert estimate_result.commands[0]["argv"][-2:] == ["--envelope", "64"]
+
+
+def test_cryptanalysis_suite_runner_rejects_unbounded_inputs(monkeypatch, tmp_path):
+    monkeypatch.setenv("IEL_CRAX_BIN", str(_fake_crax(tmp_path)))
+    runner = get_runner("cryptanalysis_suite")
+    bad_curve = runner.run(RunRequest("suite_curve_audit", {"curve": "--help"}, {}, {}))
+    assert bad_curve.status == "failed" and "curve must" in bad_curve.failures[0]
+    bad_envelope = runner.run(RunRequest("suite_curve_estimate", {"curve": "p256", "envelope_bits": 10000}, {}, {}))
+    assert bad_envelope.status == "failed" and "envelope_bits" in bad_envelope.failures[0]
+    fractional_envelope = runner.run(RunRequest("suite_curve_estimate", {"curve": "p256", "envelope_bits": 64.5}, {}, {}))
+    assert fractional_envelope.status == "failed" and "envelope_bits" in fractional_envelope.failures[0]
+    string_envelope = runner.run(RunRequest("suite_curve_estimate", {"curve": "p256", "envelope_bits": "64"}, {}, {}))
+    assert string_envelope.status == "failed" and "envelope_bits" in string_envelope.failures[0]
+    wrong_fixture = runner.run(RunRequest("firmware_signing", {"curve": "p256"}, {}, {}))
+    assert wrong_fixture.status == "failed" and "not allowlisted" in wrong_fixture.failures[0]
+
+    monkeypatch.setenv("IEL_CRAX_BIN", "relative/crax")
+    available, why = runner.available()
+    assert available is False and "absolute path" in why
+
+
+def test_run_api_rejects_incompatible_or_unknown_runner(engineer, reviewer):
+    project = new_project(engineer, reviewer, name="runner compatibility", kind="application")
+    pid = project["id"]
+    implementation = ok(engineer.post(f"/api/projects/{pid}/implementations", json={
+        "name": "service", "version": "candidate", "role": "candidate", "profile_id": "jws_es256",
+    }))
+    experiment = ok(engineer.post(f"/api/projects/{pid}/experiments", json={
+        "name": "curve audit", "fixture": "suite_curve_audit", "definition": {"params": {"curve": "p256"}},
+    }))
+    body = {"experiment_id": experiment["id"], "implementation_id": implementation["id"]}
+    assert engineer.post(f"/api/projects/{pid}/runs", json={**body, "runner_kind": "local_fixture"}).status_code == 400
+    assert engineer.post(f"/api/projects/{pid}/runs", json={**body, "runner_kind": "does_not_exist"}).status_code == 400
 
 
 def test_toy_factoring_bounds():

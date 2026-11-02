@@ -20,6 +20,7 @@ class HardwareRunner(Runner):
     provenance = "measured"
     implemented = False
     tested_here = False
+    fixtures = ("firmware_signing", "app_service_crypto")
     description = "Interface only. Future device-lab agent for on-device measurements. Not implemented."
 
     def available(self):

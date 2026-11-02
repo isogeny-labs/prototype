@@ -52,6 +52,19 @@ def _run_fixture(db, project, exp, impl, actor, extra=None):
     return run
 
 
+def _run_suite(db, project, exp, impl, actor):
+    """Run one bounded crax operation when the optional suite binary is connected."""
+    runner = get_runner("cryptanalysis_suite")
+    available, _ = runner.available()
+    if not available:
+        return None
+    run = services.create_run_record(db, project.id, exp.id, impl.id, runner.kind, runner.provenance, actor.id)
+    result = runner.run(services.build_run_request(db, exp, impl))
+    services.persist_result(db, run, result, actor.id)
+    db.commit()
+    return run
+
+
 def _import_run(db, project, exp, impl, actor, doc, illustrative=True):
     run = services.create_run_record(db, project.id, exp.id, impl.id, "import", "imported", actor.id)
     doc = dict(doc)
@@ -204,15 +217,52 @@ def seed_app(db, admin, engineer, reviewer):
                           source_revision="git 4c0ffee", configuration={"alg": "RS256", "fixture_params": {"payload_bytes": 256}},
                           target_environment={"image": "python:3.13-slim", "cpu": "x86-64"}, build_identity={"image_digest": "sha256:(recorded at build)"},
                           delivery_mode="container", created_by=engineer.id)
-    db.add(base)
+    curve_candidate = Implementation(
+        project_id=p.id,
+        name="token-service",
+        version="2.0.0-es256-analysis",
+        role="candidate",
+        status="draft",
+        profile_id="jws_es256",
+        algorithm=catalog.profile("jws_es256")["label"],
+        library="target library not yet selected",
+        source_revision="design-stage curve review",
+        configuration={"alg": "ES256", "suite_curve": "p256"},
+        target_environment={"image": "python:3.13-slim", "cpu": "x86-64"},
+        build_identity={"status": "not built; suite analysis only"},
+        delivery_mode="container",
+        parent_id=None,
+        created_by=engineer.id,
+        notes="Design-stage candidate used to demonstrate the bounded cryptanalysis-suite integration. No deployment is implied.",
+    )
+    db.add_all([base, curve_candidate])
     db.flush()
+    curve_candidate.parent_id = base.id
     fx = Experiment(project_id=p.id, name="Token signing correctness & performance regression (container fixture)", fixture="app_service_crypto",
                     definition={"params": {"repeat_count": 150, "payload_bytes": 256}},
                     acceptance_criteria=["all scenarios pass", "project requirements"],
                     description="Runs app_service_crypto in the process-isolated runner (or Docker runner when a daemon is available).")
-    db.add(fx)
+    suite_audit = Experiment(
+        project_id=p.id,
+        name="Suite audit: P-256 catalog parameters",
+        fixture="suite_curve_audit",
+        definition={"params": {"curve": "p256"}, "contract": "crax --json icx inspect"},
+        acceptance_criteria=["every suite parameter check passes", "suite_verified == 1"],
+        description="Runs the cryptanalysis suite's bounded, machine-readable curve inspection. This checks catalog parameters, not application code.",
+    )
+    suite_estimate = Experiment(
+        project_id=p.id,
+        name="Suite estimate: P-256 generic and index-calculus picture",
+        fixture="suite_curve_estimate",
+        definition={"params": {"curve": "p256", "envelope_bits": 64}, "contract": "crax --json icx estimate"},
+        acceptance_criteria=["suite report completes", "result remains labelled as an operation-count model"],
+        description="Records the suite's generic Pollard-rho and index-calculus classification. It is not a wall-clock forecast or practical-break claim.",
+    )
+    db.add_all([fx, suite_audit, suite_estimate])
     db.flush()
     _run_fixture(db, p, fx, base, engineer)  # RS256 sign throughput typically < 2000/s -> requirement failure -> finding
+    _run_suite(db, p, suite_audit, curve_candidate, engineer)
+    _run_suite(db, p, suite_estimate, curve_candidate, engineer)
     _source(db, p, engineer, "JWS algorithm guidance for RS256 deployments (paraphrase, demonstration)", "jws_alg_guidance.txt")
     db.add(AttackAssessment(project_id=p.id, category="D", attack_model="classical", target="RS256 token forgery via algorithm confusion (implementation)",
                             target_parameters={"library": "PyJWT", "version": "2.8.0"}, objective="Have the verifier accept a token under an unintended algorithm.",

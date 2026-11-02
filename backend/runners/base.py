@@ -72,6 +72,11 @@ class Runner:
     description: str = ""
     implemented: bool = True
     tested_here: bool = True
+    # None means the runner accepts any experiment fixture (the import runner
+    # is the intentional example). Concrete execution runners should publish
+    # an explicit allowlist so the API and UI cannot pair them accidentally
+    # with an incompatible experiment.
+    fixtures: tuple[str, ...] | None = None
 
     def available(self) -> tuple[bool, str]:
         return True, ""
@@ -79,11 +84,15 @@ class Runner:
     def run(self, req: RunRequest) -> RunResult:  # pragma: no cover - interface
         raise NotImplementedError
 
+    def supports(self, fixture: str) -> bool:
+        return self.fixtures is None or fixture in self.fixtures
+
     def describe(self) -> dict:
         ok, why = self.available()
         return {"kind": self.kind, "version": self.version, "provenance": self.provenance,
                 "description": self.description, "available": ok, "unavailable_reason": why,
-                "implemented": self.implemented, "tested_in_this_environment": self.tested_here}
+                "implemented": self.implemented, "tested_in_this_environment": self.tested_here,
+                "fixtures": ["*"] if self.fixtures is None else list(self.fixtures)}
 
 
 _REGISTRY: dict[str, Runner] = {}

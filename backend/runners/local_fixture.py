@@ -38,6 +38,7 @@ class LocalFixtureRunner(Runner):
     kind = "local_fixture"
     version = "1.0.0"
     provenance = "measured"
+    fixtures = tuple(sorted(ALLOWED_FIXTURES))
     description = ("Supported runner: executes an allowlisted fixture in an isolated Python subprocess "
                    "with time/CPU/memory limits and an empty environment. Process isolation, not a container.")
 
