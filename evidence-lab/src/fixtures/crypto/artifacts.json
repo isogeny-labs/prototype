@@ -1,0 +1,121 @@
+[
+  {
+    "id": "art-acme-sign",
+    "projectId": "proj-crypto-acme",
+    "kind": "library",
+    "name": "acme-sign",
+    "description": "Acme Pay's in-house ECDSA P-256 signing and verification library (Python package with a C extension). Fictional library used as sample data.",
+    "versions": [
+      {
+        "id": "artv-acme-sign-1.4.2",
+        "artifactId": "art-acme-sign",
+        "version": "1.4.2",
+        "parentVersionId": null,
+        "sha256": "e13f7a7e5aada0cf0d3df3ef789a1928bbcae53fa7b2662112d05dfc74ebd92f",
+        "provenance": "user_reported",
+        "sizeBytes": 1482330,
+        "preview": "acme_sign/ecdsa.py, acme_sign/_fastmath.c, tests/ (412 tests), pyproject.toml. Version string 1.4.2.",
+        "importedAt": "2026-10-06T09:20:00Z",
+        "importedBy": "person-dana",
+        "notes": "Release currently deployed to the signing service.",
+        "seededDefect": "Planted sample defect: verify() does not check that r and s lie in [1, n-1] before the curve computation, so the all-zero signature (r = 0, s = 0) verifies for any message. Same defect class as CVE-2022-21449 (a real 2022 Java ECDSA issue, cited as background only); acme-sign itself is fictional.",
+        "packData": {
+          "packId": "crypto",
+          "buildIdentity": "acme-sign 1.4.2 (wheel, cp312, sample)",
+          "sourceRevision": "acme internal rev 7f3a21c (sample)",
+          "configuration": {
+            "curve": "P-256",
+            "digest": "sha256",
+            "encoding": "raw r||s"
+          }
+        }
+      },
+      {
+        "id": "artv-acme-sign-1.4.3",
+        "artifactId": "art-acme-sign",
+        "version": "1.4.3",
+        "parentVersionId": "artv-acme-sign-1.4.2",
+        "sha256": "9f83880fc53d8ad8acb641510922f7faae4546021e6f535220eea3b2381257a7",
+        "provenance": "user_reported",
+        "sizeBytes": 1483012,
+        "preview": "Same layout as 1.4.2. verify() gains an explicit range check on r and s; tests/ grows to 418 tests.",
+        "importedAt": "2026-10-21T15:05:00Z",
+        "importedBy": "person-dana",
+        "notes": "Shipped by Acme in response to recommendation rec-001 (Acme internal change 2291).",
+        "packData": {
+          "packId": "crypto",
+          "buildIdentity": "acme-sign 1.4.3 (wheel, cp312, sample)",
+          "sourceRevision": "acme internal rev 9c04e1d (sample)",
+          "configuration": {
+            "curve": "P-256",
+            "digest": "sha256",
+            "encoding": "raw r||s"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "art-service-config",
+    "projectId": "proj-crypto-acme",
+    "kind": "configuration",
+    "name": "Signing service configuration",
+    "description": "The signing service's runtime configuration (digest allow-list, key rotation interval, verification flags).",
+    "versions": [
+      {
+        "id": "artv-service-config-2026-10",
+        "artifactId": "art-service-config",
+        "version": "2026-10",
+        "parentVersionId": null,
+        "sha256": "02c08531f0780b742c75ed1442bafae76a20ac95e34d355b5204e3103d617b0c",
+        "provenance": "user_reported",
+        "sizeBytes": 2210,
+        "preview": "allowed_digests: [sha256, sha384, sha1]; key_rotation_days: 90; verify_strict_encoding: false",
+        "importedAt": "2026-10-06T09:25:00Z",
+        "importedBy": "person-dana"
+      }
+    ]
+  },
+  {
+    "id": "art-wycheproof-subset",
+    "projectId": "proj-crypto-acme",
+    "kind": "test_vectors",
+    "name": "Wycheproof ECDSA P-256 vectors (sample subset)",
+    "description": "A 198-vector subset of Project Wycheproof's ECDSA P-256 / SHA-256 known-answer tests, re-encoded as raw r||s. Vector numbering in this sample (S-0001 to S-0198) is the lab's own, not Wycheproof's tcId.",
+    "versions": [
+      {
+        "id": "artv-wycheproof-subset-1",
+        "artifactId": "art-wycheproof-subset",
+        "version": "subset-1",
+        "parentVersionId": null,
+        "sha256": "9d20411c31a18aa6091b3f0e7139a11f2de7ad31e61ee6319478f89b3a41ba97",
+        "provenance": "imported",
+        "sizeBytes": 186400,
+        "preview": "198 vectors: 142 valid, 56 invalid (modified messages, out-of-range r/s, point-at-infinity edge cases).",
+        "importedAt": "2026-10-06T11:00:00Z",
+        "importedBy": "person-priya"
+      }
+    ]
+  },
+  {
+    "id": "art-ci-results",
+    "projectId": "proj-crypto-acme",
+    "kind": "test_results",
+    "name": "Acme CI signing test results (export)",
+    "description": "JUnit XML export from Acme's own CI pipeline for the acme-sign test suite. Imported as evidence; never executed here.",
+    "versions": [
+      {
+        "id": "artv-ci-results-2026-10-08",
+        "artifactId": "art-ci-results",
+        "version": "ci-2026-10-08",
+        "parentVersionId": null,
+        "sha256": "5f387a35599509c73d56cb13e87346a692225356d12d67c3908a1f7e7e9f60f9",
+        "provenance": "imported",
+        "sizeBytes": 91022,
+        "preview": "412 tests, 412 passed, 0 failed, 0 skipped. Pipeline run 8841 (Acme internal). No range-check test present.",
+        "importedAt": "2026-10-08T16:30:00Z",
+        "importedBy": "person-dana"
+      }
+    ]
+  }
+]

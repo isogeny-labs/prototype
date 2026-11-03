@@ -1,0 +1,303 @@
+[
+  {
+    "id": "test-valid-accept",
+    "packId": "crypto",
+    "name": "Valid signature acceptance",
+    "description": "Sign 5 fixed messages with 5 synthetic P-256 keys and verify each signature with the matching public key. Every verification must return true.",
+    "kind": "supported",
+    "inputs": [
+      {
+        "name": "message_count",
+        "description": "Number of fixed messages",
+        "value": 5
+      },
+      {
+        "name": "key_count",
+        "description": "Synthetic keys generated from the run seed",
+        "value": 5
+      }
+    ],
+    "acceptanceRule": {
+      "description": "100% of valid signatures accepted",
+      "metric": "valid_accept_rate",
+      "operator": ">=",
+      "threshold": 100,
+      "unit": "%"
+    },
+    "runner": "platform_sandbox: signature-fixture (simulated)",
+    "runnerVersion": "2.1.0-sample",
+    "resourceLimits": {
+      "timeoutSeconds": 120,
+      "memoryMb": 512,
+      "network": "disabled"
+    },
+    "runnable": true,
+    "version": "1.0"
+  },
+  {
+    "id": "test-modified-reject",
+    "packId": "crypto",
+    "name": "Modified message rejection",
+    "description": "For each valid (message, signature) pair, flip one bit of the message and verify. Every verification must return false.",
+    "kind": "supported",
+    "inputs": [
+      {
+        "name": "pairs",
+        "description": "Valid pairs taken from the valid-acceptance test",
+        "value": 25
+      },
+      {
+        "name": "bit_positions",
+        "description": "Bit positions flipped per message",
+        "value": "first, middle, last"
+      }
+    ],
+    "acceptanceRule": {
+      "description": "100% of modified messages rejected",
+      "metric": "modified_reject_rate",
+      "operator": ">=",
+      "threshold": 100,
+      "unit": "%"
+    },
+    "runner": "platform_sandbox: signature-fixture (simulated)",
+    "runnerVersion": "2.1.0-sample",
+    "resourceLimits": {
+      "timeoutSeconds": 120,
+      "memoryMb": 512,
+      "network": "disabled"
+    },
+    "runnable": true,
+    "version": "1.0"
+  },
+  {
+    "id": "test-malformed-reject",
+    "packId": "crypto",
+    "name": "Malformed and out-of-range signature rejection",
+    "description": "Present 8 malformed signatures (wrong length, r = 0, s = 0, r = n, s = n, r = n-1 with random s, all-ones, truncated) for a valid message. Every verification must return false or raise a documented error.",
+    "kind": "supported",
+    "inputs": [
+      {
+        "name": "cases",
+        "description": "Fixed malformed cases M-01 to M-08",
+        "value": 8
+      }
+    ],
+    "acceptanceRule": {
+      "description": "100% of malformed signatures rejected",
+      "metric": "malformed_reject_rate",
+      "operator": ">=",
+      "threshold": 100,
+      "unit": "%"
+    },
+    "runner": "platform_sandbox: signature-fixture (simulated)",
+    "runnerVersion": "2.1.0-sample",
+    "resourceLimits": {
+      "timeoutSeconds": 120,
+      "memoryMb": 512,
+      "network": "disabled"
+    },
+    "runnable": true,
+    "version": "1.1"
+  },
+  {
+    "id": "test-wycheproof",
+    "packId": "crypto",
+    "name": "Wycheproof ECDSA P-256 vectors (sample subset)",
+    "description": "Run the imported 198-vector subset and compare each verification result with the expected result recorded in the vector file.",
+    "kind": "supported",
+    "inputs": [
+      {
+        "name": "vector_artifact",
+        "description": "Test-vector artifact version",
+        "value": "artv-wycheproof-subset-1"
+      }
+    ],
+    "acceptanceRule": {
+      "description": "100% of vectors produce the expected result",
+      "metric": "wycheproof_pass_rate",
+      "operator": ">=",
+      "threshold": 100,
+      "unit": "%"
+    },
+    "runner": "platform_sandbox: signature-fixture (simulated)",
+    "runnerVersion": "2.1.0-sample",
+    "resourceLimits": {
+      "timeoutSeconds": 120,
+      "memoryMb": 512,
+      "network": "disabled"
+    },
+    "runnable": true,
+    "vectorSource": "Project Wycheproof, ECDSA P-256 / SHA-256 (subset, re-encoded; sample numbering)",
+    "version": "1.0"
+  },
+  {
+    "id": "test-latency",
+    "packId": "crypto",
+    "name": "Signing and verification latency (p50 / p95 / p99)",
+    "description": "After a 200-iteration warm-up, time 1000 signatures and 1000 verifications of a fixed message on the reference sandbox profile and report p50, p95 and p99 wall-clock latency for each.",
+    "kind": "supported",
+    "inputs": [
+      {
+        "name": "warmup_iterations",
+        "description": "Discarded iterations before timing starts",
+        "value": 200
+      },
+      {
+        "name": "iterations",
+        "description": "Timed iterations per operation",
+        "value": 1000
+      }
+    ],
+    "acceptanceRule": {
+      "description": "p99 within 2.0 ms",
+      "metric": "verify_p99_ms",
+      "operator": "<=",
+      "threshold": 2.0,
+      "unit": "ms"
+    },
+    "runner": "platform_sandbox: signature-fixture (simulated)",
+    "runnerVersion": "2.1.0-sample",
+    "resourceLimits": {
+      "timeoutSeconds": 120,
+      "memoryMb": 512,
+      "cpuSeconds": 60,
+      "network": "disabled"
+    },
+    "runnable": true,
+    "version": "1.2"
+  },
+  {
+    "id": "test-throughput",
+    "packId": "crypto",
+    "name": "Verification throughput",
+    "description": "Verify as many fixed valid signatures as possible in 10 s on one core and report verifications per second. Informational: no acceptance criterion references it.",
+    "kind": "supported",
+    "inputs": [
+      {
+        "name": "duration_s",
+        "description": "Measurement window",
+        "value": 10
+      }
+    ],
+    "acceptanceRule": {
+      "description": "Informational only; no threshold"
+    },
+    "runner": "platform_sandbox: signature-fixture (simulated)",
+    "runnerVersion": "2.1.0-sample",
+    "resourceLimits": {
+      "timeoutSeconds": 120,
+      "memoryMb": 512,
+      "cpuSeconds": 60,
+      "network": "disabled"
+    },
+    "runnable": true,
+    "version": "1.0"
+  },
+  {
+    "id": "test-sizes",
+    "packId": "crypto",
+    "name": "Key and signature sizes",
+    "description": "Generate a synthetic key pair and one signature; record public key, private key and signature sizes in bytes.",
+    "kind": "supported",
+    "inputs": [],
+    "acceptanceRule": {
+      "description": "Signature is exactly 64 bytes",
+      "metric": "signature_size_bytes",
+      "operator": "==",
+      "threshold": 64,
+      "unit": "bytes"
+    },
+    "runner": "platform_sandbox: signature-fixture (simulated)",
+    "runnerVersion": "2.1.0-sample",
+    "resourceLimits": {
+      "timeoutSeconds": 60,
+      "memoryMb": 256,
+      "network": "disabled"
+    },
+    "runnable": true,
+    "version": "1.0"
+  },
+  {
+    "id": "test-fuzz-rs",
+    "packId": "crypto",
+    "name": "r/s range fuzz (proposed experiment, protocol v1)",
+    "description": "Sample 2000 out-of-range (r, s) pairs from a seeded generator (r or s in {0, n, n+1, 2n, 2^256-1} combined with random in-range partners) and verify each against a valid message. Records accept/reject per case. Runs only under an approved protocol.",
+    "kind": "proposed",
+    "inputs": [
+      {
+        "name": "cases",
+        "description": "Sampled out-of-range pairs",
+        "value": 2000
+      },
+      {
+        "name": "seed",
+        "description": "Generator seed, recorded per run",
+        "value": "per run"
+      }
+    ],
+    "acceptanceRule": {
+      "description": "0 out-of-range signatures accepted",
+      "metric": "out_of_range_accepted",
+      "operator": "==",
+      "threshold": 0,
+      "unit": "cases"
+    },
+    "runner": "platform_sandbox: signature-fixture (simulated)",
+    "runnerVersion": "2.1.0-sample",
+    "resourceLimits": {
+      "timeoutSeconds": 120,
+      "memoryMb": 512,
+      "network": "disabled"
+    },
+    "runnable": true,
+    "version": "1.0"
+  },
+  {
+    "id": "test-ci-imported",
+    "packId": "crypto",
+    "name": "Acme CI signing test suite (imported results)",
+    "description": "Acme's own 412-test suite, run in Acme's CI. Results arrive as a JUnit export and are recorded as an imported run.",
+    "kind": "imported",
+    "inputs": [
+      {
+        "name": "results_artifact",
+        "description": "JUnit XML export",
+        "value": "artv-ci-results-2026-10-08"
+      }
+    ],
+    "acceptanceRule": {
+      "description": "Informational; the suite's own pass/fail is reported as imported"
+    },
+    "runner": "none (results imported)",
+    "runnerVersion": "n/a",
+    "resourceLimits": {
+      "timeoutSeconds": 0,
+      "memoryMb": 0,
+      "network": "not_applicable"
+    },
+    "runnable": false,
+    "unsupportedReason": "This suite runs in Acme's pipeline. No runner here executes customer CI; results are imported through the test_results artifact.",
+    "version": "1.0"
+  },
+  {
+    "id": "test-side-channel",
+    "packId": "crypto",
+    "name": "Timing side-channel analysis",
+    "description": "Statistical timing-leak detection on the signing path (fixed-vs-random input classes).",
+    "kind": "proposed",
+    "inputs": [],
+    "acceptanceRule": {
+      "description": "No statistically significant timing difference between input classes at the stated confidence"
+    },
+    "runner": "none validated",
+    "runnerVersion": "n/a",
+    "resourceLimits": {
+      "timeoutSeconds": 0,
+      "memoryMb": 0,
+      "network": "not_applicable"
+    },
+    "runnable": false,
+    "unsupportedReason": "No constant-time analysis runner is validated in the sandbox. Path: import results from a customer-side measurement, or request an adapter.",
+    "version": "0.1"
+  }
+]

@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+html, body, #root { height: 100%; }
+body { @apply bg-bg text-ink antialiased; font-variant-numeric: tabular-nums; }
+code, kbd, pre { @apply font-mono; }
+a { @apply text-accent; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 2px solid #D8CBAE; outline-offset: 2px; }
+@layer components {
+  .panel { @apply bg-panel border border-line rounded-panel p-4; }
+  .panel-2 { @apply bg-panel-2 border border-line rounded-panel p-4; }
+  .h1 { @apply text-xl font-semibold tracking-tight; }
+  .h2 { @apply text-base font-semibold; }
+  .h3 { @apply text-xs font-semibold uppercase tracking-wider text-muted; }
+  .btn { @apply inline-flex items-center gap-1 rounded-md border border-accent bg-accent text-accent-ink px-3 py-1.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed; }
+  .btn-ghost { @apply inline-flex items-center gap-1 rounded-md border border-accent text-accent px-3 py-1.5 text-sm font-medium bg-transparent disabled:opacity-40 disabled:cursor-not-allowed; }
+  .btn-danger { @apply inline-flex items-center gap-1 rounded-md border border-bad text-bad px-3 py-1.5 text-sm font-medium bg-transparent disabled:opacity-40; }
+  .btn-sm { @apply px-2 py-1 text-xs; }
+  .tbl { @apply w-full text-sm border-collapse; }
+  .tbl th { @apply text-left text-xs font-semibold text-muted py-1.5 px-2 border-b border-line; }
+  .tbl td { @apply py-1.5 px-2 border-b border-line align-top; }
+  .tbl tr.clickable:hover { @apply bg-panel-2 cursor-pointer; }
+  .kv { @apply grid grid-cols-[180px_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm; }
+  .kv dt { @apply text-muted; }
+  .kv dd { @apply m-0 break-words; }
+  .callout { @apply border-l-4 border-warn bg-warn/10 rounded px-3 py-2 text-sm; }
+  .callout-info { @apply border-l-4 border-info bg-info/10 rounded px-3 py-2 text-sm; }
+  .callout-bad { @apply border-l-4 border-bad bg-bad/10 rounded px-3 py-2 text-sm; }
+  .callout-ok { @apply border-l-4 border-ok bg-ok/10 rounded px-3 py-2 text-sm; }
+  .callout-sample { @apply border-l-4 border-sample bg-sample/10 rounded px-3 py-2 text-sm; }
+  .tag { @apply inline-flex items-center gap-1 rounded border border-line px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wide text-muted whitespace-nowrap; }
+  .input { @apply w-full rounded-md border border-line bg-[#0c1320] px-2 py-1.5 text-sm text-ink; }
+}

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "apr-crit-v1", "projectId": "proj-crypto-acme", "subjectType": "acceptance_criteria", "subjectId": "crit-crypto-v1",
+    "subjectLabel": "Acceptance criteria v1 (6 items)", "requestedBy": "person-dana", "requestedAt": "2026-10-06T09:40:00Z",
+    "decision": "approved", "reviewerId": "person-marco", "note": "Approved. ac-5 latency budget is relative to the lab profile only.", "decidedAt": "2026-10-06T14:05:00Z",
+    "rationale": "Changing acceptance criteria changes what every future run is judged against; the project owner approves each version."
+  },
+  {
+    "id": "apr-prop-fuzz", "projectId": "proj-crypto-acme", "subjectType": "experiment_proposal", "subjectId": "prop-fuzz-rs",
+    "subjectLabel": "Experiment: r/s range fuzz on acme-sign 1.4.2", "requestedBy": "agent-autoresearcher", "requestedAt": "2026-10-09T10:00:00Z",
+    "decision": "approved", "reviewerId": "person-priya", "note": "Approved as protocol v1. Synthetic keys only; record the generator seed.", "decidedAt": "2026-10-10T08:30:00Z",
+    "rationale": "Experiments run only under an approved, numbered protocol."
+  },
+  {
+    "id": "apr-run-010", "projectId": "proj-crypto-acme", "subjectType": "run_execution", "subjectId": "run-010",
+    "subjectLabel": "Run #10: r/s range fuzz (protocol v1) on 1.4.2", "requestedBy": "person-dana", "requestedAt": "2026-10-10T13:50:00Z",
+    "decision": "approved", "reviewerId": "person-priya", "note": "Within budget (2 compute units).", "decidedAt": "2026-10-10T14:05:00Z",
+    "rationale": "Proposed (non-baseline) tests need execution approval before they consume budget."
+  },
+  {
+    "id": "apr-rec-001", "projectId": "proj-crypto-acme", "subjectType": "recommendation", "subjectId": "rec-001",
+    "subjectLabel": "Recommendation: reject r or s outside [1, n-1] before verification", "requestedBy": "person-priya", "requestedAt": "2026-10-14T10:00:00Z",
+    "decision": "approved", "reviewerId": "person-marco", "note": "Accepted. Acme will ship the range check in 1.4.3.", "decidedAt": "2026-10-16T13:00:00Z",
+    "rationale": "Recommendations are accepted by the customer owner, never auto-applied."
+  },
+  {
+    "id": "apr-prop-latency", "projectId": "proj-crypto-acme", "subjectType": "experiment_proposal", "subjectId": "prop-latency-method",
+    "subjectLabel": "Experiment: repeated latency measurement with and without warm-up", "requestedBy": "agent-autoresearcher", "requestedAt": "2026-10-12T11:00:00Z",
+    "decision": "pending", "reviewerId": null, "note": "", "decidedAt": null,
+    "rationale": "Experiments run only under an approved, numbered protocol."
+  },
+  {
+    "id": "apr-rec-002", "projectId": "proj-crypto-acme", "subjectType": "recommendation", "subjectId": "rec-002",
+    "subjectLabel": "Recommendation: remove sha1 from allowed_digests", "requestedBy": "person-priya", "requestedAt": "2026-10-20T09:30:00Z",
+    "decision": "pending", "reviewerId": null, "note": "", "decidedAt": null,
+    "rationale": "Recommendations are accepted by the customer owner, never auto-applied."
+  },
+  {
+    "id": "apr-run-014", "projectId": "proj-crypto-acme", "subjectType": "run_execution", "subjectId": "run-014",
+    "subjectLabel": "Run #14: r/s range fuzz (protocol v1) on 1.4.3", "requestedBy": "person-priya", "requestedAt": "2026-10-22T09:15:00Z",
+    "decision": "approved", "reviewerId": "person-marco", "note": "Approved; same protocol and seed as run #10.", "decidedAt": "2026-10-22T09:18:00Z",
+    "rationale": "Proposed (non-baseline) tests need execution approval before they consume budget."
+  },
+  {
+    "id": "apr-fnd-001-resolution", "projectId": "proj-crypto-acme", "subjectType": "finding_resolution", "subjectId": "fnd-001",
+    "subjectLabel": "Resolve finding fnd-001 within tested scope (retests #11, #12, #14 passed)", "requestedBy": "person-dana", "requestedAt": "2026-10-23T09:00:00Z",
+    "decision": "pending", "reviewerId": null, "note": "", "decidedAt": null,
+    "rationale": "A finding is resolved only with a linked passing retest and a reviewer decision. The requester cannot decide their own request."
+  },
+  {
+    "id": "apr-task-checkpoint", "projectId": "proj-crypto-acme", "subjectType": "task_checkpoint", "subjectId": "task-008",
+    "subjectLabel": "Checkpoint: full-suite re-run under a customer-side runner (est. 12 compute units)", "requestedBy": "agent-conductor", "requestedAt": "2026-10-24T09:00:00Z",
+    "decision": "pending", "reviewerId": null, "note": "", "decidedAt": null,
+    "rationale": "The task would exceed the 10-unit checkpoint threshold set in the template."
+  },
+  {
+    "id": "apr-acc-001", "projectId": "proj-crypto-acme", "subjectType": "agent_config_change", "subjectId": "acc-001",
+    "subjectLabel": "Agent config change: triage agent treats definition-violating runs as measurement-invalid", "requestedBy": "agent-autoresearcher", "requestedAt": "2026-10-12T11:30:00Z",
+    "decision": "pending", "reviewerId": null, "note": "", "decidedAt": null,
+    "rationale": "Agent configuration changes are evaluated and approved before they are applied; nothing retrains a model."
+  }
+]

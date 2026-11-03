@@ -1,0 +1,116 @@
+[
+  {
+    "id": "tpl-crypto-signature-v1",
+    "packId": "crypto",
+    "version": 1,
+    "name": "Signature library evidence",
+    "summary": "Evidence workflow for a digital-signature library: functional acceptance, known-answer vectors, performance budget and an attack-assessment table with explicit uncertainty.",
+    "supportedArtifactTypes": ["library", "source_snapshot", "configuration", "test_vectors", "test_results"],
+    "supportedTestDefinitionIds": [
+      "test-valid-accept", "test-modified-reject", "test-malformed-reject", "test-wycheproof",
+      "test-latency", "test-throughput", "test-sizes", "test-fuzz-rs"
+    ],
+    "workspaceLayout": {
+      "panels": [
+        { "id": "key_metrics", "title": "Key metrics against acceptance criteria", "kind": "metrics" },
+        { "id": "attack_assessment", "title": "Attack assessment", "kind": "pack_panel", "packComponent": "AttackAssessmentPanel" },
+        { "id": "next_actions", "title": "Next actions", "kind": "next_actions" },
+        { "id": "untested", "title": "What this project does not test", "kind": "untested" },
+        { "id": "recent_activity", "title": "Recent activity", "kind": "activity" },
+        { "id": "disclaimer", "title": "Scope and disclaimers", "kind": "disclaimer" }
+      ],
+      "controls": [
+        { "id": "attack_model", "label": "Attack model", "kind": "select", "options": ["classical", "quantum", "both"], "description": "Filters the attack-assessment table." },
+        { "id": "show_superseded", "label": "Show superseded runs", "kind": "toggle", "description": "Superseded runs stay in the record; this only changes what is listed." }
+      ]
+    },
+    "evidenceRequirements": [
+      "Every metric carries a definition of how it was measured.",
+      "Every run records artifact version, test definition version, criteria version, environment, tool versions, parameters and seeds.",
+      "Every completed run has an evidence record with a manifest hash.",
+      "Findings carry at least one deterministic check or a named reviewer before they are labelled above Estimate."
+    ],
+    "approvalGates": [
+      { "id": "gate-criteria", "subjectType": "acceptance_criteria", "description": "Each acceptance-criteria version is approved by the project owner before runs are judged against it.", "requiredRole": "owner" },
+      { "id": "gate-proposal", "subjectType": "experiment_proposal", "description": "Experiments run only under an approved, numbered protocol.", "requiredRole": "reviewer" },
+      { "id": "gate-run", "subjectType": "run_execution", "description": "Proposed (non-baseline) tests need execution approval before they consume budget.", "requiredRole": "reviewer" },
+      { "id": "gate-recommendation", "subjectType": "recommendation", "description": "Recommendations are accepted by the customer owner, never auto-applied.", "requiredRole": "owner" },
+      { "id": "gate-resolution", "subjectType": "finding_resolution", "description": "A finding is resolved only with a linked passing retest and a reviewer decision.", "requiredRole": "reviewer" },
+      { "id": "gate-checkpoint", "subjectType": "task_checkpoint", "description": "Conductor tasks that exceed a budget threshold pause at a checkpoint.", "requiredRole": "owner" }
+    ],
+    "disclaimers": [
+      "Results apply only to the artifact versions and test definitions listed. They are not a certification and say nothing about untested attacks or other code paths.",
+      "Sample data: every number shown for this project is illustrative and marked as such."
+    ]
+  },
+  {
+    "id": "tpl-eng-static-v1",
+    "packId": "engineering",
+    "version": 1,
+    "name": "Static structural analysis",
+    "summary": "Evidence workflow for a load-bearing part: geometry, material and load-case artifacts; solver runs with mesh-convergence checks; safety factors against stated acceptance criteria.",
+    "supportedArtifactTypes": ["geometry", "material", "load_case", "measurement", "solver_input"],
+    "supportedTestDefinitionIds": [],
+    "workspaceLayout": {
+      "panels": [
+        { "id": "key_metrics", "title": "Safety factors against acceptance criteria", "kind": "metrics" },
+        { "id": "convergence", "title": "Mesh convergence", "kind": "pack_panel", "packComponent": "ConvergencePanel" },
+        { "id": "next_actions", "title": "Next actions", "kind": "next_actions" },
+        { "id": "untested", "title": "What this project does not test", "kind": "untested" },
+        { "id": "recent_activity", "title": "Recent activity", "kind": "activity" },
+        { "id": "disclaimer", "title": "Scope and disclaimers", "kind": "disclaimer" }
+      ],
+      "controls": [
+        { "id": "load_case", "label": "Load case", "kind": "select", "options": [], "description": "Filters metrics to one load case." }
+      ]
+    },
+    "evidenceRequirements": [
+      "Every stress value states the solver, version, mesh and load case it came from.",
+      "A result is reported as converged only when the convergence criterion in the test definition is met."
+    ],
+    "approvalGates": [
+      { "id": "gate-criteria", "subjectType": "acceptance_criteria", "description": "Safety-factor thresholds are approved by the project owner.", "requiredRole": "owner" },
+      { "id": "gate-recommendation", "subjectType": "recommendation", "description": "Design-change recommendations are accepted by the customer owner.", "requiredRole": "owner" },
+      { "id": "gate-resolution", "subjectType": "finding_resolution", "description": "A finding is resolved only with a passing retest on the revised geometry.", "requiredRole": "reviewer" }
+    ],
+    "disclaimers": [
+      "This is an analysis aid, not a design sign-off. A qualified engineer must review before any part is released.",
+      "Sample data: values are illustrative and are not measurements of a real part."
+    ]
+  },
+  {
+    "id": "tpl-legal-dispute-v1",
+    "packId": "legal",
+    "version": 1,
+    "name": "Dispute preparation",
+    "summary": "Evidence workflow for a contract dispute: chronology from documents, fact checks against sources, fictional-authority analysis and an argument rehearsal panel.",
+    "supportedArtifactTypes": ["document", "email_thread", "brief", "authority"],
+    "supportedTestDefinitionIds": [],
+    "workspaceLayout": {
+      "panels": [
+        { "id": "chronology", "title": "Chronology", "kind": "pack_panel", "packComponent": "ChronologyPanel" },
+        { "id": "fact_checks", "title": "Fact checks", "kind": "metrics" },
+        { "id": "authorities", "title": "Authorities (fictional samples)", "kind": "pack_panel", "packComponent": "AuthoritiesPanel" },
+        { "id": "rehearsal", "title": "Argument rehearsal", "kind": "pack_panel", "packComponent": "RehearsalPanel" },
+        { "id": "next_actions", "title": "Next actions", "kind": "next_actions" },
+        { "id": "recent_activity", "title": "Recent activity", "kind": "activity" },
+        { "id": "disclaimer", "title": "Scope and disclaimers", "kind": "disclaimer" }
+      ],
+      "controls": [
+        { "id": "confidentiality", "label": "Confidentiality", "kind": "readonly", "description": "Set in project settings; shown here for awareness." }
+      ]
+    },
+    "evidenceRequirements": [
+      "Every fact in the chronology links to a document location.",
+      "Every authority is labelled 'Sample authority, not a real case'."
+    ],
+    "approvalGates": [
+      { "id": "gate-argument", "subjectType": "recommendation", "description": "Revised arguments are approved by the responsible lawyer.", "requiredRole": "owner" },
+      { "id": "gate-settings", "subjectType": "settings_change", "description": "Confidentiality and membership changes need the owner's approval.", "requiredRole": "owner" }
+    ],
+    "disclaimers": [
+      "Not legal advice. The rehearsal panel is a preparation exercise, not a prediction of the outcome.",
+      "All authorities in sample data are fictional and labelled as such."
+    ]
+  }
+]

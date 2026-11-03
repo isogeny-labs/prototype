@@ -1,0 +1,13 @@
+{
+  "memory": [
+    { "id": "mem-001", "projectId": "proj-crypto-acme", "customerScope": "Acme Pay (fictional)", "kind": "accepted_finding", "text": "acme-sign 1.4.2 accepted the all-zero signature; fixed in 1.4.3 by a range check (fnd-001, rec-001).", "sourceRef": { "kind": "finding", "id": "fnd-001" }, "recordedAt": "2026-10-16T13:05:00Z", "recordedBy": "Marco Ellison (via approval apr-rec-001)" },
+    { "id": "mem-002", "projectId": "proj-crypto-acme", "customerScope": "Acme Pay (fictional)", "kind": "expert_correction", "text": "Latency runs for this customer must include the 200-iteration warm-up; run #5 without it was superseded and excluded from criteria evaluation.", "sourceRef": { "kind": "run", "id": "run-006" }, "recordedAt": "2026-10-08T10:25:00Z", "recordedBy": "Priya Natarajan" },
+    { "id": "mem-003", "projectId": "proj-crypto-acme", "customerScope": "Acme Pay (fictional)", "kind": "approved_configuration", "text": "Protocol v1 for the r/s range sweep (2000 seeded pairs, control against the reference verifier) is approved for reuse on later acme-sign versions.", "sourceRef": { "kind": "approval", "id": "apr-prop-fuzz" }, "recordedAt": "2026-10-10T08:30:00Z", "recordedBy": "Priya Natarajan" }
+  ],
+  "agentConfigChanges": [
+    { "id": "acc-001", "projectId": "proj-crypto-acme", "target": "instructions", "agentName": "Triage agent (simulated)", "proposedChange": "When a run's parameters violate its test definition (for example warm-up omitted), classify the run as 'measurement invalid' and request a compliant re-run instead of opening a criteria-failure finding.", "rationale": "Run #5 opened fnd-002 as a latency regression when the measurement itself did not follow the definition.", "evaluationStatus": "proposed", "approvalId": "apr-acc-001", "createdAt": "2026-10-12T11:30:00Z" }
+  ],
+  "modelTraining": [
+    { "id": "mt-001", "status": "not_in_mvp", "note": "No model is trained, fine-tuned or updated from project data. Organisational memory consists of customer-scoped records only, and agent configuration changes are evaluated and approved before use." }
+  ]
+}

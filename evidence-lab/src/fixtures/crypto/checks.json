@@ -1,0 +1,75 @@
+[
+  {
+    "id": "chk-001", "runId": "run-003", "findingId": "fnd-001", "kind": "agent_claim",
+    "method": "Triage agent read run #3 and flagged case M-07 as a probable missing range check on r and s.",
+    "result": "supports", "agent": { "id": "agent-triage", "name": "Triage agent (simulated)" },
+    "timestamp": "2026-10-07T09:30:00Z",
+    "evidenceLinks": [ { "kind": "run", "id": "run-003", "label": "Run #3, case M-07" } ]
+  },
+  {
+    "id": "chk-002", "runId": "run-003", "findingId": "fnd-001", "kind": "deterministic",
+    "method": "Run #3 case M-07: verify() returned True for signature (r = 0, s = 0) on three repeats.",
+    "result": "supports", "detail": "Reproducible with fixed seed 7001; the reference verifier rejects the same input.",
+    "timestamp": "2026-10-07T09:08:31Z",
+    "evidenceLinks": [ { "kind": "run", "id": "run-003", "label": "Run #3" }, { "kind": "run", "id": "run-004", "label": "Run #4 vectors S-0117, S-0118" } ]
+  },
+  {
+    "id": "chk-003", "runId": "run-010", "findingId": "fnd-001", "kind": "reproduced",
+    "method": "Run #10 under approved protocol v1 reproduced the acceptance on 63 of 2000 sampled out-of-range pairs, all with r = 0; the control verifier accepted none.",
+    "result": "supports", "detail": "Shows the defect is the r = 0 path specifically; s = 0 alone was rejected.",
+    "timestamp": "2026-10-10T14:10:09Z",
+    "evidenceLinks": [ { "kind": "run", "id": "run-010", "label": "Run #10 (protocol v1)" } ]
+  },
+  {
+    "id": "chk-004", "findingId": "fnd-001", "kind": "model_judgment",
+    "method": "Model read the verify() code path in the 1.4.2 snapshot and reported that no range check on r or s precedes the curve computation.",
+    "result": "supports", "detail": "Model judgment is advisory; it did not execute code.",
+    "model": { "name": "sample-model", "version": "no real model connected" },
+    "timestamp": "2026-10-13T10:00:00Z",
+    "evidenceLinks": [ { "kind": "artifact_version", "id": "artv-acme-sign-1.4.2", "label": "acme-sign 1.4.2, acme_sign/ecdsa.py" } ]
+  },
+  {
+    "id": "chk-005", "findingId": "fnd-001", "kind": "human_decision",
+    "method": "Reviewer confirmed the defect class, the scope of evidence (verify() entry point, synthetic keys) and that the proposed fix is a range check before verification.",
+    "result": "supports", "detail": "Decision recorded with the review of proposal prop-fuzz-rs.",
+    "reviewer": { "personId": "person-priya", "name": "Priya Natarajan" },
+    "timestamp": "2026-10-14T09:30:00Z",
+    "evidenceLinks": [ { "kind": "run", "id": "run-010", "label": "Run #10" }, { "kind": "run", "id": "run-003", "label": "Run #3" } ]
+  },
+  {
+    "id": "chk-006", "runId": "run-011", "findingId": "fnd-001", "kind": "deterministic",
+    "method": "Run #11 on 1.4.3: all 8 malformed cases rejected, including M-07; run #14 accepted 0 of the same 2000 sampled pairs.",
+    "result": "supports", "detail": "Supports resolution within the tested scope.",
+    "timestamp": "2026-10-22T09:20:08Z",
+    "evidenceLinks": [ { "kind": "run", "id": "run-011", "label": "Run #11" }, { "kind": "run", "id": "run-014", "label": "Run #14" } ]
+  },
+  {
+    "id": "chk-007", "runId": "run-005", "findingId": "fnd-002", "kind": "agent_claim",
+    "method": "Triage agent read run #5 and claimed a latency regression in 1.4.2 because p99 (2.60 ms) exceeds the 2.0 ms budget.",
+    "result": "supports", "agent": { "id": "agent-triage", "name": "Triage agent (simulated)" },
+    "timestamp": "2026-10-08T10:05:00Z",
+    "evidenceLinks": [ { "kind": "run", "id": "run-005", "label": "Run #5" } ]
+  },
+  {
+    "id": "chk-008", "runId": "run-006", "findingId": "fnd-002", "kind": "agent_claim",
+    "method": "Autoresearcher agent claimed the run #5 p99 is a cold-start measurement artifact because warm-up was omitted, citing run #6 (1.62 ms with warm-up).",
+    "result": "refutes", "agent": { "id": "agent-autoresearcher", "name": "Autoresearcher (simulated)" },
+    "timestamp": "2026-10-08T10:25:00Z",
+    "evidenceLinks": [ { "kind": "run", "id": "run-006", "label": "Run #6" } ]
+  },
+  {
+    "id": "chk-009", "findingId": "fnd-003", "kind": "deterministic",
+    "method": "Configuration scan of the signing service configuration (2026-10) found sha1 in allowed_digests.",
+    "result": "supports", "detail": "Deterministic parse of the imported YAML; no execution of the service.",
+    "timestamp": "2026-10-20T08:00:00Z",
+    "evidenceLinks": [ { "kind": "artifact_version", "id": "artv-service-config-2026-10", "label": "Signing service configuration 2026-10" } ]
+  },
+  {
+    "id": "chk-010", "findingId": "fnd-003", "kind": "model_judgment",
+    "method": "Model reviewed the configuration and Acme's intake answers and judged that no production path uses sha1, so the entry is unused but still permitted.",
+    "result": "supports", "detail": "Advisory; whether any caller selects sha1 was not tested.",
+    "model": { "name": "sample-model", "version": "no real model connected" },
+    "timestamp": "2026-10-20T08:10:00Z",
+    "evidenceLinks": [ { "kind": "artifact_version", "id": "artv-service-config-2026-10", "label": "Signing service configuration 2026-10" } ]
+  }
+]
