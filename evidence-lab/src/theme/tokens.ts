@@ -47,11 +47,12 @@ export const fontFamilies = {
 };
 
 /** Brand asset paths (configurable). SVG is preferred; the supplied raster crops are used when no SVG master exists. */
+const base = import.meta.env.BASE_URL; // "/" locally, "/prototype/" on GitHub Pages
 export const brand = {
-  logoSvg: "/brand/isogeny-logo.svg",
-  logoDarkPng: "/brand/isogeny-logo-dark.png",
-  symbolDarkPng: "/brand/isogeny-symbol-dark.png",
-  logoLightPng: "/brand/isogeny-logo-light.png",
+  logoSvg: `${base}brand/isogeny-logo.svg`,
+  logoDarkPng: `${base}brand/isogeny-logo-dark.png`,
+  symbolDarkPng: `${base}brand/isogeny-symbol-dark.png`,
+  logoLightPng: `${base}brand/isogeny-logo-light.png`,
   logoAlt: "Isogeny Labs logo: blue-to-ivory mathematical linework symbol beside the ISOGENY LABS wordmark",
   wordmark: "Isogeny Labs",
 };

@@ -1,4 +1,4 @@
-import type { Project, Run, TestDefinition, Artifact, ArtifactVersion, Check, EvidenceLabel } from "@/contracts";
+import type { Project, Run, TestDefinition, Artifact, ArtifactVersion, Check, EvidenceLabel, ArtifactKind, PackId } from "@/contracts";
 import { computeEvidenceLabel } from "@/contracts";
 
 const AGENT_NAMES: Record<string, string> = {
@@ -48,4 +48,19 @@ export function runEvidenceLabel(run: Run, checks: Check[]): EvidenceLabel | nul
 /** A run is superseded if any later run names it. */
 export function supersededIds(runs: Run[]): Set<string> {
   return new Set(runs.map((r) => r.supersedesRunId).filter((x): x is string => Boolean(x)));
+}
+
+/** The artifact kind each pack tests (the thing versions and retests are about). */
+export const TEST_TARGET_KIND: Record<PackId, ArtifactKind> = { crypto: "library", engineering: "geometry", legal: "brief" };
+
+/** Latest version of the artifact under test for a project. */
+export function latestTargetVersion(packId: PackId, artifacts: Artifact[]): (ArtifactVersion & { artifactName: string }) | undefined {
+  const kind = TEST_TARGET_KIND[packId];
+  return allVersions(artifacts.filter((a) => a.kind === kind)).sort((a, b) => (a.importedAt < b.importedAt ? 1 : -1))[0];
+}
+
+/** Resolve a document location to a label like "Delivery receipt DR-0931, p. 1 l. 8". */
+export function locationLabel(artifacts: Artifact[], loc: { artifactVersionId: string; page: number; line?: number; label?: string }): string {
+  const base = loc.label ?? versionLabel(artifacts, loc.artifactVersionId);
+  return `${base}, p. ${loc.page}${loc.line ? ` l. ${loc.line}` : ""}`;
 }

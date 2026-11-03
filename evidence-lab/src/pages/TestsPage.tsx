@@ -6,7 +6,7 @@ import { useAppStore } from "@/store";
 import { useProject } from "@/shell/ProjectContext";
 import { EmptyState, PageHeader, QueryBoundary } from "@/components";
 import { humanize } from "@/lib/format";
-import { allVersions } from "@/lib/lookup";
+import { latestTargetVersion } from "@/lib/lookup";
 
 const KIND_CLS = { supported: "border-ok/60 text-ok", proposed: "border-info/60 text-info", imported: "border-ivory/60 text-ivory" } as const;
 
@@ -31,8 +31,7 @@ export function TestsPage() {
       <PageHeader title="Tests" subtitle="Test definitions are versioned records. Unsupported and imported tests are never shown as runnable; their path (import results or adapter) is stated instead." />
       {msg ? <div className={`${msg.kind === "ok" ? "callout-ok" : "callout-bad"} mb-3`} role="status">{msg.text}</div> : null}
       <QueryBoundary q={q} label="Loading tests">{({ tests, runs, artifacts }) => {
-        const versions = allVersions(artifacts).filter((v) => artifacts.find((a) => a.id === v.artifactId)?.kind === "library");
-        const latest = versions.slice().sort((a, b) => (a.importedAt < b.importedAt ? 1 : -1))[0];
+        const latest = latestTargetVersion(project.packId, artifacts);
         if (tests.length === 0) return <EmptyState title="No test definitions for this pack" />;
         return (
           <table className="tbl" data-testid="tests-table">

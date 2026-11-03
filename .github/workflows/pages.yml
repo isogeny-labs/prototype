@@ -1,10 +1,12 @@
-name: Deploy static demo to GitHub Pages
+name: Deploy Evidence Lab to GitHub Pages
 
-# Builds a READ-ONLY static snapshot of the app (real seeded run, real fixture executions on the CI runner)
-# and publishes it with GitHub Pages. The FastAPI backend is not hosted; see docs/SCOPE.md.
+# Builds the Evidence Lab frontend skeleton (evidence-lab/, sample data only, no backend) and publishes it with
+# GitHub Pages at https://isogeny-labs.github.io/prototype/. The earlier MVP static demo is still available as
+# demo/iel-demo.html in the repository; its Pages workflow is in git history (before this commit).
 on:
   push:
     branches: [claude/isogeny-evidence-lab-mvp-sg3pva, main]
+    paths: ["evidence-lab/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -19,44 +21,35 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      IEL_CRAX_BIN: ${{ github.workspace }}/cryptanalysis/suite/target/release/crax
+    defaults:
+      run:
+        working-directory: evidence-lab
     steps:
       - uses: actions/checkout@v4
-      - name: Checkout the pinned cryptanalysis suite
-        uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          repository: isogeny-labs/cryptanalysis
-          ref: 318b27bf3427ff9e349f5850c742fde703fcf6a8
-          path: cryptanalysis
-          # `crates` is needed from this revision on (suite depends on crates/hashed-ecdl-tensor).
-          sparse-checkout: |
-            suite
-            bindings/rust
-            crates
-            src
-            include
-            cuda
-            challenges
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: pip
-      - name: Select the suite's supported Rust toolchain
-        run: rustup toolchain install 1.89.0 --profile minimal
-      - name: Build the pinned crax integration binary
-        run: cargo +1.89.0 build --release --locked --manifest-path cryptanalysis/suite/Cargo.toml --bin crax
-      - run: pip install -r requirements.txt
-      - name: Run tests
-        run: cd backend && python -m pytest tests -q
-      - name: Build static demo
-        run: python scripts/build_static_site.py site
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: evidence-lab/package-lock.json
+      - run: npm ci
+      - name: Typecheck and unit tests
+        run: |
+          npm run typecheck
+          npm test
+      - name: Build for local-base end-to-end tests
+        run: npm run build
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end tests (every route, all sample projects)
+        run: npm run test:e2e
+      - name: Build for GitHub Pages (base /prototype/)
+        run: npm run build:pages
       - uses: actions/configure-pages@v5
         with:
           enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: evidence-lab/dist
 
   deploy:
     needs: build

@@ -1,8 +1,8 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { services } from "@/services";
 import { useQuery } from "@/hooks/useQuery";
-import { useAppStore } from "@/store";
+import { useAppStore, DEFAULT_USER_BY_PROJECT } from "@/store";
 import { Logo } from "./Logo";
 import { AssistantPanel } from "./AssistantPanel";
 import { ProjectContext, type ProjectCtx } from "./ProjectContext";
@@ -17,6 +17,7 @@ export function AppShell() {
   const assistantOpen = useAppStore((s) => s.assistantOpen);
   const setAssistantOpen = useAppStore((s) => s.setAssistantOpen);
   const user = useAppStore((s) => s.user);
+  const setUser = useAppStore((s) => s.setUser);
 
   const projectsQ = useQuery(() => services.evidenceLab.listProjects(), []);
   const projectQ = useQuery(async () => {
@@ -34,6 +35,15 @@ export function AppShell() {
     error: projectQ.error,
     retry: projectQ.retry,
   }), [projectId, projectQ.data, projectQ.status, projectQ.error, projectQ.retry]);
+
+  // Sample mode: when the acting user is not a member of the opened project, act as that project's default editor.
+  const project = projectQ.data?.project;
+  useEffect(() => {
+    if (!project) return;
+    if (project.permissions.members.some((m) => m.personId === user.id)) return;
+    const next = DEFAULT_USER_BY_PROJECT[project.id];
+    if (next) setUser(next);
+  }, [project, user.id, setUser]);
 
   const switchProject = useCallback((nextId: string) => {
     if (!nextId) { navigate("/"); return; }

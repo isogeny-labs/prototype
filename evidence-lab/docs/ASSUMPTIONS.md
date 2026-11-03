@@ -56,3 +56,17 @@ connects a real client, `docs/INTEGRATION_CONTRACTS.md` lists the fields to map.
    never upgrades a record.
 11. **No universal score.** Nothing renders a security score, a "secure" badge, a certification stamp or a win
     probability. Attack assessments are a table of typed statements with explicit uncertainty.
+12. **Engineering numbers.** Run #1 (automatic mesh) gives 162 MPa; the convergence study uses three *structured*
+    refinement levels at the fillet (139 / 150 / 171 MPa) that do not include the automatic mesh, so 162 is not
+    one of the levels. 14% is the change between the last two levels; 171 MPa (SF 1.61) is the refined result that
+    supersedes run #1 for criteria purposes. v2: 118 MPa (SF 2.34), converged at 1.7%. The strain gauge checks a
+    point 30 mm from the fillet (61.8 vs 58.9 MPa), not the peak.
+13. **Legal documents.** All documents, parties, people, dates and authorities are fictional. Document checks are
+    `simulated` because no legal document or citation code exists. The brief is the artifact under test; v2 is a
+    customer-made revision reported as an external change.
+14. **Execution mode of engineering and legal runs** is `simulated` with `illustrative` provenance, because no solver
+    or document checker is connected; the crypto baseline runs use `platform_sandbox` because an allowlisted
+    crypto fixture runner exists in the prototype backend.
+15. **GitHub Pages.** The Pages workflow now deploys this frontend at `/prototype/` with a `404.html` fallback for
+    client-side routes. The earlier MVP static demo is no longer published by the workflow; the single-file copy
+    `demo/iel-demo.html` remains in the repository.

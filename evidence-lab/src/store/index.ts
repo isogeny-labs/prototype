@@ -10,6 +10,13 @@ export interface MockConfig {
 
 export type SessionUser = { id: string; name: string; role: string };
 
+/** Default acting user per sample project: the customer-side editor. */
+export const DEFAULT_USER_BY_PROJECT: Record<string, SessionUser> = {
+  "proj-crypto-acme": { id: "person-dana", name: "Dana Whitfield", role: "Customer engineer (Acme Pay) · editor" },
+  "proj-eng-mb200": { id: "person-rosa", name: "Rosa Lindqvist", role: "Design engineer (Halden) · editor" },
+  "proj-legal-northwind": { id: "person-maya", name: "Maya Chen", role: "Associate (Bellweather & Finch) · editor" },
+};
+
 interface AppState {
   db: Db;
   version: number;            // bumped on every mutation so queries re-run

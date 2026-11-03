@@ -20,6 +20,8 @@ import { MemoryPage } from "./pages/MemoryPage";
 import { SampleDataSettingsPage } from "./pages/SampleDataSettingsPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
+const basename = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 export const router = createBrowserRouter([
   {
     element: <AppShell />,
@@ -50,4 +52,4 @@ export const router = createBrowserRouter([
       { path: "*", element: <NotFoundPage /> },
     ],
   },
-]);
+], { basename });

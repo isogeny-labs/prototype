@@ -1,0 +1,71 @@
+{
+  "projects": [
+    {
+      "id": "proj-eng-mb200",
+      "packId": "engineering",
+      "templateId": "tpl-eng-static-v1",
+      "templateVersion": 1,
+      "name": "Mounting bracket MB-200",
+      "goal": "Establish, with mesh-converged linear-static analysis, whether the MB-200 aluminium bracket meets a safety factor of at least 2.0 against yield under the 2.0 kN tip load, and what geometry change is needed if it does not.",
+      "constraints": [
+        "Linear elastic, small-displacement, static analysis only; no fatigue, no plasticity, no dynamic loads.",
+        "Results are an analysis aid, not a design sign-off: a qualified engineer reviews before release.",
+        "Solver runs are simulated in this prototype; the engineering solver integration is pending.",
+        "Customer CAD and test-rig data may be imported but are never executed here."
+      ],
+      "currentCriteriaVersion": 1,
+      "permissions": {
+        "members": [
+          { "personId": "person-tomasz", "role": "owner" },
+          { "personId": "person-rosa", "role": "editor" },
+          { "personId": "person-ethan", "role": "reviewer" }
+        ],
+        "confidentiality": "standard",
+        "notes": "Sample project. Halden Precision Components and all people named are fictional."
+      },
+      "budget": { "timeHours": { "used": 9, "limit": 30 }, "computeUnits": { "used": 14, "limit": 60 }, "moneyUsd": { "used": 52, "limit": 300 } },
+      "executionMode": "platform_sandbox",
+      "status": "active",
+      "isSample": true,
+      "intakeQuestions": [
+        { "id": "iq-E1", "question": "Is the 2.0 kN tip load a static service load or a peak dynamic load?", "status": "answered", "answer": "Static service load with the customer's own 1.5 load factor already applied." },
+        { "id": "iq-E2", "question": "Which material condition is used for the production part?", "status": "answered", "answer": "Aluminium 6061-T6 plate, machined; yield 276 MPa per the customer's material card (sample)." },
+        { "id": "iq-E3", "question": "Are the bolt holes preloaded, or modelled as fixed?", "status": "assumed", "assumption": "Modelled as fixed (all degrees of freedom) at the hole surfaces. Bolt preload and contact are outside the linear-static scope." },
+        { "id": "iq-E4", "question": "What is the expected number of load cycles over the service life?", "status": "open" }
+      ],
+      "summary": "Halden Precision Components asked whether its MB-200 bracket meets a 2.0 safety factor under a 2.0 kN tip load. The first linear-static run on bracket v1 gave 162 MPa at the 2 mm inner fillet (SF 1.70, fail), and a mesh-convergence study showed the result was not converged (refined: 171 MPa, SF 1.61). A reviewed fillet study found that a 5 mm fillet meets the requirement; v2 was imported and retested at 118 MPa (SF 2.34, converged, pass). An imported strain-gauge reading on the v2 prototype sits within 5% of the prediction at the gauge location.",
+      "createdAt": "2026-10-08T08:30:00Z",
+      "people": [
+        { "id": "person-rosa", "name": "Rosa Lindqvist", "role": "Design engineer", "org": "Halden Precision Components (fictional)" },
+        { "id": "person-tomasz", "name": "Tomasz Weber", "role": "Chief engineer", "org": "Halden Precision Components (fictional)" },
+        { "id": "person-ethan", "name": "Ethan Caldwell", "role": "Isogeny engineering reviewer", "org": "Isogeny Labs" }
+      ],
+      "packData": {
+        "packId": "engineering",
+        "modelSetup": {
+          "partName": "MB-200 L-bracket, machined aluminium plate, 6 mm thick",
+          "material": { "name": "Aluminium 6061-T6 (sample material card)", "yieldMpa": 276, "youngsModulusGpa": 68.9, "poissonRatio": 0.33, "densityKgM3": 2700, "source": "Customer material card MC-6061-T6 rev B (fictional)" },
+          "loads": [ { "id": "LC-1", "description": "Vertical tip load, downward", "magnitude": "2.0 kN (static, load factor 1.5 already applied)", "location": "Arm tip, distributed over the 20 x 6 mm end face" } ],
+          "boundaryConditions": [
+            { "id": "BC-1", "description": "Bolt hole 1 surface: all translations fixed" },
+            { "id": "BC-2", "description": "Bolt hole 2 surface: all translations fixed" },
+            { "id": "BC-3", "description": "Mounting-plate back face: free (no contact modelled)" }
+          ],
+          "solver": { "label": "CalculiX 2.21 (sample)", "elementType": "C3D10 quadratic tetrahedra", "assumptions": ["Linear elastic", "Small displacement", "Static load", "Isotropic material", "No fatigue", "Bolt preload and contact not modelled"] },
+          "acceptance": { "requiredSafetyFactor": 2.0, "basis": "yield", "convergenceCriterionPercent": 5 }
+        }
+      }
+    }
+  ],
+  "criteria": [
+    {
+      "id": "crit-eng-v1", "projectId": "proj-eng-mb200", "version": 1,
+      "items": [
+        { "id": "ac-E1", "text": "Safety factor against yield (276 MPa / peak von Mises) is at least 2.0 under load case LC-1.", "metric": "safety_factor", "operator": ">=", "threshold": 2.0 },
+        { "id": "ac-E2", "text": "The peak stress is mesh-converged: the change between the last two refinement levels is below 5%.", "metric": "convergence_change_percent", "operator": "<", "threshold": 5, "unit": "%" },
+        { "id": "ac-E3", "text": "Tip deflection under LC-1 does not exceed 0.5 mm.", "metric": "tip_deflection_mm", "operator": "<=", "threshold": 0.5, "unit": "mm" }
+      ],
+      "approvalId": "apr-E-crit-v1", "createdAt": "2026-10-08T09:00:00Z", "createdBy": "person-rosa"
+    }
+  ]
+}

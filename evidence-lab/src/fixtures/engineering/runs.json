@@ -1,0 +1,142 @@
+[
+  {
+    "id": "run-E-001", "projectId": "proj-eng-mb200", "sequence": 1, "artifactVersionId": "artv-E-geometry-v1", "testDefinitionId": "test-E-static", "criteriaVersion": 1,
+    "executionMode": "simulated", "provenance": "illustrative", "status": "completed",
+    "environment": { "profile": "reference-sandbox-4vcpu", "image": "sandbox-2026.09 (sample)", "solver": "CalculiX 2.21 (sample)", "network": "disabled" },
+    "toolVersions": { "solver": "CalculiX 2.21 (sample)", "mesher": "lab-mesher 0.9 (sample)", "geometry": "v1", "material card": "rev B" },
+    "commands": ["ccx -i mb200-v1 (sample)"], "parameters": { "load_case": "LC-1", "mesh": "automatic" }, "seeds": {}, "repeatCount": 1,
+    "logs": [ { "t": "2026-10-09T08:05:00Z", "level": "info", "text": "Automatic C3D10 mesh: 48,200 elements. Solving LC-1." }, { "t": "2026-10-09T08:11:20Z", "level": "info", "text": "Peak von Mises 162 MPa at the inner fillet (r = 2 mm). Tip deflection 0.31 mm. Safety factor 276 / 162 = 1.70." }, { "t": "2026-10-09T08:11:21Z", "level": "info", "text": "Evidence record ev-E-001 written (manifest hashed)." } ],
+    "metrics": [
+      { "key": "peak_von_mises_mpa", "value": 162, "unit": "MPa", "definition": "Maximum nodal-averaged von Mises stress over the part under LC-1." },
+      { "key": "safety_factor", "value": 1.70, "definition": "Material yield strength (276 MPa) divided by peak von Mises stress, rounded to two decimals." },
+      { "key": "tip_deflection_mm", "value": 0.31, "unit": "mm", "definition": "Vertical displacement of the arm tip under LC-1." },
+      { "key": "mesh_elements", "value": 48200, "unit": "elements", "definition": "Number of C3D10 elements in the automatic mesh." }
+    ],
+    "cases": [], "failures": ["Safety factor 1.70 is below the required 2.0."],
+    "limitations": ["Automatic mesh; convergence not yet checked (see run #2).", "Linear elastic, static; bolt preload and contact not modelled.", "Simulated solver run: illustrative sample values."],
+    "criteriaResults": [ { "criteriaItemId": "ac-E1", "observed": 1.70, "pass": false }, { "criteriaItemId": "ac-E3", "observed": 0.31, "pass": true } ],
+    "overallPass": false, "supersedesRunId": null, "correctionNote": "", "evidenceRecordId": "ev-E-001", "requestedBy": "person-rosa", "approvalId": null,
+    "startedAt": "2026-10-09T08:05:00Z", "finishedAt": "2026-10-09T08:11:21Z", "createdAt": "2026-10-09T08:04:30Z",
+    "packData": { "packId": "engineering", "solver": "CalculiX 2.21 (sample)", "meshElements": 48200, "peakLocation": "Inner fillet between mounting plate and arm (r = 2 mm)", "converged": null,
+      "stressRegions": [ { "id": "plate", "label": "Mounting plate", "vonMisesMpa": 34 }, { "id": "bolt_holes", "label": "Bolt-hole edges", "vonMisesMpa": 71 }, { "id": "fillet", "label": "Inner fillet", "vonMisesMpa": 162 }, { "id": "arm_root", "label": "Arm root", "vonMisesMpa": 96 }, { "id": "arm_mid", "label": "Arm mid-span", "vonMisesMpa": 58 }, { "id": "arm_tip", "label": "Arm tip", "vonMisesMpa": 12 } ] }
+  },
+  {
+    "id": "run-E-002", "projectId": "proj-eng-mb200", "sequence": 2, "artifactVersionId": "artv-E-geometry-v1", "testDefinitionId": "test-E-convergence", "criteriaVersion": 1,
+    "executionMode": "simulated", "provenance": "illustrative", "status": "completed",
+    "environment": { "profile": "reference-sandbox-4vcpu", "image": "sandbox-2026.09 (sample)", "solver": "CalculiX 2.21 (sample)", "network": "disabled" },
+    "toolVersions": { "solver": "CalculiX 2.21 (sample)", "mesher": "lab-mesher 0.9 (sample)", "geometry": "v1" },
+    "commands": ["ccx -i mb200-v1-h1.0 (sample)", "ccx -i mb200-v1-h0.5 (sample)", "ccx -i mb200-v1-h0.25 (sample)"], "parameters": { "load_case": "LC-1", "levels_mm": "1.0, 0.5, 0.25" }, "seeds": {}, "repeatCount": 3,
+    "logs": [ { "t": "2026-10-09T10:00:00Z", "level": "info", "text": "Level 1 (1.0 mm at fillet, 41,000 elements): peak 139 MPa." }, { "t": "2026-10-09T10:14:00Z", "level": "info", "text": "Level 2 (0.5 mm, 118,000 elements): peak 150 MPa (+7.9%)." }, { "t": "2026-10-09T10:48:00Z", "level": "warn", "text": "Level 3 (0.25 mm, 402,000 elements): peak 171 MPa (+14.0%). Change between the last two levels exceeds the 5% criterion: NOT CONVERGED." }, { "t": "2026-10-09T10:48:01Z", "level": "info", "text": "Evidence record ev-E-002 written (manifest hashed)." } ],
+    "metrics": [
+      { "key": "peak_von_mises_refined_mpa", "value": 171, "unit": "MPa", "definition": "Peak von Mises at the finest level (0.25 mm at the fillet)." },
+      { "key": "convergence_change_percent", "value": 14.0, "unit": "%", "definition": "Relative change of the peak von Mises between the last two refinement levels (150 to 171 MPa)." },
+      { "key": "safety_factor", "value": 1.61, "definition": "276 MPa divided by the finest-level peak (171 MPa), rounded to two decimals." }
+    ],
+    "cases": [ { "id": "L1", "name": "1.0 mm at fillet", "expected": "report", "observed": "139 MPa (41,000 elements)", "pass": true }, { "id": "L2", "name": "0.5 mm at fillet", "expected": "report", "observed": "150 MPa (118,000 elements), +7.9%", "pass": true }, { "id": "L3", "name": "0.25 mm at fillet", "expected": "change below 5%", "observed": "171 MPa (402,000 elements), +14.0%", "pass": false, "detail": "The peak is still rising with refinement; a sharper fillet concentrates stress and the automatic mesh under-resolves it." } ],
+    "failures": ["Peak stress not converged: 14.0% change between the last two levels (criterion 5%)."],
+    "limitations": ["Three structured refinement levels at the fillet only; the rest of the mesh unchanged.", "Run #1 used the automatic mesh, which is not one of these levels.", "Simulated solver run: illustrative sample values."],
+    "criteriaResults": [ { "criteriaItemId": "ac-E2", "observed": 14.0, "pass": false, "note": "Not converged." } ],
+    "overallPass": false, "supersedesRunId": null, "correctionNote": "", "evidenceRecordId": "ev-E-002", "requestedBy": "person-ethan", "approvalId": null,
+    "startedAt": "2026-10-09T10:00:00Z", "finishedAt": "2026-10-09T10:48:01Z", "createdAt": "2026-10-09T09:55:00Z",
+    "packData": { "packId": "engineering", "solver": "CalculiX 2.21 (sample)", "converged": false, "convergenceCriterionPercent": 5,
+      "convergenceLevels": [ { "level": 1, "elementSizeMm": 1.0, "elements": 41000, "peakVonMisesMpa": 139, "changePercent": null }, { "level": 2, "elementSizeMm": 0.5, "elements": 118000, "peakVonMisesMpa": 150, "changePercent": 7.9 }, { "level": 3, "elementSizeMm": 0.25, "elements": 402000, "peakVonMisesMpa": 171, "changePercent": 14.0 } ] }
+  },
+  {
+    "id": "run-E-003", "projectId": "proj-eng-mb200", "sequence": 3, "artifactVersionId": "artv-E-geometry-v1", "testDefinitionId": "test-E-static", "criteriaVersion": 1,
+    "executionMode": "simulated", "provenance": "illustrative", "status": "completed",
+    "environment": { "profile": "reference-sandbox-4vcpu", "image": "sandbox-2026.09 (sample)", "solver": "CalculiX 2.21 (sample)", "network": "disabled" },
+    "toolVersions": { "solver": "CalculiX 2.21 (sample)", "mesher": "lab-mesher 0.9 (sample)", "geometry": "v1", "material card": "rev B" },
+    "commands": ["ccx -i mb200-v1-h0.25 (sample)"], "parameters": { "load_case": "LC-1", "mesh": "0.25 mm at fillet" }, "seeds": {}, "repeatCount": 1,
+    "logs": [ { "t": "2026-10-09T11:30:00Z", "level": "info", "text": "Refined C3D10 mesh: 402,000 elements. Solving LC-1." }, { "t": "2026-10-09T12:04:00Z", "level": "info", "text": "Peak von Mises 171 MPa at the inner fillet. Tip deflection 0.31 mm. Safety factor 276 / 171 = 1.61." } ],
+    "metrics": [
+      { "key": "peak_von_mises_mpa", "value": 171, "unit": "MPa", "definition": "Maximum nodal-averaged von Mises stress over the part under LC-1 (refined mesh)." },
+      { "key": "safety_factor", "value": 1.61, "definition": "Material yield strength (276 MPa) divided by peak von Mises stress, rounded to two decimals." },
+      { "key": "tip_deflection_mm", "value": 0.31, "unit": "mm", "definition": "Vertical displacement of the arm tip under LC-1." },
+      { "key": "mesh_elements", "value": 402000, "unit": "elements", "definition": "Number of C3D10 elements (0.25 mm at the fillet)." }
+    ],
+    "cases": [], "failures": ["Safety factor 1.61 is below the required 2.0."],
+    "limitations": ["Linear elastic, static; bolt preload and contact not modelled.", "Simulated solver run: illustrative sample values."],
+    "criteriaResults": [ { "criteriaItemId": "ac-E1", "observed": 1.61, "pass": false }, { "criteriaItemId": "ac-E3", "observed": 0.31, "pass": true } ],
+    "overallPass": false, "supersedesRunId": "run-E-001", "correctionNote": "Run #1 used the automatic mesh, which the convergence study (run #2) showed under-resolves the fillet. Re-run on the finest study mesh (0.25 mm at the fillet). Run #1 stays in the record and is excluded from criteria evaluation.", "evidenceRecordId": "ev-E-003", "requestedBy": "person-ethan", "approvalId": null,
+    "startedAt": "2026-10-09T11:30:00Z", "finishedAt": "2026-10-09T12:04:00Z", "createdAt": "2026-10-09T11:20:00Z",
+    "packData": { "packId": "engineering", "solver": "CalculiX 2.21 (sample)", "meshElements": 402000, "elementSizeMm": 0.25, "peakLocation": "Inner fillet between mounting plate and arm (r = 2 mm)", "converged": true,
+      "stressRegions": [ { "id": "plate", "label": "Mounting plate", "vonMisesMpa": 35 }, { "id": "bolt_holes", "label": "Bolt-hole edges", "vonMisesMpa": 73 }, { "id": "fillet", "label": "Inner fillet", "vonMisesMpa": 171 }, { "id": "arm_root", "label": "Arm root", "vonMisesMpa": 97 }, { "id": "arm_mid", "label": "Arm mid-span", "vonMisesMpa": 58 }, { "id": "arm_tip", "label": "Arm tip", "vonMisesMpa": 12 } ] }
+  },
+  {
+    "id": "run-E-004", "projectId": "proj-eng-mb200", "sequence": 4, "artifactVersionId": "artv-E-geometry-v1", "testDefinitionId": "test-E-fillet-study", "criteriaVersion": 1,
+    "executionMode": "simulated", "provenance": "illustrative", "status": "completed",
+    "environment": { "profile": "reference-sandbox-4vcpu", "image": "sandbox-2026.09 (sample)", "solver": "CalculiX 2.21 (sample)", "network": "disabled", "protocol": "prop-E-fillet v1" },
+    "toolVersions": { "solver": "CalculiX 2.21 (sample)", "mesher": "lab-mesher 0.9 (sample)", "geometry": "v1 (fillet parametrised)" },
+    "commands": ["ccx -i mb200-v1-r2 (sample)", "ccx -i mb200-v1-r3 (sample)", "ccx -i mb200-v1-r4 (sample)", "ccx -i mb200-v1-r5 (sample)", "ccx -i mb200-v1-r6 (sample)"], "parameters": { "radii_mm": "2, 3, 4, 5, 6", "mesh": "0.25 mm at fillet", "protocol_version": 1 }, "seeds": {}, "repeatCount": 5,
+    "logs": [ { "t": "2026-10-14T09:00:00Z", "level": "info", "text": "Protocol v1 (approval apr-E-prop-fillet). Execution approved (apr-E-run-004)." }, { "t": "2026-10-14T11:40:00Z", "level": "info", "text": "r = 2: 171 MPa (SF 1.61); r = 3: 148 (1.86); r = 4: 131 (2.11); r = 5: 118 (2.34); r = 6: 110 (2.51)." }, { "t": "2026-10-14T11:40:01Z", "level": "info", "text": "Smallest radius meeting SF >= 2.0: 4 mm (2.11). 5 mm gives margin (2.34). Evidence record ev-E-004 written (manifest hashed)." } ],
+    "metrics": [
+      { "key": "min_radius_meeting_sf_mm", "value": 4, "unit": "mm", "definition": "Smallest swept fillet radius whose safety factor is at least 2.0." },
+      { "key": "sf_at_5mm", "value": 2.34, "definition": "276 MPa divided by the peak von Mises at r = 5 mm (118 MPa)." }
+    ],
+    "cases": [ { "id": "r2", "name": "fillet 2 mm", "expected": "report", "observed": "171 MPa, SF 1.61", "pass": false }, { "id": "r3", "name": "fillet 3 mm", "expected": "report", "observed": "148 MPa, SF 1.86", "pass": false }, { "id": "r4", "name": "fillet 4 mm", "expected": "report", "observed": "131 MPa, SF 2.11", "pass": true }, { "id": "r5", "name": "fillet 5 mm", "expected": "report", "observed": "118 MPa, SF 2.34", "pass": true }, { "id": "r6", "name": "fillet 6 mm", "expected": "report", "observed": "110 MPa, SF 2.51", "pass": true } ],
+    "failures": [], "limitations": ["Parametric fillet on the v1 geometry; the as-built v2 CAD was analysed separately in run #5.", "Simulated solver run: illustrative sample values."],
+    "criteriaResults": [],
+    "overallPass": true, "supersedesRunId": null, "correctionNote": "", "evidenceRecordId": "ev-E-004", "requestedBy": "person-rosa", "approvalId": "apr-E-run-004",
+    "startedAt": "2026-10-14T09:00:00Z", "finishedAt": "2026-10-14T11:40:01Z", "createdAt": "2026-10-14T08:40:00Z",
+    "packData": { "packId": "engineering", "solver": "CalculiX 2.21 (sample)", "elementSizeMm": 0.25, "converged": true, "parametric": [ { "filletMm": 2, "peakVonMisesMpa": 171, "safetyFactor": 1.61 }, { "filletMm": 3, "peakVonMisesMpa": 148, "safetyFactor": 1.86 }, { "filletMm": 4, "peakVonMisesMpa": 131, "safetyFactor": 2.11 }, { "filletMm": 5, "peakVonMisesMpa": 118, "safetyFactor": 2.34 }, { "filletMm": 6, "peakVonMisesMpa": 110, "safetyFactor": 2.51 } ] }
+  },
+  {
+    "id": "run-E-005", "projectId": "proj-eng-mb200", "sequence": 5, "artifactVersionId": "artv-E-geometry-v2", "testDefinitionId": "test-E-static", "criteriaVersion": 1,
+    "executionMode": "simulated", "provenance": "illustrative", "status": "completed",
+    "environment": { "profile": "reference-sandbox-4vcpu", "image": "sandbox-2026.09 (sample)", "solver": "CalculiX 2.21 (sample)", "network": "disabled" },
+    "toolVersions": { "solver": "CalculiX 2.21 (sample)", "mesher": "lab-mesher 0.9 (sample)", "geometry": "v2", "material card": "rev B" },
+    "commands": ["ccx -i mb200-v2-h0.25 (sample)"], "parameters": { "load_case": "LC-1", "mesh": "0.25 mm at fillet" }, "seeds": {}, "repeatCount": 1,
+    "logs": [ { "t": "2026-10-21T09:00:00Z", "level": "info", "text": "Refined C3D10 mesh on geometry v2: 402,000 elements. Solving LC-1." }, { "t": "2026-10-21T09:36:00Z", "level": "info", "text": "Peak von Mises 118 MPa at the inner fillet (r = 5 mm). Tip deflection 0.33 mm. Safety factor 276 / 118 = 2.34. Predicted stress at gauge location G1: 58.9 MPa." } ],
+    "metrics": [
+      { "key": "peak_von_mises_mpa", "value": 118, "unit": "MPa", "definition": "Maximum nodal-averaged von Mises stress over the part under LC-1 (refined mesh)." },
+      { "key": "safety_factor", "value": 2.34, "definition": "Material yield strength (276 MPa) divided by peak von Mises stress, rounded to two decimals." },
+      { "key": "tip_deflection_mm", "value": 0.33, "unit": "mm", "definition": "Vertical displacement of the arm tip under LC-1." },
+      { "key": "predicted_g1_stress_mpa", "value": 58.9, "unit": "MPa", "definition": "Predicted longitudinal surface stress at strain-gauge location G1 (arm top surface, 30 mm from the fillet)." },
+      { "key": "mesh_elements", "value": 402000, "unit": "elements", "definition": "Number of C3D10 elements (0.25 mm at the fillet)." }
+    ],
+    "cases": [], "failures": [], "limitations": ["Linear elastic, static; bolt preload and contact not modelled.", "Simulated solver run: illustrative sample values."],
+    "criteriaResults": [ { "criteriaItemId": "ac-E1", "observed": 2.34, "pass": true }, { "criteriaItemId": "ac-E3", "observed": 0.33, "pass": true } ],
+    "overallPass": true, "supersedesRunId": null, "correctionNote": "", "evidenceRecordId": "ev-E-005", "requestedBy": "person-rosa", "approvalId": null,
+    "startedAt": "2026-10-21T09:00:00Z", "finishedAt": "2026-10-21T09:36:00Z", "createdAt": "2026-10-21T08:50:00Z",
+    "packData": { "packId": "engineering", "solver": "CalculiX 2.21 (sample)", "meshElements": 402000, "elementSizeMm": 0.25, "peakLocation": "Inner fillet between mounting plate and arm (r = 5 mm)", "converged": true,
+      "stressRegions": [ { "id": "plate", "label": "Mounting plate", "vonMisesMpa": 35 }, { "id": "bolt_holes", "label": "Bolt-hole edges", "vonMisesMpa": 74 }, { "id": "fillet", "label": "Inner fillet", "vonMisesMpa": 118 }, { "id": "arm_root", "label": "Arm root", "vonMisesMpa": 92 }, { "id": "arm_mid", "label": "Arm mid-span", "vonMisesMpa": 59 }, { "id": "arm_tip", "label": "Arm tip", "vonMisesMpa": 12 } ] }
+  },
+  {
+    "id": "run-E-006", "projectId": "proj-eng-mb200", "sequence": 6, "artifactVersionId": "artv-E-geometry-v2", "testDefinitionId": "test-E-convergence", "criteriaVersion": 1,
+    "executionMode": "simulated", "provenance": "illustrative", "status": "completed",
+    "environment": { "profile": "reference-sandbox-4vcpu", "image": "sandbox-2026.09 (sample)", "solver": "CalculiX 2.21 (sample)", "network": "disabled" },
+    "toolVersions": { "solver": "CalculiX 2.21 (sample)", "mesher": "lab-mesher 0.9 (sample)", "geometry": "v2" },
+    "commands": ["ccx -i mb200-v2-h1.0 (sample)", "ccx -i mb200-v2-h0.5 (sample)", "ccx -i mb200-v2-h0.25 (sample)"], "parameters": { "load_case": "LC-1", "levels_mm": "1.0, 0.5, 0.25" }, "seeds": {}, "repeatCount": 3,
+    "logs": [ { "t": "2026-10-21T10:00:00Z", "level": "info", "text": "Level 1: 112 MPa. Level 2: 116 MPa (+3.6%). Level 3: 118 MPa (+1.7%). CONVERGED (criterion 5%)." }, { "t": "2026-10-21T10:50:00Z", "level": "info", "text": "Evidence record ev-E-006 written (manifest hashed)." } ],
+    "metrics": [
+      { "key": "peak_von_mises_refined_mpa", "value": 118, "unit": "MPa", "definition": "Peak von Mises at the finest level (0.25 mm at the fillet)." },
+      { "key": "convergence_change_percent", "value": 1.7, "unit": "%", "definition": "Relative change of the peak von Mises between the last two refinement levels (116 to 118 MPa)." },
+      { "key": "safety_factor", "value": 2.34, "definition": "276 MPa divided by the finest-level peak (118 MPa), rounded to two decimals." }
+    ],
+    "cases": [ { "id": "L1", "name": "1.0 mm at fillet", "expected": "report", "observed": "112 MPa", "pass": true }, { "id": "L2", "name": "0.5 mm at fillet", "expected": "report", "observed": "116 MPa, +3.6%", "pass": true }, { "id": "L3", "name": "0.25 mm at fillet", "expected": "change below 5%", "observed": "118 MPa, +1.7%", "pass": true } ],
+    "failures": [], "limitations": ["Three structured refinement levels at the fillet only.", "Simulated solver run: illustrative sample values."],
+    "criteriaResults": [ { "criteriaItemId": "ac-E2", "observed": 1.7, "pass": true } ],
+    "overallPass": true, "supersedesRunId": null, "correctionNote": "", "evidenceRecordId": "ev-E-006", "requestedBy": "person-ethan", "approvalId": null,
+    "startedAt": "2026-10-21T10:00:00Z", "finishedAt": "2026-10-21T10:50:00Z", "createdAt": "2026-10-21T09:50:00Z",
+    "packData": { "packId": "engineering", "solver": "CalculiX 2.21 (sample)", "converged": true, "convergenceCriterionPercent": 5,
+      "convergenceLevels": [ { "level": 1, "elementSizeMm": 1.0, "elements": 41000, "peakVonMisesMpa": 112, "changePercent": null }, { "level": 2, "elementSizeMm": 0.5, "elements": 118000, "peakVonMisesMpa": 116, "changePercent": 3.6 }, { "level": 3, "elementSizeMm": 0.25, "elements": 402000, "peakVonMisesMpa": 118, "changePercent": 1.7 } ] }
+  },
+  {
+    "id": "run-E-007", "projectId": "proj-eng-mb200", "sequence": 7, "artifactVersionId": "artv-E-geometry-v2", "testDefinitionId": "test-E-gauge", "criteriaVersion": 1,
+    "executionMode": "imported", "provenance": "imported", "status": "completed",
+    "environment": { "source": "Halden bench test 2026-10-22 (per import metadata)", "note": "Rig, calibration and temperature beyond the import metadata are unknown." },
+    "toolVersions": { "gauge": "uniaxial foil gauge, GF 2.1 (per export)", "DAQ": "unknown" },
+    "commands": [], "parameters": { "measurement": "artv-E-gauge-2026-10-22" }, "seeds": {}, "repeatCount": 3,
+    "logs": [ { "t": "2026-10-22T15:45:00Z", "level": "info", "text": "Imported: G1 mean strain 897 microstrain at 2.0 kN (3 applications). Stress = E x strain = 68.9 GPa x 0.000897 = 61.8 MPa. Predicted at G1 (run #5): 58.9 MPa. Difference +4.9%." } ],
+    "metrics": [
+      { "key": "measured_g1_stress_mpa", "value": 61.8, "unit": "MPa", "definition": "Uniaxial surface stress at gauge G1, computed as Young's modulus times the imported mean strain." },
+      { "key": "predicted_g1_stress_mpa", "value": 58.9, "unit": "MPa", "definition": "Predicted longitudinal surface stress at G1 from run #5." },
+      { "key": "difference_percent", "value": 4.9, "unit": "%", "definition": "(measured - predicted) / predicted, times 100." }
+    ],
+    "cases": [], "failures": [],
+    "limitations": ["Imported evidence: not reproduced here.", "Single gauge at one location away from the fillet; it does not measure the peak stress.", "Uncalibrated sample bench; uniaxial gauge ignores transverse strain."],
+    "criteriaResults": [],
+    "overallPass": null, "supersedesRunId": null, "correctionNote": "", "evidenceRecordId": "ev-E-007", "requestedBy": "person-rosa", "approvalId": null,
+    "startedAt": null, "finishedAt": null, "createdAt": "2026-10-22T15:45:00Z"
+  }
+]

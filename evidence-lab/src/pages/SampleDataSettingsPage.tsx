@@ -2,13 +2,6 @@ import { useState } from "react";
 import { useAppStore } from "@/store";
 import { Marker, PageHeader } from "@/components";
 
-const SWITCHABLE_USERS = [
-  { id: "person-dana", name: "Dana Whitfield", role: "Customer engineer (Acme Pay) · editor" },
-  { id: "person-priya", name: "Priya Natarajan", role: "Isogeny reviewer · reviewer" },
-  { id: "person-marco", name: "Marco Ellison", role: "Release manager (Acme Pay) · owner" },
-  { id: "person-lee", name: "Lee Okafor", role: "Security lead (Acme Pay) · viewer" },
-];
-
 export function SampleDataSettingsPage() {
   const db = useAppStore((s) => s.db);
   const mock = useAppStore((s) => s.mock);
@@ -18,6 +11,7 @@ export function SampleDataSettingsPage() {
   const reset = useAppStore((s) => s.resetToSampleData);
   const version = useAppStore((s) => s.version);
   const [confirm, setConfirm] = useState(false);
+  const SWITCHABLE_USERS = db.projects.flatMap((p) => p.people.map((x) => ({ id: x.id, name: x.name, role: `${x.role} (${x.org}) · ${p.permissions.members.find((m) => m.personId === x.id)?.role ?? "not a member"} of ${p.name}` })));
   const counts: Array<[string, number]> = [["projects", db.projects.length], ["artifacts", db.artifacts.length], ["tests", db.tests.length], ["runs", db.runs.length], ["checks", db.checks.length], ["findings", db.findings.length], ["approvals", db.approvals.length], ["proposals", db.proposals.length], ["tasks", db.tasks.length], ["evidence records", db.evidence.length], ["audit events", db.audit.length]];
   return (
     <>

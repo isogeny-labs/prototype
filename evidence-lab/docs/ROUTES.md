@@ -3,10 +3,10 @@
 All routes render inside the app shell (left nav, project switcher, pack badge, sample-data banner, assistant slot).
 Project routes are guarded: the project and its template version load first; loading and failed states are shown.
 
-| Route | Page | What it shows (Phase 1, cryptography sample) |
+| Route | Page | What it shows (all three sample projects) |
 |---|---|---|
 | `/` | Home | Project cards (pack badge, status, unresolved findings, pending approvals, run count) and the three packs with availability. |
-| `/p/:id` | Overview | Template-driven workspace: key metrics against the current acceptance criteria (each value links to its run and states its definition), attack-assessment table (crypto pack panel, filter by attack model), next actions, what is not tested, recent activity, disclaimers. Honors view configuration (hidden panels, order). |
+| `/p/:id` | Overview | Template-driven workspace. Shared panels: key metrics against the current acceptance criteria (each value links to its run and states its definition), next actions, what is not tested, recent activity, disclaimers. Pack panels by template: crypto attack assessment; engineering model setup, schematic stress view, mesh convergence; legal chronology, disputed facts, document viewer (deep links `?doc=&page=&line=`), argument map, authorities, rehearsal. Honors view configuration (hidden panels, order). |
 | `/p/:id/intake` | Intake | Goal, constraints, intake questions (open / answered / assumed), budget, execution mode, acceptance-criteria versions with approval state. |
 | `/p/:id/artifacts` | Artifacts | Artifacts with version chains: hash, size, provenance, importer, notes, planted-defect marker. |
 | `/p/:id/tests` | Tests | Test definitions: kind, acceptance rule, runner and limits, run count. Runnable tests get *Request run* (creates a simulated run awaiting execution approval). Unsupported/imported tests show *Not runnable here* with the path. |

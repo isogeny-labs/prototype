@@ -1,24 +1,28 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { services } from "@/services";
 import { useQuery } from "@/hooks/useQuery";
 import { useAppStore } from "@/store";
 import { useProject } from "@/shell/ProjectContext";
-import type { WorkspacePanel, Run, AcceptanceCriteriaItem, AttackAssessment } from "@/contracts";
-import { EmptyState, Marker, PageHeader, ProvenanceBadge, QueryBoundary, RunStatus } from "@/components";
+import type { WorkspacePanel, Run, AcceptanceCriteriaItem, Project, PackTemplate, PackId } from "@/contracts";
+import { EmptyState, PageHeader, ProvenanceBadge, QueryBoundary, RunStatus } from "@/components";
 import { fmtDateTime, fmtValue, humanize } from "@/lib/format";
-import { supersededIds, testName, versionLabel } from "@/lib/lookup";
+import { latestTargetVersion, supersededIds, testName, versionLabel } from "@/lib/lookup";
+import { PACK_PANELS } from "@/packs/registry";
+import type { WorkspaceData } from "@/packs/types";
 
 export function OverviewPage() {
   const { project, template } = useProject();
   const viewConfig = useAppStore((s) => s.viewConfig[project.id]);
   const q = useQuery(async () => {
-    const [criteria, runs, tests, artifacts, approvals, tasks, audit, attacks, findings] = await Promise.all([
+    const [criteria, runs, tests, artifacts, approvals, tasks, audit, attacks, findings, checks] = await Promise.all([
       services.evidenceLab.listCriteria(project.id), services.evidenceLab.listRuns(project.id), services.evidenceLab.listTests(project.id),
       services.evidenceLab.listArtifacts(project.id), services.approvals.list(project.id), services.conductor.listTasks(project.id),
       services.evidenceLab.listAudit(project.id), services.evidenceLab.listAttackAssessments(project.id), services.evidenceLab.listFindings(project.id),
+      services.evidenceLab.listChecks(project.id),
     ]);
-    return { criteria, runs, tests, artifacts, approvals, tasks, audit, attacks, findings };
+    const d: WorkspaceData = { criteria, runs, tests, artifacts, approvals, tasks, audit, attacks, findings, checks };
+    return d;
   }, [project.id]);
 
   const panels = useMemo(() => {
@@ -35,7 +39,7 @@ export function OverviewPage() {
       </PageHeader>
       <QueryBoundary q={q} label="Loading workspace">{(d) => (
         <div className="grid gap-4 xl:grid-cols-2">
-          {panels.map((p) => <Panel key={p.id} panel={p} data={d} projectId={project.id} criteriaVersion={project.currentCriteriaVersion} disclaimers={template.disclaimers} />)}
+          {panels.map((p) => <Panel key={p.id} panel={p} data={d} project={project} template={template} />)}
           {(viewConfig?.hiddenPanels.length ?? 0) > 0 ? <div className="text-xs text-faint xl:col-span-2">{viewConfig?.hiddenPanels.length} panel(s) hidden by view configuration.</div> : null}
         </div>
       )}</QueryBoundary>
@@ -43,20 +47,21 @@ export function OverviewPage() {
   );
 }
 
-type Data = { criteria: Awaited<ReturnType<typeof services.evidenceLab.listCriteria>>; runs: Run[]; tests: Awaited<ReturnType<typeof services.evidenceLab.listTests>>; artifacts: Awaited<ReturnType<typeof services.evidenceLab.listArtifacts>>; approvals: Awaited<ReturnType<typeof services.approvals.list>>; tasks: Awaited<ReturnType<typeof services.conductor.listTasks>>; audit: Awaited<ReturnType<typeof services.evidenceLab.listAudit>>; attacks: AttackAssessment[]; findings: Awaited<ReturnType<typeof services.evidenceLab.listFindings>> };
+type Data = WorkspaceData;
 
-function Panel({ panel, data, projectId, criteriaVersion, disclaimers }: { panel: WorkspacePanel; data: Data; projectId: string; criteriaVersion: number; disclaimers: string[] }) {
+function Panel({ panel, data, project, template }: { panel: WorkspacePanel; data: Data; project: Project; template: PackTemplate }) {
   const wide = panel.kind === "metrics" || panel.kind === "pack_panel";
+  const projectId = project.id;
+  const PackComponent = panel.kind === "pack_panel" && panel.packComponent ? PACK_PANELS[panel.packComponent] : undefined;
   return (
-    <section className={`panel ${wide ? "xl:col-span-2" : ""}`} data-testid={`panel-${panel.id}`} aria-labelledby={`panel-${panel.id}-title`}>
+    <section id={`panel-${panel.id}`} className={`panel ${wide ? "xl:col-span-2" : ""}`} data-testid={`panel-${panel.id}`} aria-labelledby={`panel-${panel.id}-title`}>
       <h2 id={`panel-${panel.id}-title`} className="h2 mb-3">{panel.title}</h2>
-      {panel.kind === "metrics" ? <MetricsPanel data={data} projectId={projectId} criteriaVersion={criteriaVersion} /> : null}
-      {panel.kind === "pack_panel" && panel.packComponent === "AttackAssessmentPanel" ? <AttackAssessmentPanel attacks={data.attacks} runs={data.runs} projectId={projectId} /> : null}
-      {panel.kind === "pack_panel" && panel.packComponent !== "AttackAssessmentPanel" ? <EmptyState title={`${panel.packComponent} arrives with its pack in Phase 2.`} /> : null}
+      {panel.kind === "metrics" ? <MetricsPanel data={data} projectId={projectId} criteriaVersion={project.currentCriteriaVersion} /> : null}
+      {panel.kind === "pack_panel" ? (PackComponent ? <PackComponent project={project} template={template} data={data} /> : <EmptyState title={`No component is registered for "${panel.packComponent}".`} hint="Register it in src/packs/registry.tsx." />) : null}
       {panel.kind === "next_actions" ? <NextActions data={data} projectId={projectId} /> : null}
-      {panel.kind === "untested" ? <Untested data={data} projectId={projectId} /> : null}
+      {panel.kind === "untested" ? <Untested data={data} projectId={projectId} packId={project.packId} /> : null}
       {panel.kind === "activity" ? <Activity data={data} /> : null}
-      {panel.kind === "disclaimer" ? <ul className="list-disc space-y-1 pl-4 text-sm text-muted">{disclaimers.map((d) => <li key={d}>{d}</li>)}</ul> : null}
+      {panel.kind === "disclaimer" ? <ul className="list-disc space-y-1 pl-4 text-sm text-muted" data-testid="disclaimers">{template.disclaimers.map((d) => <li key={d}>{d}</li>)}</ul> : null}
     </section>
   );
 }
@@ -95,43 +100,6 @@ function MetricsPanel({ data, projectId, criteriaVersion }: { data: Data; projec
   );
 }
 
-const CATEGORY: Record<AttackAssessment["category"], { label: string; cls: string }> = {
-  reproduced_weakness: { label: "Reproduced weakness", cls: "border-bad/60 text-bad" },
-  measured_experiment: { label: "Measured experiment", cls: "border-ok/60 text-ok" },
-  estimate_with_assumptions: { label: "Estimate with assumptions", cls: "border-warn/60 text-warn" },
-  published_estimate: { label: "Published estimate", cls: "border-info/60 text-info" },
-  no_defensible_estimate: { label: "No defensible estimate", cls: "border-muted/60 text-muted" },
-};
-
-export function AttackAssessmentPanel({ attacks, runs, projectId }: { attacks: AttackAssessment[]; runs: Run[]; projectId: string }) {
-  const [model, setModel] = useState<"both" | "classical" | "quantum">("both");
-  const rows = attacks.filter((a) => model === "both" || a.attackModel === model);
-  if (attacks.length === 0) return <EmptyState title="No attack assessments recorded" />;
-  return (
-    <>
-      <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-muted">
-        <label>Attack model <select className="input ml-1 w-auto" value={model} onChange={(e) => setModel(e.target.value as typeof model)} data-testid="attack-model"><option value="both">both</option><option value="classical">classical</option><option value="quantum">quantum</option></select></label>
-        <span>Each row says what kind of statement it is. Nothing here is a single score.</span>
-        <Marker kind="sample" className="ml-auto" />
-      </div>
-      <table className="tbl">
-        <thead><tr><th>Kind of statement</th><th>Target / objective</th><th>Method and source</th><th>Expected work</th><th>Uncertainty</th></tr></thead>
-        <tbody>
-          {rows.map((a) => { const run = a.linkedRunId ? runs.find((r) => r.id === a.linkedRunId) : null; const c = CATEGORY[a.category]; return (
-            <tr key={a.id} data-testid="attack-row" data-category={a.category}>
-              <td><span className={`tag ${c.cls}`}>{c.label}</span><div className="mt-1 text-xs text-faint">{a.attackModel} · reviewed {a.reviewDate}</div></td>
-              <td><div>{a.target}</div><div className="text-xs text-muted">{a.objective}</div></td>
-              <td><div>{a.method}</div><div className="text-xs text-muted">{a.source}{run ? <> · <Link to={`/p/${projectId}/runs/${run.id}`}>Run #{run.sequence}</Link></> : null}</div>{a.assumptions.length ? <div className="mt-1 text-xs text-faint">Assumes: {a.assumptions.join(" ")}</div> : null}</td>
-              <td>{a.expectedWork}</td>
-              <td className="text-muted">{a.uncertainty}</td>
-            </tr>
-          ); })}
-        </tbody>
-      </table>
-    </>
-  );
-}
-
 function NextActions({ data, projectId }: { data: Data; projectId: string }) {
   const pending = data.approvals.filter((a) => a.decision === "pending");
   const queued = data.runs.filter((r) => r.status === "queued" || r.status === "awaiting_approval");
@@ -147,8 +115,8 @@ function NextActions({ data, projectId }: { data: Data; projectId: string }) {
   return <ul className="list-disc space-y-1 pl-4 text-sm">{items.map((i) => <li key={i.key}>{i.text}</li>)}</ul>;
 }
 
-function Untested({ data, projectId }: { data: Data; projectId: string }) {
-  const latestVersion = data.artifacts.find((a) => a.kind === "library" || a.kind === "geometry" || a.kind === "document")?.versions.slice().sort((a, b) => (a.importedAt < b.importedAt ? 1 : -1))[0];
+function Untested({ data, projectId, packId }: { data: Data; projectId: string; packId: PackId }) {
+  const latestVersion = latestTargetVersion(packId, data.artifacts);
   const ranOnLatest = new Set(data.runs.filter((r) => r.status === "completed" && (!latestVersion || r.artifactVersionId === latestVersion.id)).map((r) => r.testDefinitionId));
   const notRunnable = data.tests.filter((t) => !t.runnable);
   const notYetRun = data.tests.filter((t) => t.runnable && !ranOnLatest.has(t.id));

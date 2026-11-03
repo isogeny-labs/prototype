@@ -23,6 +23,9 @@ export function ArtifactVersionList({ artifact, project }: { artifact: Artifact;
               <span className="tag" title={`Provenance: ${PROV[v.provenance] ?? v.provenance}`}>{PROV[v.provenance] ?? v.provenance}</span>
               {v.parentVersionId ? <span className="text-xs text-muted">supersedes {artifact.versions.find((p) => p.id === v.parentVersionId)?.version ?? v.parentVersionId}</span> : <span className="text-xs text-faint">first version</span>}
               {v.seededDefect ? <span className="tag border-sample/60 text-sample" title={v.seededDefect}>◇ Planted sample defect</span> : null}
+              {v.packData?.packId === "legal" && v.packData.authority ? <span className="tag border-sample/60 text-sample">{v.packData.authority.fictionalLabel}</span> : null}
+              {v.packData?.packId === "legal" && v.packData.privileged ? <span className="tag border-warn/60 text-warn">Privileged</span> : null}
+              {v.packData?.packId === "engineering" && v.packData.filletMm ? <span className="tag">fillet {v.packData.filletMm} mm</span> : null}
               <span className="ml-auto text-xs text-faint">{fmtDateTime(v.importedAt)} · {actorName(project, v.importedBy)}</span>
             </div>
             <dl className="kv mt-2">

@@ -4,20 +4,26 @@
     "name": "Cryptography",
     "tagline": "Signature and key-handling libraries: functional correctness, known-answer vectors, performance and attack assessments.",
     "status": "sample_available",
-    "templateIds": ["tpl-crypto-signature-v1"]
+    "templateIds": [
+      "tpl-crypto-signature-v1"
+    ]
   },
   {
     "id": "engineering",
     "name": "Mechanical Engineering",
     "tagline": "Static structural analysis: loads, materials, mesh convergence and safety factors against stated acceptance criteria.",
-    "status": "coming_in_phase_2",
-    "templateIds": ["tpl-eng-static-v1"]
+    "status": "sample_available",
+    "templateIds": [
+      "tpl-eng-static-v1"
+    ]
   },
   {
     "id": "legal",
     "name": "Legal",
     "tagline": "Dispute preparation: chronology, document review, fact checks and fictional-authority analysis.",
-    "status": "coming_in_phase_2",
-    "templateIds": ["tpl-legal-dispute-v1"]
+    "status": "sample_available",
+    "templateIds": [
+      "tpl-legal-dispute-v1"
+    ]
   }
 ]

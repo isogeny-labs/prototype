@@ -38,7 +38,8 @@ Changes made in the UI (requested runs, decisions, reported changes) live until 
 ```
 src/contracts/     domain types + the two pure rules (evidence label, finding status mapping)
 src/services/      service interfaces (types.ts), mock implementations (mock/), the switch (index.ts)
-src/fixtures/      JSON sample data: packs/ (templates) and one folder per sample project
+src/fixtures/      JSON sample data: packs/ (templates) and one folder per sample project (crypto, engineering, legal)
+src/packs/         pack-specific workspace panels, registered by name in registry.tsx
 src/store/         Zustand store: in-memory db, mock config (latency, failure injection), acting user, view config
 src/theme/         tokens.ts (the only place colours live) + index.css
 src/components/    EvidenceLabel, CheckBadge, IntegrityBadge, ExecutionModeBadge, RunStatus, FindingTimeline,
@@ -59,9 +60,16 @@ public/brand/      logo assets (see docs/GAPS.md about the missing SVG master)
 call to …" switch, and the acting user. Latency and failure rate persist in `localStorage` (guarded; the app
 works without storage).
 
+## Hosted preview
+
+Pushes to the repository's default branch build and deploy this app to GitHub Pages at
+`https://isogeny-labs.github.io/prototype/` (see `.github/workflows/pages.yml`). The build uses
+`npm run build:pages`, which sets the `/prototype/` base path and copies `index.html` to `404.html` so deep links
+into client-side routes work. Sample data only; nothing is persisted.
+
 ## Phases
 
-1. Scaffold, theme, shell, routing, contracts, mock layer, cryptography sample end to end — **this checkpoint**.
-2. Engineering and legal samples.
+1. Scaffold, theme, shell, routing, contracts, mock layer, cryptography sample end to end — done.
+2. Engineering and legal samples on the same shell and components — **this checkpoint**.
 3. States, assistant conversation, approval decisions, memory page, report preview.
 4. Docs and acceptance tests.

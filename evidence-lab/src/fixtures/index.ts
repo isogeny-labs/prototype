@@ -25,6 +25,16 @@ import cryptoChanges from "./crypto/changes.json";
 import cryptoLearning from "./crypto/learning.json";
 import cryptoAudit from "./crypto/audit.json";
 import cryptoAttacks from "./crypto/attackAssessments.json";
+import engProject from "./engineering/project.json";
+import engArtifacts from "./engineering/artifacts.json";
+import engTests from "./engineering/tests.json";
+import engRuns from "./engineering/runs.json";
+import engRecords from "./engineering/records.json";
+import legalProject from "./legal/project.json";
+import legalArtifacts from "./legal/artifacts.json";
+import legalTests from "./legal/tests.json";
+import legalRuns from "./legal/runs.json";
+import legalRecords from "./legal/records.json";
 
 const cast = <T,>(v: unknown) => v as T;
 
@@ -52,6 +62,30 @@ export function loadFixtures(db: Db): Db {
   db.modelTraining.push(...cast<ModelTrainingRecord[]>(cryptoLearning.modelTraining));
   db.audit.push(...cast<AuditEvent[]>(cryptoAudit));
   db.attackAssessments.push(...cast<AttackAssessment[]>(cryptoAttacks));
+
+  // Mechanical engineering sample: "Mounting bracket MB-200"; Legal sample: "Northwind Supply v. Harbor Fabrication (fictional)"
+  for (const pack of [
+    { project: engProject, artifacts: engArtifacts, tests: engTests, runs: engRuns, records: engRecords },
+    { project: legalProject, artifacts: legalArtifacts, tests: legalTests, runs: legalRuns, records: legalRecords },
+  ]) {
+    db.projects.push(...cast<Project[]>(pack.project.projects));
+    db.criteria.push(...cast<AcceptanceCriteria[]>(pack.project.criteria));
+    db.artifacts.push(...cast<Artifact[]>(pack.artifacts));
+    db.tests.push(...cast<TestDefinition[]>(pack.tests));
+    db.runs.push(...cast<Run[]>(pack.runs));
+    const r = pack.records;
+    db.checks.push(...cast<Check[]>(r.checks));
+    db.findings.push(...cast<Finding[]>(r.findings));
+    db.approvals.push(...cast<Approval[]>(r.approvals));
+    db.proposals.push(...cast<ExperimentProposal[]>(r.proposals));
+    db.tasks.push(...cast<Task[]>(r.tasks));
+    db.evidence.push(...cast<EvidenceRecord[]>(r.evidence));
+    db.recommendations.push(...cast<Recommendation[]>(r.recommendations));
+    db.externalChanges.push(...cast<ExternalChange[]>(r.externalChanges));
+    db.comparisons.push(...cast<Comparison[]>(r.comparisons));
+    db.memory.push(...cast<MemoryItem[]>(r.memory));
+    db.audit.push(...cast<AuditEvent[]>(r.audit));
+  }
 
   // Newest audit first, as the mock services prepend.
   db.audit.sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0));
