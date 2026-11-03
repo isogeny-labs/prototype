@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { services } from "@/services";
 import { useQuery } from "@/hooks/useQuery";
-import { useAppStore, DEFAULT_USER_BY_PROJECT } from "@/store";
+import { useAppStore, DEFAULT_USER_BY_PROJECT, DEV_STATES, type DevState } from "@/store";
 import { Logo } from "./Logo";
 import { AssistantPanel } from "./AssistantPanel";
 import { ProjectContext, type ProjectCtx } from "./ProjectContext";
@@ -18,6 +18,9 @@ export function AppShell() {
   const setAssistantOpen = useAppStore((s) => s.setAssistantOpen);
   const user = useAppStore((s) => s.user);
   const setUser = useAppStore((s) => s.setUser);
+  const devState = useAppStore((s) => s.devState);
+  const setDevState = useAppStore((s) => s.setDevState);
+  const sampleMode = useAppStore((s) => s.db.projects.some((p) => p.isSample));
 
   const projectsQ = useQuery(() => services.evidenceLab.listProjects(), []);
   const projectQ = useQuery(async () => {
@@ -72,7 +75,7 @@ export function AppShell() {
             <button type="button" className="btn-ghost btn-sm" aria-pressed={assistantOpen} onClick={() => setAssistantOpen(!assistantOpen)} data-testid="assistant-toggle">Assistant</button>
           </div>
         </header>
-        {anySample ? <SampleBanner projectName={ctx.project?.name} /> : null}
+        {anySample ? <SampleBanner projectName={ctx.project?.name} devState={devState} /> : null}
         <div className="flex min-h-0 flex-1">
           <nav aria-label="Primary" className="w-52 shrink-0 border-r border-line bg-panel px-2 py-3 text-sm">
             <NavLink to="/" end className={({ isActive }) => `block rounded px-2 py-1.5 no-underline ${isActive ? "bg-panel-2 text-ink" : "text-muted hover:text-ink"}`}>Home</NavLink>
@@ -86,6 +89,14 @@ export function AppShell() {
             ) : <div className="mt-4 px-2 text-xs text-faint">Pick a project to see its workspace.</div>}
             <div className="h3 mt-4 px-2">Developer</div>
             <NavLink to="/settings/sample-data" className={({ isActive }) => `block rounded px-2 py-1.5 no-underline ${isActive ? "bg-panel-2 text-ink" : "text-muted hover:text-ink"}`}>Sample data</NavLink>
+            {sampleMode ? (
+              <label className="mt-2 block px-2 text-xs text-muted">View state
+                <select className="input mt-1" value={devState ?? ""} onChange={(e) => setDevState((e.target.value || null) as DevState)} data-testid="dev-state" aria-label="Developer view state switcher (sample mode)">
+                  {DEV_STATES.map((d) => <option key={d.label} value={d.value ?? ""}>{d.label}</option>)}
+                </select>
+                <span className="mt-1 block text-2xs text-faint">Sample mode only. Forces every key view into a state; live data is untouched.</span>
+              </label>
+            ) : null}
           </nav>
           <main id="main" className="min-w-0 flex-1 overflow-y-auto px-6 py-5" key={location.pathname}>
             <Outlet />

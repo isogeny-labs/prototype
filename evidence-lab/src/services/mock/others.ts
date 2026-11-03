@@ -2,13 +2,33 @@ import type { ApprovalService, AutoresearcherService, ConductorService, PackRegi
 import { ServiceError } from "../types";
 import { store } from "@/store";
 import { simulate, nowIso, newId, notFound, audit } from "./base";
-import type { Approval, ExperimentProposal, Task, ViewConfig, AssistantMessage, CompatibilityResult } from "@/contracts";
+import type { Approval, ExperimentProposal, Task, ViewConfig, AssistantMessage, CompatibilityResult, MemoryItem } from "@/contracts";
 import { canResolve } from "@/contracts";
 
 const personName = (projectId: string, id: string) => store.db().projects.find((p) => p.id === projectId)?.people.find((p) => p.id === id)?.name ?? id;
 
+/** Who may decide: the template's gate names a required role. Owners may decide anything; reviewers decide reviewer-gated subjects. */
+function assertMayDecide(projectId: string, a: Approval, reviewerId: string) {
+  const db = store.db();
+  const project = db.projects.find((p) => p.id === projectId) ?? notFound("project", projectId);
+  const member = project.permissions.members.find((m) => m.personId === reviewerId);
+  if (!member) throw new ServiceError(`${personName(projectId, reviewerId)} is not a member of this project and cannot decide.`, "forbidden");
+  const template = db.templates.find((t) => t.id === project.templateId && t.version === project.templateVersion);
+  const gate = template?.approvalGates.find((g) => g.subjectType === a.subjectType);
+  const required = gate?.requiredRole ?? "reviewer";
+  const ok = member.role === "owner" || (required === "reviewer" && member.role === "reviewer");
+  if (!ok) throw new ServiceError(`Your role in this project is ${member.role}; this decision (${a.subjectType.replace(/_/g, " ")}) needs ${required === "owner" ? "the owner" : "a reviewer or the owner"}.`, "forbidden");
+}
+
+function remember(projectId: string, item: Omit<MemoryItem, "id" | "projectId" | "customerScope" | "recordedAt">) {
+  const project = store.db().projects.find((p) => p.id === projectId);
+  const customerScope = project?.people.find((x) => project.permissions.members.find((m) => m.personId === x.id)?.role === "owner")?.org ?? project?.name ?? projectId;
+  store.mutate((db) => { db.memory.unshift({ id: newId("mem"), projectId, customerScope, recordedAt: nowIso(), ...item }); });
+}
+
 /** Apply the consequence of a decision to the subject record. Decisions are records; subjects reference them. */
 function applyDecision(projectId: string, a: Approval, decision: "approved" | "rejected" | "changes_requested", reviewerName: string) {
+  const pendingMemory: Array<Omit<MemoryItem, "id" | "projectId" | "customerScope" | "recordedAt">> = [];
   store.mutate((db) => {
     const runsById = Object.fromEntries(db.runs.map((r) => [r.id, r]));
     switch (a.subjectType) {
@@ -21,7 +41,7 @@ function applyDecision(projectId: string, a: Approval, decision: "approved" | "r
         const p = db.proposals.find((x) => x.id === a.subjectId);
         if (!p) break;
         if (decision === "approved") { p.protocolVersion += 1; p.status = "approved"; p.protocolHistory.push({ version: p.protocolVersion, approvalId: a.id, note: a.note || "approved", at: nowIso() }); }
-        else if (decision === "rejected") p.status = "rejected";
+        else if (decision === "rejected") { p.status = "rejected"; pendingMemory.push({ kind: "rejected_hypothesis", text: `Rejected: ${p.hypothesis} (${a.note || "no note"})`, sourceRef: { kind: "proposal", id: p.id }, recordedBy: reviewerName }); }
         else p.status = "proposed";
         break;
       }
@@ -37,6 +57,8 @@ function applyDecision(projectId: string, a: Approval, decision: "approved" | "r
         if (!rec) break;
         rec.status = decision === "approved" ? "approved" : decision === "rejected" ? "rejected" : "draft";
         if (decision === "approved" && rec.findingId) { const f = db.findings.find((x) => x.id === rec.findingId); if (f && ["reviewed", "relevant", "experiment_proposed"].includes(f.status)) { f.status = "action_approved"; f.statusHistory.push({ status: "action_approved", at: nowIso(), by: reviewerName, note: `Recommendation ${rec.id} approved` }); } }
+        if (decision === "approved") pendingMemory.push({ kind: "accepted_finding", text: `Accepted: ${rec.title} (${rec.type.replace(/_/g, " ")}).`, sourceRef: { kind: "approval", id: a.id }, recordedBy: reviewerName });
+        if (decision === "changes_requested" && a.note) pendingMemory.push({ kind: "expert_correction", text: `Correction on "${rec.title}": ${a.note}`, sourceRef: { kind: "approval", id: a.id }, recordedBy: reviewerName });
         break;
       }
       case "finding_resolution": {
@@ -62,6 +84,7 @@ function applyDecision(projectId: string, a: Approval, decision: "approved" | "r
       default: break;
     }
   });
+  for (const m of pendingMemory) remember(projectId, m);
 }
 
 export const mockApprovals: ApprovalService = {
@@ -70,6 +93,7 @@ export const mockApprovals: ApprovalService = {
     const a = store.db().approvals.find((x) => x.id === approvalId && x.projectId === projectId) ?? notFound("approval", approvalId);
     if (a.decision !== "pending") throw new ServiceError("This request already has a decision; decisions are records and are never overwritten.", "conflict");
     if (a.requestedBy === reviewerId) throw new ServiceError("You requested this approval, so you cannot decide it. Separation of duties: a different reviewer must decide.", "forbidden");
+    assertMayDecide(projectId, a, reviewerId);
     const reviewerName = personName(projectId, reviewerId);
     applyDecision(projectId, { ...a, note }, decision, reviewerName);
     store.mutate((db) => { const x = db.approvals.find((y) => y.id === approvalId); if (x) { x.decision = decision; x.reviewerId = reviewerId; x.note = note; x.decidedAt = nowIso(); } });
@@ -115,6 +139,7 @@ export const mockAutoresearcher: AutoresearcherService = {
     const a = store.db().approvals.find((x) => x.subjectType === "experiment_proposal" && x.subjectId === proposalId && x.decision === "pending");
     if (!a) throw new ServiceError("No pending approval exists for this proposal.", "conflict");
     if (a.requestedBy === reviewerId) throw new ServiceError("You cannot approve your own proposal.", "forbidden");
+    assertMayDecide(projectId, a, reviewerId);
     applyDecision(projectId, { ...a, note }, decision, personName(projectId, reviewerId));
     store.mutate((db) => { const x = db.approvals.find((y) => y.id === a.id); if (x) { x.decision = decision; x.reviewerId = reviewerId; x.note = note; x.decidedAt = nowIso(); } });
     audit(projectId, { type: "human", name: personName(projectId, reviewerId) }, `proposal.${decision}`, { type: "experiment_proposal", id: proposalId, label: a.subjectLabel }, note);
@@ -184,15 +209,23 @@ export const mockAssistant: AssistantService = {
     const show = /show (the )?([a-z_ ]+?)( panel)?$/i.exec(text.trim());
     const filter = /(only|filter)\s+(failed|passed|open|pending|completed)/i.exec(text);
     const top = /(move|put)\s+(the\s+)?([a-z_ ]+?)\s+(to the )?top/i.exec(text);
+    const tests = /(only )?show (the )?tests? (matching|about|for|named) (.+)$/i.exec(text.trim());
     const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "_");
-    if (hide) { const id = norm(hide[2] ?? ""); if (!next.hiddenPanels.includes(id)) next.hiddenPanels.push(id); summary = `Hid the "${hide[2]}" panel.`; }
+    if (tests) {
+      const needle = (tests[4] ?? "").toLowerCase().replace(/[".]/g, "").trim();
+      const project = store.db().projects.find((p) => p.id === projectId);
+      const matches = store.db().tests.filter((t) => t.packId === project?.packId && t.runnable && (t.name.toLowerCase().includes(needle) || t.description.toLowerCase().includes(needle)));
+      next.chosenTestIds = matches.map((t) => t.id);
+      summary = matches.length ? `Showing ${matches.length} supported test${matches.length === 1 ? "" : "s"} matching "${needle}" on the Tests page.` : `No supported test matches "${needle}"; the Tests page shows all tests.`;
+    }
+    else if (hide) { const id = norm(hide[2] ?? ""); if (!next.hiddenPanels.includes(id)) next.hiddenPanels.push(id); summary = `Hid the "${hide[2]}" panel.`; }
     else if (show) { const id = norm(show[2] ?? ""); next.hiddenPanels = next.hiddenPanels.filter((p) => p !== id); summary = `Showing the "${show[2]}" panel.`; }
     else if (filter) { next.filters["status"] = (filter[2] ?? "").toLowerCase(); summary = `Filtered lists to "${filter[2]}".`; }
     else if (top) { const id = norm(top[3] ?? ""); next.panelOrder = [id, ...next.panelOrder.filter((p) => p !== id)]; summary = `Moved "${top[3]}" to the top of the workspace.`; }
-    else if (/reset (the )?(view|layout|filters)/i.test(text)) { next.panelOrder = []; next.hiddenPanels = []; next.filters = {}; summary = "Reset the view configuration to the template default."; }
+    else if (/reset (the )?(view|layout|filters)/i.test(text)) { next.panelOrder = []; next.hiddenPanels = []; next.filters = {}; next.chosenTestIds = []; summary = "Reset the view configuration to the template default."; }
     const reply: AssistantMessage = summary
       ? { id: newId("msg"), role: "assistant", at, text: `${summary} (View configuration only; nothing about the project's criteria, tests or permissions changed.)`, action: { kind: "view_change", summary } }
-      : { id: newId("msg"), role: "assistant", at, text: "I can change how this workspace is shown: try \"hide the attack assessment panel\", \"show the key metrics panel\", \"move next actions to the top\", \"only failed\" or \"reset the view\". I can't change acceptance criteria, permissions or test definitions; those go to a reviewer." };
+      : { id: newId("msg"), role: "assistant", at, text: "I can change how this workspace is shown: try \"hide the recent activity panel\", \"show the key metrics panel\", \"move next actions to the top\", \"only failed\", \"show tests matching latency\" or \"reset the view\". I can't change acceptance criteria, permissions or test definitions; those go to a reviewer." };
     if (summary) audit(projectId, { type: "agent", name: "Assistant (simulated)" }, "view.configured", { type: "view_config", id: projectId, label: summary }, text);
     return { reply, viewConfig: next };
   }),

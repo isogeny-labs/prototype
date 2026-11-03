@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ServiceError } from "@/services";
+import { useAppStore } from "@/store";
 import { Link, useParams } from "react-router-dom";
 import { services } from "@/services";
 import { useQuery } from "@/hooks/useQuery";
@@ -14,6 +15,12 @@ export function FindingDetailPage() {
   const { fid = "" } = useParams();
   const [tech, setTech] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const user = useAppStore((s) => s.user);
+  async function requestResolution(findingId: string, label: string) {
+    setMsg(null);
+    try { await services.approvals.request(project.id, { projectId: project.id, subjectType: "finding_resolution", subjectId: findingId, subjectLabel: label, requestedBy: user.id, rationale: "A finding is resolved only with a linked passing retest and a reviewer decision." }); setMsg("Resolution requested. A reviewer decides on the Approvals page; you cannot decide your own request."); }
+    catch (e) { setMsg(e instanceof ServiceError ? `${e.message} (${e.code})` : String(e)); }
+  }
   async function investigate(findingId: string, artifactVersionId: string, summary: string) {
     setMsg(null);
     try { const p = await services.autoresearcher.create(project.id, { findingId, affectedArtifactVersionId: artifactVersionId, prompt: summary }); setMsg(`Investigation proposal "${p.title}" created (simulated) and sent for approval. No majority vote: a protocol decides.`); }
@@ -94,6 +101,7 @@ export function FindingDetailPage() {
                   <div className="font-semibold">{resolvable.ok ? "Eligible for resolution within tested scope" : "Not eligible for resolution"}</div>
                   <div className="text-muted">{resolvable.reason}</div>
                   {pendingResolution ? <div className="mt-1 text-xs">Resolution request pending: <Link to={`/p/${project.id}/approvals`}>decide on the Approvals page</Link>.</div> : null}
+                  {resolvable.ok && !pendingResolution && f.status !== "closed" ? <button type="button" className="btn btn-sm mt-2" onClick={() => requestResolution(f.id, `Resolve finding ${f.id} within tested scope`)} data-testid="request-resolution">Request resolution</button> : null}
                   {f.status === "closed" ? <div className="mt-1 text-xs">Closed. Resolution is scoped to the retests listed; nothing beyond them is claimed.</div> : null}
                 </div>
               </section>

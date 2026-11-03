@@ -6,6 +6,7 @@ export type QueryState<T> = { status: "loading" | "ready" | "failed"; data: T | 
 /** Runs an async service call; re-runs when the store version changes (after any mutation) or deps change. */
 export function useQuery<T>(fn: () => Promise<T>, deps: unknown[]): QueryState<T> {
   const version = useAppStore((s) => s.version);
+  const forcedLoading = useAppStore((s) => s.devState === "loading");
   const [state, setState] = useState<{ status: "loading" | "ready" | "failed"; data: T | null; error: string | null }>({ status: "loading", data: null, error: null });
   const [tick, setTick] = useState(0);
   const latest = useRef(0);
@@ -17,5 +18,6 @@ export function useQuery<T>(fn: () => Promise<T>, deps: unknown[]): QueryState<T
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, version, tick]);
   const retry = useCallback(() => setTick((t) => t + 1), []);
+  if (forcedLoading) return { status: "loading", data: null, error: null, retry };
   return { ...state, retry };
 }

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { services } from "@/services";
 import { useQuery } from "@/hooks/useQuery";
 import { useProject } from "@/shell/ProjectContext";
+import { useAppStore } from "@/store";
 import { EmptyState, EvidenceLabel, ExecutionModeBadge, PageHeader, ProvenanceBadge, QueryBoundary, RunStatus } from "@/components";
 import { fmtDateTime } from "@/lib/format";
 import { runEvidenceLabel, supersededIds, testName, versionLabel } from "@/lib/lookup";
@@ -11,6 +12,7 @@ export function RunsPage() {
   const { project } = useProject();
   const navigate = useNavigate();
   const [showSuperseded, setShowSuperseded] = useState(true);
+  const statusFilter = useAppStore((s) => s.viewConfig[project.id]?.filters["status"]);
   const q = useQuery(async () => ({
     runs: await services.evidenceLab.listRuns(project.id), tests: await services.evidenceLab.listTests(project.id),
     artifacts: await services.evidenceLab.listArtifacts(project.id), checks: await services.evidenceLab.listChecks(project.id),
@@ -21,9 +23,11 @@ export function RunsPage() {
         <label className="flex items-center gap-2 text-xs text-muted"><input type="checkbox" checked={showSuperseded} onChange={(e) => setShowSuperseded(e.target.checked)} /> Show superseded</label>} />
       <QueryBoundary q={q} label="Loading runs">{({ runs, tests, artifacts, checks }) => {
         const sup = supersededIds(runs);
-        const rows = [...runs].sort((a, b) => b.sequence - a.sequence).filter((r) => showSuperseded || !sup.has(r.id));
-        if (rows.length === 0) return <EmptyState title="No runs yet" hint="Request a run from the Tests page." />;
-        return (
+        const byFilter = (r: (typeof runs)[number]) => !statusFilter || (statusFilter === "failed" ? r.status === "failed" || r.overallPass === false : statusFilter === "passed" ? r.overallPass === true : statusFilter === "completed" ? r.status === "completed" : statusFilter === "pending" ? ["queued", "running", "awaiting_approval"].includes(r.status) : true);
+        const rows = [...runs].sort((a, b) => b.sequence - a.sequence).filter((r) => showSuperseded || !sup.has(r.id)).filter(byFilter);
+        if (rows.length === 0) return <EmptyState title={statusFilter ? `No runs match the view filter "${statusFilter}"` : "No runs yet"} hint={statusFilter ? "Ask the assistant to reset the view." : "Request a run from the Tests page."} />;
+        return (<>
+          {statusFilter ? <div className="callout-info mb-2 text-xs" data-testid="view-filter-note">View filtered by the assistant: showing "{statusFilter}" runs ({rows.length} of {runs.length}). Ask it to "reset the view" to clear.</div> : null}
           <table className="tbl" data-testid="runs-table">
             <thead><tr><th>#</th><th>Test</th><th>Artifact version</th><th>Mode · provenance</th><th>Status</th><th>Label</th><th>When</th></tr></thead>
             <tbody>
@@ -40,7 +44,7 @@ export function RunsPage() {
               ))}
             </tbody>
           </table>
-        );
+        </>);
       }}</QueryBoundary>
     </>
   );

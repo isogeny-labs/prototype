@@ -15,3 +15,4 @@ export * from "./TaskGraph";
 export * from "./ArtifactVersionList";
 export * from "./PackBadge";
 export * from "./PageHeader";
+export * from "./MemberSwitcher";

@@ -9,7 +9,8 @@ export function MemoryPage() {
   const q = useQuery(async () => ({ memory: await services.learning.listMemory(project.id), config: await services.learning.listAgentConfigChanges(project.id), training: await services.learning.listModelTraining() }), [project.id]);
   return (
     <>
-      <PageHeader title="Memory" subtitle="What the organisation keeps from this project: customer-scoped records only. Nothing here trains or updates a model." />
+      <PageHeader title="Memory" subtitle="Three things that must never be conflated: organisational memory (customer-scoped records written by decisions), agent configuration changes (proposed, evaluated, approved), and model training (not in MVP)." />
+      <div className="callout-info mb-4 text-xs">How records get here: approving a recommendation writes an <em>accepted finding</em>; rejecting a proposal writes a <em>rejected hypothesis</em>; requesting changes on a recommendation with a note writes an <em>expert correction</em>; approving a protocol writes an <em>approved configuration</em>. Nothing here is edited by hand, and nothing here retrains a model.</div>
       <QueryBoundary q={q} label="Loading memory">{({ memory, config, training }) => (
         <div className="grid gap-4 xl:grid-cols-2">
           <section className="panel text-sm">

@@ -15,7 +15,7 @@ export function SampleDataSettingsPage() {
   const counts: Array<[string, number]> = [["projects", db.projects.length], ["artifacts", db.artifacts.length], ["tests", db.tests.length], ["runs", db.runs.length], ["checks", db.checks.length], ["findings", db.findings.length], ["approvals", db.approvals.length], ["proposals", db.proposals.length], ["tasks", db.tasks.length], ["evidence records", db.evidence.length], ["audit events", db.audit.length]];
   return (
     <>
-      <PageHeader title="Sample data" subtitle="The app runs entirely on in-memory sample data loaded from src/fixtures. Mutations live until reload or reset. The mock layer's latency and failure injection are controlled here." />
+      <PageHeader title="Sample data" subtitle="The app runs entirely on sample data loaded from src/fixtures. Edits made in the UI are kept for this browser tab (sessionStorage, guarded) so refreshes and deep links keep your decisions; a new tab or Reset starts from the fixtures again. The mock layer's latency and failure injection are controlled here." />
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="panel text-sm">
           <div className="flex items-center gap-2"><h2 className="h2">Loaded fixtures</h2><Marker kind="sample" /></div>

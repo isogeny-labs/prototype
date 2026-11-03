@@ -10,6 +10,14 @@ export interface MockConfig {
 
 export type SessionUser = { id: string; name: string; role: string };
 
+/** Developer state switcher (sample mode only): forces every key view into one state. null = live sample data. */
+export type DevState = null | "empty" | "loading" | "failed" | "awaiting_approval" | "completed";
+export const DEV_STATES: Array<{ value: DevState; label: string }> = [
+  { value: null, label: "live sample data" }, { value: "empty", label: "empty" }, { value: "loading", label: "loading" },
+  { value: "failed", label: "failed" }, { value: "awaiting_approval", label: "awaiting approval" }, { value: "completed", label: "completed" },
+];
+export type AssistantTranscriptMessage = { id: string; role: "user" | "assistant"; text: string; at: string; action?: { kind: "view_change"; summary: string } | { kind: "refused"; reason: string; approvalRequestId: string | null } };
+
 /** Default acting user per sample project: the customer-side editor. */
 export const DEFAULT_USER_BY_PROJECT: Record<string, SessionUser> = {
   "proj-crypto-acme": { id: "person-dana", name: "Dana Whitfield", role: "Customer engineer (Acme Pay) · editor" },
@@ -24,6 +32,11 @@ interface AppState {
   user: SessionUser;          // who is acting in the UI (sample mode: switchable)
   assistantOpen: boolean;
   viewConfig: Record<string, { panelOrder: string[]; hiddenPanels: string[]; filters: Record<string, string>; chosenTestIds: string[] }>;
+  devState: DevState;
+  assistantMessages: Record<string, AssistantTranscriptMessage[]>;
+  setDevState: (s: DevState) => void;
+  appendAssistantMessages: (projectId: string, msgs: AssistantTranscriptMessage[]) => void;
+  clearAssistant: (projectId: string) => void;
   mutate: (fn: (db: Db) => void) => void;
   setMock: (patch: Partial<MockConfig>) => void;
   setUser: (u: SessionUser) => void;
@@ -33,6 +46,33 @@ interface AppState {
 }
 
 const DEFAULT_USER: SessionUser = { id: "person-dana", name: "Dana Whitfield", role: "Customer engineer (Acme Pay)" };
+
+/**
+ * Session persistence (convenience only, per spec): the mutable sample state survives a refresh or deep link within
+ * one browser tab. sessionStorage is per tab, every access is guarded, and "Reset to sample data" clears it.
+ * A fingerprint of the fixtures discards stale sessions after a deploy changes the sample data.
+ */
+const SESSION_KEY = "iel.session";
+type Persisted = { fingerprint: number; db: Db; viewConfig: AppState["viewConfig"]; user: SessionUser; assistantMessages: Record<string, AssistantTranscriptMessage[]>; failNext: string | null };
+function fixtureFingerprint(): number { const s = JSON.stringify(loadFixtures(emptyDb())); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; }
+const FINGERPRINT = fixtureFingerprint();
+function readSession(): Persisted | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as Persisted;
+    return p.fingerprint === FINGERPRINT && p.db && Array.isArray(p.db.projects) ? p : null;
+  } catch { return null; }
+}
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+function writeSession(s: AppState) {
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    try { const p: Persisted = { fingerprint: FINGERPRINT, db: s.db, viewConfig: s.viewConfig, user: s.user, assistantMessages: s.assistantMessages, failNext: s.mock.failNext }; sessionStorage.setItem(SESSION_KEY, JSON.stringify(p)); } catch { /* storage unavailable or full: run in memory only */ }
+  }, 0);
+}
+function clearSession() { try { sessionStorage.removeItem(SESSION_KEY); } catch { /* ignore */ } }
+const restored = readSession();
 
 function readMockConfig(): MockConfig {
   const base: MockConfig = { latencyMs: 250, failureRate: 0, failNext: null };
@@ -44,12 +84,17 @@ function readMockConfig(): MockConfig {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  db: loadFixtures(emptyDb()),
+  db: restored?.db ?? loadFixtures(emptyDb()),
   version: 0,
-  mock: readMockConfig(),
-  user: DEFAULT_USER,
+  mock: { ...readMockConfig(), failNext: restored?.failNext ?? null },
+  user: restored?.user ?? DEFAULT_USER,
   assistantOpen: false,
-  viewConfig: {},
+  viewConfig: restored?.viewConfig ?? {},
+  devState: null,
+  assistantMessages: restored?.assistantMessages ?? {},
+  setDevState: (devState) => set((s) => ({ devState, version: s.version + 1 })),
+  appendAssistantMessages: (projectId, msgs) => set((s) => ({ assistantMessages: { ...s.assistantMessages, [projectId]: [...(s.assistantMessages[projectId] ?? []), ...msgs] } })),
+  clearAssistant: (projectId) => set((s) => ({ assistantMessages: { ...s.assistantMessages, [projectId]: [] } })),
   mutate: (fn) => set((s) => { const db = structuredClone(s.db); fn(db); return { db, version: s.version + 1 }; }),
   setMock: (patch) => set((s) => {
     const mock = { ...s.mock, ...patch };
@@ -59,8 +104,12 @@ export const useAppStore = create<AppState>((set) => ({
   setUser: (user) => set({ user }),
   setAssistantOpen: (assistantOpen) => set({ assistantOpen }),
   setViewConfig: (projectId, patch) => set((s) => ({ viewConfig: { ...s.viewConfig, [projectId]: { panelOrder: [], hiddenPanels: [], filters: {}, chosenTestIds: [], ...s.viewConfig[projectId], ...patch } } })),
-  resetToSampleData: () => set((s) => ({ db: loadFixtures(emptyDb()), version: s.version + 1, viewConfig: {}, user: DEFAULT_USER })),
+  resetToSampleData: () => { clearSession(); set((s) => ({ db: loadFixtures(emptyDb()), version: s.version + 1, viewConfig: {}, user: DEFAULT_USER, devState: null, assistantMessages: {}, mock: { ...s.mock, failNext: null } })); },
 }));
+
+useAppStore.subscribe((s, prev) => {
+  if (s.db !== prev.db || s.viewConfig !== prev.viewConfig || s.user !== prev.user || s.assistantMessages !== prev.assistantMessages || s.mock.failNext !== prev.mock.failNext) writeSession(s);
+});
 
 /** Non-React access for services. */
 export const store = {

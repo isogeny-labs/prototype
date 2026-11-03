@@ -29,9 +29,10 @@ npm run reset-sample-data
 Playwright needs a Chromium. `npx playwright install chromium` downloads one; if a Chromium already exists,
 point at it with `PW_CHROMIUM_PATH=/path/to/chromium npm run test:e2e`.
 
-**Reset sample data:** the app holds sample data in memory and reloads it from `src/fixtures/` on every page load.
-Changes made in the UI (requested runs, decisions, reported changes) live until reload or until you press
-*Reset to sample data* at `/settings/sample-data`. The `reset-sample-data` script prints this reminder.
+**Reset sample data:** the app loads sample data from `src/fixtures/`. Changes made in the UI (requested runs, decisions,
+reported changes) are kept for the current browser tab (guarded `sessionStorage`) so refreshes and deep links keep them;
+a new tab starts fresh, and *Reset to sample data* at `/settings/sample-data` restores the fixtures. The
+`reset-sample-data` script prints this reminder.
 
 ## Layout
 
@@ -70,6 +71,6 @@ into client-side routes work. Sample data only; nothing is persisted.
 ## Phases
 
 1. Scaffold, theme, shell, routing, contracts, mock layer, cryptography sample end to end — done.
-2. Engineering and legal samples on the same shell and components — **this checkpoint**.
-3. States, assistant conversation, approval decisions, memory page, report preview.
+2. Engineering and legal samples on the same shell and components — done.
+3. States, assistant conversation, approval decisions, memory page, report preview — **this checkpoint**.
 4. Docs and acceptance tests.

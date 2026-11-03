@@ -37,12 +37,13 @@ brief, so `TEST_TARGET_KIND` in `src/lib/lookup.ts` names the kind per pack for 
 |---|---|---|
 | `public/brand/isogeny-logo.svg` | **Missing** | No SVG master was supplied; the two logo images provided are raster crops. The shell tries the SVG path first, then `public/brand/isogeny-logo-dark.png`, then a text wordmark "Isogeny Labs". Drop an SVG at the expected path and it is used automatically. |
 | Light theme | Not built | Dark mode only, by spec. Tokens are in `src/theme/tokens.ts`. |
-| Assistant conversation UI | Phase 3 | The panel slot and the mock `AssistantService` (view-config only, refusals routed to approvals, audit events) exist; the chat controls do not yet. |
-| Approval decision controls | Phase 3 | Records render; the mock `ApprovalService.decide` already blocks self-approval and already-decided requests. |
-| Developer state switcher (loading / empty / error / awaiting-approval / completed per view) | Phase 3 | Latency and failure injection exist at `/settings/sample-data`; the per-view switcher is not built. |
-| Report preview, handoff and compliance export | Phase 3 | Reports page shows the structure; export buttons return mock metadata only. |
-| `docs/FRONTEND_SPEC.md`, `docs/BACKEND_HOOKUP_CHECKLIST.md`, full acceptance-test suite (spec section 10) | Phase 4 | Route, consistency, label, comparison and disclaimer tests already run; approvals, failure injection, assistant refusal and reset tests arrive with Phase 3 features. |
-| Criteria editing form, external-change form, artifact import form | Later phase | Mock methods exist and are unit-reachable. |
+| Assistant conversation | Done (Phase 3) | Chat in the side panel; view-configuration commands only; refusals shown and routed to an approval request; every change audited. The command grammar is a small regex set in the mock; a connected assistant replaces it behind `AssistantService`. |
+| Approval decisions | Done (Phase 3) | Approve / reject / request changes with a note; self-approval blocked; gate roles enforced (owner decides anything, reviewer decides reviewer gates); resolution needs a passing retest. Decisions write memory records. |
+| Developer state switcher | Done (Phase 3) | Nav control in sample mode; forces every key view into empty / loading / failed / awaiting approval / completed by reshaping read results in the mock layer; writes still hit live data. |
+| Report preview and exports | Preview done; export simulated | Handoff and evidence-bundle previews render from live data; export returns mock metadata and produces no file (by spec). Compliance export format is not defined. |
+| Criteria editing, external-change reporting, retest request | Done (Phase 3) | Propose-a-version form on Intake; report-change form and retest request on Changes. Artifact import form is not built (mock method exists). |
+| `docs/FRONTEND_SPEC.md`, `docs/BACKEND_HOOKUP_CHECKLIST.md`, completed `INTEGRATION_CONTRACTS.md` | Phase 4 | Acceptance tests for section 10 already run (routes, consistency, labels, comparisons, disclaimers, approvals, failure injection, assistant refusal, reset). |
+| Session persistence | Convenience only | Edits persist per browser tab in `sessionStorage` (guarded); a fixtures fingerprint discards stale sessions. Not a backend. |
 | Engineering viewer | Placeholder | A schematic SVG coloured by region from the run's stress table; no CAD or mesh rendering. |
 | Legal document handling | Integration pending | Privilege tagging, redaction and access logging are not built; the sample marks the matter confidential and the email thread "not privileged" by explicit assumption. |
 | Second crypto project "Public campaign: ECC2K-130" | Not started | Optional stretch per spec, after the three core samples pass. |
