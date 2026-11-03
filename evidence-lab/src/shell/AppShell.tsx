@@ -59,16 +59,16 @@ export function AppShell() {
         <header className="flex items-center gap-4 border-b border-line bg-header px-4 py-2">
           <Link to="/" className="flex items-center gap-2 no-underline" aria-label="Isogeny Labs Evidence Lab home"><Logo height={28} /></Link>
           <span className="hidden text-xs uppercase tracking-widest text-faint lg:inline">Evidence Lab</span>
-          <div className="ml-4 flex items-center gap-2">
-            <label htmlFor="project-switcher" className="text-xs text-muted">Project</label>
-            <select id="project-switcher" data-testid="project-switcher" className="input w-auto max-w-xs" value={projectId ?? ""} onChange={(e) => switchProject(e.target.value)}>
+          <div className="ml-2 flex min-w-0 items-center gap-2 lg:ml-4">
+            <label htmlFor="project-switcher" className="hidden text-xs text-muted lg:inline">Project</label>
+            <select id="project-switcher" data-testid="project-switcher" className="input w-auto max-w-[14rem] xl:max-w-xs" value={projectId ?? ""} onChange={(e) => switchProject(e.target.value)}>
               <option value="">— none (home) —</option>
               {(projectsQ.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}{p.isSample ? " (sample)" : ""}</option>)}
             </select>
-            {ctx.project ? <PackBadge packId={ctx.project.packId} templateName={ctx.template ? `${ctx.template.name} v${ctx.template.version}` : undefined} /> : null}
+            {ctx.project ? <PackBadge compact packId={ctx.project.packId} templateName={ctx.template ? `${ctx.template.name} v${ctx.template.version}` : undefined} /> : null}
           </div>
-          <div className="ml-auto flex items-center gap-3 text-xs text-muted">
-            <span data-testid="current-user" title={user.role}>Acting as <strong className="text-ink">{user.name}</strong></span>
+          <div className="ml-auto flex shrink-0 items-center gap-3 text-xs text-muted">
+            <span data-testid="current-user" title={`Acting as ${user.name}: ${user.role}`}><span className="hidden xl:inline">Acting as </span><strong className="text-ink">{user.name}</strong></span>
             <button type="button" className="btn-ghost btn-sm" aria-pressed={assistantOpen} onClick={() => setAssistantOpen(!assistantOpen)} data-testid="assistant-toggle">Assistant</button>
           </div>
         </header>
