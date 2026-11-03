@@ -1,110 +1,151 @@
 from __future__ import annotations
-import json
+import base64
+import hashlib
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy import select
-from ..models import Implementation, Task, Approval, Run, Recommendation, Artifact
-from .. import audit, catalog
+from ..models import Implementation, Run, Recommendation, Artifact, Finding, InventoryItem, utcnow
+from .. import audit, catalog, compat, services
 from .. import artifacts as artstore
-from ..recommend import platform_warnings
-from .common import row, rows, viewer, editor, reviewer, get_or_404
+from .common import row, rows, viewer, editor, get_or_404
 
 router = APIRouter(prefix="/api/projects/{project_id}/implementations", tags=["implementations"])
-DELIVERY = {"remote", "customer_lab", "isogeny_lab", "onsite", "container"}
 
 
-class ImplIn(BaseModel):
+class ManifestIn(BaseModel):
+    """Structured implementation manifest. See seeds/sample_manifest_v1_0.json."""
     name: str
     version: str
-    role: str = "candidate"
-    profile_id: str | None = None
+    purpose: str = "signatures"
     algorithm: str = ""
     parameters: dict = {}
     library: str = ""
     library_version: str = ""
-    source_revision: str = ""
+    dependencies: list = []
     configuration: dict = {}
-    target_environment: dict = {}
+    runtime_environment: dict = {}
+    source_revision: str = ""
     build_identity: dict = {}
-    delivery_mode: str | None = None
-    notes: str = ""
+    intended_use: str = ""
+    threat_assumptions: str = ""
+    adapter_kind: str = "results_only"  # profile | module | results_only
+    profile_id: str | None = None
     parent_id: str | None = None
     recommendation_id: str | None = None
+    change_report: str = ""
+    notes: str = ""
+    manifest: dict = {}
 
 
-def compute_warnings(project, impl: Implementation) -> list[str]:
-    prof = catalog.profile(impl.profile_id) if impl.profile_id else None
-    warnings = platform_warnings(prof, project, None) if prof else []
-    if project.kind == "iot" and not impl.target_environment.get("board") and impl.role == "candidate":
-        warnings.append("Target board not recorded; on-device evidence cannot be matched to hardware.")
-    return warnings
+class ImportIn(BaseModel):
+    manifest: ManifestIn
+    source_snapshot_b64: str | None = None   # .py or .zip, base64
+    source_snapshot_filename: str | None = None
+    inventory: list = []                     # [{category, name, purpose, version, parameters, provenance}]
+    existing_results: dict | None = None     # optional result document (unsigned) -> imported_results run
+
+
+def _present(db, i: Implementation) -> dict:
+    runs = db.scalars(select(Run).where(Run.implementation_id == i.id)).all()
+    latest = next((r for r in sorted(runs, key=lambda r: -r.sequence) if r.status == "completed" and not r.duplicate_of_run_id and not r.stale_reason), None)
+    return {**row(i), "run_count": len([r for r in runs if not r.duplicate_of_run_id]), "latest_classification": latest.classification if latest else "not_tested",
+            "profile": catalog.profile(i.profile_id) if i.profile_id else None, "snapshot": row(db.get(Artifact, i.source_snapshot_artifact_id)) if i.source_snapshot_artifact_id else None}
 
 
 @router.get("")
 def list_impls(ctx=Depends(viewer)):
     project, db, _ = ctx
-    impls = db.scalars(select(Implementation).where(Implementation.project_id == project.id).order_by(Implementation.created_at)).all()
-    out = []
-    for i in impls:
-        runs = db.scalars(select(Run).where(Run.implementation_id == i.id)).all()
-        out.append({**row(i), "run_count": len(runs), "latest_pass": next((r.overall_pass for r in sorted(runs, key=lambda r: -r.sequence) if r.status == "completed"), None),
-                    "profile": catalog.profile(i.profile_id)})
-    return out
+    return [_present(db, i) for i in db.scalars(select(Implementation).where(Implementation.project_id == project.id).order_by(Implementation.imported_at)).all()]
 
 
-@router.post("")
-def create_impl(body: ImplIn, ctx=Depends(editor)):
+@router.post("/import")
+def import_implementation(body: ImportIn, ctx=Depends(editor)):
+    """Import an implementation version. Code is checked statically; it is never executed on import."""
     project, db, user = ctx
-    if body.role not in ("baseline", "candidate"):
-        raise HTTPException(400, "role must be baseline|candidate")
-    if body.delivery_mode and body.delivery_mode not in DELIVERY:
-        raise HTTPException(400, f"delivery_mode must be one of {sorted(DELIVERY)}")
-    if body.profile_id and not catalog.profile(body.profile_id):
-        raise HTTPException(400, "unknown catalog profile")
-    data = body.model_dump()
-    if body.profile_id and not body.algorithm:
-        data["algorithm"] = catalog.profile(body.profile_id)["label"]
-    impl = Implementation(project_id=project.id, created_by=user.id, status="draft" if body.role == "candidate" else "approved", **data)
+    m = body.manifest
+    if m.purpose not in ("signatures", "key_establishment", "encryption"):
+        raise HTTPException(400, "purpose must be signatures | key_establishment | encryption")
+    if m.adapter_kind not in ("profile", "module", "results_only"):
+        raise HTTPException(400, "adapter_kind must be profile | module | results_only")
+    if m.adapter_kind == "profile" and not catalog.profile(m.profile_id or ""):
+        raise HTTPException(400, "profile adapters need a known catalog profile_id")
+    if compat.scan_secrets(str(m.model_dump()).encode()):
+        raise HTTPException(400, "manifest contains private-key or credential material; rejected")
+    if db.scalar(select(Implementation).where(Implementation.project_id == project.id, Implementation.name == m.name, Implementation.version == m.version)):
+        raise HTTPException(409, f"{m.name} {m.version} is already imported; import a new version instead")
+    impl = Implementation(project_id=project.id, created_by=user.id, status="imported", imported_at=utcnow(),
+                          **{k: v for k, v in m.model_dump().items()})
+    if not impl.manifest:
+        impl.manifest = m.model_dump(exclude={"manifest"})
     db.add(impl)
     db.flush()
-    impl.compatibility_warnings = compute_warnings(project, impl)
-    if body.recommendation_id:
-        rec = db.get(Recommendation, body.recommendation_id)
+    compat_report = {"status": "unchecked", "problems": [], "warnings": [], "report": []}
+    if body.source_snapshot_b64:
+        data = base64.b64decode(body.source_snapshot_b64)
+        fname = body.source_snapshot_filename or "adapter.py"
+        try:
+            files = compat.extract_snapshot(data, fname)
+            compat_report = compat.check_snapshot(files)
+        except ValueError as e:
+            db.rollback()
+            raise HTTPException(400, f"source snapshot rejected: {e}")
+        art = artstore.store(db, project.id, "source_snapshot", fname, data, "application/octet-stream", label=f"source snapshot of {impl.name} {impl.version}")
+        impl.source_snapshot_artifact_id, impl.source_digest = art.id, art.sha256
+        if impl.adapter_kind == "module":
+            impl.compatibility = compat_report
+        else:
+            impl.compatibility = {**compat_report, "note": "snapshot stored for reference; adapter_kind is not 'module' so it will not execute"}
+    elif impl.adapter_kind == "module":
+        db.rollback()
+        raise HTTPException(400, "adapter_kind 'module' requires a source snapshot")
+    else:
+        impl.compatibility = {"status": "compatible" if impl.adapter_kind == "profile" else "unsupported",
+                              "report": ["catalog profile adapter"] if impl.adapter_kind == "profile" else ["results-only: no executable adapter; import results"], "problems": [], "warnings": []}
+    if m.parent_id:
+        parent = db.get(Implementation, m.parent_id)
+        if parent and parent.project_id == project.id and parent.status in ("imported", "baseline", "candidate"):
+            parent.status = "superseded"
+    if m.recommendation_id:
+        rec = db.get(Recommendation, m.recommendation_id)
         if rec and rec.project_id == project.id:
             rec.resulting_implementation_id = impl.id
-            if rec.status == "approved":
-                rec.status = "implemented"
-    audit.record(db, user.id, "implementation.created", "implementation", impl.id, project.id,
-                 {"name": impl.name, "version": impl.version, "role": impl.role}, commit=True)
-    return row(impl)
+            for f in db.scalars(select(Finding).where(Finding.recommendation_id == rec.id)).all():
+                f.revised_implementation_id = impl.id
+                if f.status in ("recommendation_proposed", "open", "external_change_reported"):
+                    services.set_finding_status(db, f, "external_change_reported", user.id, f"revised implementation {impl.name} {impl.version} imported: {m.change_report[:120]}")
+                    services.set_finding_status(db, f, "awaiting_retest", user.id, "awaiting retest of the revised implementation")
+    for raw in body.inventory:
+        prov = raw.get("provenance", "user_reported")
+        if prov not in ("user_reported", "detected"):
+            prov = "user_reported"
+        db.add(InventoryItem(project_id=project.id, implementation_id=impl.id, category=raw.get("category", "other"), name=raw.get("name", ""),
+                             purpose=raw.get("purpose"), parameters=raw.get("parameters", {}), version=raw.get("version"), notes=raw.get("notes", ""),
+                             provenance=prov, provenance_detail=raw.get("provenance_detail", "from import manifest")))
+    # detected facts from the manifest itself
+    for cat_, name, ver in (("algorithm", impl.algorithm, None), ("library", impl.library, impl.library_version)):
+        if name:
+            db.add(InventoryItem(project_id=project.id, implementation_id=impl.id, category=cat_, name=name, purpose=impl.purpose, version=ver,
+                                 provenance="user_reported", provenance_detail="declared in the import manifest"))
+    existing_run = None
+    if body.existing_results:
+        from ..routers.tests import _import_results_doc
+        existing_run = _import_results_doc(db, project, impl, body.existing_results, user)
+    audit.record(db, user.id, "implementation.imported", "implementation", impl.id, project.id,
+                 {"name": impl.name, "version": impl.version, "adapter_kind": impl.adapter_kind, "compatibility": impl.compatibility.get("status"), "source_digest": impl.source_digest}, commit=True)
+    return {**_present(db, impl), "existing_results_run_id": existing_run.id if existing_run else None}
 
 
 @router.get("/{impl_id}")
 def get_impl(impl_id: str, ctx=Depends(viewer)):
     project, db, _ = ctx
-    impl = get_or_404(db, Implementation, impl_id, project.id)
-    tasks = db.scalars(select(Task).where(Task.implementation_id == impl.id)).all()
-    approvals = db.scalars(select(Approval).where(Approval.subject_type == "implementation", Approval.subject_id == impl.id)).all()
-    runs = db.scalars(select(Run).where(Run.implementation_id == impl.id).order_by(Run.sequence)).all()
-    children = db.scalars(select(Implementation).where(Implementation.parent_id == impl.id)).all()
-    return {**row(impl), "tasks": rows(tasks), "approvals": rows(approvals), "runs": rows(runs), "children": rows(children),
-            "profile": catalog.profile(impl.profile_id), "compatibility_warnings": compute_warnings(project, impl),
-            "change_artifact": row(db.get(Artifact, impl.change_artifact_id)) if impl.change_artifact_id else None}
-
-
-@router.patch("/{impl_id}")
-def update_impl(impl_id: str, body: dict, ctx=Depends(editor)):
-    project, db, user = ctx
-    impl = get_or_404(db, Implementation, impl_id, project.id)
-    if impl.status in ("approved", "superseded", "retired") and any(k in body for k in ("source_revision", "configuration", "profile_id", "library_version")):
-        raise HTTPException(409, "an approved/superseded implementation is immutable; create a new version instead")
-    for k, v in body.items():
-        if k in ImplIn.model_fields:
-            setattr(impl, k, v)
-    impl.compatibility_warnings = compute_warnings(project, impl)
-    audit.record(db, user.id, "implementation.updated", "implementation", impl.id, project.id, {"fields": list(body)}, commit=True)
-    return row(impl)
+    i = get_or_404(db, Implementation, impl_id, project.id)
+    runs = db.scalars(select(Run).where(Run.implementation_id == i.id).order_by(Run.sequence)).all()
+    children = db.scalars(select(Implementation).where(Implementation.parent_id == i.id)).all()
+    inv = db.scalars(select(InventoryItem).where(InventoryItem.implementation_id == i.id)).all()
+    findings = [f for f in db.scalars(select(Finding).where(Finding.project_id == project.id)).all() if i.id in (f.affected_implementation_ids or []) or f.revised_implementation_id == i.id]
+    return {**_present(db, i), "runs": rows(runs), "children": rows(children), "parent": row(db.get(Implementation, i.parent_id)) if i.parent_id else None,
+            "inventory": rows(inv), "findings": [{"id": f.id, "title": f.title, "status": f.status, "role": "affected" if i.id in (f.affected_implementation_ids or []) else "revised"} for f in findings],
+            "recommendation": row(db.get(Recommendation, i.recommendation_id)) if i.recommendation_id else None}
 
 
 class StatusIn(BaseModel):
@@ -112,100 +153,25 @@ class StatusIn(BaseModel):
     note: str = ""
 
 
-@router.post("/{impl_id}/propose")
-def propose(impl_id: str, body: StatusIn | None = None, ctx=Depends(editor)):
+@router.post("/{impl_id}/status")
+def set_status(impl_id: str, body: StatusIn, ctx=Depends(editor)):
     project, db, user = ctx
-    impl = get_or_404(db, Implementation, impl_id, project.id)
-    if impl.status != "draft":
-        raise HTTPException(409, f"cannot propose from status {impl.status}")
-    impl.status = "proposed"
-    audit.record(db, user.id, "implementation.proposed", "implementation", impl.id, project.id, {}, commit=True)
-    return row(impl)
+    i = get_or_404(db, Implementation, impl_id, project.id)
+    if body.status not in ("imported", "baseline", "candidate", "superseded", "retired"):
+        raise HTTPException(400, "bad status")
+    i.status = body.status
+    audit.record(db, user.id, "implementation.status", "implementation", i.id, project.id, {"status": body.status, "note": body.note}, commit=True)
+    return row(i)
 
 
-class DecisionIn(BaseModel):
-    decision: str  # approved | rejected | needs_changes
-    note: str = ""
-
-
-@router.post("/{impl_id}/decide")
-def decide(impl_id: str, body: DecisionIn, ctx=Depends(reviewer)):
-    """Human approval of an implementation candidate. Creates an Approval record; never deploys anything."""
-    project, db, user = ctx
-    impl = get_or_404(db, Implementation, impl_id, project.id)
-    if body.decision not in ("approved", "rejected", "needs_changes"):
-        raise HTTPException(400, "bad decision")
-    if impl.status not in ("proposed", "draft"):
-        raise HTTPException(409, f"cannot decide from status {impl.status}")
-    if impl.created_by == user.id and not user.is_admin and body.decision == "approved":
-        raise HTTPException(403, "the author cannot approve their own candidate")
-    db.add(Approval(project_id=project.id, subject_type="implementation", subject_id=impl.id, decision=body.decision,
-                    reviewer_id=user.id, note=body.note))
-    if body.decision == "approved":
-        impl.status = "approved"
-        if impl.parent_id:
-            parent = db.get(Implementation, impl.parent_id)
-            if parent and parent.role == "candidate" and parent.status in ("approved", "proposed", "draft"):
-                parent.status = "superseded"
-    elif body.decision == "rejected":
-        impl.status = "rejected"
-    else:
-        impl.status = "draft"
-    audit.record(db, user.id, f"implementation.{body.decision}", "implementation", impl.id, project.id, {"note": body.note}, commit=True)
-    return row(impl)
-
-
-@router.post("/{impl_id}/change-artifact")
-def change_artifact(impl_id: str, ctx=Depends(editor)):
-    """Create a downloadable proposed-change record (configuration/patch description). Nothing is deployed."""
-    project, db, user = ctx
-    impl = get_or_404(db, Implementation, impl_id, project.id)
-    parent = db.get(Implementation, impl.parent_id) if impl.parent_id else None
-    prof = catalog.profile(impl.profile_id) if impl.profile_id else None
-    doc = {
-        "format": "iel-proposed-change/1",
-        "project": {"id": project.id, "name": project.name, "kind": project.kind},
-        "implementation": {"id": impl.id, "name": impl.name, "version": impl.version, "status": impl.status,
-                           "source_revision": impl.source_revision, "configuration": impl.configuration,
-                           "target_environment": impl.target_environment, "build_identity": impl.build_identity,
-                           "library": impl.library, "library_version": impl.library_version, "delivery_mode": impl.delivery_mode},
-        "replaces": {"id": parent.id, "name": parent.name, "version": parent.version, "algorithm": parent.algorithm} if parent else None,
-        "profile": prof, "compatibility_warnings": compute_warnings(project, impl),
-        "deployment": "NOT PERFORMED BY THIS PLATFORM. Apply through the customer's existing change process after human approval.",
-        "notes": impl.notes,
-    }
-    content = json.dumps(doc, indent=1, sort_keys=True).encode()
-    art = artstore.store(db, project.id, "patch", f"proposed_change_{impl.name}_{impl.version}.json".replace(" ", "_"), content,
-                         "application/json", label=f"proposed change record for {impl.name} {impl.version}")
-    impl.change_artifact_id = art.id
-    audit.record(db, user.id, "implementation.change_artifact", "implementation", impl.id, project.id, {"sha256": art.sha256}, commit=True)
-    return row(art)
-
-
-class TaskIn(BaseModel):
-    title: str
-    owner: str = ""
-    status: str = "open"
-    notes: str = ""
-
-
-@router.post("/{impl_id}/tasks")
-def add_task(impl_id: str, body: TaskIn, ctx=Depends(editor)):
-    project, db, user = ctx
-    impl = get_or_404(db, Implementation, impl_id, project.id)
-    t = Task(project_id=project.id, implementation_id=impl.id, **body.model_dump())
-    db.add(t)
-    db.flush()
-    audit.record(db, user.id, "task.created", "task", t.id, project.id, {"title": t.title}, commit=True)
-    return row(t)
-
-
-@router.patch("/{impl_id}/tasks/{task_id}")
-def update_task(impl_id: str, task_id: str, body: dict, ctx=Depends(editor)):
-    project, db, user = ctx
-    t = get_or_404(db, Task, task_id, project.id)
-    for k, v in body.items():
-        if k in TaskIn.model_fields:
-            setattr(t, k, v)
-    audit.record(db, user.id, "task.updated", "task", t.id, project.id, {"fields": list(body)}, commit=True)
-    return row(t)
+@router.get("/{impl_id}/snapshot")
+def get_snapshot(impl_id: str, ctx=Depends(viewer)):
+    """Source snapshot listing and the adapter source (read-only display)."""
+    project, db, _ = ctx
+    i = get_or_404(db, Implementation, impl_id, project.id)
+    if not i.source_snapshot_artifact_id:
+        raise HTTPException(404, "no snapshot")
+    art = db.get(Artifact, i.source_snapshot_artifact_id)
+    files = compat.extract_snapshot(artstore.read(art), art.filename)
+    return {"artifact": row(art), "files": {n: {"size": len(b), "sha256": hashlib.sha256(b).hexdigest()} for n, b in files.items()},
+            "adapter_source": files.get("adapter.py", b"").decode("utf-8", errors="replace")[:20000]}

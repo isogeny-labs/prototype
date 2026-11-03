@@ -1,77 +1,105 @@
-"""Seed users and two demonstration projects. Everything created here is flagged is_demo where it is not a real
-measurement. Fixture runs executed during seeding ARE real measurements on the seeding host (provenance=measured);
-hardware figures are imported from seeds/hw_*.json and labelled illustrative."""
+"""Seed demo users and the SAMPLE project, walking the full loop with real executions:
+import 1.0.0 (seeded, labelled defect) -> sandbox run fails -> research source -> experiment proposed/approved/executed
+-> recommendation -> import 1.1.0 -> retest passes -> customer-runner bundle imported (real runner, demo key).
+Everything created here is flagged is_demo; fixture executions are real measurements on the seeding host."""
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from sqlalchemy import select
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from runners import get_runner, RunRequest  # noqa: E402
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "backend"))
+from iel_tools import attest  # noqa: E402
 
-from .config import SEED_DIR  # noqa: E402
+from .config import SEED_DIR, DATA_DIR  # noqa: E402
 from .db import SessionLocal, init_db  # noqa: E402
 from .auth import hash_password  # noqa: E402
-from .models import (User, Project, ProjectMember, InventoryItem, Requirement, Implementation, Experiment, ResearchSource,  # noqa: E402
-                     AttackAssessment, SandboxExperiment, Task, Approval)
-from . import services, audit, catalog  # noqa: E402
-from .research import review_source  # noqa: E402
-import hashlib  # noqa: E402
+from .models import (User, Project, ProjectMember, Requirement, Implementation, TestDefinition, ResearchSource, AttackAssessment, TrustedKey,  # noqa: E402
+                     Finding, ExperimentProposal, ProtocolVersion, Approval, Recommendation, Run, utcnow)
+from . import services, audit, signing, compat  # noqa: E402
+from . import artifacts as artstore  # noqa: E402
+from .research import review_source, propose_experiments  # noqa: E402
+from .recommend import recommendation_for_finding  # noqa: E402
+from runners import get_runner  # noqa: E402
 
-DEMO_USERS = [
-    ("admin@isogeny.local", "Isogeny Admin", "admin-demo-password", True),
-    ("engineer@customer.local", "Customer Engineer", "engineer-demo-password", False),
-    ("reviewer@isogeny.local", "Isogeny Reviewer", "reviewer-demo-password", False),
-]
-
-
-def _load(name):
-    return json.loads((SEED_DIR / name).read_text())
+DEMO_USERS = [("admin@isogeny.local", "Isogeny Admin", "admin-demo-password", True),
+              ("engineer@customer.local", "Customer Engineer", "engineer-demo-password", False),
+              ("reviewer@isogeny.local", "Isogeny Reviewer", "reviewer-demo-password", False)]
 
 
-def _import_inventory(db, project, doc):
-    for raw in doc["items"]:
-        raw = dict(raw)
-        db.add(InventoryItem(project_id=project.id, **raw))
-    reqs = [Requirement(project_id=project.id, **r) for r in doc["requirements"]]
-    db.add_all(reqs)
-    project.platform = doc["platform"]
+def default_test_definitions(project_id: str) -> list[TestDefinition]:
+    return [TestDefinition(project_id=project_id, test_id="signature-library-core", version="1", name="Signature library: correctness, malformed input, vectors, performance",
+                           fixture="signature_library", definition={"params": {"repeat_count": 100, "message_bytes": 1024, "seed": 1}},
+                           acceptance_criteria=["valid signatures accepted (valid_signature, second_message)", "modified message / wrong key / random / corrupted / truncated / "
+                                                "trailing / empty / zero signatures rejected", "official test vector verifies and reproduces where bundled",
+                                                "project requirements with applies_to in (all, measured)"],
+                           resource_limits={"timeout_s": 300, "memory_mb": 1024, "cpu_s": 240},
+                           description="Library-level digital-signature test. Not a firmware-update or payment-protocol validation."),
+            TestDefinition(project_id=project_id, test_id="malformed-input-sweep", version="1", name="Experiment: malformed-signature encoding sweep",
+                           fixture="malformed_input_sweep", definition={"params": {"max_extra_bytes": 64, "seed": 3}},
+                           acceptance_criteria=["per approved experiment protocol"], resource_limits={"timeout_s": 120, "memory_mb": 512, "cpu_s": 90},
+                           description="Allowlisted experiment fixture used by the autoresearcher; runs only with an approved protocol.")]
+
+
+def _import(db, project, manifest_path, adapter_path, user, parent=None, recommendation=None, seeded_defect=""):
+    m = json.loads(Path(manifest_path).read_text())
+    data = Path(adapter_path).read_bytes()
+    files = compat.extract_snapshot(data, "adapter.py")
+    report = compat.check_snapshot(files)
+    art = artstore.store(db, project.id, "source_snapshot", Path(adapter_path).name, data, "text/x-python", label=f"source snapshot {m['name']} {m['version']}")
+    impl = Implementation(project_id=project.id, created_by=user.id, status="imported", manifest=m, is_demo=True, seeded_defect=seeded_defect,
+                          source_snapshot_artifact_id=art.id, source_digest=art.sha256, compatibility=report, parent_id=parent.id if parent else None,
+                          recommendation_id=recommendation.id if recommendation else None,
+                          **{k: m[k] for k in ("name", "version", "purpose", "algorithm", "parameters", "library", "library_version", "dependencies", "configuration",
+                                               "runtime_environment", "source_revision", "build_identity", "intended_use", "threat_assumptions", "adapter_kind", "notes") if k in m},
+                          change_report=m.get("change_report", ""))
+    db.add(impl)
     db.flush()
-    return reqs
+    from .models import InventoryItem
+    db.add_all([InventoryItem(project_id=project.id, implementation_id=impl.id, category="algorithm", name=impl.algorithm, purpose="signatures", parameters=impl.parameters,
+                              provenance="user_reported", provenance_detail="declared in the import manifest"),
+                InventoryItem(project_id=project.id, implementation_id=impl.id, category="library", name=impl.library, version=impl.library_version, purpose="signatures",
+                              provenance="user_reported", provenance_detail="declared in the import manifest"),
+                InventoryItem(project_id=project.id, implementation_id=impl.id, category="key_handling", name="Signing keys held in KMS; verifiers hold public keys", purpose="signatures",
+                              provenance="user_reported", provenance_detail="manifest threat_assumptions")])
+    if parent:
+        parent.status = "superseded"
+    db.flush()
+    audit.record(db, user.id, "implementation.imported", "implementation", impl.id, project.id, {"version": impl.version, "compatibility": report["status"]})
+    return impl
 
 
-def _run_fixture(db, project, exp, impl, actor, extra=None):
-    run = services.create_run_record(db, project.id, exp.id, impl.id, "local_fixture", "measured", actor.id)
-    result = get_runner("local_fixture").run(services.build_run_request(db, exp, impl, extra))
-    services.persist_result(db, run, result, actor.id)
+def _run(db, project, test, impl, user):
+    run = services.create_run_record(db, project.id, test.id, impl.id, "platform_sandbox", "platform_sandbox", "measured", user.id)
+    res = get_runner("platform_sandbox").run(services.build_run_request(db, test, impl))
+    services.persist_result(db, run, res, user.id)
     db.commit()
     return run
 
 
-def _run_suite(db, project, exp, impl, actor):
-    """Run one bounded crax operation when the optional suite binary is connected."""
-    runner = get_runner("cryptanalysis_suite")
-    available, _ = runner.available()
-    if not available:
-        return None
-    run = services.create_run_record(db, project.id, exp.id, impl.id, runner.kind, runner.provenance, actor.id)
-    result = runner.run(services.build_run_request(db, exp, impl))
-    services.persist_result(db, run, result, actor.id)
-    db.commit()
-    return run
+def _customer_bundle(project_id: str, impl_name: str, impl_version: str, adapter_path: str, key_path: Path) -> dict:
+    out = Path(tempfile.mkdtemp(prefix="iel-seed-")) / "bundle.json"
+    subprocess.run([sys.executable, str(ROOT / "iel_tools" / "runner.py"), "run", "--project", project_id, "--impl-name", impl_name, "--impl-version", impl_version,
+                    "--adapter", adapter_path, "--key", str(key_path), "--out", str(out), "--params", json.dumps({"repeat_count": 60}), "--fixture-dir", str(ROOT / "backend" / "fixtures"),
+                    "--source-revision", "git 7a1f2c9 (sample)"], check=True, capture_output=True, timeout=600)
+    return json.loads(out.read_text())
 
 
 def _tool(db, project, impl, actor, tool_id, params=None, name="", control=None):
-    """Record and execute one bounded suite tool (or generated control) when the optional suite binary is connected."""
+    """Record and execute one bounded tool (or generated control) when that tool's optional runner is connected."""
     from runners.suite_tools import TOOLS
     from . import controls, jobs
     from .routers.toolkit import create_tool_run
-    runner_kind = TOOLS[controls.GENERATED[control][0] if control else tool_id].runner
-    if not get_runner(runner_kind).available()[0]:
+    if not get_runner(TOOLS[controls.GENERATED[control][0] if control else tool_id].runner).available()[0]:
         return None
     note = None
     if control:
@@ -83,7 +111,7 @@ def _tool(db, project, impl, actor, tool_id, params=None, name="", control=None)
 
 
 def _tool_preset(db, project, impl, actor, tool_id, index, name=""):
-    """Run the static control preset `index` of a suite tool."""
+    """Run the static control preset `index` of a tool (when that tool's runner is connected)."""
     from runners.suite_tools import TOOLS
     from . import jobs
     from .routers.toolkit import create_tool_run
@@ -97,303 +125,215 @@ def _tool_preset(db, project, impl, actor, tool_id, index, name=""):
     return run
 
 
-def _import_run(db, project, exp, impl, actor, doc, illustrative=True):
-    run = services.create_run_record(db, project.id, exp.id, impl.id, "import", "imported", actor.id)
-    doc = dict(doc)
-    doc.setdefault("environment", {})["imported_by"] = actor.email
-    result = get_runner("import").run(RunRequest(fixture=exp.fixture, params={"document": doc, "illustrative": illustrative}, implementation={}, experiment={}))
-    services.persist_result(db, run, result, actor.id)
-    db.commit()
-    return run
-
-
-def _source(db, project, actor, title, path):
-    text = (SEED_DIR / "research_docs" / path).read_text()
-    src = ResearchSource(project_id=project.id, title=title, content=text, content_sha256=hashlib.sha256(text.encode()).hexdigest(),
-                         source_type="document", is_demo=True, submitted_by=actor.id)
-    db.add(src)
-    db.flush()
-    f = review_source(db, src)
-    db.commit()
-    return src, f
-
-
-def seed_iot(db, admin, engineer, reviewer):
-    doc = _load("iot_inventory.json")
-    p = Project(name="FG-200 Field Gateway — firmware signing", kind="iot", is_demo=True, created_by=admin.id,
-                business_purpose="Industrial LTE-M gateway; firmware updates must be authenticated for the whole 12-year support period.",
-                deployment_environment="Field-deployed, unattended, OTA updates over LTE-M; devices shipped since 2024.",
-                support_period_end="2038-12-31",
-                data_protection_requirements="Telemetry confidentiality; firmware integrity and authenticity; no customer PII on device.",
-                update_process="Release engineering signs images with an offline HSM; OTA via MQTT; A/B slot with rollback protection.")
+def seed_toolkit_controls(db, admin, eng, rev):
+    """Demonstration project exercising every suite tool family once with its controls. Created only when `crax` is connected."""
+    if not get_runner("cryptanalysis_suite").available()[0]:
+        return None
+    p = Project(name="Cryptanalysis toolkit controls (demonstration)", workflow="signature_library", is_demo=True, created_by=admin.id,
+                description="Exercises every bounded crax tool family with its negative and positive controls, so the detectors can be seen working. Not a customer system.",
+                intended_use="Research-facing demonstration only.", threat_assumptions="Every target is public, synthetic or a toy instance.",
+                runtime_environment={"deployment": "seeding host"})
     db.add(p)
     db.flush()
-    db.add_all([ProjectMember(project_id=p.id, user_id=engineer.id, role="editor"), ProjectMember(project_id=p.id, user_id=reviewer.id, role="reviewer")])
-    _import_inventory(db, p, doc)
-    base = Implementation(project_id=p.id, name="Bootloader verifier", version="2.3.0", role="baseline", status="approved",
-                          profile_id="rsa2048_pkcs1v15_sha256", algorithm=catalog.profile("rsa2048_pkcs1v15_sha256")["label"],
-                          library="mbedTLS", library_version="2.16.12", source_revision="fw-2.3.0 @ a1b2c3d",
-                          configuration={"manifest_format": "iel-fw-manifest/1"}, target_environment={"board": "FG-200 EVT2", "mcu": "STM32F407"},
-                          build_identity={"toolchain": "arm-none-eabi-gcc 12.3"}, delivery_mode="customer_lab", created_by=engineer.id,
-                          notes="Current production verifier.")
-    cand = Implementation(project_id=p.id, name="Bootloader verifier", version="3.0.0-rc1", role="candidate", status="approved",
-                          profile_id="ml_dsa_65", algorithm=catalog.profile("ml_dsa_65")["label"], library="pqm4", library_version="2025-03 snapshot",
-                          source_revision="fw-3.0.0-rc1 @ 9f8e7d6", configuration={"manifest_format": "iel-fw-manifest/1"},
-                          target_environment={"board": "FG-200 EVT2", "mcu": "STM32F407"}, build_identity={"toolchain": "arm-none-eabi-gcc 12.3"},
-                          delivery_mode="customer_lab", parent_id=None, created_by=engineer.id,
-                          notes="First post-quantum candidate. Approved for lab evaluation only.")
-    db.add_all([base, cand])
+    db.add_all([ProjectMember(project_id=p.id, user_id=eng.id, role="editor"), ProjectMember(project_id=p.id, user_id=rev.id, role="reviewer")])
+    db.add_all(default_test_definitions(p.id))
+    suite = Implementation(project_id=p.id, name="crax cryptanalysis suite", version="pinned build", status="imported", adapter_kind="results_only",
+                           algorithm="Isogeny Labs cryptanalysis toolkit (Rust suite)", library="isogeny-labs/cryptanalysis suite/",
+                           library_version="see each run's suite_version and binary SHA-256", source_revision="pinned in .github/workflows/pages.yml",
+                           build_identity={"cargo": "--release --locked"}, is_demo=True, created_by=eng.id,
+                           compatibility={"status": "unsupported", "report": ["subject of toolkit runs only; no adapter"], "problems": [], "warnings": []},
+                           notes="Subject record for toolkit control runs; each run records the exact binary hash.")
+    db.add(suite)
     db.flush()
-    from .routers.implementations import compute_warnings
-    for i in (base, cand):
-        i.compatibility_warnings = compute_warnings(p, i)
-    cand.parent_id = base.id
-    db.add_all([Task(project_id=p.id, implementation_id=cand.id, title="Port pqm4 ML-DSA-65 verify into bootloader", owner="engineer@customer.local", status="done"),
-                Task(project_id=p.id, implementation_id=cand.id, title="Measure verify stack high-water mark on EVT2", owner="lab@customer.local", status="done"),
-                Task(project_id=p.id, implementation_id=cand.id, title="Decide manifest slot layout for >2.5 KB signatures", owner="engineer@customer.local", status="blocked")])
-    fx = Experiment(project_id=p.id, name="Firmware update acceptance & rejection (reference fixture)", fixture="firmware_signing",
-                    definition={"params": {"image_bytes": 262144, "repeat_count": 30, "installed_version": 4, "update_version": 5},
-                                "scenarios": "valid, tampered image, wrong key, truncated/empty/corrupted signature, rollback, manifest swap, malformed manifest, bad header, length mismatch"},
-                    acceptance_criteria=["all scenarios observe expected result", "project requirements with applies_to in (all, measured)"],
-                    description="Host-side reference verifier. Produces real correctness evidence and host timing; device timing must be imported.")
-    hw = Experiment(project_id=p.id, name="Device-lab measurements (imported)", fixture="external",
-                    definition={"protocol": "device-lab-protocol/0.3", "board": "FG-200 EVT2"},
-                    acceptance_criteria=["project requirements with applies_to in (all, imported)"],
-                    description="Import of externally produced on-device results. Seeded numbers are ILLUSTRATIVE.")
-    db.add_all([fx, hw])
-    db.flush()
-    r1 = _run_fixture(db, p, fx, base, engineer)
-    r2 = _run_fixture(db, p, fx, cand, engineer)          # fails: signature 3309 B > 2560 B slot -> opens measurement finding
-    r3 = _import_run(db, p, hw, base, engineer, _load("hw_baseline_rsa2048.json"))
-    r4 = _import_run(db, p, hw, cand, engineer, _load("hw_candidate_mldsa65.json"))  # also fails stack + slot
-    # --- cryptanalysis-suite toolkit (only when crax is connected): key hygiene, lattice margins, digest cross-check
-    _tool(db, p, base, engineer, None, name="Fleet signing-key hygiene: RSA-2048 public keys (negative control)", control="rsa_real_keys")
-    _tool(db, p, base, engineer, None, name="Control: planted shared-prime and close-prime moduli (positive)", control="rsa_weak_moduli")
-    _tool(db, p, base, engineer, None, name="Control: planted small private exponent (positive, Wiener)", control="rsa_wiener")
-    _tool(db, p, cand, engineer, "suite_mlwe_estimate", {"scheme": "ml-dsa-65", "model": "gate-count", "tours": True},
-          name="ML-DSA-65 lattice key-recovery estimate (gate-count + BKZ tours)")
-    _tool(db, p, cand, engineer, "suite_mlwe_estimate", {"scheme": "ml-dsa-44", "model": "gate-count", "tours": True},
-          name="ML-DSA-44 lattice key-recovery estimate (smaller-signature alternative)")
-    _tool(db, p, cand, engineer, None, name="Manifest digest cross-check: suite SHA-256 vs build hashlib", control="firmware_digest")
-    _source(db, p, engineer, "Draft PQC transition timeline (paraphrase, demonstration)", "pqc_transition_guidance.txt")
-    _source(db, p, engineer, "PKCS#1 v1.5 lenient-parser class of bugs (paraphrase, demonstration)", "pkcs1v15_parser_bugs.txt")
-    # --- attack-cost view (classical/quantum separated; C = published, D = unknown)
-    db.add_all([
-        AttackAssessment(project_id=p.id, category="C", attack_model="classical", target="RSA-2048 (firmware signing key)",
-                         target_parameters={"modulus_bits": 2048}, objective="Recover the private key by factoring the modulus.",
-                         attacker_capabilities="Nation-state-scale classical compute.", method="General Number Field Sieve (GNFS).",
-                         source="Public factoring record: RSA-250 (829-bit), Boudot et al., Feb 2020, reported ~2700 core-years (2.1 GHz Xeon Gold 6130). No public factorisation of any 2048-bit RSA modulus.",
-                         hardware_assumptions="Commodity x86 cores as in the published record.",
-                         expected_work={"value": None, "unit": "", "log2": None, "estimation_method": "Published record + GNFS asymptotic L[1/3, 1.923]; absolute effort for 2048 bits is not defensibly quantified here."},
-                         uncertainty="GNFS constants are not known precisely for 2048-bit inputs; any single number would be fabricated.",
-                         applicability_limits="Says that classical factoring of RSA-2048 is far beyond the public record; does not provide a cost figure.", is_demo=True),
-        AttackAssessment(project_id=p.id, category="C", attack_model="quantum", target="RSA-2048 (firmware signing key)",
-                         target_parameters={"modulus_bits": 2048}, objective="Recover the private key with Shor's algorithm.",
-                         attacker_capabilities="Hypothetical large fault-tolerant quantum computer.", method="Shor's algorithm with surface-code error correction.",
-                         source="Gidney & Ekerå (2019/2021): ~20 million noisy qubits, ~8 hours. Gidney (2025): under one million noisy qubits, under one week, assuming 0.1% gate error. Published estimates; not demonstrated.",
-                         hardware_assumptions="Physical qubit counts and error rates far beyond any publicly reported device.",
-                         expected_work={"value": None, "unit": "", "log2": None, "estimation_method": "Published resource estimates (qubits x time); no calendar date is asserted."},
-                         uncertainty="Estimates have moved by >10x in six years; hardware progress is not predictable here.",
-                         applicability_limits="Classical and quantum models are separate; this record says nothing about classical cost.", is_demo=True),
-        AttackAssessment(project_id=p.id, category="C", attack_model="classical", target="ML-DSA-65 (candidate firmware signing)",
-                         target_parameters={"parameter_set": "ML-DSA-65"}, objective="Forge a signature or recover the key.",
-                         attacker_capabilities="Best known lattice attacks (BKZ/sieving).", method="Core-SVP lattice reduction estimates.",
-                         source="FIPS 204 security category 3 (comparable to exhaustive search of AES-192) per NIST's categorisation; underlying estimates in the Dilithium specification.",
-                         hardware_assumptions="Idealised sieving cost model.",
-                         expected_work={"value": None, "unit": "", "log2": None, "estimation_method": "Published category claim only."},
-                         uncertainty="Lattice cost models remain under active research; the category is a design target, not a measurement.",
-                         applicability_limits="Does not address implementation attacks (side channels, fault injection) on the device.", is_demo=True),
-        AttackAssessment(project_id=p.id, category="D", attack_model="quantum", target="ML-DSA-65 (candidate firmware signing)",
-                         target_parameters={"parameter_set": "ML-DSA-65"}, objective="Quantum key recovery / forgery.",
-                         attacker_capabilities="Hypothetical quantum adversary.", method="No known quantum attack materially better than classical lattice attacks.",
-                         source="No defensible quantitative estimate available beyond the FIPS 204 category claim.",
-                         expected_work=None, uncertainty="Unknown.", applicability_limits="Displayed as 'No defensible estimate available'.", is_demo=True),
-        AttackAssessment(project_id=p.id, category="D", attack_model="classical", target="mbedTLS 2.16.12 RSA PKCS#1 v1.5 verifier (implementation)",
-                         target_parameters={"library": "mbedTLS", "version": "2.16.12"}, objective="Accept a forged signature via lenient parsing.",
-                         attacker_capabilities="Can submit arbitrary update packages.", method="Malformed-padding forgery class; requires a specific parser bug.",
-                         source="Research finding in inbox (demonstration). No measured or published estimate for this exact build.",
-                         expected_work=None, uncertainty="Depends entirely on whether the specific build has a parser bug; test with the fixture's malformed-input scenarios.",
-                         applicability_limits="Not an algorithm weakness; an implementation question.", is_demo=True),
-    ])
-    sx = SandboxExperiment(project_id=p.id, title="Toy Pollard-rho factoring run (workflow demonstration)", kind="hypothesis",
-                           hypothesis="Measured iteration counts follow the sqrt(pi*p/2) birthday heuristic for small synthetic semiprimes.",
-                           method="Run the allowlisted toy_factoring fixture on 44-bit synthetic moduli, 5 trials.",
-                           allowlisted_fixture="toy_factoring", parameters={"modulus_bits": 44, "trials": 5, "max_iterations": 2000000, "seed": 11},
-                           target_class="synthetic", resource_limits={"timeout_s": 60, "memory_mb": 256, "cpu_s": 45}, proposed_by="auto-researcher (seeded)")
-    db.add_all([sx,
-                SandboxExperiment(project_id=p.id, title="Reproduce published PKCS#1 v1.5 lenient-parser forgery against the baseline verifier build", kind="reproduction",
-                                  hypothesis="The mbedTLS 2.16.12 build in fw-2.3.0 rejects all malformed-padding forgeries.",
-                                  method="Requires the customer's actual verifier binary and a harness; no allowlisted fixture exists, so this is a proposal only.",
-                                  allowlisted_fixture=None, parameters={}, target_class="owned", proposed_by="auto-researcher (seeded)")])
-    db.commit()
-    # Execute the approved toy experiment synchronously so the attack-cost view has a measured (category A) entry.
-    db.add(Approval(project_id=p.id, subject_type="sandbox_experiment", subject_id=sx.id, decision="approved", reviewer_id=reviewer.id,
-                    note="Seeded approval of the bounded toy experiment."))
-    sx.status = "approved"
-    impl = Implementation(project_id=p.id, name="Sandbox synthetic target", version="n/a", role="candidate", status="retired",
-                          algorithm="synthetic toy parameters", notes="Placeholder target for research-only sandbox runs.", created_by=admin.id)
-    exp = Experiment(project_id=p.id, name="Sandbox: toy Pollard-rho factoring (research only)", fixture="toy_factoring", definition={"sandbox": True},
-                     description="Research-only sandbox experiment; not part of product assurance.")
-    db.add_all([impl, exp])
-    db.flush()
-    run = services.create_run_record(db, p.id, exp.id, impl.id, "local_fixture", "measured", admin.id)
-    db.commit()
-    services._job_sandbox_execute(db, {"sandbox_id": sx.id, "run_id": run.id, "actor_id": admin.id})
-    return p
-
-
-def seed_app(db, admin, engineer, reviewer):
-    doc = _load("app_inventory.json")
-    p = Project(name="Payments token-service (containerised)", kind="application", is_demo=True, created_by=admin.id,
-                business_purpose="Issues short-lived API tokens for a payments platform.",
-                deployment_environment="Kubernetes, 6 replicas, python:3.13-slim image.", support_period_end="2032-06-30",
-                data_protection_requirements="PCI-DSS scope; tokens must not be forgeable; p95 latency SLO 2 ms for verify.",
-                update_process="CI builds image; Helm staged rollout; crypto configuration changes require change-board approval.")
-    db.add(p)
-    db.flush()
-    db.add_all([ProjectMember(project_id=p.id, user_id=engineer.id, role="editor"), ProjectMember(project_id=p.id, user_id=reviewer.id, role="reviewer")])
-    _import_inventory(db, p, doc)
-    base = Implementation(project_id=p.id, name="token-service", version="1.4.2", role="baseline", status="approved", profile_id="jws_rs256",
-                          algorithm=catalog.profile("jws_rs256")["label"], library="PyJWT + cryptography", library_version="2.8.0 / 42.0.5",
-                          source_revision="git 4c0ffee", configuration={"alg": "RS256", "fixture_params": {"payload_bytes": 256}},
-                          target_environment={"image": "python:3.13-slim", "cpu": "x86-64"}, build_identity={"image_digest": "sha256:(recorded at build)"},
-                          delivery_mode="container", created_by=engineer.id)
-    curve_candidate = Implementation(
-        project_id=p.id,
-        name="token-service",
-        version="2.0.0-es256-analysis",
-        role="candidate",
-        status="draft",
-        profile_id="jws_es256",
-        algorithm=catalog.profile("jws_es256")["label"],
-        library="target library not yet selected",
-        source_revision="design-stage curve review",
-        configuration={"alg": "ES256", "suite_curve": "p256"},
-        target_environment={"image": "python:3.13-slim", "cpu": "x86-64"},
-        build_identity={"status": "not built; suite analysis only"},
-        delivery_mode="container",
-        parent_id=None,
-        created_by=engineer.id,
-        notes="Design-stage candidate used to demonstrate the bounded cryptanalysis-suite integration. No deployment is implied.",
-    )
-    db.add_all([base, curve_candidate])
-    db.flush()
-    curve_candidate.parent_id = base.id
-    fx = Experiment(project_id=p.id, name="Token signing correctness & performance regression (container fixture)", fixture="app_service_crypto",
-                    definition={"params": {"repeat_count": 150, "payload_bytes": 256}},
-                    acceptance_criteria=["all scenarios pass", "project requirements"],
-                    description="Runs app_service_crypto in the process-isolated runner (or Docker runner when a daemon is available).")
-    suite_audit = Experiment(
-        project_id=p.id,
-        name="Suite audit: P-256 catalog parameters",
-        fixture="suite_curve_audit",
-        definition={"params": {"curve": "p256"}, "contract": "crax --json icx inspect"},
-        acceptance_criteria=["every suite parameter check passes", "suite_verified == 1"],
-        description="Runs the cryptanalysis suite's bounded, machine-readable curve inspection. This checks catalog parameters, not application code.",
-    )
-    suite_estimate = Experiment(
-        project_id=p.id,
-        name="Suite estimate: P-256 generic and index-calculus picture",
-        fixture="suite_curve_estimate",
-        definition={"params": {"curve": "p256", "envelope_bits": 64}, "contract": "crax --json icx estimate"},
-        acceptance_criteria=["suite report completes", "result remains labelled as an operation-count model"],
-        description="Records the suite's generic Pollard-rho and index-calculus classification. It is not a wall-clock forecast or practical-break claim.",
-    )
-    db.add_all([fx, suite_audit, suite_estimate])
-    db.flush()
-    _run_fixture(db, p, fx, base, engineer)  # RS256 sign throughput typically < 2000/s -> requirement failure -> finding
-    _run_suite(db, p, suite_audit, curve_candidate, engineer)
-    _run_suite(db, p, suite_estimate, curve_candidate, engineer)
-    _tool_preset(db, p, curve_candidate, engineer, "suite_weak_curve", 0, "P-256 structural weak-curve analysis (negative control)")
-    _tool_preset(db, p, curve_candidate, engineer, "suite_weak_curve", 2, "Control: anomalous toy curve, Smart attack (positive)")
-    _tool(db, p, curve_candidate, engineer, None, name="ES256 signature-transcript audit: 32 real signatures, full lattice sweep", control="es256_transcript")
-    _tool_preset(db, p, curve_candidate, engineer, "suite_ecdsa_audit", 0, "Control: planted 192-bit nonce bias (positive)")
-    _source(db, p, engineer, "JWS algorithm guidance for RS256 deployments (paraphrase, demonstration)", "jws_alg_guidance.txt")
-    db.add(AttackAssessment(project_id=p.id, category="D", attack_model="classical", target="RS256 token forgery via algorithm confusion (implementation)",
-                            target_parameters={"library": "PyJWT", "version": "2.8.0"}, objective="Have the verifier accept a token under an unintended algorithm.",
-                            attacker_capabilities="Can present arbitrary tokens.", method="alg header confusion; only possible if the verifier does not pin algorithms.",
-                            source="Research inbox (demonstration).", expected_work=None,
-                            uncertainty="Configuration-dependent; verify by code review and the fixture's rejection scenarios.",
-                            applicability_limits="Not a cryptanalytic cost; an integration check.", is_demo=True))
+    _tool_preset(db, p, suite, eng, "suite_curve_audit", 0)
+    _tool(db, p, suite, eng, "suite_curve_audit", {"curve": "secp256k1"}, "Curve parameter audit: secp256k1")
+    _tool_preset(db, p, suite, eng, "suite_curve_estimate", 0)
+    _tool_preset(db, p, suite, eng, "suite_weak_curve", 1)
+    _tool_preset(db, p, suite, eng, "suite_weak_curve", 3)
+    _tool_preset(db, p, suite, eng, "suite_mlwe_estimate", 1)
+    _tool(db, p, suite, eng, "suite_mlwe_estimate", {"scheme": "ml-kem-768", "model": "gate-count", "tours": True}, "ML-KEM-768 lattice estimate")
+    _tool_preset(db, p, suite, eng, "suite_generic_rho", 0, "Pollard rho, generic-26 toy curve, seed 1")
+    _tool(db, p, suite, eng, "suite_generic_rho", {"curve": "generic-26", "secret": "123456", "negation": False, "seed": 1}, "Pollard rho, generic-26 toy curve, no negation map")
+    _tool_preset(db, p, suite, eng, "suite_factor_toy", 0)
+    _tool_preset(db, p, suite, eng, "suite_aes_reduced", 0)
+    _tool_preset(db, p, suite, eng, "suite_aes_reduced", 1)
+    _tool_preset(db, p, suite, eng, "suite_hash_kat", 0)
     db.commit()
     return p
 
 
-def seed_ct_audit(db, p, engineer):
-    """Side-channel evidence for the crypto crate: the frozen run of isogeny-labs/crypto #3296 imported (always), plus
-    live controls and two targets when the ct_dynamic_audit binary and Valgrind are available."""
+def seed_ct_audit(db, admin, eng, rev):
+    """Side-channel evidence for the isogeny-labs/crypto crate. The frozen run of crypto PR #3296 is always imported
+    (unsigned, provenance `imported`); when the ct_dynamic_audit binary and Valgrind are connected, both controls and
+    two targets are also run live as measured platform runs."""
     from runners.ct_audit_runner import METRIC_DEFINITIONS, map_entry
     from runners.suite_tools import TOOLS
-    snap = _load("ct_audit_snapshot.json")
+    from .routers.tests import _import_results_doc
+    from .routers.toolkit import tool_test_definition
+    snap = json.loads((SEED_DIR / "ct_audit_snapshot.json").read_text())
     src = snap["source"]
-    impl = Implementation(project_id=p.id, name="crypto crate: secret-handling paths", version=src["run_commit"][:9], role="baseline",
-                          status="approved", algorithm="ECDSA, SM2, Ed25519, X25519 and scalar multiplication (isogeny-labs/crypto)",
-                          library="isogeny-labs/crypto crypto_lib", library_version=src["run_commit"],
-                          source_revision=f"{src['repository']}@{src['run_commit'][:12]}", configuration={},
-                          target_environment={"build": "release, line tables", "instrument": "Valgrind 3.22"},
-                          build_identity={"card": src["card_id"]}, delivery_mode="container", created_by=engineer.id,
-                          notes="Audited with the dynamic constant-time harness of crypto PR #3296; results also imported from that run.")
+    p = Project(name="Side-channel audit: crypto crate (demonstration)", workflow="signature_library", is_demo=True, created_by=admin.id,
+                description="Dynamic constant-time audit (Valgrind taint and instruction counts) of the secret-handling paths in the "
+                            "isogeny-labs/crypto crate, imported from the frozen run of crypto PR #3296. Not a customer system.",
+                intended_use="Research-facing demonstration of the side-channel tool and its evidence.",
+                threat_assumptions="Timing and secret-dependent control flow or memory access only; power, EM and fault channels are out of scope.",
+                runtime_environment={"instrument": "Valgrind (Memcheck taint, Callgrind)"})
+    db.add(p)
+    db.flush()
+    db.add_all([ProjectMember(project_id=p.id, user_id=eng.id, role="editor"), ProjectMember(project_id=p.id, user_id=rev.id, role="reviewer")])
+    impl = Implementation(project_id=p.id, name="crypto crate: secret-handling paths", version=src["run_commit"][:9], status="imported", adapter_kind="results_only",
+                          algorithm="ECDSA, SM2, Ed25519, X25519 and scalar multiplication (isogeny-labs/crypto)", library="isogeny-labs/crypto crypto_lib",
+                          library_version=src["run_commit"], source_revision=f"{src['repository']}@{src['run_commit'][:12]}",
+                          build_identity={"build": "release, line tables", "card": src["card_id"]}, is_demo=True, created_by=eng.id,
+                          compatibility={"status": "unsupported", "report": ["subject of side-channel tool runs only; no adapter"], "problems": [], "warnings": []},
+                          notes="Audited with the dynamic constant-time harness of crypto PR #3296.")
     db.add(impl)
     db.flush()
     tool = TOOLS["sidechannel_ct_audit"]
+    test = tool_test_definition(db, p, tool)
     for e in snap["targets"]:
         expect = "leak_detected" if e["target"] == "ctrl_pos_branch" else "clean"
         mapped = map_entry(e, "both", expect)
-        exp = Experiment(project_id=p.id, name=f"Side-channel audit: {e['target']} (imported, crypto #3296)", fixture="sidechannel_ct_audit",
-                         definition={"params": {"target": e["target"], "instrument": "both", "expect": expect}, "tool": tool.id,
-                                     "contract": tool.operation, "imported_from": src},
-                         acceptance_criteria=tool.acceptance, description=e.get("description", tool.question))
-        db.add(exp)
-        db.flush()
-        _import_run(db, p, exp, impl, engineer, {
-            "fixture": "sidechannel_ct_audit", "fixture_version": f"ct_dynamic_audit@{src['run_commit'][:12]}", "status": "completed",
+        run = _import_results_doc(db, p, impl, {
+            "fixture": tool.id, "fixture_version": f"ct_dynamic_audit@{src['run_commit'][:12]}", "status": "completed",
             "metrics": mapped["metrics"], "metric_definitions": METRIC_DEFINITIONS, "scenarios": mapped["scenarios"],
             "environment": {"measured_by": f"{src['repository']} task card {src['card_id']}", "summary_sha256": src["summary_sha256"],
                             "receipt_sha256": src["receipt_sha256"], "report": src["report"], "pull_request": src["pull_request"]},
-            "limitations": snap["limitations"], "repeat_count": 1, "raw_summary_entry": e}, illustrative=False)
+            "limitations": snap["limitations"], "repeat_count": 1, "raw_summary_entry": e}, eng, test=test)
+        run.inputs = {**(run.inputs or {}), "tool": tool.id, "params": {"target": e["target"], "instrument": "both", "expect": expect},
+                      "record_name": f"Side-channel audit: {e['target']} (imported, crypto #3296)"}
+    db.commit()
     if get_runner("ct_audit").available()[0]:
-        _tool_preset(db, p, impl, engineer, "sidechannel_ct_audit", 0)
-        _tool_preset(db, p, impl, engineer, "sidechannel_ct_audit", 1)
-        _tool(db, p, impl, engineer, "sidechannel_ct_audit", {"target": "x25519"}, "Side-channel audit (live): x25519")
-        _tool(db, p, impl, engineer, "sidechannel_ct_audit", {"target": "inv_euclid", "instrument": "taint"},
+        _tool_preset(db, p, impl, eng, "sidechannel_ct_audit", 0)
+        _tool_preset(db, p, impl, eng, "sidechannel_ct_audit", 1)
+        _tool(db, p, impl, eng, "sidechannel_ct_audit", {"target": "x25519"}, "Side-channel audit (live): x25519")
+        _tool(db, p, impl, eng, "sidechannel_ct_audit", {"target": "inv_euclid", "instrument": "taint"},
               "Side-channel audit (live): SM2 private-key inverse, taint only")
+    db.commit()
+    return p
 
 
-def seed_showcase(db, admin, engineer, reviewer):
-    """A research-facing project that exercises every suite tool family once, with its controls."""
-    p = Project(name="Isogeny Labs cryptanalysis suite — showcase", kind="application", is_demo=True, created_by=admin.id,
-                business_purpose="Demonstrates the bounded crax toolkit end to end: every tool family, its controls, and the evidence each run leaves.",
-                deployment_environment="Research workstation; no customer system is involved.", support_period_end="2030-12-31",
-                data_protection_requirements="None: every target here is public, synthetic or a toy instance.",
-                update_process="Suite revision pinned in .github/workflows/pages.yml; bumping it is a reviewed source change.")
+def seed_sample(db, admin, eng, rev):
+    p = Project(name="Sample: acme-signer (demonstration)", workflow="signature_library", is_demo=True, created_by=admin.id,
+                description="Sample project showing the full loop on a small Ed25519 wrapper with a clearly labelled seeded defect.",
+                intended_use="Service-to-service API request signing.", threat_assumptions="Attacker submits arbitrary requests; keys in KMS; replay cache keyed on signature bytes.",
+                runtime_environment={"deployment": "Linux x86-64 container", "hardware": "cloud VM"})
     db.add(p)
     db.flush()
-    db.add_all([ProjectMember(project_id=p.id, user_id=engineer.id, role="editor"), ProjectMember(project_id=p.id, user_id=reviewer.id, role="reviewer")])
-    suite = Implementation(project_id=p.id, name="crax cryptanalysis suite", version="pinned build", role="baseline", status="approved",
-                           algorithm="Isogeny Labs cryptanalysis toolkit (Rust suite)", library="isogeny-labs/cryptanalysis suite/",
-                           library_version="see each run's suite_version and binary SHA-256", source_revision="pinned in .github/workflows/pages.yml",
-                           configuration={}, target_environment={"host": "seeding host"}, build_identity={"cargo": "--release --locked"},
-                           delivery_mode="container", created_by=engineer.id,
-                           notes="Each run records the exact binary hash; the static demo pins the suite revision.")
-    db.add(suite)
+    db.add_all([ProjectMember(project_id=p.id, user_id=eng.id, role="editor"), ProjectMember(project_id=p.id, user_id=rev.id, role="reviewer")])
+    tests = default_test_definitions(p.id)
+    db.add_all(tests)
+    db.add_all([Requirement(project_id=p.id, name="Verify p95 latency", metric="verify_time_ms_p95", operator="<=", threshold=1.0, unit="ms", applies_to="measured",
+                            rationale="Request verification budget per hop."),
+                Requirement(project_id=p.id, name="Signing throughput", metric="sign_throughput_per_s", operator=">=", threshold=5000, unit="signatures/s per core", applies_to="measured",
+                            rationale="Peak outbound request rate with headroom."),
+                Requirement(project_id=p.id, name="Signature size", metric="signature_bytes", operator="<=", threshold=64, unit="bytes", rationale="Header size budget."),
+                Requirement(project_id=p.id, name="All rejection scenarios pass", metric="rejection_scenarios_all_pass", operator="==", threshold=1, unit=""),
+                Requirement(project_id=p.id, name="All functional scenarios pass", metric="functional_pass", operator="==", threshold=1, unit="")])
     db.flush()
-    _tool_preset(db, p, suite, engineer, "suite_curve_audit", 0)
-    _tool(db, p, suite, engineer, "suite_curve_audit", {"curve": "secp256k1"}, "Curve parameter audit: secp256k1")
-    _tool_preset(db, p, suite, engineer, "suite_curve_estimate", 0)
-    _tool_preset(db, p, suite, engineer, "suite_weak_curve", 1)
-    _tool_preset(db, p, suite, engineer, "suite_weak_curve", 3)
-    _tool_preset(db, p, suite, engineer, "suite_mlwe_estimate", 1)
-    _tool(db, p, suite, engineer, "suite_mlwe_estimate", {"scheme": "ml-kem-768", "model": "gate-count", "tours": True}, "ML-KEM-768 lattice estimate")
-    _tool_preset(db, p, suite, engineer, "suite_generic_rho", 0, "Pollard rho, generic-26 toy curve, seed 1")
-    _tool(db, p, suite, engineer, "suite_generic_rho", {"curve": "generic-26", "secret": "123456", "negation": True, "seed": 2},
-          "Pollard rho, generic-26 toy curve, seed 2")
-    _tool(db, p, suite, engineer, "suite_generic_rho", {"curve": "generic-26", "secret": "123456", "negation": False, "seed": 1},
-          "Pollard rho, generic-26 toy curve, no negation map")
-    _tool_preset(db, p, suite, engineer, "suite_factor_toy", 0)
-    _tool_preset(db, p, suite, engineer, "suite_aes_reduced", 0)
-    _tool_preset(db, p, suite, engineer, "suite_aes_reduced", 1)
-    _tool_preset(db, p, suite, engineer, "suite_hash_kat", 0)
-    seed_ct_audit(db, p, engineer)
+    core, sweep = tests[0], tests[1]
+    v10 = _import(db, p, SEED_DIR / "sample_manifest_v1_0.json", SEED_DIR / "adapters" / "acme_signer_v1_0.py", eng,
+                  seeded_defect="SEEDED DEFECT (demonstration): verify() keeps only the first 64 signature bytes, so signatures with trailing data verify.")
+    db.commit()
+    r1 = _run(db, p, core, v10, eng)  # fails trailing_byte / trailing_garbage -> finding opened
+    # customer-side runner bundle (real runner, demo key kept under data/keys, labelled)
+    keys = DATA_DIR / "keys"
+    keys.mkdir(parents=True, exist_ok=True)
+    kp = keys / "demo_runner_key.pem"
+    if not kp.exists():
+        k = attest.generate_private_key()
+        kp.write_bytes(attest.private_key_to_pem(k))
+        os.chmod(kp, 0o600)
+    rk = attest.private_key_from_pem(kp.read_bytes())
+    db.add(TrustedKey(project_id=p.id, key_id=attest.key_id(rk.public_key()), name="demo customer runner key (seeded)", public_key_pem=attest.public_key_to_pem(rk.public_key()),
+                      purpose="customer_runner", status="active", note="Generated by the seed for the sample project. Private key in data/keys (not an artifact).", added_by=admin.id))
+    db.commit()
+    bundle = _customer_bundle(p.id, "acme-signer", "1.0.0", str(SEED_DIR / "adapters" / "acme_signer_v1_0.py"), kp)
+    run_b, b, info = services.import_bundle(db, p, bundle, eng.id, eng.email, core)  # second, customer-side evidence on 1.0.0
+    db.commit()
+    # research source (demonstration)
+    text = (SEED_DIR / "research_docs" / "noncanonical_signature_encodings.txt").read_text()
+    src = ResearchSource(project_id=p.id, title="Non-canonical signature encodings in Ed25519 wrappers (paraphrase, demonstration)", content=text,
+                         content_sha256=hashlib.sha256(text.encode()).hexdigest(), is_demo=True, submitted_by=eng.id)
+    db.add(src)
+    db.flush()
+    review_source(db, src)
+    db.commit()
+    # autoresearcher proposes; reviewer approves (protocol v1); platform executes
+    findings = db.scalars(select(Finding).where(Finding.project_id == p.id)).all()
+    props = propose_experiments(db, p, findings, [src])
+    db.commit()
+    prop = next(x for x in props if x.allowlisted_fixture == "malformed_input_sweep")
+    from .routers.research import PROTOCOL_FIELDS
+    proto = {k: getattr(prop, k) for k in PROTOCOL_FIELDS}
+    db.add(Approval(project_id=p.id, subject_type="experiment_proposal", subject_id=prop.id, decision="approved", reviewer_id=rev.id, note="Bounded, synthetic inputs, allowlisted fixture."))
+    db.add(ProtocolVersion(proposal_id=prop.id, version=1, protocol=proto, protocol_sha256=attest.sha256_hex(attest.canonical(proto)), approved_by=rev.id, note="v1"))
+    prop.current_protocol_version, prop.status = 1, "approved"
+    db.commit()
+    erun = services.create_run_record(db, p.id, sweep.id, v10.id, "platform_sandbox", "platform_sandbox", "measured", eng.id, proposal_id=prop.id, protocol_version=1)
+    db.commit()
+    services._job_execute_experiment(db, {"proposal_id": prop.id, "run_id": erun.id, "actor_id": eng.id})
+    db.add(Approval(project_id=p.id, subject_type="experiment_proposal", subject_id=prop.id, decision="reviewed", reviewer_id=rev.id, note="Result consistent with H1."))
+    prop.status = "reviewed"
+    # recommendation from the defect finding, reviewed + approved by the reviewer
+    defect = next(f for f in findings if f.kind == "implementation_defect")
+    d = recommendation_for_finding(db, defect, p)
+    rec = Recommendation(project_id=p.id, generated_by="platform (rule-based)", created_by=eng.id, status="approved", **d)
+    db.add(rec)
+    db.flush()
+    defect.recommendation_id = rec.id
+    services.set_finding_status(db, defect, "recommendation_proposed", eng.id, f"recommendation {rec.id} drafted")
+    db.add_all([Approval(project_id=p.id, subject_type="recommendation", subject_id=rec.id, decision="reviewed", reviewer_id=rev.id, note="Guidance matches RFC 8032 §5.1.7."),
+                Approval(project_id=p.id, subject_type="recommendation", subject_id=rec.id, decision="approved", reviewer_id=rev.id, note="Approved for engineering handoff.")])
+    db.commit()
+    # customer implements externally; 1.1.0 imported and linked
+    v11 = _import(db, p, SEED_DIR / "sample_manifest_v1_1.json", SEED_DIR / "adapters" / "acme_signer_v1_1.py", eng, parent=v10, recommendation=rec)
+    rec.resulting_implementation_id = v11.id
+    defect.revised_implementation_id = v11.id
+    services.set_finding_status(db, defect, "external_change_reported", eng.id, v11.change_report)
+    services.set_finding_status(db, defect, "awaiting_retest", eng.id, "awaiting retest of acme-signer 1.1.0")
+    db.commit()
+    r2 = _run(db, p, core, v11, eng)
+    ev = services.evaluate_retest(db, defect, r2)
+    defect.evidence_run_ids = defect.evidence_run_ids + [r2.id]
+    services.set_finding_status(db, defect, ev["outcome"], eng.id, f"retest run #{r2.sequence}: {ev['reason']}")
+    db.commit()
+    # cryptanalysis toolkit (only when crax is connected): controls so a reviewer can see the detectors work
+    _tool(db, p, v11, eng, None, name="Signing-key hygiene: fresh RSA-2048 public keys (negative control)", control="rsa_real_keys")
+    _tool(db, p, v11, eng, None, name="Control: planted shared-prime and close-prime moduli (positive)", control="rsa_weak_moduli")
+    _tool_preset(db, p, v11, eng, "suite_curve_audit", 0, "Curve parameter audit: P-256 (negative control)")
+    _tool_preset(db, p, v11, eng, "suite_ecdsa_audit", 0, "Control: planted 192-bit ECDSA nonce bias (positive)")
+    _tool(db, p, v11, eng, None, name="Digest cross-check: suite SHA-256 vs Python hashlib", control="firmware_digest")
+    # attack assessments tied to the implementation
+    db.add_all([
+        AttackAssessment(project_id=p.id, implementation_id=v10.id, category="reproduced_weakness", attack_model="classical", target="acme-signer 1.0.0 verify() (adapter wrapper)",
+                         target_version="1.0.0", target_parameters={"algorithm": "Ed25519", "signature_bytes": 64},
+                         objective="Have a signature with appended data accepted, producing distinct signature bytes for the same message (replay-cache / ID confusion).",
+                         attacker_capabilities="Can submit arbitrary requests to a verifying service.", method="Append bytes to a valid signature.",
+                         source=f"Reproduced by platform runs #{r1.sequence} and #{erun.sequence}.", hardware_assumptions="None (deterministic input handling).",
+                         measured_components={"accepted_malformed_cases": erun.metrics.get("accepted_count"), "run_id": erun.id},
+                         expected_work={"value": 1, "unit": "request (deterministic)", "estimation_method": "directly reproduced; no search involved"},
+                         uncertainty="None for the acceptance itself; impact depends on the surrounding protocol.",
+                         applicability_limits="Not a forgery: the attacker still needs a valid signature. Impact exists only where signature bytes are used as identifiers.",
+                         run_id=erun.id, finding_id=defect.id, review_date=utcnow().date().isoformat(), is_demo=True),
+        AttackAssessment(project_id=p.id, implementation_id=v10.id, category="published_estimate", attack_model="classical", target="Ed25519 (scheme)", target_version="RFC 8032",
+                         target_parameters={"curve": "Curve25519", "group_order_bits": 253}, objective="Recover the private key or forge a signature.",
+                         attacker_capabilities="Best known classical algorithms (Pollard rho on the ~2^252 group).", method="Generic elliptic-curve discrete logarithm.",
+                         source="Bernstein, Duif, Lange, Schwabe, Yang, 'High-speed high-security signatures' (2011); RFC 8032 design target ~128-bit security.",
+                         hardware_assumptions="Not quantified here.", expected_work={"value": None, "unit": "", "log2_work": 126, "estimation_method": "published design-level estimate (~2^126 curve operations); not measured"},
+                         uncertainty="Design-level; no practical attack is known.", applicability_limits="Says nothing about wrapper or implementation defects.",
+                         review_date=utcnow().date().isoformat(), is_demo=True),
+        AttackAssessment(project_id=p.id, implementation_id=v10.id, category="published_estimate", attack_model="quantum", target="Ed25519 (scheme)", target_version="RFC 8032",
+                         target_parameters={"curve": "Curve25519"}, objective="Recover the private key with Shor's algorithm.",
+                         attacker_capabilities="Hypothetical large fault-tolerant quantum computer.", method="Shor's algorithm for elliptic-curve discrete logarithms.",
+                         source="Published logical-resource estimates exist for 256-bit-class curves (e.g. Roetteler, Naehrig, Svore, Lauter, ASIACRYPT 2017). No date is asserted.",
+                         hardware_assumptions="Far beyond any publicly reported device.", expected_work=None,
+                         uncertainty="Resource estimates have changed by large factors over time.", applicability_limits="Classical and quantum records are separate.",
+                         review_date=utcnow().date().isoformat(), is_demo=True),
+        AttackAssessment(project_id=p.id, implementation_id=v11.id, category="unknown", attack_model="classical", target="acme-signer 1.1.0 side-channel behaviour", target_version="1.1.0",
+                         target_parameters={}, objective="Timing or memory side channel in verify().", attacker_capabilities="Co-located observer.",
+                         method="Not measured; a timing harness is not allowlisted yet.", source="Experiment proposal (proposal only).", expected_work=None,
+                         uncertainty="Unknown.", applicability_limits="No defensible estimate available.", review_date=utcnow().date().isoformat(), is_demo=True)])
     db.commit()
     return p
 
@@ -406,17 +346,18 @@ def ensure_seed():
         if db.scalar(select(User)):
             return
         users = {}
-        for email, name, pw, admin in DEMO_USERS:
-            u = User(email=email, name=name, password_hash=hash_password(pw), is_admin=admin)
+        for email, name, pw, adm in DEMO_USERS:
+            u = User(email=email, name=name, password_hash=hash_password(pw), is_admin=adm)
             db.add(u)
             users[email] = u
         db.flush()
-        admin, eng, rev = users["admin@isogeny.local"], users["engineer@customer.local"], users["reviewer@isogeny.local"]
-        p1 = seed_iot(db, admin, eng, rev)
-        p2 = seed_app(db, admin, eng, rev)
-        p3 = seed_showcase(db, admin, eng, rev)
-        audit.record(db, admin.id, "seed.completed", "system", None, None, {"projects": [p1.id, p2.id, p3.id]}, commit=True)
-        print(f"seeded demo projects: {p1.name} | {p2.name} | {p3.name}")
+        signing.ensure_platform_key_registered(db, users["admin@isogeny.local"].id)
+        p = seed_sample(db, users["admin@isogeny.local"], users["engineer@customer.local"], users["reviewer@isogeny.local"])
+        t = seed_toolkit_controls(db, users["admin@isogeny.local"], users["engineer@customer.local"], users["reviewer@isogeny.local"])
+        sc = seed_ct_audit(db, users["admin@isogeny.local"], users["engineer@customer.local"], users["reviewer@isogeny.local"])
+        audit.record(db, users["admin@isogeny.local"].id, "seed.completed", "system", None, None,
+                     {"project": p.id, "toolkit_project": t.id if t else None, "sidechannel_project": sc.id}, commit=True)
+        print(f"seeded sample project: {p.name}" + (f" | {t.name}" if t else " (crax not connected: toolkit control runs skipped)") + f" | {sc.name}")
 
 
 if __name__ == "__main__":

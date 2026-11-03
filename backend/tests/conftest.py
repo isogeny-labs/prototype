@@ -10,6 +10,7 @@ os.environ["IEL_DATABASE_URL"] = f"sqlite:///{_tmp}/test.sqlite3"
 os.environ["IEL_ARTIFACT_DIR"] = f"{_tmp}/artifacts"
 os.environ["IEL_WORKER"] = "external"
 os.environ["IEL_SKIP_SEED"] = "1"
+os.environ["IEL_PLATFORM_KEY_PATH"] = f"{_tmp}/keys/platform.pem"
 os.environ.pop("ANTHROPIC_API_KEY", None)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -88,6 +89,7 @@ def ok(r, code=200):
 def new_project(editor, reviewer, **body):
     """Create a project as the admin (owner); add `editor` as editor and `reviewer` as reviewer so role checks are exercised."""
     adm = Actor(editor.c, "admin")
+    body.setdefault("name", "test project")
     p = ok(adm.post("/api/projects", json=body))
     ok(adm.post(f"/api/projects/{p['id']}/members", json={"email": USERS["engineer"][0], "role": "editor"}))
     ok(adm.post(f"/api/projects/{p['id']}/members", json={"email": USERS["reviewer"][0], "role": "reviewer"}))

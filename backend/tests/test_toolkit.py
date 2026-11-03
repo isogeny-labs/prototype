@@ -122,30 +122,40 @@ def test_toolkit_api_catalog_run_and_portfolio(engineer, reviewer, monkeypatch, 
     assert tk["suite"]["available"] and len(tk["suite"]["sha256"]) == 64
     assert {t["id"] for t in tk["tools"]} == set(TOOLS)
     assert any(c.get("generated") for t in tk["tools"] for c in t["controls"])
-    pid = new_project(engineer, reviewer, name="toolkit api", kind="iot")["id"]
-    impl = ok(engineer.post(f"/api/projects/{pid}/implementations", json={"name": "verifier", "version": "1", "role": "candidate", "profile_id": "ml_dsa_65"}))
+    pid = new_project(engineer, reviewer, name="toolkit api")["id"]
+    impl = ok(engineer.post(f"/api/projects/{pid}/implementations/import", json={"manifest": {"name": "verifier", "version": "1", "adapter_kind": "results_only", "algorithm": "RSA-2048"}}))
     bad = engineer.post(f"/api/projects/{pid}/toolkit/run", json={"tool": "suite_rsa_key_audit", "implementation_id": impl["id"], "params": {"moduli": ["x"]}})
     assert bad.status_code == 400 and "decimal" in bad.json()["detail"]
     assert engineer.post(f"/api/projects/{pid}/toolkit/run", json={"tool": "rm", "implementation_id": impl["id"]}).status_code == 400
     run = ok(engineer.post(f"/api/projects/{pid}/toolkit/run", json={"tool": "suite_rsa_key_audit", "implementation_id": impl["id"],
                                                                     "params": {"moduli": ["15", "21"], "synthetic": True, "expect": "weakness_detected"}}))
-    assert run["status"] == "completed" and run["overall_pass"] is True
+    assert run["status"] == "completed" and run["classification"] == "passed_defined_checks" and run["execution_mode"] == "platform_sandbox"
+    assert run["runner_kind"] == "cryptanalysis_suite" and run["requirement_results"] == []   # operational limits do not apply to suite tools
+    assert run["bundle_id"]                                                                  # platform-signed like every sandbox run
     listed = ok(engineer.get(f"/api/projects/{pid}/toolkit/runs"))
     assert listed[0]["tool"] == "suite_rsa_key_audit" and listed[0]["metrics"]["weak_moduli"] == 2
+    # toolkit runs must not leak into the core coverage table, untested list or latest-benchmark panel
+    ov = ok(engineer.get(f"/api/projects/{pid}/overview"))
+    assert list(ov["coverage"][0]["tests"]) == ["signature-library-core"] and not any("Toolkit" in u for u in ov["untested"])
+    assert ov["latest_benchmark"] is None or ov["latest_benchmark"]["execution_mode"] != "platform_sandbox" or "weak_moduli" not in ov["latest_benchmark"]["metrics"]
     detail = ok(engineer.get(f"/api/projects/{pid}/runs/{run['id']}"))
-    assert detail["experiment"]["definition"]["contract"].startswith("crax --json rsa")
+    assert detail["test"]["definition"]["contract"].startswith("crax --json rsa") and detail["inputs"]["tool"] == "suite_rsa_key_audit"
+    # a real (non-synthetic) weak finding opens an implementation_defect finding with the recovered secret redacted
+    real = ok(engineer.post(f"/api/projects/{pid}/toolkit/run", json={"tool": "suite_rsa_key_audit", "implementation_id": impl["id"], "params": {"moduli": ["15", "21"]}}))
+    assert real["classification"] == "failed" and real["exclusions"]
+    assert any(f["kind"] == "implementation_defect" for f in ok(engineer.get(f"/api/projects/{pid}/findings")))
     pf = ok(engineer.get("/api/research/portfolio"))
     assert pf["provenance"] == "imported" and len(pf["source"]["sha256"]) == 64 and pf["rows"]
     assert all("ratio_rho" in r and "validation_status" in r for r in pf["rows"])
 
 
-def test_suite_tools_ignore_profile_fixture_params():
-    """A catalog profile's `scheme` (firmware fixture) must never reach a suite tool such as the lattice estimate."""
+def test_suite_tools_ignore_profile_and_snapshot_params():
+    """A catalog profile or a customer snapshot must never reach a suite tool: only the recorded parameters do."""
     from app.services import build_run_request
-    from app.models import Experiment, Implementation
-    exp = Experiment(project_id="p", name="x", fixture="suite_mlwe_estimate", definition={"params": {"scheme": "ml-dsa-44"}})
-    impl = Implementation(project_id="p", name="v", version="1", role="candidate", profile_id="ml_dsa_65", configuration={"fixture_params": {"scheme": "evil"}})
-    assert build_run_request(None, exp, impl).params == {"scheme": "ml-dsa-44"}
+    from app.models import TestDefinition, Implementation
+    t = TestDefinition(project_id="p", test_id="suite-mlwe", version="1", name="x", fixture="suite_mlwe_estimate", definition={"params": {"scheme": "ml-dsa-44"}})
+    impl = Implementation(project_id="p", name="v", version="1", adapter_kind="profile", profile_id="ml_dsa_65", configuration={"fixture_params": {"scheme": "evil"}})
+    assert build_run_request(None, t, impl).params == {"scheme": "ml-dsa-44"}
 
 
 # ---------------------------------------------------------------- the real suite (skipped when crax is not built)

@@ -1,55 +1,39 @@
-# MVP scope: what is real, what is imported or simulated, what is out of scope
+# Scope: real, imported, simulated, unavailable, out of scope
 
-Stated before coding and kept current with the implementation.
-
-## Works for real in this MVP
-
-| Area | What actually runs |
+## Real (executed and tested in this repository)
+| Area | What runs |
 |---|---|
-| Backend API | FastAPI, SQLite via SQLAlchemy (relational), bearer-token auth, per-project roles (owner/editor/reviewer/viewer), audit events with secret scrubbing, log redaction filter. |
-| Artifact storage | Content-addressed files under `data/artifacts/`, SHA-256 recorded on every artifact, integrity re-check on read. |
-| Background job queue | `jobs` table + in-process worker thread (`IEL_WORKER=thread`, default) or external process (`python -m app.worker`). Jobs: fixture runs, research reviews, sandbox executions. |
-| Runner interface | `backend/runners/base.py`. Supported runner: `local_fixture` (fresh `python -I` subprocess, empty environment, wall-clock/CPU/address-space/process rlimits, allowlisted fixtures only). `import` runner ingests external result documents with schema validation. |
-| Cryptanalysis suite toolkit | Optional `cryptanalysis_suite` runner with ten allowlisted `crax` tools (`backend/runners/suite_tools.py`): curve parameter audit, attack-cost model, structural weak-curve analysis, ECDSA signature-transcript audit, RSA public-key hygiene audit, ML-KEM/ML-DSA lattice estimate, and bounded research demos (toy rho, toy factoring, reduced-round AES, digest KAT). Typed, bounded parameters; the adapter builds argv; empty environment; shared wall-clock plus CPU/address-space/process limits. Every tool ships negative and positive controls; secrets recovered from non-synthetic targets are redacted. Raw JSON, binary SHA-256, checks, metrics and limitations land in the same append-only evidence model. |
-| Research portfolio | Read-only, imported snapshot of the index-calculus leaderboard (`seeds/research_portfolio.json`, from `isogeny-labs/crypto` `docs/ic/leaderboard.json`, commit and SHA-256 pinned): each row's ratio to the matched Pollard rho as distance remaining, its validation-gate status, the family definitions and the research timeline. Nothing is recomputed. |
-| Side-channel audit | `ct_audit` runner (`backend/runners/ct_audit_runner.py`): the crypto crate's dynamic constant-time harness (`ct_dynamic_audit`, isogeny-labs/crypto #3296) under Valgrind for one allowlisted target — Memcheck taint tracking of the secret (every secret-dependent branch/address, split into library vs harness sites) and Callgrind instruction counts over four secret classes, with positive/negative controls. Fixed argv, fresh temporary directory, no inherited environment. When the binary is not present (the hosted demo), the frozen run of #3296 is imported as hash-pinned *imported* evidence (`seeds/ct_audit_snapshot.json`). Failing targets open measurement findings. Not a constant-time proof: no conditional moves, cache or port effects, no clocks. |
-| Firmware-signing fixture | Real signatures with RSA-2048/3072 (PKCS#1 v1.5 / PSS), ECDSA P-256, Ed25519 (OpenSSL via `cryptography`) and ML-DSA-44/65/87 (FIPS 204, pure-Python reference `dilithium-py`). Reference bootloader-style verifier; 11 acceptance/rejection scenarios (tampered image, wrong key, truncated/empty/corrupted signature, anti-rollback, manifest swap, malformed manifest, bad header, length mismatch); timing distribution, tracemalloc peak (definition stated), signature/public-key/package sizes. |
-| Application fixture | Real JWS-style token signing (RS256/PS256/ES256/EdDSA) and AEAD (AES-128/256-GCM, ChaCha20-Poly1305): correctness, malformed-input rejection, latency distribution, throughput, token/ciphertext sizes. |
-| Requirement evaluation | Customer-defined limits evaluated per run, with `applies_to` (all/measured/imported) so device-only limits are never applied to host runs. Failed requirements open measurement findings automatically. |
-| Append-only evidence | Runs are never edited; corrections create a new run with `supersedes_run_id` and a mandatory note. Every run keeps experiment definition, runner/fixture versions, environment, commands, repeat counts, raw output artifact + hash, failures, exclusions, limitations, requirement results. |
-| Recommendations | Generated from a curated catalog (`backend/app/catalog.py`) within the same purpose only; complete approach (what/why, threat model, references, compatibility + explicit bootloader/slot warnings, trade-offs, integration, evidence needed, limitations, retest plan). "No immediate migration recommended" is produced when justified. Human review decisions are separate `Approval` records; authors cannot approve their own items. |
-| Feedback loop | Finding → affected implementation → remediation proposal → reviewer approval → new implementation version (parent/child, superseding) → rerun/import → retest record (a failed retest keeps the finding open) → comparison → close/reopen. Status transitions are gated server-side. |
-| Auto-researcher | URL/document submission (content stored as untrusted data, never executed), rule-based extraction + inventory/implementation matching, claim status published vs independently reproduced, follow-up proposal, finding lifecycle New → … → Closed. Optional Anthropic adapter when `ANTHROPIC_API_KEY` is set (schema-validated output, then re-matched by the same rules). |
-| Attack-cost view | Four categories kept apart; validation refuses numeric work for category D, refuses estimates derived from verification speed, refuses calendar dates for quantum practicality; category-B derivation only for synthetic toy moduli ≤ 80 bits, otherwise "No defensible estimate available". Optional user-supplied compute price. |
-| Sandbox | Proposals separate from executions; execution requires reviewer approval AND an allowlisted fixture with bounded parameters; one bounded toy experiment (Pollard rho on ≤ 64-bit synthetic semiprimes) runs for real in the isolated runner and records a category-A assessment. |
-| Evidence package | Zip export with every record table, every artifact, runner descriptions and a SHA-256 manifest; `/api/export/verify` re-checks a package. |
-| Tests | `backend/tests`: the 10-step IoT loop, the containerised application loop with a real fixture run, fixtures, runners, attack-cost rules, sandbox gating, auth/audit/redaction. |
+| Import | JSON manifest + source snapshot (.py or .zip). Static AST compatibility check against the adapter interface and import allowlist; private-key formats rejected; nothing executes on import. |
+| Core test | `signature_library` fixture: valid signatures accepted; modified message, wrong key, random/corrupted/truncated/trailing/empty/zero signatures rejected; RFC 8032 §7.1 Ed25519 test vector verified and reproduced; sign/verify latency distributions, throughput, signature and key sizes, tracemalloc peak (definition stated). Works with catalog profiles (Ed25519, ECDSA P-256, RSA via `cryptography`/OpenSSL; ML-DSA via pure-Python reference) and customer adapter modules. |
+| Platform sandbox | Subprocess with `unshare -rn` network namespace (or interpreter socket block when unavailable, recorded on the run), CPU/memory/process rlimits, `python -I`, empty environment, read-only staged snapshot, pinned platform dependencies only. |
+| Customer-side runner | `iel_tools/runner.py`: runs the same versioned fixtures locally and emits a DSSE-wrapped in-toto bundle signed with a local Ed25519 key. |
+| Bundle import | Signature + expected signer (trust policy), artifact digests, schema, project/implementation/test binding, duplicate (`run_id`) and stale flags, receipt time vs runner-reported time, ingestion-receipt countersignature, original envelope preserved. |
+| Standalone verifier | `iel_tools/verify.py` with only `cryptography` as dependency. |
+| Labels | imported / hash_checked / signature_verified / independently_replayed (platform replay of an imported run). |
+| Autoresearcher | Rule-based extraction from submitted documents (treated as data), inventory matching, "Propose experiments" producing complete proposals; reviewer approval freezes versioned protocols; amendments create new versions. |
+| Allowlisted experiments | `malformed_input_sweep` (against the customer adapter) and `toy_factoring` (synthetic ≤64-bit moduli). Nothing else executes; AI-generated code never runs. |
+| Recommendations & handoff | Rule-built recommendation with evidence refs, authoritative guidance, retest plan; JSON/HTML engineering handoff; compliance evidence template (PCI DSS v4.0.1 12.3.3, EU 2024/1774 Art. 6(4)-(5)) with not_mapped / not_applicable / insufficient_evidence statuses and the required disclaimer. |
+| Versioned retest | Import revised version linked to a recommendation → awaiting_retest → retest evaluation (resolved within tested scope / still failing / inconclusive), comparison with limits. |
+| Platform | Auth, project roles, audit with secret scrubbing, append-only runs, job queue, evidence package export with SHA-256 manifest. |
+| Cryptanalysis toolkit (supporting component) | Optional `cryptanalysis_suite` runner with ten allowlisted, bounded `crax` tools (`backend/runners/suite_tools.py`): curve parameter audit, attack-cost model, structural weak-curve analysis, ECDSA transcript audit, RSA public-key hygiene audit, ML-KEM/ML-DSA lattice estimate, toy rho, toy factoring, reduced-round AES, digest KAT. Typed parameters; adapter builds argv; minimal environment; rlimits; negative and positive controls; recovered secrets from non-synthetic targets redacted. Shown under Research & Experiments. The binary is built in CI; it is **not** present in the build environment used here, so tool execution was tested only against a fake suite (parameter bounds, argv, redaction, API). |
+| Side-channel audit (supporting component) | Optional `ct_audit` runner (`backend/runners/ct_audit_runner.py`): the crypto crate's `ct_dynamic_audit` harness (isogeny-labs/crypto #3296) under Valgrind for one allowlisted target. Memcheck taint of the secret (library vs harness sites) and Callgrind instruction counts over four secret classes, with positive and negative controls; an A/A arm that already varies makes the instruction-count verdict *not applicable*, never a pass. Fixed argv, fresh temporary directory, no inherited environment. Without the binary, the frozen #3296 run is imported (unsigned, `imported`, hash-pinned in `seeds/ct_audit_snapshot.json`). Not a constant-time proof: no conditional moves, cache or port effects, no clocks. |
+| Research portfolio (supporting component) | Read-only imported snapshot of the index-calculus leaderboard (`seeds/research_portfolio.json`, commit and SHA-256 pinned). Nothing recomputed. |
 
-## Hosted demo
+## Imported
+Customer-runner bundles and unsigned existing-result documents are imported evidence. The sample project's customer bundle is
+produced by the real runner at seed time with a demo key stored under `data/keys/`.
 
-The GitHub Pages site is a static, read-only snapshot generated by `scripts/build_static_site.py`. It shows real output of
-the app (fixtures and every suite tool's controls executed on the CI runner at build time, plus the imported research portfolio) but has no backend:
-no logins, no writes, no new runs. The exact suite source revision is pinned in `.github/workflows/pages.yml` and the
-executed binary hash is retained in each run.
+## Simulated / demonstration (labelled)
+The sample project, its seeded defect (`acme-signer 1.0.0` keeps only the first 64 signature bytes), the paraphrased research
+document, the published attack-cost entries and the compliance control summaries. Control mappings are provisional.
 
-## Imported or simulated (clearly labelled in the UI)
+## Unavailable here
+The `crax` suite binary (toolkit runs are skipped at seed time and the runner reports itself unavailable; CI builds it),
+Cairn checker (no endpoint; the `cairn_verified` label is never applied), AI provider (rule-based unless `ANTHROPIC_API_KEY`
+is set), Docker sandbox and the runner container image (no daemon in the build environment; untested).
 
-* **On-device measurements** (verify time, stack high-water mark, flash size) are imported from `seeds/hw_*.json` and labelled **illustrative**. They are plausible placeholders, not lab results.
-* **Seeded research findings** come from paraphrased demonstration documents in `seeds/research_docs/` and are flagged **demo**.
-* **Published attack-cost entries** in the seed are category C/D summaries of public results, flagged demo; no numeric cost is fabricated.
-* **ML-DSA timings** come from a pure-Python reference implementation; every run records this as a limitation.
-* **AI extraction** falls back to rule-based keyword extraction when no provider key is configured (the default here).
-
-## Out of scope / not implemented (and not claimed)
-
-* Repository scanning of customer code (future integration; the inventory import is JSON/manual).
-* Arbitrary cryptanalysis-suite commands, user-provided argv, long-running attack/search workflows, GPU workers and
-  suite filesystem workflows. Only the ten bounded tools named above are connected; the research demos run toy or
-  reduced-round instances only.
-* Live research data: the portfolio is a pinned snapshot refreshed by `scripts/import_research_portfolio.py`, not a feed.
-* Real device/hardware runners. `runners/hardware_runner.py` documents the interface and refuses to run.
-* The Docker runner is implemented but **was not validated** (no Docker daemon in the build environment); it reports itself unavailable and untested.
-* Scheduled research monitoring (the same submission interface can be scheduled later).
-* Tenant isolation, CI/CD integrations, automated deployment, key rotation, trust-anchor changes, firmware delivery. The platform only produces proposed-change records.
-* Fault-injection measurement, power/EM side channels, and wall-clock timing studies. (Software side channels are
-  covered only by the bounded instruction-level audit below: secret-dependent branches/addresses and instruction counts.)
+## Out of scope
+Repository integrations, continuous monitoring, IoT/application adapters beyond placeholders, compliance management,
+automatic patching/deployment/key rotation, production readiness or tenant isolation claims, fault injection, power/EM
+side channels and wall-clock timing studies (software side channels are covered only by the bounded instruction-level
+audit above).

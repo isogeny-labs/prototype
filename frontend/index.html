@@ -3,23 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
 <title>Isogeny Evidence Lab</title>
-<link rel="stylesheet" href="/static/styles.css">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="assets/isogeny-symbol-dark.png" type="image/png">
+<script>
+// Local asset paths (configurable). The supplied logos are used as-is; only padding is trimmed.
+window.IEL_ASSETS = {
+  logoDark: "assets/isogeny-labs-dark-trimmed.png",      // header / sign-in (dark background)
+  logoLight: "assets/isogeny-labs-light-trimmed.png",    // printable exports (white background)
+  symbolDark: "assets/isogeny-symbol-dark.png",          // symbol-only crop of the supplied artwork
+  logoAlt: "Isogeny Labs logo: blue-to-ivory mathematical linework symbol beside the ISOGENY LABS wordmark"
+};
+</script>
 </head>
 <body>
 <header id="topbar">
-  <a href="#/" class="brand">Isogeny <span>Evidence Lab</span></a>
-  <nav id="projnav"></nav>
+  <a href="#/" class="brand" aria-label="Isogeny Labs — Evidence Lab home">
+    <img id="brandlogo" src="assets/isogeny-labs-dark-trimmed.png" alt="Isogeny Labs logo: blue-to-ivory mathematical linework symbol beside the ISOGENY LABS wordmark">
+    <span class="product">Evidence Lab</span>
+  </a>
+  <nav id="projnav" aria-label="Project sections"></nav>
   <div class="spacer"></div>
-  <span id="whoami"></span>
-  <a href="#/toolkit" class="navlink">Toolkit</a>
-  <a href="#/research" class="navlink">Research</a>
+  <span id="whoami" class="muted"></span>
   <a href="#/system" class="navlink">System</a>
-  <button id="logout" class="ghost">Sign out</button>
+  <button id="logout" class="ghost sm">Sign out</button>
 </header>
 <main id="app"></main>
-<footer>Continuous assurance / assisted remediation. Passing tests is not proof of security. Hashes support integrity checking, not scientific validity.
-  Labels: <b class="prov measured">measured</b> = executed by this platform · <b class="prov imported">imported</b> = external evidence (schema+hash checked) · <b class="prov illustrative">illustrative</b> = demonstration data.</footer>
-<script src="/static/app.js"></script>
+<footer>
+  <span>Passing the defined checks is not proof of security. Hashes support integrity checking, not scientific validity.</span>
+  <span>Provenance: <b class="prov measured">measured</b> executed by a runner · <b class="prov imported">imported</b> external document · <b class="prov illustrative">illustrative</b> demonstration data.
+  Labels: imported · hash-checked · signature-verified · Cairn-verified · independently replayed — none means “secure” or “compliant”.</span>
+</footer>
+<script src="app.js"></script>
 </body>
 </html>

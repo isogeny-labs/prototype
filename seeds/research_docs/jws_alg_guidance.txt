@@ -1,3 +1,0 @@
-DEMONSTRATION DOCUMENT — paraphrase prepared for the Isogeny Evidence Lab seed.
-
-Guidance for JSON Web Signature deployments: RS256 (RSA-2048 with PKCS#1 v1.5) remains widely deployed but RFC 8017 recommends PSS for new designs, and RSA-2048 falls under the same 2030/2035 deprecation timeline as other 112-bit-strength algorithms in the NIST IR 8547 draft. Services using PyJWT should pin the accepted algorithm list on the verifier to prevent algorithm confusion, and should evaluate ES256 or EdDSA (RFC 8037) for smaller tokens and faster signing. Independent benchmarks published by several teams show Ed25519 signing is more than an order of magnitude faster than RSA-2048 signing on commodity x86-64; this claim was independently reproduced by multiple parties.

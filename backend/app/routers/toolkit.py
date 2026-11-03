@@ -1,4 +1,7 @@
-"""Cryptanalysis-suite toolkit: tool catalog, one-step bounded tool runs, and the imported research portfolio."""
+"""Cryptanalysis-suite toolkit (supporting component of Research & Experiments): tool catalog, one-step bounded tool
+runs against an implementation, and the imported research portfolio. Each tool run is an append-only platform run
+(through the tool's own runner: `cryptanalysis_suite` or `ct_audit`) under a per-project test definition named after
+the tool."""
 from __future__ import annotations
 
 import json
@@ -9,7 +12,7 @@ from sqlalchemy import select
 
 from ..auth import current_user
 from ..config import SEED_DIR
-from ..models import Experiment, Implementation, Run, User
+from ..models import TestDefinition, Implementation, Run, User
 from .. import audit, controls, jobs, services
 from runners import get_runner
 from runners.suite_runner import suite_identity
@@ -33,7 +36,8 @@ def toolkit(user: User = Depends(current_user)):
             "boundary": ["Only the tools listed here can run; each builds its own argv from typed, bounded parameters.",
                          "No executable, subcommand, flag, path or environment value is accepted from callers.",
                          "Every run is an append-only evidence record with argv, binary SHA-256, raw JSON and limitations.",
-                         "Secrets recovered from non-synthetic targets are redacted from stored evidence."]}
+                         "Secrets recovered from non-synthetic targets are redacted from stored evidence.",
+                         "Tool runs analyse public material supplied as parameters; they never execute the customer's source snapshot."]}
 
 
 class ToolRunIn(BaseModel):
@@ -44,26 +48,34 @@ class ToolRunIn(BaseModel):
     name: str = ""
 
 
+def tool_test_definition(db, project, tool) -> TestDefinition:
+    """One versioned test definition per tool per project (test_id = tool id)."""
+    t = db.scalar(select(TestDefinition).where(TestDefinition.project_id == project.id, TestDefinition.test_id == tool.id))
+    if not t:
+        t = TestDefinition(project_id=project.id, test_id=tool.id, version="1", name=f"Toolkit: {tool.title}", fixture=tool.id,
+                           definition={"contract": tool.operation, "tool": tool.id, "params": {}}, acceptance_criteria=list(tool.acceptance),
+                           resource_limits={"timeout_s": 120, "memory_mb": 1024, "cpu_s": 120}, description=tool.question)
+        db.add(t)
+        db.flush()
+    return t
+
+
 def create_tool_run(db, project, impl, user, tool_id: str, params: dict, name: str = "", control_note: dict | None = None):
-    """Create a tool experiment and a queued run; returns (experiment, run). Validation errors raise ParamError."""
+    """Create a queued tool run; returns (test definition, run). Validation errors raise ParamError."""
     tool = TOOLS[tool_id]
     validated = tool.validate(params)
     tool.build(validated)  # surfaces cross-field errors before anything is recorded
-    defn = {"params": params, "contract": tool.operation, "tool": tool.id}
-    if control_note:
-        defn["control"] = control_note
-    label = name or (f"Control: {control_note['name']}" if control_note else f"{tool.title}")
-    exp = Experiment(project_id=project.id, name=label[:200], fixture=tool.id, definition=defn, acceptance_criteria=tool.acceptance,
-                     description=tool.question)
-    db.add(exp)
-    db.flush()
+    t = tool_test_definition(db, project, tool)
     runner = get_runner(tool.runner)
-    run = services.create_run_record(db, project.id, exp.id, impl.id, runner.kind, runner.provenance, user.id)
-    job = jobs.enqueue(db, "run_fixture", {"run_id": run.id, "runner_kind": runner.kind, "params": {}, "actor_id": user.id})
+    run = services.create_run_record(db, project.id, t.id, impl.id, "platform_sandbox", runner.kind, runner.provenance, user.id)
+    run.inputs = {"tool": tool.id, "params": params, "record_name": name or (f"Control: {control_note['name']}" if control_note else tool.title),
+                  **({"control": control_note} if control_note else {})}
+    run.correction_note = ""
+    job = jobs.enqueue(db, "run_test", {"run_id": run.id, "runner_kind": runner.kind, "params": params, "actor_id": user.id})
     run.job_id = job.id
     audit.record(db, user.id, "toolkit.run_queued", "run", run.id, project.id, {"tool": tool.id, "control": (control_note or {}).get("control")})
     db.commit()
-    return exp, run
+    return t, run
 
 
 @router.post("/projects/{project_id}/toolkit/run")
@@ -93,19 +105,20 @@ def run_tool(body: ToolRunIn, ctx=Depends(editor)):
 @router.get("/projects/{project_id}/toolkit/runs")
 def tool_runs(ctx=Depends(viewer)):
     project, db, _ = ctx
-    exps = {e.id: e for e in db.scalars(select(Experiment).where(Experiment.project_id == project.id, Experiment.fixture.in_(list(TOOLS)))).all()}
-    runs = db.scalars(select(Run).where(Run.project_id == project.id, Run.experiment_id.in_(list(exps))).order_by(Run.sequence.desc())).all()
+    tests = {t.id: t for t in db.scalars(select(TestDefinition).where(TestDefinition.project_id == project.id, TestDefinition.fixture.in_(list(TOOLS)))).all()}
+    if not tests:
+        return []
+    runs = db.scalars(select(Run).where(Run.project_id == project.id, Run.test_definition_id.in_(list(tests))).order_by(Run.sequence.desc())).all()
     impls = {i.id: i for i in db.scalars(select(Implementation).where(Implementation.project_id == project.id)).all()}
     out = []
     for r in runs:
-        e = exps[r.experiment_id]
         i = impls.get(r.implementation_id)
-        out.append({"id": r.id, "sequence": r.sequence, "status": r.status, "overall_pass": r.overall_pass, "metrics": r.metrics,
-                    "created_at": r.created_at.isoformat() if r.created_at else None, "tool": e.fixture, "experiment_name": e.name,
-                    "control": (e.definition or {}).get("control"), "implementation_label": f"{i.name} {i.version}" if i else "?",
-                    "provenance": r.provenance, "runner_kind": r.runner_kind,
-                    "scenarios_passed": sum(1 for s in r.scenarios or [] if s.get("pass")), "scenarios_total": len(r.scenarios or []),
-                    "failures": r.failures, "exclusions": r.exclusions})
+        inp = r.inputs or {}
+        out.append({"id": r.id, "sequence": r.sequence, "status": r.status, "classification": r.classification, "overall_pass": r.overall_pass, "metrics": r.metrics,
+                    "created_at": r.created_at.isoformat() if r.created_at else None, "tool": tests[r.test_definition_id].fixture,
+                    "record_name": inp.get("record_name") or tests[r.test_definition_id].name, "control": inp.get("control"),
+                    "implementation_label": f"{i.name} {i.version}" if i else "?", "scenarios_passed": sum(1 for s in r.scenarios or [] if s.get("pass")),
+                    "scenarios_total": len(r.scenarios or []), "provenance": r.provenance, "runner_kind": r.runner_kind, "failures": r.failures, "exclusions": r.exclusions, "labels": [l["label"] for l in r.evidence_labels]})
     return out
 
 

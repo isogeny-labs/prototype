@@ -103,8 +103,8 @@ def test_toolkit_api_reports_per_tool_availability_and_refuses_when_unavailable(
     ct = next(t for t in tk["tools"] if t["id"] == "sidechannel_ct_audit")
     assert ct["runner"] == "ct_audit" and ct["available"] is False and "IEL_CT_AUDIT_BIN" in ct["unavailable_reason"]
     assert "Side channels" in tk["families"]
-    pid = new_project(engineer, reviewer, name="sidechannel api", kind="application")["id"]
-    impl = ok(engineer.post(f"/api/projects/{pid}/implementations", json={"name": "lib", "version": "1", "role": "baseline"}))
+    pid = new_project(engineer, reviewer, name="sidechannel api")["id"]
+    impl = ok(engineer.post(f"/api/projects/{pid}/implementations/import", json={"manifest": {"name": "lib", "version": "1", "adapter_kind": "results_only", "algorithm": "X25519"}}))
     res = engineer.post(f"/api/projects/{pid}/toolkit/run", json={"tool": "sidechannel_ct_audit", "implementation_id": impl["id"], "params": {"target": "x25519"}})
     assert res.status_code == 409 and "unavailable" in res.json()["detail"]
 

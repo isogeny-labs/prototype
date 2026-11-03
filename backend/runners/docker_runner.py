@@ -17,11 +17,11 @@ from .base import Runner, RunRequest, RunResult, parse_output, validate_fixture_
 
 FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures"
 IMAGE = os.environ.get("IEL_DOCKER_IMAGE", "python:3.13-slim")
-ALLOWED_FIXTURES = {"firmware_signing", "app_service_crypto", "toy_factoring"}
+ALLOWED_FIXTURES = {"signature_library", "malformed_input_sweep", "toy_factoring"}
 
 
 class DockerFixtureRunner(Runner):
-    kind = "docker_fixture"
+    kind = "docker_sandbox"
     version = "0.1.0"
     provenance = "measured"
     fixtures = tuple(sorted(ALLOWED_FIXTURES))

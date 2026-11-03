@@ -34,7 +34,7 @@ reimplementing attacks in Python, parsing Markdown reports, or treating a catalo
 
 The runner exposes ten allowlisted tools, declared in `backend/runners/suite_tools.py`. Each declares typed, bounded
 parameters, builds its own argv, parses the suite JSON into metrics (with definitions), scenarios and failures, and states
-its limitations. The UI (Toolkit screen, per project) renders forms from these declarations.
+its limitations. The UI (Research & Experiments → Cryptanalysis toolkit, per project) renders forms from these declarations. The toolkit and the research portfolio are supporting components of the Evidence Lab, not separate products.
 
 | Fixture | Family | Constructed argv (after `crax --json`) | Question it answers |
 |---|---|---|---|
@@ -53,7 +53,8 @@ Bounds: integers are decimal strings with a per-field bit limit (521 bits for cu
 4096 for RSA moduli, 128 for toy factoring); names (curves, schemes, models, algorithms, toy registry curves) are fixed
 choices; lists are capped (512 signatures, 32 moduli); inputs above 512 KiB of argv are refused. Keys a tool does not
 declare, or that do not apply to the selected mode, are dropped before argv is built. Suite tools receive only the
-parameters their experiment recorded: catalog profile parameters (for example a firmware `scheme`) are not merged in.
+parameters the run recorded: catalog profile parameters and the customer's source snapshot are never merged in, and
+no tool executes the customer's adapter.
 
 ### Controls
 
@@ -67,7 +68,7 @@ Every tool ships controls so a reviewer can see the detector work before trustin
   with a shared prime and a close-prime modulus, and a modulus with a ~500-bit private exponent (Wiener); all synthetic RSA controls are 2048-bit moduli.
 
 Static presets live beside each tool; controls that need fresh key material are generated server-side by
-`backend/app/controls.py` and record their source and what was planted in the experiment definition.
+`backend/app/controls.py` and record their source and what was planted in the run's `inputs.control`.
 
 ### Redaction of recovered secrets
 
@@ -118,7 +119,7 @@ The Pages workflow checks out `isogeny-labs/cryptanalysis` at
 `318b27bf3427ff9e349f5850c742fde703fcf6a8` (bumped 2026-11-02 from `c273e62`; the newer revision carries the `ecdsa`,
 `rsa`, `ecdlp`, `mlwe`, `rho`, `factor`, `aes-attack` and `hash` JSON reports the toolkit parses), builds only the
 `crax` binary with the locked dependency graph, and exposes its absolute path through `IEL_CRAX_BIN`. Seeding then
-executes every tool's controls across the three demo projects (26 suite runs). The static site contains those real build-time outputs and evidence downloads, but cannot execute a new
+executes the toolkit controls on the sample project and in the toolkit-controls demonstration project. The static site contains those real build-time outputs and evidence downloads, but cannot execute a new
 run in a visitor's browser.
 
 Updating the pinned suite revision is a deliberate source change. Review the JSON contract, rerun the adapter tests and
@@ -138,3 +139,12 @@ inspect the resulting raw evidence before changing the pin.
 * ML-KEM / ML-DSA numbers are closed-form estimates under a named model; they are quoted with the model and are not a
   FIPS 203/204 conformance result. The ML-DSA-44 margin, for example, depends on whether BKZ tours are charged.
 * The AES, rho and factoring tools run on toy or reduced-round instances and say nothing about deployed parameters.
+
+## Where toolkit runs live in the revised model
+
+Each tool has one versioned test definition per project (`test_id` = tool id, fixture = tool id). A tool run is an
+append-only platform run with runner `cryptanalysis_suite`, execution mode `platform_sandbox`, provenance `measured`,
+a platform-signed evidence bundle like every other sandbox run, and the typed parameters and control note in
+`Run.inputs`. Operational requirements (latency, sizes) are not evaluated against tool runs. A failed non-control run
+opens an `implementation_defect` finding for the implementation the evidence was filed under; recovered secrets are
+redacted and recorded as exclusions.

@@ -1,123 +1,84 @@
-# Isogeny Evidence Lab — MVP
+# Isogeny Labs — Evidence Lab (MVP)
 
-A cryptographic implementation, benchmarking and continuous-research platform. The product is one traceable loop:
+Test your cryptographic implementation. Understand the evidence. Improve with confidence.
 
-**Understand → Recommend → Implement → Benchmark & test → Record evidence → Research changes → Recommend remediation → Approve → Reimplement → Retest.**
+Customers import their existing signature implementation, run reproducible tests, investigate findings through proposed
+experiments, and receive evidence-backed guidance. The loop:
 
-Two workflows share one model: firmware signing / update verification for IoT devices, and library/configuration
-changes in a containerised application service. Read `docs/SCOPE.md` first: it states what runs for real, what is
-imported or illustrative, and what is out of scope.
+**Import implementation → Establish baseline → Run tests → Review findings → Autoresearcher proposes experiments →
+Human approves → Execute experiment → Recommend improvements → Customer implements changes externally → Import revised
+version → Retest.**
+
+Read `docs/SCOPE.md` first: it states what is real, imported, simulated, unavailable and out of scope.
 
 ## Run it
-
 ```bash
 pip install -r requirements.txt
-./scripts/dev_server.sh start          # seeds three demo projects on first start; http://127.0.0.1:8008
+./scripts/dev_server.sh start        # seeds the sample project on first start (real sandbox runs); http://127.0.0.1:8008
 ./scripts/dev_server.sh stop
-```
-
-Or by hand: `cd backend && python3 -m uvicorn app.main:app --port 8008`. The background worker runs as a thread by
-default; set `IEL_WORKER=external` and run `python -m app.worker` to run it as a separate process.
-
-Demo accounts (seeded): `engineer@customer.local` / `engineer-demo-password` (editor), `reviewer@isogeny.local` /
-`reviewer-demo-password` (reviewer), `admin@isogeny.local` / `admin-demo-password` (admin). Passwords are PBKDF2-hashed;
-sessions are bearer tokens stored hashed; logs redact tokens/keys.
-
-Configuration (environment): `IEL_DATA_DIR`, `IEL_DATABASE_URL`, `IEL_ARTIFACT_DIR`, `IEL_WORKER`, `IEL_RUNNER_TIMEOUT`,
-`IEL_RUNNER_MEMORY_MB`, `IEL_RUNNER_CPU_SECONDS`, `IEL_SKIP_SEED=1`, `ANTHROPIC_API_KEY` (optional AI adapter for
-research extraction; absent ⇒ rule-based extraction, shown in the UI), and `IEL_CRAX_BIN` (optional absolute path to
-the Isogeny Labs cryptanalysis suite's `crax` binary). When `IEL_CRAX_BIN` is absent, the suite runner also checks
-`PATH`; if no binary is found, the runner is shown as unavailable rather than silently simulated.
-
-## Cryptanalysis toolkit and research portfolio
-
-The Isogeny Labs cryptanalysis suite (`crax`) and the `crypto` crate's side-channel harness are connected as eleven bounded tools, each answering one engineering
-question and leaving an append-only evidence record:
-
-| Family | Tools |
-|---|---|
-| Curves & parameters | curve parameter audit · attack-cost model (rho / index calculus) · structural weak-curve analysis (singular, Smart, Pohlig–Hellman, MOV) |
-| Signatures & keys | ECDSA signature-transcript audit (biased / reused nonces, lattice key recovery) · RSA public-key hygiene audit (batch GCD, Fermat, Wiener) |
-| Post-quantum | ML-KEM / ML-DSA lattice-attack estimate under named cost models |
-| Symmetric & hash | reduced-round AES key recovery · digest known-answer cross-check |
-| Side channels | dynamic constant-time audit of the `crypto` crate under Valgrind (secret-dependent branches/addresses, instruction counts) |
-| Research demos | Pollard rho on toy curves · toy integer factoring |
-
-Every tool ships **controls**: negative controls must come back clean on correctly generated material (a real ES256
-transcript, fresh RSA-2048 keys, P-256); positive controls plant the weakness the tool claims to find (an anomalous
-curve, a biased nonce, a shared prime, a small private exponent). Screens: **Toolkit** (catalog, top bar), per-project
-**Toolkit** (forms rendered from each tool's typed parameters, controls, run history) and **Research** — a read-only,
-hash-pinned snapshot of the index-calculus leaderboard showing each row's distance remaining to the matched Pollard rho
-and its validation-gate status. Refresh it with `python3 scripts/import_research_portfolio.py /path/to/crypto`.
-
-Build `crax` (Rust ≥ 1.87) from the cryptanalysis repository and point the app at it:
-
-```bash
-cargo build --release --locked --manifest-path /path/to/cryptanalysis/suite/Cargo.toml --bin crax
-export IEL_CRAX_BIN=/path/to/cryptanalysis/suite/target/release/crax
-```
-
-For the side-channel tool, build `ct_dynamic_audit` in the crypto repository
-(`cargo build --release --bin ct_dynamic_audit`), install Valgrind, and set `IEL_CT_AUDIT_BIN`; without it, the frozen
-results of isogeny-labs/crypto #3296 are shown as imported evidence (`scripts/import_ct_audit.py` refreshes them).
-
-Seeding then runs 26 suite tool runs across three demo projects (about 35 s, most of it the full ECDSA lattice sweep).
-Details, bounds and the redaction rule: [`docs/SUITE_INTEGRATION.md`](docs/SUITE_INTEGRATION.md).
-
-## Hosted demo (GitHub Pages)
-
-GitHub Pages serves static files only, so the backend (API, fixtures, job queue) is **not** hosted there. The workflow
-`.github/workflows/pages.yml` runs the tests, checks out the cryptanalysis repository at the pinned revision recorded in
-that workflow, builds `crax`, then runs `scripts/build_static_site.py`. The builder boots the real app against a throw-away
-database, executes the seeded fixtures and every suite tool's controls, snapshots every API response the UI uses, and
-publishes a **read-only** copy of the UI. Browsing, drill-downs, comparisons and evidence downloads work; every write is
-disabled with an explanation. One-time setup: repository Settings → Pages → Source: **GitHub Actions**. Local preview:
-`python3 scripts/build_static_site.py site && python3 -m http.server -d site`.
-
-The suite boundary and source review are documented in [`docs/SUITE_INTEGRATION.md`](docs/SUITE_INTEGRATION.md).
-
-## Tests
-
-```bash
 cd backend && python3 -m pytest tests -q
 ```
+Demo accounts: `engineer@customer.local` / `engineer-demo-password` (editor), `reviewer@isogeny.local` / `reviewer-demo-password`
+(reviewer), `admin@isogeny.local` / `admin-demo-password` (admin, owner). Reviewers and owners approve; editors import and run.
 
-`test_feedback_loop_iot.py` walks the required 10-step demonstration through the HTTP API: create IoT project, import
-inventory, record baseline/candidate, run the fixture + import illustrative hardware results, detect the failed
-signature-slot requirement, add a research finding, generate/review a remediation, approve a new candidate (ML-DSA-44),
-rerun/import (including a failed retest that keeps the finding open and an append-only correction), compare, close,
-export and verify the evidence package. `test_feedback_loop_app.py` does the same on the containerised service with a
-real fixture run. `test_components.py` covers fixtures, runners, attack-cost rules, sandbox gating, auth and redaction.
-`test_toolkit.py` covers suite-tool parameter bounds, argv construction, secret redaction and the toolkit API with a fake
-suite; with `IEL_CRAX_BIN` set it also runs every tool's controls against the real binary (skipped otherwise).
+Environment: `IEL_DATA_DIR`, `IEL_DATABASE_URL`, `IEL_ARTIFACT_DIR`, `IEL_PLATFORM_KEY_PATH`, `IEL_WORKER` (`thread` | `external`,
+then `python -m app.worker`), `IEL_RUNNER_TIMEOUT|MEMORY_MB|CPU_SECONDS`, `IEL_SKIP_SEED=1`, `ANTHROPIC_API_KEY` (optional AI
+adapter for research extraction; absent ⇒ rule-based, labelled in the UI).
+
+## What the sample project shows (all produced at seed time, all labelled demonstration)
+1. `acme-signer 1.0.0` imported with a source snapshot; static compatibility check passes; **seeded defect**: `verify()` keeps only
+   the first 64 signature bytes, so signatures with trailing data verify.
+2. Platform-sandbox run of `signature-library-core@1`: valid signatures and the RFC 8032 vector pass; `trailing_byte` and
+   `trailing_garbage` fail → finding opened (reproduced).
+3. Customer-side runner bundle for 1.0.0 imported and verified (imported · hash-checked · signature-verified).
+4. Research source submitted; autoresearcher proposes a malformed-input sweep; reviewer approves protocol v1; the sandbox
+   executes it; result reviewed.
+5. Evidence-backed, project-specific recommendation (input validation) approved.
+6. `acme-signer 1.1.0` imported as the externally corrected version linked to the recommendation → awaiting retest.
+7. Retest passes → finding **resolved within tested scope**; comparison shows the fixed cases and no regressions.
+8. Exports: engineering handoff, signed evidence bundles (verify with `iel_tools/verify.py`), evidence package, optional
+   compliance template with missing evidence identified.
 
 ## Layout
-
 ```
-backend/app        FastAPI app: models, auth, audit, jobs, catalog, recommend, evaluate, research, attackcost, export, seed, routers/
-backend/runners    Runner interface + local/import/docker/hardware + cryptanalysis-suite adapter and tool registry (suite_tools.py)
-backend/fixtures   Standalone fixtures: firmware_signing, app_service_crypto, toy_factoring (stdin JSON → stdout JSON)
-backend/tests      Feedback-loop and component tests
-frontend/          Vanilla-JS single-page UI served by the backend
-seeds/             Inventories, illustrative hardware results, demonstration research documents, research_portfolio.json
-docs/              SCOPE.md, RUNNER_INTERFACE.md, DATA_MODEL.md
+backend/app       FastAPI app: models, auth, audit, jobs, compat (static snapshot checks), services (runs, bundles, import,
+                  replay, findings, retest), research (autoresearcher), recommend, attackcost, export, signing, seed, routers/
+backend/runners   platform_sandbox (unshare net ns + rlimits), imported_results, docker_sandbox (untested), cryptanalysis_suite + suite_tools
+backend/fixtures  signature_library (core), malformed_input_sweep (experiment), toy_factoring (experiment), adapters, vectors
+iel_tools         attest.py (DSSE + in-toto), runner.py (customer-side), verify.py (standalone), Dockerfile (untested)
+frontend          dark-mode single-page UI; assets/ holds the supplied logos (trimmed crops only)
+seeds             sample manifests, sample adapters (1.0.0 defect, 1.1.0 fix), demonstration research document, research_portfolio.json
+docs              SCOPE.md, ATTESTATION.md, RUNNER_INTERFACE.md, DATA_MODEL.md, SUITE_INTEGRATION.md
+scripts           dev_server.sh, build_static_site.py (read-only demo for GitHub Pages / single file), package_runner.sh
 ```
 
-## Screens
+## Cryptanalysis toolkit and research portfolio (supporting components)
+Under Research & Experiments: the Isogeny Labs cryptanalysis suite (`crax`) connected as ten bounded tools (curve audits,
+weak-curve analysis, ECDSA transcript and RSA key audits, ML-KEM/ML-DSA lattice estimates, toy demos), each with negative
+and positive controls, and a read-only, hash-pinned snapshot of the index-calculus research leaderboard. Build `crax`
+and point the app at it with `IEL_CRAX_BIN` (the Pages workflow does this); without it the runner reports itself
+unavailable and nothing is simulated. Details and bounds: `docs/SUITE_INTEGRATION.md`.
 
-Portfolio · Project overview (what changed / what we tested / what we learned / what to do next) · Inventory &
-requirements · Recommendation workspace & detail · Implementation workspace & detail · Evidence (runs, raw output,
-artifacts) · Toolkit (catalog + per-project workspace) · Research portfolio · Baseline-vs-candidate comparison · Research inbox & finding detail · Attack-cost research view ·
-Cryptanalysis sandbox · Version-to-version revalidation history · Audit · System (runners, catalog, jobs).
+A **side-channel** tool (`ct_audit` runner) runs the `crypto` crate's dynamic constant-time harness under Valgrind for one
+allowlisted target: Memcheck taint of the secret (secret-dependent branches and addresses, split into library and harness
+sites) and Callgrind instruction counts across secret classes, with positive and negative controls. Build
+`ct_dynamic_audit` in the crypto repository (`cargo build --release --bin ct_dynamic_audit`), install Valgrind and set
+`IEL_CT_AUDIT_BIN`. Without it, the frozen run of isogeny-labs/crypto #3296 is shown as hash-pinned imported evidence in
+the "Side-channel audit: crypto crate" project (`scripts/import_ct_audit.py` refreshes `seeds/ct_audit_snapshot.json`).
+
+## Customer-side runner and verifier
+See `iel_tools/README.md` and `docs/ATTESTATION.md`. Bundles are in-toto Statements in DSSE envelopes signed with Ed25519
+(`cryptography`). The platform accepts a bundle only after checking signature, expected signer, artifact digests, schema and
+project/implementation binding; duplicates and stale submissions are flagged, not counted.
+
+## Hosted read-only demo
+`.github/workflows/pages.yml` runs the tests, builds the sample project with real executions, snapshots the UI's API responses
+and publishes a read-only copy (writes disabled). `demo/iel-demo.html` is the same demo as a single file.
 
 ## Principles enforced in code
-
-* Every inventory fact and every run carries a provenance label; identifying an algorithm never implies its
-  implementation is secure; passing tests is not proof of security; hashes are for integrity, not validity.
-* Runs are append-only; corrections are new records.
-* Recommendations never cross purposes (signatures vs KEMs vs ciphers); "no immediate migration" is a valid outcome;
-  nothing is described as unconditionally secure or quantum-proof; no calendar date for quantum attacks is asserted.
-* Human approval records are required before a research finding changes a recommendation, before a candidate is
-  approved, and before a sandbox experiment runs. Authors cannot approve their own items.
-* A failed retest keeps a finding open. Nothing is deployed, rotated or replaced automatically.
-* Research documents are untrusted data: stored, hashed, pattern-matched, never executed.
+* Importing code never executes it; execution happens only in the isolated sandbox or on the customer's machine.
+* No production keys: private-key formats are rejected on upload; fixtures generate synthetic keys.
+* Runs are append-only; corrections are new records. Evidence labels are separate and composable; none means "secure" or "compliant".
+* Human approval before any experiment executes; only allowlisted fixtures run; protocol versions are never overwritten.
+* A reported fix never resolves a finding; only a valid retest of the revised version does. Nothing is deployed, patched or rotated by the platform.
+* Attack assessments never derive breaking time from signing/verification speed, never extrapolate toy results, never date quantum attacks.

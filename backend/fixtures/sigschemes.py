@@ -38,6 +38,12 @@ class Scheme:
     def pk_bytes(self, pk):
         raise NotImplementedError
 
+    def pk_from_bytes(self, b):
+        raise NotImplementedError("no raw public-key format for this scheme")
+
+    def sk_from_bytes(self, b):
+        raise NotImplementedError("no raw private-key format for this scheme")
+
 
 class _RSA(Scheme):
     bits = 2048
@@ -131,6 +137,12 @@ class Ed25519(Scheme):
     def pk_bytes(self, pk):
         return pk.public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
 
+    def pk_from_bytes(self, b):
+        return ed25519.Ed25519PublicKey.from_public_bytes(b)
+
+    def sk_from_bytes(self, b):
+        return ed25519.Ed25519PrivateKey.from_private_bytes(b)
+
 
 class _MLDSA(Scheme):
     library = "dilithium-py (pure-Python reference)"
@@ -157,6 +169,9 @@ class _MLDSA(Scheme):
 
     def pk_bytes(self, pk):
         return pk
+
+    def pk_from_bytes(self, b):
+        return bytes(b)
 
 
 @register("ml_dsa_44")
