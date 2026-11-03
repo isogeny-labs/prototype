@@ -161,7 +161,7 @@ def test_suite_tools_ignore_profile_and_snapshot_params():
 # ---------------------------------------------------------------- the real suite (skipped when crax is not built)
 
 @pytest.mark.skipif(not REAL_CRAX, reason="crax binary not available (set IEL_CRAX_BIN)")
-@pytest.mark.parametrize("tool_id,index", [(t.id, i) for t in TOOLS.values() for i in range(len(t.controls))])
+@pytest.mark.parametrize("tool_id,index", [(t.id, i) for t in TOOLS.values() if t.runner == "cryptanalysis_suite" for i in range(len(t.controls))])
 def test_real_suite_static_controls(monkeypatch, tool_id, index):
     monkeypatch.setenv("IEL_CRAX_BIN", str(Path(REAL_CRAX).resolve()))
     c = TOOLS[tool_id].controls[index]

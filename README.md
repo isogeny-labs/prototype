@@ -59,6 +59,13 @@ and positive controls, and a read-only, hash-pinned snapshot of the index-calcul
 and point the app at it with `IEL_CRAX_BIN` (the Pages workflow does this); without it the runner reports itself
 unavailable and nothing is simulated. Details and bounds: `docs/SUITE_INTEGRATION.md`.
 
+A **side-channel** tool (`ct_audit` runner) runs the `crypto` crate's dynamic constant-time harness under Valgrind for one
+allowlisted target: Memcheck taint of the secret (secret-dependent branches and addresses, split into library and harness
+sites) and Callgrind instruction counts across secret classes, with positive and negative controls. Build
+`ct_dynamic_audit` in the crypto repository (`cargo build --release --bin ct_dynamic_audit`), install Valgrind and set
+`IEL_CT_AUDIT_BIN`. Without it, the frozen run of isogeny-labs/crypto #3296 is shown as hash-pinned imported evidence in
+the "Side-channel audit: crypto crate" project (`scripts/import_ct_audit.py` refreshes `seeds/ct_audit_snapshot.json`).
+
 ## Customer-side runner and verifier
 See `iel_tools/README.md` and `docs/ATTESTATION.md`. Bundles are in-toto Statements in DSSE envelopes signed with Ed25519
 (`cryptography`). The platform accepts a bundle only after checking signature, expected signer, artifact digests, schema and

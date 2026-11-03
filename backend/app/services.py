@@ -82,9 +82,9 @@ def preflight(db, test: TestDefinition, impl: Implementation, execution_mode: st
     """What the UI shows before execution."""
     from runners.suite_tools import TOOLS as SUITE_TOOLS
     if test.fixture in SUITE_TOOLS:
-        runner = get_runner("cryptanalysis_suite")
+        runner = get_runner(SUITE_TOOLS[test.fixture].runner)
         ok, why = runner.available()
-        spec, problems = {"adapter": "none (suite tool: typed public parameters only)"}, ([] if ok else [f"cryptanalysis suite unavailable: {why}"])
+        spec, problems = {"adapter": "none (suite tool: typed public parameters only)"}, ([] if ok else [f"runner {runner.kind} unavailable: {why}"])
     else:
         spec, problems = adapter_spec(db, impl)
         runner = get_runner("platform_sandbox")

@@ -20,7 +20,7 @@ from pathlib import Path
 from .base import Runner, RunRequest, RunResult, register
 from .suite_tools import TOOLS, ParamError
 
-SUITE_FIXTURES = tuple(TOOLS)
+SUITE_FIXTURES = tuple(t.id for t in TOOLS.values() if t.runner == "cryptanalysis_suite")
 MAX_OUTPUT_BYTES = 8 * 1024 * 1024
 MAX_ARGV_BYTES = 512 * 1024
 ENV = {"LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", "RUST_BACKTRACE": "0", "NO_COLOR": "1"}
@@ -106,7 +106,7 @@ class CryptanalysisSuiteRunner(Runner):
         if path is None:
             return self._fail(f"runner unavailable: {why}")
         tool = TOOLS.get(req.fixture)
-        if tool is None:
+        if tool is None or tool.runner != self.kind:
             return self._fail(f"fixture '{req.fixture}' is not allowlisted for {self.kind}")
         try:
             params = tool.validate(req.params)
