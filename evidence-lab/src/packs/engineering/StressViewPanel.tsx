@@ -40,7 +40,7 @@ export function StressViewPanel({ project, data }: PackPanelProps) {
         <span>Showing <Link to={`/p/${project.id}/runs/${run.id}`}>Run #{run.sequence}</Link> on {versionLabel(data.artifacts, run.artifactVersionId)}. Schematic placeholder, not the geometry: region colours and labels come from the run's stress table.</span>
         <Marker kind="illustrative" className="ml-auto" />
       </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <svg viewBox="0 0 420 260" role="img" aria-label={`Schematic bracket with von Mises stress by region; peak ${peak.vonMisesMpa} MPa at ${peak.label}`} className="w-full max-w-2xl rounded bg-bg">
           <rect x="40" y="20" width="44" height="220" rx="4" fill={fill("plate")} stroke="#29364A" />
           <rect x="84" y="150" width="276" height="44" rx="4" fill={fill("arm_mid")} stroke="#29364A" />
@@ -66,7 +66,7 @@ export function StressViewPanel({ project, data }: PackPanelProps) {
             <text x="240" y="-3" fill="#A4B2C8" fontSize="9" textAnchor="end">{Math.round(max)} MPa von Mises</text>
           </g>
         </svg>
-        <div className="text-sm">
+        <div className="min-w-0 text-sm">
           <table className="tbl"><thead><tr><th>Region</th><th>von Mises</th></tr></thead>
             <tbody>{[...regions].sort((a, b) => b.vonMisesMpa - a.vonMisesMpa).map((r) => <tr key={r.id}><td><span aria-hidden="true" className="mr-2 inline-block h-3 w-3 rounded-sm align-middle" style={{ background: colourFor(r.vonMisesMpa, max) }} />{r.label}{r.id === peak.id ? <span className="tag ml-2 border-bad/60 text-bad">peak</span> : null}</td><td className="font-mono">{r.vonMisesMpa} MPa</td></tr>)}</tbody></table>
           <div className="mt-2 text-xs text-muted">Yield {yieldMpa} MPa. Safety factor {sf ? String(sf.value) : "—"} = {yieldMpa} / {peak.vonMisesMpa}. {run.packData.peakLocation}{run.packData.converged === false ? " · not mesh-converged" : run.packData.converged ? " · mesh-converged" : ""}.</div>

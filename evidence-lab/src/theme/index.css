@@ -20,11 +20,12 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   .btn-sm { @apply px-2 py-1 text-xs; }
   .tbl { @apply w-full text-sm border-collapse; }
   .tbl th { @apply text-left text-xs font-semibold text-muted py-1.5 px-2 border-b border-line; }
-  .tbl td { @apply py-1.5 px-2 border-b border-line align-top; }
+  .tbl td { @apply py-1.5 px-2 border-b border-line align-top; overflow-wrap: anywhere; }
+  .tbl th { overflow-wrap: anywhere; }
   .tbl tr.clickable:hover { @apply bg-panel-2 cursor-pointer; }
   .kv { @apply grid grid-cols-[180px_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm; }
   .kv dt { @apply text-muted; }
-  .kv dd { @apply m-0 break-words; }
+  .kv dd { @apply m-0 min-w-0; overflow-wrap: anywhere; }
   .callout { @apply border-l-4 border-warn bg-warn/10 rounded px-3 py-2 text-sm; }
   .callout-info { @apply border-l-4 border-info bg-info/10 rounded px-3 py-2 text-sm; }
   .callout-bad { @apply border-l-4 border-bad bg-bad/10 rounded px-3 py-2 text-sm; }

@@ -6,7 +6,7 @@ export function ModelSetupPanel({ project }: PackPanelProps) {
   const m = project.packData.modelSetup;
   return (
     <div className="grid gap-4 text-sm md:grid-cols-2" data-testid="model-setup">
-      <div>
+      <div className="min-w-0">
         <div className="h3">Part</div><div>{m.partName}</div>
         <div className="h3 mt-3">Material <Marker kind="sample" className="ml-1" /></div>
         <dl className="kv mt-1">
@@ -20,7 +20,7 @@ export function ModelSetupPanel({ project }: PackPanelProps) {
         <div className="h3 mt-3">Acceptance</div>
         <div>Safety factor ≥ {m.acceptance.requiredSafetyFactor.toFixed(1)} against {m.acceptance.basis}; convergence change &lt; {m.acceptance.convergenceCriterionPercent}% between the last two refinement levels.</div>
       </div>
-      <div>
+      <div className="min-w-0">
         <div className="h3">Loads</div>
         <ul className="mt-1 space-y-1">{m.loads.map((l) => <li key={l.id}><span className="font-mono text-xs">{l.id}</span> {l.description}: <strong>{l.magnitude}</strong><div className="text-xs text-muted">{l.location}</div></li>)}</ul>
         <div className="h3 mt-3">Boundary conditions</div>

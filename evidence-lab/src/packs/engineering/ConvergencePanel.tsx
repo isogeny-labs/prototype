@@ -7,7 +7,7 @@ export function ConvergencePanel({ project, data }: PackPanelProps) {
   const studies = data.runs.filter((r) => r.status === "completed" && r.packData?.packId === "engineering" && r.packData.convergenceLevels).sort((a, b) => a.sequence - b.sequence);
   if (studies.length === 0) return <EmptyState title="No convergence study yet" hint="A peak stress is reported as converged only after a study meets the criterion." />;
   return (
-    <div className="grid gap-4 lg:grid-cols-2" data-testid="convergence">
+    <div className="grid gap-4 xl:grid-cols-2" data-testid="convergence">
       {studies.map((run) => {
         if (run.packData?.packId !== "engineering" || !run.packData.convergenceLevels) return null;
         const levels = run.packData.convergenceLevels; const crit = run.packData.convergenceCriterionPercent ?? 5;
