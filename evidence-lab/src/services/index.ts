@@ -4,7 +4,8 @@
  */
 import type { Services } from "./types";
 import { mockEvidenceLab } from "./mock/evidenceLab";
-import { mockApprovals, mockAutoresearcher, mockConductor, mockPacks, mockCairn, mockAssistant, mockLearning } from "./mock/others";
+import { mockApprovals, mockAutoresearcher, mockConductor, mockPacks, mockCairn, mockLearning } from "./mock/others";
+import { mockAssistant } from "./mock/assistant";
 
 const IMPL = (import.meta.env?.VITE_SERVICES_IMPL as string | undefined) ?? "mock";
 

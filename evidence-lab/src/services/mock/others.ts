@@ -1,8 +1,8 @@
-import type { ApprovalService, AutoresearcherService, ConductorService, PackRegistry, CairnService, AssistantService, LearningService } from "../types";
+import type { ApprovalService, AutoresearcherService, ConductorService, PackRegistry, CairnService, LearningService } from "../types";
 import { ServiceError } from "../types";
 import { store } from "@/store";
 import { simulate, nowIso, newId, notFound, audit } from "./base";
-import type { Approval, ExperimentProposal, Task, ViewConfig, AssistantMessage, CompatibilityResult, MemoryItem } from "@/contracts";
+import type { Approval, ExperimentProposal, Task, CompatibilityResult, MemoryItem } from "@/contracts";
 import { canResolve } from "@/contracts";
 
 const personName = (projectId: string, id: string) => store.db().projects.find((p) => p.id === projectId)?.people.find((p) => p.id === id)?.name ?? id;
@@ -184,50 +184,6 @@ export const mockCairn: CairnService = {
     if (e.integrity === "cairn_verified") return { integrity: e.integrity, result: e.verification.result, checker: e.verification.checker, notes: e.verification.notes };
     return { integrity: e.integrity === "imported" ? "imported" : "hashed", result: e.integrity === "imported" ? "not_run" : "passed", checker: null,
       notes: "Cairn is not connected. Result reflects the stored manifest hash only; no independent checker ran." };
-  }),
-};
-
-const REFUSALS: Array<{ re: RegExp; subject: string; subjectType: "acceptance_criteria" | "settings_change" | "experiment_proposal" }> = [
-  { re: /(acceptance|criteria|threshold|pass\s*\/?\s*fail|safety factor)/i, subject: "acceptance criteria", subjectType: "acceptance_criteria" },
-  { re: /(permission|role|access|confidential|member)/i, subject: "permissions", subjectType: "settings_change" },
-  { re: /(test definition|change the test|edit the test|runner|resource limit|budget)/i, subject: "test definitions", subjectType: "experiment_proposal" },
-];
-export const mockAssistant: AssistantService = {
-  send: (projectId, viewConfig, text, user) => simulate("assistant.send", () => {
-    const at = nowIso();
-    const refusal = REFUSALS.find((r) => r.re.test(text));
-    if (refusal) {
-      const a: Approval = { id: newId("apr"), projectId, subjectType: refusal.subjectType, subjectId: `assistant-request-${Date.now()}`, subjectLabel: `Assistant-routed request: ${text.slice(0, 60)}`, requestedBy: user.id, requestedAt: at, decision: "pending", reviewerId: null, note: "", decidedAt: null, rationale: `The assistant may only change how views are configured. Changing ${refusal.subject} needs a reviewer's decision.` };
-      store.mutate((db) => { db.approvals.unshift(a); });
-      audit(projectId, { type: "agent", name: "Assistant (simulated)" }, "assistant.refused", { type: refusal.subjectType, id: a.id, label: a.subjectLabel }, text);
-      const reply: AssistantMessage = { id: newId("msg"), role: "assistant", at, text: `I can't change ${refusal.subject} from here. The assistant only adjusts how views are configured (panels, ordering, filters, which supported tests are shown). I've created an approval request so a reviewer can decide: "${a.subjectLabel}".`, action: { kind: "refused", reason: `changes to ${refusal.subject} require an approval`, approvalRequestId: a.id } };
-      return { reply, viewConfig };
-    }
-    const next: ViewConfig = { ...viewConfig, panelOrder: [...viewConfig.panelOrder], hiddenPanels: [...viewConfig.hiddenPanels], filters: { ...viewConfig.filters }, chosenTestIds: [...viewConfig.chosenTestIds] };
-    let summary = "";
-    const hide = /hide (the )?([a-z_ ]+?)( panel)?$/i.exec(text.trim());
-    const show = /show (the )?([a-z_ ]+?)( panel)?$/i.exec(text.trim());
-    const filter = /(only|filter)\s+(failed|passed|open|pending|completed)/i.exec(text);
-    const top = /(move|put)\s+(the\s+)?([a-z_ ]+?)\s+(to the )?top/i.exec(text);
-    const tests = /(only )?show (the )?tests? (matching|about|for|named) (.+)$/i.exec(text.trim());
-    const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "_");
-    if (tests) {
-      const needle = (tests[4] ?? "").toLowerCase().replace(/[".]/g, "").trim();
-      const project = store.db().projects.find((p) => p.id === projectId);
-      const matches = store.db().tests.filter((t) => t.packId === project?.packId && t.runnable && (t.name.toLowerCase().includes(needle) || t.description.toLowerCase().includes(needle)));
-      next.chosenTestIds = matches.map((t) => t.id);
-      summary = matches.length ? `Showing ${matches.length} supported test${matches.length === 1 ? "" : "s"} matching "${needle}" on the Tests page.` : `No supported test matches "${needle}"; the Tests page shows all tests.`;
-    }
-    else if (hide) { const id = norm(hide[2] ?? ""); if (!next.hiddenPanels.includes(id)) next.hiddenPanels.push(id); summary = `Hid the "${hide[2]}" panel.`; }
-    else if (show) { const id = norm(show[2] ?? ""); next.hiddenPanels = next.hiddenPanels.filter((p) => p !== id); summary = `Showing the "${show[2]}" panel.`; }
-    else if (filter) { next.filters["status"] = (filter[2] ?? "").toLowerCase(); summary = `Filtered lists to "${filter[2]}".`; }
-    else if (top) { const id = norm(top[3] ?? ""); next.panelOrder = [id, ...next.panelOrder.filter((p) => p !== id)]; summary = `Moved "${top[3]}" to the top of the workspace.`; }
-    else if (/reset (the )?(view|layout|filters)/i.test(text)) { next.panelOrder = []; next.hiddenPanels = []; next.filters = {}; next.chosenTestIds = []; summary = "Reset the view configuration to the template default."; }
-    const reply: AssistantMessage = summary
-      ? { id: newId("msg"), role: "assistant", at, text: `${summary} (View configuration only; nothing about the project's criteria, tests or permissions changed.)`, action: { kind: "view_change", summary } }
-      : { id: newId("msg"), role: "assistant", at, text: "I can change how this workspace is shown: try \"hide the recent activity panel\", \"show the key metrics panel\", \"move next actions to the top\", \"only failed\", \"show tests matching latency\" or \"reset the view\". I can't change acceptance criteria, permissions or test definitions; those go to a reviewer." };
-    if (summary) audit(projectId, { type: "agent", name: "Assistant (simulated)" }, "view.configured", { type: "view_config", id: projectId, label: summary }, text);
-    return { reply, viewConfig: next };
   }),
 };
 

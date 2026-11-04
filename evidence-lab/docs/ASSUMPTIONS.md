@@ -70,3 +70,9 @@ connects a real client, `docs/INTEGRATION_CONTRACTS.md` lists the fields to map.
 15. **GitHub Pages.** The Pages workflow now deploys this frontend at `/prototype/` with a `404.html` fallback for
     client-side routes. The earlier MVP static demo is no longer published by the workflow; the single-file copy
     `demo/iel-demo.html` remains in the repository.
+16. **Assistant scope (changed at the Phase 3 review).** The original brief limited the assistant to view
+    configuration. The product owner widened it: the assistant may brainstorm about everything on the platform,
+    summarise evidence, review orchestration, executions and proposals, and suggest next steps. The reconciliation
+    kept in code and docs: the assistant proposes, the human confirms; a confirmed action runs as that human; approval
+    gates still apply; criteria, permissions and test definitions are never changed directly (drafts only); the
+    assistant never starts a run or approves anything on its own.

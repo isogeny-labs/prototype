@@ -24,4 +24,4 @@ Project routes are guarded: the project and its template version load first; loa
 | `/settings/sample-data` | Sample data | Fixture counts, reset, acting-user switch, mock latency / failure injection. |
 | `*` | Not found | Empty state with a link home. |
 
-The nav list lives in `src/shell/nav.ts`; the router in `src/router.tsx`. The shell adds the assistant panel (view configuration only) and, in sample mode, the developer view-state switcher.
+The nav list lives in `src/shell/nav.ts`; the router in `src/router.tsx`. The shell adds the assistant panel (advisory: summaries and confirmable suggested actions; view configuration is its only direct side effect) and, in sample mode, the developer view-state switcher.

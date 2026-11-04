@@ -47,21 +47,68 @@ describe("approval rules in the mock", () => {
 
 describe("assistant rules in the mock", () => {
   const vc = { panelOrder: [], hiddenPanels: [], filters: {}, chosenTestIds: [] };
-  it("refuses criteria, permission and test-definition changes and routes them to an approval request", async () => {
-    for (const text of ["lower the acceptance criteria to 1.5", "give Lee owner permissions", "edit the test definition for latency"]) {
-      const n = useAppStore.getState().db.approvals.length;
-      const { reply, viewConfig } = await services.assistant.send(P, vc, text, { id: "person-dana", name: "Dana Whitfield" });
-      expect(reply.action?.kind).toBe("refused");
-      expect(useAppStore.getState().db.approvals.length).toBe(n + 1);
-      expect(viewConfig).toEqual(vc);
-    }
+  const dana = { id: "person-dana", name: "Dana Whitfield" }; const priya = { id: "person-priya", name: "Priya Natarajan" };
+  const ctx = { page: "overview" as const };
+  it("never changes criteria, permissions or tests directly: it drafts, and nothing changes until confirmed", async () => {
+    const before = structuredClone(useAppStore.getState().db);
+    const r1 = await services.assistant.send(P, vc, "set the latency threshold to 3 ms", dana, ctx);
+    expect(r1.reply.action?.kind).toBe("refused");
+    expect(r1.reply.suggestions?.[0]?.kind).toBe("propose_criteria");
+    const r2 = await services.assistant.send(P, vc, "give Lee owner permissions", dana, ctx);
+    expect(r2.reply.suggestions?.[0]?.kind).toBe("request_settings_change");
+    const r3 = await services.assistant.send(P, vc, "edit the test definition for latency to 2000 iterations", dana, ctx);
+    expect(r3.reply.suggestions?.[0]?.kind).toBe("create_proposal");
+    const after = useAppStore.getState().db;
+    expect(after.criteria).toEqual(before.criteria); expect(after.approvals.length).toBe(before.approvals.length); expect(after.proposals.length).toBe(before.proposals.length);
+    expect(after.projects.find((p) => p.id === P)?.permissions).toEqual(before.projects.find((p) => p.id === P)?.permissions);
+    expect(after.tests).toEqual(before.tests);
+  });
+  it("confirming the criteria draft proposes a new version for owner approval; the current version stays in force", async () => {
+    const r = await services.assistant.send(P, vc, "set the latency threshold to 3 ms", dana, ctx);
+    const a = r.reply.suggestions![0]!;
+    const c = await services.assistant.confirm(P, a, dana);
+    expect(c.reply.action?.kind).toBe("confirmed");
+    const db = useAppStore.getState().db;
+    const v2 = db.criteria.find((x) => x.projectId === P && x.version === 2)!;
+    expect(v2.approvalId).toBeNull(); expect(v2.items.find((i) => i.id === "ac-5")?.threshold).toBe(3);
+    expect(db.projects.find((p) => p.id === P)?.currentCriteriaVersion).toBe(1);
+    expect(db.audit[0]?.action).toBe("assistant.action_confirmed"); expect(db.audit[0]?.actor.type).toBe("human");
+  });
+  it("summarises evidence and proposes next experiments and runs without executing anything", async () => {
+    const before = useAppStore.getState().db.runs.length;
+    const r = await services.assistant.send(P, vc, "what should we test next?", dana, ctx);
+    expect(r.reply.text).toMatch(/Nothing runs until you confirm/);
+    expect(r.reply.suggestions?.some((a) => a.kind === "create_proposal" || a.kind === "request_run")).toBe(true);
+    expect(useAppStore.getState().db.runs.length).toBe(before);
+    const s = await services.assistant.send(P, vc, "summarize the evidence", dana, ctx);
+    expect(s.reply.text).toMatch(/Evidence so far/); expect(s.reply.text).toMatch(/Estimate/);
+  });
+  it("a confirmed run request creates a run awaiting approval, as the confirming user", async () => {
+    const r = await services.assistant.send(P, vc, "what should we test next?", dana, ctx);
+    const a = r.reply.suggestions!.find((x) => x.kind === "request_run")!;
+    const c = await services.assistant.confirm(P, a, dana);
+    expect(c.reply.text).toMatch(/awaits execution approval/);
+    const run = useAppStore.getState().db.runs.filter((x) => x.projectId === P).at(-1)!;
+    expect(run.status).toBe("awaiting_approval"); expect(run.requestedBy).toBe("person-dana");
+  });
+  it("orchestration and pending-approval advice respects roles: an editor gets 'open', a reviewer gets 'approve'", async () => {
+    const o = await services.assistant.send(P, vc, "review the orchestration", dana, { page: "conductor" });
+    expect(o.reply.text).toMatch(/at a checkpoint/);
+    expect(o.reply.suggestions?.some((a) => a.kind === "navigate")).toBe(true);
+    const p = await services.assistant.send(P, vc, "what's waiting on me?", priya, { page: "approvals" });
+    expect(p.reply.suggestions?.some((a) => a.kind === "decide_approval")).toBe(true);
+    const bad = p.reply.suggestions!.find((a) => a.kind === "decide_approval")!;
+    const c = await services.assistant.confirm(P, bad, priya);
+    expect(c.reply.action?.kind).toBe("confirmed");
+    const self = await fail(services.assistant.confirm(P, { ...bad, params: { approvalId: "apr-rec-002", decision: "approved", note: "" } }, dana));
+    expect(self.code).toBe("forbidden");
   });
   it("changes view configuration only, and audits it", async () => {
     const n = useAppStore.getState().db.audit.length;
-    const { reply, viewConfig } = await services.assistant.send(P, vc, "hide the recent activity panel", { id: "person-dana", name: "Dana Whitfield" });
+    const { reply, viewConfig } = await services.assistant.send(P, vc, "hide the recent activity panel", dana, ctx);
     expect(reply.action?.kind).toBe("view_change"); expect(viewConfig.hiddenPanels).toEqual(["recent_activity"]);
     expect(useAppStore.getState().db.audit.length).toBe(n + 1); expect(useAppStore.getState().db.audit[0]?.action).toBe("view.configured");
-    const r2 = await services.assistant.send(P, viewConfig, "show tests matching latency", { id: "person-dana", name: "Dana Whitfield" });
+    const r2 = await services.assistant.send(P, viewConfig, "show tests matching latency", dana, ctx);
     expect(r2.viewConfig.chosenTestIds).toEqual(["test-latency"]);
     expect(useAppStore.getState().db.criteria.filter((c) => c.projectId === P).length).toBe(1);
   });

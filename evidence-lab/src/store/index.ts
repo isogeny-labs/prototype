@@ -16,7 +16,7 @@ export const DEV_STATES: Array<{ value: DevState; label: string }> = [
   { value: null, label: "live sample data" }, { value: "empty", label: "empty" }, { value: "loading", label: "loading" },
   { value: "failed", label: "failed" }, { value: "awaiting_approval", label: "awaiting approval" }, { value: "completed", label: "completed" },
 ];
-export type AssistantTranscriptMessage = { id: string; role: "user" | "assistant"; text: string; at: string; action?: { kind: "view_change"; summary: string } | { kind: "refused"; reason: string; approvalRequestId: string | null } };
+export type AssistantTranscriptMessage = import("@/contracts").AssistantMessage & { dismissed?: string[] };
 
 /** Default acting user per sample project: the customer-side editor. */
 export const DEFAULT_USER_BY_PROJECT: Record<string, SessionUser> = {

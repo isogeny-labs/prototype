@@ -42,7 +42,7 @@ export function forceState<T>(value: T, state: "empty" | "awaiting_approval" | "
 }
 
 /** Shared behaviour of every mock: configurable latency, failure injection and the developer state switcher. */
-export async function simulate<T>(method: string, fn: () => T): Promise<T> {
+export async function simulate<T>(method: string, fn: () => T | Promise<T>): Promise<T> {
   const { mock } = store.get();
   const latency = mock.latencyMs;
   if (latency > 0) await new Promise((r) => setTimeout(r, latency));
@@ -56,7 +56,7 @@ export async function simulate<T>(method: string, fn: () => T): Promise<T> {
   }
   const forced = devState && !SHELL_METHODS.has(method) && isRead(method);
   if (forced && devState === "failed") throw new ServiceError(`Forced failure for ${method} (developer state switcher)`, "injected");
-  const result = fn();
+  const result = await fn();
   if (forced && (devState === "empty" || devState === "awaiting_approval" || devState === "completed")) return forceState(structuredClone(result), devState);
   return result;
 }

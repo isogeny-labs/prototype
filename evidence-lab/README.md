@@ -50,8 +50,7 @@ src/shell/         AppShell (nav, project switcher, pack badge, banner, assistan
 src/pages/         one file per route
 tests/unit/        fixture consistency + label/status rules
 tests/e2e/         every route renders with sample data; no console errors; nothing scrolls horizontally at 1024px
-docs/              ROUTES, ASSUMPTIONS, GAPS, INTEGRATION_CONTRACTS (mapping notes); FRONTEND_SPEC and
-                   BACKEND_HOOKUP_CHECKLIST arrive with Phase 4
+docs/              FRONTEND_SPEC, ROUTES, INTEGRATION_CONTRACTS, BACKEND_HOOKUP_CHECKLIST, GAPS, ASSUMPTIONS, TEST_REPORT
 public/brand/      logo assets (see docs/GAPS.md about the missing SVG master)
 ```
 
@@ -72,5 +71,5 @@ into client-side routes work. Sample data only; nothing is persisted.
 
 1. Scaffold, theme, shell, routing, contracts, mock layer, cryptography sample end to end — done.
 2. Engineering and legal samples on the same shell and components — done.
-3. States, assistant conversation, approval decisions, memory page, report preview — **this checkpoint**.
-4. Docs and acceptance tests.
+3. States, assistant conversation, approval decisions, memory page, report preview — done.
+4. Docs and acceptance tests; assistant widened to an advisor with confirm-only actions — **this checkpoint**.

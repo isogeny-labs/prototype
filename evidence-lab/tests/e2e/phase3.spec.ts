@@ -49,24 +49,42 @@ test.describe("approvals", () => {
   });
 });
 
-test("the assistant refuses to change acceptance criteria and creates an approval request; view changes are applied and audited", async ({ page }) => {
+test("the assistant drafts instead of changing criteria, applies view changes, and executes only what a human confirms", async ({ page }) => {
   await page.goto(`/p/${P}`); await settle(page);
   await page.getByTestId("assistant-toggle").click();
-  await page.getByTestId("assistant-input").fill("change the acceptance criteria threshold for latency to 3 ms");
+  await page.getByTestId("assistant-input").fill("set the latency threshold to 3 ms");
   await page.getByTestId("assistant-send").click();
-  await expect(page.getByTestId("assistant-refusal")).toContainText("Refused");
+  await expect(page.getByTestId("assistant-refusal")).toContainText("Not done directly");
+  await expect(page.locator('[data-testid="assistant-suggestion"][data-kind="propose_criteria"]')).toHaveCount(1);
   await page.getByTestId("assistant-input").fill("hide the recent activity panel");
   await page.getByTestId("assistant-send").click();
   await expect(page.locator('[data-testid="assistant-msg-assistant"][data-action="view_change"]')).toHaveCount(1);
   await expect(page.getByTestId("panel-recent_activity")).toHaveCount(0);
-  await page.goto(`/p/${P}/approvals`); await settle(page);
-  await expect(page.locator('[data-testid="approval-card"]', { hasText: "Assistant-routed request" })).toHaveCount(1);
+  // Brainstorm: suggestions appear as cards; nothing happens until confirmed.
+  await page.getByTestId("assistant-input").fill("what should we test next?");
+  await page.getByTestId("assistant-send").click();
+  const runCard = page.locator('[data-testid="assistant-suggestion"][data-kind="request_run"]').first();
+  await expect(runCard).toBeVisible();
   await page.goto(`/p/${P}/runs`); await settle(page);
-  await page.getByTestId("assistant-toggle").click(); // panel open/closed is UI state and is not persisted across a reload
+  await expect(page.locator('[data-testid="run-row"]')).toHaveCount(16);
+  await page.getByTestId("assistant-toggle").click();
+  await page.locator('[data-testid="assistant-suggestion"][data-kind="request_run"]').first().getByTestId("assistant-confirm").click();
+  await expect(page.locator('[data-testid="assistant-msg-assistant"][data-action="confirmed"]')).toContainText("awaits execution approval");
+  await expect(page.locator('[data-testid="run-row"]')).toHaveCount(17);
+  await expect(page.locator('[data-testid="run-status"][data-status="awaiting_approval"]')).toHaveCount(1);
+  // Orchestration review on the Conductor page.
+  await page.goto(`/p/${P}/conductor`); await settle(page);
+  await page.getByTestId("assistant-toggle").click();
+  await page.getByText("Review the orchestration", { exact: true }).click();
+  await expect(page.locator('[data-testid="assistant-msg-assistant"]').last()).toContainText("at a checkpoint");
+  // View filter still works.
+  await page.goto(`/p/${P}/runs`); await settle(page);
+  await page.getByTestId("assistant-toggle").click();
   await page.getByTestId("assistant-input").fill("only failed");
   await page.getByTestId("assistant-send").click();
   await expect(page.getByTestId("view-filter-note")).toContainText("failed");
-  await expect(page.locator('[data-testid="run-row"]')).toHaveCount(5); // 4 runs with failed criteria + 1 failed run (superseded shown)
+  await page.goto(`/p/${P}/approvals`); await settle(page);
+  await expect(page.locator('[data-testid="approval-card"]', { hasText: "Run #17" })).toHaveCount(1);
 });
 
 test("failed runs with failure injection show the failure, logs and a retry path, with no stale success data", async ({ page }) => {

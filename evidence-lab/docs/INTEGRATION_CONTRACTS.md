@@ -1,4 +1,4 @@
-# Integration contracts (Phase 1 draft; completed in Phase 4)
+# Integration contracts
 
 The frontend talks to the world only through the interfaces in `src/services/types.ts`:
 `EvidenceLabService`, `ApprovalService`, `AutoresearcherService`, `ConductorService`, `PackRegistry`,
@@ -51,4 +51,85 @@ the shared contract, and which crypto-specific fields were generalised.
 | "cryptographic facts" inventory | not a core type | Pack data for crypto (`ProjectPackData{algorithm, curveOrScheme, tokenFormat}`); engineering/legal variants are sketched in `packData.ts`. |
 | execution target (sandbox / customer-side runner) | `Project.executionMode` and `Run.executionMode (platform_sandbox \| customer_side \| imported \| simulated)` | `simulated` exists only in sample data. |
 
-Phase 4 completes this document with request/response shapes per method, error semantics and pagination.
+## Services: methods, types, errors, mock behaviour
+
+Types are the ones in `src/contracts/`. Every method returns a Promise and may reject with `ServiceError`.
+Lists are unpaginated in the mock; a paginated backend can page behind the same signature (the UI never assumes a
+maximum). Errors shown in the UI: `not_found` (empty state with a message), `forbidden` and `conflict` (inline
+message next to the control that caused it), `network` / `injected` (ErrorState with retry), `validation` (inline).
+
+### EvidenceLabService
+
+| Method | Request | Response | Errors | Mock behaviour |
+|---|---|---|---|---|
+| `listProjects()` | — | `Project[]` | network | Sample projects. |
+| `getProject(id)` | `Id` | `Project` | not_found | |
+| `listCriteria(projectId)` | `Id` | `AcceptanceCriteria[]` (all versions) | | |
+| `proposeCriteriaVersion(projectId, items, requestedBy)` | items: `AcceptanceCriteriaItem[]` | `{ criteria, approval }` | validation | Creates version N+1 with `approvalId: null` and a pending `acceptance_criteria` approval; the current version is untouched. |
+| `listArtifacts(projectId)` | | `Artifact[]` with versions | | |
+| `importArtifactVersion(projectId, artifactId, version)` | version without id | `ArtifactVersion` | not_found | Appends; never replaces. |
+| `listTests(projectId)` | | `TestDefinition[]` for the project's pack | | |
+| `listRuns(projectId)` / `getRun(projectId, runId)` | | `Run[]` ordered by sequence / `Run` | not_found | |
+| `requestRun(projectId, { artifactVersionId, testDefinitionId, requestedBy })` | | `Run` with `status: awaiting_approval` | validation (test not runnable), not_found | Creates a pending `run_execution` approval; nothing executes. |
+| `retryRun(projectId, runId, requestedBy)` | | new `Run` (`queued`, `supersedesRunId`) | not_found | |
+| `listFindings` / `getFinding(projectId, findingId)` | | `Finding[]` / `{ finding, checks }` | not_found | |
+| `listChecks(projectId)` | | `Check[]` referenced by findings or runs | | |
+| `listEvidence(projectId)` | | `EvidenceRecord[]` | | Never `signed` or `cairn_verified` in sample data. |
+| `listComparisons(projectId)` | | `Comparison[]` | | |
+| `listRecommendations(projectId)` | | `Recommendation[]` | | |
+| `listExternalChanges` / `reportExternalChange(projectId, change)` | change without id/reportedAt | `ExternalChange` | | Sets finding `externalChangeReported`, `revisedArtifactVersionId`, appends history. |
+| `listAttackAssessments(projectId)` | | `AttackAssessment[]` (crypto pack data) | | |
+| `exportHandoff` / `exportEvidenceBundle(projectId)` | | metadata (format, hash, size / members, `signed: false`) | | Simulated; no file. |
+| `listAudit(projectId)` | | `AuditEvent[]` newest first | | |
+
+### ApprovalService
+
+| Method | Request | Response | Errors | Mock behaviour |
+|---|---|---|---|---|
+| `list(projectId)` | | `Approval[]` | | |
+| `decide(projectId, approvalId, decision, reviewerId, note)` | decision ∈ approved / rejected / changes_requested | `Approval` | conflict (already decided; resolution without passing retest), forbidden (self-approval; role below the gate; not a member), not_found | Applies subject consequences and writes memory records. |
+| `request(projectId, input)` | subjectType, subjectId, subjectLabel, requestedBy, rationale | `Approval` (pending) | | |
+
+### AutoresearcherService
+
+| Method | Request | Response | Errors | Mock behaviour |
+|---|---|---|---|---|
+| `list` / `get` | | `ExperimentProposal[]` / `ExperimentProposal` | not_found | |
+| `create(projectId, { findingId, affectedArtifactVersionId, prompt })` | | `ExperimentProposal` (`proposed`, protocol v0) + pending `experiment_proposal` approval | | Simulated template text; proposer "Autoresearcher (simulated)", model "sample-model (no real model connected)". |
+| `review(projectId, proposalId, decision, reviewerId, note)` | | `ExperimentProposal` | conflict (no pending approval), forbidden | Approval increments `protocolVersion` and appends `protocolHistory`. |
+| `followUps(projectId, proposalId)` | | `string[]` | | |
+
+### ConductorService
+
+| Method | Response | Errors | Mock behaviour |
+|---|---|---|---|
+| `listTasks(projectId)` | `Task[]` | | |
+| `pause` / `resume` / `cancel(projectId, taskId)` | `Task` | not_found | Sets status paused / queued / cancelled; audited. |
+
+### PackRegistry
+
+| Method | Response | Mock behaviour |
+|---|---|---|
+| `listPacks()` / `listTemplates(packId?)` / `getTemplate(id, version?)` | `PackInfo[]` / `PackTemplate[]` / `PackTemplate` | From `src/fixtures/packs/`. |
+| `checkCompatibility(projectId, testId, artifactVersionId)` | `CompatibilityResult { compatible, reasons, path }` | imported → `import_results`; not runnable → `adapter_needed`; else `run`. |
+
+### CairnService
+
+| Method | Response | Mock behaviour |
+|---|---|---|
+| `verify(projectId, evidenceRecordId)` | `{ integrity, result, checker, notes }` | Returns `hashed` (or `imported`) unless the record is already `cairn_verified`; never fabricates. |
+
+### AssistantService
+
+| Method | Request | Response | Mock behaviour |
+|---|---|---|---|
+| `send(projectId, viewConfig, text, user, context)` | `AssistantContext { page, entityId? }` | `{ reply: AssistantMessage, viewConfig }`; reply may carry `suggestions: AssistantSuggestedAction[]` and `action: view_change | refused` | Rule-based: evidence summary, next experiments, orchestration, executions, research, pending approvals, findings; view commands; guarded requests become drafts. No project mutation. |
+| `confirm(projectId, action, user)` | one `AssistantSuggestedAction` | `{ reply }` with `action: confirmed` | Executes through the ordinary services as the confirming user; audited as a human action. Errors from the underlying service (for example forbidden on self-approval) propagate. |
+
+### LearningService
+
+| Method | Response | Mock behaviour |
+|---|---|---|
+| `listMemory(projectId)` | `MemoryItem[]` | Customer-scoped; written by decisions. |
+| `listAgentConfigChanges(projectId)` | `AgentConfigChange[]` | |
+| `listModelTraining()` | `ModelTrainingRecord[]` | Always `not_in_mvp`. |

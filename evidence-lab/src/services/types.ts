@@ -1,7 +1,7 @@
 import type {
   AgentConfigChange, Approval, ApprovalDecision, Artifact, ArtifactVersion, AssistantMessage, AuditEvent, Check, Comparison,
   CompatibilityResult, EvidenceRecord, ExperimentProposal, ExternalChange, Finding, Id, IntegrityLevel, MemoryItem, ModelTrainingRecord,
-  PackInfo, PackTemplate, Project, Recommendation, Run, Task, TestDefinition, ViewConfig, AcceptanceCriteria, AttackAssessment,
+  PackInfo, PackTemplate, Project, Recommendation, Run, Task, TestDefinition, ViewConfig, AcceptanceCriteria, AttackAssessment, AssistantContext, AssistantSuggestedAction,
 } from "@/contracts";
 
 /** Every service call can fail; UI must render loading and failed states. */
@@ -70,7 +70,10 @@ export interface CairnService {
 }
 
 export interface AssistantService {
-  send(projectId: Id, viewConfig: ViewConfig, text: string, user: { id: Id; name: string }): Promise<{ reply: AssistantMessage; viewConfig: ViewConfig }>;
+  /** Reads project records, answers, and proposes actions. Never mutates anything except view configuration (audited). */
+  send(projectId: Id, viewConfig: ViewConfig, text: string, user: { id: Id; name: string }, context: AssistantContext): Promise<{ reply: AssistantMessage; viewConfig: ViewConfig }>;
+  /** Executes one previously suggested action, only when a human confirms it in the UI; runs as that human. */
+  confirm(projectId: Id, action: AssistantSuggestedAction, user: { id: Id; name: string }): Promise<{ reply: AssistantMessage }>;
 }
 
 export interface LearningService {
