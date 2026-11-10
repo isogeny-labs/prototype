@@ -1,0 +1,26 @@
+{
+  "_about": "Answer key for the Acme Pay demo. Written by Isogeny Labs, not by the build. DRAFT: Adam to confirm every entry before the build starts.",
+  "verify": [
+    {"id": "V1", "claim": "localhost:8443 accepts TLS 1.3 only", "expected": "False", "because": "the demo server also accepts TLS 1.2 with an older cipher"},
+    {"id": "V2", "claim": "localhost:8443 certificate is ECDSA P-256", "expected": "True", "because": "the demo certificate is ECDSA P-256"},
+    {"id": "V3", "claim": "signing component is acme-sign 1.4.2 implementing ECDSA P-256", "expected": "True", "because": "info reports it and a normal sign/verify round trip works; the bug is caught by the tests, not here"}
+  ],
+  "tests_on_1_4_2": [
+    {"id": "T1", "test": "Server protocol check", "expected": "Failed", "because": "TLS 1.2 accepted"},
+    {"id": "T2", "test": "Certificate check", "expected": "Passed", "note": "show NIST guidance that ECDSA P-256 is planned for retirement; informational, not a failure"},
+    {"id": "T3", "test": "Official test vectors (Wycheproof)", "expected": "Failed", "because": "Wycheproof ECDSA P-256 files include r = 0 / s = 0 cases that must be rejected", "confirm": "Adam: confirm the vendored file contains these cases"},
+    {"id": "T4", "test": "Bad-signature check", "expected": "Failed", "because": "accepts r = 0, s = 0"},
+    {"id": "T5", "test": "Speed and size", "expected": "Measured", "because": "report-only on first run"}
+  ],
+  "tests_on_1_4_3": [
+    {"id": "R1", "test": "Server protocol check", "expected": "Failed", "because": "the server is unchanged; only the signing component was fixed"},
+    {"id": "R2", "test": "Certificate check", "expected": "Passed"},
+    {"id": "R3", "test": "Official test vectors (Wycheproof)", "expected": "Passed"},
+    {"id": "R4", "test": "Bad-signature check", "expected": "Passed"},
+    {"id": "R5", "test": "Speed and size", "expected": "No slowdown beyond measured noise"}
+  ],
+  "controls": {"expected": "Every broken control fails its tests, so no run is marked Couldn't trust this run"},
+  "add_on": [
+    {"id": "A1", "test": "Post-quantum readiness", "expected": "Not offered", "or_if_checker_too_old": "Couldn't run (needs OpenSSL 3.5 or newer)"}
+  ]
+}
