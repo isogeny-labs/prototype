@@ -138,10 +138,15 @@ Updated at the end of **phase 2** (Tests and Evidence Lab). Updated each phase.
   SP 800-131A Rev. 2 and the retirement note from NIST IR 8547. It is not fetched or kept up to date by the app.
   - The note on the certificate result reads: "Under NIST IR 8547 (final, Oct 2026), ECDSA including P-256 is
     deprecated after 2030 and disallowed after 2035." The final report was published October 27, 2026, as the
-    owner told us. **The dates were checked against secondary summaries only, not the NIST document itself, and
-    the link (`https://csrc.nist.gov/pubs/ir/8547/final`) was not opened either: the NIST site could not be
-    reached from the build machine.** Confirm both against the NIST document before relying on them, and update
-    the value in `backend/app/guidance.py` if they differ.
+    owner told us.
+  - **The link is confirmed.** The owner told us on 11 November 2026 that
+    `https://csrc.nist.gov/pubs/ir/8547/final` has been confirmed as the correct page for the final IR 8547.
+    (The build machine still cannot reach the NIST site, so the build did not open the page itself.)
+  - **The dates are checked against summaries, not yet against the NIST document itself.** The final report
+    changed this from the 2024 draft. Three independent summaries of the final agree that all ECDSA, including
+    P-256, is deprecated after 2030 and disallowed after 2035 (as the owner told us on 11 November 2026). Nobody
+    has yet compared the app's wording with the NIST document itself. Confirm it there before relying on it,
+    and update the value in `backend/app/guidance.py` if it differs.
 - **Old TLS versions:** the control accepts the version just below the oldest claimed one. SSL 3.0 and older are not tried.
 - **Isolated mode needs the images prepared.** `./run-demo.sh` prepares them once when Docker is running (it
   downloads two pinned base images the first time, which needs internet). The app itself never downloads or builds.
@@ -184,7 +189,8 @@ Updated at the end of **phase 2** (Tests and Evidence Lab). Updated each phase.
   has exactly one planted bug and gets exactly 3 of 484 official cases wrong (168, 171, 364).
 - **The answer key is a DRAFT.** `demo/expected.json` says Adam has still to review it. The app agrees with all
   15 entries (V1 to V3, T1 to T5, R1 to R5, the controls, A1) in demo mode and in isolated mode on the build
-  machine. The build has not edited the key.
+  machine. The key also holds three answers (S1 to S3, under `after_server_fix`) for the server-setting step;
+  they are not checked until that step is built. The build has not edited the key.
 - **The Retest chooser starts the retest as soon as a version is picked** (no extra confirm button).
 - **Login:** a "create your password" screen on first run instead of a preset password. There is no logout button,
   no password reset and no limit on login attempts. A forgotten password means deleting `data/evidence-lab.sqlite3`

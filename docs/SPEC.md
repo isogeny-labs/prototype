@@ -35,6 +35,8 @@ One app shell: a step bar at the top (Import → Verify → Tests → Evidence L
 - **Verify:** one row per claim: claim, what we found, True / False / Couldn't check, and an expandable "evidence" section (raw output). One button: **Continue to tests**.
 - **Tests:** a list of five suggested test cards, each with a one-line "why this matters". Drag to reorder, an × to remove, **+ Add test** (opens the catalog), a **Run** button on each card, and **Run all** (runs in parallel). Live status on each card: waiting, running, passed, failed, couldn't run.
 - **Evidence Lab:** results grouped by test; for each failure, a plain-language explanation, the evidence, and a suggested fix, with a **Mark reviewed** button so the user records their own decision on it, and a **Dig deeper** button beside it (saves a research request, section 3). From phase 3, where a code fix is possible, the failure also shows a **Suggested change** panel (section 7b) with a **Review change** button; in phase 2 that panel doesn't appear. Test details (the locked test and its fingerprint) appear only inside each result's evidence and in the download, not on the cards. Two more buttons: **Retest new version** (choose the new version, reruns the same tests, shows before and after) and **Download evidence** (one JSON file plus a readable HTML report, with a fingerprint).
+- **Suggested change (inside Evidence Lab; decided in phase 3a).** The Suggested change panel on a failure has **Connect demo code** (until the code is connected) and **Review change**. Review change opens the **Suggested change page**. It is a page inside the Evidence Lab step, not a new step in the step bar. On it: **Back to results**; the explanation, the before and after lines and the proof; **Run proof again** (only after a failed or interrupted proof); a tick list of reviewers ("You", ticked, plus "Demo reviewer A" and "Demo reviewer B", labeled Demo data, with the one-login sentence under it) and **Open pull request**; and, on the pull request, **Approve** (one for each reviewer; for a demo reviewer the button reads "Approve as Demo reviewer A"), **Merge pull request** (asks first, in a box with **Confirm merge** and **Cancel**) and **Download patch**. The page also carries the line about the server finding (section 7b).
+- **Server setting change (the step after phase 3a; section 7c).** The server TLS failure gets a **Prepare change** button. The other buttons of that step are listed in its plan and need my OK first.
 
 Nothing else gets a button. If you think a screen needs more, ask me first.
 
@@ -93,17 +95,50 @@ Every test has a **built-in control**: alongside the customer's component it als
 
 Each result is one of: **Passed**, **Failed**, **Couldn't run** (with why), **Couldn't trust this run**; plus, where the answer key uses them, **Measured**, **No slowdown beyond measured noise**, and **Offered / Not offered** (post-quantum check).
 
-## 7b. Suggested change with proof (built in phase 3)
+## 7b. Suggested change with proof (built in phase 3a)
 
 Between finding a bug and retesting, the product proposes the exact code change and proves it works before offering it.
 
-1. **Connect the code.** The user connects the component's source code. In the demo this is a bundled local git repository of `acme-sign` (version 1.4.2), labeled **Demo data**. Connecting real GitHub or other hosts is out of scope for now; list it in `docs/LIMITS.md`.
+1. **Connect the code.** The user connects the component's source code with **Connect demo code** on the Suggested change panel. In the demo this is a bundled local git repository of `acme-sign` (version 1.4.2), labeled **Demo data**; connecting makes the app's own working copy of it. Connecting real GitHub or other hosts is out of scope for now; list it in `docs/LIMITS.md`.
 2. **Suggested change.** For a failure with a known fix, the research engine proposes a code change, shown as a before/after diff of the exact lines, with a plain-language explanation. With no AI model connected, changes come from fix templates for known bug types and are labeled **"From a fix template"**. Never present a template change as AI-written.
-3. **Proof before offering.** The app applies the change to a copy of the code on a new branch, rebuilds the component, and reruns **every** test in the locked plan (not only the failing one), plus the speed comparison. The change is offered only if every test passes and the controls behave. If anything fails, show the failed proof and don't offer the change.
-4. **Pull request.** **Open pull request** creates a pull request inside the app against the connected repository: the branch, the diff, the proof results and the evidence fingerprint. The user picks one or more reviewers who must approve it (in the demo, local users; default is the user alone). Each approval is recorded with name and time. The app never merges or deploys by itself; merging is a separate, confirmed user action. The pull request can be downloaded as a patch file.
-5. **Retest.** The merged result is version 1.4.3. **Retest new version** reruns the same locked plan and shows before and after, exactly as in section 2.
+3. **Proof before offering.** The app applies the change to a copy of the code on a new branch, rebuilds the component, and reruns **every** test in the locked plan (not only the failing one), plus the speed comparison. The proof starts by itself as soon as the code is connected; it has no button of its own. It needs a result for every test in the plan to compare with, so **Connect demo code** is switched off until every test has been run (the same rule as Retest). The change is offered only if all three of these hold:
+   - every test that runs the changed code passes (official test vectors, bad signatures, and no slowdown beyond the measured noise; a report-only test in the plan, such as the ML-DSA-65 comparison, has no pass or fail and only has to run);
+   - every control behaves;
+   - the tests that don't run this code (the server tests) are rerun and come out the same as before.
 
-The co-pilot can explain a suggested change and offer **Open pull request** as a confirm card, but every step also has its own button.
+   If anything fails, show the failed proof and don't offer the change; **Run proof again** is then available. Once the proof has passed, and while a server finding is still open, the Suggested change page carries this plain line: "This fixes the signing program. The server finding is separate and still open." While the proof is running, or after it did not pass, the page must not say the change fixes anything (results come only from tests); it then says: "This change is for the signing program only. The server finding is separate and still open."
+
+   (Decided in phase 3a. Read literally, "every test passes" could never hold in the demo: the server test fails before and after, because a code fix doesn't change the server, and the answer key expects that.)
+4. **Pull request.** **Open pull request** creates a pull request inside the app against the connected repository: the branch, the diff, the proof results and the evidence fingerprint. The user picks one or more reviewers who must approve it. Reviewers come from a fixed tick list: "You" (ticked by default), plus "Demo reviewer A" and "Demo reviewer B", labeled **Demo data**. The app has one login, so whoever is at the keyboard records each approval; the screen and `docs/LIMITS.md` say so. Each approval is recorded with name and time. The app never merges or deploys by itself; merging is a separate, confirmed user action (**Merge pull request**, then **Confirm merge**), possible only when every picked reviewer has approved. The pull request can be downloaded as a patch file (**Download patch**).
+5. **Retest.** The merged result is version 1.4.3. **Retest new version** reruns the same locked plan and shows before and after, exactly as in section 2. Retest itself is unchanged from phase 2. It does not wait for the merge: it can be pressed before or after.
+
+Also decided in phase 3a:
+
+- **What the proof runs.** Only our own demo components may run (`CLAUDE.md`, Safety). So the app first checks, byte for byte, that the changed code is identical to our bundled `acme-sign` 1.4.3, and then runs that. If it is not identical, nothing is run and the change is not offered. Say so on the Suggested change page and in `docs/LIMITS.md`.
+- **One fix template.** There is one fix template, for one kind of bug (the missing range check), written for `acme-sign`'s code.
+- **No new dependency.** The app reads and writes the repository in git's standard format itself, so the demo machine doesn't need git installed.
+- **Evidence.** Download evidence also holds the change, the proof, the approvals and the merge, so the evidence fingerprint shown on the pull request can be checked.
+
+In phase 3b the co-pilot can explain a suggested change and offer **Open pull request** as a confirm card, but every step also has its own button.
+
+## 7c. Server setting change with proof (the step after phase 3a)
+
+The server TLS failure (the server accepts an older TLS version than the file claims) is usually fixed by a server setting, not a code change.
+
+**In phase 3a: a fuller suggestion, text only.** The suggested fix for that failure:
+
+- says that this is usually a server setting, not a code change;
+- shows where the setting lives (the nginx or Apache config line, the cloud load balancer's security policy, or the app's own TLS setting), with the exact setting;
+- warns that switching off TLS 1.2 can lock out older clients and partners;
+- gives two options: (1) check the logs for TLS 1.2 connections and switch it off if there are none, or (2) keep TLS 1.2 with only strong settings and remove the old one we found (named), then correct the scanner file.
+
+**In the step after phase 3a: the change itself, with proof.**
+
+1. **Prepare change.** On the server TLS failure, a **Prepare change** button. The app writes the exact setting change from a fix template (labeled **"From a fix template"**), applies it to a test copy of the demo server, and reruns the server tests as proof.
+2. **Offered only if the proof passes.** In real use the change goes out as a pull request to the customer's server-settings repository, or as a change ticket; the customer's team approves and deploys it. **The app never changes a customer's server itself.**
+3. **In the demo.** After the user approves and confirms, the app applies the setting to our own demo server (**Demo data**), then reruns Verify and the server tests.
+
+Expected results are in `demo/expected.json` under `after_server_fix` (S1 to S3): the proof on the test copy passes the server protocol check (S1); Verify, rerun after the setting is applied, finds "TLS 1.3 only" **True** (S2); and the server protocol check on the demo server is then **Passed** (S3). They are not checked until this step is built.
 
 ## 8. Demo data (must run with no internet)
 
@@ -120,7 +155,10 @@ Ship a demo, labeled **Demo data** everywhere:
 0. **Repository setup:** done. The branch has been cleared of the old prototype and contains only `CLAUDE.md`, this spec and `demo/expected.json`.
 1. **Import and Verify**, the demo TLS server and the demo CBOM, and an empty co-pilot panel. **Stop and show me.**
 2. **Tests and Evidence Lab:** the research engine socket (section 3) with the rule-based engine, demo mode and isolated mode, adapter, the five tests and controls, run one or all in parallel, results and suggested fixes, retest with before and after, evidence download. **Stop and show me.**
-3. **Suggested change with proof** (section 7b), **co-pilot (rule-based),** the accuracy panel, polish, and the end-to-end test. **Stop and show me.**
+3. Built in three steps, one at a time:
+   - **3a. Suggested change with proof** (section 7b), and the fuller text-only suggestion for the server TLS failure (section 7c). **Stop and show me.**
+   - **Next after 3a: Server setting change with proof** (section 7c). **Stop and show me.**
+   - **3b. Co-pilot (rule-based),** the accuracy panel, polish, and the end-to-end test. **Stop and show me.**
 
 **At every checkpoint, show evidence, not a summary:** the test commands you ran and their output, a Playwright screenshot of every screen you built or changed, and the accuracy result against `demo/expected.json` for the parts built so far. If `docs/wireframes/` has sketches, compare your screenshots with them and list the differences. Then list anything you skipped, faked or couldn't get working.
 
@@ -148,7 +186,7 @@ Commit at the end of each phase on `mvp/crypto-simple`. Don't push unless I ask.
 3. Five tests are suggested. Reorder two, add the post-quantum readiness test, run one by itself, then **Run all**, which runs in parallel.
 4. The bad-signature test **fails** on 1.4.2 with the r = 0, s = 0 case shown; the controls behave as expected.
 5. Evidence Lab shows the suggested fix. In the co-pilot, ask "why did this fail?" and get the explanation with a link to the evidence. The co-pilot offers "Retest on 1.4.3"; nothing happens until Confirm is clicked. Run the whole demo a second time **without opening the co-pilot at all**, using only main-screen buttons, and get the same results.
-6. Connect the demo code, open the suggested change for the bad-signature failure, see the diff and the proof (every test passing on the changed code), open a pull request with a reviewer, approve it, merge it, and get 1.4.3. After retest, the case passes, and before and after shows no speed regression beyond the measured noise.
+6. Connect the demo code, open the suggested change for the bad-signature failure, see the diff and the proof (every test passing on the changed code, as section 7b item 3 defines it), open a pull request with a reviewer, approve it, merge it, and get 1.4.3. After retest, the case passes, and before and after shows no speed regression beyond the measured noise.
 7. **Download evidence**; changing one byte makes the fingerprint check fail (`python -m evidence verify file.json`).
 8. The accuracy panel shows every demo answer matching `expected.json`.
 
