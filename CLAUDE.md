@@ -13,6 +13,7 @@ How Kevin works with you: he's not a developer and doesn't use git. Explain in p
 - IMPORTANT: Keep it simple. Every new button, screen or setting must be in docs/SPEC.md section 2, or ask first.
 - Results (True/False/Couldn't check, Passed/Failed) come only from checks and tests. The co-pilot never sets a result or acts without the user's Confirm, and everything it can do also has a normal button.
 - No AI model. The co-pilot is rule-based behind `CopilotEngine`.
+- Suggested code changes are offered only after every test passes on the changed code. The app never merges or deploys on its own; a person approves and merges.
 - Never call a system "secure", give a security score or estimate time-to-hack.
 - Plain-language UI text for a busy security engineer who isn't a cryptographer.
 

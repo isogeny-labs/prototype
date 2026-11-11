@@ -34,7 +34,7 @@ One app shell: a step bar at the top (Import → Verify → Tests → Evidence L
 - **Import:** a drop zone, a "Use demo file" button, and a table of what the file claims. One button: **Verify claims**.
 - **Verify:** one row per claim: claim, what we found, True / False / Couldn't check, and an expandable "evidence" section (raw output). One button: **Continue to tests**.
 - **Tests:** a list of five suggested test cards, each with a one-line "why this matters". Drag to reorder, an × to remove, **+ Add test** (opens the catalog), a **Run** button on each card, and **Run all** (runs in parallel). Live status on each card: waiting, running, passed, failed, couldn't run.
-- **Evidence Lab:** results grouped by test; for each failure, a plain-language explanation, the evidence, and a suggested fix, with a **Mark reviewed** button so the user records their own decision on it. Two more buttons: **Retest new version** (choose the new version, reruns the same tests, shows before and after) and **Download evidence** (one JSON file plus a readable HTML report, with a fingerprint).
+- **Evidence Lab:** results grouped by test; for each failure, a plain-language explanation, the evidence, and a suggested fix, with a **Mark reviewed** button so the user records their own decision on it. Where a code fix is possible, the failure also shows a **Suggested change** panel (section 7b) with a **Review change** button. Two more buttons: **Retest new version** (choose the new version, reruns the same tests, shows before and after) and **Download evidence** (one JSON file plus a readable HTML report, with a fingerprint).
 
 Nothing else gets a button. If you think a screen needs more, ask me first.
 
@@ -92,6 +92,18 @@ Every test has a **built-in control**: alongside the customer's component it als
 
 Each result is one of: **Passed**, **Failed**, **Couldn't run** (with why), **Couldn't trust this run**.
 
+## 7b. Suggested change with proof (built in phase 3)
+
+Between finding a bug and retesting, the product proposes the exact code change and proves it works before offering it.
+
+1. **Connect the code.** The user connects the component's source code. In the demo this is a bundled local git repository of `acme-sign` (version 1.4.2), labeled **Demo data**. Connecting real GitHub or other hosts is out of scope for now; list it in `docs/LIMITS.md`.
+2. **Suggested change.** For a failure with a known fix, the research engine proposes a code change, shown as a before/after diff of the exact lines, with a plain-language explanation. With no AI model connected, changes come from fix templates for known bug types and are labeled **"From a fix template"**. Never present a template change as AI-written.
+3. **Proof before offering.** The app applies the change to a copy of the code on a new branch, rebuilds the component, and reruns **every** test in the locked plan (not only the failing one), plus the speed comparison. The change is offered only if every test passes and the controls behave. If anything fails, show the failed proof and don't offer the change.
+4. **Pull request.** **Open pull request** creates a pull request inside the app against the connected repository: the branch, the diff, the proof results and the evidence fingerprint. The user picks one or more reviewers who must approve it (in the demo, local users; default is the user alone). Each approval is recorded with name and time. The app never merges or deploys by itself; merging is a separate, confirmed user action. The pull request can be downloaded as a patch file.
+5. **Retest.** The merged result is version 1.4.3. **Retest new version** reruns the same locked plan and shows before and after, exactly as in section 2.
+
+The co-pilot can explain a suggested change and offer **Open pull request** as a confirm card, but every step also has its own button.
+
 ## 8. Demo data (must run with no internet)
 
 Ship a demo, labeled **Demo data** everywhere:
@@ -107,7 +119,7 @@ Ship a demo, labeled **Demo data** everywhere:
 0. **Repository setup:** done. The branch has been cleared of the old prototype and contains only `CLAUDE.md`, this spec and `demo/expected.json`.
 1. **Import and Verify**, the demo TLS server and the demo CBOM, and an empty co-pilot panel. **Stop and show me.**
 2. **Tests and Evidence Lab:** the research engine socket (section 3) with the rule-based engine, demo mode and isolated mode, adapter, the five tests and controls, run one or all in parallel, results and suggested fixes, retest with before and after, evidence download. **Stop and show me.**
-3. **Co-pilot (rule-based),** the accuracy panel, polish, and the end-to-end test. **Stop and show me.**
+3. **Suggested change with proof** (section 7b), **co-pilot (rule-based),** the accuracy panel, polish, and the end-to-end test. **Stop and show me.**
 
 **At every checkpoint, show evidence, not a summary:** the test commands you ran and their output, a Playwright screenshot of every screen you built or changed, and the accuracy result against `demo/expected.json` for the parts built so far. If `docs/wireframes/` has sketches, compare your screenshots with them and list the differences. Then list anything you skipped, faked or couldn't get working.
 
@@ -135,7 +147,7 @@ Commit at the end of each phase on `mvp/crypto-simple`. Don't push unless I ask.
 3. Five tests are suggested. Reorder two, add the post-quantum readiness test, run one by itself, then **Run all**, which runs in parallel.
 4. The bad-signature test **fails** on 1.4.2 with the r = 0, s = 0 case shown; the controls behave as expected.
 5. Evidence Lab shows the suggested fix. In the co-pilot, ask "why did this fail?" and get the explanation with a link to the evidence. The co-pilot offers "Retest on 1.4.3"; nothing happens until Confirm is clicked. Run the whole demo a second time **without opening the co-pilot at all**, using only main-screen buttons, and get the same results.
-6. After retest, the case passes, and before and after shows no speed regression beyond the measured noise.
+6. Connect the demo code, open the suggested change for the bad-signature failure, see the diff and the proof (every test passing on the changed code), open a pull request with a reviewer, approve it, merge it, and get 1.4.3. After retest, the case passes, and before and after shows no speed regression beyond the measured noise.
 7. **Download evidence**; changing one byte makes the fingerprint check fail (`python -m evidence verify file.json`).
 8. The accuracy panel shows every demo answer matching `expected.json`.
 
