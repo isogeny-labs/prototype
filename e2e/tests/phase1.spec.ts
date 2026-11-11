@@ -1,18 +1,15 @@
 // Phase 1 end to end, on the demo, with no internet: create a password, log in,
 // import the demo file, verify the claims, look at the evidence, upload a broken file.
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { DISCLAIMER, password } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.resolve(here, "../../docs/screenshots/phase1");
-const DISCLAIMER = "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
 const NOT_CONFIRMED = "You haven't confirmed you're allowed to test this address";
 
-// A throwaway password for the throwaway data folder. It is never written anywhere.
-const password = crypto.randomBytes(18).toString("base64url");
 
 let context: BrowserContext;
 let page: Page;
@@ -214,16 +211,20 @@ test("the assistant panel has its title and can be collapsed", async () => {
   await expect(panel.getByText("The assistant isn't built yet")).toBeVisible();
 });
 
-test("Continue to tests shows the phase 2 placeholder", async () => {
+test("Continue to tests shows the five suggested tests", async () => {
   await page.getByRole("button", { name: "Continue to tests" }).click();
   await expect(page.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
-  await expect(page.getByText("The Tests step arrives in phase 2.")).toBeVisible();
+  const cards = page.getByTestId("test-card");
+  await expect(cards).toHaveCount(5);
+  // Nothing has been run, so nothing shows a result.
+  await expect(cards.getByTestId("test-status")).toHaveText(Array(5).fill("Not run yet"));
   await expect(page.getByTestId("result-badge")).toHaveCount(0);
-  // The step bar highlights where you are: Tests, and only Tests.
+  // The step bar highlights where you are: Tests, and only Tests. Evidence Lab opens once there are results.
   const steps = page.getByRole("navigation", { name: "Steps" });
   await expect(steps.getByRole("button", { name: /3\. Tests/ })).toHaveAttribute("aria-current", "step");
   await expect(steps.locator('[aria-current="step"]')).toHaveCount(1);
-  await shot(page, "09-tests-placeholder.png");
+  await expect(steps.getByRole("button", { name: /4\. Evidence Lab/ })).toBeDisabled();
+  await shot(page, "09-tests.png");
 });
 
 test("a broken CSV upload gives an error that names the line, and the previous file's claims are gone", async () => {

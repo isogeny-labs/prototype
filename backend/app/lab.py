@@ -8,26 +8,24 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
-from . import auth, components
+from . import auth, components, runner
 from .addresses import AddressError, is_loopback_ip, parse_address, resolve_all
-from .config import DEMO_CBOM, DEMO_CBOM_PORT, DEMO_HOSTNAME, MODE, Settings
+from .config import DEMO_CBOM, DEMO_CBOM_PORT, DEMO_HOSTNAME, Settings
 from .db import (
     AddressRow, ClaimRow, ImportClearedRow, ImportRow, SkippedRow, VerifyRunRow, iso, make_session_factory, now_utc,
 )
 from .demo_server import DemoServer
+from .errors import BadRequest, Conflict, NotFound
+from .evidence_export import EvidenceMixin, SigningKeyError, ensure_signing_key
 from .importers import ImportFileError, ParsedFile, parse_file
+from .jobs import JobRunner
 from .names import clean_text
+from .research import RuleEngine
+from .reviewer import RuleReviewer
+from .testlab import TestLabMixin
 from .verify import DemoContext, verify_claims
 
-
-class NotFound(Exception):
-    pass
-
-
-class BadRequest(Exception):
-    def __init__(self, message: str, field: str | None = None):
-        super().__init__(message)
-        self.message, self.field = message, field
+_swept = False  # containers left by an earlier crash are cleared once per process
 
 
 def claim_json(c: ClaimRow) -> dict:
@@ -51,7 +49,7 @@ def run_json(r: VerifyRunRow) -> dict:
             "results": r.results}
 
 
-class Lab:
+class Lab(TestLabMixin, EvidenceMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -63,12 +61,36 @@ class Lab:
         self.demo = DemoServer(settings.data_dir, settings.demo_tls_port)
         self.allow_external_demo_server = allow_external_demo_server
         self._verify_lock = threading.Lock()
+        self._stopping = False  # set when the app is closing: a test still unfinished then writes no record
         self.resolver = resolve_all  # tests replace this to simulate a name that changes
+        # Phase 2: the mode is decided once, here, and recorded in every run. It never changes while the app runs.
+        self.mode = runner.detect_mode(settings)
+        self.component_runner = runner.ComponentRunner(self.mode)
+        self.jobs = JobRunner(settings.max_jobs)
+        self.engine = RuleEngine(settings.speed_rounds, settings.speed_repeats)   # proposes and designs tests
+        self.reviewer = RuleReviewer()                                             # the separate review step
+        self._init_testlab()
+        try:
+            # The evidence signing key: made once, on first start, kept in the data folder (mode 0600).
+            ensure_signing_key(settings.data_dir)
+        except (SigningKeyError, OSError):
+            pass  # Download evidence then says plainly that the key could not be read
 
     def start(self) -> None:
+        global _swept
+        self._stopping = False
         self.demo.start()
+        self.jobs.start()
+        if self.mode.docker_running and not _swept:
+            _swept = True
+            runner.sweep_stale_containers()
 
     def stop(self) -> None:
+        self.jobs.wait_idle(20)  # let a running test write its record; then stop
+        # A test still unfinished now is interrupted, not answered: it must write nothing, or it would record
+        # "the server did not answer" about a demo server that we ourselves are about to stop.
+        self._stopping = True
+        self.jobs.stop()
         self.demo.stop()
 
     # ---------------------------------------------------------------- session / login
@@ -78,7 +100,8 @@ class Lab:
             return {
                 "setup_required": auth.setup_required(db),
                 "logged_in": auth.session_valid(db, token),
-                "mode": MODE,
+                "mode": self.mode.name,
+                "mode_line": self.mode.line,
                 "demo_server": {"address": self.settings.demo_address, "running": self.demo.running,
                                 "error": self.demo.error},
             }
@@ -188,7 +211,8 @@ class Lab:
             demo = DemoContext(is_demo_import=imp.is_demo, host=DEMO_HOSTNAME, port=self.settings.demo_tls_port,
                                running=self.demo.running, error=self.demo.error, fingerprint=self.demo.fingerprint,
                                allow_external=self.allow_external_demo_server and self.demo.port_in_use)
-            outcomes = verify_claims(list(imp.claims), list(imp.addresses), demo, resolver=self.resolver)
+            outcomes = verify_claims(list(imp.claims), list(imp.addresses), demo, resolver=self.resolver,
+                                     component_runner=self.component_runner)
             results = [{"claim_id": c.id, "claim": claim_json(c), **o} for c, o in zip(imp.claims, outcomes)]
             run = VerifyRunRow(import_id=imp.id, started_at=started, finished_at=now_utc(), results=results)
             db.add(run)
@@ -204,4 +228,4 @@ class Lab:
             return run_json(run)
 
 
-__all__ = ["Lab", "NotFound", "BadRequest", "ImportFileError"]
+__all__ = ["Lab", "NotFound", "BadRequest", "Conflict", "ImportFileError"]

@@ -26,10 +26,12 @@ How Kevin works with you: he's not a developer and doesn't use git. Explain in p
 
 ## Commands
 - Start the app: `./run-demo.sh` (from the repo root), then open http://127.0.0.1:8000. Ctrl+C stops it. Demo TLS server: localhost:8443.
-- Backend tests: `cd backend && .venv/bin/python -m pytest -q tests` (venv is Python 3.12; `./run-demo.sh` creates it).
-- Accuracy check: `cd backend && .venv/bin/python -m app.accuracy` (compares with `demo/expected.json`; exit code 0 only if all match).
+- Isolated mode: when Docker is running, `./run-demo.sh` prepares the test images once (`cd backend && .venv/bin/python -m app.prepare`; add `--check` to only report). Only that step may pull or build; the app never does. Without Docker or the images the app runs in demo mode and says why. Force a mode with `EVIDENCE_LAB_MODE=demo` or `isolated`.
+- Backend tests: `cd backend && .venv/bin/python -m pytest -q tests` (venv is Python 3.12; `./run-demo.sh` creates it; about ten minutes; container tests are skipped with a message when Docker isn't ready).
+- Accuracy check: `cd backend && .venv/bin/python -m app.accuracy` (all 15 answers through the same path as the buttons; compares with `demo/expected.json`; exit code 0 only if all match; `--mode demo` or `--mode isolated` picks the mode).
+- Check a downloaded evidence file: `cd backend && .venv/bin/python -m evidence verify file.json` (exit code 0 only if nothing changed and the signer is this app's key; `--data-dir DIR` or `--public-key HEX_OR_FILE` to name the trusted key).
 - Frontend tests: `cd frontend && npm run typecheck && npm test`. Build: `npm run build`.
-- Playwright end-to-end: `cd e2e && npm test` (builds the frontend, starts its own app on port 8010 with a throwaway data folder; stop the app first, it needs port 8443; screenshots go to `docs/screenshots/phase1/`).
+- Playwright end-to-end: `cd e2e && npm test` (builds the frontend, starts its own app on port 8010 with a throwaway data folder; stop the app first, it needs port 8443; screenshots go to `docs/screenshots/phase1/` and `docs/screenshots/phase2/`).
 
 ## How each phase runs
 1. Plan first: list the files, screens and buttons, and how you'll prove it works. Wait for my OK before writing code.

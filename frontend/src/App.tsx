@@ -1,20 +1,49 @@
-import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage, setUnauthorizedHandler, type Address, type Import, type Session, type VerifyRun } from "./api";
+import { Fragment, useCallback, useEffect, useState } from "react";
+import { api, errorMessage, setUnauthorizedHandler, type Address, type Import, type PlanView, type Session, type VerifyRun } from "./api";
 import { LoginScreen, SetupScreen } from "./components/AuthScreens";
 import { CopilotPanel } from "./components/CopilotPanel";
+import { EvidenceLabScreen } from "./components/EvidenceLabScreen";
 import { ImportScreen } from "./components/ImportScreen";
+import { TestsScreen } from "./components/TestsScreen";
 import { VerifyScreen } from "./components/VerifyScreen";
 import { ErrorBox, Wordmark } from "./components/ui";
 
-type Step = "import" | "verify" | "tests";
+type Step = "import" | "verify" | "tests" | "lab";
+
+const STEP_KEY = "evidence-lab-step";
+
+// Remembering the open step is only a convenience for a page refresh. If the
+// browser won't store it, the app still works.
+function rememberStep(step: Step) {
+  try {
+    window.sessionStorage.setItem(STEP_KEY, step);
+  } catch {
+    /* nothing to do */
+  }
+}
+
+function rememberedStep(): string | null {
+  try {
+    return window.sessionStorage.getItem(STEP_KEY);
+  } catch {
+    return null;
+  }
+}
+
+const STEPS: { step: Step; label: string }[] = [
+  { step: "import", label: "1. Import" },
+  { step: "verify", label: "2. Verify" },
+  { step: "tests", label: "3. Tests" },
+  { step: "lab", label: "4. Evidence Lab" },
+];
 
 function StepBar({
   step,
-  canOpenVerify,
+  canOpen,
   onGo,
 }: {
   step: Step;
-  canOpenVerify: boolean;
+  canOpen: Record<Step, boolean>;
   onGo: (step: Step) => void;
 }) {
   const base = "flex flex-col items-start rounded-lg border px-3 py-2 text-left text-sm";
@@ -25,69 +54,28 @@ function StepBar({
   return (
     <nav aria-label="Steps">
       <ol className="flex flex-wrap items-stretch gap-2">
-        <li>
-          <button
-            type="button"
-            aria-current={step === "import" ? "step" : undefined}
-            onClick={() => onGo("import")}
-            className={`${base} ${step === "import" ? active : idle}`}
-          >
-            <span className="font-medium">1. Import</span>
-          </button>
-        </li>
-        <li aria-hidden="true" className="self-center text-slate-600">
-          →
-        </li>
-        <li>
-          <button
-            type="button"
-            aria-current={step === "verify" ? "step" : undefined}
-            disabled={!canOpenVerify}
-            onClick={() => onGo("verify")}
-            className={`${base} ${step === "verify" ? active : canOpenVerify ? idle : off}`}
-          >
-            <span className="font-medium">2. Verify</span>
-          </button>
-        </li>
-        <li aria-hidden="true" className="self-center text-slate-600">
-          →
-        </li>
-        <li>
-          <button
-            type="button"
-            disabled
-            aria-current={step === "tests" ? "step" : undefined}
-            className={`${base} ${step === "tests" ? `${active} cursor-default` : off}`}
-          >
-            <span className="font-medium">3. Tests</span>
-            <span className="text-xs">Coming in phase 2</span>
-          </button>
-        </li>
-        <li aria-hidden="true" className="self-center text-slate-600">
-          →
-        </li>
-        <li>
-          <button type="button" disabled className={`${base} ${off}`}>
-            <span className="font-medium">4. Evidence Lab</span>
-            <span className="text-xs">Coming in phase 2</span>
-          </button>
-        </li>
+        {STEPS.map((item, i) => (
+          <Fragment key={item.step}>
+            {i > 0 ? (
+              <li aria-hidden="true" className="self-center text-slate-600">
+                →
+              </li>
+            ) : null}
+            <li>
+              <button
+                type="button"
+                aria-current={step === item.step ? "step" : undefined}
+                disabled={!canOpen[item.step]}
+                onClick={() => onGo(item.step)}
+                className={`${base} ${step === item.step ? active : canOpen[item.step] ? idle : off}`}
+              >
+                <span className="font-medium">{item.label}</span>
+              </button>
+            </li>
+          </Fragment>
+        ))}
       </ol>
     </nav>
-  );
-}
-
-function TestsPlaceholder() {
-  return (
-    <section aria-labelledby="tests-title" className="space-y-2">
-      <h1 id="tests-title" className="text-xl font-semibold text-slate-50">
-        Tests
-      </h1>
-      <p className="text-sm text-slate-300">
-        The Tests step arrives in phase 2. It isn't built yet, so nothing has been run here.
-      </p>
-      <p className="text-sm text-slate-400">Your import and the Verify results are still available from the steps above.</p>
-    </section>
   );
 }
 
@@ -96,7 +84,13 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [imp, setImp] = useState<Import | null>(null);
   const [run, setRun] = useState<VerifyRun | null>(null);
+  const [plan, setPlan] = useState<PlanView | null>(null);
   const [step, setStep] = useState<Step>("import");
+
+  const go = useCallback((next: Step) => {
+    setStep(next);
+    rememberStep(next);
+  }, []);
 
   // Loads the session, then whatever was already imported and checked, so a
   // page refresh keeps the user where they were.
@@ -110,9 +104,15 @@ export default function App() {
       }
       const current = await api.getCurrentImport();
       const latest = current ? await api.getLatestVerify(current.id) : null;
+      const existingPlan = current ? await api.getPlan(current.id) : null;
       setImp(current);
       setRun(latest);
-      setStep(latest ? "verify" : "import");
+      setPlan(existingPlan);
+      const wanted = rememberedStep();
+      if (wanted === "lab" && existingPlan?.has_results) setStep("lab");
+      else if (wanted === "tests" && current) setStep("tests");
+      else if (wanted === "import") setStep("import");
+      else setStep(latest ? "verify" : "import");
       setSession(s);
     } catch (e) {
       setLoadError(errorMessage(e));
@@ -157,16 +157,28 @@ export default function App() {
     );
   }
 
+  // A step whose data is gone (for example after a failed import) falls back to Import.
+  const shown: Step =
+    (step === "verify" && imp && run) || (step === "tests" && imp) || (step === "lab" && imp && plan?.has_results)
+      ? step
+      : "import";
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-slate-800 bg-slate-900/60">
         <div className="flex flex-wrap items-center gap-x-8 gap-y-3 px-4 py-3 sm:px-6">
           <Wordmark />
-          <StepBar step={step} canOpenVerify={run !== null} onGo={setStep} />
+          <StepBar
+            step={shown}
+            canOpen={{ import: true, verify: run !== null, tests: imp !== null, lab: plan?.has_results === true }}
+            onGo={go}
+          />
         </div>
-        <p className="border-t border-slate-800 bg-slate-900 px-4 py-1.5 text-xs text-slate-300 sm:px-6">
-          Demo mode: running our own demo software, not isolated.
-        </p>
+        {session.mode_line ? (
+          <p data-testid="mode-line" className="border-t border-slate-800 bg-slate-900 px-4 py-1.5 text-xs text-slate-300 sm:px-6">
+            {session.mode_line}
+          </p>
+        ) : null}
       </header>
 
       <div className="flex flex-1 flex-col lg:flex-row">
@@ -177,29 +189,33 @@ export default function App() {
                 <ErrorBox>{loadError}</ErrorBox>
               </div>
             ) : null}
-            {step === "import" || (step === "verify" && (!imp || !run)) ? (
+            {shown === "import" ? (
               <ImportScreen
                 demoServer={session.demo_server}
                 imp={imp}
                 onImported={(next) => {
                   setImp(next);
                   setRun(null);
+                  setPlan(null);
                 }}
                 onImportFailed={() => {
                   setImp(null);
                   setRun(null);
+                  setPlan(null);
                 }}
                 onAddressChanged={onAddressChanged}
                 onVerified={(next) => {
                   setRun(next);
-                  setStep("verify");
+                  go("verify");
                 }}
               />
-            ) : step === "verify" && imp && run ? (
-              <VerifyScreen imp={imp} run={run} onContinue={() => setStep("tests")} />
-            ) : (
-              <TestsPlaceholder />
-            )}
+            ) : shown === "verify" && imp && run ? (
+              <VerifyScreen imp={imp} run={run} onContinue={() => go("tests")} />
+            ) : shown === "tests" && imp ? (
+              <TestsScreen importId={imp.id} plan={plan} onPlan={setPlan} />
+            ) : shown === "lab" && plan ? (
+              <EvidenceLabScreen planId={plan.id} />
+            ) : null}
           </div>
         </main>
         <CopilotPanel />

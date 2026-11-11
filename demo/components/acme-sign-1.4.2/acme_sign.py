@@ -8,8 +8,9 @@ Its `verify` command contains a planted bug of the same kind as CVE-2022-21449:
 it never checks that r and s are in the range 1..n-1, so the signature r = 0, s = 0
 is accepted for any message and any public key. Ordinary signatures verify correctly.
 The bug is here on purpose so the Evidence Lab tests have something real to catch.
+Everything else is strict, including the signature format (DER).
 
-How it is called: one command word (keygen | sign | verify | info) as the first
+How it is called: one command word (keygen | sign | verify | info | bench) as the first
 argument, a JSON object on standard input, a JSON object on standard output.
 Byte strings are hex text. Keys made by `keygen` are throwaway TEST keys.
 Standard library only.
@@ -19,6 +20,7 @@ import hmac
 import json
 import secrets
 import sys
+import time
 
 NAME = "acme-sign"
 VERSION = "1.4.2"
@@ -101,6 +103,7 @@ def der_encode(r, s):
 
 
 def der_decode(sig):
+    """Strict DER: SEQUENCE { INTEGER r, INTEGER s }, short-form lengths, minimal non-negative integers."""
     def read_int(buf, pos):
         if pos + 2 > len(buf) or buf[pos] != 0x02:
             raise ValueError("bad signature encoding")
@@ -108,7 +111,12 @@ def der_decode(sig):
         end = pos + 2 + length
         if length == 0 or length > 33 or end > len(buf):
             raise ValueError("bad signature encoding")
-        return int.from_bytes(buf[pos + 2:end], "big"), end
+        body = buf[pos + 2:end]
+        if body[0] & 0x80:
+            raise ValueError("bad signature encoding")  # a negative number
+        if length > 1 and body[0] == 0 and not body[1] & 0x80:
+            raise ValueError("bad signature encoding")  # a needless leading zero
+        return int.from_bytes(body, "big"), end
 
     if len(sig) < 8 or sig[0] != 0x30 or sig[1] != len(sig) - 2:
         raise ValueError("bad signature encoding")
@@ -131,7 +139,8 @@ def public_from_hex(text):
 
 def cmd_info(_req):
     return {"name": NAME, "version": VERSION, "algorithm": ALGORITHM, "hash": "SHA-256",
-            "signature_format": "DER", "public_key_format": "uncompressed point, hex (04 || X || Y)"}
+            "signature_format": "DER", "public_key_format": "uncompressed point, hex (04 || X || Y)",
+            "commands": ["keygen", "sign", "verify", "info", "bench"]}
 
 
 def cmd_keygen(_req):
@@ -174,12 +183,48 @@ def cmd_verify(req):
     return {"valid": x % N == r}
 
 
-COMMANDS = {"info": cmd_info, "keygen": cmd_keygen, "sign": cmd_sign, "verify": cmd_verify}
+def cmd_bench(req):
+    """Sign and verify `repeats` times inside this one process and report each timing, so that
+    program start-up is not counted. The private key is never part of the answer."""
+    repeats = req.get("repeats", 100)
+    if isinstance(repeats, bool) or not isinstance(repeats, int) or not 1 <= repeats <= 1000:
+        raise ValueError("repeats must be a whole number from 1 to 1000")
+    message = req.get("message", "")
+    bytes.fromhex(message)
+    keys = cmd_keygen({})
+    if "private_key" in req:
+        d = int(req["private_key"], 16)
+        if not 1 <= d < N:
+            raise ValueError("private key out of range")
+        x, y = mul(d, G)
+        keys = {"private_key": req["private_key"],
+                "public_key": (b"\x04" + x.to_bytes(32, "big") + y.to_bytes(32, "big")).hex()}
+    sign_in = {"private_key": keys["private_key"], "message": message}
+    warmups = 2
+    for _ in range(warmups):
+        signature = cmd_sign(sign_in)["signature"]
+        cmd_verify({"public_key": keys["public_key"], "message": message, "signature": signature})
+    sign_ms, verify_ms, all_verified = [], [], True
+    for _ in range(repeats):
+        t0 = time.perf_counter()
+        signature = cmd_sign(sign_in)["signature"]
+        t1 = time.perf_counter()
+        valid = cmd_verify({"public_key": keys["public_key"], "message": message, "signature": signature})["valid"]
+        t2 = time.perf_counter()
+        sign_ms.append(round((t1 - t0) * 1000, 4))
+        verify_ms.append(round((t2 - t1) * 1000, 4))
+        all_verified = all_verified and valid is True
+    return {"repeats": repeats, "warmups": warmups, "clock": "time.perf_counter", "sign_ms": sign_ms,
+            "verify_ms": verify_ms, "signature_bytes": len(signature) // 2,
+            "public_key_bytes": len(keys["public_key"]) // 2, "all_verified": all_verified}
+
+
+COMMANDS = {"info": cmd_info, "keygen": cmd_keygen, "sign": cmd_sign, "verify": cmd_verify, "bench": cmd_bench}
 
 
 def main(argv):
     if len(argv) != 2 or argv[1] not in COMMANDS:
-        print(json.dumps({"error": "usage: acme_sign.py keygen|sign|verify|info  (JSON on stdin, JSON on stdout)"}))
+        print(json.dumps({"error": "usage: acme_sign.py keygen|sign|verify|info|bench  (JSON on stdin, JSON on stdout)"}))
         return 2
     try:
         text = sys.stdin.read()

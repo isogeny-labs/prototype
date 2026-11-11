@@ -50,7 +50,25 @@ if [ "$needs_build" = 1 ]; then
   (cd "$FRONTEND" && npm run build --silent)
 fi
 
-# 4. Is something already using the app's port?
+# 4. Isolated mode (optional). If Docker is running, prepare our test images once. This is the only place
+#    anything is downloaded or built for containers; the app itself never does. It can never stop the start:
+#    no Docker, no internet or a slow download just means the app runs in demo mode and says so.
+if command -v docker >/dev/null 2>&1; then
+  say "Checking isolated mode (Docker)"
+  echo "   The first time, with internet, this can take a minute or two. Without Docker or internet it is skipped."
+  if command -v timeout >/dev/null 2>&1; then
+    (cd "$BACKEND" && timeout 480 "$VENV/bin/python" -m app.prepare) \
+      || echo "   Isolated mode could not be prepared. The app will run in demo mode."
+  else
+    (cd "$BACKEND" && "$VENV/bin/python" -m app.prepare) \
+      || echo "   Isolated mode could not be prepared. The app will run in demo mode."
+  fi
+else
+  echo
+  echo "== Docker is not installed, so the app will run in demo mode (our demo software runs as normal local programs)."
+fi
+
+# 5. Is something already using the app's port?
 if ! "$VENV/bin/python" - <<'PYEOF'
 import socket, sys
 s = socket.socket()
@@ -65,7 +83,7 @@ then
   fail "Port 8000 is already in use. The app may already be running: try opening $URL. Otherwise close the other program and run ./run-demo.sh again."
 fi
 
-# 5. Start. The app also starts its own demo TLS server on localhost:8443.
+# 6. Start. The app also starts its own demo TLS server on localhost:8443.
 say "Isogeny Evidence Lab is starting"
 echo "   Open this in your browser:  $URL"
 echo "   The first time, it asks you to create a password."

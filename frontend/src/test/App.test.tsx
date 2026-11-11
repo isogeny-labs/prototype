@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import App from "../App";
-import { address, calls, demoImport, mockApi, notFound, run, session, text } from "./fixtures";
+import { address, calls, demoImport, lab, mockApi, notFound, plan, run, session, text } from "./fixtures";
 
 describe("first run and login", () => {
   it("shows the create-password screen the first time", async () => {
@@ -72,8 +72,21 @@ describe("app shell", () => {
     const steps = within(screen.getByRole("navigation", { name: "Steps" }));
     expect(steps.getByRole("button", { name: /Import/ }).getAttribute("aria-current")).toBe("step");
     expect((steps.getByRole("button", { name: /Verify/ }) as HTMLButtonElement).disabled).toBe(true);
-    expect((steps.getByRole("button", { name: /Tests.*Coming in phase 2/ }) as HTMLButtonElement).disabled).toBe(true);
-    expect((steps.getByRole("button", { name: /Evidence Lab.*Coming in phase 2/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((steps.getByRole("button", { name: "3. Tests" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((steps.getByRole("button", { name: "4. Evidence Lab" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(document.body.textContent).not.toMatch(/Coming in phase 2/);
+  });
+
+  it("takes the mode line from the backend", async () => {
+    const line = "Isolated mode: our demo software runs in a locked-down container with no network.";
+    mockApi({
+      "GET /api/session": { body: { ...session, mode: "isolated", mode_line: line } },
+      "GET /api/import/current": notFound,
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Import" });
+    expect(screen.getByTestId("mode-line").textContent).toBe(line);
+    expect(screen.queryByText(/Demo mode/)).toBeNull();
   });
 
   it("has a collapsible co-pilot panel with the exact title, an empty state and no input", async () => {
@@ -98,6 +111,7 @@ describe("app shell", () => {
       "GET /api/session": { body: session },
       "GET /api/import/current": { body: demoImport },
       "GET /api/import/7/verify": { body: run },
+      "GET /api/import/7/plan": notFound,
     });
     render(<App />);
     await screen.findByRole("heading", { name: "Verify" });
@@ -108,17 +122,25 @@ describe("app shell", () => {
 });
 
 describe("full flow", () => {
-  it("imports the demo file, ticks the address, verifies and continues to the tests placeholder", async () => {
+  it("imports the demo file, ticks the address, verifies and continues to the five suggested tests", async () => {
     const fetchMock = mockApi({
       "GET /api/session": { body: session },
       "GET /api/import/current": notFound,
       "POST /api/import/demo": { body: demoImport },
       "POST /api/import/7/confirm-address": { body: { ...address, confirmed: true } },
       "POST /api/import/7/verify": { body: run },
+      "POST /api/import/7/plan": { body: plan },
     });
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Use demo file" }));
     expect(await screen.findAllByTestId("claim-row")).toHaveLength(3);
+
+    const steps = within(screen.getByRole("navigation", { name: "Steps" }));
+    const tests = steps.getByRole("button", { name: "3. Tests" }) as HTMLButtonElement;
+    const labStep = steps.getByRole("button", { name: "4. Evidence Lab" }) as HTMLButtonElement;
+    // Tests opens once there is an import; Evidence Lab waits for results.
+    expect(tests.disabled).toBe(false);
+    expect(labStep.disabled).toBe(true);
 
     const verify = screen.getByRole("button", { name: "Verify claims" });
     expect((verify as HTMLButtonElement).disabled).toBe(true);
@@ -140,16 +162,78 @@ describe("full flow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Continue to tests" }));
     expect(screen.getByRole("heading", { name: "Tests" })).not.toBeNull();
-    expect(screen.getByText(/arrives in phase 2/)).not.toBeNull();
+    expect(await screen.findAllByTestId("test-card")).toHaveLength(5);
+    expect(calls(fetchMock).at(-1)).toBe("POST /api/import/7/plan");
 
-    const steps = within(screen.getByRole("navigation", { name: "Steps" }));
-    const tests = steps.getByRole("button", { name: /Tests.*Coming in phase 2/ });
     expect(tests.getAttribute("aria-current")).toBe("step");
     expect(steps.getAllByRole("button").filter((b) => b.getAttribute("aria-current") === "step")).toEqual([tests]);
-    const lab = steps.getByRole("button", { name: /Evidence Lab.*Coming in phase 2/ }) as HTMLButtonElement;
-    expect(lab.disabled).toBe(true);
-    expect(lab.getAttribute("aria-current")).toBeNull();
-    expect(tests.className).not.toBe(lab.className);
+    expect(labStep.disabled).toBe(true);
+    expect(labStep.getAttribute("aria-current")).toBeNull();
+    // No "continue" button on Tests: the step bar is the way forward.
+    expect(screen.queryByRole("button", { name: /continue/i })).toBeNull();
+  });
+
+  it("opens Evidence Lab from the step bar once the plan has results", async () => {
+    const withResults = { ...plan, has_results: true };
+    mockApi({
+      "GET /api/session": { body: session },
+      "GET /api/import/current": { body: demoImport },
+      "GET /api/import/7/verify": { body: run },
+      "GET /api/import/7/plan": { body: withResults },
+      "POST /api/import/7/plan": { body: withResults },
+      "GET /api/plans/1/lab": { body: lab },
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Verify" });
+    const steps = within(screen.getByRole("navigation", { name: "Steps" }));
+    const labStep = steps.getByRole("button", { name: "4. Evidence Lab" }) as HTMLButtonElement;
+    expect(labStep.disabled).toBe(false);
+    fireEvent.click(labStep);
+    expect(await screen.findAllByTestId("lab-row")).toHaveLength(5);
+    expect(labStep.getAttribute("aria-current")).toBe("step");
+    expect(screen.getByTestId("copilot-panel")).not.toBeNull();
+
+    fireEvent.click(steps.getByRole("button", { name: "3. Tests" }));
+    expect(await screen.findAllByTestId("test-card")).toHaveLength(5);
+  });
+
+  it("comes back to the step that was open after a refresh", async () => {
+    const routes = {
+      "GET /api/session": { body: session },
+      "GET /api/import/current": { body: demoImport },
+      "GET /api/import/7/verify": { body: run },
+      "GET /api/import/7/plan": { body: { ...plan, has_results: true } },
+      "POST /api/import/7/plan": { body: { ...plan, has_results: true } },
+      "GET /api/plans/1/lab": { body: lab },
+    };
+    mockApi(routes);
+    const first = render(<App />);
+    await screen.findByRole("heading", { name: "Verify" });
+    fireEvent.click(screen.getByRole("button", { name: "4. Evidence Lab" }));
+    await screen.findAllByTestId("lab-row");
+    first.unmount();
+
+    render(<App />);
+    expect(await screen.findAllByTestId("lab-row")).toHaveLength(5);
+  });
+
+  it("offers no upload of software on any step", async () => {
+    mockApi({
+      "GET /api/session": { body: session },
+      "GET /api/import/current": { body: demoImport },
+      "GET /api/import/7/verify": { body: run },
+      "GET /api/import/7/plan": { body: { ...plan, has_results: true } },
+      "POST /api/import/7/plan": { body: { ...plan, has_results: true } },
+      "GET /api/plans/1/lab": { body: lab },
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Verify" });
+    for (const [name, testId] of [["3. Tests", "test-card"], ["4. Evidence Lab", "lab-row"]] as const) {
+      fireEvent.click(screen.getByRole("button", { name }));
+      await screen.findAllByTestId(testId);
+      expect(document.querySelector('input[type="file"]')).toBeNull();
+      expect(screen.getByRole("main").textContent).not.toMatch(/upload|drop a file|choose a file/i);
+    }
   });
 
   it("clears the previous file's claims and results when an upload fails, leaving only the error", async () => {
@@ -157,6 +241,7 @@ describe("full flow", () => {
       "GET /api/session": { body: session },
       "GET /api/import/current": { body: { ...demoImport, addresses: [{ ...address, confirmed: true }] } },
       "GET /api/import/7/verify": { body: run },
+      "GET /api/import/7/plan": notFound,
       "POST /api/import/file?filename=broken.csv": {
         status: 422,
         body: { error: { message: "The value column is empty.", line: 3, field: "value" } },
@@ -182,10 +267,16 @@ describe("full flow", () => {
       "GET /api/session": { body: session },
       "GET /api/import/current": { body: { ...demoImport, addresses: [{ ...address, confirmed: true }] } },
       "GET /api/import/7/verify": { body: run },
+      "GET /api/import/7/plan": notFound,
     });
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Verify" })).not.toBeNull();
-    expect(calls(fetchMock)).toEqual(["GET /api/session", "GET /api/import/current", "GET /api/import/7/verify"]);
+    expect(calls(fetchMock)).toEqual([
+      "GET /api/session",
+      "GET /api/import/current",
+      "GET /api/import/7/verify",
+      "GET /api/import/7/plan",
+    ]);
 
     fireEvent.click(within(screen.getByRole("navigation", { name: "Steps" })).getByRole("button", { name: /Import/ }));
     expect(screen.getAllByTestId("claim-row")).toHaveLength(3);

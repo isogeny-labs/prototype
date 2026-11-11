@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, StrictBool
+from pydantic import BaseModel, Field, StrictBool, StrictInt
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -18,7 +18,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from . import auth
 from .config import FRONTEND_DIST, MAX_UPLOAD_BYTES, Settings, load_settings
 from .importers import ImportFileError
-from .lab import BadRequest, Lab, NotFound
+from .lab import BadRequest, Conflict, Lab, NotFound
 
 
 class PasswordBody(BaseModel):
@@ -28,6 +28,18 @@ class PasswordBody(BaseModel):
 class ConfirmBody(BaseModel):
     address: str = Field(max_length=300)
     confirmed: StrictBool
+
+
+class OrderBody(BaseModel):
+    order: list[StrictInt] = Field(max_length=50)
+
+
+class AddTestBody(BaseModel):
+    catalog_id: str = Field(max_length=40)
+
+
+class RetestBody(BaseModel):
+    version: str = Field(max_length=50)
 
 
 def error_response(status: int, message: str, line: int | None = None, field: str | None = None) -> JSONResponse:
@@ -73,6 +85,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(BadRequest)
     async def _bad_request(_request: Request, exc: BadRequest):
         return error_response(422, exc.message, field=exc.field)
+
+    @app.exception_handler(Conflict)
+    async def _conflict(_request: Request, exc: Conflict):
+        return error_response(409, str(exc))
 
     def require_login(request: Request) -> None:
         with lab.db() as db:
@@ -150,6 +166,69 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/import/{import_id}/verify", dependencies=[Depends(require_login)])
     def latest_verify(import_id: int):
         return lab.latest_verify(import_id)
+
+    # ---------------------------------------------------------------- tests and Evidence Lab (all need login)
+    # There is no route here that accepts software, or any file: bodies are the small JSON objects above.
+
+    @app.get("/api/import/{import_id}/plan", dependencies=[Depends(require_login)])
+    def get_plan_for_import(import_id: int):
+        return lab.get_plan_for_import(import_id)
+
+    @app.post("/api/import/{import_id}/plan", dependencies=[Depends(require_login)])
+    def ensure_plan(import_id: int):
+        return lab.ensure_plan(import_id)
+
+    @app.get("/api/plans/{plan_id}", dependencies=[Depends(require_login)])
+    def get_plan(plan_id: int):
+        return lab.plan_view(plan_id)
+
+    @app.post("/api/plans/{plan_id}/order", dependencies=[Depends(require_login)])
+    def reorder(plan_id: int, body: OrderBody):
+        return lab.reorder(plan_id, list(body.order))
+
+    @app.post("/api/plans/{plan_id}/tests", dependencies=[Depends(require_login)])
+    def add_test(plan_id: int, body: AddTestBody):
+        return lab.add_test(plan_id, body.catalog_id)
+
+    @app.post("/api/plans/{plan_id}/tests/{item_id}/remove", dependencies=[Depends(require_login)])
+    def remove_test(plan_id: int, item_id: int):
+        return lab.remove_test(plan_id, item_id)
+
+    @app.post("/api/plans/{plan_id}/tests/{item_id}/run", dependencies=[Depends(require_login)])
+    def run_test(plan_id: int, item_id: int):
+        return lab.run_test(plan_id, item_id)
+
+    @app.post("/api/plans/{plan_id}/run-all", dependencies=[Depends(require_login)])
+    def run_all(plan_id: int):
+        return lab.run_all(plan_id)
+
+    @app.get("/api/plans/{plan_id}/lab", dependencies=[Depends(require_login)])
+    def lab_view(plan_id: int):
+        return lab.lab_view(plan_id)
+
+    @app.post("/api/runs/{run_id}/mark-reviewed", dependencies=[Depends(require_login)])
+    def mark_reviewed(run_id: int):
+        return lab.mark_reviewed(run_id)
+
+    @app.post("/api/runs/{run_id}/dig-deeper", dependencies=[Depends(require_login)])
+    def dig_deeper(run_id: int):
+        return lab.dig_deeper(run_id)
+
+    @app.post("/api/plans/{plan_id}/retest", dependencies=[Depends(require_login)])
+    def retest(plan_id: int, body: RetestBody):
+        return lab.start_retest(plan_id, body.version)
+
+    @app.post("/api/plans/{plan_id}/evidence", dependencies=[Depends(require_login)])
+    def export_evidence(plan_id: int):
+        return lab.export_evidence(plan_id)
+
+    @app.get("/api/evidence/{export_id}/{which}", dependencies=[Depends(require_login)])
+    def evidence_file(export_id: int, which: str):
+        filename, data, media_type = lab.evidence_file(export_id, which)
+        # Always a download, never a page of this app: the report is opened from disk, where it can reach nothing.
+        return Response(content=data, media_type=media_type, headers={
+            "Content-Disposition": f'attachment; filename="{filename}"', "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox", "Cache-Control": "no-store"})
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def no_such_api(rest: str):

@@ -1,29 +1,34 @@
 # Isogeny Evidence Lab (crypto MVP)
 
 You bring in a file from a scanning tool that *claims* how a system's encryption is set up.
-Evidence Lab checks each claim against the real system and marks it **True**, **False** or
-**Couldn't check**, and shows the raw evidence behind every answer.
+Evidence Lab checks each claim against the real system, runs tests on it, and shows the evidence
+behind every answer. After a fix, it reruns the same tests and shows before and after.
 
-Passing these checks doesn't prove a system secure. It shows these specific checks passed.
+Passing these tests doesn't prove a system secure. It shows these specific checks passed.
 
-## Status: phase 1 of 3
+## Status: phase 2 of 3
 
 | Part | Status |
 | --- | --- |
 | Log in (you create your own password the first time) | Built |
 | 1. Import (demo file, CycloneDX 1.6 CBOM `.json`, CSV template `.csv`) | Built |
 | 2. Verify (True / False / Couldn't check, with evidence) | Built |
-| Demo TLS server and demo file ("Acme Pay") | Built |
-| Assistant panel | Empty panel only; the assistant is phase 3 |
-| 3. Tests, 4. Evidence Lab | Not built (phase 2) |
+| 3. Tests (five suggested tests, add from a short catalog, reorder, remove, run one or all at once) | Built |
+| 4. Evidence Lab (results, controls, suggested fix, Mark reviewed, Dig deeper, Retest new version, Download evidence) | Built |
+| Demo mode and isolated mode (Docker) | Built |
+| Uploading outside software | Not in this version: only our own demo components run |
+| Suggested change with proof, pull requests | Not built (phase 3) |
+| Assistant panel | Empty panel only; the assistant is phase 3. No AI model is connected |
+| Accuracy panel in the app | Not built (phase 3); the accuracy check is a command for now |
 
 What is real, what is demo and what is missing is listed honestly in [docs/LIMITS.md](docs/LIMITS.md).
-The full spec is [docs/SPEC.md](docs/SPEC.md). Screenshots of every phase 1 screen are in
-[docs/screenshots/phase1/](docs/screenshots/phase1/).
+The full spec is [docs/SPEC.md](docs/SPEC.md). How tests, runs and reviews are recorded is in
+[docs/ENGINE.md](docs/ENGINE.md); how software under test is run is in [docs/ADAPTER.md](docs/ADAPTER.md).
+Screenshots are in [docs/screenshots/](docs/screenshots/).
 
 ## Run the demo (one command)
 
-You need Python 3.12 and Node.js 20 or newer installed. No internet is needed after the first run, and no Docker.
+You need Python 3.12 and Node.js 20 or newer installed. Docker is optional. No internet is needed after the first run.
 
 ```
 ./run-demo.sh
@@ -37,13 +42,49 @@ open **http://127.0.0.1:8000** in your browser.
 3. Tick **I own this system or am allowed to test it** (the address is the app's own demo server on your computer).
 4. Click **Verify claims**. Expected: "TLS 1.3 only" is **False** (the demo server also accepts TLS 1.2),
    the certificate claim is **True**, the signing component claim is **True**. Open **Evidence** on any row to see the raw output.
+5. Open **3. Tests**. Five tests are suggested. You can drag them into another order, remove one with ×, or use
+   **+ Add test** to add *Post-quantum readiness*. Click **Run all** (or **Run** on one card).
+   Expected on the demo: Old TLS versions **Failed**, Certificate strength **Passed**, Official test vectors **Failed**
+   (3 of 484 cases wrong), Bad signatures **Failed** (it accepts r = 0, s = 0), Speed and size **Measured**,
+   Post-quantum readiness **Not offered**. Run all takes about half a minute to a minute.
+6. Open **4. Evidence Lab**. Open any row to see what happened, what it shows and what it doesn't, the evidence,
+   the control and the suggested fix. **Mark reviewed** records that you looked at it. **Dig deeper** saves a
+   research request, shown as queued (no research engine is connected, so there is no answer).
+7. Click **Retest new version** and pick **acme-sign 1.4.3**. The same locked tests run again and the list becomes
+   before and after. Expected: the two signature tests now **Passed**, speed **No slowdown beyond measured noise**,
+   the server tests unchanged (the server was not fixed).
+8. Click **Download evidence**. Two files arrive: the evidence (JSON, the record) and a readable report (HTML).
+   To check the JSON file, in a terminal:
+
+   ```
+   cd backend && .venv/bin/python -m evidence verify <the downloaded .json file>
+   ```
+
+   It prints `Evidence verified`. Change any one character in a copy of the file and it fails.
 
 To stop the app, press Ctrl+C in the window where it is running.
+
+### Demo mode and isolated mode
+
+The line under the step bar says which mode the app is in.
+
+- **Demo mode** (no Docker needed): our demo software runs as normal local programs with a time limit. Not isolated.
+- **Isolated mode** (Docker running): the same demo software runs in a locked-down container with no network and
+  no access to your files. `./run-demo.sh` prepares the two small images it needs once, the first time Docker is
+  running and you are online. If Docker is missing, not running, or you are offline, the app simply starts in
+  demo mode and says why. The app itself never downloads anything.
+- The post-quantum readiness test needs OpenSSL 3.5 or newer on your computer, or Docker with the prepared
+  image. Without either it shows **Couldn't run (needs OpenSSL 3.5 or newer)**. On Docker Desktop (Mac, Windows)
+  it may show **Couldn't run (the checker could not reach the server)**; see docs/LIMITS.md.
+- To check what is prepared without changing anything: `cd backend && .venv/bin/python -m app.prepare --check`.
+- To force a mode for one start: `EVIDENCE_LAB_MODE=demo ./run-demo.sh` (or `isolated`).
 
 Things to know:
 
 - The app only listens on your own computer (127.0.0.1). The demo TLS server uses `localhost:8443`.
-- Your data (a small database and the demo test certificate) lives in the `data/` folder, which is never committed.
+- Your data lives in the `data/` folder, which is never committed: a small database, the demo test certificate
+  and the app's evidence signing key (a local key, made on first start, readable only by you).
+- Only our own demo software can be run. There is nowhere to upload other software in this version.
 - Forgot the password? There is no reset button yet. Stop the app, delete `data/evidence-lab.sqlite3`, start again
   and create a new password. This also deletes your imports and results.
 
@@ -71,15 +112,24 @@ npm test
 `./run-demo.sh` creates `backend/.venv` and `frontend/node_modules` for you, so run it once before the tests.
 On a new computer the end-to-end test also needs Playwright's browser once: `cd e2e && npx playwright install chromium`.
 
-The **accuracy check** compares the app's Verify results on the demo with the answer key in
-`demo/expected.json` (V1 to V3 in phase 1) and prints, for example, `Demo accuracy: 3 of 3 match`.
-Any mismatch is shown, not hidden. The build never edits the answer key.
+The **accuracy check** runs the whole demo through the same path as the buttons (import, verify, propose and lock
+the tests, add the post-quantum test, Run all, Retest on 1.4.3) and compares every answer with the answer key in
+`demo/expected.json`: V1 to V3, T1 to T5, R1 to R5, the controls and A1. It prints one line per answer and ends
+with, for example, `Demo accuracy: 15 of 15 match`. It takes about one minute in demo mode and about a minute and
+a half in isolated mode. Any mismatch is shown, not hidden, and makes the command exit with an error code.
+Add `--mode demo` or `--mode isolated` to choose the mode. The build never edits the answer key.
+
+The backend tests take about ten minutes. Tests that need real containers are skipped, with a message, when
+Docker is not running or the images are not prepared (`cd backend && .venv/bin/python -m app.prepare`).
 
 ## Where things are
 
-- `backend/` – Python 3.12, FastAPI, SQLite. `app/` is the code, `tests/` the tests.
+- `backend/` – Python 3.12, FastAPI, SQLite. `app/` is the code, `tests/` the tests, `evidence/` the small
+  command that checks a downloaded evidence file.
 - `frontend/` – React, TypeScript, Vite, Tailwind.
 - `e2e/` – the Playwright end-to-end test.
 - `demo/` – the demo file (`acme-pay-cbom.json`), the CSV template (`claims-template.csv`), the demo signing
-  component (`components/acme-sign-1.4.2/`, deliberately flawed demo software) and the answer key (`expected.json`).
-- `docs/` – the spec, the limits, screenshots.
+  components (`components/acme-sign-1.4.2/`, deliberately flawed, and `components/acme-sign-1.4.3/`, corrected),
+  the deliberately broken controls, the official test vectors (`vectors/wycheproof/`, Project Wycheproof,
+  Apache-2.0), our bad-signature cases (`vectors/bad-signatures/`) and the answer key (`expected.json`).
+- `docs/` – the spec, the limits, the engine and adapter notes, screenshots.

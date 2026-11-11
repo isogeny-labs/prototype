@@ -32,6 +32,7 @@ def test_first_start_asks_to_create_a_password_then_logs_in(anon_client, setting
     c = anon_client
     s = c.get("/api/session").json()
     assert s == {"setup_required": True, "logged_in": False, "mode": "demo",
+                 "mode_line": "Demo mode: running our own demo software, not isolated. Isolated mode is switched off for this run.",
                  "demo_server": {"address": f"localhost:{settings.demo_tls_port}", "running": True, "error": None}}
     assert c.post("/api/import/demo").status_code == 401
     assert c.post("/api/login", json={"password": PASSWORD}).status_code == 401  # nothing set up yet
@@ -259,7 +260,7 @@ def test_upload_csv_and_software_claims(client, tls_server):
                      f"127.0.0.1:{port},tls,certificate,ECDSA P-256",
                      "acme-sign 1.4.2,software,signature_algorithm,ECDSA P-256",
                      "acme-sign 1.4.2,software,signature_algorithm,Ed25519",
-                     "acme-sign 1.4.3,software,signature_algorithm,ECDSA P-256",
+                     "acme-sign 1.4.4,software,signature_algorithm,ECDSA P-256",  # not a demo version (1.4.3 became one in phase 2)
                      "../acme-sign 1.4.2,software,signature_algorithm,ECDSA P-256",
                      "other-signer 2.0,software,signature_algorithm,ECDSA P-256")
     r = upload(client, "C:\\Users\\me\\my claims.csv", data)

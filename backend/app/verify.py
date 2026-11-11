@@ -344,8 +344,9 @@ def _iana_names() -> dict[str, str]:
 
 def verify_claims(claims: list, address_rows: list, demo: DemoContext,
                   resolver: Callable[[str], list[str]] = resolve_all,
-                  session_factory: Callable[..., ProbeSession] = ProbeSession) -> list[dict]:
-    """Check every claim, one address at a time and one handshake at a time. Returns one result per claim."""
+                  session_factory: Callable[..., ProbeSession] = ProbeSession, component_runner=None) -> list[dict]:
+    """Check every claim, one address at a time and one handshake at a time. Returns one result per claim.
+    `component_runner` is the app's ComponentRunner: a software claim's component runs in the app's own mode."""
     rows = {r.address: r for r in address_rows}
     checks: dict[str, AddressCheck] = {}
     results = []
@@ -378,7 +379,7 @@ def verify_claims(claims: list, address_rows: list, demo: DemoContext,
                     res = _couldnt(components.NOT_A_DEMO_COMPONENT)
                 else:
                     res = components.verify_software_claim(path, detail["component"], detail["version"],
-                                                           str(detail.get("algorithm", "")))
+                                                           str(detail.get("algorithm", "")), runner=component_runner)
         else:
             res = _couldnt("The file doesn't say where this is used, so there is nothing to connect to or run.")
         results.append(res)
