@@ -34,7 +34,7 @@ One app shell: a step bar at the top (Import → Verify → Tests → Evidence L
 - **Import:** a drop zone, a "Use demo file" button, and a table of what the file claims. One button: **Verify claims**.
 - **Verify:** one row per claim: claim, what we found, True / False / Couldn't check, and an expandable "evidence" section (raw output). One button: **Continue to tests**.
 - **Tests:** a list of five suggested test cards, each with a one-line "why this matters". Drag to reorder, an × to remove, **+ Add test** (opens the catalog), a **Run** button on each card, and **Run all** (runs in parallel). Live status on each card: waiting, running, passed, failed, couldn't run.
-- **Evidence Lab:** results grouped by test; for each failure, a plain-language explanation, the evidence, and a suggested fix, with a **Mark reviewed** button so the user records their own decision on it. Where a code fix is possible, the failure also shows a **Suggested change** panel (section 7b) with a **Review change** button. Two more buttons: **Retest new version** (choose the new version, reruns the same tests, shows before and after) and **Download evidence** (one JSON file plus a readable HTML report, with a fingerprint).
+- **Evidence Lab:** results grouped by test; for each failure, a plain-language explanation, the evidence, and a suggested fix, with a **Mark reviewed** button so the user records their own decision on it, and a **Dig deeper** button beside it (saves a research request, section 3). From phase 3, where a code fix is possible, the failure also shows a **Suggested change** panel (section 7b) with a **Review change** button; in phase 2 that panel doesn't appear. Test details (the locked test and its fingerprint) appear only inside each result's evidence and in the download, not on the cards. Two more buttons: **Retest new version** (choose the new version, reruns the same tests, shows before and after) and **Download evidence** (one JSON file plus a readable HTML report, with a fingerprint).
 
 Nothing else gets a button. If you think a screen needs more, ask me first.
 
@@ -45,7 +45,8 @@ Nothing else gets a button. If you think a screen needs more, ask me first.
 - Crypto reference: `cryptography` (pyca) for ECDSA and Ed25519; Python's `ssl` module plus OpenSSL command-line tools for TLS checks. Detecting post-quantum hybrid key exchange (X25519MLKEM768) needs **OpenSSL 3.5 or newer**. If the machine's OpenSSL is older and Docker isn't available, that test shows **Couldn't run** with the reason, never a guess.
 - Running software under test, two modes:
   - **Demo mode (no Docker needed):** only our own demo components (`acme-sign` and the broken control) run, as separate local processes with a time limit. Uploading outside software is turned off. The screen says "Demo mode: running our own demo software, not isolated."
-  - **Isolated mode (when Docker is running):** any component, including uploaded ones, runs in a container with no network, a read-only filesystem except a scratch folder, and CPU, memory and time limits. It must not be able to read anything on the host, including the database and the evidence signing key. Uploading outside software is allowed only in this mode.
+  - **Isolated mode (when Docker is running):** the same demo components run in a container with no network, a read-only filesystem except a scratch folder, and CPU, memory and time limits. It must not be able to read anything on the host, including the database and the evidence signing key. Base images: `python:3.12-alpine` (components) and `alpine/openssl` (post-quantum check), pinned by digest; `./run-demo.sh` prepares them once when Docker and internet are available, and the app never downloads anything while running.
+  - **Uploading outside software is not in this version** (decided in phase 2). Retest chooses only between our demo versions. List it in `docs/LIMITS.md`.
 - Demo TLS server: a small Python server started by the app (no Docker needed), configured to accept TLS 1.2 with an older cipher as well as TLS 1.3. If Docker is running, the OpenSSL 3.5 checker container can also be used.
 - **Research engine socket (the autoresearcher plugs in here later).** Everything that thinks about tests goes through one `ResearchEngine` interface: `propose_tests(claims) -> plan`, `design_test(request) -> test` (used by **+ Add test** and the co-pilot), `review(result) -> review`, and `dig_deeper(finding) -> research request`. Phase 2 ships a rule-based engine that returns the five tests in section 7. Our real autoresearcher replaces it later without changing any screen. Build the records to match how the autoresearcher works:
   - **Test before run:** each test is written down before it runs (question, method, inputs, controls, the pass/fail rule) and locked with a SHA-256 hash. A locked test can't change; editing it makes a new version.
@@ -74,7 +75,7 @@ Turn each into a list of **claims**. Each claim says where (a host:port or a sof
 
 ## 6. Software under test: the adapter
 
-Software is tested through a tiny command-line contract. It reads JSON on stdin and writes JSON on stdout, with four commands: `keygen`, `sign`, `verify`, `info`. Document it in `docs/ADAPTER.md` with a complete example. A component is picked from the demo, or (isolated mode only) uploaded as a folder with a Dockerfile.
+Software is tested through a tiny command-line contract. It reads JSON on stdin and writes JSON on stdout, with five commands: `keygen`, `sign`, `verify`, `info`, and `bench` (the program signs and verifies many times itself and reports its own timings, so program start-up isn't counted). Document it in `docs/ADAPTER.md` with a complete example. Components come from the demo only.
 
 ## 7. The five suggested tests (and the catalog)
 
@@ -82,15 +83,15 @@ Suggest these five, ordered by what the claims cover:
 
 1. **Server protocol check:** does the server accept anything older or weaker than claimed?
 2. **Certificate check:** do the certificate's algorithm and key size match the claim and current NIST guidance? Store that guidance as a config value with its source link, not a hard-coded claim.
-3. **Official test vectors:** does the signing component give the right answer on Project Wycheproof vectors for ECDSA P-256 and Ed25519? Vendor the vector files with their source URL and commit; ask me before adding them.
+3. **Official test vectors:** does the signing component give the right answer on Project Wycheproof vectors for ECDSA P-256 and Ed25519? Vendored (approved): the Wycheproof files pinned to C2SP/wycheproof commit `dab4ea2`, with source URL and Apache-2.0 licence.
 4. **Bad-signature check:** does it reject signatures it must reject: changed message, changed signature, wrong length, r = 0, s = 0, values at or above the curve order, broken encodings?
-5. **Speed and size:** signing and verification time (median and slowest 1 in 100, with the repeat count shown) and key and signature sizes, compared with a reference library. This test reports numbers; it has no pass/fail on the first run. On a retest it flags a slowdown larger than the measured run-to-run noise.
+5. **Speed and size:** signing and verification time (median and slowest 1 in 100, with the repeat count shown) and key and signature sizes, compared with a reference library. Timings come from the adapter's `bench` command. This test reports numbers (**Measured**); it has no pass/fail on the first run. On a retest it re-measures the old and new versions side by side and flags a slowdown larger than the measured run-to-run noise (**No slowdown beyond measured noise** or the slowdown found).
 
 Catalog for **+ Add test** (small, at most five extra): post-quantum readiness (does the server offer X25519MLKEM768?), compare with a post-quantum signature (ML-DSA-65 speed and size from a reference implementation, labeled "reference, not production"), plus any you think are essential. Ask me before adding more.
 
 Every test has a **built-in control**: alongside the customer's component it also runs a deliberately broken reference component that must fail, so "passed" means something. If the control doesn't fail, the test result is marked **Couldn't trust this run**.
 
-Each result is one of: **Passed**, **Failed**, **Couldn't run** (with why), **Couldn't trust this run**.
+Each result is one of: **Passed**, **Failed**, **Couldn't run** (with why), **Couldn't trust this run**; plus, where the answer key uses them, **Measured**, **No slowdown beyond measured noise**, and **Offered / Not offered** (post-quantum check).
 
 ## 7b. Suggested change with proof (built in phase 3)
 
@@ -109,7 +110,7 @@ The co-pilot can explain a suggested change and offer **Open pull request** as a
 Ship a demo, labeled **Demo data** everywhere:
 - `acme-pay-cbom.json`: a CBOM for a fictional "Acme Pay" token-signing service. It claims: the server at `localhost:8443` accepts TLS 1.3 only; the certificate is ECDSA P-256; the signing component is `acme-sign` 1.4.2 implementing ECDSA P-256.
 - A demo TLS server (started by the app) that **also accepts TLS 1.2 with an older cipher**, so that claim comes back False.
-- `acme-sign` 1.4.2, whose verifier **accepts the signature r = 0, s = 0** (the same kind of bug as the real CVE-2022-21449), so test 4 fails. And `acme-sign` 1.4.3, which fixes it.
+- `acme-sign` 1.4.2, with exactly one planted bug: its verifier **never checks that r and s are in the allowed range** (1 to n-1), so it accepts r = 0, s = 0. This is the same mistake as the real CVE-2022-21449. Everything else is strict (including signature format). On Wycheproof P-256 it gets exactly 3 of 484 wrong: cases 168, 171 and 364, all from that one bug. Test 4 fails on the r = 0, s = 0 case. `acme-sign` 1.4.3 adds the range check and passes all 484.
 - One claim that is genuinely true (the certificate), so the demo shows the product doesn't flag everything.
 
 **Accuracy check.** `demo/expected.json` is the answer key: the right answer for every demo claim and test. **We wrote it, not you. Never edit it.** If the app disagrees with it, fix the app or tell me why the key is wrong; don't change the key to make the check pass. Add a command and a small panel in Evidence Lab (for example "Demo accuracy: 15 of 15 match") that compares the app's results with the expected answers. Any mismatch is shown, not hidden.
@@ -151,6 +152,6 @@ Commit at the end of each phase on `mvp/crypto-simple`. Don't push unless I ask.
 7. **Download evidence**; changing one byte makes the fingerprint check fail (`python -m evidence verify file.json`).
 8. The accuracy panel shows every demo answer matching `expected.json`.
 
-Also unit-test: CBOM and CSV parsing with broken files, the TLS comparison, each of the five tests against the broken control, isolated mode having no network and no access to the host files or signing key (skipped with a clear message if Docker isn't running), uploads being refused in demo mode, the co-pilot being unable to change any result or run anything without a confirmation, and every co-pilot action having a matching main-screen button.
+Also unit-test: CBOM and CSV parsing with broken files, the TLS comparison, each of the five tests against the broken control, isolated mode having no network and no access to the host files or signing key (skipped with a clear message if Docker isn't running), uploading outside software not being offered anywhere, the co-pilot being unable to change any result or run anything without a confirmation, and every co-pilot action having a matching main-screen button.
 
 Write `README.md` (how to run the demo in one command), `docs/ADAPTER.md`, and `docs/LIMITS.md` (what's real, what's demo, what's not built yet, honestly).
