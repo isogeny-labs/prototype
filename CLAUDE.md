@@ -24,7 +24,11 @@ How Kevin works with you: he's not a developer and doesn't use git. Explain in p
 - Ask before adding any dependency not in docs/SPEC.md section 3.
 
 ## Commands
-- (Fill in during phase 1: how to start the app, run backend tests, frontend tests and the Playwright end-to-end test.)
+- Start the app: `./run-demo.sh` (from the repo root), then open http://127.0.0.1:8000. Ctrl+C stops it. Demo TLS server: localhost:8443.
+- Backend tests: `cd backend && .venv/bin/python -m pytest -q tests` (venv is Python 3.12; `./run-demo.sh` creates it).
+- Accuracy check: `cd backend && .venv/bin/python -m app.accuracy` (compares with `demo/expected.json`; exit code 0 only if all match).
+- Frontend tests: `cd frontend && npm run typecheck && npm test`. Build: `npm run build`.
+- Playwright end-to-end: `cd e2e && npm test` (builds the frontend, starts its own app on port 8010 with a throwaway data folder; stop the app first, it needs port 8443; screenshots go to `docs/screenshots/phase1/`).
 
 ## How each phase runs
 1. Plan first: list the files, screens and buttons, and how you'll prove it works. Wait for my OK before writing code.

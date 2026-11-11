@@ -1,7 +1,21 @@
+# App data (database, demo test certificate and key). Never commit.
 data/
+*.sqlite3*
+.env
+
+# Python
+.venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-*.sqlite3*
-.env
+
+# Node / frontend build
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Playwright output
+test-results/
+playwright-report/
+
 site/

@@ -1,0 +1,9 @@
+# Isogeny Evidence Lab backend (Python 3.12). Everything here is listed in docs/SPEC.md section 3
+# or was approved by the owner (uvicorn, httpx).
+fastapi
+uvicorn
+sqlalchemy
+pydantic
+cryptography
+pytest
+httpx
