@@ -1,5 +1,5 @@
 {
-  "_about": "Answer key for the Acme Pay demo. Written by Isogeny Labs, not by the build. DRAFT: Adam to confirm every entry before the build starts.",
+  "_about": "Answer key for the Acme Pay demo. Written by Isogeny Labs, not by the build. Adam to review; the Wycheproof entry has been checked against the source file.",
   "verify": [
     {"id": "V1", "claim": "localhost:8443 accepts TLS 1.3 only", "expected": "False", "because": "the demo server also accepts TLS 1.2 with an older cipher"},
     {"id": "V2", "claim": "localhost:8443 certificate is ECDSA P-256", "expected": "True", "because": "the demo certificate is ECDSA P-256"},
@@ -8,7 +8,7 @@
   "tests_on_1_4_2": [
     {"id": "T1", "test": "Server protocol check", "expected": "Failed", "because": "TLS 1.2 accepted"},
     {"id": "T2", "test": "Certificate check", "expected": "Passed", "note": "show NIST guidance that ECDSA P-256 is planned for retirement; informational, not a failure"},
-    {"id": "T3", "test": "Official test vectors (Wycheproof)", "expected": "Failed", "because": "Wycheproof ECDSA P-256 files include r = 0 / s = 0 cases that must be rejected", "confirm": "Adam: confirm the vendored file contains these cases"},
+    {"id": "T3", "test": "Official test vectors (Wycheproof)", "expected": "Failed", "because": "Wycheproof ECDSA P-256 files include r = 0 / s = 0 cases that must be rejected", "source": "Wycheproof testvectors_v1/ecdsa_secp256r1_sha256_test.json, tcId 168 \"r=0 and s=0\" is invalid (checked at C2SP/wycheproof commit dab4ea2)"},
     {"id": "T4", "test": "Bad-signature check", "expected": "Failed", "because": "accepts r = 0, s = 0"},
     {"id": "T5", "test": "Speed and size", "expected": "Measured", "because": "report-only on first run"}
   ],
