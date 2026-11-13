@@ -278,10 +278,11 @@ class ChangesMixin:
         # A finding counts as open until a newer result of its test shows it gone. What counts for each test is the
         # newest of the results Evidence Lab shows now (`shown`) that says pass or fail. Everything else shows
         # nothing either way and is passed over: "Couldn't run", "Couldn't trust this run", and results that only
-        # report ("Measured", "Not offered"). So a retest that could not reach the server closes nothing, and a
-        # new "Measured" does not close a "Slowdown found". And "newest" is by when the run was made (run ids only
-        # grow), whichever column shows it: a first result that was run again after a retest is newer than that
-        # retest's result.
+        # report ("Measured", "Not offered"). So a retest that could not reach the server does not close a finding
+        # that comes from a first result, and a new "Measured" does not close a "Slowdown found". And "newest" is
+        # by when the run was made (run ids only grow), whichever column shows it: a first result that was run
+        # again after a retest is newer than that retest's result. Only what is shown now is looked at: a finding
+        # that only a retest found leaves the list once the next retest starts (docs/LIMITS.md says so).
         newest: dict[int, dict] = {}
         for r in shown:
             if r["tone"] in ("pass", "fail") and (r["item_id"] not in newest or r["run_id"] > newest[r["item_id"]]["run_id"]):

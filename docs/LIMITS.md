@@ -152,23 +152,33 @@ Updated at the end of **phase 3a** (the Fixes step: a suggested code change with
 - **When a finding counts as open.** A text-only suggestion is listed until a newer result of its test says
   something other than "Failed". Only a pass or a fail counts: "Couldn't run", "Couldn't trust this run" and
   results that only report ("Measured", "Not offered") are passed over, so a retest that could not reach the
-  server closes nothing. Only the results Evidence Lab shows now are looked at (the newest first result and the
-  newest result of the latest retest). So a finding that a passing retest closed reads as open again while the
-  next retest is running, and stays open if that retest could not run the test. This can't happen with the demo
-  server, whose settings never change; it matters for the server setting step (SPEC 7c). A code fix stays listed
+  server does not close a finding that comes from a first result. Only the results Evidence Lab shows now are
+  looked at (the newest first result and the newest result of the latest retest). That has two effects:
+  - A finding that a passing retest closed reads as open again while the next retest is running, and stays open
+    if that retest could not run the test.
+  - A finding that only a retest found (its failed result stands in the After column: a "Slowdown found", or a
+    server test that passed at first) leaves the list as soon as the next retest starts, and stays off it if
+    that retest could not run the test.
+
+  Neither can happen in the normal demo walk: the demo server's settings never change, and a slowdown needs a
+  busy computer or a slower version. Both matter for the server setting step (SPEC 7c). A code fix stays listed
   once its change is on record.
 - **A failing test added after the code was connected joins the same code fix,** when the fix template answers
   it (for example "Official test vectors" removed before connecting and added back later). The plan has changed,
   so the fix reads "Proof failed" with "Proof out of date" until Run proof again has passed with that test in
-  it. After a merge the line on such a result reads "Fix merged ..., proof passed" although that proof was run
-  before the test was added; Retest now shows the result on the merged code.
+  it. After a merge the line on such a result reads "Fix merged ..., proof passed", and Fixes, the report and the
+  evidence file read "Came from 2 failed tests", although that proof was run before the test was added. The
+  Proof section and the proof record list exactly the tests that ran; Retest now shows the result on the
+  merged code.
 - **While a proof runs, nothing else can start for that file:** Run, Run all, Retest new version and Download
   evidence are switched off, and come back by themselves. Evidence Lab says why. The Tests screen switches its
   buttons off without a sentence saying why.
 - **How long it takes.** The proof reruns every test, including the speed test: about half a minute in demo mode
   and about a minute in isolated mode on the build machine.
 - **If the app is closed while a proof runs,** the proof reads "Proof did not finish" after the restart and has to
-  be run again with Run proof again.
+  be run again with Run proof again. If it is closed in the instant after the last test finished and before the
+  proof was checked, the screen says the same ("interrupted before every test had run: 4 of 4 tests finished"),
+  which is not exact: every test ran, but the proof was never checked. Run proof again is the remedy.
 - **If the app is stopped in the instant between merging in the repository and writing the merge record,** the
   pull request can no longer be merged ("The repository has changed since this change was proved"). Import the
   file again. We did not see this happen; it follows from the order of the two steps.
@@ -339,7 +349,9 @@ Updated at the end of **phase 3a** (the Fixes step: a suggested code change with
   that reads "No slowdown beyond measured noise" (see "When a change is offered" above).
 - **An open pull request does not shield an out-of-date proof.** If the plan changes, the proof must pass again
   before anyone can approve, merge or download the patch. Approvals already given are kept, not cleared.
-- **Only a newer result that says pass or fail closes a finding.** "Couldn't run" and "Measured" close nothing.
+- **Only a newer result that says pass or fail closes a finding that a first result found.** "Couldn't run" and
+  "Measured" do not close it. Only the results shown now are looked at, with the two effects described under
+  "When a finding counts as open" above.
 - **A failing test added after connecting joins the same code fix** instead of getting a text-only entry.
 - **The proof needs the failed tests it answers.** If they were removed from the plan, the proof shows nothing
   about the fix and the change is not offered.

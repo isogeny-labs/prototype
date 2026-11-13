@@ -34,7 +34,7 @@ class ResearchEngine(Protocol):          # backend/app/research.py
 | `design_test` | **+ Add test** | Returns one test from the catalog: `pq_readiness`, `mldsa_compare`, or a suggested test that was removed. Raises `CannotDesign` if the test does not fit the file. |
 | `review` | after every run, and again every time a result is read | Only `RuleReviewer` does this. `RuleEngine.review` always refuses (`ReviewNotAllowed`), and the reviewer refuses a test it proposed itself. |
 | `dig_deeper` | **Dig deeper** | Writes down the finding and one question. Looks into nothing. |
-| `propose_change` | **Connect demo code**, and the Fixes list before the code is connected | Applies the one fix template (below), or returns `None`. No AI model writes anything. `RuleReviewer.propose_change` always refuses. |
+| `propose_change` | **Connect demo code**; the Fixes list before the code is connected; and, once it is connected, every look at the fixes (the same question again, to see whether a failing test that joined the plan later is answered by the same change; the answer is never stored and nothing is run) | Applies the one fix template (below), or returns `None`. No AI model writes anything. `RuleReviewer.propose_change` always refuses. |
 
 `RuleReviewer` is the only module with pass/fail logic. The code that runs tests
 (`backend/app/execute/`) returns raw outcomes only, and the code that words results
@@ -278,11 +278,14 @@ Three layers, each with one job:
    test (its newest first result and its newest result in the latest retest), the newest one
    that says pass or fail is a failure. Results that say neither are passed over: "Couldn't
    run", "Couldn't trust this run", and results that only report ("Measured", "Not offered").
-   So a retest that could not reach the server closes nothing, and a new "Measured" does not
-   close a "Slowdown found". "Newest" is by when the run was made, whichever column shows it: a
-   first result that is run again after a retest is newer than that retest's result. Only the
-   results shown now count: a finding that a passing retest closed reads as open again while
-   the next retest is running, and stays open if that retest could not run the test. Each
+   So a retest that could not reach the server does not close a finding that comes from a
+   first result, and a new "Measured" does not close a "Slowdown found". "Newest" is by when
+   the run was made, whichever column shows it: a first result that is run again after a retest
+   is newer than that retest's result. Only the results shown now count. So a finding that a
+   passing retest closed reads as open again while the next retest is running, and stays open
+   if that retest could not run the test; and a finding that only a retest found (its failed
+   result stands in the After column) leaves the list as soon as the next retest starts, and
+   stays off it if that retest could not run the test. Each
    fix has a `status` (`not_connected`, `proving`, `ready`, `failed`, `waiting`, `ready_to_merge`,
    `merged`, `text_only`) and, for each action, the sentence it would be refused with right now
    (or null). Every proof verdict in it has passed the read gate.
