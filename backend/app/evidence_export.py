@@ -8,6 +8,7 @@
 - E is built field by field from an explicit list. Nothing is copied from a database row wholesale.
 - It also holds the Fixes step: each fix, and for a code change the change itself, every proof of it (the proof
   record, its fingerprint, the review and each proof run in full), the pull request, the approvals and the merge.
+  The change as a ready-to-apply patch is in it only while "Download patch" is allowed (the change is offered).
 - The HTML report is static: every value is escaped, there are no scripts and no remote resources.
 
 Check a downloaded file with:  cd backend && .venv/bin/python -m evidence verify <file.json>
@@ -253,28 +254,36 @@ def _proof_entry(lab, db, proof: ProofRow, change: ChangeRow) -> dict:
                                if test["first"] else None),
                      "shown": _pick(present_fixes.proof_cell(result, test["kind"], "proof"), ("label", "tone", "short")) if result else None,
                      "run": _run_entry(lab, db, "proof", result) if run is not None else None,
-                     "check": ({**_pick(check, ("group", "ok", "reason")), "text": present_fixes.CHECK_WORDS.get(check.get("reason"))}
+                     "check": ({**_pick(check, ("group", "report_only", "ok", "reason")), "text": present_fixes.CHECK_WORDS.get(check.get("reason"))}
                                if check else None)})
     return {"id": proof.id, "started_at": iso(proof.started_at), "baseline_version": proof.baseline_version, "version": proof.version,
             "record": record, "record_sha256": sha256_hex(record), "outcome": present_fixes.proof_outcome(review),
-            "review": ({**_pick(review, ("reviewed_at", "believed", "offered", "problem", "record_sha256", "checks", "counts")),
+            "review": ({**_pick(review, ("reviewed_at", "believed", "offered", "problem", "record_sha256", "checks", "counts", "answers", "speed")),
                         "reviewer": stored.reviewer if review["believed"] else None} if review else None),
             "tests": rows}
 
 
 def _fix_entry(lab, db, fix: dict, shown: dict) -> dict:
     """One fix: what the Fixes step showed about it and, for a code change, the records behind every step."""
+    said = shown.get("proof") or {}
     entry = {"id": fix["id"], "kind": fix["kind"], "title": shown.get("title"), "status": (shown.get("status") or {}).get("word"),
+             # what the summary said about the proof under that status, so a reader of the file sees the reason too
+             # (for example why a proof that passed no longer counts): the badge's words and the sentence
+             "proof_summary": {"state": said.get("state"), "label": (said.get("badge") or {}).get("label"), "text": said.get("text")},
              "source": {"kind": fix["source_kind"], "text": shown.get("list_source"),
                         "results": [_pick(answer, ("item_id", "kind", "run_id", "phase")) for answer in fix["answers"]]},
              "suggestion": _suggestion(shown), "change": None, "proofs": [], "pull_request": None, "approvals": [], "merge": None}
     change, request, merge = fix["change"], fix["pull_request"], fix["merge"]
     if change is None:
         return entry
-    try:
-        patch = lab._patch_text(fix)
-    except (GitRepoError, OSError):
-        patch = None  # the copy of the repository could not be read: the records below still stand
+    patch = None
+    if fix["actions"]["download_patch"] is None:
+        # The ready-to-apply patch is handed out only while "Download patch" itself is allowed: a change that is
+        # not offered is described below (file names, counts, ids, SHA-256s) but not given in a form to apply.
+        try:
+            patch = lab._patch_text(fix)
+        except (GitRepoError, OSError):
+            patch = None  # the copy of the repository could not be read: the records below still stand
     row = db.get(ChangeRow, change["id"])
     entry["change"] = {
         **_pick(change, ("fix_key", "source_kind", "written_by", "template_id", "proposed_by", "title", "branch", "base_commit",
@@ -287,8 +296,13 @@ def _fix_entry(lab, db, fix: dict, shown: dict) -> dict:
     entry["proofs"] = [_proof_entry(lab, db, proof, row)
                        for proof in db.scalars(select(ProofRow).where(ProofRow.change_id == row.id).order_by(ProofRow.id)).all()]
     if request is not None:
-        entry["pull_request"] = _pick(request, ("number", "title", "proof_id", "reviewers", "opened_at"))
-        entry["approvals"] = [_pick(a, ("reviewer", "name", "approved_at")) for a in request["approvals"]]
+        approvers = shown.get("approvers") or {}
+        demo = {row.get("id") for row in approvers.get("rows") or [] if row.get("demo")}
+        # The approvals, with what the screen says beside them: one login records them all, and which names are demo data.
+        entry["pull_request"] = {**_pick(request, ("number", "title", "proof_id", "reviewers", "opened_at")),
+                                 "approvals_note": approvers.get("footnote")}
+        entry["approvals"] = [{**_pick(a, ("reviewer", "name", "approved_at")),
+                               "label": present_fixes.DEMO_DATA if a["reviewer"] in demo else None} for a in request["approvals"]]
     if merge is not None:
         entry["merge"] = _pick(merge, ("merge_commit", "merged_at"))
     return entry
@@ -479,8 +493,9 @@ def _suggestion_html(given: dict) -> list[_Safe]:
         parts.append(el("p", el("strong", t(warning.get("title"))), _Safe(" "), _words_html(warning.get("text"))))
     if where:
         parts += [el("h4", t(where.get("title"))), el("p", t(where.get("note")), cls="note"),
-                  el("table", el("thead", el("tr", *[el("th", t(column)) for column in where.get("columns") or []])),
-                     el("tbody", *[el("tr", el("td", t(row.get("place"))), el("td", _words_html(row.get("setting"))),
+                  el("table", el("thead", el("tr", *[el("th", t(column), cls="words" if i == 0 else None)
+                                                     for i, column in enumerate(where.get("columns") or [])])),
+                     el("tbody", *[el("tr", el("td", t(row.get("place")), cls="words"), el("td", _words_html(row.get("setting"))),
                                       el("td", t(f"{row.get('lead')} " if row.get("lead") else ""), el("code", t(row.get("code")))))
                                    for row in where.get("rows") or []])),
                   *[el("p", _words_html(line)) for line in where.get("after") or []]]
@@ -504,16 +519,19 @@ def _proof_html(heading: str, proof: dict) -> list[_Safe]:
     for test in proof.get("tests") or []:
         first, run, check = test.get("first") or {}, (test.get("run") or {}).get("result") or {}, test.get("check") or {}
         shown = test.get("shown") or {}
-        rows.append(el("tr", el("td", t(test.get("title"))),
+        # The two short columns are marked "words": beside a long sentence a column of plain words would otherwise be
+        # squeezed until its words broke in the middle ("Certificat e", "Passe d").
+        rows.append(el("tr", el("td", t(test.get("title")), cls="words"),
                        el("td", el("strong", t(first.get("label"))), _Safe(" "), t(first.get("short"))),
                        el("td", el("strong", t(shown.get("label"))), _Safe(" "), t(shown.get("short")), _Safe(" "),
                           t((run.get("control") or {}).get("line"))),
-                       el("td", t(check.get("text")))))
+                       el("td", t(check.get("text")), cls="words")))
     return [el("h4", t(heading)),
             el("p", el("strong", t(proof.get("outcome"))), t(" Started "), _when(proof.get("started_at")),
                *([t("; reviewed "), _when(review.get("reviewed_at"))] if review else []), _Safe(" "), _tag("measured")),
             el("p", t("Evidence fingerprint of the proof (SHA-256): "), el("code", t(fingerprint))) if fingerprint else _Safe(""),
-            el("table", el("thead", el("tr", *[el("th", t(column)) for column in ("Test", "Before", "On the changed code", "Rule check")])),
+            el("table", el("thead", el("tr", *[el("th", t(column), cls="words" if column in ("Test", "Rule check") else None)
+                                               for column in ("Test", "Before", "On the changed code", "Rule check")])),
                el("tbody", *rows)),
             el("p", t("The JSON file holds every run of this proof in full (its run record, fingerprint and review)"
                       + (", and the proof record this fingerprint is made from." if fingerprint else ".")), cls="note")]
@@ -525,6 +543,11 @@ def _fix_html(fix: dict) -> _Safe:
     request, merge, proofs = fix.get("pull_request"), fix.get("merge"), fix.get("proofs") or []
     parts = [el("h3", t(fix.get("title"))),
              el("p", el("strong", t(fix.get("status")), cls="badge"), _Safe(" "), t(source.get("text")))]
+    said = fix.get("proof_summary") or {}
+    if change and said.get("text"):
+        # the reason behind the status, in the summary's own words (so "Proof failed" never stands beside a
+        # proof that passed without saying why)
+        parts.append(el("p", *([el("strong", t(f"{said.get('label')}:")), _Safe(" ")] if said.get("label") else []), t(said.get("text"))))
     if suggestion:
         parts += _suggestion_html(suggestion)
     if change:
@@ -548,8 +571,10 @@ def _fix_html(fix: dict) -> _Safe:
     if request:
         parts += [el("h4", t(f"Pull request #{request.get('number')}")),
                   el("p", t(f"{request.get('title')}. Opened "), _when(request.get("opened_at")), t(". It stays inside the app.")),
-                  el("ul", *[el("li", t(f"{a.get('name')}: "), *([t("approved "), _when(a.get("approved_at"))] if a.get("approved_at")
-                                                                 else [t("has not approved")])) for a in fix.get("approvals") or []], cls="meta")]
+                  el("ul", *[el("li", t(f"{a.get('name')} ({a.get('label')}): " if a.get("label") else f"{a.get('name')}: "),
+                                *([t("approved "), _when(a.get("approved_at"))] if a.get("approved_at") else [t("has not approved")]))
+                             for a in fix.get("approvals") or []], cls="meta"),
+                  el("p", t(request.get("approvals_note")), cls="note") if request.get("approvals_note") else _Safe("")]
     if merge:
         parts.append(el("p", t("Merged "), _when(merge.get("merged_at")), t(f" by the person logged in, after confirming (merge commit "
                                                                            f"{merge.get('merge_commit')}). Nothing was deployed.")))
@@ -566,7 +591,7 @@ p{margin:4px 0}.box{border:1px solid #9aa3b2;border-radius:6px;padding:12px 14px
 table{border-collapse:collapse;width:100%;margin:6px 0;font-size:.9rem}th,td{border:1px solid #d5d9e0;padding:4px 8px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
 th{background:#eef1f5;white-space:pre-line}.right{text-align:right}.mono,code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem}
 pre{background:#f5f7fa;border:1px solid #d5d9e0;border-radius:4px;padding:8px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:none}
-code{overflow-wrap:anywhere}td.mono{white-space:nowrap;overflow-wrap:normal}.tag{font-size:.72rem;border:1px solid #9aa3b2;border-radius:10px;padding:0 6px;color:#3b4557;white-space:nowrap}
+code{overflow-wrap:anywhere}td.mono{white-space:nowrap;overflow-wrap:normal}td.words,th.words{overflow-wrap:normal}.tag{font-size:.72rem;border:1px solid #9aa3b2;border-radius:10px;padding:0 6px;color:#3b4557;white-space:nowrap}
 .badge{border:1px solid #9aa3b2;border-radius:4px;padding:1px 6px}.tone-pass{border-color:#1d7a46;color:#12592f}.tone-fail{border-color:#b3261e;color:#8c1d18}
 .tone-warn{border-color:#9a6700;color:#7a5200}.note{color:#4a5568;font-size:.88rem}ul.meta{margin:4px 0;padding-left:18px;font-size:.9rem}
 summary{cursor:pointer}

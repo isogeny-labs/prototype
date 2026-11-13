@@ -124,6 +124,8 @@ def upload(client, name: str, data: bytes):
 
 # ------------------------------------------------------------------ phase 2: tests and Evidence Lab
 
+import threading  # noqa: E402
+from contextlib import contextmanager  # noqa: E402
 from types import SimpleNamespace  # noqa: E402
 
 
@@ -148,6 +150,66 @@ def demo_plan(lab) -> SimpleNamespace:
     lab.confirm_address(imp["id"], imp["addresses"][0]["address"], True)
     plan = lab.ensure_plan(imp["id"])
     return SimpleNamespace(imp=imp, id=plan["id"], item={t["kind"]: t["id"] for t in plan["tests"]})
+
+
+def play_back_speed(lab) -> None:
+    """From now on this lab's "Speed and size" test plays back made-up timings instead of timing the signer.
+    The harness job that would run the bench rounds answers at once, in the harness's own line format: every
+    program takes about the same time, and the slowed control 6 ms more on every sign and verify. Everything
+    after that is the real thing: the run record, the reviewer's slowdown rule applied to those numbers, the
+    control check, the read gate. A change can only be offered with a speed comparison, so every plan that is
+    proved needs this test; with played-back timings such a plan stays quick and comes out the same on a busy
+    machine. It is for tests about where a fix stands. The tests of the speed rule itself, and the full flows,
+    time the real programs."""
+    import random
+
+    from app import runner
+
+    real = lab.component_runner.run_job
+    if getattr(real, "plays_back_speed", False):
+        return
+
+    def run_job(job, *, time_limit=120.0, on_line=None):
+        subjects = job.get("subjects") or []
+        if job.get("op") != "bench_rounds" or len(subjects) < 2:  # only the speed test times two or three programs side by side
+            return real(job, time_limit=time_limit, on_line=on_line)
+        rng = random.Random(7)
+
+        def timings(base: float, subject: str) -> list[float]:
+            extra = 6.0 if subject.startswith("control-slow:") else 0.0
+            return [round(base + extra + rng.random() * 0.2, 4) for _ in range(job["repeats"])]
+
+        lines = [{"keygen": job["keygen_with"], "rc": 0, "public_key_bytes": 65}]
+        for number in range(job["rounds"]):
+            for subject in (subjects if number % 2 == 0 else list(reversed(subjects))):  # the order the harness goes in
+                out = {"sign_ms": timings(7.0, subject), "verify_ms": timings(13.0, subject), "signature_bytes": 71,
+                       "public_key_bytes": 65, "all_verified": True}
+                lines.append({"round": number, "subject": subject, "rc": 0, "out": out, "error": None})
+        for line in lines:
+            if on_line is not None:
+                on_line(line)
+        return runner.BatchResult(True, lines, None, lab.mode.name, "played back for a test: no program was timed", runner._now(), 0, "")
+
+    run_job.plays_back_speed = True
+    lab.component_runner.run_job = run_job
+
+
+@contextmanager
+def held(lab):
+    """While this is open the harness jobs wait at the door until the Event it gives is set: a proof that is
+    certainly still running, and that ends exactly when the test says so."""
+    go, real = threading.Event(), lab.component_runner.run_job
+
+    def waiting(job, **more):
+        go.wait(60)
+        return real(job, **more)
+
+    lab.component_runner.run_job = waiting
+    try:
+        yield go
+    finally:
+        go.set()
+        lab.component_runner.run_job = real
 
 
 def run_kind(lab, plan, kind: str) -> dict:

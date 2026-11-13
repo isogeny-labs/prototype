@@ -27,9 +27,12 @@ from .canonical import sha256_hex
 REVIEW_SCHEMA = "isogeny.review/1"
 PROOF_SCHEMA = "isogeny.proof/1"
 PROOF_REVIEW_SCHEMA = "isogeny.proof-review/1"
-# What "passed on the changed code" means for each kind of test that runs it. A report-only test has no
-# pass or fail: it only has to run.
+# What "passed on the changed code" means for each kind of test that runs it. A test whose code here is
+# "measured" only reports numbers: it has no pass or fail, so in a proof it only has to run, and by itself it
+# shows nothing about a change.
 PROOF_PASS_CODES = {"official_vectors": "passed", "bad_signatures": "passed", "speed_size": "no_slowdown", "mldsa_compare": "measured"}
+REPORT_ONLY_CODE = "measured"
+SPEED_KIND = "speed_size"  # the test that makes the speed comparison a proof must hold
 
 # Why a test could not run, in plain words (the text inside "Couldn't run (...)").
 COULDNT_RUN_REASONS = {
@@ -449,11 +452,16 @@ class RuleReviewer:
           1. the changed code is byte for byte one of our registered demo components, and that is what ran
              (the caller made the comparison and passes the fact; no file is read here);
           2. every test in the proof has a run;
-          3. every test that runs the changed code passed on it (a report-only test only has to run), and
-             there is at least one such test;
+          3. every pass-or-fail test that runs the changed code passed on it, and there is at least one such
+             test. A report-only test has no pass or fail: it only has to run, and alone it is not enough;
           4. the control behaved in every proof run that reached a result;
           5. every server test came out the same as before: the same result and the same reason. A test that
-             could not run before, for the same reason, counts as unchanged; its control was not run."""
+             could not run before, for the same reason, counts as unchanged; its control was not run;
+          6. every failed test the change was made for (the record's `answers`) is in this proof, runs the
+             changed code and passed on it, and there is at least one such test. So a proof of a plan from
+             which those tests were taken out never makes the change a fix;
+          7. the speed comparison was made: the proof holds a Speed and size test that ran on the changed code
+             and came out "No slowdown beyond measured noise"."""
         if record.get("proposed_by") == self.engine_id:
             raise ReviewNotAllowed("The reviewer never reviews a change it proposed itself.")
         matches = (record.get("built") or {}).get("matches")
@@ -463,6 +471,7 @@ class RuleReviewer:
         for test in record.get("tests") or []:
             first, run = test.get("first"), test.get("proof")
             group = "server" if test.get("target") == "server" else "code"
+            report_only = group == "code" and PROOF_PASS_CODES.get(test.get("kind")) == REPORT_ONLY_CODE
             if run is None:
                 held, control_ok, reason = False, True, "no_run"
             else:
@@ -478,16 +487,42 @@ class RuleReviewer:
                     reason = "same_as_before" if held else "changed"
                 if not control_ok:
                     reason = "control_misbehaved"
-            tests.append({"item_id": test.get("item_id"), "kind": test.get("kind"), "group": group, "held": held,
-                          "control_ok": control_ok, "ok": held and control_ok, "reason": reason})
-        code = [t for t in tests if t["group"] == "code"]
+            tests.append({"item_id": test.get("item_id"), "kind": test.get("kind"), "group": group, "report_only": report_only,
+                          "held": held, "control_ok": control_ok, "ok": held and control_ok, "reason": reason})
+        code = [t for t in tests if t["group"] == "code" and not t["report_only"]]  # the tests with a pass or fail
+        reports = [t for t in tests if t["report_only"]]
         server = [t for t in tests if t["group"] == "server"]
+        # 6: the failed tests the change answers, each looked up in this proof by its place in the plan
+        by_item = {t["item_id"]: t for t in tests}
+        answers = []
+        for answer in record.get("answers") or []:
+            answer = answer if isinstance(answer, dict) else {}
+            test = by_item.get(answer.get("item_id"))
+            if test is None or test["group"] != "code" or test["kind"] != answer.get("kind"):
+                ok, reason = False, "not_in_proof"
+            else:
+                ok = test["ok"] and not test["report_only"]
+                reason = "passed" if ok else "did_not_pass"
+            answers.append({"item_id": answer.get("item_id"), "kind": answer.get("kind"), "ok": ok, "reason": reason})
+        # 7: the speed comparison
+        timed = [t for t in code if t["kind"] == SPEED_KIND]
+        if not timed:
+            speed = {"ok": False, "reason": "not_in_proof"}
+        elif all(t["ok"] for t in timed):
+            speed = {"ok": True, "reason": "no_slowdown"}
+        else:
+            speed = {"ok": False, "reason": "did_not_pass"}
         checks = {"code_is_ours": bool(code_is_ours),
                   "changed_code_passed": bool(code) and all(t["held"] for t in code),
+                  "report_only_ran": all(t["held"] for t in reports),
                   "controls_behaved": all(t["control_ok"] for t in tests),
-                  "server_unchanged": all(t["held"] for t in server)}
+                  "server_unchanged": all(t["held"] for t in server),
+                  "answered_tests_passed": bool(answers) and all(a["ok"] for a in answers),
+                  "speed_compared": speed["ok"]}
         counts = {"tests": len(tests), "code": len(code), "code_ok": sum(t["ok"] for t in code),
+                  "report_only": len(reports), "report_only_ok": sum(t["ok"] for t in reports),
                   "server": len(server), "server_ok": sum(t["ok"] for t in server)}
         return {"reviewer": self.engine_id, "schema": PROOF_REVIEW_SCHEMA, "record_sha256": sha256_hex(record),
                 "offered": all(checks.values()), "checks": checks, "counts": counts,
-                "tests": [{k: t[k] for k in ("item_id", "kind", "group", "ok", "reason")} for t in tests]}
+                "tests": [{k: t[k] for k in ("item_id", "kind", "group", "report_only", "ok", "reason")} for t in tests],
+                "answers": answers, "speed": speed}

@@ -55,6 +55,15 @@ async function expectCarefulWording(): Promise<void> {
   expect(text).not.toMatch(/\bsecure\b|security score|\bscore\b|time[- ]to[- ]hack/i);
 }
 
+/** Since phase 3a a failed result that has a fix shows one line that points to the Fixes step, in place of the "Suggested fix" box. */
+async function expectFixLine(detail: Locator, words: string): Promise<void> {
+  const line = detail.getByTestId("fix-line");
+  await expect(line).toHaveCount(1);
+  await expect(line.locator("p")).toHaveText(words);
+  await expect(line.getByRole("button", { name: "View in Fixes" })).toBeEnabled();
+  await expect(detail.getByTestId("suggested-fix")).toHaveCount(0);
+}
+
 function verifyEvidence(file: string): { code: number; output: string } {
   const run = spawnSync(PYTHON, ["-m", "evidence", "verify", file, "--data-dir", process.env.E2E_DATA_DIR ?? ""], {
     cwd: BACKEND,
@@ -96,8 +105,9 @@ test("log in, Use demo file, Verify claims, Continue to tests: five tests are su
   await expect(page.getByText("Demo data", { exact: true })).toBeVisible();
   await expect(page.getByTestId("mode-line")).toHaveText("Demo mode: running our own demo software, not isolated. Isolated mode is switched off for this run.");
   await expect(page.getByRole("button", { name: "Run all" })).toBeEnabled();
-  // Evidence Lab opens only once there is a result.
+  // Evidence Lab opens only once there is a result, and so does Fixes (the fifth step, phase 3a).
   await expect(page.getByRole("button", { name: "4. Evidence Lab" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "5. Fixes" })).toBeDisabled();
   await expectNoSoftwareUpload();
   await expectCarefulWording();
   await shot(page, "01-tests-before-running.png");
@@ -256,10 +266,10 @@ test("Official test vectors: the three wrong cases, the locked test and its fing
   await expect(detail.getByTestId("spec-fingerprint")).toHaveText(/^[0-9a-f]{64}$/);
   await expect(detail.getByTestId("control-outcome")).toHaveAttribute("data-outcome", "as_expected");
   await expect(detail.getByTestId("control-outcome")).toContainText("all 310 invalid cases wrong");
-  await expect(detail.getByTestId("suggested-fix")).toContainText("acme-sign 1.4.3");
+  await expectFixLine(detail, "Fix available, code not connected");
   await expect(detail.getByRole("button", { name: "Mark reviewed" })).toBeEnabled();
   await expect(detail.getByRole("button", { name: "Dig deeper" })).toBeEnabled();
-  // Phase 3's "Suggested change" panel is not in this version.
+  // Evidence Lab itself shows no change, diff or pull request. Those are in the Fixes step (phase3a.spec.ts).
   await expect(page.getByText("Suggested change")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Review change" })).toHaveCount(0);
   await shot(page, "05-lab-vectors-expanded.png");
@@ -294,7 +304,7 @@ test("Dig deeper saves a queued research request with no answer; Mark reviewed r
   await expect(again.getByTestId("research-request")).toContainText("waiting for research engine");
 });
 
-test("Bad signatures failed on 1.4.2: the r=0, s=0 case is shown, with the suggested fix", async () => {
+test("Bad signatures failed on 1.4.2: the r=0, s=0 case is shown, with the one line that points to its fix", async () => {
   // Close the vectors row so the screenshot shows this one result.
   await labRow("Official test vectors").getByRole("button", { name: "Official test vectors" }).click();
   await expect(page.getByTestId("result-detail")).toHaveCount(0);
@@ -307,8 +317,7 @@ test("Bad signatures failed on 1.4.2: the r=0, s=0 case is shown, with the sugge
   await expect(zeroCase.first()).toBeVisible();
   await expect(zeroCase.first()).toContainText(/accepted/i);
   await expect(detail.getByTestId("control-outcome")).toHaveAttribute("data-outcome", "as_expected");
-  await expect(detail.getByTestId("suggested-fix")).toContainText("Suggested fix");
-  await expect(detail.getByTestId("suggested-fix")).toContainText("acme-sign 1.4.3");
+  await expectFixLine(detail, "Fix available, code not connected");
   await expect(detail.getByTestId("spec-fingerprint")).toHaveText(/^[0-9a-f]{64}$/);
   await expect(detail.getByRole("button", { name: "Mark reviewed" })).toBeEnabled();
   await expect(detail.getByRole("button", { name: "Dig deeper" })).toBeEnabled();
@@ -360,6 +369,11 @@ test("Retest new version offers only our two demo versions; picking 1.4.3 starts
   await expect(page.getByText("Couldn't trust this run")).toHaveCount(0);
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   await expect(page.getByTestId("lab-subline")).toContainText("Retest finished");
+  // Since phase 3a each side says which code it ran on. No code is connected in this run, so both are bundled versions.
+  await expect(page.getByTestId("lab-column-note")).toHaveText(["the bundled demo version", "the bundled demo version"]);
+  await expect(page.getByTestId("lab-code-line")).toHaveText(
+    "Code they ran on: before, the bundled demo version of acme-sign 1.4.2; after, the bundled demo version of acme-sign 1.4.3.",
+  );
   await shot(page, "08-lab-before-after.png");
 
   // The same locked tests were rerun: every fingerprint is the one from before the retest.
@@ -387,11 +401,11 @@ test("before and after stays expandable: the bad-signature case now passes, and 
   await expect(details).toHaveCount(2);
   const after = details.nth(0);
   const before = details.nth(1);
-  await expect(after.getByRole("heading", { name: "After: acme-sign 1.4.3" })).toBeVisible();
+  await expect(after.getByRole("heading", { name: "After: acme-sign 1.4.3, the bundled demo version", exact: true })).toBeVisible();
   await expect(after.getByTestId("result-badge").locator("span:last-child")).toHaveText("Passed");
   await expect(after).toContainText(/r\s?=\s?0.*s\s?=\s?0/);
   await expect(after.getByTestId("control-outcome")).toHaveAttribute("data-outcome", "as_expected");
-  await expect(before.getByRole("heading", { name: "Before: acme-sign 1.4.2" })).toBeVisible();
+  await expect(before.getByRole("heading", { name: "Before: acme-sign 1.4.2, the bundled demo version", exact: true })).toBeVisible();
   await expect(before.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed");
   // Mark reviewed and Dig deeper are on every opened result.
   for (const d of [after, before]) {

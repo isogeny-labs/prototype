@@ -1,6 +1,7 @@
 """The eight web routes of the Fixes step: login, ids, bodies, every refusal with its sentence, the patch
 download, and that nothing happens unless its own route is called. One small plan is driven through the routes
-once (old TLS versions, certificate strength, bad signatures); the tests read what each call answered."""
+once (old TLS versions, certificate strength, bad signatures, speed and size with played-back timings); the tests
+read what each call answered."""
 import hashlib
 import re
 from types import SimpleNamespace
@@ -14,8 +15,9 @@ from app.config import DEMO_CBOM, Settings
 from app.db import ApprovalRow, ChangeRow, CodeConnectionRow, MergeRow, ProofRow, PullRequestRow, RetestRow
 from app.gitrepo import GitRepo
 from app.main import ApproveBody, PullRequestBody, create_app
-from conftest import PASSWORD, free_port, upload
+from conftest import PASSWORD, free_port, play_back_speed, upload
 from fixes_shapes import FIXES_VIEW, LAB_VIEW, fix as fix_of, problems
+from test_changes import tamper
 from test_fixes_view import held
 from test_gitrepo import real_git
 from test_plan_api import start, wait
@@ -28,6 +30,10 @@ NO_PLAN = "That test plan does not exist."
 RUN_FIRST = "Run every test in the plan first, so there is a result to compare with."
 PROOF_RUNNING = "A proof is running in Fixes. Wait until it has finished."
 TEXT_ONLY = "This fix is a text-only suggestion: there is no code change to act on."
+PROOF_CHANGED = "The stored proof no longer matches its fingerprint."
+PLAN_CHANGED = "The test plan has changed since the proof ran. Run the proof again first."
+NO_PULL_REQUEST_YET = "The patch can be downloaded once a pull request is open."
+PASSED_ALREADY = "The proof has passed. It can be run again only after it failed or was interrupted."
 PICK = "Pick one or more reviewers from the list, each of them once."
 # The eight routes, as (method, the path after /api/plans/<plan>/fixes, a body it accepts).
 ROUTES = [("GET", "", None), ("POST", "/connect", None), ("POST", "/{fix}/proof", None), ("POST", "/{fix}/pull-request", {"reviewers": ["you"]}),
@@ -62,11 +68,13 @@ def main_branch(lab, plan_id) -> str | None:
 
 
 def small_plan(client) -> tuple[dict, int, dict]:
+    """The demo plan without its slowest test. The speed test stays (no change is offered without a speed
+    comparison) and plays back made-up timings from here on, as in test_changes.small_plan."""
+    play_back_speed(client.app.state.lab)
     imp = start(client)
     plan = client.post(f"/api/import/{imp['id']}/plan").json()
     items = {t["kind"]: t["id"] for t in plan["tests"]}
-    for kind in ("official_vectors", "speed_size"):
-        assert client.post(f"/api/plans/{plan['id']}/tests/{items.pop(kind)}/remove").status_code == 200
+    assert client.post(f"/api/plans/{plan['id']}/tests/{items.pop('official_vectors')}/remove").status_code == 200
     return imp, plan["id"], items
 
 
@@ -135,7 +143,7 @@ def api(app_client):
     note("after_bad_reviewers")
     s.opened = go("/{fix}/pull-request", {"reviewers": ["a", "you"], "file": "/tmp/x.py", "merge": True})
     s.opened_twice = refused(go("/{fix}/pull-request"))
-    s.proof_with_pull_request = refused(go("/{fix}/proof"))
+    s.proof_with_pull_request = refused(go("/{fix}/proof"))  # the proof it was opened on still stands
     note("opened")
     s.bad_reviewer = {repr(body): go("/{fix}/approve", body) for body in (
         {"reviewer": "c"}, {"reviewer": "You"}, {"reviewer": ""}, {"reviewer": 1}, {"reviewer": ["you"]}, {"reviewer": None}, {}, None,
@@ -145,6 +153,25 @@ def api(app_client):
     s.retest_too_early = refused(go("/{fix}/retest"))
     note("before_approvals")
     s.approved_you = go("/{fix}/approve", {"reviewer": "you"})
+    # the plan changes while the pull request is open: nothing more is recorded or handed out until a new proof has passed
+    added = client.post(f"/api/plans/{pid}/tests", json={"catalog_id": "mldsa_compare"}).json()
+    extra = next(t["id"] for t in added["tests"] if t["kind"] == "mldsa_compare")
+    s.pull_request_out_of_date = {"view": go("").json(), "approve": refused(go("/{fix}/approve", {"reviewer": "a"})),
+                                  "merge": refused(go("/{fix}/merge")), "patch": refused(go("/{fix}/patch")), "proof": refused(go("/{fix}/proof"))}
+    note("pull_request_out_of_date")
+    client.post(f"/api/plans/{pid}/tests/{extra}/run")
+    wait(client, pid)
+    with held(lab):
+        s.proof_again_with_pull_request = go("/{fix}/proof")
+        s.while_proving_again = {"approve": refused(go("/{fix}/approve", {"reviewer": "a"})), "merge": refused(go("/{fix}/merge")),
+                                 "patch": refused(go("/{fix}/patch"))}
+    wait(client, pid)
+    s.proved_again = go("").json()
+    client.post(f"/api/plans/{pid}/tests/{extra}/remove")  # the plan as it was: the newest proof now covers one test too many
+    s.out_of_date_once_more = refused(go("/{fix}/merge"))
+    go("/{fix}/proof")
+    wait(client, pid)
+    s.back_to_waiting = go("").json()
     s.approved_twice = refused(go("/{fix}/approve", {"reviewer": "you"}))
     s.merge_with_one_missing = refused(go("/{fix}/merge"))
     s.approved_a = go("/{fix}/approve", {"reviewer": "a"})
@@ -231,7 +258,7 @@ def test_only_the_eight_routes_exist_and_none_accepts_a_file_or_software(api):
 
 def test_every_successful_post_answers_with_the_whole_view(api):
     for name, key in (("connected", "proving"), ("proof_again", "proving"), ("opened", "waiting"), ("approved_you", "waiting"),
-                      ("approved_a", "ready_to_merge"), ("merged", "merged")):
+                      ("proof_again_with_pull_request", "proving"), ("approved_a", "ready_to_merge"), ("merged", "merged")):
         response = getattr(api, name)
         assert response.status_code == 200, name
         view = response.json()
@@ -242,8 +269,8 @@ def test_every_successful_post_answers_with_the_whole_view(api):
     assert api.retest.status_code == 200 and problems(api.retest.json(), LAB_VIEW, "retest") == []
     assert api.retest.json()["view"] == "before_after" and api.retest.json()["retest"]["running"] is True
     # the GET answers are the same shape, at every moment
-    for view in (api.empty, api.not_connected, api.polled_while_proving, api.failed, api.ready, api.plan_changed["view"], api.polled_before_merge[0],
-                 api.after_retest[0]):
+    for view in (api.empty, api.not_connected, api.polled_while_proving, api.failed, api.ready, api.plan_changed["view"],
+                 api.pull_request_out_of_date["view"], api.proved_again, api.back_to_waiting, api.polled_before_merge[0], api.after_retest[0]):
         assert problems(view, FIXES_VIEW) == []
     assert api.empty["fixes"] == [] and api.empty["empty_text"] == "No failed test has a fix. Fixes for failed tests show here."
     assert problems(api.polled_before_merge[1], LAB_VIEW) == [] and problems(api.after_retest[1], LAB_VIEW) == []
@@ -254,10 +281,11 @@ def test_what_each_step_shows(api):
         return fix_of(view, FIX)["status"]["word"]
 
     assert [status(v) for v in (api.not_connected, api.connected.json(), api.polled_while_proving, api.failed, api.proof_again.json(), api.ready,
-                                api.plan_changed["view"], api.opened.json(), api.approved_you.json(), api.approved_a.json(), api.merged.json(),
-                                api.after_retest[0])] == [
+                                api.plan_changed["view"], api.opened.json(), api.approved_you.json(), api.pull_request_out_of_date["view"],
+                                api.proof_again_with_pull_request.json(), api.proved_again, api.back_to_waiting, api.approved_a.json(),
+                                api.merged.json(), api.after_retest[0])] == [
         "Code not connected", "Proving", "Proving", "Proof failed", "Proving", "Ready for review", "Proof failed", "Waiting for approval",
-        "Waiting for approval", "Ready to merge", "Merged", "Merged"]
+        "Waiting for approval", "Proof failed", "Proving", "Waiting for approval", "Waiting for approval", "Ready to merge", "Merged", "Merged"]
     # the reviewers are stored in the fixed order, whatever order they were sent in; nothing else from the body is kept
     rows = fix_of(api.opened.json(), FIX)["approvers"]["rows"]
     assert [(r["id"], r["name"], r["approved_at"]) for r in rows] == [("you", "You", None), ("a", "Demo reviewer A", None)]
@@ -270,7 +298,8 @@ def test_what_each_step_shows(api):
     assert [bool(r["approved_at"]) for r in rows] == [True, False] and rows[0]["approved_text"] == "Approved"
     assert re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z", rows[0]["approved_at"])  # recorded with the time
     after = api.after_retest[1]
-    assert after["view"] == "before_after" and [r["after"]["label"] for r in after["rows"]] == ["Failed", "Passed", "Passed"]
+    assert after["view"] == "before_after"
+    assert [r["after"]["label"] for r in after["rows"]] == ["Failed", "Passed", "Passed", "No slowdown beyond measured noise"]
     assert after["columns"]["after_heading"].startswith("After: acme-sign 1.4.3, the merged fix (commit ")
 
 
@@ -287,12 +316,18 @@ def test_every_refusal_says_why_in_a_plain_sentence(api):
                                  "pull-request": "A pull request can be opened only after the proof has passed.",
                                  "run-all": PROOF_RUNNING, "evidence": PROOF_RUNNING, "retest": PROOF_RUNNING}
     assert api.after_failed_proof == {"pull-request": "A pull request can be opened only after the proof has passed.",
-                                      "merge": "Open a pull request first.", "patch": "The patch can be downloaded once a pull request is open."}
-    assert api.proof_when_passed == "The proof has passed. It can be run again only after it failed or was interrupted."
+                                      "merge": "Open a pull request first.", "patch": NO_PULL_REQUEST_YET}
+    assert api.proof_when_passed == PASSED_ALREADY
     assert api.plan_changed["pull-request"] == "The test plan has changed since the proof ran. Run the proof again first."
     assert api.plan_changed["proof"] == RUN_FIRST  # the added test has no first result to compare with
     assert api.opened_twice == "A pull request is already open for this change."
-    assert api.proof_with_pull_request == "A pull request is already open for this change, so its proof stays as it is."
+    assert api.proof_with_pull_request == PASSED_ALREADY
+    # the plan changed with the pull request open (review findings 2 and 3): Approve, Merge and the patch all say why
+    changed = api.pull_request_out_of_date
+    assert changed["approve"] == changed["merge"] == changed["patch"] == PLAN_CHANGED
+    assert changed["proof"] == RUN_FIRST  # ... and a new proof needs a first result for the added test
+    assert api.while_proving_again == {"approve": PROOF_RUNNING, "merge": PROOF_RUNNING, "patch": PROOF_RUNNING}
+    assert api.out_of_date_once_more == PLAN_CHANGED
     assert api.not_picked == "That reviewer was not picked for this pull request."
     assert api.merge_too_early == api.merge_with_one_missing == "Every picked reviewer must approve before the merge."
     assert api.retest_too_early == "Retest now is available after the merge."
@@ -302,6 +337,13 @@ def test_every_refusal_says_why_in_a_plain_sentence(api):
     # a refusal the view announced: the switched-off button's note is the sentence the route answers with
     assert fix_of(api.plan_changed["view"], FIX)["actions"] == {
         "buttons": [{"action": "run_proof_again", "label": "Run proof again", "primary": False, "enabled": False}], "note": RUN_FIRST}
+    shown = fix_of(changed["view"], FIX)
+    assert shown["patch"] is None and shown["actions"]["note"] == f"{RUN_FIRST} {PLAN_CHANGED}"
+    assert [(b["action"], b["enabled"]) for b in shown["actions"]["buttons"]] == [("run_proof_again", False), ("merge", False), ("download_patch", False)]
+    # the approval recorded before the plan changed is still there once a new proof has passed
+    for view in (api.proved_again, api.back_to_waiting):
+        assert [(r["id"], bool(r["approved_at"])) for r in fix_of(view, FIX)["approvers"]["rows"]] == [("you", True), ("a", False)]
+        assert fix_of(view, FIX)["patch"] is not None
 
 
 def test_the_bodies_are_checked(api):
@@ -335,15 +377,16 @@ def test_nothing_happens_unless_its_own_route_is_called(api):
     assert at("ready") == (1, 1, 2, 0, 0, 0, 0)          # Run proof again: one more proof. A passed proof opens nothing by itself.
     assert at("opened") == (1, 1, 2, 1, 0, 0, 0)         # Open pull request: nobody has approved
     assert at("before_approvals") == at("opened")        # wrong reviewers, an early merge, an early retest: nothing
-    assert at("approved") == (1, 1, 2, 1, 2, 0, 0)       # every reviewer has approved: still not merged
+    assert at("pull_request_out_of_date") == (1, 1, 2, 1, 1, 0, 0)  # one approval; then the plan changed: the refused calls left nothing
+    assert at("approved") == (1, 1, 4, 1, 2, 0, 0)       # two more proofs for the changed plan; every reviewer has approved: still not merged
     assert at("before_merge") == at("approved")          # fetching the view, Evidence Lab and the patch merges nothing
-    assert at("merged") == (1, 1, 2, 1, 2, 1, 0)         # Merge pull request (sent by Confirm merge): no retest starts by itself
-    assert at("after_retest") == (1, 1, 2, 1, 2, 1, 1)   # Retest now
+    assert at("merged") == (1, 1, 4, 1, 2, 1, 0)         # Merge pull request (sent by Confirm merge): no retest starts by itself
+    assert at("after_retest") == (1, 1, 4, 1, 2, 1, 1)   # Retest now
     # the repository says the same: main moves once, at the merge, to a commit with two parents
     heads = {name: head for name, (_, head) in api.counts.items()}
     assert heads["not_connected"] is None
     base = heads["failed"]
-    assert all(heads[name] == base for name in ("ready", "opened", "before_approvals", "approved", "before_merge"))
+    assert all(heads[name] == base for name in ("ready", "opened", "before_approvals", "pull_request_out_of_date", "approved", "before_merge"))
     assert heads["merged"] != base and heads["after_retest"] == heads["merged"]
     with api.lab.db() as db:
         connection = db.query(CodeConnectionRow).filter_by(plan_id=api.pid).one()
@@ -402,6 +445,58 @@ def test_the_patch_downloads_as_a_file_and_is_the_change(api):
     assert hashlib.sha256(apply_patch(OLD_FILE, patch)).hexdigest() == change.built["sha256"] == change.files[0]["new_sha256"]
     with pytest.raises(AssertionError):
         apply_patch(NEW_FILE, patch)  # it is a patch for the old file, and says so when it does not fit
+
+
+def test_the_patch_is_handed_out_only_while_the_change_is_offered(app_client):
+    """Review finding 3. "Download patch" follows the offer: no patch before a pull request, none while the stored
+    proof is no longer believed (with the pull request open, and after the merge), and the route answers with the
+    sentence the screen gives."""
+    client, lab = app_client, app_client.app.state.lab
+    imp, pid, items = small_plan(client)
+    patch_url = f"/api/plans/{pid}/fixes/{FIX}/patch"
+
+    def shown() -> dict:
+        return fix_of(client.get(f"/api/plans/{pid}/fixes").json(), FIX)
+
+    def patch_button(detail: dict) -> dict | None:
+        return next((b for b in detail["actions"]["buttons"] if b["action"] == "download_patch"), None)
+
+    client.post(f"/api/plans/{pid}/run-all")
+    wait(client, pid)
+    client.post(f"/api/plans/{pid}/fixes/connect")
+    wait(client, pid)
+    ready = shown()
+    assert ready["status"]["key"] == "ready" and ready["patch"] is None and patch_button(ready) is None
+    assert refused(client.get(patch_url)) == NO_PULL_REQUEST_YET
+    opened = fix_of(client.post(f"/api/plans/{pid}/fixes/{FIX}/pull-request", json={"reviewers": ["you"]}).json(), FIX)
+    assert opened["patch"] == {"url": patch_url, "filename": "acme-sign-pull-request-1.patch"} and patch_button(opened)["enabled"] is True
+    patch = client.get(patch_url)
+    assert patch.status_code == 200
+    # a stored proof run is changed by hand: the proof is no longer what the records give
+    with lab.db() as db:
+        proof = db.query(ProofRow).filter_by(plan_id=pid).one()
+        run_id = lab._latest_run(db, items["bad_signatures"], "proof", proof.id).id
+    change_run = f"""UPDATE test_runs SET raw = json_set(raw, '$.subject.answers."r0-s0"', '%s') WHERE id = {run_id}"""
+    tamper(lab, change_run % "accept")
+    detail = shown()
+    assert detail["status"]["word"] == "Proof failed" and detail["proof"]["text"] == f"{PROOF_CHANGED} The change is not offered."
+    assert detail["patch"] is None and patch_button(detail)["enabled"] is False
+    assert detail["actions"]["note"].startswith(PROOF_CHANGED + " ")
+    assert refused(client.get(patch_url)) == PROOF_CHANGED
+    assert refused(client.post(f"/api/plans/{pid}/fixes/{FIX}/merge")) == PROOF_CHANGED
+    tamper(lab, change_run % "reject")  # put back exactly: offered again, the same bytes
+    assert client.get(patch_url).content == patch.content and shown()["patch"] is not None
+    client.post(f"/api/plans/{pid}/fixes/{FIX}/approve", json={"reviewer": "you"})
+    assert fix_of(client.post(f"/api/plans/{pid}/fixes/{FIX}/merge").json(), FIX)["status"]["key"] == "merged"
+    assert client.get(patch_url).content == patch.content
+    # after the merge: "Merged" stays, but the patch of a proof that is no longer believed is not handed out
+    tamper(lab, change_run % "accept")
+    detail = shown()
+    assert detail["status"]["word"] == "Merged" and detail["patch"] is None and patch_button(detail)["enabled"] is False
+    assert detail["proof"]["text"] == f"{PROOF_CHANGED} The change is not offered."
+    assert refused(client.get(patch_url)) == PROOF_CHANGED
+    tamper(lab, change_run % "reject")
+    assert client.get(patch_url).content == patch.content
 
 
 def test_git_itself_applies_the_downloaded_patch(api, tmp_path):

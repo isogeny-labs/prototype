@@ -528,6 +528,11 @@ class TestLabMixin:
             items = self._items(db, plan_id)
             specs = self._specs(db, items)
             retest = db.scalars(select(RetestRow).where(RetestRow.plan_id == plan_id).order_by(RetestRow.id.desc()).limit(1)).first()
+            # Where each fix stands is worked out FIRST, before asking what is running. If a proof ends while this
+            # answer is put together, its line then still says "proof running" (busy), so the screen asks again and
+            # the next answer is the settled one. Asked the other way round, such an answer could say "Fix ready"
+            # next to "A proof is running in Fixes", with nothing left to make the screen ask again.
+            lines = self._fix_lines(db, plan)
             running = self._running(plan_id)
             busy = running is not None
             retest_live = [j for j in self.jobs.live(plan_id) if j.key[1] == "retest"]
@@ -559,7 +564,6 @@ class TestLabMixin:
                 rows.append(row)
             # Where a fix stands changes after a run, so its one line is laid over the worded result here, never
             # kept with it. A failed result with a fix shows that line in place of the "Suggested fix" text.
-            lines = self._fix_lines(db, plan)
             for row in rows:
                 for shown in (row["result"], row["after"]):
                     if shown is not None:

@@ -203,11 +203,14 @@ export default function App() {
                   setImp(next);
                   setRun(null);
                   setPlan(null);
+                  // A new file has its own fixes: the fix picked for the file before is not carried over.
+                  setFixId(null);
                 }}
                 onImportFailed={() => {
                   setImp(null);
                   setRun(null);
                   setPlan(null);
+                  setFixId(null);
                 }}
                 onAddressChanged={onAddressChanged}
                 onVerified={(next) => {

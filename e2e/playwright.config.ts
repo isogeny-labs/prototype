@@ -1,4 +1,4 @@
-// End-to-end tests for phase 1 and phase 2. They start the real app themselves, with a brand-new
+// End-to-end tests for phase 1, phase 2 and phase 3a. They start the real app themselves, with a brand-new
 // empty data folder, so it never touches the data of an app you are using.
 //
 // Stop the app (./run-demo.sh) before running this: the demo TLS server needs
@@ -17,7 +17,7 @@ const backend = path.resolve(here, "../backend");
 if (!process.env.E2E_DATA_DIR) {
   process.env.E2E_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-"));
 }
-// A throwaway password for the throwaway data folder, shared by both test files. It is never written anywhere.
+// A throwaway password for the throwaway data folder, shared by the test files. It is never written anywhere.
 if (!process.env.E2E_PASSWORD) {
   process.env.E2E_PASSWORD = crypto.randomBytes(18).toString("base64url");
 }

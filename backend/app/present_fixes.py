@@ -44,7 +44,8 @@ def _m(value: str) -> dict:
     return {"t": "mono", "v": value}
 
 
-_DEMO = {"t": "demo", "v": "Demo data"}
+DEMO_DATA = "Demo data"
+_DEMO = {"t": "demo", "v": DEMO_DATA}
 
 
 def _plural(n: int, one: str, many: str | None = None) -> str:
@@ -83,6 +84,10 @@ def _stopped(fix: dict) -> dict | None:
     """Why a code fix has no proof result to go by, or None when its proof ran to the end and was reviewed.
     `line` is for Evidence Lab's one line, `badge` and `text` for the summary, `fold` for the folded Proof line."""
     change, proof = fix["change"], fix["proof"]
+    if change["problem"]:  # the stored change itself can't be believed, so neither can anything proved about it
+        problem = change["problem"]
+        return {"line": _lower(problem).rstrip("."), "badge": "Proof can't be trusted", "text": problem,
+                "fold": f"Can't be trusted: {_lower(problem)}"}
     if change["built"]["matches"] is None or proof is None:
         return {"line": "the changed code is not one of our demo components", "badge": "Nothing was run",
                 "text": "The changed code is not the same as one of our demo components, byte for byte, so nothing was run.",
@@ -95,8 +100,9 @@ def _stopped(fix: dict) -> dict | None:
         problem = proof["review"]["problem"]
         return {"line": _lower(problem).rstrip("."), "badge": "Proof can't be trusted", "text": problem,
                 "fold": f"Can't be trusted: {_lower(problem)}"}
-    if proof["state"] == "passed" and not proof["covers_plan"] and fix["pull_request"] is None:
-        # (once a pull request is open it stands on the proof it was opened with, whatever happens to the plan)
+    if proof["state"] == "passed" and not proof["covers_plan"] and fix["merge"] is None:
+        # (with or without a pull request: an open one does not shield a proof that no longer covers the plan.
+        # After the merge nothing changes: "Merged" is a fact, whatever happens to the plan later.)
         return {"line": "the test plan changed after the proof", "badge": "Proof out of date",
                 "text": "The test plan has changed since the proof ran, so the proof no longer covers exactly the tests in your plan.",
                 "fold": "Out of date: the test plan has changed since the proof ran."}
@@ -196,6 +202,14 @@ def _range_check_words(name: str, version: str | None, size: str) -> dict:
     }
 
 
+def _unknown_template_words(name: str, version: str | None, size: str) -> dict:
+    """For a stored change that names a fix template this version does not have. Such a change is never
+    believed (changes.py), so these words only have to describe it without claiming anything."""
+    plain = [_t("A code change to "), _m(name), _t(f". {size}." if size else ".")]
+    return {"title": f"A code change to {name}", "available": plain, "changes": plain, "fixes": plain,
+            "intro": "The stored record of this change names a fix template that this version of the app does not have."}
+
+
 TEMPLATE_WORDS = {"ecdsa-range-check": _range_check_words}
 
 
@@ -265,26 +279,48 @@ def _named(rows: list[dict]) -> str:
     return "; ".join(f"{r['title']}, {r['proof']['label'] if r['proof'] is not None else 'no result'}" for r in rows)
 
 
+def _did_not(missed: int, total: int, one: str, many: str) -> str:
+    """How many of a group did not do what the rule asks: "The 1 test ...", "The 2 tests ..." when it is every
+    one of them, and "1 of the 3 tests ..." otherwise."""
+    if total == 1:
+        return f"The 1 {one}"
+    return f"The {total} {many}" if missed == total else f"{missed} of the {total} {many}"
+
+
 def _checks(proof: dict, rows: list[dict]) -> list[dict]:
     """The reviewer's answer to its questions about a proof, as sentences. Each: {"ok", "text", "short"};
-    `short` leaves out which tests, for the folded line."""
-    counts, checks = proof["review"]["counts"], proof["review"]["checks"]
-    missed = {group: [r for r in rows if r["group"] == group and r["check"] is not None and not r["check"]["ok"]] for group in ("code", "server")}
+    `short` leaves out which tests, for the folded line. Nothing is worked out here: every "ok" is one of the
+    reviewer's checks, and the numbers are its counts."""
+    review = proof["review"]
+    counts, checks = review["counts"], review["checks"]
     out = []
 
-    def add(ok: bool, short: str, named: list[dict] | None = None) -> None:
-        out.append({"ok": ok, "short": short, "text": f"{short}: {_named(named)}." if named else f"{short}."})
+    def missed(group: str, report_only: bool) -> list[dict]:
+        return [r for r in rows if r["group"] == group and r["check"] is not None and not r["check"]["ok"]
+                and bool(r["check"]["report_only"]) is report_only]
+
+    def add(ok: bool, short: str, named: list[dict] | None = None, text: str | None = None) -> None:
+        out.append({"ok": ok, "short": short, "text": text or (f"{short}: {_named(named)}." if named else f"{short}.")})
 
     if not checks["code_is_ours"]:
         add(False, "The changed code is not the same as one of our demo components")
+    # the tests with a pass or fail that run the changed code (a report-only test is not counted among them)
     n = counts["code"]
     if checks["changed_code_passed"]:
         add(True, "The 1 test that runs the changed code passed" if n == 1 else f"All {n} tests that run the changed code passed")
+    elif n == 0 and counts["report_only"]:
+        add(False, "No test that can pass or fail runs the changed code in this proof, so it shows nothing about the change")
     elif n == 0:
         add(False, "No test in this proof runs the changed code, so it shows nothing about the change")
     else:
-        add(False, "The 1 test that runs the changed code did not pass" if n == 1 else
-            f"{len(missed['code'])} of the {n} tests that run the changed code did not pass", missed["code"])
+        failed = missed("code", False)
+        add(False, _did_not(len(failed), n, "test that runs the changed code did not pass", "tests that run the changed code did not pass"), failed)
+    n = counts["report_only"]
+    if n and checks["report_only_ran"]:
+        add(True, f"The {n} report-only {_plural(n, 'test')} ran")
+    elif n:
+        failed = missed("code", True)
+        add(False, _did_not(len(failed), n, "report-only test did not run", "report-only tests did not run"), failed)
     if checks["controls_behaved"]:
         # A test that could not run has no control result, so the sentence then speaks only of the tests that ran.
         every = all(r["proof"] is not None and r["proof"]["code"] != "couldnt_run" for r in rows)
@@ -296,8 +332,27 @@ def _checks(proof: dict, rows: list[dict]) -> list[dict]:
     if n and checks["server_unchanged"]:
         add(True, f"The {n} server {_plural(n, 'test')} came out the same as before")
     elif n:
-        add(False, "The 1 server test did not come out the same as before" if n == 1 else
-            f"{len(missed['server'])} of the {n} server tests did not come out the same as before", missed["server"])
+        failed = missed("server", False)
+        add(False, _did_not(len(failed), n, "server test did not come out the same as before",
+                            "server tests did not come out the same as before"), failed)
+    # The failed tests the change is for. One that ran and did not pass is already named above; one that was
+    # not in the proof at all is named here, because then no test in it showed that the failure is gone.
+    if not checks["answered_tests_passed"]:
+        answers = review["answers"]
+        absent = [TITLES.get(a["kind"], str(a["kind"])) for a in answers if a["reason"] == "not_in_proof"]
+        if absent:
+            which = ("the failed test the change is for" if len(answers) == 1 else "the failed tests the change is for"
+                     if len(absent) == len(answers) else f"{len(absent)} of the {len(answers)} failed tests the change is for")
+            short = f"This proof did not run {which}"
+            add(False, short, text=f"{short}: {join_and(absent)}. Add {'it' if len(absent) == 1 else 'them'} back in Tests and run the proof again.")
+        elif not answers:
+            add(False, "This change names no failed test that it is for, so the proof can't show that it fixes one")
+    # The speed comparison. A speed test that ran and did not come out as "no slowdown" is already named above.
+    if not checks["speed_compared"] and review["speed"]["reason"] == "not_in_proof":
+        short = "No speed comparison was made"
+        add(False, short, text=f"{short}, because this proof ran no {TITLES['speed_size']} test. Add it in Tests and run the proof again.")
+    if not review["offered"] and all(c["ok"] for c in out):
+        add(False, "The proof did not pass")  # (not reached by any record the app writes: each check that fails has its sentence)
     return out
 
 
@@ -322,7 +377,7 @@ def _proof_words(fix: dict, rows: list[dict], server_findings: int) -> dict:
     """Everything said about the latest proof of a connected code fix: the summary's proof row (`state`, `badge`,
     `text`, `muted`), the folded line (`fold`) and the box under the tables (`verdict`)."""
     proof, stopped = fix["proof"], _stopped(fix)
-    if proof is not None and proof["state"] == "running":
+    if proof is not None and proof["state"] == "running" and not fix["change"]["problem"]:
         running = f"Running: {proof['finished']} of {proof['total']} {_plural(proof['total'], 'test')} finished."
         return {"state": "running", "badge": None, "text": running, "muted": "Not offered yet.", "fold": running, "verdict": None}
     checks = _checks(proof, rows) if proof is not None and proof["review"] is not None and proof["review"]["believed"] else []
@@ -409,16 +464,21 @@ def _actions(fix: dict, plan_tests: int, holds: str) -> dict:
     if status == "ready":
         return {"buttons": [_button("open_pull_request", "Open pull request", True, refused["open_pull_request"] is None)],
                 "note": "Nothing goes into the main copy of the code until the reviewers you pick approve and you confirm the merge."}
-    if status == "failed" and fix["pull_request"] is None and fix["proof"] is not None:
-        every = "the 1 test" if plan_tests == 1 else f"all {plan_tests} tests"
-        return {"buttons": [_button("run_proof_again", "Run proof again", False, refused["run_proof_again"] is None)],
-                "note": refused["run_proof_again"] or f"Reruns {every} in your plan. The change is offered only if the proof passes."}
-    if status in ("waiting", "ready_to_merge", "failed") and fix["pull_request"] is not None:
+    if status == "failed" and fix["proof"] is not None:
+        again = _button("run_proof_again", "Run proof again", False, refused["run_proof_again"] is None)
+        if fix["pull_request"] is None:
+            every = "the 1 test" if plan_tests == 1 else f"all {plan_tests} tests"
+            return {"buttons": [again], "note": refused["run_proof_again"] or f"Reruns {every} in your plan. The change is offered only if the proof passes."}
+        # A pull request is open, and the latest proof no longer stands (the plan changed, the proof did not pass,
+        # or its records changed). Merging and the patch wait for a new proof that passes; the approvals stay.
+        gone = refused["merge"]
+        note = (f"{gone} Nothing more can be recorded on this pull request until a proof has passed." if refused["run_proof_again"] is None
+                else gone if refused["run_proof_again"] == gone else f"{refused['run_proof_again']} {gone}")
+        return {"buttons": [again, _button("merge", "Merge pull request", True, False), patch], "note": note}
+    if status in ("waiting", "ready_to_merge"):
         waiting = [a["name"] for a in fix["pull_request"]["approvals"] if a["approved_at"] is None]
         never = "The app never merges on its own: you press the button and confirm."
-        if status == "failed":
-            note = f"{refused['merge']} Nothing more can be recorded on this pull request."
-        elif waiting:
+        if waiting:
             note = f'"Merge pull request" unlocks when every reviewer has approved: waiting for {join_and(waiting)}. {never}'
         else:
             note = f"Every reviewer has approved. {never}"
@@ -474,7 +534,9 @@ def _change_section(fix: dict, words: dict, parts: list[dict] | None) -> dict:
 
 def _proof_section(fix: dict, rows: list[dict], said: dict) -> dict:
     timed = ", with the old and the new version timed side by side" if any(r["kind"] == "speed_size" for r in rows) else ""
-    intro = (f"The app applied this change on a new branch of its own copy of the code, then reran every locked test in your plan{timed}. "
+    # "every locked test in your plan" is said only while the proof covers the plan as it is now
+    reran = "every locked test in your plan" if fix["proof"] is None or fix["proof"]["covers_plan"] else "every locked test that was in your plan at the time"
+    intro = (f"The app applied this change on a new branch of its own copy of the code, then reran {reran}{timed}. "
              "The runs went through the same steps as your first results: the same test runner, then the same automatic check that "
              "decides each result from what the run recorded. The fix template has no say in any result.")
     if fix["proof"] is None:
@@ -519,7 +581,7 @@ def _details_section(fix: dict, modes: list[str], ran_sha256: str | None) -> dic
         note += (' The full record of every run in this proof is in the files saved by "Download evidence", where the evidence '
                  "fingerprint of the proof can be checked. That fingerprint is listed inside the evidence file; it is not the "
                  "fingerprint of the file itself.")
-    if request is not None:
+    if fix["actions"]["download_patch"] is None:
         note += ' "Download patch" saves this change as one file that a developer can apply to another copy of the code.'
     return {"key": "details", "title": "Technical details", "line": "Repository, branches, commits, fingerprints and mode", "open": False,
             "facts": facts, "note": note, "ran_on": _ran_on(fix, ran_sha256)}
@@ -558,7 +620,8 @@ def code_fix(fix: dict, *, plan_id: int, titles: list[str], server_findings: int
     change, component = fix["change"], fix["component"]
     connected = change is not None
     matches = change["built"]["matches"] if connected else None
-    words = TEMPLATE_WORDS[fix["template_id"]](component["name"], matches["version"] if matches else None, size_words(change) if connected else "")
+    worded = TEMPLATE_WORDS.get(fix["template_id"], _unknown_template_words)
+    words = worded(component["name"], matches["version"] if matches else None, size_words(change) if connected else "")
     holds = f"{matches['name']} {matches['version']}" if matches else ""
     if connected:
         said = _proof_words(fix, rows, server_findings)

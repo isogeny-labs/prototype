@@ -6,6 +6,7 @@ are worked out from the records of the plan this module runs: the five suggested
 import ast
 import copy
 import re
+import ssl
 import threading
 import time
 from contextlib import contextmanager
@@ -17,7 +18,7 @@ import pytest
 from app import changes, components, demo_repo, fixes, present, present_fixes
 from app.db import PlanRow, TestRunRow
 from app.execute import pq
-from conftest import demo_plan, make_lab, result_of
+from conftest import demo_plan, held, make_lab, result_of  # noqa: F401 (held is also used by test_fixes_api.py from here)
 from fixes_shapes import FIXES_VIEW, LAB_VIEW, fix as fix_of, plain, problems, section, texts
 from test_catalog_tests import ALERT_40, FakeChecker
 from test_changes import proved, small_plan, tamper
@@ -31,6 +32,12 @@ PROOF_PASSED = ("All 3 tests that run the changed code passed, every control beh
                 "the same as before.")
 PROOF_FAILED = "1 of the 3 tests that run the changed code did not pass: Official test vectors, Couldn't run (it took too long)."
 PROOF_CHANGED = "The stored proof no longer matches its fingerprint."
+PLAN_CHANGED = "The test plan has changed since the proof ran. Run the proof again first."
+RUN_FIRST = "Run every test in the plan first, so there is a result to compare with."
+UNTIL_A_PROOF_PASSES = "Nothing more can be recorded on this pull request until a proof has passed."
+OUT_OF_DATE = "The test plan has changed since the proof ran, so the proof no longer covers exactly the tests in your plan."
+MISSING_ANSWERED = "This proof did not run the failed test the change is for: Bad signatures. Add it back in Tests and run the proof again."
+NO_SPEED = "No speed comparison was made, because this proof ran no Speed and size test. Add it in Tests and run the proof again."
 # What a screen may say only once a proof has passed (the page's own subline is the one place "ready" may stand).
 PROVEN_WORDS = re.compile(r"ready for review|ready to merge|fix ready|what it fixes|this fixes|proof passed|\bpassed:|why it is ready", re.I)
 WHAT_AVAILABLE = ("A fix template exists for this failure: a ready-made change for a missing range check on the two signature numbers "
@@ -52,6 +59,7 @@ def button(action: str, label: str, primary: bool, enabled: bool = True) -> dict
 
 
 PATCH_BUTTON = button("download_patch", "Download patch", False)
+PATCH_OFF = button("download_patch", "Download patch", False, enabled=False)
 
 
 def line(lead: str, rest: str, look: str, busy: bool = False, fix_id: str = FIX) -> dict:
@@ -696,8 +704,9 @@ def test_only_the_buttons_that_apply_are_sent(flow, corners):
 
 @pytest.fixture(scope="module")
 def corners(flow):
-    """Small plans (old TLS versions, certificate strength, bad signatures) in the same lab, each brought to one
-    state that the main flow does not pass through. For every one: both views, and the state they were worded from."""
+    """Small plans (old TLS versions, certificate strength, bad signatures, speed and size with played-back
+    timings) in the same lab, each brought to one state that the main flow does not pass through. For every one:
+    both views, and the state they were worded from."""
     lab, seen = flow.lab, {}
     # the server tests could not run during the proof, so they did not come out the same as before
     plan = small_plan(lab)
@@ -734,12 +743,61 @@ def corners(flow):
         patch.setattr(lab.engine, "propose_change", not_ours)
         lab.connect_code(plan.id)
     seen["not_ours"] = look(lab, plan.id)
-    # the plan changed after the proof had passed
+    # the plan changed after the proof had passed: a report-only test was added
     plan = small_plan(lab)
     proved(lab, plan)
     seen["small_ready"] = look(lab, plan.id)
-    lab.add_test(plan.id, "mldsa_compare")
+    added = next(t["id"] for t in lab.add_test(plan.id, "mldsa_compare")["tests"] if t["kind"] == "mldsa_compare")
     seen["out_of_date"] = look(lab, plan.id)
+    # ... it is run, and the proof is run again: the report-only test only has to run, and is not counted as passed
+    lab.run_test(plan.id, added)
+    lab.wait_until_idle(plan.id, 120)
+    lab.run_proof_again(plan.id, FIX)
+    lab.wait_until_idle(plan.id, 120)
+    seen["with_report_only"] = look(lab, plan.id)
+    # a pull request is open, and then the plan changes (review finding 2): first with the added test not yet run,
+    # then run, then while the new proof runs, then with the new proof passed
+    plan = small_plan(lab)
+    proved(lab, plan)
+    lab.open_pull_request(plan.id, FIX, ["you", "a"])
+    lab.approve(plan.id, FIX, "you")
+    added = next(t["id"] for t in lab.add_test(plan.id, "mldsa_compare")["tests"] if t["kind"] == "mldsa_compare")
+    seen["pull_request_out_of_date"] = look(lab, plan.id)
+    lab.run_test(plan.id, added)
+    lab.wait_until_idle(plan.id, 120)
+    seen["pull_request_can_be_proved_again"] = look(lab, plan.id)
+    with held(lab):
+        lab.run_proof_again(plan.id, FIX)
+        seen["pull_request_proving_again"] = look(lab, plan.id)
+    lab.wait_until_idle(plan.id, 120)
+    seen["pull_request_proved_again"] = look(lab, plan.id)
+    # ... merged, and the plan changes once more: nothing changes after a merge
+    lab.approve(plan.id, FIX, "a")
+    lab.merge(plan.id, FIX)
+    lab.remove_test(plan.id, added)
+    seen["merged_then_plan_changed"] = look(lab, plan.id)
+    # the failed test the change is for is taken out of the plan, and the proof is run again (review finding 1)
+    plan = small_plan(lab)
+    proved(lab, plan)
+    lab.remove_test(plan.id, plan.item["bad_signatures"])
+    lab.run_proof_again(plan.id, FIX)
+    lab.wait_until_idle(plan.id, 120)
+    seen["answered_test_missing"] = look(lab, plan.id)
+    # a plan with no Speed and size test: the proof holds no speed comparison (review finding 4)
+    plan = small_plan(lab, without=("official_vectors", "speed_size"))
+    proved(lab, plan)
+    seen["no_speed_comparison"] = look(lab, plan.id)
+    # the server is put right after the proof: its test passes in a retest, so its finding is no longer open (finding 10)
+    plan = small_plan(lab)
+    proved(lab, plan)
+    context = lab.demo._server._ctx
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+    try:
+        lab.start_retest(plan.id, "1.4.3")
+        lab.wait_until_idle(plan.id, 120)
+    finally:
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+    seen["server_finding_closed"] = look(lab, plan.id)
     # a stored proof run changed by hand, at three moments: before a pull request, with one open, after the merge
     plan = small_plan(lab)
     ready = proved(lab, plan)
@@ -758,6 +816,32 @@ def corners(flow):
     tamper(lab, change_run % "accept")
     seen["run_edited_after_merge"] = look(lab, plan.id)
     tamper(lab, change_run % "reject")
+    # the stored change names a fix template this app does not have, at three moments again
+    plan = small_plan(lab)
+    ready = proved(lab, plan)
+    rename = f"UPDATE changes SET template_id = '%s' WHERE id = {ready['change']['id']}"
+    tamper(lab, rename % "no-such-template")
+    seen["unknown_template"] = look(lab, plan.id)
+    tamper(lab, rename % "ecdsa-range-check")
+    assert code_fix(look(lab, plan.id))["status"]["key"] == "ready"
+    lab.open_pull_request(plan.id, FIX, ["you"])
+    tamper(lab, rename % "no-such-template")
+    seen["unknown_template_with_pull_request"] = look(lab, plan.id)
+    tamper(lab, rename % "ecdsa-range-check")
+    lab.approve(plan.id, FIX, "you")
+    lab.merge(plan.id, FIX)
+    tamper(lab, rename % "no-such-template")
+    seen["unknown_template_after_merge"] = look(lab, plan.id)
+    tamper(lab, rename % "ecdsa-range-check")
+    # ... and with a proof that never finished (so no stored review could have shown the change)
+    plan = small_plan(lab)
+    lab.run_all(plan.id)
+    lab.wait_until_idle(plan.id, 120)
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(lab, "_submit", lambda *a, **k: None)
+        lab.connect_code(plan.id)
+    tamper(lab, f"UPDATE changes SET template_id = 'no-such-template' WHERE plan_id = {plan.id}")
+    seen["unknown_template_unproved"] = look(lab, plan.id)
     # no bundled repository for the component: the failed signing test gets a text-only fix of its own
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -768,8 +852,11 @@ def corners(flow):
     return SimpleNamespace(**seen)
 
 
-CORNERS = ("server_changed", "review_edited", "interrupted", "not_ours", "small_ready", "out_of_date", "run_edited",
-           "run_edited_with_pull_request", "run_edited_after_merge", "no_repository")
+CORNERS = ("server_changed", "review_edited", "interrupted", "not_ours", "small_ready", "out_of_date", "with_report_only",
+           "pull_request_out_of_date", "pull_request_can_be_proved_again", "pull_request_proving_again", "pull_request_proved_again",
+           "merged_then_plan_changed", "answered_test_missing", "no_speed_comparison", "server_finding_closed", "run_edited",
+           "run_edited_with_pull_request", "run_edited_after_merge", "unknown_template", "unknown_template_with_pull_request",
+           "unknown_template_after_merge", "unknown_template_unproved", "no_repository")
 
 
 @pytest.mark.parametrize("corner", CORNERS)
@@ -782,45 +869,115 @@ def test_a_small_plan_gets_its_own_numbers(corners):
     detail = code_fix(corners.small_ready)
     assert detail["list_source"] == "Came from 1 failed test: Bad signatures"
     assert plain(detail["source"]) == "Came from 1 failed test on signing component acme-sign 1.4.2: Bad signatures."
-    passed = "The 1 test that runs the changed code passed, every control behaved as expected, and the 2 server tests came out the same as before."
+    passed = "All 2 tests that run the changed code passed, every control behaved as expected, and the 2 server tests came out the same as before."
     assert detail["proof"]["text"] == passed
     proof = section(detail, "proof")
-    assert proof["line"] == "Passed: the 1 test that runs the changed code passed, every control behaved as expected, and the 2 server tests came out the same as before."
-    # no speed test in this plan, so nothing is said about timing
+    assert proof["line"] == "Passed: all 2 tests that run the changed code passed, every control behaved as expected, and the 2 server tests came out the same as before."
+    assert proof["intro"] == PROOF_INTRO
+    assert [c["text"] for c in proof["verdict"]["checks"]] == ["All 2 tests that run the changed code passed.", "Every control behaved as expected.",
+                                                               "The 2 server tests came out the same as before."]
+    assert proof["verdict"]["shows"] == ["It shows that with this change the one failed test passes, no slowdown beyond measured noise was found, "
+                                         "and the server tests came out as before.",
+                                         "It doesn't show that the change is free of other faults, and it does nothing about the server finding."]
+
+
+def test_a_report_only_test_is_not_counted_among_the_tests_that_passed(corners):
+    """Review finding 9. The ML-DSA-65 comparison has no pass or fail: in a proof it only has to run."""
+    detail = code_fix(corners.with_report_only)
+    passed = ("All 2 tests that run the changed code passed, the 1 report-only test ran, every control behaved as expected, and the 2 server "
+              "tests came out the same as before.")
+    assert detail["status"]["key"] == "ready" and detail["proof"]["text"] == passed
+    proof = section(detail, "proof")
+    assert proof["line"] == "Passed: " + passed[0].lower() + passed[1:]
+    assert proof["verdict"]["checks"] == [{"ok": True, "text": "All 2 tests that run the changed code passed."},
+                                          {"ok": True, "text": "The 1 report-only test ran."},
+                                          {"ok": True, "text": "Every control behaved as expected."},
+                                          {"ok": True, "text": "The 2 server tests came out the same as before."}]
+    code_table = proof["tables"][0]
+    assert code_table["need"] == ("Each of these must pass, and its control must behave as expected. The ML-DSA-65 comparison only reports "
+                                  "numbers, so it only has to run.")
+    rows = proof_rows(detail)
+    assert [r["kind"] for r in code_table["rows"]] == ["bad_signatures", "speed_size", "mldsa_compare"]
+    assert rows["mldsa_compare"]["check"] == {"ok": True, "text": "Ran (reports only)"} and rows["mldsa_compare"]["proof"]["label"] == "Measured"
+    # the numbers are the reviewer's own counts, never worked out by the wording
+    counts = state_of(corners.with_report_only)["proof"]["review"]["counts"]
+    assert (counts["code"], counts["code_ok"], counts["report_only"], counts["report_only_ok"]) == (2, 2, 1, 1)
+
+
+def test_a_proof_that_never_ran_the_failed_test_the_change_is_for(corners):
+    """Review finding 1. The plan lost "Bad signatures" before the proof was run again. Nothing calls the change a
+    fix, and the view says which test is missing and what to do."""
+    detail = code_fix(corners.answered_test_missing)
+    assert detail["status"] == {"key": "failed", "word": "Proof failed", "busy": False}
+    assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"},
+                               "text": f"{MISSING_ANSWERED} The change is not offered.", "muted": None}
+    proof = section(detail, "proof")
+    assert proof["line"] == "Did not pass: this proof did not run the failed test the change is for."
+    assert proof["verdict"] == {"tone": "fail", "title": "Why this change is not offered", "shows_title": None, "shows": [], "checks": [
+        {"ok": True, "text": "The 1 test that runs the changed code passed."}, {"ok": True, "text": "Every control behaved as expected."},
+        {"ok": True, "text": "The 2 server tests came out the same as before."}, {"ok": False, "text": MISSING_ANSWERED}]}
+    assert sorted(proof_rows(detail)) == ["certificate", "speed_size", "tls_versions"]  # no test in it gave the program a bad signature
+    assert detail["what"]["label"] == "What it changes" and detail["what"]["server_line"] == SERVER_LINE_UNPROVEN
+    assert [plain(p) for p in detail["what"]["paragraphs"]] == [WHAT_CHANGES]
+    assert not PROVEN_WORDS.search(" ".join(texts(detail)))
+    # it is still listed as the fix for the failure it came from, and can be proved again
+    assert detail["list_source"] == "Came from 1 failed test: Bad signatures"
+    assert detail["actions"] == {"buttons": [button("run_proof_again", "Run proof again", False)],
+                                 "note": "Reruns all 3 tests in your plan. The change is offered only if the proof passes."}
+    assert detail["approvers"]["text"] == "Nobody yet: a change that is not offered can't get a pull request."
+    # the reviewer's answer, as it was worded: one check did not hold, and it names the test
+    review = state_of(corners.answered_test_missing)["proof"]["review"]
+    assert [name for name, ok in review["checks"].items() if not ok] == ["answered_tests_passed"]
+    assert [(a["kind"], a["reason"]) for a in review["answers"]] == [("bad_signatures", "not_in_proof")]
+
+
+def test_a_proof_without_a_speed_comparison(corners):
+    """Review finding 4. A plan with no Speed and size test: the proof passes every test it ran, and is not offered."""
+    detail = code_fix(corners.no_speed_comparison)
+    assert detail["status"]["word"] == "Proof failed"
+    assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"},
+                               "text": f"{NO_SPEED} The change is not offered.", "muted": None}
+    proof = section(detail, "proof")
+    assert proof["line"] == "Did not pass: no speed comparison was made."
+    assert proof["verdict"]["checks"] == [{"ok": True, "text": "The 1 test that runs the changed code passed."},
+                                          {"ok": True, "text": "Every control behaved as expected."},
+                                          {"ok": True, "text": "The 2 server tests came out the same as before."}, {"ok": False, "text": NO_SPEED}]
+    # no speed test in this proof, so nothing is said about timing
     assert "timed side by side" not in proof["intro"]
     assert proof["intro"].startswith("The app applied this change on a new branch of its own copy of the code, then reran every locked test in your plan. ")
-    assert [c["text"] for c in proof["verdict"]["checks"]] == ["The 1 test that runs the changed code passed.", "Every control behaved as expected.",
-                                                               "The 2 server tests came out the same as before."]
-    assert proof["verdict"]["shows"] == ["It shows that with this change the one failed test passes and the server tests came out as before.",
-                                         "It doesn't show that the change is free of other faults, and it does nothing about the server finding."]
+    assert detail["what"]["label"] == "What it changes" and not PROVEN_WORDS.search(" ".join(texts(detail)))
+    assert detail["actions"] == {"buttons": [button("run_proof_again", "Run proof again", False)],
+                                 "note": "Reruns all 3 tests in your plan. The change is offered only if the proof passes."}
+    assert lab_lines(corners.no_speed_comparison)[("bad_signatures", "result")] == line("Fix not offered:", "the proof did not pass", "fail")
 
 
 def test_a_proof_whose_server_tests_changed_is_not_offered(corners):
     detail = code_fix(corners.server_changed)
-    named = ("2 of the 2 server tests did not come out the same as before: Old TLS versions, Couldn't run (address not confirmed); "
+    # every one of them: "The 2 server tests", not "2 of the 2 server tests"
+    named = ("The 2 server tests did not come out the same as before: Old TLS versions, Couldn't run (address not confirmed); "
              "Certificate strength, Couldn't run (address not confirmed).")
     assert detail["status"]["word"] == "Proof failed"
     assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"}, "text": f"{named} The change is not offered.", "muted": None}
     proof = section(detail, "proof")
-    assert proof["line"] == "Did not pass: 2 of the 2 server tests did not come out the same as before."
-    assert proof["verdict"]["checks"] == [{"ok": True, "text": "The 1 test that runs the changed code passed."},
+    assert proof["line"] == "Did not pass: the 2 server tests did not come out the same as before."
+    assert proof["verdict"]["checks"] == [{"ok": True, "text": "All 2 tests that run the changed code passed."},
                                           {"ok": True, "text": "Every control behaved as expected in the tests that ran."},
                                           {"ok": False, "text": named}]
     rows = proof_rows(detail)
     assert rows["tls_versions"]["check"] == rows["certificate"]["check"] == {"ok": False, "text": "Not the same as before"}
     assert rows["tls_versions"]["control"] == "Control: not run, because the test couldn't run."
     assert detail["actions"] == {"buttons": [button("run_proof_again", "Run proof again", False)],
-                                 "note": "Reruns all 3 tests in your plan. The change is offered only if the proof passes."}
+                                 "note": "Reruns all 4 tests in your plan. The change is offered only if the proof passes."}
     assert lab_lines(corners.server_changed)[("bad_signatures", "result")] == line("Fix not offered:", "the proof did not pass", "fail")
 
 
 def test_an_interrupted_proof(corners):
     detail = code_fix(corners.interrupted)
     assert detail["status"] == {"key": "failed", "word": "Proof failed", "busy": False}
-    text = "The proof was interrupted before every test had run: 0 of 3 tests finished."
+    text = "The proof was interrupted before every test had run: 0 of 4 tests finished."
     assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof did not finish", "tone": "warn"}, "text": f"{text} The change is not offered.", "muted": None}
     proof = section(detail, "proof")
-    assert proof["line"] == "Did not finish: 0 of 3 tests finished."
+    assert proof["line"] == "Did not finish: 0 of 4 tests finished."
     assert proof["verdict"] == {"tone": "fail", "title": "Why this change is not offered", "checks": [{"ok": False, "text": text}], "shows_title": None, "shows": []}
     assert all(row["proof"] is None and row["waiting"] is None and row["check"] == {"ok": None, "text": "Did not run"} for row in proof_rows(detail).values())
     shown = facts(detail)
@@ -852,16 +1009,19 @@ def test_code_that_is_not_ours_is_never_run_and_the_view_says_so(corners):
 
 def test_a_proof_that_no_longer_covers_the_plan(corners):
     detail = code_fix(corners.out_of_date)
-    text = "The test plan has changed since the proof ran, so the proof no longer covers exactly the tests in your plan."
+    text = OUT_OF_DATE
     assert detail["status"]["word"] == "Proof failed"
     assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof out of date", "tone": "warn"}, "text": f"{text} The change is not offered.", "muted": None}
     proof = section(detail, "proof")
     assert proof["line"] == "Out of date: the test plan has changed since the proof ran."
     # the proof record itself still stands, so its checks are listed under the reason
     assert proof["verdict"]["tone"] == "fail" and proof["verdict"]["title"] == "Why this change is not offered"
-    assert proof["verdict"]["checks"] == [{"ok": False, "text": text}, {"ok": True, "text": "The 1 test that runs the changed code passed."},
+    assert proof["verdict"]["checks"] == [{"ok": False, "text": text}, {"ok": True, "text": "All 2 tests that run the changed code passed."},
                                           {"ok": True, "text": "Every control behaved as expected."},
                                           {"ok": True, "text": "The 2 server tests came out the same as before."}]
+    # "every locked test in your plan" would no longer be true: the plan now holds a test this proof never ran
+    assert proof["intro"] == PROOF_INTRO.replace("every locked test in your plan,", "every locked test that was in your plan at the time,")
+    assert "in your plan," not in proof["intro"]
     # the added test has no first result yet, so a new proof can't start: the button is off and says why
     assert detail["actions"] == {"buttons": [button("run_proof_again", "Run proof again", False, enabled=False)],
                                  "note": "Run every test in the plan first, so there is a result to compare with."}
@@ -893,15 +1053,141 @@ def test_a_view_never_states_a_result_the_reviewer_did_not_give(corners, corner)
         assert detail["status"]["word"] == "Proof failed" and [b["action"] for b in detail["actions"]["buttons"]] == ["run_proof_again"]
         assert shown["lead"] == "Fix not offered:"
     if corner == "run_edited_with_pull_request":
-        # the pull request stays on record, but nothing more can be recorded on it
+        # the pull request stays on record, but nothing more can be recorded on it until a new proof has passed.
+        # Merging and the patch are switched off (review finding 3), and the note is the sentence their routes answer with.
         assert detail["status"]["word"] == "Proof failed" and detail["pull_request"]["title"].startswith("#1 ")
         assert [r["approve_label"] for r in detail["approvers"]["rows"]] == [None]
-        assert detail["actions"] == {"buttons": [button("merge", "Merge pull request", True, enabled=False), PATCH_BUTTON],
-                                     "note": f"{PROOF_CHANGED} Nothing more can be recorded on this pull request."}
-        assert detail["merge_dialog"] is None
+        assert detail["actions"] == {"buttons": [button("run_proof_again", "Run proof again", False),
+                                                 button("merge", "Merge pull request", True, enabled=False), PATCH_OFF],
+                                     "note": f"{PROOF_CHANGED} {UNTIL_A_PROOF_PASSES}"}
+        assert detail["merge_dialog"] is None and detail["patch"] is None
+        assert state_of(seen)["actions"]["download_patch"] == state_of(seen)["actions"]["merge"] == PROOF_CHANGED
     if corner == "run_edited_after_merge":
-        # the merge happened and stays on record; the view just no longer vouches for the proof
+        # the merge happened and stays on record; the view just no longer vouches for the proof, or hands out its patch
         assert detail["status"]["word"] == "Merged" and shown["lead"] == "Fix merged:" and "proof passed" not in shown["rest"]
+        assert [b["action"] for b in detail["actions"]["buttons"]] == ["retest_now", "download_patch"]
+        assert detail["actions"]["buttons"][1] == PATCH_OFF and detail["patch"] is None
+        assert state_of(seen)["actions"]["download_patch"] == PROOF_CHANGED
+    assert "Download patch" not in section(detail, "details")["note"]
+
+
+def test_an_open_pull_request_does_not_shield_a_proof_that_is_out_of_date(corners):
+    """Review findings 2 and 3. A test was added to the plan while a pull request was open. The fix reads "Proof
+    failed" again, nothing can be approved, merged or downloaded, and "Run proof again" is offered."""
+    never_run, can_run = code_fix(corners.pull_request_out_of_date), code_fix(corners.pull_request_can_be_proved_again)
+    for seen, detail in ((corners.pull_request_out_of_date, never_run), (corners.pull_request_can_be_proved_again, can_run)):
+        assert detail["status"] == {"key": "failed", "word": "Proof failed", "busy": False}
+        assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof out of date", "tone": "warn"},
+                                   "text": f"{OUT_OF_DATE} The change is not offered.", "muted": None}
+        assert detail["what"]["label"] == "What it changes" and detail["what"]["server_line"] == SERVER_LINE_UNPROVEN
+        assert not PROVEN_WORDS.search(" ".join(texts(detail)))
+        # the pull request and the approval already recorded stay on show; nobody can approve now
+        assert detail["pull_request"]["title"] == "#1 Reject signatures whose r or s is out of range."
+        assert [(r["id"], bool(r["approved_at"]), r["approved_text"], r["approve_label"]) for r in detail["approvers"]["rows"]] == [
+            ("you", True, "Approved", None), ("a", False, None, None)]
+        assert detail["approvers"]["footnote"] == ONE_LOGIN
+        assert detail["patch"] is None and detail["merge_dialog"] is None  # no link to the patch, no confirm box
+        assert "Download patch" not in section(detail, "details")["note"]
+        assert "every locked test that was in your plan at the time" in section(detail, "proof")["intro"]
+        state = state_of(seen)
+        assert state["actions"]["merge"] == state["actions"]["download_patch"] == PLAN_CHANGED  # what the routes answer with
+        assert lab_lines(seen)[("bad_signatures", "result")] == line("Fix not offered:", "the test plan changed after the proof", "fail")
+    merge_off = button("merge", "Merge pull request", True, enabled=False)
+    # the added test has no first result yet, so even a new proof can't start: the button is off and says why
+    assert never_run["actions"] == {"buttons": [button("run_proof_again", "Run proof again", False, enabled=False), merge_off, PATCH_OFF],
+                                    "note": f"{RUN_FIRST} {PLAN_CHANGED}"}
+    assert can_run["actions"] == {"buttons": [button("run_proof_again", "Run proof again", False), merge_off, PATCH_OFF],
+                                  "note": f"{PLAN_CHANGED} {UNTIL_A_PROOF_PASSES}"}
+    # while the new proof runs: "Proving", nothing to press, the pull request still on show
+    proving = code_fix(corners.pull_request_proving_again)
+    assert proving["status"] == {"key": "proving", "word": "Proving", "busy": True} and corners.pull_request_proving_again.fixes["busy"] is True
+    assert proving["actions"] == {"buttons": [], "note": None} and proving["patch"] is None and proving["merge_dialog"] is None
+    assert proving["pull_request"]["title"].startswith("#1 ") and [r["approve_label"] for r in proving["approvers"]["rows"]] == [None, None]
+    assert proving["what"]["label"] == "What it changes" and proving["proof"]["state"] == "running"
+    assert lab_lines(corners.pull_request_proving_again)[("bad_signatures", "result")] == line("Fix prepared:", f"{SIZE}, proof running", "plain", busy=True)
+    # the new proof passed: back to where the approvals stand, and the patch is there again
+    again = code_fix(corners.pull_request_proved_again)
+    assert again["status"]["word"] == "Waiting for approval" and again["what"]["label"] == "What it fixes"
+    assert again["proof"]["text"] == ("All 2 tests that run the changed code passed, the 1 report-only test ran, every control behaved as "
+                                      "expected, and the 2 server tests came out the same as before.")
+    assert [(r["id"], bool(r["approved_at"]), r["approve_label"]) for r in again["approvers"]["rows"]] == [
+        ("you", True, None), ("a", False, "Approve as Demo reviewer A")]
+    assert again["actions"]["buttons"] == [merge_off, PATCH_BUTTON] and again["patch"]["filename"] == "acme-sign-pull-request-1.patch"
+    assert "every locked test in your plan," in section(again, "proof")["intro"]
+
+
+def test_after_the_merge_a_change_of_plan_changes_nothing(corners):
+    seen = corners.merged_then_plan_changed
+    detail, state = code_fix(seen), state_of(seen)
+    assert state["status"] == "merged" and state["proof"]["covers_plan"] is False  # "Merged" is a fact
+    assert detail["status"]["word"] == "Merged" and detail["what"]["label"] == "What it fixes" and detail["proof"]["state"] == "passed"
+    assert detail["actions"]["buttons"] == [button("retest_now", "Retest now", True), PATCH_BUTTON] and detail["patch"] is not None
+    assert lab_lines(seen)[("bad_signatures", "result")] == line("Fix merged:", f"{SIZE}, proof passed", "plain")
+    # ... but the proof is not said to have rerun the plan as it is now
+    intro = section(detail, "proof")["intro"]
+    assert "every locked test that was in your plan at the time" in intro and "in your plan," not in intro
+
+
+def test_the_server_finding_is_open_only_while_its_newest_result_fails(corners):
+    """Review finding 10. The server test failed first and passed in the retest: nothing says a server finding is
+    still open, and it is no longer in the list. Before the retest, in the same kind of plan, it was."""
+    before, seen = corners.small_ready, corners.server_finding_closed
+    assert [f["id"] for f in before.fixes["fixes"]] == [FIX, TLS] and code_fix(before)["what"]["server_line"] == SERVER_LINE
+    view = seen.fixes
+    assert [f["id"] for f in view["fixes"]] == [FIX] and view["list_title"] == "Open findings with a fix (1)"
+    detail = code_fix(seen)
+    assert detail["status"]["key"] == "ready" and detail["what"]["label"] == "What it fixes"
+    assert detail["what"]["server_line"] is None
+    assert section(detail, "proof")["verdict"]["shows"][1] == "It doesn't show that the change is free of other faults."
+    # Evidence Lab: the first result failed, the newest passed; neither points to a fix, and the old suggestion text is back
+    first, after = result_of(seen.lab, "tls_versions"), result_of(seen.lab, "tls_versions", "after")
+    assert (first["label"], after["label"]) == ("Failed", "Passed")
+    assert first["fix_line"] is None and first["suggested_fix"] and after["fix_line"] is None
+    # the code fix is listed as before: its change is on record
+    assert lab_lines(seen)[("bad_signatures", "result")] == line("Fix ready:", f"{SIZE}, proof passed", "pass")
+    assert problems(view, FIXES_VIEW, "fixes") == []
+
+
+UNKNOWN_TEMPLATE = ("unknown_template", "unknown_template_with_pull_request", "unknown_template_after_merge", "unknown_template_unproved")
+
+
+@pytest.mark.parametrize("corner", UNKNOWN_TEMPLATE)
+def test_a_change_that_names_a_fix_template_the_app_does_not_have_is_not_believed(corners, corner):
+    """The stored change was edited to name another fix template. The view must not fail: the change is treated
+    like every other record that can no longer be believed, and nothing is said about what it does."""
+    seen = getattr(corners, corner)
+    detail, state = code_fix(seen), state_of(seen)
+    assert state["template_id"] == "no-such-template" and state["change"]["problem"] == PROOF_CHANGED
+    assert detail["title"] == "A code change to acme-sign" and detail["labels"] == ["From a fix template"]
+    assert [plain(p) for p in detail["what"]["paragraphs"]] == [f"A code change to acme-sign. {SIZE}."]
+    assert detail["what"]["label"] == "What it changes" and detail["what"]["server_line"] == SERVER_LINE_UNPROVEN
+    assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof can't be trusted", "tone": "warn"},
+                               "text": f"{PROOF_CHANGED} The change is not offered.", "muted": None}
+    assert section(detail, "proof")["line"] == "Can't be trusted: the stored proof no longer matches its fingerprint."
+    assert section(detail, "change")["intro"] == "The stored record of this change names a fix template that this version of the app does not have."
+    assert not PROVEN_WORDS.search(" ".join(texts(detail))) and detail["patch"] is None and detail["merge_dialog"] is None
+    assert all(row["check"]["ok"] is None for row in proof_rows(detail).values())  # no tick survives
+    assert "Evidence fingerprint of the proof (SHA-256)" not in facts(detail)
+    shown = lab_lines(seen)[("bad_signatures", "result")]
+    assert shown["look"] == "fail" and shown["rest"].endswith("the stored proof no longer matches its fingerprint")
+    # nothing can be done with it: every action is refused, each button that is shown is switched off
+    assert not any(b["enabled"] for b in detail["actions"]["buttons"] if b["action"] != "retest_now")
+    again_off = button("run_proof_again", "Run proof again", False, enabled=False)
+    if corner in ("unknown_template", "unknown_template_unproved"):
+        assert detail["status"]["word"] == "Proof failed" and detail["actions"] == {"buttons": [again_off], "note": PROOF_CHANGED}
+        assert state["actions"]["open_pull_request"] == "A pull request can be opened only after the proof has passed."
+    elif corner == "unknown_template_with_pull_request":
+        assert detail["status"]["word"] == "Proof failed"
+        assert detail["actions"] == {"buttons": [again_off, button("merge", "Merge pull request", True, enabled=False), PATCH_OFF], "note": PROOF_CHANGED}
+        assert state["actions"]["merge"] == state["actions"]["download_patch"] == PROOF_CHANGED
+    else:
+        assert detail["status"]["word"] == "Merged" and shown["lead"] == "Fix merged:" and state["actions"]["download_patch"] == PROOF_CHANGED
+    assert problems(seen.fixes, FIXES_VIEW, "fixes") == []
+
+
+def test_every_fix_template_has_its_words():
+    from app import research
+    assert set(present_fixes.TEMPLATE_WORDS) == set(research.TEMPLATE_IDS) == {"ecdsa-range-check"}
 
 
 def test_a_failed_signing_test_without_a_template_change_gets_a_text_only_fix(corners):
@@ -963,6 +1249,119 @@ def test_a_misbehaving_control_and_other_reasons_are_worded_from_the_review(flow
     review["counts"].update(code=0, code_ok=0)
     detail = present_fixes.code_fix(state, **more)
     assert detail["proof"]["text"] == "No test in this proof runs the changed code, so it shows nothing about the change. The change is not offered."
+
+
+def not_offered(flow):
+    """The main flow's passed proof as fixes.py hands it to the wording, turned by hand into one that is not offered
+    (no check fails yet: each test below then says which check did not hold)."""
+    state, more = worded_from(flow.lab, flow.plan.id)
+    state.update(status="failed", pull_request=None, merge=None)
+    state["proof"]["state"] = "failed"
+    state["proof"]["review"]["offered"] = False
+    return state, more, state["proof"]["review"]
+
+
+def fail_rows(more, kinds, label, reason="did_not_pass"):
+    for row in more["rows"]:
+        if row["kind"] in kinds:
+            row["check"] = {**row["check"], "ok": False, "reason": reason}
+            row["proof"] = {**row["proof"], "label": label}
+
+
+def test_all_of_them_reads_the_n_tests_and_some_of_them_k_of_the_n(flow):
+    """"2 of the 2 server tests" read clumsily: when it is every one of them, the sentence says "The 2 server tests"."""
+    state, more, review = not_offered(flow)
+    review["checks"]["changed_code_passed"] = False
+    fail_rows(more, ("official_vectors", "bad_signatures", "speed_size"), "Couldn't run (it took too long)")
+    detail = present_fixes.code_fix(state, **more)
+    every = ("The 3 tests that run the changed code did not pass: Official test vectors, Couldn't run (it took too long); Bad signatures, "
+             "Couldn't run (it took too long); Speed and size, Couldn't run (it took too long).")
+    assert detail["proof"]["text"] == f"{every} The change is not offered."
+    assert section(detail, "proof")["line"] == "Did not pass: the 3 tests that run the changed code did not pass."
+    state, more, review = not_offered(flow)
+    review["checks"]["changed_code_passed"] = False
+    fail_rows(more, ("official_vectors", "speed_size"), "Couldn't run (it took too long)")
+    assert present_fixes.code_fix(state, **more)["proof"]["text"].startswith("2 of the 3 tests that run the changed code did not pass: Official test vectors, ")
+    for kinds, lead in ((("tls_versions",), "1 of the 3 server tests did not come out the same as before: Old TLS versions, Passed."),
+                        (("tls_versions", "certificate", "pq_readiness"), "The 3 server tests did not come out the same as before: Old TLS versions, Passed; ")):
+        state, more, review = not_offered(flow)
+        review["checks"]["server_unchanged"] = False
+        fail_rows(more, kinds, "Passed", "changed")
+        assert present_fixes.code_fix(state, **more)["proof"]["text"].startswith(lead), kinds
+    # one test in the group: "The 1 ..."
+    state, more, review = not_offered(flow)
+    review["checks"]["server_unchanged"], review["counts"]["server"] = False, 1
+    more["rows"] = [r for r in more["rows"] if r["kind"] not in ("certificate", "pq_readiness")]
+    fail_rows(more, ("tls_versions",), "Passed", "changed")
+    assert present_fixes.code_fix(state, **more)["proof"]["text"] == ("The 1 server test did not come out the same as before: Old TLS versions, Passed. "
+                                                                      "The change is not offered.")
+
+
+def test_the_failed_tests_the_change_is_for_are_named_when_the_proof_did_not_run_them(flow):
+    state, more, review = not_offered(flow)
+    review["checks"]["answered_tests_passed"] = False
+    review["answers"] = [{**a, "ok": False, "reason": "not_in_proof"} for a in review["answers"]]
+    both = "This proof did not run the failed tests the change is for: Official test vectors and Bad signatures. Add them back in Tests and run the proof again."
+    detail = present_fixes.code_fix(state, **more)
+    assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"}, "text": f"{both} The change is not offered.",
+                               "muted": None}
+    assert section(detail, "proof")["line"] == "Did not pass: this proof did not run the failed tests the change is for."
+    assert section(detail, "proof")["verdict"]["checks"][-1] == {"ok": False, "text": both}
+    assert detail["what"]["label"] == "What it changes" and detail["what"]["server_line"] == SERVER_LINE_UNPROVEN
+    assert not PROVEN_WORDS.search(" ".join(texts(detail))) and problems(detail, FIXES_VIEW["fixes"][0], "detail") == []
+    # one of the two was in the proof and passed
+    review["answers"][1] = {**review["answers"][1], "ok": True, "reason": "passed"}
+    one = "This proof did not run 1 of the 2 failed tests the change is for: Official test vectors. Add it back in Tests and run the proof again."
+    assert present_fixes.code_fix(state, **more)["proof"]["text"] == f"{one} The change is not offered."
+    # a failed test that was in the proof and did not pass is named by the sentence about the tests that run the code, once
+    review["answers"][0] = {**review["answers"][0], "reason": "did_not_pass"}
+    review["checks"]["changed_code_passed"] = False
+    fail_rows(more, ("official_vectors",), "Failed")
+    text = present_fixes.code_fix(state, **more)["proof"]["text"]
+    assert text == "1 of the 3 tests that run the changed code did not pass: Official test vectors, Failed. The change is not offered."
+    # a change that names no failed test at all
+    state, more, review = not_offered(flow)
+    review["checks"]["answered_tests_passed"], review["answers"] = False, []
+    assert present_fixes.code_fix(state, **more)["proof"]["text"] == ("This change names no failed test that it is for, so the proof can't show that "
+                                                                      "it fixes one. The change is not offered.")
+
+
+def test_the_speed_comparison_and_a_report_only_test_have_their_own_sentences(flow):
+    state, more, review = not_offered(flow)
+    review["checks"]["speed_compared"], review["speed"] = False, {"ok": False, "reason": "not_in_proof"}
+    detail = present_fixes.code_fix(state, **more)
+    assert detail["proof"]["text"] == f"{NO_SPEED} The change is not offered."
+    assert section(detail, "proof")["verdict"]["checks"][-1] == {"ok": False, "text": NO_SPEED}
+    # a speed test that ran and was not "no slowdown" is named by the sentence about the tests that run the code, once
+    state, more, review = not_offered(flow)
+    review["checks"].update(speed_compared=False, changed_code_passed=False)
+    review["speed"] = {"ok": False, "reason": "did_not_pass"}
+    fail_rows(more, ("speed_size",), "Slowdown found")
+    assert present_fixes.code_fix(state, **more)["proof"]["text"] == ("1 of the 3 tests that run the changed code did not pass: Speed and size, "
+                                                                      "Slowdown found. The change is not offered.")
+    # a report-only test that could not run: counted and named apart from the tests that have a pass or fail
+    state, more, review = not_offered(flow)
+    review["checks"]["report_only_ran"] = False
+    review["counts"].update(tests=7, report_only=1, report_only_ok=0)
+    speed = next(r for r in more["rows"] if r["kind"] == "speed_size")
+    more["rows"].append({**speed, "kind": "mldsa_compare", "title": "ML-DSA-65 comparison",
+                         "proof": {**speed["proof"], "label": "Couldn't run (the test could not be run)", "code": "couldnt_run"},
+                         "check": {"group": "code", "report_only": True, "ok": False, "reason": "did_not_pass"}})
+    detail = present_fixes.code_fix(state, **more)
+    did_not_run = "The 1 report-only test did not run: ML-DSA-65 comparison, Couldn't run (the test could not be run)."
+    assert detail["proof"]["text"] == f"{did_not_run} The change is not offered."
+    assert [c["text"] for c in section(detail, "proof")["verdict"]["checks"]] == [
+        "All 3 tests that run the changed code passed.", did_not_run, "Every control behaved as expected in the tests that ran.",
+        "The 3 server tests came out the same as before."]
+    # only a report-only test runs the changed code: that shows nothing about the change
+    review["checks"].update(report_only_ran=True, changed_code_passed=False)
+    review["counts"].update(code=0, code_ok=0, report_only_ok=1)
+    assert present_fixes.code_fix(state, **more)["proof"]["text"].startswith(
+        "No test that can pass or fail runs the changed code in this proof, so it shows nothing about the change. ")
+    # a review that is not offered always gets a reason, even one the app never writes
+    state, more, review = not_offered(flow)
+    review["checks"]["speed_compared"], review["speed"] = False, {"ok": False, "reason": "did_not_pass"}
+    assert present_fixes.code_fix(state, **more)["proof"]["text"] == "The proof did not pass. The change is not offered."
 
 
 def test_more_than_one_open_server_finding_and_none(flow):
@@ -1085,24 +1484,6 @@ def test_the_views_decide_nothing_about_a_proof():
     assert "reviewer" not in imported and "changes" not in imported  # wording only: it is handed data, it fetches none
 
 
-@contextmanager
-def held(lab):
-    """While this is open the harness jobs wait at the door until the Event it gives is set: a proof that is
-    certainly still running, and that ends exactly when the test says so."""
-    go, real = threading.Event(), lab.component_runner.run_job
-
-    def waiting(job, **more):
-        go.wait(60)
-        return real(job, **more)
-
-    lab.component_runner.run_job = waiting
-    try:
-        yield go
-    finally:
-        go.set()
-        lab.component_runner.run_job = real
-
-
 def test_a_proof_that_ends_while_a_view_is_put_together_is_never_shown_as_failed_or_stuck(lab):
     """The screen asks once a second while a proof runs. Whatever moment the last test finishes at, an answer
     says "Proving, ask again" or the settled result: never "Proof failed" for a proof that passed, and never
@@ -1148,3 +1529,58 @@ def test_a_proof_that_ends_while_a_view_is_put_together_is_never_shown_as_failed
     assert fix_of(view, FIX)["status"]["key"] == "proving" and view["busy"] is True  # so the screen asks again
     settled = lab.fixes_view(plan.id)
     assert fix_of(settled, FIX)["status"]["key"] == "ready" and settled["busy"] is False
+
+
+def test_a_proof_that_ends_while_evidence_lab_is_put_together_never_leaves_the_screen_stuck(lab):
+    """Review finding 5. Evidence Lab asks again only while one of its lines says a proof is running. So an answer
+    must never say "A proof is running in Fixes" on its buttons next to lines that are already settled: the
+    screen would stay like that. Whatever moment the proof ends at, the answer is settled or makes the screen ask again."""
+    proof_running = "A proof is running in Fixes. Wait until it has finished."
+
+    def stuck(view) -> bool:
+        waiting_for_a_proof = proof_running in (view["retest"]["blocked_reason"], view["download"]["blocked_reason"])
+        asks_again = any(row[side] is not None and row[side]["fix_line"] is not None and row[side]["fix_line"]["busy"]
+                         for row in view["rows"] for side in ("result", "after"))
+        return waiting_for_a_proof and not asks_again
+
+    real_lines = lab._fix_lines
+    # the proof ends just before the lines about the fixes are worked out
+    plan = small_plan(lab)
+    lab.run_all(plan.id)
+    lab.wait_until_idle(plan.id, 120)
+    with held(lab) as go:
+        lab.connect_code(plan.id)
+
+        def the_proof_ends_then_lines(db, plan_row):
+            go.set()
+            lab.wait_until_idle(plan.id, 120)
+            return real_lines(db, plan_row)
+
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(lab, "_fix_lines", the_proof_ends_then_lines)
+            view = lab.lab_view(plan.id)
+    assert not stuck(view)
+    shown = result_of(view, "bad_signatures")["fix_line"]
+    assert (shown["lead"], shown["busy"]) == ("Fix ready:", False)
+    assert view["retest"]["can_start"] is True and view["download"]["can_start"] is True  # nothing says a proof is running
+    # ... and just after them: the line still says "proof running", so the screen asks again and gets the settled answer
+    plan = small_plan(lab)
+    lab.run_all(plan.id)
+    lab.wait_until_idle(plan.id, 120)
+    with held(lab) as go:
+        lab.connect_code(plan.id)
+
+        def lines_then_the_proof_ends(db, plan_row):
+            out = real_lines(db, plan_row)
+            go.set()
+            lab.wait_until_idle(plan.id, 120)
+            return out
+
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(lab, "_fix_lines", lines_then_the_proof_ends)
+            view = lab.lab_view(plan.id)
+    assert not stuck(view)
+    shown = result_of(view, "bad_signatures")["fix_line"]
+    assert (shown["lead"], shown["busy"]) == ("Fix prepared:", True)
+    settled = lab.lab_view(plan.id)
+    assert result_of(settled, "bad_signatures")["fix_line"]["lead"] == "Fix ready:" and settled["retest"]["can_start"] is True

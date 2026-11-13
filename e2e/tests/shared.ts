@@ -1,4 +1,4 @@
-// Things both test files use: the throwaway password, the one fixed line every result screen carries,
+// Things the test files share: the throwaway password, the one fixed line every result screen carries,
 // and "get me into the app" (create the password on a brand-new data folder, or log in).
 import { expect, type Page } from "@playwright/test";
 import path from "node:path";
@@ -16,7 +16,7 @@ export const DISCLAIMER = "Passing these tests doesn't prove a system secure. It
 export const password: string = process.env.E2E_PASSWORD ?? "";
 if (!password) throw new Error("E2E_PASSWORD is not set; run the tests with `npm test` from the e2e folder.");
 
-export function screenshotFolder(phase: "phase1" | "phase2"): string {
+export function screenshotFolder(phase: "phase1" | "phase2" | "phase3a"): string {
   return path.join(REPO, "docs/screenshots", phase);
 }
 
@@ -41,11 +41,17 @@ export async function enterApp(page: Page): Promise<void> {
 /** Use demo file, tick "I own this system", Verify claims, Continue to tests. Main-screen buttons only. */
 export async function importVerifyAndOpenTests(page: Page): Promise<void> {
   await page.getByRole("button", { name: "1. Import" }).click();
+  // Wait for the import itself to be answered: until then the screen may still show an earlier import
+  // (with its box already ticked), and the new file's box must be the one that gets ticked.
+  const imported = page.waitForResponse((r) => r.url().endsWith("/api/import/demo") && r.request().method() === "POST");
   await page.getByRole("button", { name: "Use demo file" }).click();
+  expect((await imported).status()).toBe(200);
   await expect(page.getByTestId("claim-row")).toHaveCount(3);
   const tick = page.getByTestId("address-confirm");
   await expect(tick).toHaveCount(1);
-  if (!(await tick.isChecked())) await tick.click();
+  // A new import always starts with the box unticked.
+  await expect(tick).not.toBeChecked();
+  await tick.click();
   await expect(tick).toBeChecked();
   await page.getByRole("button", { name: "Verify claims" }).click();
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();

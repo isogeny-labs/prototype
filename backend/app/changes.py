@@ -20,7 +20,7 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
-from . import components, demo_repo
+from . import components, demo_repo, research
 from .canonical import canonical_bytes
 from .db import (
     ApprovalRow, ChangeRow, CodeConnectionRow, MergeRow, PlanRow, ProofReviewRow, ProofRow, PullRequestRow, RetestRow,
@@ -29,7 +29,7 @@ from .db import (
 from .errors import BadRequest, Conflict, NotFound
 from .gitrepo import GitRepo, GitRepoError, Person, count_changes, format_patch
 from .reviewer import PROOF_SCHEMA, ReviewNotAllowed
-from .testlab import read_spec
+from .testlab import BUSY, read_spec
 
 # The fixed tick list of reviewers (SPEC 7b item 4). The app has one login, so whoever is at the keyboard
 # records each approval; the two demo reviewers are demo data.
@@ -64,11 +64,15 @@ def registered_version(name: str | None, files: dict[str, bytes]) -> str | None:
 # allowed. The actions and the description of a fix both use these, so a button and its refusal can't disagree.
 
 def _no_new_proof(fix: dict) -> str | None:
+    """Run proof again: after a proof that failed, was interrupted or no longer covers the plan. A pull request
+    that is open does not stand in the way (its proof may have gone out of date); a merge does."""
     change, proof = fix["change"], fix["proof"]
     if change is None:
         return "Connect the demo code first."
-    if fix["pull_request"] is not None:
-        return "A pull request is already open for this change, so its proof stays as it is."
+    if fix["merge"] is not None:
+        return "This pull request is already merged."
+    if change["problem"]:
+        return change["problem"]
     if change["built"]["matches"] is None:
         return "The changed code is not one of our demo components, so nothing can be run."
     if proof is not None and proof["state"] == "passed" and proof["covers_plan"]:
@@ -82,22 +86,38 @@ def _no_pull_request(fix: dict) -> str | None:
         return "Connect the demo code first."
     if fix["pull_request"] is not None:
         return "A pull request is already open for this change."
-    if proof is None or proof["state"] != "passed":
+    if fix["change"]["problem"] or proof is None or proof["state"] != "passed":
         return "A pull request can be opened only after the proof has passed."
     if not proof["covers_plan"]:
         return "The test plan has changed since the proof ran. Run the proof again first."
     return None
 
 
+def _no_offer(fix: dict) -> str | None:
+    """Why the change of an open pull request can't be acted on right now, or None while its offer stands: the
+    latest proof has passed, is still what the stored records give, and covers the plan as it is now. Approve,
+    Merge and Download patch all ask this, so an open pull request never shields a proof that no longer holds."""
+    proof = fix["proof"]
+    if fix["change"]["problem"] or proof is None:
+        return PROOF_CHANGED
+    if proof["state"] == "running":
+        return BUSY["proof"]
+    if proof["review"] is not None and not proof["review"]["believed"]:
+        return proof["review"]["problem"]
+    if proof["state"] != "passed":
+        return "The proof has not passed. Run the proof again first."
+    if not proof["covers_plan"]:
+        return "The test plan has changed since the proof ran. Run the proof again first."
+    return None
+
+
 def _pull_request_closed(fix: dict) -> str | None:
-    """Why nothing more can be recorded on this fix's pull request (shared by Approve and Merge)."""
+    """Why nothing more can be recorded on this fix's pull request right now (shared by Approve and Merge)."""
     if fix["pull_request"] is None:
         return "Open a pull request first."
     if fix["merge"] is not None:
         return "This pull request is already merged."
-    if fix["proof"] is None or fix["proof"]["state"] != "passed":
-        return PROOF_CHANGED  # it was opened on a passed proof and no new proof can start, so a record was changed
-    return None
+    return _no_offer(fix)
 
 
 def _no_approval(fix: dict, reviewer: str) -> str | None:
@@ -122,7 +142,14 @@ def _no_merge(fix: dict) -> str | None:
 
 
 def _no_patch(fix: dict) -> str | None:
-    return None if fix["pull_request"] is not None else "The patch can be downloaded once a pull request is open."
+    """Download patch: only while the change is offered. Before the merge that is the question Approve and Merge
+    ask too. A merged change keeps its patch for as long as the proof it was merged on is still believed."""
+    if fix["pull_request"] is None:
+        return "The patch can be downloaded once a pull request is open."
+    if fix["merge"] is None:
+        return _no_offer(fix)
+    proof = fix["proof"]
+    return None if not fix["change"]["problem"] and proof is not None and proof["state"] == "passed" else PROOF_CHANGED
 
 
 def _no_retest_now(fix: dict) -> str | None:
@@ -130,22 +157,23 @@ def _no_retest_now(fix: dict) -> str | None:
 
 
 def _status(fix: dict) -> str:
-    """The status key of a code fix (contract 3.8), from its records. A pull request, once opened, leads:
-    only a proof that is no longer believed takes it back to "failed"."""
+    """The status key of a code fix (contract 3.8), from its records. A merge is a fact and stays. Before it,
+    the latest proof leads, with or without a pull request: only a proof that has passed, is still believed and
+    covers the plan as it is now makes a change ready, waiting for approval or ready to merge."""
     change, proof, pull_request = fix["change"], fix["proof"], fix["pull_request"]
     if change is None:
         return "not_connected"
     if fix["merge"] is not None:
         return "merged"
-    if pull_request is not None:
-        if proof is None or proof["state"] != "passed":
-            return "failed"
-        return "waiting" if any(a["approved_at"] is None for a in pull_request["approvals"]) else "ready_to_merge"
-    if change["built"]["matches"] is None or proof is None:
+    if change["problem"] or change["built"]["matches"] is None or proof is None:
         return "failed"
     if proof["state"] == "running":
         return "proving"
-    return "ready" if proof["state"] == "passed" and proof["covers_plan"] else "failed"
+    if proof["state"] != "passed" or not proof["covers_plan"]:
+        return "failed"
+    if pull_request is None:
+        return "ready"
+    return "waiting" if any(a["approved_at"] is None for a in pull_request["approvals"]) else "ready_to_merge"
 
 
 class ChangesMixin:
@@ -239,15 +267,19 @@ class ChangesMixin:
         return sorted(fixes, key=lambda fix: fix["kind"] != "code")  # stable: code fixes first, the rest as found
 
     def _fixes_for_failed_tests(self, db, plan: PlanRow, items: list, shown: list[dict]) -> list[dict]:
-        """One code fix for the failed signing tests a change answers; a text-only fix for every other failed test."""
+        """One code fix for the failed signing tests a change answers (it stays listed once its change is on record);
+        a text-only fix for every other test whose newest shown result is a failure."""
         failed = [r for r in shown if r["tone"] == "fail"]
         fixes = []
         code = self._code_fix(db, plan, items, shown, failed)
         if code is not None:
             fixes.append(code)
         answered = {a["run_id"] for a in code["answers"]} if code is not None else set()
+        # A finding counts as open only while the newest result shown for its test is a failure: the after-result
+        # once a retest has one, the first result until then. (`shown` lists a test's first result before its after-result.)
+        newest = {r["item_id"]: r for r in shown}
         for kind in dict.fromkeys(r["kind"] for r in failed):
-            answers = [r for r in failed if r["kind"] == kind and r["run_id"] not in answered]
+            answers = [r for r in failed if r["kind"] == kind and r["run_id"] not in answered and newest[r["item_id"]]["tone"] == "fail"]
             if answers:
                 fixes.append({"id": "fix-" + str(kind).replace("_", "-"), "kind": "text", "status": "text_only",
                               "source_kind": "failed_tests", "answers": [_answer(r) for r in answers], "component": None,
@@ -302,7 +334,7 @@ class ChangesMixin:
                        "written_by": change.written_by, "template_id": change.template_id, "proposed_by": change.proposed_by,
                        "title": change.title, "branch": change.branch, "base_commit": change.base_commit,
                        "head_commit": change.head_commit, "files": change.files, "built": change.built,
-                       "created_at": iso(change.created_at)},
+                       "created_at": iso(change.created_at), "problem": None if _known_template(change) else PROOF_CHANGED},
             "proofs": len(proofs),
             "proof": self._proof_state(db, plan, items, change, proofs[-1]) if proofs else None,
             "pull_request": None, "merge": None,
@@ -347,6 +379,8 @@ class ChangesMixin:
                            "base_commit": change.base_commit, "head_commit": change.head_commit, "files": change.files},
                 "built": change.built, "baseline_version": proof.baseline_version, "version": proof.version,
                 "proposed_by": change.proposed_by,
+                # the failed tests the change was made for: the reviewer asks that each of them was rerun and passed
+                "answers": [{"item_id": run["item_id"], "kind": run["kind"]} for run in (change.source or {}).get("runs") or []],
                 "tests": [{"item_id": t["item_id"], "kind": t["kind"], "spec_hash": t["spec_hash"], "target": t["target"],
                            "first": part(t["first"], ("run_sha256", "code", "reason_code")),
                            "proof": part(t["proof"], ("run_sha256", "code", "reason_code", "control_outcome"))} for t in tests]}
@@ -359,16 +393,17 @@ class ChangesMixin:
             return None
         try:
             again = self.reviewer.review_proof(self._proof_record(proof, change, tests))
-            believed = ((stored.reviewer, stored.record_sha256, bool(stored.offered), canonical_bytes(stored.detail))
+            believed = (_known_template(change)
+                        and (stored.reviewer, stored.record_sha256, bool(stored.offered), canonical_bytes(stored.detail))
                         == (again["reviewer"], again["record_sha256"], again["offered"], canonical_bytes(_detail(again))))
         except Exception:
             believed = False
         if not believed:
             return {"reviewed_at": iso(stored.created_at), "believed": False, "offered": False, "problem": PROOF_CHANGED,
-                    "record_sha256": None, "checks": None, "counts": None, "tests": []}
+                    "record_sha256": None, "checks": None, "counts": None, "tests": [], "answers": [], "speed": None}
         return {"reviewed_at": iso(stored.created_at), "believed": True, "offered": bool(stored.offered), "problem": None,
                 "record_sha256": stored.record_sha256, "checks": stored.detail["checks"], "counts": stored.detail["counts"],
-                "tests": stored.detail["tests"]}
+                "tests": stored.detail["tests"], "answers": stored.detail["answers"], "speed": stored.detail["speed"]}
 
     def _proof_state(self, db, plan: PlanRow, items: list, change: ChangeRow, proof: ProofRow) -> dict:
         """The latest proof of a change: each test's first result and proof run, its live job, and the review."""
@@ -388,7 +423,7 @@ class ChangesMixin:
                          "first": _shown_verdict(t["first"]), "proof": _shown_verdict(t["proof"]),
                          "job": {"status": job.status, "progress_text": job.progress_text,
                                  "progress_percent": job.progress_percent} if job is not None else None,
-                         "check": {k: check[k] for k in ("group", "ok", "reason")} if check is not None else None})
+                         "check": {k: check[k] for k in ("group", "report_only", "ok", "reason")} if check is not None else None})
         state = "running" if live else "interrupted" if review is None else "passed" if review["offered"] else "failed"
         return {"id": proof.id, "baseline_version": proof.baseline_version, "version": proof.version,
                 "started_at": iso(proof.started_at), "state": state,
@@ -582,7 +617,8 @@ class ChangesMixin:
                          files=changed, built=built)
 
     def run_proof_again(self, plan_id: int, fix_id: str) -> list[dict]:
-        """Run proof again: only after a proof that failed or was interrupted, and before any pull request."""
+        """Run proof again: only after a proof that failed, was interrupted or no longer covers the plan. Until the
+        merge, also with a pull request open: its approvals stay on record, and count again once a proof has passed."""
         with self._plan_lock, self.db() as db:
             plan = self._plan(db, plan_id)
             fix = self._fix(db, plan, fix_id)
@@ -646,7 +682,7 @@ class ChangesMixin:
 
     def patch_file(self, plan_id: int, fix_id: str) -> tuple[str, bytes]:
         """Download patch: (file name, bytes) of the pull request's change, in the layout git itself reads.
-        Made from the repository each time, and the same bytes every time."""
+        Made from the repository each time, and the same bytes every time. Only while the change is offered."""
         with self._plan_lock, self.db() as db:
             fix = self._fix(db, self._plan(db, plan_id), fix_id)
             refused = _no_patch(fix)
@@ -683,7 +719,13 @@ def _answer(result: dict) -> dict:
 
 def _detail(review: dict) -> dict:
     """The part of a proof review that is stored as its detail."""
-    return {k: review[k] for k in ("schema", "checks", "counts", "tests")}
+    return {k: review[k] for k in ("schema", "checks", "counts", "tests", "answers", "speed")}
+
+
+def _known_template(change: ChangeRow) -> bool:
+    """Does a stored change that says it came from a fix template name one this app has? If not, the record was
+    changed (or was written by another version), and nothing about the change is believed."""
+    return change.written_by != "fix_template" or change.template_id in research.TEMPLATE_IDS
 
 
 def _shown_verdict(verdict: dict | None) -> dict | None:

@@ -1,7 +1,8 @@
 """Download evidence with the Fixes step in it: the connected code, every fix, and for a code change the change
 itself, every proof (its record, fingerprint, review and runs in full), the pull request, the approvals and the
 merge; the code each run ran on; that the checker accepts a file from every stage and refuses any changed field;
-and the Fixes part of the readable report. One small plan is driven once, with a download at each stage."""
+and the Fixes part of the readable report. One small plan is driven once, with a download at each stage (old TLS
+versions, certificate strength, bad signatures, speed and size with played-back timings)."""
 import hashlib
 import json
 import re
@@ -28,6 +29,14 @@ FIX, TLS = "fix-ecdsa-range-check", "fix-tls-versions"
 OLD_SHA256 = hashlib.sha256(components.lookup("acme-sign", "1.4.2").read_bytes()).hexdigest()
 NEW_SHA256 = hashlib.sha256(components.lookup("acme-sign", "1.4.3").read_bytes()).hexdigest()
 PROOF_CHANGED = "The stored proof no longer matches its fingerprint."
+ONE_LOGIN = "This version has one login and no separate accounts. Whoever is at the keyboard records each approval, under the name shown."
+OUT_OF_DATE = "The test plan has changed since the proof ran, so the proof no longer covers exactly the tests in your plan."
+PROOF_PASSED = "All 2 tests that run the changed code passed, every control behaved as expected, and the 2 server tests came out the same as before."
+SERVERS_CHANGED = ("The 2 server tests did not come out the same as before: Old TLS versions, Couldn't run (address not confirmed); "
+                   "Certificate strength, Couldn't run (address not confirmed).")
+ALL_HOLD = {"code_is_ours": True, "changed_code_passed": True, "report_only_ran": True, "controls_behaved": True,
+            "server_unchanged": True, "answered_tests_passed": True, "speed_compared": True}
+SOFTWARE = ("bad_signatures", "speed_size")  # the tests of this plan in which the signing component runs
 STAGES = ("not_connected", "failed", "ready", "opened", "merged", "retested")
 
 
@@ -50,8 +59,9 @@ def report_text(page: str, part: str = "4. Fixes") -> str:
 
 @pytest.fixture(scope="module")
 def flow(tmp_path_factory):
-    """Old TLS versions, certificate strength and bad signatures. The first proof fails (the server's address is
-    unconfirmed while it runs), the second passes; then a pull request with two reviewers, the merge and Retest now."""
+    """Old TLS versions, certificate strength, bad signatures, speed and size. The first proof fails (the server's
+    address is unconfirmed while it runs), the second passes; then a pull request with two reviewers, the merge and
+    Retest now."""
     lab = make_lab(tmp_path_factory.mktemp("fixes-evidence"))
     try:
         plan = small_plan(lab)
@@ -100,8 +110,12 @@ def test_the_file_lists_every_fix_as_the_fixes_step_showed_it(flow):
         assert [(f["id"], f["kind"], f["status"]) for f in e["fixes"]] == [(FIX, "code", words[name]), (TLS, "text", "Text only")]
         for entry in e["fixes"]:
             shown = fix_of(seen.fixes, entry["id"])
-            assert sorted(entry) == ["approvals", "change", "id", "kind", "merge", "proofs", "pull_request", "source", "status", "suggestion", "title"]
+            assert sorted(entry) == ["approvals", "change", "id", "kind", "merge", "proof_summary", "proofs", "pull_request", "source", "status",
+                                     "suggestion", "title"]
             assert (entry["title"], entry["status"], entry["source"]["text"]) == (shown["title"], shown["status"]["word"], shown["list_source"])
+            # what the summary says about the proof, word for word: the reason that goes with the status
+            assert entry["proof_summary"] == {"state": shown["proof"]["state"], "text": shown["proof"]["text"],
+                                              "label": shown["proof"]["badge"]["label"] if shown["proof"]["badge"] else None}
             assert entry["source"]["kind"] == "failed_tests"
         code, server = e["fixes"]
         # where each fix came from: the failed results it answers, by run
@@ -114,6 +128,10 @@ def test_the_file_lists_every_fix_as_the_fixes_step_showed_it(flow):
         assert server["change"] is None and server["proofs"] == [] and server["pull_request"] is None and server["approvals"] == [] and server["merge"] is None
     # the retest's failed server result is one more result the suggestion answers
     assert [r["phase"] for r in flow.retested.evidence["fixes"][1]["source"]["results"]] == ["first", "retest"]
+    summaries = {name: code_entry(getattr(flow, name))["proof_summary"] for name in STAGES}
+    assert summaries["not_connected"]["state"] == "not_started" and summaries["not_connected"]["label"] is None
+    assert summaries["failed"] == {"state": "failed", "label": "Proof did not pass", "text": f"{SERVERS_CHANGED} The change is not offered."}
+    assert all(summaries[name] == {"state": "passed", "label": "Proof passed", "text": PROOF_PASSED} for name in STAGES[2:])
 
 
 def test_the_connected_code_and_the_change(flow):
@@ -145,9 +163,16 @@ def test_the_connected_code_and_the_change(flow):
                         "old_blob": state["change"]["files"][0]["old_blob"], "new_blob": state["change"]["files"][0]["new_blob"]}
         # the code check: byte for byte our registered 1.4.3
         assert change["built"] == {"file": "acme_sign.py", "sha256": NEW_SHA256, "matches": {"name": "acme-sign", "version": "1.4.3"}}
-        # the patch text is the downloadable patch, whole
-        assert change["patch"] == flow.patch[1].decode("utf-8")
-        assert '+VERSION = "1.4.3"' in change["patch"] and "+    if not (1 <= r < N and 1 <= s < N):" in change["patch"]
+        # the ready-to-apply patch is in the file only while "Download patch" is allowed: a pull request is open on a
+        # proof that has passed (review finding 7). Before that the file describes the change and does not hand it out.
+        assert (state["actions"]["download_patch"] is None) == (name in ("opened", "merged", "retested"))
+        if name in ("failed", "ready"):
+            assert change["patch"] is None
+            assert "The change as a patch" not in seen.report and "+VERSION" not in seen.report and "1 &lt;= r &lt; N" not in seen.report
+            assert "1 <= r < N" not in seen.raw.decode("utf-8")
+        else:  # the downloadable patch, whole
+            assert change["patch"] == flow.patch[1].decode("utf-8")
+            assert '+VERSION = "1.4.3"' in change["patch"] and "+    if not (1 <= r < N and 1 <= s < N):" in change["patch"]
 
 
 def test_every_proof_is_in_the_file_with_its_record_fingerprint_review_and_runs(flow):
@@ -168,9 +193,13 @@ def test_every_proof_is_in_the_file_with_its_record_fingerprint_review_and_runs(
             assert review["reviewer"] == "isogeny.rule-reviewer/1" != record["proposed_by"] and review["believed"] is True and review["problem"] is None
             # ... and the review can be made again from the record in the file, by the same rule
             again = RuleReviewer().review_proof(record)
-            assert (again["record_sha256"], again["offered"], again["checks"], again["counts"]) == (
-                review["record_sha256"], review["offered"], review["checks"], review["counts"])
-            assert [t["kind"] for t in proof["tests"]] == [t["kind"] for t in record["tests"]] == ["tls_versions", "certificate", "bad_signatures"]
+            assert (again["record_sha256"], again["offered"], again["checks"], again["counts"], again["answers"], again["speed"]) == (
+                review["record_sha256"], review["offered"], review["checks"], review["counts"], review["answers"], review["speed"])
+            assert [t["kind"] for t in proof["tests"]] == [t["kind"] for t in record["tests"]] == ["tls_versions", "certificate", "bad_signatures", "speed_size"]
+            # the record names the failed test the change is for, and the review says it was rerun and passed
+            assert record["answers"] == [{"item_id": flow.plan.item["bad_signatures"], "kind": "bad_signatures"}]
+            assert review["answers"] == [{"item_id": flow.plan.item["bad_signatures"], "kind": "bad_signatures", "ok": True, "reason": "passed"}]
+            assert review["speed"] == {"ok": True, "reason": "no_slowdown"}
             exported = {t["item_id"]: t["runs"][0] for t in seen.evidence["tests"]}
             for test, recorded, checked in zip(proof["tests"], record["tests"], again["tests"]):
                 assert sorted(test) == ["check", "first", "item_id", "kind", "run", "shown", "target", "title"]
@@ -183,15 +212,18 @@ def test_every_proof_is_in_the_file_with_its_record_fingerprint_review_and_runs(
                 assert sha256_of(run["record"]) == run["run_sha256"] == run["review"]["run_sha256"] == recorded["proof"]["run_sha256"]
                 assert run["review"]["reviewer"] == "isogeny.rule-reviewer/1" and run["review"]["verdict"]["code"] == run["result"]["code"] == recorded["proof"]["code"]
                 assert run["review"]["control"]["outcome"] == recorded["proof"]["control_outcome"]
-                assert (test["check"]["group"], test["check"]["ok"], test["check"]["reason"]) == (checked["group"], checked["ok"], checked["reason"])
+                assert (test["check"]["group"], test["check"]["report_only"], test["check"]["ok"], test["check"]["reason"]) == (
+                    checked["group"], checked["report_only"], checked["ok"], checked["reason"])
                 assert test["shown"]["label"] == run["result"]["label"]
         assert first["outcome"] == "The proof did not pass." and first["review"]["offered"] is False
-        assert first["review"]["checks"] == {"code_is_ours": True, "changed_code_passed": True, "controls_behaved": True, "server_unchanged": False}
-        assert [t["check"]["text"] for t in first["tests"]] == ["Not the same as before", "Not the same as before", "Passed"]
-        assert [t["run"]["result"]["label"] for t in first["tests"]] == ["Couldn't run (address not confirmed)"] * 2 + ["Passed"]
+        assert first["review"]["checks"] == {**ALL_HOLD, "server_unchanged": False}
+        assert [t["check"]["text"] for t in first["tests"]] == ["Not the same as before", "Not the same as before", "Passed", "No slowdown"]
+        assert [t["run"]["result"]["label"] for t in first["tests"]] == ["Couldn't run (address not confirmed)"] * 2 + [
+            "Passed", "No slowdown beyond measured noise"]
         assert second["outcome"] == "The proof passed." and second["review"]["offered"] is True and second["id"] != first["id"]
-        assert second["review"]["counts"] == {"tests": 3, "code": 1, "code_ok": 1, "server": 2, "server_ok": 2}
-        assert [t["check"]["text"] for t in second["tests"]] == ["Same as before", "Same as before", "Passed"]
+        assert second["review"]["checks"] == ALL_HOLD
+        assert second["review"]["counts"] == {"tests": 4, "code": 2, "code_ok": 2, "report_only": 0, "report_only_ok": 0, "server": 2, "server_ok": 2}
+        assert [t["check"]["text"] for t in second["tests"]] == ["Same as before", "Same as before", "Passed", "No slowdown"]
         # the fingerprint on the screen (Technical details) is the one in the file
         shown = {f["label"]: plain(f["value"]) for f in section(fix_of(seen.fixes, FIX), "details")["facts"]}
         assert shown["Evidence fingerprint of the proof (SHA-256)"] == second["record_sha256"]
@@ -205,7 +237,7 @@ def test_every_proof_is_in_the_file_with_its_record_fingerprint_review_and_runs(
         assert bad["code"] == {"source": "repository", "component_name": "acme-sign", "component_version": "1.4.3", "file_sha256": NEW_SHA256,
                                "repository": "acme-sign", "branch": "fix/ecdsa-range-check", "commit": code_entry(seen)["change"]["head_commit"],
                                "change_id": bad["code"]["change_id"], "pull_request_number": None}
-        assert all(t["run"]["code"] is None for t in second["tests"] if t["kind"] != "bad_signatures")
+        assert all((t["run"]["code"] is None) == (t["kind"] not in SOFTWARE) for t in second["tests"])
 
 
 def test_the_pull_request_the_approvals_and_the_merge(flow):
@@ -214,14 +246,21 @@ def test_the_pull_request_the_approvals_and_the_merge(flow):
         assert entry["pull_request"] is None and entry["approvals"] == [] and entry["merge"] is None
     opened, merged = code_entry(flow.opened), code_entry(flow.merged)
     passed = opened["proofs"][1]
+    # with the approvals goes the sentence the screen shows under them: one login recorded them all (review finding 6)
     assert opened["pull_request"] == {"number": 1, "title": "Reject signatures whose r or s is out of range", "proof_id": passed["id"],
-                                      "reviewers": ["you", "a"], "opened_at": opened["pull_request"]["opened_at"]}
+                                      "reviewers": ["you", "a"], "opened_at": opened["pull_request"]["opened_at"], "approvals_note": ONE_LOGIN}
+    assert ONE_LOGIN == fix_of(flow.opened.fixes, FIX)["approvers"]["footnote"]
     stamp = r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z"
     assert re.fullmatch(stamp, opened["pull_request"]["opened_at"])
     # each approval with its name and time; a reviewer who has not approved is listed as such
     assert [(a["reviewer"], a["name"], bool(a["approved_at"])) for a in opened["approvals"]] == [("you", "You", True), ("a", "Demo reviewer A", False)]
     assert opened["merge"] is None
     assert [(a["reviewer"], a["name"]) for a in merged["approvals"]] == [("you", "You"), ("a", "Demo reviewer A")]
+    # a demo reviewer is marked as demo data, in the file as on the screen
+    for entry in (opened, merged):
+        assert [sorted(a) for a in entry["approvals"]] == [["approved_at", "label", "name", "reviewer"]] * 2
+        assert [(a["reviewer"], a["label"]) for a in entry["approvals"]] == [("you", None), ("a", "Demo data")]
+    assert [(r["id"], r["demo"]) for r in fix_of(flow.merged.fixes, FIX)["approvers"]["rows"]] == [("you", False), ("a", True)]
     assert all(re.fullmatch(stamp, a["approved_at"]) for a in merged["approvals"])
     assert merged["pull_request"] == opened["pull_request"] and sorted(merged["merge"]) == ["merge_commit", "merged_at"]
     assert re.fullmatch(r"[0-9a-f]{40}", merged["merge"]["merge_commit"]) and re.fullmatch(stamp, merged["merge"]["merged_at"])
@@ -234,7 +273,7 @@ def test_every_exported_run_says_which_code_it_ran_on(flow):
     for name in STAGES:
         for test in getattr(flow, name).evidence["tests"]:
             for run in test["runs"]:
-                if test["kind"] == "bad_signatures":
+                if test["kind"] in SOFTWARE:
                     assert sorted(run["code"]) == keys and run["code"]["component_name"] == "acme-sign"
                 else:
                     assert run["code"] is None  # a server test runs no code of ours
@@ -319,7 +358,7 @@ def test_the_checker_refuses_a_file_in_which_any_fixes_or_proof_field_was_change
     # the pull request, the approvals, the merge, the text-only fix; and of each run, the code it ran on
     paths = [("code", *p) for p, _ in leaves(evidence["code"])]
     fix_at = evidence["fixes"].index(entry)
-    for key in ("id", "kind", "title", "status", "source", "change", "pull_request", "approvals", "merge"):
+    for key in ("id", "kind", "title", "status", "proof_summary", "source", "change", "pull_request", "approvals", "merge"):
         paths += [("fixes", fix_at, key, *p) for p, _ in leaves(entry[key])]
     for n, proof in enumerate(entry["proofs"]):
         for key in ("id", "started_at", "baseline_version", "version", "record", "record_sha256", "outcome", "review"):
@@ -346,7 +385,10 @@ def test_the_checker_refuses_a_file_in_which_any_fixes_or_proof_field_was_change
     # the checks that matter most to a reader, by name: none of them can be flipped
     for path in (("fixes", fix_at, "status"), ("fixes", fix_at, "proofs", 0, "review", "offered"), ("fixes", fix_at, "proofs", 0, "outcome"),
                  ("fixes", fix_at, "proofs", 1, "record_sha256"), ("fixes", fix_at, "change", "built", "matches", "version"),
-                 ("fixes", fix_at, "approvals", 1, "approved_at"), ("fixes", fix_at, "merge", "merge_commit"), ("fixes", fix_at, "change", "patch")):
+                 ("fixes", fix_at, "approvals", 1, "approved_at"), ("fixes", fix_at, "merge", "merge_commit"), ("fixes", fix_at, "change", "patch"),
+                 ("fixes", fix_at, "proof_summary", "text"), ("fixes", fix_at, "pull_request", "approvals_note"),
+                 ("fixes", fix_at, "approvals", 1, "label"), ("fixes", fix_at, "proofs", 1, "review", "answers", 0, "ok"),
+                 ("fixes", fix_at, "proofs", 1, "review", "speed", "ok"), ("fixes", fix_at, "proofs", 1, "record", "answers", 0, "item_id")):
         assert path in paths
     # a changed field with the fingerprint worked out again: the signature no longer fits
     edited = json.loads(with_change(envelope, ("fixes", fix_at, "proofs", 0, "review", "offered")))
@@ -393,6 +435,8 @@ def test_the_report_has_a_readable_fixes_part(flow):
     for words in (
             f"Code connected: the app's own copy of the repository acme-sign, branch main, commit {change['base_commit']} (acme-sign 1.4.2). demo",
             "acme-sign accepts out-of-range signatures Merged Came from 1 failed test: Bad signatures",
+            # under the status, the summary's own sentence about the proof
+            f"Came from 1 failed test: Bad signatures Proof passed: {PROOF_PASSED} The change From a fix template",
             "The change From a fix template", "Reject signatures whose r or s is out of range. 3 lines added and 1 removed.",
             f"Change branch fix/ecdsa-range-check, commit {change['head_commit']}", f"Starting point: commit {change['base_commit']}",
             f"File acme_sign.py: SHA-256 before {OLD_SHA256}, after {NEW_SHA256}",
@@ -406,8 +450,12 @@ def test_the_report_has_a_readable_fixes_part(flow):
             "Same as before", "Not the same as before",
             "The JSON file holds every run of this proof in full (its run record, fingerprint and review), and the proof record this "
             "fingerprint is made from.",
+            "Speed and size Measured Sign", "No slowdown beyond measured noise Sign",
+            "Control: a deliberately slowed signer was flagged as slower, as expected. No slowdown",
             "Pull request #1 Reject signatures whose r or s is out of range. Opened", "It stays inside the app.", "You: approved",
-            "Demo reviewer A: approved", f"by the person logged in, after confirming (merge commit {merge['merge_commit']}). Nothing was deployed.",
+            # a demo reviewer is marked as demo data, and the approvals carry the one-login sentence (review finding 6)
+            "Demo reviewer A (Demo data): approved", f"(UTC) {ONE_LOGIN} Merged",
+            f"by the person logged in, after confirming (merge commit {merge['merge_commit']}). Nothing was deployed.",
             "Server accepts TLS 1.2 Text only Came from 1 failed test: Old TLS versions",
             "The suggestion (text only: the app has not applied it or tested it)", "Where the setting lives", "Two ways to fix it",
             "Option 2: the exact settings", "End of report. The JSON file is the record. This page is a readable copy and is not signed."):
@@ -416,6 +464,12 @@ def test_the_report_has_a_readable_fixes_part(flow):
     assert text.index("Before you switch TLS 1.2 off:") < text.index("ssl_protocols TLSv1.3;")
     # the patch is in the report, and the two changed lines with it
     assert "+    if not (1 &lt;= r &lt; N and 1 &lt;= s &lt; N):" in flow.retested.report and "+VERSION = &quot;1.4.3&quot;" in flow.retested.report
+    # the short columns of the two tables are marked, so that their words stay whole beside a long sentence
+    # (seen in a browser: "Certificat e strength", "Passe d")
+    assert "td.words,th.words{overflow-wrap:normal}" in flow.retested.report
+    for cell in ('<th class="words">Test</th>', '<th class="words">Rule check</th>', '<td class="words">Bad signatures</td>',
+                 '<td class="words">Same as before</td>', '<th class="words">Where TLS is set up</th>', '<td class="words">nginx</td>'):
+        assert cell in flow.retested.report, cell
     # the results part says which code each result ran on, and points from a failure to its fix
     whole = report_text(flow.retested.report, "3. Tests and results")
     assert "Code they ran on: before, the bundled demo version of acme-sign 1.4.2; after, the merged fix: branch main, commit" in whole
@@ -423,12 +477,18 @@ def test_the_report_has_a_readable_fixes_part(flow):
     assert "Fix merged: 3 lines added and 1 removed, proof passed. It is in part 4, Fixes." in whole
     assert "Text-only suggestion: a server setting. It is in part 4, Fixes." in whole
     # one approval missing: said plainly
-    assert "Demo reviewer A: has not approved" in report_text(flow.opened.report) and "Merged" not in report_text(flow.opened.report)
+    opened = report_text(flow.opened.report)
+    assert f"Demo reviewer A (Demo data): has not approved {ONE_LOGIN}" in opened and "Merged" not in opened
+    assert "You (Demo data)" not in opened and "Demo reviewer A: " not in opened
+    # no pull request, no approvals: the sentence about them is not there either
+    assert ONE_LOGIN not in report_text(flow.ready.report) and ONE_LOGIN not in flow.ready.raw.decode("utf-8")
 
 
 def test_the_report_calls_nothing_passed_or_merged_that_the_records_do_not(flow):
     failed = report_text(flow.failed.report)
     assert "acme-sign accepts out-of-range signatures Proof failed" in failed and "The proof did not pass. Started" in failed
+    # the status comes with its reason, in the summary's words (review finding 8)
+    assert f"Proof failed Came from 1 failed test: Bad signatures Proof did not pass: {SERVERS_CHANGED} The change is not offered." in failed
     assert "The proof passed" not in failed and "Pull request" not in failed and "Merged" not in failed and "Proof 1 of" not in failed
     for name in STAGES:
         page = getattr(flow, name).report
@@ -479,12 +539,14 @@ def test_a_proof_that_is_no_longer_believed_an_interrupted_one_and_code_that_is_
     (proof,) = entry["proofs"]
     assert entry["status"] == "Proof failed" and proof["outcome"] == PROOF_CHANGED
     assert proof["review"] == {"reviewed_at": proof["review"]["reviewed_at"], "believed": False, "offered": False, "problem": PROOF_CHANGED,
-                               "record_sha256": None, "checks": None, "counts": None, "reviewer": None}
+                               "record_sha256": None, "checks": None, "counts": None, "answers": [], "speed": None, "reviewer": None}
+    assert entry["proof_summary"] == {"state": "failed", "label": "Proof can't be trusted", "text": f"{PROOF_CHANGED} The change is not offered."}
     assert all(test["check"] is None for test in proof["tests"])  # nothing of the stored answer is passed on
     assert next(t for t in proof["tests"] if t["kind"] == "bad_signatures")["shown"]["label"] == "Couldn't trust this run"
     assert sha256_of(proof["record"]) == proof["record_sha256"]  # the record as it now stands; no review vouches for it
     text = report_text(seen.report)
     assert f"{PROOF_CHANGED} Started" in text and "The proof passed" not in text and "Evidence fingerprint of the proof" not in text
+    assert f"Proof failed Came from 1 failed test: Bad signatures Proof can't be trusted: {PROOF_CHANGED} The change is not offered." in text
     assert verify_bytes(seen.raw, flow.public).ok  # the file itself is what the app made, and says what the app found
     # an interrupted proof: no review
     plan = small_plan(lab)
@@ -515,7 +577,96 @@ def test_a_proof_that_is_no_longer_believed_an_interrupted_one_and_code_that_is_
     seen = stage(lab, plan.id)
     entry = code_entry(seen)
     assert entry["status"] == "Proof failed" and entry["proofs"] == [] and entry["change"]["built"]["matches"] is None
-    assert entry["change"]["built"]["sha256"] != NEW_SHA256 and "+NOT_OURS = 1" in entry["change"]["patch"]
+    # the change is on record (its file, counts and fingerprints), but it is not offered, so it is not handed out as a patch
+    assert entry["change"]["built"]["sha256"] != NEW_SHA256 and entry["change"]["patch"] is None
+    assert entry["change"]["files"][0]["added"] == 4 and "NOT_OURS" not in seen.raw.decode("utf-8") and "NOT_OURS" not in seen.report
+    assert entry["proof_summary"]["label"] == "Nothing was run"
     text = report_text(seen.report)
     assert f"Code check: the built file (SHA-256 {entry['change']['built']['sha256']}) is not one of our demo components, so nothing was run." in text
     assert "The proof passed" not in text and "Proof" not in text.replace("Proof failed", "")
+
+
+
+def test_a_status_never_stands_without_its_reason_and_a_patch_is_never_handed_out_unoffered(flow):
+    """Review findings 7 and 8. The proof passed; then the plan changed. The file says "Proof failed" with the
+    reason the screen gives, next to the proof that passed, and it does not hold the patch. The same with a pull
+    request open: its approvals are in the file, the patch is not, until a new proof has passed."""
+    lab = flow.lab
+    plan = small_plan(lab)
+    proved(lab, plan)
+    added = next(t["id"] for t in lab.add_test(plan.id, "mldsa_compare")["tests"] if t["kind"] == "mldsa_compare")
+    seen = stage(lab, plan.id)
+    entry = code_entry(seen)
+    (proof,) = entry["proofs"]
+    reason = f"{OUT_OF_DATE} The change is not offered."
+    assert entry["status"] == "Proof failed" and proof["outcome"] == "The proof passed." and proof["review"]["offered"] is True
+    assert entry["proof_summary"] == {"state": "failed", "label": "Proof out of date", "text": reason}
+    assert entry["proof_summary"]["text"] == fix_of(seen.fixes, FIX)["proof"]["text"]
+    text = report_text(seen.report)
+    assert f"Proof failed Came from 1 failed test: Bad signatures Proof out of date: {reason}" in text
+    assert text.index("Proof out of date:") < text.index("The proof passed. Started")  # the reason comes first
+    assert entry["change"]["patch"] is None and "The change as a patch" not in text
+    assert verify_bytes(seen.raw, flow.public).ok
+    # with a pull request open: opened on a proof that passed, then the plan changes again
+    lab.run_test(plan.id, added)
+    lab.wait_until_idle(plan.id, 120)
+    lab.run_proof_again(plan.id, FIX)
+    lab.wait_until_idle(plan.id, 120)
+    lab.open_pull_request(plan.id, FIX, ["you", "b"])
+    lab.approve(plan.id, FIX, "b")
+    offered = code_entry(stage(lab, plan.id))
+    assert offered["status"] == "Waiting for approval" and offered["change"]["patch"] == lab.patch_file(plan.id, FIX)[1].decode("utf-8")
+    assert offered["proof_summary"]["text"] == ("All 2 tests that run the changed code passed, the 1 report-only test ran, every control "
+                                                "behaved as expected, and the 2 server tests came out the same as before.")
+    assert offered["proofs"][1]["review"]["counts"] == {"tests": 5, "code": 2, "code_ok": 2, "report_only": 1, "report_only_ok": 1,
+                                                        "server": 2, "server_ok": 2}
+    assert [t["check"]["report_only"] for t in offered["proofs"][1]["tests"]] == [False, False, False, False, True]
+    lab.remove_test(plan.id, added)
+    seen = stage(lab, plan.id)
+    entry = code_entry(seen)
+    assert entry["status"] == "Proof failed" and entry["proof_summary"] == {"state": "failed", "label": "Proof out of date", "text": reason}
+    assert entry["change"]["patch"] is None and "The change as a patch" not in seen.report and "+VERSION" not in seen.report
+    # the pull request and its approvals stay in the file, marked as on the screen
+    assert entry["pull_request"]["number"] == 1 and entry["pull_request"]["approvals_note"] == ONE_LOGIN
+    assert [(a["reviewer"], a["label"], bool(a["approved_at"])) for a in entry["approvals"]] == [("you", None, False), ("b", "Demo data", True)]
+    text = report_text(seen.report)
+    assert "You: has not approved" in text and "Demo reviewer B (Demo data): approved" in text and ONE_LOGIN in text
+    assert verify_bytes(seen.raw, flow.public).ok
+
+
+def test_the_file_says_why_a_proof_that_ran_to_the_end_is_not_offered(flow):
+    """Review findings 1 and 8 in the download. The failed test the change is for was taken out of the plan and the
+    proof run again: the file carries the reviewer's answer (which test was not in the proof) and the summary's
+    sentence. And a stored change that names a fix template the app does not have never breaks the download."""
+    lab = flow.lab
+    plan = small_plan(lab)
+    ready = proved(lab, plan)
+    lab.remove_test(plan.id, plan.item["bad_signatures"])
+    lab.run_proof_again(plan.id, FIX)
+    lab.wait_until_idle(plan.id, 120)
+    seen = stage(lab, plan.id)
+    entry = code_entry(seen)
+    missing = "This proof did not run the failed test the change is for: Bad signatures. Add it back in Tests and run the proof again."
+    assert entry["status"] == "Proof failed"
+    assert entry["proof_summary"] == {"state": "failed", "label": "Proof did not pass", "text": f"{missing} The change is not offered."}
+    passed, failed = entry["proofs"]
+    assert passed["review"]["offered"] is True and failed["review"]["offered"] is False and failed["outcome"] == "The proof did not pass."
+    assert failed["review"]["checks"] == {**ALL_HOLD, "answered_tests_passed": False}
+    assert failed["review"]["answers"] == [{"item_id": plan.item["bad_signatures"], "kind": "bad_signatures", "ok": False, "reason": "not_in_proof"}]
+    assert failed["record"]["answers"] == [{"item_id": plan.item["bad_signatures"], "kind": "bad_signatures"}]
+    assert [t["kind"] for t in failed["record"]["tests"]] == ["tls_versions", "certificate", "speed_size"]
+    again = RuleReviewer().review_proof(failed["record"])  # anyone can redo the review from the record in the file
+    assert (again["offered"], again["answers"], again["record_sha256"]) == (False, failed["review"]["answers"], failed["record_sha256"])
+    text = report_text(seen.report)
+    assert f"Proof failed Came from 1 failed test: Bad signatures Proof did not pass: {missing} The change is not offered." in text
+    assert entry["change"]["patch"] is None and verify_bytes(seen.raw, flow.public).ok
+    # the stored change is edited to name another fix template
+    tamper(lab, f"UPDATE changes SET template_id = 'no-such-template' WHERE id = {ready['change']['id']}")
+    seen = stage(lab, plan.id)
+    entry = code_entry(seen)
+    assert entry["title"] == "A code change to acme-sign" and entry["status"] == "Proof failed"
+    assert entry["proof_summary"] == {"state": "failed", "label": "Proof can't be trusted", "text": f"{PROOF_CHANGED} The change is not offered."}
+    assert entry["change"]["template_id"] == "no-such-template" and entry["change"]["patch"] is None
+    assert [proof["review"]["believed"] for proof in entry["proofs"]] == [False, False]
+    assert f"Proof can't be trusted: {PROOF_CHANGED} The change is not offered." in report_text(seen.report)
+    assert "The proof passed" not in report_text(seen.report) and verify_bytes(seen.raw, flow.public).ok

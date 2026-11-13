@@ -1,6 +1,7 @@
 """Fixes, through the same service path as the buttons: connect the demo code, the proof that starts by itself,
 the pull request, approvals, merge and Retest now; what is refused when; and the read gate against tampering."""
 import hashlib
+import ssl
 import threading
 from types import SimpleNamespace
 
@@ -18,13 +19,19 @@ from app.db import (
 from app.errors import BadRequest, Conflict, NotFound
 from app.gitrepo import GitRepo, GitRepoError
 from app.testlab import run_record
-from conftest import demo_plan, make_lab, result_of
+from conftest import demo_plan, held, make_lab, play_back_speed, result_of
 from test_records import RUN_TABLES
 
 FIX = "fix-ecdsa-range-check"
 PROOF_RUNNING = "A proof is running in Fixes. Wait until it has finished."
 RUN_FIRST = "Run every test in the plan first, so there is a result to compare with."
 PROOF_CHANGED = "The stored proof no longer matches its fingerprint."
+PLAN_CHANGED = "The test plan has changed since the proof ran. Run the proof again first."
+NOT_PASSED = "The proof has not passed. Run the proof again first."
+NEEDS_PASSED_PROOF = "A pull request can be opened only after the proof has passed."
+PASSED_ALREADY = "The proof has passed. It can be run again only after it failed or was interrupted."
+ALL_HOLD = {"code_is_ours": True, "changed_code_passed": True, "report_only_ran": True, "controls_behaved": True,
+            "server_unchanged": True, "answered_tests_passed": True, "speed_compared": True}
 BUNDLED = GitRepo(demo_repo.bundled("acme-sign"))
 OLD_FILE = components.lookup("acme-sign", "1.4.2").read_bytes()
 NEW_FILE = components.lookup("acme-sign", "1.4.3").read_bytes()
@@ -49,12 +56,21 @@ def listing(folder) -> dict:
     return {p.relative_to(folder).as_posix(): p.read_bytes() for p in sorted(folder.rglob("*")) if p.is_file()}
 
 
-def small_plan(lab, without=("official_vectors", "speed_size")):
-    """The demo plan without its two slow tests: old TLS versions, certificate strength, bad signatures."""
+def small_plan(lab, without=("official_vectors",)):
+    """The demo plan without its slowest test: old TLS versions, certificate strength, bad signatures, speed and
+    size. A change is offered only with a speed comparison, so the speed test stays in; from here on this lab's
+    speed test plays back made-up timings (conftest.play_back_speed), which keeps these plans quick. The
+    reviewer's rule on the timings, and everything else, is the real thing."""
+    play_back_speed(lab)
     plan = demo_plan(lab)
     for kind in without:
         lab.remove_test(plan.id, plan.item[kind])
     return plan
+
+
+def failed_checks(code: dict) -> list[str]:
+    """The reviewer's checks that did not hold for the latest proof of a code fix."""
+    return sorted(name for name, ok in code["proof"]["review"]["checks"].items() if not ok)
 
 
 def proved(lab, plan) -> dict:
@@ -227,8 +243,11 @@ def test_the_proof_is_offered_and_its_fingerprint_can_be_worked_out_again(fix_fl
     assert code["status"] == "ready" and (proof["state"], proof["finished"], proof["total"]) == ("passed", 6, 6)
     review = proof["review"]
     assert review["believed"] is True and review["offered"] is True and review["problem"] is None
-    assert review["checks"] == {"code_is_ours": True, "changed_code_passed": True, "controls_behaved": True, "server_unchanged": True}
-    assert review["counts"] == {"tests": 6, "code": 3, "code_ok": 3, "server": 3, "server_ok": 3}
+    assert review["checks"] == ALL_HOLD
+    assert review["counts"] == {"tests": 6, "code": 3, "code_ok": 3, "report_only": 0, "report_only_ok": 0, "server": 3, "server_ok": 3}
+    # the failed tests the change was made for were rerun in this proof and passed, and the speed comparison was made
+    assert review["answers"] == [{"item_id": fix_flow.plan.item[k], "kind": k, "ok": True, "reason": "passed"} for k in ("official_vectors", "bad_signatures")]
+    assert review["speed"] == {"ok": True, "reason": "no_slowdown"}
     rows = {r["kind"]: r for r in proof["tests"]}
     assert {k: (r["target"], r["check"]["group"], r["check"]["ok"], r["check"]["reason"]) for k, r in rows.items()} == {
         "tls_versions": ("server", "server", True, "same_as_before"), "certificate": ("server", "server", True, "same_as_before"),
@@ -241,7 +260,8 @@ def test_the_proof_is_offered_and_its_fingerprint_can_be_worked_out_again(fix_fl
            (rows["pq_readiness"]["proof"]["code"], rows["pq_readiness"]["proof"]["reason_code"])
     assert all(r["job"] is None for r in proof["tests"])
     assert code["actions"]["open_pull_request"] is None and code["actions"]["merge"] == "Open a pull request first."
-    assert code["actions"]["run_proof_again"] == "The proof has passed. It can be run again only after it failed or was interrupted."
+    assert code["actions"]["run_proof_again"] == PASSED_ALREADY
+    assert code["actions"]["download_patch"] == "The patch can be downloaded once a pull request is open."
     # the fingerprint is the SHA-256 of the proof record, rebuilt here from the stored rows
     with lab.db() as db:
         row, change = db.query(ProofRow).filter_by(id=proof["id"]).one(), db.get(ChangeRow, code["change"]["id"])
@@ -251,6 +271,10 @@ def test_the_proof_is_offered_and_its_fingerprint_can_be_worked_out_again(fix_fl
         assert stored.reviewer == "isogeny.rule-reviewer/1" and stored.detail["schema"] == "isogeny.proof-review/1"
         assert record["schema"] == "isogeny.proof/1" and record["proposed_by"] == "isogeny.rule-engine/1"
         assert record["built"]["matches"] == {"name": "acme-sign", "version": "1.4.3"} and len(record["tests"]) == 6
+        # the record names the failed tests the change answers: the stored facts the change was made from
+        assert record["answers"] == [{"item_id": r["item_id"], "kind": r["kind"]} for r in change.source["runs"]]
+        assert [a["kind"] for a in record["answers"]] == ["official_vectors", "bad_signatures"]
+        assert sorted(stored.detail) == ["answers", "checks", "counts", "schema", "speed", "tests"]
         assert all(len(t["first"]["run_sha256"]) == len(t["proof"]["run_sha256"]) == 64 for t in record["tests"])
         assert lab.reviewer.review_proof(record)["offered"] is True
     # Evidence Lab still shows the first results: a proof is not a retest
@@ -341,9 +365,11 @@ def test_a_second_import_gets_its_own_fresh_copy_and_the_same_results(fix_flow):
     same = {r["kind"]: (r["first"]["code"], r["proof"]["code"], r["check"]) for r in first["proof"]["tests"]}
     again = {r["kind"]: (r["first"]["code"], r["proof"]["code"], r["check"]) for r in second["proof"]["tests"]}
     # the report-only test has no pass or fail: in a proof it only has to run
-    assert again.pop("mldsa_compare") == ("measured", "measured", {"group": "code", "ok": True, "reason": "ran"})
-    assert again == {k: same[k] for k in ("tls_versions", "certificate", "bad_signatures")}
-    assert second["proof"]["review"]["counts"] == {"tests": 4, "code": 2, "code_ok": 2, "server": 2, "server_ok": 2}
+    # ... and it is not counted among the tests that passed
+    assert again.pop("mldsa_compare") == ("measured", "measured", {"group": "code", "report_only": True, "ok": True, "reason": "ran"})
+    assert again == {k: same[k] for k in ("tls_versions", "certificate", "bad_signatures", "speed_size")}
+    assert second["proof"]["review"]["counts"] == {"tests": 5, "code": 2, "code_ok": 2, "report_only": 1, "report_only_ok": 1, "server": 2, "server_ok": 2}
+    assert second["proof"]["review"]["checks"] == ALL_HOLD
     assert (fix_flow.second_request["number"], fix_flow.second_request["reviewers"]) == (1, ["b"])  # numbered for each file
     assert listing(demo_repo.bundled("acme-sign")) == fix_flow.bundled_before  # the bundled repository is never written to
 
@@ -371,7 +397,7 @@ def test_raw_sql_cannot_change_or_delete_the_records_of_a_fix(fix_flow, table):
 # ---------------------------------------------------------------- refusals
 
 def test_connect_is_refused_until_every_test_has_a_result_and_nothing_runs(lab):
-    plan = small_plan(lab, without=("speed_size",))
+    plan = small_plan(lab, without=())
     assert lab.fix_states(plan.id) == []
     assert refusal(lambda: lab.connect_code(plan.id)) == RUN_FIRST
     lab.run_test(plan.id, plan.item["official_vectors"])
@@ -381,7 +407,7 @@ def test_connect_is_refused_until_every_test_has_a_result_and_nothing_runs(lab):
     assert (code["id"], code["status"], [a["kind"] for a in code["answers"]]) == (FIX, "not_connected", ["official_vectors"])
     assert code["actions"]["connect"] == code["rerun_blocked"] == RUN_FIRST == refusal(lambda: lab.connect_code(plan.id))
     lab.remove_test(plan.id, plan.item["official_vectors"])  # (out of the plan again, to keep this test short)
-    for kind in ("tls_versions", "certificate"):
+    for kind in ("tls_versions", "certificate", "speed_size"):
         lab.run_test(plan.id, plan.item[kind])
         lab.wait_until_idle(plan.id, 120)
     assert refusal(lambda: lab.connect_code(plan.id)) == RUN_FIRST  # one test in the plan still has no result
@@ -392,7 +418,7 @@ def test_connect_is_refused_until_every_test_has_a_result_and_nothing_runs(lab):
     lab.wait_until_idle(plan.id, 120)
     assert code_fix(lab.fix_states(plan.id))["actions"]["connect"] is None
     connected = code_fix(lab.connect_code(plan.id))
-    assert connected["status"] in ("proving", "ready") and connected["proof"]["total"] == 3  # it started by itself
+    assert connected["status"] in ("proving", "ready") and connected["proof"]["total"] == 4  # it started by itself
     assert refusal(lambda: lab.connect_code(plan.id)) == "The demo code is already connected for this file."
     lab.wait_until_idle(plan.id, 120)
     assert code_fix(lab.fix_states(plan.id))["status"] == "ready"
@@ -419,15 +445,17 @@ def test_each_step_is_refused_before_its_time(lab):
     lab.connect_code(plan.id)
     lab.wait_until_idle(plan.id, 120)
     # the proof has passed: no second proof, and still nothing to approve or merge
-    assert refusal(lambda: lab.run_proof_again(plan.id, FIX)) == "The proof has passed. It can be run again only after it failed or was interrupted."
+    assert refusal(lambda: lab.run_proof_again(plan.id, FIX)) == PASSED_ALREADY
     assert refusal(lambda: lab.approve(plan.id, FIX, "you")) == refusal(lambda: lab.merge(plan.id, FIX)) == "Open a pull request first."
+    assert refusal(lambda: lab.patch_file(plan.id, FIX)) == "The patch can be downloaded once a pull request is open."
     for reviewers in ([], ["you", "you"], ["you", "c"], ["everyone"], "you", None, [["you"]], [1]):
         assert refusal(lambda: lab.open_pull_request(plan.id, FIX, reviewers), BadRequest) == "Pick one or more reviewers from the list, each of them once."
     with lab.db() as db:
         assert db.query(PullRequestRow).count() == 0
     assert code_fix(lab.open_pull_request(plan.id, FIX, ["a"]))["status"] == "waiting"
     assert refusal(lambda: lab.open_pull_request(plan.id, FIX, ["you"])) == "A pull request is already open for this change."
-    assert refusal(lambda: lab.run_proof_again(plan.id, FIX)) == "A pull request is already open for this change, so its proof stays as it is."
+    assert refusal(lambda: lab.run_proof_again(plan.id, FIX)) == PASSED_ALREADY  # with a pull request open too: the proof stands
+    assert lab.patch_file(plan.id, FIX)[0] == "acme-sign-pull-request-1.patch"
     # approvals: only someone who was picked, and only once
     assert refusal(lambda: lab.approve(plan.id, FIX, "you")) == refusal(lambda: lab.approve(plan.id, FIX, "b")) == "That reviewer was not picked for this pull request."
     for reviewer in ("c", "You", "", None, ["a"]):
@@ -437,8 +465,9 @@ def test_each_step_is_refused_before_its_time(lab):
     assert code_fix(lab.approve(plan.id, FIX, "a"))["status"] == "ready_to_merge"
     assert refusal(lambda: lab.approve(plan.id, FIX, "a")) == "That reviewer has already approved."
     assert code_fix(lab.merge(plan.id, FIX))["status"] == "merged"
-    # after the merge: no second merge, no more approvals
+    # after the merge: no second merge, no more approvals, no new proof
     assert refusal(lambda: lab.merge(plan.id, FIX)) == refusal(lambda: lab.approve(plan.id, FIX, "a")) == "This pull request is already merged."
+    assert refusal(lambda: lab.run_proof_again(plan.id, FIX)) == "This pull request is already merged."
     with lab.db() as db:
         assert (db.query(PullRequestRow).count(), db.query(ApprovalRow).count(), db.query(MergeRow).count()) == (1, 1, 1)
         assert db.query(RetestRow).count() == 0  # the merge started nothing by itself
@@ -457,18 +486,18 @@ def test_a_failed_proof_is_not_offered_and_can_be_run_again(lab):
     lab.connect_code(plan.id)
     lab.wait_until_idle(plan.id, 120)
     code = code_fix(lab.fix_states(plan.id))
-    assert code["status"] == "failed" and code["proof"]["state"] == "failed" and code["proof"]["finished"] == 3
+    assert code["status"] == "failed" and code["proof"]["state"] == "failed" and code["proof"]["finished"] == 4
     review = code["proof"]["review"]
     assert review["believed"] is True and review["offered"] is False and review["problem"] is None
-    assert review["checks"] == {"code_is_ours": True, "changed_code_passed": True, "controls_behaved": True, "server_unchanged": False}
+    assert review["checks"] == {**ALL_HOLD, "server_unchanged": False}
     rows = {r["kind"]: r for r in code["proof"]["tests"]}
-    assert rows["tls_versions"]["check"] == rows["certificate"]["check"] == {"group": "server", "ok": False, "reason": "changed"}
+    assert rows["tls_versions"]["check"] == rows["certificate"]["check"] == {"group": "server", "report_only": False, "ok": False, "reason": "changed"}
     assert (rows["tls_versions"]["proof"]["code"], rows["tls_versions"]["proof"]["reason_code"]) == ("couldnt_run", "address_not_confirmed")
-    assert rows["bad_signatures"]["check"] == {"group": "code", "ok": True, "reason": "passed"}
-    assert refusal(lambda: lab.open_pull_request(plan.id, FIX, ["you"])) == "A pull request can be opened only after the proof has passed."
+    assert rows["bad_signatures"]["check"] == {"group": "code", "report_only": False, "ok": True, "reason": "passed"}
+    assert refusal(lambda: lab.open_pull_request(plan.id, FIX, ["you"])) == NEEDS_PASSED_PROOF
     assert code["actions"]["run_proof_again"] is None and code["actions"]["open_pull_request"] is not None
     # Evidence Lab is untouched by the failed proof
-    assert [r["result"]["label"] for r in lab.lab_view(plan.id)["rows"]] == ["Failed", "Passed", "Failed"]
+    assert [r["result"]["label"] for r in lab.lab_view(plan.id)["rows"]] == ["Failed", "Passed", "Failed", "Measured"]
     lab.confirm_address(plan.imp["id"], address, True)
     again = code_fix(lab.run_proof_again(plan.id, FIX))
     assert again["status"] == "proving" and again["proofs"] == 2 and again["proof"]["id"] != code["proof"]["id"]
@@ -477,7 +506,7 @@ def test_a_failed_proof_is_not_offered_and_can_be_run_again(lab):
     assert done["status"] == "ready" and done["proof"]["review"]["offered"] is True
     with lab.db() as db:  # the failed proof and its runs are still on record
         assert db.query(ProofRow).count() == db.query(ProofReviewRow).count() == 2
-        assert db.query(TestRunRow).filter_by(phase="proof").count() == 6
+        assert db.query(TestRunRow).filter_by(phase="proof").count() == 8
         assert [r.offered for r in db.query(ProofReviewRow).order_by(ProofReviewRow.id)] == [False, True]
 
 
@@ -546,18 +575,168 @@ def test_a_plan_that_changed_after_the_proof_needs_a_new_proof(lab):
     added = next(t["id"] for t in lab.add_test(plan.id, "mldsa_compare")["tests"] if t["kind"] == "mldsa_compare")  # a test the proof never ran
     code = code_fix(lab.fix_states(plan.id))
     assert code["status"] == "failed" and code["proof"]["state"] == "passed" and code["proof"]["covers_plan"] is False
-    assert refusal(lambda: lab.open_pull_request(plan.id, FIX, ["you"])) == "The test plan has changed since the proof ran. Run the proof again first."
+    assert refusal(lambda: lab.open_pull_request(plan.id, FIX, ["you"])) == PLAN_CHANGED
     assert refusal(lambda: lab.run_proof_again(plan.id, FIX)) == code["actions"]["run_proof_again"] == RUN_FIRST
     lab.run_test(plan.id, added)
     lab.wait_until_idle(plan.id, 120)
     lab.run_proof_again(plan.id, FIX)
     lab.wait_until_idle(plan.id, 120)
     code = code_fix(lab.fix_states(plan.id))
-    assert code["status"] == "ready" and code["proof"]["total"] == 4 and code["proof"]["covers_plan"] is True
-    # once a pull request is open it stands on the proof it was opened with, whatever happens to the plan later
-    lab.open_pull_request(plan.id, FIX, ["you"])
+    assert code["status"] == "ready" and code["proof"]["total"] == 5 and code["proof"]["covers_plan"] is True
+
+
+def test_an_open_pull_request_does_not_shield_a_proof_that_no_longer_covers_the_plan(lab):
+    """Review finding 2. With a pull request open, a test is added to the plan: the proof never ran it. Nothing
+    more may be approved, merged or downloaded until a proof of the plan as it now stands has passed; the
+    approvals already recorded stay, and count again then. After the merge nothing changes any more."""
+    plan = small_plan(lab)
+    assert proved(lab, plan)["status"] == "ready"
+    lab.open_pull_request(plan.id, FIX, ["you", "a"])
+    waiting = code_fix(lab.approve(plan.id, FIX, "you"))
+    assert waiting["status"] == "waiting" and waiting["actions"]["download_patch"] is None
+    patch = lab.patch_file(plan.id, FIX)
+    added = next(t["id"] for t in lab.add_test(plan.id, "mldsa_compare")["tests"] if t["kind"] == "mldsa_compare")
+    code = code_fix(lab.fix_states(plan.id))
+    assert code["status"] == "failed" and code["proof"]["state"] == "passed" and code["proof"]["covers_plan"] is False
+    assert code["pull_request"] is not None and code["merge"] is None
+    assert code["actions"]["merge"] == code["actions"]["download_patch"] == PLAN_CHANGED
+    assert refusal(lambda: lab.approve(plan.id, FIX, "a")) == refusal(lambda: lab.merge(plan.id, FIX)) == PLAN_CHANGED
+    assert refusal(lambda: lab.patch_file(plan.id, FIX)) == PLAN_CHANGED
+    assert refusal(lambda: lab.open_pull_request(plan.id, FIX, ["you"])) == "A pull request is already open for this change."
+    # a new proof is allowed, as soon as the added test has a first result to compare with
+    assert refusal(lambda: lab.run_proof_again(plan.id, FIX)) == code["actions"]["run_proof_again"] == RUN_FIRST
+    lab.run_test(plan.id, added)
+    lab.wait_until_idle(plan.id, 120)
+    assert code_fix(lab.fix_states(plan.id))["actions"]["run_proof_again"] is None
+    with held(lab):
+        proving = code_fix(lab.run_proof_again(plan.id, FIX))
+        assert proving["status"] == "proving" and proving["proofs"] == 2 and proving["pull_request"]["number"] == 1
+        # while it runs, the pull request waits for it
+        assert proving["actions"]["merge"] == proving["actions"]["download_patch"] == PROOF_RUNNING
+        assert refusal(lambda: lab.approve(plan.id, FIX, "a")) == refusal(lambda: lab.patch_file(plan.id, FIX)) == PROOF_RUNNING
+    lab.wait_until_idle(plan.id, 120)
+    code = code_fix(lab.fix_states(plan.id))
+    # the new proof passed: back to where the approvals stand (You approved before the plan changed; that stays)
+    assert code["status"] == "waiting" and code["proof"]["total"] == 5 and code["proof"]["covers_plan"] is True
+    assert code["pull_request"]["approvals"] == waiting["pull_request"]["approvals"]
+    assert code["pull_request"]["proof_id"] != code["proof"]["id"]  # it was opened on the first proof; the latest one is what counts
+    assert lab.patch_file(plan.id, FIX) == patch
+    with lab.db() as db:
+        assert db.query(PullRequestRow).count() == 1 and db.query(ApprovalRow).count() == 1 and db.query(ProofRow).count() == 2
+    assert code_fix(lab.approve(plan.id, FIX, "a"))["status"] == "ready_to_merge"
+    # ... and the same door the other way: a test is taken out, so the proof covers more than the plan
+    lab.remove_test(plan.id, added)
+    code = code_fix(lab.fix_states(plan.id))
+    assert code["status"] == "failed" and refusal(lambda: lab.merge(plan.id, FIX)) == PLAN_CHANGED
+    lab.run_proof_again(plan.id, FIX)
+    lab.wait_until_idle(plan.id, 120)
+    assert code_fix(lab.fix_states(plan.id))["status"] == "ready_to_merge"  # both approvals are still on record
+    assert code_fix(lab.merge(plan.id, FIX))["status"] == "merged"
+    # after the merge nothing changes: "Merged" is a fact, whatever happens to the plan
     lab.remove_test(plan.id, plan.item["certificate"])
-    assert code_fix(lab.fix_states(plan.id))["status"] == "waiting"
+    merged = code_fix(lab.fix_states(plan.id))
+    assert merged["status"] == "merged" and merged["proof"]["covers_plan"] is False and merged["proof"]["state"] == "passed"
+    assert merged["actions"]["download_patch"] is None and lab.patch_file(plan.id, FIX) == patch
+    assert refusal(lambda: lab.run_proof_again(plan.id, FIX)) == "This pull request is already merged."
+    with lab.db() as db:
+        assert db.query(ProofRow).count() == 3 and db.query(MergeRow).count() == 1
+
+
+def test_a_proof_that_never_ran_the_failed_test_the_change_is_for_is_not_offered(lab):
+    """Review finding 1. The failed test the change answers is taken out of the plan and the proof is run again.
+    Every test that proof ran can pass, and still no test in it gave the program a bad signature."""
+    plan = small_plan(lab)
+    assert proved(lab, plan)["status"] == "ready"
+    lab.remove_test(plan.id, plan.item["bad_signatures"])
+    assert code_fix(lab.fix_states(plan.id))["actions"]["run_proof_again"] is None  # out of date, so a new proof may start
+    lab.run_proof_again(plan.id, FIX)
+    lab.wait_until_idle(plan.id, 120)
+    code = code_fix(lab.fix_states(plan.id))
+    assert code["status"] == "failed" and (code["proof"]["state"], code["proof"]["covers_plan"]) == ("failed", True)
+    review = code["proof"]["review"]
+    assert review["believed"] is True and review["offered"] is False and failed_checks(code) == ["answered_tests_passed"]
+    assert review["answers"] == [{"item_id": plan.item["bad_signatures"], "kind": "bad_signatures", "ok": False, "reason": "not_in_proof"}]
+    # the one test left that runs the changed code did pass, and the comparison was made: that is not enough
+    assert review["counts"] == {"tests": 3, "code": 1, "code_ok": 1, "report_only": 0, "report_only_ok": 0, "server": 2, "server_ok": 2}
+    assert review["speed"] == {"ok": True, "reason": "no_slowdown"}
+    assert [t["kind"] for t in code["proof"]["tests"]] == ["tls_versions", "certificate", "speed_size"]
+    assert refusal(lambda: lab.open_pull_request(plan.id, FIX, ["you"])) == NEEDS_PASSED_PROOF
+    assert [a["kind"] for a in code["answers"]] == ["bad_signatures"]  # the fix is still listed, for the failure it came from
+    # the test is added back (it comes back with its first result) and the proof is run again: offered
+    lab.add_test(plan.id, "bad_signatures")
+    code = code_fix(lab.fix_states(plan.id))
+    assert code["status"] == "failed" and code["actions"]["run_proof_again"] is None
+    lab.run_proof_again(plan.id, FIX)
+    lab.wait_until_idle(plan.id, 120)
+    code = code_fix(lab.fix_states(plan.id))
+    assert code["status"] == "ready" and code["proof"]["review"]["checks"] == ALL_HOLD and code["proofs"] == 3
+    # with a pull request open it is the same: a proof without the failed test stops approvals, merge and patch
+    lab.open_pull_request(plan.id, FIX, ["you"])
+    lab.remove_test(plan.id, plan.item["bad_signatures"])
+    lab.run_proof_again(plan.id, FIX)
+    lab.wait_until_idle(plan.id, 120)
+    code = code_fix(lab.fix_states(plan.id))
+    assert code["status"] == "failed" and code["proof"]["state"] == "failed" and failed_checks(code) == ["answered_tests_passed"]
+    assert code["actions"]["merge"] == code["actions"]["download_patch"] == NOT_PASSED
+    assert refusal(lambda: lab.approve(plan.id, FIX, "you")) == refusal(lambda: lab.patch_file(plan.id, FIX)) == NOT_PASSED
+    assert code["actions"]["run_proof_again"] is None
+
+
+def test_a_plan_without_the_speed_test_is_proved_but_not_offered(lab):
+    """Review finding 4. SPEC 7b item 3: every test in the plan "plus the speed comparison"."""
+    plan = small_plan(lab, without=("official_vectors", "speed_size"))
+    code = proved(lab, plan)
+    assert code["status"] == "failed" and code["proof"]["state"] == "failed" and code["proof"]["finished"] == 3
+    review = code["proof"]["review"]
+    assert review["believed"] is True and review["offered"] is False and failed_checks(code) == ["speed_compared"]
+    assert review["speed"] == {"ok": False, "reason": "not_in_proof"}
+    assert review["answers"] == [{"item_id": plan.item["bad_signatures"], "kind": "bad_signatures", "ok": True, "reason": "passed"}]
+    assert review["counts"] == {"tests": 3, "code": 1, "code_ok": 1, "report_only": 0, "report_only_ok": 0, "server": 2, "server_ok": 2}
+    assert refusal(lambda: lab.open_pull_request(plan.id, FIX, ["you"])) == NEEDS_PASSED_PROOF
+    # the speed test is added back; it has no first result yet, so it is run, and then the proof again
+    lab.add_test(plan.id, "speed_size")
+    assert refusal(lambda: lab.run_proof_again(plan.id, FIX)) == RUN_FIRST
+    lab.run_test(plan.id, plan.item["speed_size"])
+    lab.wait_until_idle(plan.id, 120)
+    lab.run_proof_again(plan.id, FIX)
+    lab.wait_until_idle(plan.id, 120)
+    code = code_fix(lab.fix_states(plan.id))
+    assert code["status"] == "ready" and code["proof"]["review"]["checks"] == ALL_HOLD and code["proof"]["total"] == 4
+    speed = next(t for t in code["proof"]["tests"] if t["kind"] == "speed_size")
+    assert (speed["first"]["code"], speed["proof"]["code"], speed["check"]["reason"]) == ("measured", "no_slowdown", "no_slowdown")
+
+
+def test_a_finding_is_open_only_while_the_newest_result_of_its_test_fails(lab):
+    """Review finding 10. The server is put right between the first run and a retest: the test that failed
+    passes in the "after" column, and its finding is no longer listed as open. A code fix is listed as before."""
+    plan = small_plan(lab)
+    lab.run_all(plan.id)
+    lab.wait_until_idle(plan.id, 120)
+    assert [(f["id"], f["status"]) for f in lab.fix_states(plan.id)] == [(FIX, "not_connected"), ("fix-tls-versions", "text_only")]
+    context = lab.demo._server._ctx  # the demo server's own settings
+    context.minimum_version = ssl.TLSVersion.TLSv1_3  # it now refuses TLS 1.2, as the file claims
+    try:
+        lab.start_retest(plan.id, "1.4.3")
+        lab.wait_until_idle(plan.id, 120)
+        view = lab.lab_view(plan.id)
+        assert (result_of(view, "tls_versions")["label"], result_of(view, "tls_versions", "after")["label"]) == ("Failed", "Passed")
+        states = lab.fix_states(plan.id)
+        assert [(f["id"], f["status"]) for f in states] == [(FIX, "not_connected")]  # the server finding is closed
+        assert [(a["kind"], a["phase"]) for a in code_fix(states)["answers"]] == [("bad_signatures", "first")]
+        # Evidence Lab points to no fix for it: the old failed result keeps its own "Suggested fix" text
+        first = result_of(view, "tls_versions")
+        assert first["fix_line"] is None and first["suggested_fix"] and result_of(view, "tls_versions", "after")["fix_line"] is None
+        assert result_of(view, "bad_signatures")["fix_line"]["fix_id"] == FIX
+    finally:
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+    # the server slips back: the newest result fails again, so the finding is open again
+    lab.start_retest(plan.id, "1.4.3")
+    lab.wait_until_idle(plan.id, 120)
+    view = lab.lab_view(plan.id)
+    assert result_of(view, "tls_versions", "after")["label"] == "Failed"
+    server = next(f for f in lab.fix_states(plan.id) if f["id"] == "fix-tls-versions")
+    assert [(a["kind"], a["phase"]) for a in server["answers"]] == [("tls_versions", "first"), ("tls_versions", "retest")]
+    assert result_of(view, "tls_versions")["fix_line"]["fix_id"] == result_of(view, "tls_versions", "after")["fix_line"]["fix_id"] == "fix-tls-versions"
 
 
 # ---------------------------------------------------------------- the read gate, against a tampered database
@@ -585,9 +764,10 @@ def test_a_changed_proof_review_is_not_believed(lab):
     code = code_fix(lab.fix_states(plan.id))
     assert code["status"] == "failed" and code["proof"]["state"] == "failed"
     assert code["proof"]["review"] == {"reviewed_at": code["proof"]["review"]["reviewed_at"], "believed": False, "offered": False,
-                                       "problem": PROOF_CHANGED, "record_sha256": None, "checks": None, "counts": None, "tests": []}
+                                       "problem": PROOF_CHANGED, "record_sha256": None, "checks": None, "counts": None, "tests": [],
+                                       "answers": [], "speed": None}
     assert all(r["check"] is None for r in code["proof"]["tests"])  # nothing of the unverified answer is passed on
-    assert refusal(lambda: lab.open_pull_request(plan.id, FIX, ["you"])) == "A pull request can be opened only after the proof has passed."
+    assert refusal(lambda: lab.open_pull_request(plan.id, FIX, ["you"])) == NEEDS_PASSED_PROOF
     # ... and makes the details agree with it: still not what the records give
     tamper(lab, """UPDATE proof_reviews SET detail = json_set(detail, '$.checks.server_unchanged', json('true'))""")
     assert code_fix(lab.fix_states(plan.id))["proof"]["review"]["believed"] is False
@@ -630,16 +810,29 @@ def test_changing_what_a_passed_proof_stands_on_is_caught(lab):
     tamper(lab, "UPDATE changes SET head_commit = base_commit")
     assert not_believed()
     tamper(lab, f"""UPDATE changes SET head_commit = '{ready["change"]["head_commit"]}'""")
+    # which failed tests the change is said to be for (the reviewer asks that exactly those were rerun and passed)
+    tamper(lab, """UPDATE changes SET source = json_set(source, '$.runs[0].kind', 'official_vectors')""")
+    assert not_believed()
+    tamper(lab, """UPDATE changes SET source = json_set(source, '$.runs[0].kind', 'bad_signatures')""")
     assert code_fix(lab.fix_states(plan.id))["status"] == "ready"  # everything put back exactly: believed again
-    # with a pull request open, a proof that is no longer believed stops the approvals and the merge
+    # with a pull request open, a proof that is no longer believed stops the approvals, the merge and the patch
     lab.open_pull_request(plan.id, FIX, ["you"])
+    patch = lab.patch_file(plan.id, FIX)
     tamper(lab, "UPDATE proofs SET version = '1.4.2'")
     code = code_fix(lab.fix_states(plan.id))
-    assert code["status"] == "failed" and code["actions"]["merge"] == PROOF_CHANGED
+    assert code["status"] == "failed" and code["actions"]["merge"] == code["actions"]["download_patch"] == PROOF_CHANGED
     assert refusal(lambda: lab.approve(plan.id, FIX, "you")) == refusal(lambda: lab.merge(plan.id, FIX)) == PROOF_CHANGED
+    assert refusal(lambda: lab.patch_file(plan.id, FIX)) == PROOF_CHANGED  # (review finding 3)
     tamper(lab, "UPDATE proofs SET version = '1.4.3'")
     lab.approve(plan.id, FIX, "you")
     assert code_fix(lab.merge(plan.id, FIX))["status"] == "merged"
+    # a merged change keeps its patch only for as long as the proof it was merged on is still believed
+    assert lab.patch_file(plan.id, FIX) == patch
+    tamper(lab, "UPDATE proofs SET version = '1.4.2'")
+    code = code_fix(lab.fix_states(plan.id))
+    assert code["status"] == "merged" and code["actions"]["download_patch"] == PROOF_CHANGED == refusal(lambda: lab.patch_file(plan.id, FIX))
+    tamper(lab, "UPDATE proofs SET version = '1.4.3'")
+    assert lab.patch_file(plan.id, FIX) == patch
 
 
 def test_merge_is_refused_when_the_repository_moved(lab):
@@ -668,13 +861,13 @@ def test_first_runs_and_retests_say_which_code_they_ran_on(lab):
     plan = small_plan(lab)
     ready = proved(lab, plan)
     base, change_id = ready["connection"]["base_commit"], ready["change"]["id"]
-    assert run_codes(lab, "first") == [("bundled", "1.4.2", None, None, None, None)]  # run before the code was connected
+    assert run_codes(lab, "first") == [("bundled", "1.4.2", None, None, None, None)] * 2  # run before the code was connected
     lab.run_test(plan.id, plan.item["bad_signatures"])  # now the repository's main branch holds exactly this code
     lab.wait_until_idle(plan.id, 120)
     assert run_codes(lab, "first")[-1] == ("repository", "1.4.2", "main", base, None, None)
     lab.start_retest(plan.id, "1.4.3")  # before the merge: main does not hold 1.4.3 yet, so this is the bundled version
     lab.wait_until_idle(plan.id, 120)
-    assert run_codes(lab, "retest") == [("bundled", "1.4.3", None, None, None, None)]
+    assert run_codes(lab, "retest") == [("bundled", "1.4.3", None, None, None, None)] * 2
     lab.open_pull_request(plan.id, FIX, ["you"])
     lab.approve(plan.id, FIX, "you")
     merge_commit = code_fix(lab.merge(plan.id, FIX))["merge"]["merge_commit"]
@@ -706,7 +899,7 @@ def test_the_proof_is_reviewed_once_when_its_jobs_finish_together_and_never_whil
         lab.connect_code(plan.id)
         lab.wait_until_idle(plan.id, 120)
     code = code_fix(lab.fix_states(plan.id))
-    assert (code["proof"]["state"], code["proof"]["finished"]) == ("interrupted", 3)
+    assert (code["proof"]["state"], code["proof"]["finished"]) == ("interrupted", 4)
     lab._stopping = True  # the app is closing: nothing is written
     finished(code["proof"]["id"])
     with lab.db() as db:

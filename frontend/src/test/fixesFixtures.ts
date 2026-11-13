@@ -237,7 +237,10 @@ const proofFailedSection: FixSection = {
   },
 };
 
-/** Two of the six tests have their proof result; one is running and three wait. */
+/**
+ * While the proof runs, as the backend really sends it. Two of the six tests have their proof result (the quick
+ * server tests); the other four run at once, each with the progress words of its own job.
+ */
 const unfinished = (row: ProofRow, waiting: ProofRow["waiting"]): ProofRow => ({
   ...row,
   proof: null,
@@ -246,6 +249,16 @@ const unfinished = (row: ProofRow, waiting: ProofRow["waiting"]): ProofRow => ({
   check: { ok: null, text: "Not finished yet" },
 });
 
+/** A test that has its result while the proof still runs: the proof as a whole is not checked yet, so no tick and no cross. */
+const notCheckedYet = (row: ProofRow): ProofRow => ({ ...row, check: { ok: null, text: "Not checked yet" } });
+
+const RUNNING: Partial<Record<TestKind, ProofRow["waiting"]>> = {
+  official_vectors: { text: "Running", detail: "212 of 484 cases", percent: 44 },
+  bad_signatures: { text: "Running", detail: "checking 12 of 16 signatures", percent: 37 },
+  speed_size: { text: "Running", detail: "waiting for the other tests to finish, so the timing is clean", percent: null },
+  pq_readiness: { text: "Running", detail: "waiting for a timing measurement to finish", percent: null },
+};
+
 const proofRunningSection: FixSection = {
   key: "proof",
   title: "Proof",
@@ -253,15 +266,8 @@ const proofRunningSection: FixSection = {
   open: false,
   intro: PROOF_INTRO,
   tables: proofTables(
-    codeRows.map((row) =>
-      unfinished(
-        row,
-        row.kind === "official_vectors"
-          ? { text: "Running", detail: "212 of 484 cases", percent: 44 }
-          : { text: "Waiting", detail: null, percent: null },
-      ),
-    ),
-    serverRows.map((row) => (row.kind === "pq_readiness" ? unfinished(row, { text: "Waiting", detail: null, percent: null }) : row)),
+    codeRows.map((row) => unfinished(row, RUNNING[row.kind] ?? null)),
+    serverRows.map((row) => (row.kind === "pq_readiness" ? unfinished(row, RUNNING[row.kind] ?? null) : notCheckedYet(row))),
   ),
   verdict: null,
 };

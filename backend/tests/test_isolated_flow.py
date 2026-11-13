@@ -47,6 +47,51 @@ def test_tests_run_in_containers_and_the_mode_is_recorded(docker_ready, tmp_path
         lab.stop()
 
 
+def test_the_proof_of_a_change_runs_in_containers_and_says_so(docker_ready, tmp_path):
+    """Phase 3a, isolated mode: Connect demo code, and the proof that starts by itself reruns the plan's tests on the
+    changed code through the same container runner. It passes, and every proof run says isolated mode."""
+    lab = make_lab(tmp_path, force_mode=None, speed_rounds=40, speed_repeats=5)  # the real default: 200 pairs
+    try:
+        assert lab.mode.name == "isolated"
+        plan = demo_plan(lab)
+        lab.remove_test(plan.id, plan.item["official_vectors"])  # the 484-case run in a container is covered by test_isolation.py
+        lab.run_all(plan.id)
+        lab.wait_until_idle(plan.id, 300)
+        connected = next(f for f in lab.connect_code(plan.id) if f["kind"] == "code")
+        assert connected["status"] == "proving" and connected["proof"]["total"] == 4
+        lab.wait_until_idle(plan.id, 300)
+        code = next(f for f in lab.fix_states(plan.id) if f["kind"] == "code")
+        review = code["proof"]["review"]
+        assert code["status"] == "ready" and code["proof"]["state"] == "passed" and review["believed"] is True and review["offered"] is True
+        assert all(review["checks"].values()) and review["speed"] == {"ok": True, "reason": "no_slowdown"}
+        assert {t["kind"]: (t["first"]["code"], t["proof"]["code"]) for t in code["proof"]["tests"]} == {
+            "tls_versions": ("failed", "failed"), "certificate": ("passed", "passed"), "bad_signatures": ("failed", "passed"),
+            "speed_size": ("measured", "no_slowdown")}
+        with lab.db() as db:
+            runs = db.query(TestRunRow).filter_by(phase="proof").all()
+            assert len(runs) == 4 and {r.mode for r in runs} == {"isolated"}
+            for run in runs:
+                if run.component_name is None:
+                    continue  # a server test: handshakes from the app itself, no component of ours runs
+                assert (run.component_version, run.baseline_version) == ("1.4.3", "1.4.2")
+                batch = run.raw["batch"]  # how the harness job was started, as the run recorded it
+                assert batch["mode"] == "isolated" and batch["command"].startswith("docker run ") and "--network none" in batch["command"]
+                shown = lab._result(db, run)
+                assert shown["mode"] == "isolated" and shown["control"]["outcome"] == "as_expected"
+                meta = shown["run_record"]["meta"]
+                assert {"label": "Mode", "value": "Isolated mode: locked-down container, no network", "tag": None} in meta
+                assert {"label": "Code", "tag": "demo", "value": f"the change on branch fix/ecdsa-range-check, commit {code['change']['head_commit'][:7]}, "
+                                                                 "the same byte for byte as our bundled acme-sign 1.4.3"} in meta
+                if "benches" in run.raw:  # the old and the changed code were timed side by side in the same container run
+                    assert {b["role"] for b in run.raw["benches"]} == {"old", "new", "control"}
+        # the Fixes step says which mode the proof ran in
+        detail = next(f for f in lab.fixes_view(plan.id)["fixes"] if f["kind"] == "code")
+        facts = {fact["label"]: "".join(part["v"] for part in fact["value"]) for fact in next(s for s in detail["sections"] if s["key"] == "details")["facts"]}
+        assert detail["status"]["word"] == "Ready for review" and facts["Mode"] == "Isolated mode: locked-down container, no network"
+    finally:
+        lab.stop()
+
+
 def test_isolated_mode_asked_for_but_missing_never_runs_software_unisolated(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "_probe", lambda: (False, None, None))
     lab = make_lab(tmp_path, force_mode="isolated")

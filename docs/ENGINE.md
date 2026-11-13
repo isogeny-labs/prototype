@@ -77,6 +77,7 @@ refuses (`ReviewNotAllowed`) a change it proposed itself. The record (`schema: "
  "change": {"fix_key", "template_id", "branch", "base_commit", "head_commit", "files": [...]},
  "built": {"file", "sha256", "matches": {"name", "version"} | None},   # the byte-for-byte check, made by the caller
  "baseline_version": "1.4.2", "version": "1.4.3", "proposed_by": "isogeny.rule-engine/1",
+ "answers": [{"item_id", "kind"}],          # the failed tests the change was made for (from `changes.source`)
  "tests": [{"item_id", "kind", "spec_hash", "target": "software" | "server",
             "first": {"run_sha256", "code", "reason_code"} | None,                      # the result it is compared with
             "proof": {"run_sha256", "code", "reason_code", "control_outcome"} | None}]}  # its run on the changed code
@@ -86,22 +87,42 @@ The change is offered only if all of these hold:
 
 1. the changed code is byte for byte one of our registered demo components, and that version is what ran;
 2. every test in the proof has a run;
-3. every test that runs the changed code passed on it: `official_vectors` and `bad_signatures` Passed,
-   `speed_size` No slowdown beyond measured noise, and a report-only test (`mldsa_compare`) only has to run.
-   There must be at least one such test;
+3. every test with a pass or fail that runs the changed code passed on it: `official_vectors` and
+   `bad_signatures` Passed, `speed_size` No slowdown beyond measured noise. There must be at least one such
+   test. A report-only test (`mldsa_compare`) has no pass or fail: it only has to run, it is not counted among
+   the tests that passed, and alone it is not enough;
 4. the control behaved in every proof run that reached a result;
 5. every server test came out the same as before: the same result and the same reason. A test that could not
-   run before, for the same reason, counts as unchanged.
+   run before, for the same reason, counts as unchanged;
+6. every failed test the change was made for (the record's `answers`) is in this proof, runs the changed code
+   and passed on it, and the record names at least one. So if those tests are taken out of the plan and the
+   proof is run again, the change is not offered: no test in that proof showed that the failure is gone;
+7. the speed comparison was made (SPEC 7b item 3): the proof holds a `speed_size` test that ran on the changed
+   code and came out No slowdown beyond measured noise. A plan with no Speed and size test can't be offered.
 
 The answer (`schema: "isogeny.proof-review/1"`): `reviewer`, `record_sha256` (the SHA-256 of the record: the
-fingerprint of the proof), `offered`, `checks` (`code_is_ours`, `changed_code_passed`, `controls_behaved`,
-`server_unchanged`), `counts`, and for each test its `group` (`code` or `server`), `ok` and a `reason`
-(`passed`, `no_slowdown`, `ran`, `same_as_before`, `did_not_pass`, `control_misbehaved`, `changed`, `no_run`,
-`nothing_to_compare`).
+fingerprint of the proof), `offered`, and:
+
+- `checks`: `code_is_ours`, `changed_code_passed`, `report_only_ran`, `controls_behaved`, `server_unchanged`,
+  `answered_tests_passed`, `speed_compared`. `offered` is true only when every one of them is;
+- `counts`: `tests`, `code` and `code_ok` (the tests with a pass or fail that run the changed code),
+  `report_only` and `report_only_ok`, `server` and `server_ok`;
+- `tests`: for each test its `group` (`code` or `server`), `report_only`, `ok` and a `reason` (`passed`,
+  `no_slowdown`, `ran`, `same_as_before`, `did_not_pass`, `control_misbehaved`, `changed`, `no_run`,
+  `nothing_to_compare`);
+- `answers`: for each failed test the change is for, `ok` and a `reason` (`passed`, `did_not_pass`, or
+  `not_in_proof` when this proof did not run it);
+- `speed`: `{"ok", "reason"}` with the reason `no_slowdown`, `did_not_pass`, or `not_in_proof` when the proof
+  holds no speed test.
+
+Every one of these conditions is decided here, from the record. `changes.py` only passes stored facts, and
+`present_fixes.py` only words the answer (for example "This proof did not run the failed tests the change is
+for: Official test vectors and Bad signatures. Add them back in Tests and run the proof again.").
 
 The same read gate as for results applies: whenever a proof's answer is shown or used, the record is rebuilt
 from the stored rows (each run through its own read gate) and reviewed again. If that does not give exactly the
-stored answer, the proof counts as not offered: "The stored proof no longer matches its fingerprint."
+stored answer, the proof counts as not offered: "The stored proof no longer matches its fingerprint." The same
+holds for a stored change that names a fix template this app does not have (`research.TEMPLATE_IDS`).
 
 ## The path every test takes
 
@@ -226,8 +247,8 @@ review", ...) is worked out from these rows every time it is shown.
 | `code_connections` | the code connected for one imported file (**Connect demo code**) | `repository`, `folder` (the app's own copy, under the data folder), `branch`, `base_commit`, the component name and version, `is_demo` |
 | `changes` | one code change: a branch plus the commit it starts from | `fix_key`, `source_kind` and `source` (the failed runs it answers), `written_by` (`fix_template`), `template_id`, `proposed_by`, `title`, `branch`, `base_commit`, `head_commit`, `files` (lines added and removed, blob ids, SHA-256 before and after, and the lines each edit changed), `built` (the byte-for-byte check: the file's SHA-256 and the registered component it is identical to, or null) |
 | `proofs` | one proof of a change | `baseline_version`, `version` (the registered version that runs), `items` (the plan's tests when it started, each with the first run it is compared with). Its runs are `test_runs` rows with phase `proof` and this row's id in `retest_id`. |
-| `proof_reviews` | the reviewer's answer for one proof | `reviewer`, `record_sha256` (the evidence fingerprint of the proof), `offered`, `detail` (`checks`, `counts`, and each test's `group`, `ok` and `reason`) |
-| `pull_requests` | a pull request inside the app, opened on one passed proof | `number`, `title`, `reviewers` (ids from the fixed list `you`, `a`, `b`), `proof_id` |
+| `proof_reviews` | the reviewer's answer for one proof | `reviewer`, `record_sha256` (the evidence fingerprint of the proof), `offered`, `detail` (`checks`, `counts`, each test's `group`, `report_only`, `ok` and `reason`, and `answers` and `speed`) |
+| `pull_requests` | a pull request inside the app, opened on one passed proof | `number`, `title`, `reviewers` (ids from the fixed list `you`, `a`, `b`), `proof_id` (the proof it was opened on; if the plan changes later, the change's latest proof is the one that counts) |
 | `approvals` | one reviewer's approval | `reviewer`, `name`, the time |
 | `merges` | the merge of a pull request (a person's confirmed action) | `merge_commit`, the time |
 | `run_code` | which code one run ran on (only for runs in which a component of ours ran) | `source` (`bundled`, or `repository` when the connected repository held exactly that code), the component name and version, `file_sha256` of the registered file that ran, and for `repository`: `branch`, `commit`, `change_id`, `pull_request_number` |
@@ -247,12 +268,22 @@ are what would show the change.
 Three layers, each with one job:
 
 1. **State** (`backend/app/changes.py`, `Lab.fix_states`): every fix of a plan as plain data, with
-   no wording. A fix exists for every failed result that Evidence Lab shows. Failed signing tests
-   that the fix template answers share one code fix (`fix-ecdsa-range-check`); every other failed
-   test gets a text-only fix (`fix-<kind>`, for example `fix-tls-versions`). Each fix has a
-   `status` (`not_connected`, `proving`, `ready`, `failed`, `waiting`, `ready_to_merge`, `merged`,
-   `text_only`) and, for each action, the sentence it would be refused with right now (or null).
-   Every proof verdict in it has passed the read gate.
+   no wording. Failed signing tests that the fix template answers share one code fix
+   (`fix-ecdsa-range-check`), which stays listed once its change is on record. Every other failed
+   test gets a text-only fix (`fix-<kind>`, for example `fix-tls-versions`), listed only while the
+   newest result shown for that test is a failure (the after-result once a retest has one). Each
+   fix has a `status` (`not_connected`, `proving`, `ready`, `failed`, `waiting`, `ready_to_merge`,
+   `merged`, `text_only`) and, for each action, the sentence it would be refused with right now
+   (or null). Every proof verdict in it has passed the read gate.
+
+   The latest proof of a change leads, with or without a pull request. Only a proof that has
+   passed, is still what the stored records give, and covers the plan as it is now makes a fix
+   `ready`, `waiting` or `ready_to_merge`. If the plan changes while a pull request is open, the
+   status goes back to `failed`; Approve, Merge and Download patch are refused ("The test plan has
+   changed since the proof ran. Run the proof again first."), and Run proof again is allowed. The
+   approvals already recorded stay, and count again once a new proof has passed. After the merge
+   nothing changes: `merged` is a fact. Download patch is allowed only while the change is offered
+   in this sense (after the merge: while the proof it was merged on is still believed).
 2. **Words** (`backend/app/present_fixes.py`): every sentence of the Fixes step and of the one line
    Evidence Lab shows about a fix. It is handed data and decides nothing. Until a proof has
    passed, nothing calls the change ready or says it fixes anything.
@@ -300,7 +331,9 @@ Nothing here accepts a file or software.
 
 A `fix_id` is lower-case letters, digits and hyphens, at most 48. Any other id, and an id the plan
 has no fix for, answers 404 "That fix does not exist." A refused action answers 409 with a plain
-sentence (422 for a body that is not a pick from the fixed reviewer list) and changes nothing.
+sentence (422 for a body that is not a pick from the fixed reviewer list) and changes nothing. The
+sentence is the one the Fixes view gives for the switched-off button; the patch route refuses in
+the same way while the change is not offered.
 
 ## The evidence file
 
@@ -331,25 +364,36 @@ sentence (422 for a body that is not a pick from the fixed reviewer list) and ch
 
 ```python
 {"id", "kind", "title", "status",                    # the status word, for example "Ready for review"
+ "proof_summary": {"state", "label", "text"},        # what the summary said about the proof under that status: the
+                                                     # badge's words and the sentence (the reason that goes with the status)
  "source": {"kind": "failed_tests", "text", "results": [{"item_id", "kind", "run_id", "phase"}]},
  "suggestion": {...} | None,                         # a text-only fix: its whole suggestion, word for word
- "change": {"template_id", "label", "title", "branch", "base_commit", "head_commit", "size", "patch",
+ "change": {"template_id", "label", "title", "branch", "base_commit", "head_commit", "size",
+            "patch",                                 # the ready-to-apply patch, or null (see below)
             "files": [{"name", "added", "removed", "old_sha256", "new_sha256", "old_blob", "new_blob"}],
             "built": {"file", "sha256", "matches"},  # the code check
             "fix_key", "source_kind", "written_by", "proposed_by", "created_at"} | None,
  "proofs": [{"id", "started_at", "baseline_version", "version",
              "record",                               # the proof record (above), as it is fingerprinted
              "record_sha256",                        # its SHA-256: the evidence fingerprint of the proof
-             "review": {"reviewer", "reviewed_at", "believed", "offered", "problem", "record_sha256", "checks", "counts"} | None,
+             "review": {"reviewer", "reviewed_at", "believed", "offered", "problem", "record_sha256", "checks", "counts",
+                        "answers", "speed"} | None,
              "outcome",                              # one sentence, for example "The proof passed."
              "tests": [{"item_id", "kind", "title", "target",
                         "first": {"run_id", "run_sha256", "code", "reason_code", "label", "short"},
                         "run": {...},                # the proof run in full, exported like every other run
-                        "shown": {"label", "tone", "short"}, "check": {"group", "ok", "reason", "text"}}]}],
- "pull_request": {"number", "title", "proof_id", "reviewers", "opened_at"} | None,
- "approvals": [{"reviewer", "name", "approved_at"}],  # approved_at is null for a reviewer who has not approved
+                        "shown": {"label", "tone", "short"}, "check": {"group", "report_only", "ok", "reason", "text"}}]}],
+ "pull_request": {"number", "title", "proof_id", "reviewers", "opened_at",
+                  "approvals_note"} | None,           # the sentence shown with the approvals: one login records them all
+ "approvals": [{"reviewer", "name", "label",          # label is "Demo data" for a demo reviewer, else null
+                "approved_at"}],                      # approved_at is null for a reviewer who has not approved
  "merge": {"merge_commit", "merged_at"} | None}
 ```
+
+  `change.patch` is the patch that **Download patch** saves. It is in the file only while that
+  button is allowed: a pull request is open on a proof that has passed and still stands. Otherwise
+  it is null, and the file keeps what describes the change (file names, counts, blob ids,
+  SHA-256s). A change that is not offered is never handed out in a form to apply.
 
   Every proof of a change is in the file, not only the latest. To check the evidence fingerprint
   shown on a pull request: take a proof's `record`, write it in the canonical form and hash it;
@@ -361,6 +405,10 @@ sentence (422 for a body that is not a pick from the fixed reviewer list) and ch
   no longer matches its fingerprint."
 - Commit ids are in full in the file; the screens show their first seven characters.
 - The HTML report has the same as a readable part, "4. Fixes", and each result's "Code" item.
+  Under each code fix's status it prints the summary's own sentence about the proof, so a status
+  such as "Proof failed" never stands beside a proof that passed without the reason. Under the
+  approvals it prints the one-login sentence, and a demo reviewer's name is followed by
+  "(Demo data)".
 
 Check a file:
 

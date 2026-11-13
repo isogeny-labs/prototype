@@ -295,6 +295,32 @@ describe("full flow", () => {
     expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(TLS_FIX);
   });
 
+  it("starts a newly imported file from its first fix, not from the fix picked for the file before", async () => {
+    // The file imported next has its own plan and its own fixes. In the demo their ids are the same as the first file's.
+    mockApi({
+      ...withFixes(),
+      "POST /api/import/demo": { body: { ...demoImport, id: 8 } },
+      "POST /api/import/8/plan": { body: { ...plan, id: 2, import_id: 8, has_results: true } },
+      "GET /api/plans/2/fixes": { body: { ...fixesViews.ready, plan_id: 2 } },
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Verify" });
+    fireEvent.click(stepButton("5. Fixes"));
+    await screen.findByTestId("fix-summary");
+    fireEvent.click(screen.getByRole("button", { name: /^Server accepts TLS 1\.2/ }));
+    expect(screen.getByTestId("fix-summary").getAttribute("data-fix-id")).toBe(TLS_FIX);
+
+    fireEvent.click(stepButton("1. Import"));
+    fireEvent.click(await screen.findByRole("button", { name: "Use demo file" }));
+    // The new file's plan is not known yet, so Fixes is closed until its tests have been opened.
+    await waitFor(() => expect(stepButton("5. Fixes").disabled).toBe(true));
+    fireEvent.click(stepButton("3. Tests"));
+    await screen.findAllByTestId("test-card");
+    await waitFor(() => expect(stepButton("5. Fixes").disabled).toBe(false));
+    fireEvent.click(stepButton("5. Fixes"));
+    expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(CODE_FIX);
+  });
+
   it("Retest now calls its route and then opens Evidence Lab, where before and after show", async () => {
     const retest = `POST /api/plans/1/fixes/${CODE_FIX}/retest`;
     let retested = false;

@@ -789,11 +789,15 @@ describe("Fixes, the folded sections", () => {
     const rows = proof.getAllByTestId("proof-row");
     const cell = (i: number) => within(rows[i]!).getByTestId("proof-cell-proof");
 
+    // Several tests run at once, each with the progress words of its own job.
     expect(text(within(cell(0)).getByTestId("proof-waiting"))).toBe("Running212 of 484 cases");
     const bar = within(cell(0)).getByRole("progressbar", { name: "Official test vectors: Running" });
     expect(bar.getAttribute("aria-valuenow")).toBe("44");
-    expect(text(within(cell(1)).getByTestId("proof-waiting"))).toBe("Waiting");
-    expect(within(cell(1)).queryByRole("progressbar")).toBeNull();
+    expect(text(within(cell(1)).getByTestId("proof-waiting"))).toBe("Runningchecking 12 of 16 signatures");
+    expect(within(cell(1)).getByRole("progressbar", { name: "Bad signatures: Running" }).getAttribute("aria-valuenow")).toBe("37");
+    // A test that waits its turn to measure says so and has no bar.
+    expect(text(within(cell(2)).getByTestId("proof-waiting"))).toBe("Runningwaiting for the other tests to finish, so the timing is clean");
+    expect(within(cell(2)).queryByRole("progressbar")).toBeNull();
     for (const i of [0, 1, 2, 5]) {
       expect(within(cell(i)).queryByTestId("result-badge")).toBeNull();
       expect(within(rows[i]!).queryByText(/^Control/)).toBeNull();
@@ -802,8 +806,13 @@ describe("Fixes, the folded sections", () => {
       // The first result it will be compared with is already there.
       expect(within(within(rows[i]!).getByTestId("proof-cell-before")).getByTestId("result-badge")).not.toBeNull();
     }
-    // The two tests that have finished show their results.
-    for (const i of [3, 4]) expect(within(cell(i)).getByTestId("result-badge")).not.toBeNull();
+    // The two tests that have finished show their results, but no tick and no cross: the proof as a whole is not checked yet.
+    for (const i of [3, 4]) {
+      expect(within(cell(i)).getByTestId("result-badge")).not.toBeNull();
+      const check = within(rows[i]!).getByTestId("proof-check");
+      expect([check.getAttribute("data-ok"), text(check)]).toEqual(["null", "•Not checked yet"]);
+    }
+    expect(proof.queryAllByTestId("proof-check").filter((check) => check.getAttribute("data-ok") !== "null")).toEqual([]);
     // No verdict before the proof has ended.
     expect(proof.queryByTestId("proof-verdict")).toBeNull();
   });

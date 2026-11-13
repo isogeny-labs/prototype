@@ -117,6 +117,8 @@ RANGE_CHECK = {
          "context": (1, 1)},
     ],
 }
+TEMPLATE_IDS = frozenset({RANGE_CHECK["id"]})  # every fix template this engine has, by id
+
 # A failed signing test is answered by the range check when every case it got wrong is a signature with a
 # number outside the allowed range. present.py words the same test as "One cause: ..."; a test keeps the two in step.
 _RANGE_COMMENTS = ("r=0", "s=0", "larger than n", "=n", "r=n", "s=n")
