@@ -536,11 +536,17 @@ def _proof_section(fix: dict, rows: list[dict], said: dict) -> dict:
     timed = ", with the old and the new version timed side by side" if any(r["kind"] == "speed_size" for r in rows) else ""
     # "every locked test in your plan" is said only while the proof covers the plan as it is now
     reran = "every locked test in your plan" if fix["proof"] is None or fix["proof"]["covers_plan"] else "every locked test that was in your plan at the time"
-    intro = (f"The app applied this change on a new branch of its own copy of the code, then reran {reran}{timed}. "
-             "The runs went through the same steps as your first results: the same test runner, then the same automatic check that "
-             "decides each result from what the run recorded. The fix template has no say in any result.")
+    steps = ("the same steps as your first results: the same test runner, then the same automatic check that decides each "
+             "result from what the run recorded. The fix template has no say in any result.")
+    intro = f"The app applied this change on a new branch of its own copy of the code, then reran {reran}{timed}. The runs went through {steps}"
     if fix["proof"] is None:
         intro = "No test was run for this change: only our own demo components ever run, and the changed code is not one of them."
+    elif fix["proof"]["state"] == "running":  # said in the present while it runs: nothing has been "rerun" yet
+        intro = (f"The app applied this change on a new branch of its own copy of the code and is now rerunning {reran}{timed}. "
+                 f"The runs go through {steps}")
+    elif fix["proof"]["state"] == "interrupted":  # not every test ran, so it must not say that every test was rerun
+        intro = (f"The app applied this change on a new branch of its own copy of the code and started to rerun {reran}{timed}, "
+                 f"but the proof was interrupted before every test had run. The runs that finished went through {steps}")
     return {"key": "proof", "title": "Proof", "line": said["fold"], "open": False, "intro": intro,
             "tables": _tables(fix, rows) if fix["proof"] is not None else [], "verdict": said["verdict"]}
 

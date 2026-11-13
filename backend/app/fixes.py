@@ -69,9 +69,9 @@ class FixesMixin:
 
     @staticmethod
     def _answered(db, fix: dict) -> tuple[TestRunRow, str | None]:
-        """The newest failed result a text-only fix answers: its run, and the server address when the test is
-        about a server (None when it is about the signing component)."""
-        run = db.get(TestRunRow, fix["answers"][-1]["run_id"])
+        """The newest failed result a text-only fix answers (by when it was run, whichever column shows it): its
+        run, and the server address when the test is about a server (None when it is about the signing component)."""
+        run = db.get(TestRunRow, max(answer["run_id"] for answer in fix["answers"]))
         target = read_spec(db.get(TestSpecRow, run.spec_hash))[0].get("target") or {}
         return run, target.get("address") if target.get("kind") == "server" else None
 

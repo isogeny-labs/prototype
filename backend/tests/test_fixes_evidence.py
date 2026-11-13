@@ -443,7 +443,7 @@ def test_the_report_has_a_readable_fixes_part(flow):
             f"Code check: the built file (SHA-256 {NEW_SHA256}) is byte for byte the same as our bundled demo component acme-sign 1.4.3, and "
             "that component is what the proof ran.",
             "The change as a patch", "Proof 1 of 2", "The proof did not pass. Started", "Proof 2 of 2", "The proof passed. Started",
-            f"Evidence fingerprint of the proof (SHA-256): {passed['record_sha256']}", "Test Before On the changed code Rule check",
+            f"Evidence fingerprint of the proof (SHA-256): {passed['record_sha256']}", "Test Before In the proof run Rule check",
             "Bad signatures Failed Accepts the signature r=0, s=0. One cause: no range check. Passed Rejects r=0, s=0 and every other bad "
             "signature tried. Control: a deliberately broken signer failed this test, as expected. Passed",
             "Old TLS versions Failed Server accepted TLS 1.2. Failed Server still accepts TLS 1.2. This change doesn't touch the server.",

@@ -143,6 +143,7 @@ LAB_VIEW = {
     "retest": {"can_start": bool, "blocked_reason": Opt(str), "running": bool, "progress_text": Opt(str), "menu_title": str,
                "versions": [{"version": str, "label": str, "tag": str, "note": str}], "menu_note": str},
     "download": {"can_start": bool, "blocked_reason": Opt(str)},
+    "busy": bool,
 }
 
 

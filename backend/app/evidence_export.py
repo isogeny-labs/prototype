@@ -531,7 +531,9 @@ def _proof_html(heading: str, proof: dict) -> list[_Safe]:
                *([t("; reviewed "), _when(review.get("reviewed_at"))] if review else []), _Safe(" "), _tag("measured")),
             el("p", t("Evidence fingerprint of the proof (SHA-256): "), el("code", t(fingerprint))) if fingerprint else _Safe(""),
             el("table", el("thead", el("tr", *[el("th", t(column), cls="words" if column in ("Test", "Rule check") else None)
-                                               for column in ("Test", "Before", "On the changed code", "Rule check")])),
+                                               # one table for every test of the proof: the server tests do not run the
+                                               # changed code, so this column is named for what it holds for all of them
+                                               for column in ("Test", "Before", "In the proof run", "Rule check")])),
                el("tbody", *rows)),
             el("p", t("The JSON file holds every run of this proof in full (its run record, fingerprint and review)"
                       + (", and the proof record this fingerprint is made from." if fingerprint else ".")), cls="note")]

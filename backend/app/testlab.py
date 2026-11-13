@@ -528,11 +528,12 @@ class TestLabMixin:
             items = self._items(db, plan_id)
             specs = self._specs(db, items)
             retest = db.scalars(select(RetestRow).where(RetestRow.plan_id == plan_id).order_by(RetestRow.id.desc()).limit(1)).first()
-            # Where each fix stands is worked out FIRST, before asking what is running. If a proof ends while this
-            # answer is put together, its line then still says "proof running" (busy), so the screen asks again and
-            # the next answer is the settled one. Asked the other way round, such an answer could say "Fix ready"
-            # next to "A proof is running in Fixes", with nothing left to make the screen ask again.
-            lines = self._fix_lines(db, plan)
+            # What is running is asked FIRST, on purpose, and the answer carries it as "busy" (the Fixes view does the
+            # same). The screen asks again for as long as an answer is busy. So if a job ends while the rest is put
+            # together, this answer may still say "A proof is running in Fixes" or "Tests are still running" next to
+            # results that are already settled, but it cannot stay on the screen: it is busy, the screen asks again,
+            # and the next answer is the settled one. That holds whichever rows are shown, also when the tests a
+            # fix is for are no longer in the plan and no row carries its line.
             running = self._running(plan_id)
             busy = running is not None
             retest_live = [j for j in self.jobs.live(plan_id) if j.key[1] == "retest"]
@@ -564,6 +565,9 @@ class TestLabMixin:
                 rows.append(row)
             # Where a fix stands changes after a run, so its one line is laid over the worded result here, never
             # kept with it. A failed result with a fix shows that line in place of the "Suggested fix" text.
+            # The lines are worked out AFTER the rows, so they cover every result a row shows, also one whose test
+            # ended while the rows were being read.
+            lines = self._fix_lines(db, plan)
             for row in rows:
                 for shown in (row["result"], row["after"]):
                     if shown is not None:
@@ -621,7 +625,9 @@ class TestLabMixin:
                 view, code_line = "before_after", present_fixes.code_line(*ran_on)
                 columns = {"test": "Test", **present_fixes.code_columns(f"Before: {before}", f"After: {after_name}", *ran_on)}
             return {"plan_id": plan.id, "is_demo": bool(imp.is_demo), "view": view, "subline": subline, "code_line": code_line,
-                    "disclaimer": present.DISCLAIMER, "columns": columns, "rows": rows, "retest": retest_view, "download": download}
+                    "disclaimer": present.DISCLAIMER, "columns": columns, "rows": rows, "retest": retest_view, "download": download,
+                    # (asked once more at the end: work that another request started meanwhile also makes the screen ask again)
+                    "busy": busy or any(line["busy"] for line in lines.values()) or self.jobs.busy(plan_id)}
 
     # ---------------------------------------------------------------- the user's own actions on a result
 

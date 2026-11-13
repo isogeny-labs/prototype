@@ -174,9 +174,14 @@ def play_back_speed(lab) -> None:
         if job.get("op") != "bench_rounds" or len(subjects) < 2:  # only the speed test times two or three programs side by side
             return real(job, time_limit=time_limit, on_line=on_line)
         rng = random.Random(7)
+        # A test may set this on the lab to play back a real slowdown: in a comparison of old, new and the slowed
+        # control (a retest or a proof), the new version then takes this much longer on every sign and verify.
+        slower = float(getattr(lab, "played_back_new_version_slower_by_ms", 0.0)) if len(subjects) == 3 else 0.0
 
         def timings(base: float, subject: str) -> list[float]:
-            extra = 6.0 if subject.startswith("control-slow:") else 0.0
+            extra = slower if subject == subjects[1] else 0.0
+            if subject.startswith("control-slow:"):
+                extra = slower + 6.0
             return [round(base + extra + rng.random() * 0.2, 4) for _ in range(job["repeats"])]
 
         lines = [{"keygen": job["keygen_with"], "rc": 0, "public_key_bytes": 65}]

@@ -33,8 +33,13 @@ function proving(result: LabResult | null): boolean {
   return result?.fix_line?.busy === true;
 }
 
+/**
+ * Ask again while the answer says something is running. `busy` alone covers every case, also a proof whose line
+ * no row shows (the tests it is for are no longer in the plan); the other checks are kept as a second net.
+ */
 function needsPolling(lab: LabView): boolean {
   return (
+    lab.busy ||
     lab.retest.running ||
     lab.rows.some(
       (row) => unfinished(row.result_status) || unfinished(row.after_status) || proving(row.result) || proving(row.after),

@@ -60,8 +60,8 @@ open **http://127.0.0.1:8000** in your browser.
    - *acme-sign accepts out-of-range signatures* starts as **Code not connected**. Click **Connect demo code**.
      The app copies the small demo repository that comes with it, writes the change on a branch (3 lines added,
      1 removed) and proves it by itself: every test in your plan runs again on the changed code. This takes
-     about half a minute. Expected: **Ready for review**, with "Proof passed". Open **The change** and
-     **Proof** to see the lines and the results.
+     about half a minute (about a minute in isolated mode). Expected: **Ready for review**, with "Proof passed".
+     Open **The change** and **Proof** to see the lines and the results.
 8. Choose who must approve (you are ticked already; you can also tick **Demo reviewer A** and **Demo reviewer B**,
    which are demo data, not people) and click **Open pull request**. Click **Approve** for each reviewer you
    picked. This version has one login, so whoever is at the keyboard records each approval, under the name
@@ -141,8 +141,9 @@ with, for example, `Demo accuracy: 15 of 15 match`. It takes about one minute in
 a half in isolated mode. Any mismatch is shown, not hidden, and makes the command exit with an error code.
 Add `--mode demo` or `--mode isolated` to choose the mode. The build never edits the answer key.
 
-The backend tests take about ten minutes. Tests that need real containers are skipped, with a message, when
-Docker is not running or the images are not prepared (`cd backend && .venv/bin/python -m app.prepare`).
+The backend tests take about 14 minutes and the end-to-end test about 6. Tests that need real containers are
+skipped, with a message, when Docker is not running or the images are not prepared
+(`cd backend && .venv/bin/python -m app.prepare`).
 
 ## Where things are
 

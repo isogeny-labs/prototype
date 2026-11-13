@@ -268,16 +268,24 @@ class ChangesMixin:
 
     def _fixes_for_failed_tests(self, db, plan: PlanRow, items: list, shown: list[dict]) -> list[dict]:
         """One code fix for the failed signing tests a change answers (it stays listed once its change is on record);
-        a text-only fix for every other test whose newest shown result is a failure."""
+        a text-only fix for every other test whose newest shown result that says pass or fail is a failure."""
         failed = [r for r in shown if r["tone"] == "fail"]
         fixes = []
         code = self._code_fix(db, plan, items, shown, failed)
         if code is not None:
             fixes.append(code)
         answered = {a["run_id"] for a in code["answers"]} if code is not None else set()
-        # A finding counts as open only while the newest result shown for its test is a failure: the after-result
-        # once a retest has one, the first result until then. (`shown` lists a test's first result before its after-result.)
-        newest = {r["item_id"]: r for r in shown}
+        # A finding counts as open until a newer result of its test shows it gone. What counts for each test is the
+        # newest of the results Evidence Lab shows now (`shown`) that says pass or fail. Everything else shows
+        # nothing either way and is passed over: "Couldn't run", "Couldn't trust this run", and results that only
+        # report ("Measured", "Not offered"). So a retest that could not reach the server closes nothing, and a
+        # new "Measured" does not close a "Slowdown found". And "newest" is by when the run was made (run ids only
+        # grow), whichever column shows it: a first result that was run again after a retest is newer than that
+        # retest's result.
+        newest: dict[int, dict] = {}
+        for r in shown:
+            if r["tone"] in ("pass", "fail") and (r["item_id"] not in newest or r["run_id"] > newest[r["item_id"]]["run_id"]):
+                newest[r["item_id"]] = r
         for kind in dict.fromkeys(r["kind"] for r in failed):
             answers = [r for r in failed if r["kind"] == kind and r["run_id"] not in answered and newest[r["item_id"]]["tone"] == "fail"]
             if answers:
@@ -303,6 +311,7 @@ class ChangesMixin:
             if change is None:
                 return None
             fix_key, came_from = change.fix_key, [{**run, "phase": "first"} for run in change.source["runs"]]
+            came_from = came_from + self._also_answered(db, plan, shown, change, {run["item_id"] for run in came_from})
         # The fix answers the results it came from, and every failed result shown now for the same tests on the same code.
         tests, seen = {a["item_id"] for a in came_from}, {a["run_id"] for a in came_from}
         answers = came_from + [_answer(r) for r in failed
@@ -320,6 +329,20 @@ class ChangesMixin:
                           "run_proof_again": _no_new_proof(fix), "open_pull_request": _no_pull_request(fix), "merge": _no_merge(fix),
                           "download_patch": _no_patch(fix), "retest_now": _no_retest_now(fix)}
         return fix
+
+    def _also_answered(self, db, plan: PlanRow, shown: list[dict], change: ChangeRow, have: set[int]) -> list[dict]:
+        """The failed first results of other tests in the plan that this change answers too: a failing test that
+        joined the plan after the code was connected (for example one that was removed and added back). The
+        engine is asked the same question as before connecting, about the same starting code, and only its answer
+        for the change's own fix template counts. The stored change is not touched: what it was made for stays on
+        record, and the proof still has to rerun and pass every such test before anything is called ready."""
+        if not _known_template(change):
+            return []
+        files = self._bundled_files(plan)
+        proposed = self._proposal(db, plan, shown, files) if files is not None else None
+        if proposed is None or proposed[0]["template_id"] != change.template_id:
+            return []
+        return [_answer(r) for r in proposed[1] if r["item_id"] not in have]
 
     def _change_state(self, db, plan: PlanRow, items: list, connection: CodeConnectionRow, change: ChangeRow) -> dict:
         """The connection, the change, its latest proof, the pull request, the approvals and the merge."""

@@ -269,9 +269,20 @@ Three layers, each with one job:
 
 1. **State** (`backend/app/changes.py`, `Lab.fix_states`): every fix of a plan as plain data, with
    no wording. Failed signing tests that the fix template answers share one code fix
-   (`fix-ecdsa-range-check`), which stays listed once its change is on record. Every other failed
-   test gets a text-only fix (`fix-<kind>`, for example `fix-tls-versions`), listed only while the
-   newest result shown for that test is a failure (the after-result once a retest has one). Each
+   (`fix-ecdsa-range-check`), which stays listed once its change is on record. A failing test
+   that joins the plan after the code was connected is answered by the same code fix when the
+   change's own fix template answers it (the engine is asked again, about the same starting
+   code); the stored change is not touched, and since the plan changed the proof has to be run
+   again. Every other failed test gets a text-only fix (`fix-<kind>`, for example
+   `fix-tls-versions`). It is listed while, among the results Evidence Lab shows now for that
+   test (its newest first result and its newest result in the latest retest), the newest one
+   that says pass or fail is a failure. Results that say neither are passed over: "Couldn't
+   run", "Couldn't trust this run", and results that only report ("Measured", "Not offered").
+   So a retest that could not reach the server closes nothing, and a new "Measured" does not
+   close a "Slowdown found". "Newest" is by when the run was made, whichever column shows it: a
+   first result that is run again after a retest is newer than that retest's result. Only the
+   results shown now count: a finding that a passing retest closed reads as open again while
+   the next retest is running, and stays open if that retest could not run the test. Each
    fix has a `status` (`not_connected`, `proving`, `ready`, `failed`, `waiting`, `ready_to_merge`,
    `merged`, `text_only`) and, for each action, the sentence it would be refused with right now
    (or null). Every proof verdict in it has passed the read gate.
@@ -289,7 +300,11 @@ Three layers, each with one job:
    passed, nothing calls the change ready or says it fixes anything.
 3. **Views** (`backend/app/fixes.py`): `Lab.fixes_view(plan_id)` puts the two together for the
    screen, and `Lab.lab_view` gains the Evidence Lab additions. Both are asked about once a second
-   while something runs.
+   while something runs. Each answer says so itself with `busy`, and what is running is read
+   first, before the rest of the answer is put together. So if a test or a proof ends in
+   between, the answer may still say "running" next to settled results for one second, but the
+   screen asks again and the next answer is the settled one. In Evidence Lab the lines about
+   the fixes are worked out after the rows, so they cover every result a row shows.
 
 The Fixes view, in short (the frontend's types in `frontend/src/api.ts` are the exact shape, and
 `backend/tests/fixes_shapes.py` checks every view against them):
@@ -308,7 +323,9 @@ The Fixes view, in short (the frontend's types in `frontend/src/api.ts` are the 
 
 The frontend draws only the buttons that are sent, and works out no status, count or sentence.
 
-Evidence Lab additions: each result has `fix_line` (`{"fix_id", "lead", "rest", "look", "busy",
+Evidence Lab additions: the view has `busy` (tests, a retest or a proof are running for this
+file; the screen asks again while it is true, also when no row shows the proof's line); each
+result has `fix_line` (`{"fix_id", "lead", "rest", "look", "busy",
 "button"}`, or null; when it is set, `suggested_fix` is null); a result of a test that runs the
 signing component has a "Code" item in its run record, right after "Component"; and the before
 and after view has `code_line` and, in `columns`, `before_note`, `after_note`, `before_heading`

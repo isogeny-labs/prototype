@@ -305,6 +305,8 @@ export interface LabView {
     menu_note: string;
   };
   download: { can_start: boolean; blocked_reason: string | null };
+  /** Something is running for this file (tests, a retest or a proof in Fixes): ask again in a second. */
+  busy: boolean;
 }
 
 export interface EvidenceExport {

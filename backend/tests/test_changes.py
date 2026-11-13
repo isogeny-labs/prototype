@@ -540,8 +540,12 @@ def test_nothing_runs_when_the_changed_code_is_not_a_registered_component(lab, m
     files = [p for p in lab.settings.data_dir.rglob("*") if p.is_file()]
     assert files and not any(b"marker-7f3a" in p.read_bytes() for p in files)
     assert repo_of(lab, code).files(code["change"]["head_commit"])["acme_sign.py"].endswith(b"NOT_OURS = 'marker-7f3a'\n")
-    # what the engine was given, once: the component, every failed first result with its review detail, and the code as text
-    (request,) = seen
+    # What the engine was given: the component, every failed first result with its review detail, and the code as
+    # text. It is asked when the code is connected, and again each time the fix is looked at afterwards (to see
+    # whether a failing test that joined the plan later is answered by the same change). The question is the same
+    # every time, and nothing it answers later is written anywhere or run.
+    request = seen[0]
+    assert len(seen) > 1 and all(later == request for later in seen[1:])
     assert request["component"] == {"name": "acme-sign", "version": "1.4.2"} and request["files"] == {"acme_sign.py": OLD_FILE.decode()}
     assert [(r["kind"], r["reason_code"]) for r in request["failed"]] == [("tls_versions", None), ("bad_signatures", None)]
     assert request["failed"][0]["detail"]["accepted_outside_claim"] == ["TLS 1.2"]
@@ -737,6 +741,134 @@ def test_a_finding_is_open_only_while_the_newest_result_of_its_test_fails(lab):
     server = next(f for f in lab.fix_states(plan.id) if f["id"] == "fix-tls-versions")
     assert [(a["kind"], a["phase"]) for a in server["answers"]] == [("tls_versions", "first"), ("tls_versions", "retest")]
     assert result_of(view, "tls_versions")["fix_line"]["fix_id"] == result_of(view, "tls_versions", "after")["fix_line"]["fix_id"] == "fix-tls-versions"
+
+
+def test_only_a_newer_result_with_a_verdict_closes_a_finding(lab):
+    """Second review, finding 2. (A) A retest in which the server test could not run shows nothing either way, so
+    the finding stays open. (B) "Newest" is by when a result was run, whichever column shows it: a first result
+    that is run again after a retest is newer than that retest's result."""
+    server_fix = "fix-tls-versions"
+
+    def listed() -> list[str]:
+        return [f["id"] for f in lab.fix_states(plan.id)]
+
+    def answers() -> list[tuple]:
+        return [(a["kind"], a["phase"]) for f in lab.fix_states(plan.id) if f["id"] == server_fix for a in f["answers"]]
+
+    def labels() -> tuple[str, str]:
+        view = lab.lab_view(plan.id)
+        return result_of(view, "tls_versions")["label"], result_of(view, "tls_versions", "after")["label"]
+
+    def line_on(which: str) -> str | None:
+        line = result_of(lab.lab_view(plan.id), "tls_versions", which)["fix_line"]
+        return line["fix_id"] if line is not None else None
+
+    def retest() -> None:
+        lab.start_retest(plan.id, "1.4.3")
+        lab.wait_until_idle(plan.id, 120)
+
+    def run_again() -> None:
+        lab.run_test(plan.id, plan.item["tls_versions"])
+        lab.wait_until_idle(plan.id, 120)
+
+    plan = small_plan(lab)
+    lab.run_all(plan.id)
+    lab.wait_until_idle(plan.id, 120)
+    assert listed() == [FIX, server_fix] and answers() == [("tls_versions", "first")]
+    # (A) the address is no longer confirmed, so the retest cannot run the server test
+    address = plan.imp["addresses"][0]["address"]
+    lab.confirm_address(plan.imp["id"], address, False)
+    retest()
+    assert labels() == ("Failed", "Couldn't run (address not confirmed)")
+    assert listed() == [FIX, server_fix] and answers() == [("tls_versions", "first")]  # still open
+    assert (line_on("result"), line_on("after")) == (server_fix, None)
+    assert lab.fixes_view(plan.id)["list_title"] == "Open findings with a fix (2)"
+    lab.confirm_address(plan.imp["id"], address, True)
+    # (B) the server is put right and a retest passes: closed
+    context = lab.demo._server._ctx  # the demo server's own settings
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+    try:
+        retest()
+    finally:
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+    assert labels() == ("Failed", "Passed") and listed() == [FIX]
+    # the server slips back and the test is run again from Tests: the Before column now holds the newest run
+    run_again()
+    assert labels() == ("Failed", "Passed")
+    assert listed() == [FIX, server_fix] and answers() == [("tls_versions", "first")]  # open again
+    assert (line_on("result"), line_on("after")) == (server_fix, None)
+    # ... and the other way round: the newest run passes while the After column still shows an older failure
+    retest()
+    assert labels() == ("Failed", "Failed") and answers() == [("tls_versions", "first"), ("tls_versions", "retest")]
+    # (both failed, and the first result is run again: what the suggestion is worded from is the newest failed run)
+    run_again()
+    view = lab.lab_view(plan.id)
+    first_run, after_run = result_of(view, "tls_versions")["run_id"], result_of(view, "tls_versions", "after")["run_id"]
+    with lab.db() as db:
+        fix = next(f for f in lab._fixes(db, lab._plan(db, plan.id)) if f["id"] == server_fix)
+        assert first_run > after_run and lab._answered(db, fix)[0].id == first_run
+    context.minimum_version = ssl.TLSVersion.TLSv1_3
+    try:
+        run_again()
+    finally:
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+    assert labels() == ("Passed", "Failed")
+    assert listed() == [FIX] and (line_on("result"), line_on("after")) == (None, None)  # closed by the newer result
+    # (C) Third review, finding 1. A result that only reports is no verdict either. A retest finds a slowdown (the
+    # new version is played back 3 ms slower); then "Speed and size" is run again from Tests and reads "Measured",
+    # which compares nothing. The slowdown finding stays open.
+    speed_fix = "fix-speed-size"
+
+    def speed() -> tuple[str, str]:
+        view = lab.lab_view(plan.id)
+        return result_of(view, "speed_size")["label"], result_of(view, "speed_size", "after")["label"]
+
+    lab.played_back_new_version_slower_by_ms = 3.0
+    try:
+        retest()
+    finally:
+        lab.played_back_new_version_slower_by_ms = 0.0
+    assert speed() == ("Measured", "Slowdown found") and speed_fix in listed()
+    lab.run_test(plan.id, plan.item["speed_size"])
+    lab.wait_until_idle(plan.id, 120)
+    assert speed() == ("Measured", "Slowdown found")  # the Before column holds the newer run, and it only reports
+    assert speed_fix in listed()
+    assert result_of(lab.lab_view(plan.id), "speed_size", "after")["fix_line"]["fix_id"] == speed_fix
+
+
+def test_a_failing_test_added_after_the_code_was_connected_joins_the_same_code_fix(lab):
+    """Third review, finding 3. "Official test vectors" is not in the plan when the code is connected, so the change
+    is made for "Bad signatures" alone. It is then added and fails for the same missing range check. The same
+    change answers it: the failure points to the code fix, not to a text-only entry of its own that would say the
+    app has made no change. Nothing is called ready until a proof that reran it has passed."""
+    plan = small_plan(lab)  # without Official test vectors
+    code = proved(lab, plan)
+    assert code["status"] == "ready" and [(a["kind"], a["phase"]) for a in code["answers"]] == [("bad_signatures", "first")]
+    lab.add_test(plan.id, "official_vectors")
+    lab.run_test(plan.id, plan.item["official_vectors"])
+    lab.wait_until_idle(plan.id, 240)
+    states = lab.fix_states(plan.id)
+    assert [f["id"] for f in states] == [FIX, "fix-tls-versions"]  # no entry of its own for the added test
+    code = code_fix(states)
+    assert [(a["kind"], a["phase"]) for a in code["answers"]] == [("bad_signatures", "first"), ("official_vectors", "first")]
+    assert code["change"]["source"]["runs"] == [{k: a[k] for k in ("run_id", "item_id", "kind")} for a in code["answers"][:1]]  # the record is as it was
+    # the plan changed, so the proof is out of date, and the new failure's line says so
+    assert code["status"] == "failed" and code["proof"]["covers_plan"] is False
+    added = result_of(lab.lab_view(plan.id), "official_vectors")
+    assert added["label"] == "Failed" and added["suggested_fix"] is None
+    assert (added["fix_line"]["fix_id"], added["fix_line"]["lead"], added["fix_line"]["rest"]) == (FIX, "Fix not offered:", "the test plan changed after the proof")
+    detail = next(f for f in lab.fixes_view(plan.id)["fixes"] if f["id"] == FIX)
+    assert detail["list_source"] == "Came from 2 failed tests: Bad signatures, Official test vectors"
+    # the proof is run again on the plan as it is now: it reruns the added test too, and only then is the fix ready
+    lab.run_proof_again(plan.id, FIX)
+    lab.wait_until_idle(plan.id, 240)
+    code = code_fix(lab.fix_states(plan.id))
+    assert code["status"] == "ready" and code["proof"]["review"]["checks"] == ALL_HOLD and code["proof"]["total"] == 5
+    vectors = next(t for t in code["proof"]["tests"] if t["kind"] == "official_vectors")
+    assert (vectors["first"]["code"], vectors["proof"]["code"]) == ("failed", "passed")
+    added = result_of(lab.lab_view(plan.id), "official_vectors")
+    assert (added["fix_line"]["fix_id"], added["fix_line"]["lead"]) == (FIX, "Fix ready:")
+    assert [f["id"] for f in lab.fix_states(plan.id)] == [FIX, "fix-tls-versions"]
 
 
 # ---------------------------------------------------------------- the read gate, against a tampered database

@@ -544,6 +544,7 @@ export const lab: LabView = {
       "Choosing a version reruns the same five locked tests on it and shows before and after. Only our two demo versions can be chosen here.",
   },
   download: { can_start: true, blocked_reason: null },
+  busy: false,
 };
 
 /** Swaps one row's first-run result. */
@@ -615,6 +616,7 @@ export const retestRunning: LabView = {
   })),
   retest: { ...lab.retest, can_start: false, blocked_reason: "A retest is running.", running: true, progress_text: "Retest running: 1 of 5 tests finished." },
   download: { can_start: false, blocked_reason: "A retest is running." },
+  busy: true,
 };
 
 export const evidenceExport: EvidenceExport = {

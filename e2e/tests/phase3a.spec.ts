@@ -415,6 +415,16 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
   await expect(summary().getByRole("heading", { level: 2 })).toHaveText(TLS_FIX_TITLE);
   await expect(listed(TLS_FIX_TITLE)).toHaveAttribute("aria-current", "true");
   await expect(listed(CODE_FIX_TITLE)).not.toHaveAttribute("aria-current", "true");
+
+  // And back from the signing failure while the server fix is the one on screen. Until here the code fix was
+  // what Fixes showed anyway (it is first in the list); only now does the button have to pick it.
+  await goTo("4. Evidence Lab");
+  const badAgain = await openLabRow("Bad signatures");
+  await badAgain.getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
+  await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
+  await expect(listed(CODE_FIX_TITLE)).toHaveAttribute("aria-current", "true");
+  await expect(listed(TLS_FIX_TITLE)).not.toHaveAttribute("aria-current", "true");
+  await selectFix(TLS_FIX_TITLE, TLS_FIX);
 });
 
 test("the server fix is Text only: its suggestion, and no button of any kind", async () => {
@@ -525,12 +535,16 @@ test("Connect demo code: the proof starts by itself; while it runs the status is
   await setSection("proof", true);
   const open = await section("proof").evaluate((el) => ({
     status: document.querySelector('[data-testid="fix-summary"] [data-testid="fix-status"]')?.getAttribute("data-status") ?? "",
+    words: (el.textContent ?? "").replace(/\s+/g, " "),
     rows: el.querySelectorAll('[data-testid="proof-row"]').length,
     waiting: el.querySelectorAll('[data-testid="proof-waiting"]').length,
     checks: [...el.querySelectorAll('[data-testid="proof-check"]')].map((c) => c.getAttribute("data-ok")),
     verdicts: el.querySelectorAll('[data-testid="proof-verdict"]').length,
   }));
   expect(open.status, "the proof was still running when its section was opened").toBe("proving");
+  // While it runs, the section speaks in the present: it does not say that the tests "were rerun" yet.
+  expect(open.words).toContain("is now rerunning every locked test in your plan, with the old and the new version timed side by side");
+  expect(open.words).not.toContain("then reran");
   expect(open.rows).toBe(6);
   expect(open.waiting).toBeGreaterThanOrEqual(1);
   expect(open.checks).toEqual(Array(6).fill("null"));
@@ -549,6 +563,7 @@ test("while the proof runs, Evidence Lab's line says so, and Retest new version 
   for (const title of ALL_SIX) await expect(card(title).getByRole("button", { name: `Run ${title}` })).toBeDisabled();
   expect(await cardStatuses()).toEqual(Array(6).fill("done"));
   await expect(badge(card("Bad signatures"))).toHaveText("Failed");
+  await shot("22-tests-while-a-proof-runs.png");
   // The addresses behind Run all, Retest new version and Download evidence refuse as well, each with the reason.
   const plan = await planId();
   const refused: [string, APIResponse][] = [
@@ -742,6 +757,7 @@ test("after the proof Evidence Lab's line reads Fix ready, and the server failur
 
   const tls = await openLabRow("Old TLS versions");
   await expectFixLine(tls.getByTestId("result-detail"), TLS_LINE, "dashed");
+  await shot("17-lab-fix-line-server-text-only.png");
   await tls.getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(summary()).toHaveAttribute("data-fix-id", TLS_FIX);
   await expect(summary().getByTestId("fix-status")).toHaveText("Text only");
@@ -784,6 +800,7 @@ test("Open pull request with You and Demo reviewer A; Merge pull request stays o
   await expect(s.getByTestId("fix-actions")).toContainText(
     '"Merge pull request" unlocks when every reviewer has approved: waiting for You and Demo reviewer A. The app never merges on its own: you press the button and confirm.',
   );
+  await shot("20-fixes-waiting-nobody-approved-yet.png");
   // The one-login sentence is on screen with the approvals.
   await expect(s.getByTestId("fix-approvers")).toContainText(ONE_LOGIN);
   // The address the confirm button calls refuses too, and nothing changes.
@@ -1311,6 +1328,7 @@ test("a second import gets its own fresh copy of the code; with the address not 
   await goTo("4. Evidence Lab");
   const bad = await openLabRow("Bad signatures");
   await expectFixLine(bad.getByTestId("result-detail"), "Fix not offered: the proof did not pass", "fail");
+  await shot("18-lab-fix-line-not-offered.png");
 });
 
 test("with the address confirmed again, Run proof again reaches Ready for review, and Evidence Lab's line follows by itself", async () => {
@@ -1391,6 +1409,7 @@ test("a test added after the proof passed puts the proof out of date: Proof fail
   await goTo("4. Evidence Lab");
   const bad = await openLabRow("Bad signatures");
   await expectFixLine(bad.getByTestId("result-detail"), "Fix not offered: the test plan changed after the proof", "fail");
+  await shot("19-lab-fix-line-plan-changed.png");
 
   // Run the added test; then Run proof again is switched on, and the new proof covers all six tests.
   await goTo("3. Tests");
@@ -1422,4 +1441,104 @@ test("a test added after the proof passed puts the proof out of date: Proof fail
   await expect(section("proof").getByTestId("proof-verdict")).toContainText("The 1 report-only test ran.");
   await expectNoSoftwareUpload();
   await expectCarefulWording();
+  await shot("21-fixes-proof-with-report-only-test.png");
+  await setSection("proof", false);
+});
+
+test("an open pull request does not shield a proof that is out of date: nothing is approved or merged until a proof has passed again", async () => {
+  // The fix is Ready for review, and its proof covers all six tests. Open a pull request with You alone.
+  await selectFix(CODE_FIX_TITLE, CODE_FIX);
+  const s = summary();
+  const plan = await planId();
+  await s.getByRole("button", { name: "Open pull request" }).click();
+  await expectStatus("waiting", "Waiting for approval");
+  await expect(s.getByRole("button")).toHaveText(["Approve", "Merge pull request", "Download patch"]);
+
+  // Change the plan: add Post-quantum readiness in Tests and run it.
+  await goTo("3. Tests");
+  await page.getByRole("button", { name: "+ Add test" }).click();
+  await page.getByRole("menu").getByRole("menuitem").filter({ hasText: "Post-quantum readiness" }).click();
+  await expect(page.getByTestId("test-card")).toHaveCount(7);
+  await card("Post-quantum readiness").getByRole("button", { name: "Run Post-quantum readiness" }).click();
+  await expect(card("Post-quantum readiness")).toHaveAttribute("data-status", "done", { timeout: 120_000 });
+
+  // Fixes: the pull request is still there, but its proof no longer covers the plan, so the change is not offered.
+  await goTo("5. Fixes");
+  await selectFix(CODE_FIX_TITLE, CODE_FIX);
+  await expectStatus("failed", "Proof failed");
+  await expect(s.getByTestId("fix-proof")).toContainText("Proof out of date");
+  await expect(s.getByTestId("fix-pull-request")).toContainText("#1 Reject signatures whose r or s is out of range.");
+  await expect(s.getByRole("button")).toHaveText(["Run proof again", "Merge pull request", "Download patch"]);
+  await expect(s.getByRole("button", { name: "Run proof again" })).toBeEnabled();
+  await expect(s.getByRole("button", { name: "Merge pull request" })).toBeDisabled();
+  await expect(s.getByRole("button", { name: "Download patch" })).toBeDisabled();
+  await expect(s.getByTestId("fix-actions")).toContainText(
+    "The test plan has changed since the proof ran. Run the proof again first. Nothing more can be recorded on this pull request until a proof has passed.",
+  );
+  await expectUnproven();
+  // The addresses behind Approve, Merge pull request and Download patch refuse as well, each with the reason.
+  const base = `/api/plans/${plan}/fixes/${CODE_FIX}`;
+  const refused: [string, APIResponse][] = [
+    ["approve", await page.request.post(`${base}/approve`, { data: { reviewer: "you" } })],
+    ["merge", await page.request.post(`${base}/merge`)],
+    ["download patch", await page.request.get(`${base}/patch`)],
+  ];
+  for (const [what, answer] of refused) {
+    expect(answer.status(), what).toBe(409);
+    expect((await answer.json()).error.message, what).toBe("The test plan has changed since the proof ran. Run the proof again first.");
+  }
+  expect(await codeFixStatus(plan)).toBe("failed");
+  await expectNoSoftwareUpload();
+  await expectCarefulWording();
+  await shot("25-fixes-pull-request-open-proof-out-of-date.png");
+
+  // Run proof again. The new proof covers all seven tests, and the pull request waits for approval again.
+  await s.getByRole("button", { name: "Run proof again" }).click();
+  await expectStatus("proving", "Proving");
+  const watched = await watchProof();
+  expect(watched.statuses).toEqual(["proving", "waiting"]);
+  await expectStatus("waiting", "Waiting for approval");
+  await expect(s.getByRole("button")).toHaveText(["Approve", "Merge pull request", "Download patch"]);
+  await expect(s.getByRole("button", { name: "Download patch" })).toBeEnabled();
+  await expect(s.getByRole("button", { name: "Merge pull request" })).toBeDisabled();
+});
+
+test("a third import: Fixes says when no failed test has a fix, and Connect demo code stays off until every test has run", async () => {
+  await importVerifyAndOpenTests(page);
+  await expect(page.getByRole("navigation", { name: "Steps" }).getByRole("button", { name: "5. Fixes" })).toBeDisabled();
+
+  // Run one test that passes. There is a result now, so Fixes opens, and it has nothing to show.
+  await card("Certificate strength").getByRole("button", { name: "Run Certificate strength" }).click();
+  await expect(badge(card("Certificate strength"))).toHaveText("Passed", { timeout: 120_000 });
+  await goTo("5. Fixes");
+  await expect(page.getByTestId("fixes-empty")).toHaveText("No failed test has a fix. Fixes for failed tests show here.");
+  await expect(page.getByTestId("fix-summary")).toHaveCount(0);
+  await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
+  await expectNoSoftwareUpload();
+  await expectCarefulWording();
+  await shot("23-fixes-no-failed-test.png");
+
+  // Run one test that fails. Its fix is listed, but the code can't be connected yet: the proof needs a result
+  // for every test in the plan to compare with (the same rule as Retest).
+  await goTo("3. Tests");
+  await card("Bad signatures").getByRole("button", { name: "Run Bad signatures" }).click();
+  await expect(badge(card("Bad signatures"))).toHaveText("Failed", { timeout: 120_000 });
+  await goTo("5. Fixes");
+  await expect(fixList().getByRole("heading")).toHaveText("Open findings with a fix (1)");
+  await expectStatus("not_connected", "Code not connected");
+  const s = summary();
+  await expect(listed(CODE_FIX_TITLE)).toContainText("Came from 1 failed test: Bad signatures");
+  await expect(s.getByRole("button")).toHaveText(["Connect demo code"]);
+  await expect(s.getByRole("button", { name: "Connect demo code" })).toBeDisabled();
+  await expect(s.getByTestId("fix-actions")).toContainText("Run every test in the plan first, so there is a result to compare with.");
+  expect(await s.innerText()).not.toMatch(/Ready for review|Ready to merge|Proof passed|Fix ready|This fixes|What it fixes/);
+  // The address behind the button refuses as well, with the same sentence, and connects nothing.
+  const plan = await planId();
+  const answer = await page.request.post(`/api/plans/${plan}/fixes/connect`);
+  expect(answer.status()).toBe(409);
+  expect((await answer.json()).error.message).toBe("Run every test in the plan first, so there is a result to compare with.");
+  expect(await codeFixStatus(plan)).toBe("not_connected");
+  await expectNoSoftwareUpload();
+  await expectCarefulWording();
+  await shot("24-fixes-connect-switched-off.png");
 });

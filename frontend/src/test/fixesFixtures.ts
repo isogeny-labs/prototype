@@ -264,7 +264,9 @@ const proofRunningSection: FixSection = {
   title: "Proof",
   line: "Running: 2 of 6 tests finished.",
   open: false,
-  intro: PROOF_INTRO,
+  // While it runs the section speaks in the present: nothing has been "rerun" yet.
+  intro:
+    "The app applied this change on a new branch of its own copy of the code and is now rerunning every locked test in your plan, with the old and the new version timed side by side. The runs go through the same steps as your first results: the same test runner, then the same automatic check that decides each result from what the run recorded. The fix template has no say in any result.",
   tables: proofTables(
     codeRows.map((row) => unfinished(row, RUNNING[row.kind] ?? null)),
     serverRows.map((row) => (row.kind === "pq_readiness" ? unfinished(row, RUNNING[row.kind] ?? null) : notCheckedYet(row))),

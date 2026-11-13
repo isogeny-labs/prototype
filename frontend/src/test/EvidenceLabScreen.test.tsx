@@ -405,6 +405,7 @@ describe("Evidence Lab, the line that points to a fix", () => {
       ...withLine(fixLines.proving),
       retest: { ...lab.retest, can_start: false, blocked_reason: reason },
       download: { can_start: false, blocked_reason: reason },
+      busy: true,
     };
     let polls = 0;
     const fetchMock = mockApi({
@@ -428,6 +429,38 @@ describe("Evidence Lab, the line that points to a fix", () => {
     });
     // The opened row stayed open, and the buttons are back.
     expect(button("Retest new version").disabled).toBe(false);
+    expect(button("Download evidence").disabled).toBe(false);
+    expect(screen.queryByTestId("blocked-reason")).toBeNull();
+    await new Promise((r) => setTimeout(r, 1300));
+    expect(calls(fetchMock)).toHaveLength(3);
+  }, 12000);
+
+  it("keeps asking while the answer says busy, also when no row shows the proof's line", async () => {
+    // The tests the fix is for were taken out of the plan, so no row carries a line that says "proof running"
+    // (none of this answer's lines is busy). The answer is still marked busy; without asking again the screen
+    // would say "A proof is running" for ever.
+    const reason = "A proof is running in Fixes. Wait until it has finished.";
+    const provingUnseen: LabView = {
+      ...lab,
+      retest: { ...lab.retest, can_start: false, blocked_reason: reason },
+      download: { can_start: false, blocked_reason: reason },
+      busy: true,
+    };
+    let polls = 0;
+    const fetchMock = mockApi({
+      "GET /api/plans/1/lab": () => {
+        polls += 1;
+        return { body: polls < 3 ? provingUnseen : lab };
+      },
+    });
+    render(screenUnderTest());
+    await screen.findAllByTestId("lab-row");
+    expect(provingUnseen.rows.some((r) => r.result?.fix_line?.busy || r.after?.fix_line?.busy)).toBe(false);
+    expect(button("Retest new version").disabled).toBe(true);
+    expect(button("Download evidence").disabled).toBe(true);
+    expect(screen.getAllByTestId("blocked-reason").map((p) => p.textContent)).toEqual([reason]);
+
+    await waitFor(() => expect(button("Retest new version").disabled).toBe(false), { timeout: 5000 });
     expect(button("Download evidence").disabled).toBe(false);
     expect(screen.queryByTestId("blocked-reason")).toBeNull();
     await new Promise((r) => setTimeout(r, 1300));

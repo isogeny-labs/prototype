@@ -1,6 +1,6 @@
 # Limits: what is real, what is demo, what is not built
 
-Updated at the end of **phase 2** (Tests and Evidence Lab), with what is already decided for phase 3a (not built yet) at the end. Updated each phase.
+Updated at the end of **phase 3a** (the Fixes step: a suggested code change with its proof, a pull request inside the app, approvals and a merge that a person confirms). Updated each phase.
 
 ## What is real
 
@@ -16,7 +16,7 @@ Updated at the end of **phase 2** (Tests and Evidence Lab), with what is already
   another reason makes the result "Couldn't trust this run".
 - **Results come only from a review of the raw outputs.** The test is written down and fingerprinted before it runs;
   the run record is kept; a separate review step applies the rule. The database refuses changes to locked tests,
-  runs and reviews. Shapes are in [ENGINE.md](ENGINE.md).
+  runs, reviews and the records of a fix. Shapes are in [ENGINE.md](ENGINE.md).
 - **Isolated mode really is a locked-down container** when Docker is running and the images are prepared: no
   network, read-only files except a scratch folder, a non-root user, no extra permissions, memory, processor and
   process limits, a time limit, and nothing from this computer mounted in. Tests of our own code check this.
@@ -26,6 +26,23 @@ Updated at the end of **phase 2** (Tests and Evidence Lab), with what is already
 - **Both import formats are parsed for real** (CycloneDX 1.6 CBOM JSON and our CSV template). Nothing in an
   imported file is ever executed.
 - **Login is real:** you create a password on first run; only a scrypt hash is stored.
+- **The demo repository is a real git repository.** `demo/repos/acme-sign.git/` is in git's own format, and so is
+  the working copy the app makes of it in `data/repos/` when you press Connect demo code. The branch of the
+  change, its commit and the merge commit (with two parents) are real objects that git itself can read. The app
+  reads and writes them with its own small code; no git program is needed or run.
+- **The suggested change is a real change to real code:** 3 lines added and 1 removed in `acme_sign.py`, written
+  on a new branch of that copy. The before and after lines on the screen are read from the copy.
+- **The proof really reruns the tests.** Every test in the locked plan runs again, through the same test runner and
+  the same automatic review as a first run, with the old and the new version timed side by side. Whether the
+  change is offered is decided by the review step from the stored records, never by the fix template. That
+  decision is worked out again every time it is shown: if the stored records no longer give the same answer, the
+  screen says the proof can't be trusted and the change is not offered.
+- **The patch is a real patch.** Download patch gives a file that git can apply. Our end-to-end test applies it
+  with git to a copy of 1.4.2 and gets our 1.4.3, byte for byte.
+- **Nothing is merged without a person.** A merge happens only when every picked reviewer's approval is on record
+  and someone presses Merge pull request and then Confirm merge. The app deploys nothing.
+- **Every result says which code it ran on:** the "Code" item in its run record, and the notes under the before
+  and after headings. Each run writes this down when it starts.
 
 ## What is demo
 
@@ -35,8 +52,23 @@ Updated at the end of **phase 2** (Tests and Evidence Lab), with what is already
 - **The demo certificate** is a self-signed test certificate the app makes on first start (ECDSA P-256).
   It and its test key live in `data/` and are never shown in evidence.
 - **`acme-sign` 1.4.2 and 1.4.3** are our own small demo programs written for this demo. 1.4.2 has one planted bug
-  (it never checks that the two signature numbers are in range, so it accepts r = 0, s = 0). 1.4.3 is the same code
-  plus that check. They are slow, simple Python and are not production software.
+  (it never checks that the two signature numbers are in range, so it accepts r = 0, s = 0). 1.4.3 is the same file
+  plus that check and its own version number. They are slow, simple Python and are not production software.
+- **The bug is still planted, but the code no longer points at it.** In phase 3a the comments in 1.4.2 that said
+  where the bug is ("DELIBERATELY FLAWED", "PLANTED BUG") and the two maths comments that explained how r = 0,
+  s = 0 gets through were removed; 1.4.3 lost the same comments. The bug itself stays, on purpose, and the screens
+  label `acme-sign` *Demo data*. No answer changed: the accuracy check still matches all 15.
+- **The demo repository** (`demo/repos/acme-sign.git/`) is bundled demo data: one commit that holds `acme-sign`
+  1.4.2. It is the only code that can be connected.
+- **The suggested change comes from one fix template,** for one kind of bug (the missing range check), written for
+  `acme-sign`'s code. It is labelled "From a fix template" and is not written by an AI model. What it produces is
+  exactly our bundled 1.4.3.
+- **Pull requests live inside the app only.** Nothing is sent to any code host. "Merged" means the main branch of
+  the app's own copy in `data/repos/` moved to a merge commit. Nothing is deployed, and no other program on this
+  computer changes.
+- **"Demo reviewer A" and "Demo reviewer B" are *Demo data*, not people.** The app has one login and no separate
+  accounts, so whoever is at the keyboard records each approval of a pull request, under the reviewer name shown.
+  The screen, the evidence file and the report say so too.
 - **The controls are ours too:** an accept-everything signer, a deliberately slowed signer (6 ms added to every
   sign and verify), a test server that accepts an older TLS version, a test server with a deliberately weak
   RSA 1024-bit test certificate, and a test server that does offer the post-quantum key exchange.
@@ -44,8 +76,12 @@ Updated at the end of **phase 2** (Tests and Evidence Lab), with what is already
   once by us from a throwaway test key that was then discarded. It is fixed data, not an official set.
 - **Demo mode is not isolated.** Without Docker, or before the images are prepared, the demo components run as
   normal local programs with a time limit. The line under the step bar says which mode is in use and why.
-- **Suggested fixes are fixed sentences** ("update to acme-sign 1.4.3 ..."), not a code change. The suggested
-  change with proof, in a new Fixes step, is planned for phase 3a (see the end of this page).
+- **The server TLS suggestion is text only.** The app does not apply it or test it (that is the step after 3a,
+  SPEC section 7c). The nginx and Apache lines in it were tried on real servers on the build machine. The two AWS
+  policy names are from memory, because the AWS documentation could not be reached from the build machine. The
+  app's server test checks TLS versions only, so it cannot show whether an old cipher suite has gone.
+- **The "Suggested fix" text in Evidence Lab is a fixed sentence.** A failed result whose fix is in the Fixes step
+  shows one line that points there instead. Every other result keeps its fixed sentence (for example "None needed").
 
 ## Not built, or not connected, in this version
 
@@ -58,15 +94,100 @@ Updated at the end of **phase 2** (Tests and Evidence Lab), with what is already
   its own module, not an independent second opinion.
 - **Dig deeper answers nothing.** It saves a research request marked "waiting for research engine" and shows it as
   queued. Nothing looks into it, and there is no screen for an answer yet.
-- **The assistant panel is still empty** (phase 3b). Also not built yet: the Fixes step with the suggested change,
-  its proof and pull requests (phase 3a), the server setting change (SPEC 7c), change watch (phase 3c) and the
-  accuracy panel inside the app (phase 3b). The accuracy check is a command for now (`python -m app.accuracy`).
+- **Connecting real code hosts (GitHub and others) is not in this version.** Only the bundled demo repository can
+  be connected, and only for a file that names our demo component `acme-sign` 1.4.2.
+- **The assistant panel is still empty** (phase 3b). Also not built yet: the server setting change with proof
+  (SPEC 7c, the next step), change watch (phase 3c) and the accuracy panel inside the app (phase 3b). The accuracy
+  check is a command for now (`python -m app.accuracy`).
+- **Change watch (phase 3c) is only prepared for.** Fixes record where they came from, every result records which
+  code it ran on, and the repository, branch and proof code is not tied to the 1.4.2 fix. The spec names its
+  design file, `docs/design/change-watch.md`; that file was not on this branch when phase 3a was finished
+  (13 November 2026).
 - **Mark reviewed** only records that you looked at a result, with the time. There is no undo and no name (there
   is one local login).
 - **The catalog has two extra tests** (post-quantum readiness and the ML-DSA-65 comparison). No others.
 - **No Ed25519 signing component exists in the demo.** `acme-sign` only does ECDSA P-256, so the official Ed25519
   file is run against the reference library only. That shows the file and the reference agree; it says nothing
   about any Ed25519 software of yours.
+
+## Limits of the Fixes step (phase 3a)
+
+- **A passed proof shows that these tests passed on the changed code.** It doesn't show that the change is free of
+  other faults, and it says nothing about how the code behaves once it is deployed. The screen says so too.
+- **The proof never runs the changed file itself.** Only our own demo software may run. So the app first checks,
+  byte for byte, that the file the change produces is identical to one of our registered demo components (the
+  bundled `acme-sign` 1.4.3), and then runs that registered component. If it is not identical, nothing is run, the
+  status is "Proof failed" with "Nothing was run", and the change is not offered. Technical details shows the two
+  fingerprints that were compared.
+- **When a change is offered.** All of these must hold, and the review step decides it from the stored records:
+  - the changed code is ours, byte for byte;
+  - every pass-or-fail test that runs the changed code passed, and there is at least one;
+  - the failed tests the change is for are in the proof and passed;
+  - the proof holds a "Speed and size" test and it reads "No slowdown beyond measured noise";
+  - a report-only test in the plan (the ML-DSA-65 comparison) ran; it has no pass or fail;
+  - every control behaved as expected;
+  - the server tests came out the same as before (the same result for the same reason).
+
+  So a plan from which "Speed and size" or the failed signing tests were removed gets "Proof failed", with a
+  sentence that names the test to add back. Requiring the speed test in the plan is our reading of "plus the
+  speed comparison" in SPEC 7b; the owner can change it.
+- **"Proof failed" covers five different causes,** and the screen names which one: "Proof did not pass",
+  "Proof did not finish" (the app was closed while it ran), "Proof out of date" (the test plan changed after the
+  proof), "Proof can't be trusted" (the stored records no longer match their fingerprints) and "Nothing was run"
+  (the changed code is not one of ours). Only the picture of a proof that did not pass was approved beforehand;
+  the wording of the other four was written during the build.
+- **Changing the test plan puts a proof out of date,** also while a pull request is open. Adding or removing a test
+  does it; reordering does not. The status goes back to "Proof failed"; Approve, Merge pull request and Download
+  patch are refused until Run proof again has passed on the plan as it is now. Approvals that were already
+  recorded stay on record and count again after the new proof; their times show that they were given before it.
+  After a merge nothing changes: "Merged" is a fact.
+- **Approvals can't be withdrawn, and a pull request can't be closed** without merging it. The reviewers are picked
+  when the pull request is opened and can't be changed afterwards. There is one pull request per change and one
+  code fix per imported file. To start over, import the file again: it gets its own fresh copy of the repository.
+- **Records of a fix are only ever added.** The change, the proofs, the pull request, the approvals and the merge
+  can't be edited or removed, whatever code asks. Someone with direct access to the database file could still
+  change it; the screen would then say the proof can't be trusted.
+- **The server finding is separate.** The code change does nothing about the server. The proof reruns the server
+  tests only to show they come out the same as before, which for the demo means "Failed" both times.
+- **When a finding counts as open.** A text-only suggestion is listed until a newer result of its test says
+  something other than "Failed". Only a pass or a fail counts: "Couldn't run", "Couldn't trust this run" and
+  results that only report ("Measured", "Not offered") are passed over, so a retest that could not reach the
+  server closes nothing. Only the results Evidence Lab shows now are looked at (the newest first result and the
+  newest result of the latest retest). So a finding that a passing retest closed reads as open again while the
+  next retest is running, and stays open if that retest could not run the test. This can't happen with the demo
+  server, whose settings never change; it matters for the server setting step (SPEC 7c). A code fix stays listed
+  once its change is on record.
+- **A failing test added after the code was connected joins the same code fix,** when the fix template answers
+  it (for example "Official test vectors" removed before connecting and added back later). The plan has changed,
+  so the fix reads "Proof failed" with "Proof out of date" until Run proof again has passed with that test in
+  it. After a merge the line on such a result reads "Fix merged ..., proof passed" although that proof was run
+  before the test was added; Retest now shows the result on the merged code.
+- **While a proof runs, nothing else can start for that file:** Run, Run all, Retest new version and Download
+  evidence are switched off, and come back by themselves. Evidence Lab says why. The Tests screen switches its
+  buttons off without a sentence saying why.
+- **How long it takes.** The proof reruns every test, including the speed test: about half a minute in demo mode
+  and about a minute in isolated mode on the build machine.
+- **If the app is closed while a proof runs,** the proof reads "Proof did not finish" after the restart and has to
+  be run again with Run proof again.
+- **If the app is stopped in the instant between merging in the repository and writing the merge record,** the
+  pull request can no longer be merged ("The repository has changed since this change was proved"). Import the
+  file again. We did not see this happen; it follows from the order of the two steps.
+- **The app's own git code is small on purpose.** It reads and writes plain ("loose") objects only, files at the
+  top level of the repository only, and text files in UTF-8. That is all the bundled demo repository needs. A
+  repository copied from a code host normally has packed objects and folders, and would be refused. This matters
+  once real code hosts are connected, not in this version.
+- **How changed lines are lined up.** The app lines up old and new lines with Python's standard library, not with
+  git's own method. For the demo change the result is identical to what git shows. For other texts an added
+  block can be shown one line earlier or later than git would show it; the patch would still apply. This matters
+  from phase 3c on, when changes come from developers.
+- **Results made before phase 3a say nothing about the code they ran on,** because nothing was written down then.
+  A data folder from phase 2 still opens and works; its older results simply have no "Code" item, and before and
+  after then has no "Code they ran on" sentence.
+- **Each imported file keeps its own copy of the demo repository** in `data/repos/`. The app never deletes these
+  copies; they are a few kilobytes each.
+- **Three looks were built without an approved picture:** the Proof section opened while the proof is still
+  running; a pull request whose proof is out of date (Run proof again, with Merge pull request and Download patch
+  shown switched off); and the Fixes part of the HTML report. They are in `docs/screenshots/phase3a/` (03a, 25, 14).
 
 ## Limits of the tests (phase 2)
 
@@ -178,6 +299,18 @@ Updated at the end of **phase 2** (Tests and Evidence Lab), with what is already
 - **The evidence holds what Evidence Lab shows:** the claims, the latest Verify, and for each test in the plan the
   locked test, the latest reviewed run (and the retest run), its review and the worded result. Tests removed
   from the plan and older runs are left out. Raw outputs are included in full, so the file is a few hundred KB.
+- **It also holds every fix as the Fixes step showed it** (phase 3a): the status with the reason beside it, the
+  change (files, sizes, commit ids, SHA-256s), every proof with its runs in full and the review's answer, the
+  pull request, each approval with name and time ("Demo data" beside a demo reviewer, and the one-login
+  sentence), the merge, and the code every run ran on.
+  - The ready-to-apply patch is in the file only while Download patch itself is allowed.
+  - The fingerprint shown on the pull request is the fingerprint of the proof's record. It is listed inside the
+    evidence file; it is not the fingerprint of the file.
+  - For a proof, the first result each test was compared with is given by its run id, its fingerprint and its
+    result. Its full record is in the file only while it is still that test's latest first result; if the test
+    was run again afterwards, the newer run is the one in the file.
+  - A pull request names the proof it was opened on. If the proof was run again later, the status and the
+    fingerprint on screen follow the latest proof; the file holds every proof.
 - **Private keys are masked before anything is stored or downloaded** (any field whose name contains "private", and
   any PEM private-key block). A secret in some other form inside a tool's output would not be recognised. The
   demo only ever uses throwaway test keys.
@@ -199,6 +332,19 @@ Updated at the end of **phase 2** (Tests and Evidence Lab), with what is already
 - **"Verify claims" stays switched off until every address is ticked.** Before every network test, at run time and
   again at retest time, the address is checked again: an address that is no longer ticked, or a name that now
   points somewhere else, is not contacted and the test shows "Couldn't run (address not confirmed)".
+
+## Decided during the phase 3a build (the owner can overrule each)
+
+- **The speed comparison is required.** A change is not offered unless the proof holds a "Speed and size" test
+  that reads "No slowdown beyond measured noise" (see "When a change is offered" above).
+- **An open pull request does not shield an out-of-date proof.** If the plan changes, the proof must pass again
+  before anyone can approve, merge or download the patch. Approvals already given are kept, not cleared.
+- **Only a newer result that says pass or fail closes a finding.** "Couldn't run" and "Measured" close nothing.
+- **A failing test added after connecting joins the same code fix** instead of getting a text-only entry.
+- **The proof needs the failed tests it answers.** If they were removed from the plan, the proof shows nothing
+  about the fix and the change is not offered.
+- **A report-only test is not counted as passed.** With the ML-DSA-65 comparison in the plan the sentence reads
+  "... passed, the 1 report-only test ran, ...". Without one, the approved sentence is unchanged.
 
 ## Limits of the phase 1 checks
 
@@ -264,34 +410,19 @@ Updated at the end of **phase 2** (Tests and Evidence Lab), with what is already
   key a component hands back during Verify) and for private-key markers. Test keys made inside the test harness
   never reach the app, so the scan checks what the harness sent back instead.
 - Frontend unit tests use a mocked API; the real frontend-to-backend path is covered by the end-to-end test.
+- **The accuracy command does not go through the Fixes step.** It checks the 15 answers with Retest on 1.4.3, as
+  before. The Fixes flow is covered by the backend tests and by the end-to-end test, which presses Retest now
+  after the merge and compares before and after with the answer key, entry by entry.
+- The end-to-end test drives the Fixes step in demo mode. In isolated mode the proof has one backend test with
+  real containers, and the whole flow was clicked through once by hand in a browser on the build machine
+  (13 November 2026: proof passed after 56 seconds, before and after as the answer key says).
+- A proof that fails because a signing test does not pass can't be produced with the buttons, so it has no
+  end-to-end test and no screenshot. Backend tests cover it by making a test run out of time. The two failed
+  states that buttons can reach (address no longer confirmed; plan changed) are in the end-to-end test.
+- Most backend tests of the Fixes step play back made-up speed timings, so that they are quick and come out the
+  same on a busy machine. The speed rule itself, the two full flows and the isolated-mode test time the real
+  programs.
+- The whole backend suite takes about 14 minutes and the end-to-end test about 6 (build machine, 4 cores).
 - Dark mode only; no light theme. The layout was checked at 1440 x 900 only.
 - Two type-only frontend packages (`@types/react`, `@types/react-dom`) are installed that are not listed in the spec.
   Strict TypeScript needs them; the owner should confirm.
-
-## Decided for phase 3a, not built yet
-
-Recorded now so the build keeps them. Each moves into the sections above once it is built.
-
-- **The bug stays planted, but the demo code stops pointing at it.** The comments inside `acme-sign` 1.4.2 that
-  say where the bug is ("DELIBERATELY FLAWED", "PLANTED BUG"), and the two maths comments in its signature check
-  that explain how r = 0, s = 0 gets through, are to be removed; the bug itself stays. 1.4.3 loses the same
-  comments, and both versions get the same description at the top, so the suggested change shows only the real
-  fix (the range check and the version line). The bug is still there on purpose. This page says so, and the
-  screens label `acme-sign` *Demo data*. No answer in `demo/expected.json` changes: on a copy of the code
-  without those comments, the accuracy check matched all 15 answers (13 November 2026, demo mode).
-- **One login records every approval.** The app has one login and no separate accounts, so whoever is at the
-  keyboard records each approval of a pull request, under the reviewer name shown. "Demo reviewer A" and
-  "Demo reviewer B" are *Demo data*, not people. The screen says so too.
-- **Only the bundled demo repository can be connected.** Connecting real GitHub or other code hosts is not in this
-  version. Pull requests stay inside the app, and nothing is sent anywhere.
-- **The proof runs only our own demo software.** Before running anything, the app checks byte for byte that the
-  changed code is identical to our bundled `acme-sign` 1.4.3, and then runs that. If a change produced anything
-  else, nothing is run and the change is not offered.
-- **One fix template,** for one kind of bug (the missing range check), written for `acme-sign`'s code. A change
-  made from it is labelled "From a fix template". It is not written by an AI model.
-- **The server TLS suggestion is text only.** The app does not apply it or test it (that is the step after 3a,
-  SPEC section 7c). The nginx and Apache lines in it were tried on real servers on the build machine. The two AWS
-  policy names are from memory, because the AWS documentation could not be reached from the build machine. The
-  app's server test checks TLS versions only, so it cannot show whether an old cipher suite has gone.
-- **Change watch (phase 3c) is designed in `docs/design/change-watch.md`.** Phase 3a only gets ready for it: fixes
-  record where they came from, and every result records which code it ran on.

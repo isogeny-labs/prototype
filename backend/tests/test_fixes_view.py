@@ -50,6 +50,10 @@ PROOF_INTRO = ("The app applied this change on a new branch of its own copy of t
                "with the old and the new version timed side by side. The runs went through the same steps as your first results: the "
                "same test runner, then the same automatic check that decides each result from what the run recorded. The fix template "
                "has no say in any result.")
+PROOF_INTRO_RUNNING = ("The app applied this change on a new branch of its own copy of the code and is now rerunning every locked test "
+                       "in your plan, with the old and the new version timed side by side. The runs go through the same steps as your "
+                       "first results: the same test runner, then the same automatic check that decides each result from what the run "
+                       "recorded. The fix template has no say in any result.")
 RAN_ON_NOTE = ("This version of Evidence Lab only ever runs our own demo software. If a change produced anything else, the app would "
                "run nothing and would not offer the change.")
 
@@ -247,7 +251,9 @@ def test_proving(flow):
     assert detail["pull_request"] is None and detail["patch"] is None and detail["sections_note"] is None
     change, proof, details = detail["sections"]
     assert (change["key"], change["open"], proof["key"], proof["open"], details["key"], details["open"]) == ("change", True, "proof", False, "details", False)
-    assert proof["line"] == running and proof["intro"] == PROOF_INTRO and proof["verdict"] is None
+    # while it runs, the Proof section speaks in the present: nothing has been "rerun" yet
+    assert proof["intro"] == PROOF_INTRO_RUNNING and "reran" not in proof["intro"]
+    assert proof["line"] == running and proof["verdict"] is None
     assert len(rows) == 6 and 0 < done < 6
     for row in rows.values():
         assert row["before"] is not None  # the first result it will be compared with is already there
@@ -978,6 +984,12 @@ def test_an_interrupted_proof(corners):
     assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof did not finish", "tone": "warn"}, "text": f"{text} The change is not offered.", "muted": None}
     proof = section(detail, "proof")
     assert proof["line"] == "Did not finish: 0 of 4 tests finished."
+    # not every test ran, so the section does not say that every test was rerun
+    assert proof["intro"] == ("The app applied this change on a new branch of its own copy of the code and started to rerun every locked "
+                              "test in your plan, with the old and the new version timed side by side, but the proof was interrupted "
+                              "before every test had run. The runs that finished went through the same steps as your first results: the "
+                              "same test runner, then the same automatic check that decides each result from what the run recorded. "
+                              "The fix template has no say in any result.")
     assert proof["verdict"] == {"tone": "fail", "title": "Why this change is not offered", "checks": [{"ok": False, "text": text}], "shows_title": None, "shows": []}
     assert all(row["proof"] is None and row["waiting"] is None and row["check"] == {"ok": None, "text": "Did not run"} for row in proof_rows(detail).values())
     shown = facts(detail)
@@ -1531,56 +1543,125 @@ def test_a_proof_that_ends_while_a_view_is_put_together_is_never_shown_as_failed
     assert fix_of(settled, FIX)["status"]["key"] == "ready" and settled["busy"] is False
 
 
+PROOF_RUNNING = "A proof is running in Fixes. Wait until it has finished."
+TESTS_RUNNING = "Tests are still running. Wait until they have finished."
+
+
+def says_running(view: dict) -> bool:
+    """An Evidence Lab answer that still shows something as waiting or running, anywhere on the screen."""
+    reasons = (view["retest"]["blocked_reason"], view["download"]["blocked_reason"])
+    lines = [row[side]["fix_line"] for row in view["rows"] for side in ("result", "after") if row[side] is not None]
+    statuses = [row[key] for row in view["rows"] for key in ("result_status", "after_status") if row[key] is not None]
+    return (PROOF_RUNNING in reasons or TESTS_RUNNING in reasons or view["retest"]["running"]
+            or any(line is not None and line["busy"] for line in lines)
+            or any(status["status"] in ("waiting", "running") for status in statuses))
+
+
 def test_a_proof_that_ends_while_evidence_lab_is_put_together_never_leaves_the_screen_stuck(lab):
-    """Review finding 5. Evidence Lab asks again only while one of its lines says a proof is running. So an answer
-    must never say "A proof is running in Fixes" on its buttons next to lines that are already settled: the
-    screen would stay like that. Whatever moment the proof ends at, the answer is settled or makes the screen ask again."""
-    proof_running = "A proof is running in Fixes. Wait until it has finished."
+    """Review finding 5. The screen asks again for as long as an answer is marked busy, and only then. So an
+    answer that still says something is running must be marked busy, whatever moment the proof ends at: the
+    screen then asks again, and the next answer is the settled one."""
+    real_running, real_lines = lab._running, lab._fix_lines
 
-    def stuck(view) -> bool:
-        waiting_for_a_proof = proof_running in (view["retest"]["blocked_reason"], view["download"]["blocked_reason"])
-        asks_again = any(row[side] is not None and row[side]["fix_line"] is not None and row[side]["fix_line"]["busy"]
-                         for row in view["rows"] for side in ("result", "after"))
-        return waiting_for_a_proof and not asks_again
+    def proof_held(end_the_proof_at: str) -> tuple[dict, dict]:
+        """One answer during which the proof ends at the named moment, and the answer after it."""
+        plan = small_plan(lab)
+        lab.run_all(plan.id)
+        lab.wait_until_idle(plan.id, 120)
+        with held(lab) as go:
+            lab.connect_code(plan.id)
 
-    real_lines = lab._fix_lines
-    # the proof ends just before the lines about the fixes are worked out
-    plan = small_plan(lab)
-    lab.run_all(plan.id)
-    lab.wait_until_idle(plan.id, 120)
-    with held(lab) as go:
-        lab.connect_code(plan.id)
+            def end_the_proof():
+                go.set()
+                lab.wait_until_idle(plan.id, 120)
 
-        def the_proof_ends_then_lines(db, plan_row):
-            go.set()
-            lab.wait_until_idle(plan.id, 120)
-            return real_lines(db, plan_row)
+            def running(plan_id):
+                out = real_running(plan_id)
+                if end_the_proof_at == "after asking what is running":
+                    end_the_proof()
+                return out
 
-        with pytest.MonkeyPatch.context() as patch:
-            patch.setattr(lab, "_fix_lines", the_proof_ends_then_lines)
-            view = lab.lab_view(plan.id)
-    assert not stuck(view)
+            def lines(db, plan_row):
+                if end_the_proof_at == "before the lines":
+                    end_the_proof()
+                out = real_lines(db, plan_row)
+                if end_the_proof_at == "after the lines":
+                    end_the_proof()
+                return out
+
+            with pytest.MonkeyPatch.context() as patch:
+                patch.setattr(lab, "_running", running)
+                patch.setattr(lab, "_fix_lines", lines)
+                view = lab.lab_view(plan.id)
+        return view, lab.lab_view(plan.id)
+
+    # the proof ends right after the answer was begun: the buttons still say a proof is running, the line is settled
+    view, settled = proof_held("after asking what is running")
+    assert says_running(view) and view["busy"] is True
+    assert view["retest"]["blocked_reason"] == view["download"]["blocked_reason"] == PROOF_RUNNING
     shown = result_of(view, "bad_signatures")["fix_line"]
-    assert (shown["lead"], shown["busy"]) == ("Fix ready:", False)
-    assert view["retest"]["can_start"] is True and view["download"]["can_start"] is True  # nothing says a proof is running
-    # ... and just after them: the line still says "proof running", so the screen asks again and gets the settled answer
-    plan = small_plan(lab)
-    lab.run_all(plan.id)
-    lab.wait_until_idle(plan.id, 120)
-    with held(lab) as go:
-        lab.connect_code(plan.id)
+    assert (shown["lead"], shown["busy"]) == ("Fix ready:", False)  # no line asks again; only "busy" does
+    assert settled["busy"] is False and not says_running(settled)
+    assert result_of(settled, "bad_signatures")["fix_line"]["lead"] == "Fix ready:" and settled["retest"]["can_start"] is True
+    # ... just before the lines about the fixes are worked out
+    view, settled = proof_held("before the lines")
+    assert says_running(view) and view["busy"] is True
+    assert result_of(view, "bad_signatures")["fix_line"]["lead"] == "Fix ready:"
+    assert settled["busy"] is False and not says_running(settled) and settled["download"]["can_start"] is True
+    # ... and just after them: the line still says "proof running"
+    view, settled = proof_held("after the lines")
+    assert says_running(view) and view["busy"] is True
+    shown = result_of(view, "bad_signatures")["fix_line"]
+    assert (shown["lead"], shown["busy"]) == ("Fix prepared:", True)
+    assert settled["busy"] is False and not says_running(settled)
+    assert result_of(settled, "bad_signatures")["fix_line"]["lead"] == "Fix ready:" and settled["retest"]["can_start"] is True
 
-        def lines_then_the_proof_ends(db, plan_row):
-            out = real_lines(db, plan_row)
+
+def test_evidence_lab_asks_again_while_a_proof_runs_even_when_no_row_shows_its_line(lab):
+    """Second review, finding 1. The test a fix is for is taken out of the plan and the proof is run again. No
+    row is left to carry the fix's line, so no row says that a proof is running. The answer is marked busy all the
+    same: otherwise the screen would say "A proof is running in Fixes" until the user left the step."""
+    plan = small_plan(lab)
+    proved(lab, plan)
+    lab.remove_test(plan.id, plan.item["bad_signatures"])
+    with held(lab) as go:
+        lab.run_proof_again(plan.id, FIX)
+        view = lab.lab_view(plan.id)
+        assert [row["kind"] for row in view["rows"]] == ["tls_versions", "certificate", "speed_size"]
+        lines = [row["result"]["fix_line"] for row in view["rows"]]
+        assert [line and (line["fix_id"], line["busy"]) for line in lines] == [(TLS, False), None, None]
+        assert not any(row["result_status"] or row["after_status"] for row in view["rows"])  # nothing in a row is running
+        assert view["retest"]["blocked_reason"] == view["download"]["blocked_reason"] == PROOF_RUNNING
+        assert view["busy"] is True
+        go.set()
+        lab.wait_until_idle(plan.id, 120)
+    settled = lab.lab_view(plan.id)
+    assert settled["busy"] is False and not says_running(settled) and settled["download"]["can_start"] is True
+    assert problems(view, LAB_VIEW, "lab") == [] and problems(settled, LAB_VIEW, "lab") == []
+
+
+def test_a_result_that_ends_while_evidence_lab_is_put_together_still_gets_its_line(lab):
+    """Second review, finding 3. A failed test ends just after the answer was begun. The answer shows the new
+    failed result with its one line in place of the "Suggested fix" text (the lines are worked out after the
+    rows), and it is marked busy, so the screen asks again and "Tests are still running" does not stay."""
+    plan = small_plan(lab)
+    real_running = lab._running
+    with held(lab) as go:
+        lab.run_test(plan.id, plan.item["bad_signatures"])
+
+        def running_then_the_test_ends(plan_id):
+            out = real_running(plan_id)
             go.set()
             lab.wait_until_idle(plan.id, 120)
             return out
 
         with pytest.MonkeyPatch.context() as patch:
-            patch.setattr(lab, "_fix_lines", lines_then_the_proof_ends)
+            patch.setattr(lab, "_running", running_then_the_test_ends)
             view = lab.lab_view(plan.id)
-    assert not stuck(view)
-    shown = result_of(view, "bad_signatures")["fix_line"]
-    assert (shown["lead"], shown["busy"]) == ("Fix prepared:", True)
+    shown = result_of(view, "bad_signatures")
+    assert shown["label"] == "Failed" and shown["suggested_fix"] is None
+    assert (shown["fix_line"]["fix_id"], shown["fix_line"]["lead"], shown["fix_line"]["rest"]) == (FIX, "Fix available,", "code not connected")
+    assert view["download"]["blocked_reason"] == TESTS_RUNNING and view["busy"] is True
     settled = lab.lab_view(plan.id)
-    assert result_of(settled, "bad_signatures")["fix_line"]["lead"] == "Fix ready:" and settled["retest"]["can_start"] is True
+    assert settled["busy"] is False and not says_running(settled) and settled["download"]["can_start"] is True
+    assert result_of(settled, "bad_signatures")["fix_line"] == shown["fix_line"]
