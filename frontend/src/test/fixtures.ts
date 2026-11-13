@@ -3,6 +3,7 @@ import type {
   Address,
   Claim,
   EvidenceExport,
+  FixLine,
   Import,
   LabResult,
   LabRow,
@@ -297,6 +298,26 @@ export const runningPlan: PlanView = {
 export const FINGERPRINT = "7c1f9a3e52b08d46e0a97b15c3d2f48861ae0b7d94c5f3210e8d6a4b9f7c2e15";
 export const DISCLAIMER = "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
 
+// ---- Phase 3a: the one line on a failed result that points to its fix (contract 5.3, the mockup's words) ----
+
+const CHANGE_SIZE = "3 lines added and 1 removed";
+
+function fixLine(fix_id: string, lead: string, rest: string, look: FixLine["look"]): FixLine {
+  return { fix_id, lead, rest, look, busy: false, button: "View in Fixes" };
+}
+
+const codeLine = (lead: string, rest: string, look: FixLine["look"]) => fixLine("fix-ecdsa-range-check", lead, rest, look);
+
+/** The line in each of its states. */
+export const fixLines = {
+  not_connected: codeLine("Fix available,", "code not connected", "plain"),
+  proving: { ...codeLine("Fix prepared:", `${CHANGE_SIZE}, proof running`, "plain"), busy: true },
+  passed: codeLine("Fix ready:", `${CHANGE_SIZE}, proof passed`, "pass"),
+  failed: codeLine("Fix not offered:", "the proof did not pass", "fail"),
+  merged: codeLine("Fix merged:", `${CHANGE_SIZE}, proof passed`, "plain"),
+  text_only: fixLine("fix-tls-versions", "Text-only suggestion:", "a server setting", "dashed"),
+} satisfies Record<string, FixLine>;
+
 export const vectorsResult: LabResult = {
   run_id: 7,
   component: "acme-sign 1.4.2",
@@ -350,6 +371,7 @@ export const vectorsResult: LabResult = {
       { label: "Time", value: "", time: "2026-11-11T01:42:07.000Z", tag: null },
       { label: "Duration", value: "9.4 s", tag: "measured" },
       { label: "Component", value: "acme-sign 1.4.2", tag: "demo" },
+      { label: "Code", value: "the bundled demo version of acme-sign 1.4.2", tag: "demo" },
       { label: "Mode", value: "Demo mode, not isolated", tag: null },
       {
         label: "Vectors",
@@ -375,8 +397,8 @@ export const vectorsResult: LabResult = {
     note: "The details can't change after locking.",
   },
   fix_title: "Suggested fix",
-  suggested_fix:
-    'Update the signing component to acme-sign 1.4.3, which checks that both parts of a signature are inside the allowed range before accepting it. Then press "Retest new version" to rerun the same tests on it.',
+  suggested_fix: null,
+  fix_line: fixLines.not_connected,
   reviewed: null,
   research: null,
 };
@@ -408,6 +430,7 @@ export function result(runId: number, code: LabResult["code"], label: string, to
     short: summary,
     evidence: [],
     suggested_fix: code === "couldnt_run" || code === "couldnt_trust" ? null : "None needed.",
+    fix_line: null,
   };
 }
 
@@ -460,7 +483,11 @@ export const labRows: LabRow[] = [
     "tls_versions",
     "Old TLS versions",
     "Control: a deliberately misconfigured test server failed this test, as expected.",
-    result(5, "failed", "Failed", "fail", "The server accepted TLS 1.2. The file claims TLS 1.3 only."),
+    {
+      ...result(5, "failed", "Failed", "fail", "The server accepted TLS 1.2. The file claims TLS 1.3 only."),
+      suggested_fix: null,
+      fix_line: fixLines.text_only,
+    },
   ),
   row(
     12,
@@ -499,6 +526,7 @@ export const lab: LabView = {
     { t: "time", v: "2026-11-11T01:42:16.000Z" },
     { t: "text", v: "." },
   ],
+  code_line: null,
   disclaimer: DISCLAIMER,
   columns: null,
   rows: labRows,
@@ -538,10 +566,29 @@ export const beforeAfter: LabView = {
     { t: "time", v: "2026-11-11T01:55:03.000Z" },
     { t: "text", v: "." },
   ],
-  columns: { test: "Test", before: "Before: acme-sign 1.4.2", after: "After: acme-sign 1.4.3" },
+  // Which code each side ran on, as after "Retest now" on the merged fix (mockup picture 12).
+  code_line: [
+    {
+      t: "text",
+      v: "Code they ran on: before, the bundled demo version of acme-sign 1.4.2; after, the merged fix: branch main, commit c41f0d2 (pull request #1), the same byte for byte as our bundled acme-sign 1.4.3.",
+    },
+  ],
+  columns: {
+    test: "Test",
+    before: "Before: acme-sign 1.4.2",
+    after: "After: acme-sign 1.4.3",
+    before_note: [{ t: "text", v: "the bundled demo version" }],
+    after_note: [
+      { t: "text", v: "the merged fix, commit " },
+      { t: "mono", v: "c41f0d2" },
+    ],
+    before_heading: "Before: acme-sign 1.4.2, the bundled demo version",
+    after_heading: "After: acme-sign 1.4.3, the merged fix (commit c41f0d2)",
+  },
   rows: labRows.map((r) => ({
     ...r,
     control_line: "Control failed as expected in both runs.",
+    result: r.kind === "official_vectors" && r.result ? { ...r.result, fix_line: fixLines.merged } : r.result,
     after:
       r.kind === "official_vectors"
         ? { ...result(23, "passed", "Passed", "pass", "484 of 484 official cases right."), component: "acme-sign 1.4.3" }

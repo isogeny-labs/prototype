@@ -74,12 +74,18 @@ def test_the_same_test_always_gets_the_same_fingerprint():
     assert len({sha256_hex(s) for s in _all_specs()}) == 7
 
 
-@pytest.mark.parametrize("table", APPEND_ONLY_TABLES)
+# The shared demo flow fills these three. The records of a fix (the other append-only tables) are made and
+# checked the same way in test_changes.py; that file also checks that the two lists together leave no table out.
+RUN_TABLES = {"test_specs": "kind", "test_runs": "mode", "reviews": "code"}
+
+
+@pytest.mark.parametrize("table", RUN_TABLES)
 def test_raw_sql_cannot_change_or_delete_specs_runs_or_reviews(demo_flow, table):
+    assert table in APPEND_ONLY_TABLES
     with demo_flow.lab.db() as db:
         before = db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
         assert before > 0
-        column = {"test_specs": "kind", "test_runs": "mode", "reviews": "code"}[table]
+        column = RUN_TABLES[table]
         for statement in (f"UPDATE {table} SET {column} = 'passed'", f"DELETE FROM {table}"):
             with pytest.raises(DBAPIError, match="append-only"):
                 db.execute(text(statement))

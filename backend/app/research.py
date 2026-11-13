@@ -4,9 +4,12 @@
     design_test(request)   -> one test from the catalog (used by "+ Add test")
     review(result)         -> the review of a run (never done by the engine that proposed the test)
     dig_deeper(finding)    -> a research request, saved as "waiting for research engine"
+    propose_change(request) -> a code change for failed results, from a fix template, or nothing
 
-This file holds the rule-based engine shipped in this version. It proposes and designs tests and files
-research requests. It holds NO verdict logic: results are decided only in reviewer.py, from raw outputs.
+This file holds the rule-based engine shipped in this version. It proposes and designs tests, files
+research requests and proposes a code change from a fix template. No AI model writes anything here.
+It holds NO verdict logic: results are decided only in reviewer.py, from raw outputs, and so is whether a
+proposed change may be offered. The code it is shown is text: it is never run here.
 A locked test never names a component version, a mode or a time, so the same test (same fingerprint) is
 rerun unchanged on a new version."""
 from __future__ import annotations
@@ -29,6 +32,7 @@ SPEED_MESSAGE = "45766964656e6365204c61622073706565642074657374206d6573736167652
 CONTROL_DELAY_MS = 6
 MLDSA_LABEL = "reference, not production"
 RESEARCH_STATUS = "waiting for research engine"
+CHANGE_LABEL = "From a fix template"   # how every proposed change is labelled: none is written by an AI model
 
 TITLES = {
     "tls_versions": "Old TLS versions", "certificate": "Certificate strength", "official_vectors": "Official test vectors",
@@ -52,6 +56,7 @@ class ResearchEngine(Protocol):
     def design_test(self, request: dict) -> dict: ...
     def review(self, result: dict) -> dict: ...
     def dig_deeper(self, finding: dict) -> dict: ...
+    def propose_change(self, request: dict) -> dict | None: ...
 
 
 def join_and(items: list[str]) -> str:
@@ -79,6 +84,87 @@ def _software(claims: list[dict]) -> dict | None:
         return None
     d = c["detail"]
     return {"component": str(d["component"]), "algorithm": str(d.get("algorithm") or c.get("claimed_value") or "")}
+
+
+# ---------------------------------------------------------------- the fix template (the only one)
+# Only this template knows about acme-sign 1.4.2, 1.4.3 and the range check. Each edit swaps exact lines for
+# exact lines; the screen shows `context` unchanged lines before and after it.
+
+RANGE_CHECK = {
+    "id": "ecdsa-range-check",
+    "component": "acme-sign",
+    "file": "acme_sign.py",
+    "title": "Reject signatures whose r or s is out of range",
+    "branch": "fix/ecdsa-range-check",
+    "edits": [
+        {"title": "The check: reject a signature whose numbers are out of range",
+         "why": "acme_sign.py, in the verify command. r and s must each be at least 1 and below n, a fixed upper limit set by the P-256 standard.",
+         "find": ["    try:",
+                  '        r, s = der_decode(bytes.fromhex(req["signature"]))',
+                  "    except ValueError:",
+                  '        return {"valid": False}'],
+         "put": ["    try:",
+                 '        r, s = der_decode(bytes.fromhex(req["signature"]))',
+                 "    except ValueError:",
+                 '        return {"valid": False}',
+                 "    if not (1 <= r < N and 1 <= s < N):",
+                 '        return {"valid": False}'],
+         "context": (4, 1)},
+        {"title": "The version number",
+         "why": "So the changed program reports itself as 1.4.3 and can be told apart from 1.4.2.",
+         "find": ['VERSION = "1.4.2"'],
+         "put": ['VERSION = "1.4.3"'],
+         "context": (1, 1)},
+    ],
+}
+# A failed signing test is answered by the range check when every case it got wrong is a signature with a
+# number outside the allowed range. present.py words the same test as "One cause: ..."; a test keeps the two in step.
+_RANGE_COMMENTS = ("r=0", "s=0", "larger than n", "=n", "r=n", "s=n")
+_RANGE_CASE_IDS = frozenset({"r0-s0", "r0", "s0", "r-equals-n", "s-equals-n", "s-plus-n", "r-plus-n"})
+
+
+def out_of_range_cause(kind: object, detail: object) -> bool:
+    """True when a failed signing test's wrong answers all come from values outside the allowed range."""
+    wrong = detail.get("wrong") if isinstance(detail, dict) else None
+    if not isinstance(wrong, list) or not wrong or not all(isinstance(x, dict) for x in wrong):
+        return False
+    if kind == "official_vectors":
+        return all(x.get("expected") == "invalid" and any(k in str(x.get("comment")) for k in _RANGE_COMMENTS) for x in wrong)
+    if kind == "bad_signatures":
+        return {x.get("id") for x in wrong} <= _RANGE_CASE_IDS
+    return False
+
+
+def _place(lines: list[str], wanted: list[str]) -> int | None:
+    """Where the wanted lines stand in the text, if they stand there exactly once (else None)."""
+    hits = [i for i in range(len(lines) - len(wanted) + 1) if lines[i:i + len(wanted)] == wanted]
+    return hits[0] if len(hits) == 1 else None
+
+
+def _apply_edits(text: str, edits: list[dict]) -> tuple[str, list[dict]] | None:
+    """Apply every edit to the text, or None unless each one's lines are found exactly once and no two overlap.
+    Also says where each edit landed: the changed lines in the old and in the new text, counted from 0 with
+    the end not included (the same way gitrepo.Spot counts)."""
+    lines = text.split("\n")  # at line feeds only, as git does; a last line break leaves one empty piece at the end
+    places = [_place(lines, edit["find"]) for edit in edits]
+    if None in places:
+        return None
+    order = sorted(range(len(edits)), key=lambda n: places[n])
+    if any(places[a] + len(edits[a]["find"]) > places[b] for a, b in zip(order, order[1:])):
+        return None
+    spots: list[dict] = [{} for _ in edits]
+    shift = 0  # how far the edits above have moved the lines below them
+    for n in order:
+        at, find, put = places[n], edits[n]["find"], edits[n]["put"]
+        kept = 0  # lines the edit keeps at its start (what it was found by), so only what changes is marked
+        while kept < min(len(find), len(put)) and find[kept] == put[kept]:
+            kept += 1
+        spots[n] = {"old_start": at + kept, "old_end": at + len(find),
+                    "new_start": at + kept + shift, "new_end": at + len(put) + shift}
+        shift += len(put) - len(find)
+    for n in reversed(order):  # from the bottom up, so the places found above stay right
+        lines[places[n]:places[n] + len(edits[n]["find"])] = edits[n]["put"]
+    return "\n".join(lines), spots
 
 
 class RuleEngine:
@@ -139,6 +225,30 @@ class RuleEngine:
         return {"finding": text[:500], "question": question,
                 "evidence": {"run_id": finding.get("run_id"), "spec_hash": review.get("spec_hash"), "review_id": review.get("id")},
                 "status": RESEARCH_STATUS}
+
+    def propose_change(self, request: dict) -> dict | None:
+        """A code change for failed results, or None when no fix template fits. Everything in the request is
+        data: {"component": {"name", "version"}, "failed": [{"kind", "reason_code", "detail"}], "files": {name: text}}.
+        `answers` in the reply lists the places in `failed` this change answers. Whether the change may be
+        offered is not decided here: it is proved first, and the separate reviewer decides."""
+        template = RANGE_CHECK
+        component, files = request.get("component") or {}, request.get("files") or {}
+        if component.get("name") != template["component"]:
+            return None
+        answers = [i for i, result in enumerate(request.get("failed") or [])
+                   if isinstance(result, dict) and out_of_range_cause(result.get("kind"), result.get("detail"))]
+        text = files.get(template["file"])
+        if not answers or not isinstance(text, str):
+            return None
+        applied = _apply_edits(text, template["edits"])
+        if applied is None:
+            return None  # the code does not have exactly the lines this template expects
+        new_text, spots = applied
+        return {"template_id": template["id"], "title": template["title"], "branch": template["branch"], "label": CHANGE_LABEL,
+                "answers": answers, "files": {**files, template["file"]: new_text},
+                "edits": [{"file": template["file"], "title": edit["title"], "why": edit["why"],
+                           "context_before": edit["context"][0], "context_after": edit["context"][1], **spot}
+                          for edit, spot in zip(template["edits"], spots)]}
 
     # ---------------------------------------------------------------- the tests, written down in full
 

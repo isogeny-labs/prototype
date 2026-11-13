@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, errorMessage, type EvidenceExport, type LabResult, type LabRow, type LabView, type RowStatus } from "../api";
+import {
+  api,
+  errorMessage,
+  type EvidenceExport,
+  type LabResult,
+  type LabRow,
+  type LabView,
+  type RichText,
+  type RowStatus,
+} from "../api";
 import { ResultDetail } from "./lab/ResultDetail";
 import {
   DemoDataLabel,
@@ -9,6 +18,7 @@ import {
   SecondaryButton,
   SourceTag,
   StatusView,
+  saveFile,
   useDismiss,
 } from "./ui";
 
@@ -18,19 +28,32 @@ function unfinished(status: RowStatus | null): boolean {
   return status !== null && (status.status === "waiting" || status.status === "running");
 }
 
-function needsPolling(lab: LabView): boolean {
-  return lab.retest.running || lab.rows.some((row) => unfinished(row.result_status) || unfinished(row.after_status));
+/** A proof is running in Fixes for this result's fix: its line says so until the proof ends. */
+function proving(result: LabResult | null): boolean {
+  return result?.fix_line?.busy === true;
 }
 
-/** Saves one file the app made, by its own address. Nothing is sent anywhere. */
-function saveFile(url: string, filename: string) {
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
+function needsPolling(lab: LabView): boolean {
+  return (
+    lab.retest.running ||
+    lab.rows.some(
+      (row) => unfinished(row.result_status) || unfinished(row.after_status) || proving(row.result) || proving(row.after),
+    )
+  );
+}
+
+/** A before or after column heading, with a second line saying which code that side ran on. */
+function ColumnHeading({ heading, note }: { heading: string; note: RichText }) {
+  return (
+    <span>
+      {heading}
+      {note.length > 0 ? (
+        <span data-testid="lab-column-note" className="mt-0.5 block normal-case tracking-normal text-slate-400">
+          <RichTextView parts={note} />
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 /** One side of a before/after row: the badge and one short line, or the live status. */
@@ -69,6 +92,7 @@ function Row({
   onToggle,
   onMarkReviewed,
   onDigDeeper,
+  onViewFix,
 }: {
   row: LabRow;
   lab: LabView;
@@ -77,6 +101,7 @@ function Row({
   onToggle: () => void;
   onMarkReviewed: (runId: number) => void;
   onDigDeeper: (runId: number) => void;
+  onViewFix: (fixId: string) => void;
 }) {
   const beforeAfter = lab.view === "before_after";
   const canOpen = row.result !== null || row.after !== null;
@@ -155,24 +180,32 @@ function Row({
               {row.after ? (
                 <ResultDetail
                   result={row.after}
-                  heading={lab.columns?.after}
+                  heading={lab.columns?.after_heading}
                   busy={busy}
                   onMarkReviewed={onMarkReviewed}
                   onDigDeeper={onDigDeeper}
+                  onViewFix={onViewFix}
                 />
               ) : null}
               {row.result ? (
                 <ResultDetail
                   result={row.result}
-                  heading={lab.columns?.before}
+                  heading={lab.columns?.before_heading}
                   busy={busy}
                   onMarkReviewed={onMarkReviewed}
                   onDigDeeper={onDigDeeper}
+                  onViewFix={onViewFix}
                 />
               ) : null}
             </>
           ) : row.result ? (
-            <ResultDetail result={row.result} busy={busy} onMarkReviewed={onMarkReviewed} onDigDeeper={onDigDeeper} />
+            <ResultDetail
+              result={row.result}
+              busy={busy}
+              onMarkReviewed={onMarkReviewed}
+              onDigDeeper={onDigDeeper}
+              onViewFix={onViewFix}
+            />
           ) : null}
         </div>
       ) : null}
@@ -180,7 +213,13 @@ function Row({
   );
 }
 
-export function EvidenceLabScreen({ planId }: { planId: number }) {
+interface Props {
+  planId: number;
+  /** "View in Fixes" on a failed result: the app opens the Fixes step on that fix. */
+  onViewFix: (fixId: string) => void;
+}
+
+export function EvidenceLabScreen({ planId, onViewFix }: Props) {
   const [lab, setLab] = useState<LabView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -207,7 +246,7 @@ export function EvidenceLabScreen({ planId }: { planId: number }) {
     };
   }, [planId]);
 
-  // While a retest (or any test) is still going, ask again every second.
+  // While a retest (or any test, or a proof in Fixes) is still going, ask again every second.
   const polling = lab !== null && needsPolling(lab);
   useEffect(() => {
     if (!polling) return;
@@ -356,6 +395,12 @@ export function EvidenceLabScreen({ planId }: { planId: number }) {
         <RichTextView parts={current.subline} />
       </p>
 
+      {current.code_line ? (
+        <p data-testid="lab-code-line" className="mt-1 text-sm text-slate-300">
+          <RichTextView parts={current.code_line} />
+        </p>
+      ) : null}
+
       {retest.running && retest.progress_text ? (
         <p role="status" data-testid="retest-progress" className="mt-2 text-sm text-slate-300">
           {retest.progress_text}
@@ -403,8 +448,8 @@ export function EvidenceLabScreen({ planId }: { planId: number }) {
           >
             <span />
             <span>{current.columns.test}</span>
-            <span>{current.columns.before}</span>
-            <span>{current.columns.after}</span>
+            <ColumnHeading heading={current.columns.before} note={current.columns.before_note} />
+            <ColumnHeading heading={current.columns.after} note={current.columns.after_note} />
           </div>
         ) : null}
         {current.rows.length === 0 ? (
@@ -421,6 +466,7 @@ export function EvidenceLabScreen({ planId }: { planId: number }) {
                 onToggle={() => toggle(row.item_id)}
                 onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
                 onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
+                onViewFix={onViewFix}
               />
             ))}
           </ul>

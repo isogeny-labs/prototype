@@ -13,12 +13,12 @@ from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 
-from . import components, present, research
+from . import components, present, present_fixes, research
 from .canonical import canonical_bytes, sha256_hex
 from .config import DEMO_HOSTNAME
 from .db import (
-    AddressRow, ImportRow, PlanItemRow, PlanRow, ResearchRequestRow, RetestRow, ReviewMarkRow, ReviewRow, TestRunRow,
-    TestSpecRow, iso,
+    AddressRow, ImportRow, PlanItemRow, PlanRow, ProofRow, ResearchRequestRow, RetestRow, ReviewMarkRow, ReviewRow,
+    RunCodeRow, TestRunRow, TestSpecRow, iso,
 )
 from .errors import BadRequest, Conflict, NotFound
 from .execute import RunContext, execute, problem
@@ -28,6 +28,12 @@ from .verify import AddressCheck, DemoContext
 RUNNER_ID = "isogeny.runner/1"
 RUN_SCHEMA = "isogeny.run/1"
 SOFTWARE_KINDS = ("official_vectors", "bad_signatures", "speed_size", "mldsa_compare")
+# Why nothing new can start for a plan while its jobs run. A proof (phase 3a, Fixes) has its own sentence.
+BUSY = {"tests": "Tests are still running. Wait until they have finished.",
+        "proof": "A proof is running in Fixes. Wait until it has finished."}
+# What is kept about the code a run ran on (the columns of run_code, in the order they are shown and exported).
+CODE_KEYS = ("source", "component_name", "component_version", "file_sha256", "repository", "branch", "commit", "change_id",
+             "pull_request_number")
 
 
 def _now() -> str:
@@ -64,7 +70,9 @@ def review_dict(row: ReviewRow) -> dict:
 
 
 class TestLabMixin:
-    """Mixed into Lab. Needs: db, settings, mode, component_runner, jobs, engine, reviewer, demo, resolver."""
+    """Mixed into Lab. Needs: db, settings, mode, component_runner, jobs, engine, reviewer, demo, resolver, and
+    from ChangesMixin: _code_for_run (which code a run runs on) and _proof_run_finished; from FixesMixin:
+    _fix_lines (the one line about a fix) and _column_code (the code one side of before and after ran on)."""
     __test__ = False  # not a pytest class
 
     def _init_testlab(self) -> None:
@@ -161,7 +169,7 @@ class TestLabMixin:
                 spec, _, row = specs[item.id]
                 kind = row.kind if row else spec.get("kind")
                 job = self.jobs.get((item.id, "first"))
-                live_retest = self.jobs.get((item.id, "retest"))
+                reruns = (self.jobs.get((item.id, "retest")), self.jobs.get((item.id, "proof")))
                 card = {"id": item.id, "kind": kind, "title": present.TITLES.get(kind, str(kind)), "origin": item.origin,
                         "tag": research.MLDSA_LABEL if kind == "mldsa_compare" else None,
                         "description": (spec.get("card") or {}).get("description", ""), "why": (spec.get("card") or {}).get("why", "")}
@@ -177,7 +185,7 @@ class TestLabMixin:
                         b = {"code": result["code"], "label": result["label"], "tone": result["tone"]}
                         card.update(status="done", status_text=b["label"], progress=None, result=b)
                 card["can_run"] = not running
-                card["can_remove"] = not live and not (live_retest is not None and live_retest.status != "done")
+                card["can_remove"] = not live and not any(j is not None and j.status != "done" for j in reruns)
                 tests.append(card)
             has_results = bool(db.scalar(select(func.count(ReviewRow.id)).join(TestRunRow, TestRunRow.id == ReviewRow.run_id)
                                          .where(TestRunRow.plan_id == plan_id)))
@@ -267,7 +275,7 @@ class TestLabMixin:
             item = db.get(PlanItemRow, item_id)
             if item is None or item.plan_id != plan_id or item.removed:
                 raise NotFound("That test is not in this plan.")
-            if any(j is not None and j.status != "done" for j in (self.jobs.get((item_id, "first")), self.jobs.get((item_id, "retest")))):
+            if any(j is not None and j.status != "done" for j in (self.jobs.get((item_id, phase)) for phase in ("first", "retest", "proof"))):
                 raise Conflict("This test is waiting or running. Remove it when it has finished.")
             item.removed = True
             db.commit()
@@ -282,8 +290,9 @@ class TestLabMixin:
                 item = db.get(PlanItemRow, item_id)
                 if item is None or item.plan_id != plan_id or item.removed:
                     raise NotFound("That test is not in this plan.")
-                if self.jobs.busy(plan_id):
-                    raise Conflict("Tests are still running. Wait until they have finished.")
+                running = self._running(plan_id)
+                if running:
+                    raise Conflict(BUSY[running])
                 self._submit(plan, item, "first", None)
         return self.plan_view(plan_id)
 
@@ -294,23 +303,43 @@ class TestLabMixin:
                 items = self._items(db, plan_id)
                 if not items:
                     raise Conflict("There are no tests in the plan.")
-                if self.jobs.busy(plan_id):
-                    raise Conflict("Tests are still running. Wait until they have finished.")
+                running = self._running(plan_id)
+                if running:
+                    raise Conflict(BUSY[running])
                 for item in items:
                     self._submit(plan, item, "first", None)
         return self.plan_view(plan_id)
 
-    def _submit(self, plan: PlanRow, item: PlanItemRow, phase: str, retest: RetestRow | None) -> Job:
+    def _running(self, plan_id: int) -> str | None:
+        """What is running for this plan now: "proof", "tests" (first runs or a retest), or None."""
+        live = self.jobs.live(plan_id)
+        if not live:
+            return None
+        return "proof" if any(j.key[1] == "proof" for j in live) else "tests"
+
+    def _compare_blocked(self, plan_id: int, items: list[PlanItemRow], missing: int) -> str | None:
+        """Why the first results can't be compared with a rerun yet, or None. Retest, Connect demo code and
+        Run proof again share this rule; `missing` is how many tests in the plan have no first result."""
+        running = self._running(plan_id)
+        if running:
+            return BUSY[running]
+        if missing or not items:
+            return "Run every test in the plan first, so there is a result to compare with."
+        return None
+
+    def _submit(self, plan: PlanRow, item: PlanItemRow, phase: str, rerun: RetestRow | ProofRow | None) -> Job:
+        """Queue one test. `rerun` is the retest (phase "retest") or the proof (phase "proof") the run belongs to:
+        it names the version to run, the plan's own version becomes the baseline, and its id is kept with the run."""
         spec_row_kind = None
         with self.db() as db:
             row = db.get(TestSpecRow, item.spec_hash)
             spec_row_kind = row.kind if row else None
         software = spec_row_kind in SOFTWARE_KINDS and plan.component_name is not None
-        version = (retest.version if retest else plan.component_version) if software else None
+        version = (rerun.version if rerun else plan.component_version) if software else None
         args = {"plan_id": plan.id, "import_id": plan.import_id, "item_id": item.id, "spec_hash": item.spec_hash, "phase": phase,
-                "retest_id": retest.id if retest else None, "component_name": plan.component_name if software else None,
+                "retest_id": rerun.id if rerun else None, "component_name": plan.component_name if software else None,
                 "component_version": version,
-                "baseline_version": plan.component_version if (retest and software) else None}
+                "baseline_version": plan.component_version if (rerun and software) else None}
         try:
             return self.jobs.submit((item.id, phase), lambda job: self._run_one(job, args), group=plan.id)
         except ValueError as exc:
@@ -340,6 +369,7 @@ class TestLabMixin:
             spec, spec_ok = read_spec(spec_row)
             proposed_by = spec_row.proposed_by if spec_row else "unknown"
         component = (a["component_name"], a["component_version"]) if a["component_name"] else None
+        code = self._code_for_run(a)  # which code this run is about to run on (None when no component of ours runs)
         if not spec_ok:
             raw = problem("spec_changed", "The stored test no longer matches the fingerprint it was locked with, so it was not run.")
         else:
@@ -367,6 +397,9 @@ class TestLabMixin:
                          duration_ms=int((time.perf_counter() - t0) * 1000), raw=raw, logs=logs, runner=RUNNER_ID)
         with self.db() as db:
             db.add(row)
+            db.flush()
+            if code is not None:
+                db.add(RunCodeRow(run_id=row.id, **code))
             db.commit()
             run_id = row.id
             record = run_record(row)
@@ -389,6 +422,8 @@ class TestLabMixin:
                              detail=review["detail"]))
             db.commit()
         job.run_id = run_id
+        if a["phase"] == "proof":
+            self._proof_run_finished(a["retest_id"])  # the proof itself is reviewed when its last run has been
 
     def wait_until_idle(self, plan_id: int, timeout: float = 300.0) -> None:
         if not self.jobs.wait_idle(timeout, group=plan_id):
@@ -411,7 +446,9 @@ class TestLabMixin:
         spec, spec_ok = read_spec(spec_row)
         record = run_record(run)
         stored = review_dict(review_row)
-        key = (sha256_hex(record), sha256_hex({k: v for k, v in stored.items() if k != "created_at"}), spec_ok, spec_row.hash if spec_row else None)
+        code = self._run_code(db, run.id)
+        key = (sha256_hex(record), sha256_hex({k: v for k, v in stored.items() if k != "created_at"}), spec_ok, spec_row.hash if spec_row else None,
+               sha256_hex(code))
         cached = self._result_cache.get(run.id)
         if cached is not None and cached[0] == key:
             base = cached[1]
@@ -432,8 +469,9 @@ class TestLabMixin:
                         "control": {"text": ""}, "rule_text": "", "target": {}, "inputs": {}}
             base = present.lab_result(spec=spec, spec_hash=run.spec_hash, locked_at=iso(spec_row.locked_at) if spec_row else "",
                                       run_id=run.id, run=record, review=stored, trusted=bool(trusted),
-                                      mark=None, research=None, fix_version=self._fix_version(run.component_name, run.component_version))
-            self._result_cache[run.id] = (key, base)
+                                      mark=None, research=None, fix_version=self._fix_version(run.component_name, run.component_version),
+                                      code=code)
+            self._result_cache[run.id] = (key, base, bool(trusted))
         result = dict(base)
         mark = db.scalars(select(ReviewMarkRow).where(ReviewMarkRow.run_id == run.id)).first()
         request = db.scalars(select(ResearchRequestRow).where(ResearchRequestRow.run_id == run.id)).first()
@@ -444,12 +482,37 @@ class TestLabMixin:
                                                         "question": request.question, "created_at": iso(request.created_at)})
         return result
 
-    def _latest_result(self, db, item: PlanItemRow, phase: str, retest_id: int | None, plan: PlanRow) -> dict | None:
+    def _verdict(self, db, run: TestRunRow) -> dict | None:
+        """One run's verdict as the read gate lets it through, for code that needs the verdict and not the words:
+        None without a review; otherwise the run record's fingerprint and the result code that is shown, with
+        the review's reason code and control outcome only while the stored record and review still stand."""
+        shown = self._result(db, run)
+        if shown is None:
+            return None
+        key, _, trusted = self._result_cache[run.id]
+        review = db.scalars(select(ReviewRow).where(ReviewRow.run_id == run.id)).first()
+        stands = trusted and shown["code"] == review.code
+        return {"run_id": run.id, "run_sha256": key[0], "code": shown["code"],
+                "reason_code": review.reason_code if stands else None,
+                "control_outcome": review.control_outcome if stands else "not_run"}
+
+    @staticmethod
+    def _run_code(db, run_id: int) -> dict | None:
+        """Which code a run ran on, as it was stored beside the run (None when no component of ours ran in it)."""
+        row = db.scalars(select(RunCodeRow).where(RunCodeRow.run_id == run_id)).first()
+        return {k: getattr(row, k) for k in CODE_KEYS} if row is not None else None
+
+    @staticmethod
+    def _latest_run(db, item_id: int, phase: str, rerun_id: int | None) -> TestRunRow | None:
+        """The newest reviewed run of one test in one phase (for a retest or a proof: of that one)."""
         query = (select(TestRunRow).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
-                 .where(TestRunRow.plan_item_id == item.id, TestRunRow.phase == phase))
-        if retest_id is not None:
-            query = query.where(TestRunRow.retest_id == retest_id)
-        run = db.scalars(query.order_by(TestRunRow.id.desc()).limit(1)).first()
+                 .where(TestRunRow.plan_item_id == item_id, TestRunRow.phase == phase))
+        if rerun_id is not None:
+            query = query.where(TestRunRow.retest_id == rerun_id)
+        return db.scalars(query.order_by(TestRunRow.id.desc()).limit(1)).first()
+
+    def _latest_result(self, db, item: PlanItemRow, phase: str, retest_id: int | None, plan: PlanRow) -> dict | None:
+        run = self._latest_run(db, item.id, phase, retest_id)
         return self._result(db, run) if run is not None else None
 
     def _row_status(self, item_id: int, phase: str) -> dict:
@@ -465,7 +528,8 @@ class TestLabMixin:
             items = self._items(db, plan_id)
             specs = self._specs(db, items)
             retest = db.scalars(select(RetestRow).where(RetestRow.plan_id == plan_id).order_by(RetestRow.id.desc()).limit(1)).first()
-            busy = self.jobs.busy(plan_id)
+            running = self._running(plan_id)
+            busy = running is not None
             retest_live = [j for j in self.jobs.live(plan_id) if j.key[1] == "retest"]
             rows, missing, finished, after_finished, after_done = [], 0, [], [], 0
             for item in items:
@@ -493,17 +557,23 @@ class TestLabMixin:
                         if result is not None:
                             row["control_line"] = present.both_control_line(kind, result["control"]["outcome"], after["control"]["outcome"])
                 rows.append(row)
+            # Where a fix stands changes after a run, so its one line is laid over the worded result here, never
+            # kept with it. A failed result with a fix shows that line in place of the "Suggested fix" text.
+            lines = self._fix_lines(db, plan)
+            for row in rows:
+                for shown in (row["result"], row["after"]):
+                    if shown is not None:
+                        shown["fix_line"] = lines.get(shown["run_id"])
+                        if shown["fix_line"] is not None:
+                            shown["suggested_fix"] = None
             address, component = self._server_address(specs), self._component_words(plan)
             n_word = present.number_word(len(items))
             versions = components.VERSIONS.get(plan.component_name or "", [])
             demo_component = plan.component_version in versions
-            blocked = None
             if not demo_component:
                 blocked = "A retest needs one of our demo signing components, and this file doesn't name one."
-            elif busy:
-                blocked = "Tests are still running. Wait until they have finished."
-            elif missing or not items:
-                blocked = "Run every test in the plan first, so there is a result to compare with."
+            else:
+                blocked = BUSY[running] if busy else self._compare_blocked(plan_id, items, missing)
             menu = [{"version": v, "label": f"{plan.component_name} {v}", "tag": "demo",
                      "note": ("The demo version these results are for." if v == plan.component_version
                               else "The corrected demo version." if versions.index(v) > versions.index(plan.component_version)
@@ -517,7 +587,7 @@ class TestLabMixin:
             any_result = len(items) > missing
             download = {"can_start": any_result and not busy,
                         "blocked_reason": None if any_result and not busy else
-                        ("Tests are still running. Wait until they have finished." if busy else "Run a test first, so there is something to download.")}
+                        (BUSY[running] if busy else "Run a test first, so there is something to download.")}
             if retest is None:
                 subline: list[dict] = [{"t": "text", "v": "Results by test for "}]
                 if address:
@@ -526,13 +596,13 @@ class TestLabMixin:
                     subline.append({"t": "text", "v": " and "})
                 if component:
                     subline += [{"t": "text", "v": "signing component "}, {"t": "mono", "v": component}]
-                if busy:
+                if running == "tests":  # a proof in Fixes reruns the tests too, but these results are not being replaced
                     subline.append({"t": "text", "v": ". Tests are running."})
                 elif finished:
                     subline += [{"t": "text", "v": ". Run finished "}, {"t": "time", "v": max(finished)}, {"t": "text", "v": "."}]
                 else:
                     subline.append({"t": "text", "v": ". No test has been run yet."})
-                view, columns = "results", None
+                view, columns, code_line = "results", None, None
             else:
                 before, after_name = f"{plan.component_name} {retest.baseline_version}", f"{plan.component_name} {retest.version}"
                 subline = [{"t": "text", "v": f"Before and after: the same {n_word} locked {'test' if len(items) == 1 else 'tests'}, run on "},
@@ -543,8 +613,10 @@ class TestLabMixin:
                     subline += [{"t": "text", "v": ". Retest finished "}, {"t": "time", "v": max(after_finished)}, {"t": "text", "v": "."}]
                 else:
                     subline.append({"t": "text", "v": "."})
-                view, columns = "before_after", {"test": "Test", "before": f"Before: {before}", "after": f"After: {after_name}"}
-            return {"plan_id": plan.id, "is_demo": bool(imp.is_demo), "view": view, "subline": subline,
+                ran_on = self._column_code(db, rows, "result"), self._column_code(db, rows, "after")
+                view, code_line = "before_after", present_fixes.code_line(*ran_on)
+                columns = {"test": "Test", **present_fixes.code_columns(f"Before: {before}", f"After: {after_name}", *ran_on)}
+            return {"plan_id": plan.id, "is_demo": bool(imp.is_demo), "view": view, "subline": subline, "code_line": code_line,
                     "disclaimer": present.DISCLAIMER, "columns": columns, "rows": rows, "retest": retest_view, "download": download}
 
     # ---------------------------------------------------------------- the user's own actions on a result

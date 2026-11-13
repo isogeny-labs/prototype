@@ -6,6 +6,8 @@
 - The signing key is made on first start, kept in the data folder with mode 0600, and never leaves this
   module: no API returns it, nothing logs it, no container can see it.
 - E is built field by field from an explicit list. Nothing is copied from a database row wholesale.
+- It also holds the Fixes step: each fix, and for a code change the change itself, every proof of it (the proof
+  record, its fingerprint, the review and each proof run in full), the pull request, the approvals and the merge.
 - The HTML report is static: every value is escaped, there are no scripts and no remote resources.
 
 Check a downloaded file with:  cd backend && .venv/bin/python -m evidence verify <file.json>
@@ -23,16 +25,17 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlalchemy import select
 
-from . import components
+from . import components, present_fixes
 from .canonical import canonical_bytes, sha256_hex
 from .db import (
-    EvidenceExportRow, ImportRow, PlanItemRow, PlanRow, ResearchRequestRow, RetestRow, ReviewMarkRow, ReviewRow,
-    TestRunRow, TestSpecRow, VerifyRunRow, iso,
+    ChangeRow, CodeConnectionRow, EvidenceExportRow, ImportRow, PlanItemRow, PlanRow, ProofReviewRow, ProofRow,
+    ResearchRequestRow, RetestRow, ReviewMarkRow, ReviewRow, TestRunRow, TestSpecRow, VerifyRunRow, iso,
 )
 from .errors import Conflict, NotFound
+from .gitrepo import GitRepoError
 from .guidance import OWN_LINKS
-from .present import DISCLAIMER
-from .testlab import RUNNER_ID, read_spec, review_dict, run_record
+from .present import DISCLAIMER, TITLES
+from .testlab import CODE_KEYS, RUNNER_ID, read_spec, review_dict, run_record
 from .vectors import WYCHEPROOF_SOURCE_URL
 
 EVIDENCE_SCHEMA = "isogeny.evidence/1"
@@ -160,6 +163,8 @@ def _result_view(r: dict) -> dict:
     return {
         **_pick(r, ("run_id", "component", "mode", "finished_at", "duration_ms", "code", "label", "tone", "summary", "short",
                     "shows_title", "fix_title", "suggested_fix")),
+        # the one line that stands in place of the suggested fix when the fix is in the Fixes part
+        "fix_line": _pick(r["fix_line"], ("fix_id", "lead", "rest")) if r.get("fix_line") else None,
         "control": _pick(r.get("control"), ("outcome", "line", "text")),
         "what_happened": [str(x) for x in r.get("what_happened") or []],
         "shows": [str(x) for x in r.get("shows") or []],
@@ -185,21 +190,108 @@ def _review(row: ReviewRow) -> dict:
             "detail": r["detail"], "created_at": r["created_at"]}
 
 
-def _run_entry(db, phase: str, view: dict) -> dict | None:
-    """Everything kept about one shown run: the run record as fingerprinted, the review, and the worded result."""
-    run = db.get(TestRunRow, view.get("run_id"))
+def _run_entry(lab, db, phase: str, view: dict | None) -> dict | None:
+    """Everything kept about one shown run: the run record as fingerprinted, the review, the worded result, and
+    which code it ran on (kept beside the run record, not inside its fingerprint)."""
+    run = db.get(TestRunRow, view.get("run_id")) if view else None
     review = db.scalars(select(ReviewRow).where(ReviewRow.run_id == run.id)).first() if run is not None else None
     if run is None or review is None:
         return None  # nothing is exported without a review
     record = run_record(run)
+    code = lab._run_code(db, run.id)
     mark = db.scalars(select(ReviewMarkRow).where(ReviewMarkRow.run_id == run.id)).first()
     request = db.scalars(select(ResearchRequestRow).where(ResearchRequestRow.run_id == run.id)).first()
     return {"phase": phase, "run_id": run.id, "record": record, "run_sha256": sha256_hex(record), "review": _review(review),
+            "code": _pick(code, CODE_KEYS) if code else None,
             "result": _result_view(view), "reviewed_at": iso(mark.created_at) if mark else None,
             "research_request": ({"id": request.id, "finding": request.finding, "question": request.question,
                                   "evidence": _pick(request.evidence, ("run_id", "spec_hash", "review_id")),
                                   "status": request.status, "engine": request.engine, "created_at": iso(request.created_at)}
                                  if request else None)}
+
+
+def _suggestion(shown: dict) -> dict | None:
+    """A text-only fix's suggestion, exactly as the Fixes step showed it, copied field by field."""
+    section = next((x for x in shown.get("sections") or [] if x.get("key") == "suggestion"), None)
+    if section is None:
+        return None
+    given = section.get("suggestion") or {}
+    where, options, exact = given.get("where"), given.get("options"), given.get("exact")
+    return {
+        "intro": [str(x) for x in given.get("intro") or []],
+        "warning": _pick(given["warning"], ("title", "text")) if given.get("warning") else None,
+        "where": ({**_pick(where, ("title", "note")), "columns": [str(x) for x in where.get("columns") or []],
+                   "rows": [_pick(row, ("place", "setting", "lead", "code")) for row in where.get("rows") or []],
+                   "after": [str(x) for x in where.get("after") or []]} if where else None),
+        "options": ({"title": options.get("title"),
+                     "items": [{**_pick(item, ("title", "when", "note")), "steps": [str(x) for x in item.get("steps") or []]}
+                               for item in options.get("items") or []]} if options else None),
+        "exact": ({**_pick(exact, ("title", "note")), "blocks": [_pick(block, ("place", "code")) for block in exact.get("blocks") or []]}
+                  if exact else None),
+    }
+
+
+def _proof_entry(lab, db, proof: ProofRow, change: ChangeRow) -> dict:
+    """One proof of a change: the record its fingerprint is made from, that fingerprint, the review as the read
+    gate lets it through, and every test with the first result it was compared with and its proof run in full."""
+    tests = lab._proof_tests(db, proof)
+    record = lab._proof_record(proof, change, tests)
+    review = lab._proof_review(db, proof, change, tests)
+    stored = db.scalars(select(ProofReviewRow).where(ProofReviewRow.proof_id == proof.id)).first()
+    checks = {check.get("item_id"): check for check in (review or {}).get("tests") or []}
+    rows = []
+    for test in tests:
+        first = db.get(TestRunRow, test["first"]["run_id"]) if test["first"] else None
+        run = lab._latest_run(db, test["item_id"], "proof", proof.id)
+        result = lab._result(db, run) if run is not None else None
+        # the two cells of the proof table, in the words the Fixes step shows them in
+        before = present_fixes.proof_cell(lab._result(db, first) if first is not None else None, test["kind"], "before")
+        check = checks.get(test["item_id"])
+        rows.append({"item_id": test["item_id"], "kind": test["kind"], "title": TITLES.get(test["kind"], str(test["kind"])),
+                     "target": test["target"],
+                     "first": ({**_pick(test["first"], ("run_id", "run_sha256", "code", "reason_code")), **_pick(before, ("label", "short"))}
+                               if test["first"] else None),
+                     "shown": _pick(present_fixes.proof_cell(result, test["kind"], "proof"), ("label", "tone", "short")) if result else None,
+                     "run": _run_entry(lab, db, "proof", result) if run is not None else None,
+                     "check": ({**_pick(check, ("group", "ok", "reason")), "text": present_fixes.CHECK_WORDS.get(check.get("reason"))}
+                               if check else None)})
+    return {"id": proof.id, "started_at": iso(proof.started_at), "baseline_version": proof.baseline_version, "version": proof.version,
+            "record": record, "record_sha256": sha256_hex(record), "outcome": present_fixes.proof_outcome(review),
+            "review": ({**_pick(review, ("reviewed_at", "believed", "offered", "problem", "record_sha256", "checks", "counts")),
+                        "reviewer": stored.reviewer if review["believed"] else None} if review else None),
+            "tests": rows}
+
+
+def _fix_entry(lab, db, fix: dict, shown: dict) -> dict:
+    """One fix: what the Fixes step showed about it and, for a code change, the records behind every step."""
+    entry = {"id": fix["id"], "kind": fix["kind"], "title": shown.get("title"), "status": (shown.get("status") or {}).get("word"),
+             "source": {"kind": fix["source_kind"], "text": shown.get("list_source"),
+                        "results": [_pick(answer, ("item_id", "kind", "run_id", "phase")) for answer in fix["answers"]]},
+             "suggestion": _suggestion(shown), "change": None, "proofs": [], "pull_request": None, "approvals": [], "merge": None}
+    change, request, merge = fix["change"], fix["pull_request"], fix["merge"]
+    if change is None:
+        return entry
+    try:
+        patch = lab._patch_text(fix)
+    except (GitRepoError, OSError):
+        patch = None  # the copy of the repository could not be read: the records below still stand
+    row = db.get(ChangeRow, change["id"])
+    entry["change"] = {
+        **_pick(change, ("fix_key", "source_kind", "written_by", "template_id", "proposed_by", "title", "branch", "base_commit",
+                         "head_commit", "created_at")),
+        "label": next(iter(shown.get("labels") or []), None), "size": present_fixes.size_words(change),
+        "files": [_pick(f, ("name", "added", "removed", "old_blob", "new_blob", "old_sha256", "new_sha256")) for f in change["files"]],
+        "built": {**_pick(change["built"], ("file", "sha256")),
+                  "matches": _pick(change["built"]["matches"], ("name", "version")) if change["built"].get("matches") else None},
+        "patch": patch}
+    entry["proofs"] = [_proof_entry(lab, db, proof, row)
+                       for proof in db.scalars(select(ProofRow).where(ProofRow.change_id == row.id).order_by(ProofRow.id)).all()]
+    if request is not None:
+        entry["pull_request"] = _pick(request, ("number", "title", "proof_id", "reviewers", "opened_at"))
+        entry["approvals"] = [_pick(a, ("reviewer", "name", "approved_at")) for a in request["approvals"]]
+    if merge is not None:
+        entry["merge"] = _pick(merge, ("merge_commit", "merged_at"))
+    return entry
 
 
 def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
@@ -212,12 +304,13 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
         verify = db.scalars(select(VerifyRunRow).where(VerifyRunRow.import_id == imp.id)
                             .order_by(VerifyRunRow.id.desc()).limit(1)).first()
         retest = db.scalars(select(RetestRow).where(RetestRow.plan_id == plan_id).order_by(RetestRow.id.desc()).limit(1)).first()
+        connection = db.scalars(select(CodeConnectionRow).where(CodeConnectionRow.plan_id == plan_id)).first()
         tests = []
         for row in view["rows"]:
             item = db.get(PlanItemRow, row["item_id"])
             spec_row = db.get(TestSpecRow, item.spec_hash)
             spec, spec_ok = read_spec(spec_row)
-            runs = [_run_entry(db, phase, row[key]) for phase, key in (("first", "result"), ("retest", "after")) if row.get(key)]
+            runs = [_run_entry(lab, db, phase, row[key]) for phase, key in (("first", "result"), ("retest", "after")) if row.get(key)]
             tests.append({"item_id": item.id, "kind": row["kind"], "title": row["title"], "origin": item.origin,
                           "spec_hash": item.spec_hash, "spec_hash_ok": bool(spec_ok),
                           "locked_at": iso(spec_row.locked_at) if spec_row else None,
@@ -244,7 +337,14 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
             "component": ({"name": plan.component_name, "version": plan.component_version} if plan.component_name else None),
             "tests": tests,
             "retest": ({"baseline_version": retest.baseline_version, "version": retest.version, "started_at": iso(retest.created_at),
-                        "columns": view.get("columns")} if retest else None),
+                        "columns": view.get("columns"),
+                        "code_line": "".join(str(part.get("v")) for part in view["code_line"]) if view.get("code_line") else None}
+                       if retest else None),
+            # The source code connected for this plan (the app's own copy of a demo repository), and the Fixes step.
+            "code": ({"repository": connection.repository, "branch": connection.branch, "base_commit": connection.base_commit,
+                      "component": {"name": connection.component_name, "version": connection.component_version},
+                      "is_demo": bool(connection.is_demo), "connected_at": iso(connection.created_at)} if connection else None),
+            "fixes": [_fix_entry(lab, db, fix, shown) for fix, shown in lab._fix_details(db, plan)],
             "signer_key_fingerprint": key_fingerprint(public),
         }
     return _clean(evidence)
@@ -349,8 +449,11 @@ def _result_html(heading: str, entry: dict) -> _Safe:
         el("p", t(locked.get("note")), cls="note"),
         el("h4", t("Control")), el("p", t((r.get("control") or {}).get("text"))),
     ]
+    line = r.get("fix_line")
     if r.get("suggested_fix"):
         parts += [el("h4", t(r.get("fix_title"))), el("p", t(r["suggested_fix"]))]
+    elif line:
+        parts += [el("h4", t("Fix")), el("p", el("strong", t(line.get("lead"))), t(f" {line.get('rest')}. It is in part 4, Fixes."))]
     if r.get("reviewed"):
         parts.append(el("p", t(f"{r['reviewed'].get('text')} "), _when(r["reviewed"].get("at"))))
     research = r.get("research")
@@ -358,6 +461,98 @@ def _result_html(heading: str, entry: dict) -> _Safe:
         parts += [el("h4", t(f"{research.get('title')} ({research.get('badge')})")),
                   el("ul", *[el("li", t(f"{f.get('label')}: {f.get('value')}")) for f in research.get("fields") or []], cls="meta"),
                   el("p", t(research.get("status_line"))), el("p", t(research.get("note")), cls="note")]
+    return el("div", *parts, cls="result")
+
+
+def _words_html(text: object) -> _Safe:
+    """A sentence in which the words between backticks are names (a setting, a cipher suite): those are set as code."""
+    pieces = ("" if text is None else str(text)).split("`")
+    return _join(el("code", t(piece)) if n % 2 else t(piece) for n, piece in enumerate(pieces))
+
+
+def _suggestion_html(given: dict) -> list[_Safe]:
+    """A text-only suggestion, in the order the Fixes step shows it: the warning before any setting."""
+    warning, where, options, exact = given.get("warning"), given.get("where"), given.get("options"), given.get("exact")
+    parts = [el("h4", t("The suggestion (text only: the app has not applied it or tested it)")),
+             *[el("p", _words_html(line)) for line in given.get("intro") or []]]
+    if warning:
+        parts.append(el("p", el("strong", t(warning.get("title"))), _Safe(" "), _words_html(warning.get("text"))))
+    if where:
+        parts += [el("h4", t(where.get("title"))), el("p", t(where.get("note")), cls="note"),
+                  el("table", el("thead", el("tr", *[el("th", t(column)) for column in where.get("columns") or []])),
+                     el("tbody", *[el("tr", el("td", t(row.get("place"))), el("td", _words_html(row.get("setting"))),
+                                      el("td", t(f"{row.get('lead')} " if row.get("lead") else ""), el("code", t(row.get("code")))))
+                                   for row in where.get("rows") or []])),
+                  *[el("p", _words_html(line)) for line in where.get("after") or []]]
+    if options:
+        parts.append(el("h4", t(options.get("title"))))
+        for item in options.get("items") or []:
+            parts += [el("p", el("strong", t(item.get("title"))), _Safe(" "), t(item.get("when"))),
+                      el("ul", *[el("li", _words_html(step)) for step in item.get("steps") or []]),
+                      el("p", t(item.get("note")), cls="note") if item.get("note") else _Safe("")]
+    if exact:
+        parts += [el("h4", t(exact.get("title"))), el("p", t(exact.get("note")), cls="note"),
+                  *[_join([el("p", t(block.get("place"))), el("pre", t(block.get("code")))]) for block in exact.get("blocks") or []]]
+    return parts
+
+
+def _proof_html(heading: str, proof: dict) -> list[_Safe]:
+    review = proof.get("review")
+    # the fingerprint the reviewer gave this proof: shown only while the stored review still stands (as on the screen)
+    fingerprint = (review or {}).get("record_sha256")
+    rows = []
+    for test in proof.get("tests") or []:
+        first, run, check = test.get("first") or {}, (test.get("run") or {}).get("result") or {}, test.get("check") or {}
+        shown = test.get("shown") or {}
+        rows.append(el("tr", el("td", t(test.get("title"))),
+                       el("td", el("strong", t(first.get("label"))), _Safe(" "), t(first.get("short"))),
+                       el("td", el("strong", t(shown.get("label"))), _Safe(" "), t(shown.get("short")), _Safe(" "),
+                          t((run.get("control") or {}).get("line"))),
+                       el("td", t(check.get("text")))))
+    return [el("h4", t(heading)),
+            el("p", el("strong", t(proof.get("outcome"))), t(" Started "), _when(proof.get("started_at")),
+               *([t("; reviewed "), _when(review.get("reviewed_at"))] if review else []), _Safe(" "), _tag("measured")),
+            el("p", t("Evidence fingerprint of the proof (SHA-256): "), el("code", t(fingerprint))) if fingerprint else _Safe(""),
+            el("table", el("thead", el("tr", *[el("th", t(column)) for column in ("Test", "Before", "On the changed code", "Rule check")])),
+               el("tbody", *rows)),
+            el("p", t("The JSON file holds every run of this proof in full (its run record, fingerprint and review)"
+                      + (", and the proof record this fingerprint is made from." if fingerprint else ".")), cls="note")]
+
+
+def _fix_html(fix: dict) -> _Safe:
+    """One fix, as the Fixes step showed it. A change is called passed or merged only where its records say so."""
+    source, suggestion, change = fix.get("source") or {}, fix.get("suggestion"), fix.get("change")
+    request, merge, proofs = fix.get("pull_request"), fix.get("merge"), fix.get("proofs") or []
+    parts = [el("h3", t(fix.get("title"))),
+             el("p", el("strong", t(fix.get("status")), cls="badge"), _Safe(" "), t(source.get("text")))]
+    if suggestion:
+        parts += _suggestion_html(suggestion)
+    if change:
+        built = change.get("built") or {}
+        matches = built.get("matches")
+        same = (f"byte for byte the same as our bundled demo component {matches.get('name')} {matches.get('version')}, and that component "
+                "is what the proof ran" if isinstance(matches, dict) else "not one of our demo components, so nothing was run")
+        parts += [el("h4", t("The change"), _Safe(" "), _tag(change.get("label"))),
+                  el("p", t(f"{change.get('title')}. {change.get('size')}.")),
+                  el("ul", el("li", t(f"Change branch {change.get('branch')}, commit {change.get('head_commit')}")),
+                     el("li", t(f"Starting point: commit {change.get('base_commit')}")),
+                     *[el("li", t(f"File {f.get('name')}: SHA-256 before {f.get('old_sha256')}, after {f.get('new_sha256')}"))
+                       for f in change.get("files") or []],
+                     el("li", t(f"Code check: the built file (SHA-256 {built.get('sha256')}) is {same}.")), cls="meta"),
+                  el("details", el("summary", t("The change as a patch")), el("pre", t(change.get("patch")))) if change.get("patch") else _Safe("")]
+        for n, proof in enumerate(proofs, start=1):
+            parts += _proof_html("Proof" if len(proofs) == 1 else f"Proof {n} of {len(proofs)}", proof)
+    if not suggestion and not change:
+        parts.append(el("p", t("A fix template exists for this failure. The code was not connected when this file was made, so no "
+                               "change had been prepared or proved.")))
+    if request:
+        parts += [el("h4", t(f"Pull request #{request.get('number')}")),
+                  el("p", t(f"{request.get('title')}. Opened "), _when(request.get("opened_at")), t(". It stays inside the app.")),
+                  el("ul", *[el("li", t(f"{a.get('name')}: "), *([t("approved "), _when(a.get("approved_at"))] if a.get("approved_at")
+                                                                 else [t("has not approved")])) for a in fix.get("approvals") or []], cls="meta")]
+    if merge:
+        parts.append(el("p", t("Merged "), _when(merge.get("merged_at")), t(f" by the person logged in, after confirming (merge commit "
+                                                                           f"{merge.get('merge_commit')}). Nothing was deployed.")))
     return el("div", *parts, cls="result")
 
 
@@ -421,6 +616,7 @@ def render_report_html(envelope: dict) -> bytes:
         columns = retest.get("columns") or {}
         body.append(el("p", t(f"Before and after: the same locked tests were run on version {retest.get('baseline_version')} "
                               f"and then on version {retest.get('version')}. Retest started "), _when(retest.get("started_at"))))
+        body.append(el("p", t(retest.get("code_line"))) if retest.get("code_line") else _Safe(""))
     for test in e.get("tests") or []:
         body.append(el("h2", t(test.get("title"))))
         body.append(el("p", t(test.get("control_line"))) if test.get("control_line") else _Safe(""))
@@ -428,10 +624,22 @@ def render_report_html(envelope: dict) -> bytes:
             body.append(el("p", t("Not run yet. No result.")))
         for entry in test.get("runs") or []:
             if retest:
-                heading = (columns.get("after") if entry.get("phase") == "retest" else columns.get("before")) or entry.get("phase")
+                # the column heading, with the code that side ran on where every result on it ran on the same code
+                heading = ((columns.get("after_heading") or columns.get("after")) if entry.get("phase") == "retest"
+                           else (columns.get("before_heading") or columns.get("before"))) or entry.get("phase")
             else:
                 heading = "Result"
             body.append(_result_html(str(heading), entry))
+    code, fixes = e.get("code"), e.get("fixes") or []
+    body.append(el("h2", t("4. Fixes")))
+    if code:
+        component = code.get("component") or {}
+        body.append(el("p", t(f"Code connected: the app's own copy of the repository {code.get('repository')}, branch {code.get('branch')}, "
+                              f"commit {code.get('base_commit')} ({component.get('name')} {component.get('version')}). "),
+                       _tag("demo") if code.get("is_demo") is True else _Safe("")))
+    if not fixes:
+        body.append(el("p", t("No failed test had a fix when this file was made.")))
+    body += [_fix_html(fix) for fix in fixes]
     body.append(el("p", t("End of report. " + REPORT_LINE), cls="note"))
     page = (f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{html.escape(CSP, quote=True)}">\n'

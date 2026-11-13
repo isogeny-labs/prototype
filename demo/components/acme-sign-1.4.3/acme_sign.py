@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
-"""acme-sign 1.4.3 -- DEMO SOFTWARE. DO NOT USE FOR ANYTHING REAL.
+"""acme-sign -- DEMO SOFTWARE. DO NOT USE FOR ANYTHING REAL.
 
 This is fictional software shipped with the Isogeny Evidence Lab demo ("Acme Pay").
 It signs and verifies with ECDSA on the P-256 curve with SHA-256 (DER signatures).
-
-This is the corrected version of acme-sign 1.4.2. That version's `verify` command never
-checked that r and s are in the range 1..n-1 (the same kind of mistake as CVE-2022-21449).
-1.4.3 adds that one check. Nothing else is different.
 
 How it is called: one command word (keygen | sign | verify | info | bench) as the first
 argument, a JSON object on standard input, a JSON object on standard output.
@@ -173,11 +169,11 @@ def cmd_verify(req):
     if not (1 <= r < N and 1 <= s < N):
         return {"valid": False}
     e = digest_int(message)
-    w = pow(s, N - 2, N)  # "inverse" of s by Fermat's little theorem; quietly gives 0 when s is 0
+    w = pow(s, N - 2, N)
     u1 = e * w % N
     u2 = r * w % N
     pt = add(mul(u1, G), mul(u2, q))
-    x = 0 if pt is INFINITY else pt[0]  # the point at infinity is treated as x = 0
+    x = 0 if pt is INFINITY else pt[0]
     return {"valid": x % N == r}
 
 

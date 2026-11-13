@@ -3,12 +3,13 @@ import { api, errorMessage, setUnauthorizedHandler, type Address, type Import, t
 import { LoginScreen, SetupScreen } from "./components/AuthScreens";
 import { CopilotPanel } from "./components/CopilotPanel";
 import { EvidenceLabScreen } from "./components/EvidenceLabScreen";
+import { FixesScreen } from "./components/FixesScreen";
 import { ImportScreen } from "./components/ImportScreen";
 import { TestsScreen } from "./components/TestsScreen";
 import { VerifyScreen } from "./components/VerifyScreen";
 import { ErrorBox, Wordmark } from "./components/ui";
 
-type Step = "import" | "verify" | "tests" | "lab";
+type Step = "import" | "verify" | "tests" | "lab" | "fixes";
 
 const STEP_KEY = "evidence-lab-step";
 
@@ -35,6 +36,7 @@ const STEPS: { step: Step; label: string }[] = [
   { step: "verify", label: "2. Verify" },
   { step: "tests", label: "3. Tests" },
   { step: "lab", label: "4. Evidence Lab" },
+  { step: "fixes", label: "5. Fixes" },
 ];
 
 function StepBar({
@@ -86,6 +88,8 @@ export default function App() {
   const [run, setRun] = useState<VerifyRun | null>(null);
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [step, setStep] = useState<Step>("import");
+  // The fix that is open in the Fixes step. "View in Fixes" in Evidence Lab sets it.
+  const [fixId, setFixId] = useState<string | null>(null);
 
   const go = useCallback((next: Step) => {
     setStep(next);
@@ -109,7 +113,7 @@ export default function App() {
       setRun(latest);
       setPlan(existingPlan);
       const wanted = rememberedStep();
-      if (wanted === "lab" && existingPlan?.has_results) setStep("lab");
+      if ((wanted === "lab" || wanted === "fixes") && existingPlan?.has_results) setStep(wanted);
       else if (wanted === "tests" && current) setStep("tests");
       else if (wanted === "import") setStep("import");
       else setStep(latest ? "verify" : "import");
@@ -158,8 +162,10 @@ export default function App() {
   }
 
   // A step whose data is gone (for example after a failed import) falls back to Import.
+  // Fixes opens whenever Evidence Lab does: both need results.
+  const hasResults = plan?.has_results === true;
   const shown: Step =
-    (step === "verify" && imp && run) || (step === "tests" && imp) || (step === "lab" && imp && plan?.has_results)
+    (step === "verify" && imp && run) || (step === "tests" && imp) || ((step === "lab" || step === "fixes") && imp && hasResults)
       ? step
       : "import";
 
@@ -170,7 +176,7 @@ export default function App() {
           <Wordmark />
           <StepBar
             step={shown}
-            canOpen={{ import: true, verify: run !== null, tests: imp !== null, lab: plan?.has_results === true }}
+            canOpen={{ import: true, verify: run !== null, tests: imp !== null, lab: hasResults, fixes: hasResults }}
             onGo={go}
           />
         </div>
@@ -214,7 +220,15 @@ export default function App() {
             ) : shown === "tests" && imp ? (
               <TestsScreen importId={imp.id} plan={plan} onPlan={setPlan} />
             ) : shown === "lab" && plan ? (
-              <EvidenceLabScreen planId={plan.id} />
+              <EvidenceLabScreen
+                planId={plan.id}
+                onViewFix={(id) => {
+                  setFixId(id);
+                  go("fixes");
+                }}
+              />
+            ) : shown === "fixes" && plan ? (
+              <FixesScreen planId={plan.id} selectedId={fixId} onSelect={setFixId} onRetestStarted={() => go("lab")} />
             ) : null}
           </div>
         </main>

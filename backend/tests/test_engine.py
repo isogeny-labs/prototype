@@ -59,7 +59,7 @@ def test_the_reviewer_refuses_a_test_it_proposed_and_proposes_nothing():
     with pytest.raises(ReviewNotAllowed):
         RuleReviewer().review({"spec": spec, "spec_hash": sha256_hex(spec), "proposed_by": RuleReviewer.engine_id, "run": {}})
     assert RuleReviewer.engine_id != RuleEngine.engine_id
-    for call in (lambda r: r.propose_tests([]), lambda r: r.design_test({}), lambda r: r.dig_deeper({})):
+    for call in (lambda r: r.propose_tests([]), lambda r: r.design_test({}), lambda r: r.dig_deeper({}), lambda r: r.propose_change({})):
         with pytest.raises(NotImplementedError):
             call(RuleReviewer())
 

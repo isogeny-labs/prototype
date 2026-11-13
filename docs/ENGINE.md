@@ -25,6 +25,7 @@ class ResearchEngine(Protocol):          # backend/app/research.py
     def design_test(self, request: dict) -> dict          # {"catalog_id": str, "claims": [...]} -> TestSpec
     def review(self, result: dict) -> dict                # {"spec", "spec_hash", "proposed_by", "run": RunRecord} -> Review
     def dig_deeper(self, finding: dict) -> dict           # {"run_id", "spec", "review", "view"} -> research request
+    def propose_change(self, request: dict) -> dict | None  # failed results + the code as text -> a code change, or None
 ```
 
 | Call | Used by | What the rule-based version does |
@@ -33,10 +34,74 @@ class ResearchEngine(Protocol):          # backend/app/research.py
 | `design_test` | **+ Add test** | Returns one test from the catalog: `pq_readiness`, `mldsa_compare`, or a suggested test that was removed. Raises `CannotDesign` if the test does not fit the file. |
 | `review` | after every run, and again every time a result is read | Only `RuleReviewer` does this. `RuleEngine.review` always refuses (`ReviewNotAllowed`), and the reviewer refuses a test it proposed itself. |
 | `dig_deeper` | **Dig deeper** | Writes down the finding and one question. Looks into nothing. |
+| `propose_change` | **Connect demo code**, and the Fixes list before the code is connected | Applies the one fix template (below), or returns `None`. No AI model writes anything. `RuleReviewer.propose_change` always refuses. |
 
 `RuleReviewer` is the only module with pass/fail logic. The code that runs tests
 (`backend/app/execute/`) returns raw outcomes only, and the code that words results
 (`backend/app/present.py`) reads the verdict from the stored review.
+
+### `propose_change`: a code change from a fix template
+
+Everything in the request is data. The code is given as text and is never run by the engine:
+
+```python
+{"component": {"name": "acme-sign", "version": "1.4.2"},
+ "failed": [{"kind": "bad_signatures", "reason_code": None, "detail": {...the review's detail...}}, ...],
+ "files": {"acme_sign.py": "<the whole file as text>"}}
+```
+
+The rule-based engine holds **one** template, `ecdsa-range-check`, for the component `acme-sign`. It answers a
+failed `official_vectors` or `bad_signatures` result whose wrong cases all come from values outside the allowed
+range. The template is a list of exact-line edits; it applies only if every one of its anchors is found in the
+file exactly once. Otherwise the answer is `None`. The reply:
+
+```python
+{"template_id": "ecdsa-range-check", "title": "Reject signatures whose r or s is out of range",
+ "branch": "fix/ecdsa-range-check", "label": "From a fix template",
+ "answers": [1],                           # which entries of request["failed"] this change answers
+ "files": {"acme_sign.py": "<new text>"},  # every file that was given, the changed one replaced
+ "edits": [{"file", "title", "why", "context_before", "context_after",      # what the screen shows for each edit,
+            "old_start", "old_end", "new_start", "new_end"}, ...]}          # and the lines it changed (from 0, end not included)
+```
+
+A proposed change is never offered because the engine proposed it. It is proved first (every test in the plan
+is rerun on it), and the separate reviewer decides (`RuleReviewer.review_proof`, below).
+
+### `review_proof`: may a change be offered?
+
+`RuleReviewer.review_proof(record)` decides from the proof record alone; it reads no file and runs nothing. It
+refuses (`ReviewNotAllowed`) a change it proposed itself. The record (`schema: "isogeny.proof/1"`):
+
+```python
+{"schema": "isogeny.proof/1",
+ "change": {"fix_key", "template_id", "branch", "base_commit", "head_commit", "files": [...]},
+ "built": {"file", "sha256", "matches": {"name", "version"} | None},   # the byte-for-byte check, made by the caller
+ "baseline_version": "1.4.2", "version": "1.4.3", "proposed_by": "isogeny.rule-engine/1",
+ "tests": [{"item_id", "kind", "spec_hash", "target": "software" | "server",
+            "first": {"run_sha256", "code", "reason_code"} | None,                      # the result it is compared with
+            "proof": {"run_sha256", "code", "reason_code", "control_outcome"} | None}]}  # its run on the changed code
+```
+
+The change is offered only if all of these hold:
+
+1. the changed code is byte for byte one of our registered demo components, and that version is what ran;
+2. every test in the proof has a run;
+3. every test that runs the changed code passed on it: `official_vectors` and `bad_signatures` Passed,
+   `speed_size` No slowdown beyond measured noise, and a report-only test (`mldsa_compare`) only has to run.
+   There must be at least one such test;
+4. the control behaved in every proof run that reached a result;
+5. every server test came out the same as before: the same result and the same reason. A test that could not
+   run before, for the same reason, counts as unchanged.
+
+The answer (`schema: "isogeny.proof-review/1"`): `reviewer`, `record_sha256` (the SHA-256 of the record: the
+fingerprint of the proof), `offered`, `checks` (`code_is_ours`, `changed_code_passed`, `controls_behaved`,
+`server_unchanged`), `counts`, and for each test its `group` (`code` or `server`), `ok` and a `reason`
+(`passed`, `no_slowdown`, `ran`, `same_as_before`, `did_not_pass`, `control_misbehaved`, `changed`, `no_run`,
+`nothing_to_compare`).
+
+The same read gate as for results applies: whenever a proof's answer is shown or used, the record is rebuilt
+from the stored rows (each run through its own read gate) and reviewed again. If that does not give exactly the
+stored answer, the proof counts as not offered: "The stored proof no longer matches its fingerprint."
 
 ## The path every test takes
 

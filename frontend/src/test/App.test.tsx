@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import App from "../App";
-import { address, calls, demoImport, lab, mockApi, notFound, plan, run, session, text } from "./fixtures";
+import { CODE_FIX, TLS_FIX, fixesViews } from "./fixesFixtures";
+import { address, beforeAfter, calls, demoImport, lab, mockApi, notFound, plan, run, session, text } from "./fixtures";
 
 describe("first run and login", () => {
   it("shows the create-password screen the first time", async () => {
@@ -70,10 +71,18 @@ describe("app shell", () => {
     expect(screen.getByText("Demo mode: running our own demo software, not isolated.")).not.toBeNull();
 
     const steps = within(screen.getByRole("navigation", { name: "Steps" }));
+    expect(steps.getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "1. Import",
+      "2. Verify",
+      "3. Tests",
+      "4. Evidence Lab",
+      "5. Fixes",
+    ]);
     expect(steps.getByRole("button", { name: /Import/ }).getAttribute("aria-current")).toBe("step");
     expect((steps.getByRole("button", { name: /Verify/ }) as HTMLButtonElement).disabled).toBe(true);
     expect((steps.getByRole("button", { name: "3. Tests" }) as HTMLButtonElement).disabled).toBe(true);
     expect((steps.getByRole("button", { name: "4. Evidence Lab" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((steps.getByRole("button", { name: "5. Fixes" }) as HTMLButtonElement).disabled).toBe(true);
     expect(document.body.textContent).not.toMatch(/Coming in phase 2/);
   });
 
@@ -138,9 +147,11 @@ describe("full flow", () => {
     const steps = within(screen.getByRole("navigation", { name: "Steps" }));
     const tests = steps.getByRole("button", { name: "3. Tests" }) as HTMLButtonElement;
     const labStep = steps.getByRole("button", { name: "4. Evidence Lab" }) as HTMLButtonElement;
-    // Tests opens once there is an import; Evidence Lab waits for results.
+    const fixesStep = steps.getByRole("button", { name: "5. Fixes" }) as HTMLButtonElement;
+    // Tests opens once there is an import; Evidence Lab and Fixes wait for results.
     expect(tests.disabled).toBe(false);
     expect(labStep.disabled).toBe(true);
+    expect(fixesStep.disabled).toBe(true);
 
     const verify = screen.getByRole("button", { name: "Verify claims" });
     expect((verify as HTMLButtonElement).disabled).toBe(true);
@@ -169,6 +180,7 @@ describe("full flow", () => {
     expect(steps.getAllByRole("button").filter((b) => b.getAttribute("aria-current") === "step")).toEqual([tests]);
     expect(labStep.disabled).toBe(true);
     expect(labStep.getAttribute("aria-current")).toBeNull();
+    expect(fixesStep.disabled).toBe(true);
     // No "continue" button on Tests: the step bar is the way forward.
     expect(screen.queryByRole("button", { name: /continue/i })).toBeNull();
   });
@@ -195,6 +207,155 @@ describe("full flow", () => {
 
     fireEvent.click(steps.getByRole("button", { name: "3. Tests" }));
     expect(await screen.findAllByTestId("test-card")).toHaveLength(5);
+  });
+
+  // Everything the Fixes tests below need: a plan with results, its Evidence Lab and its fixes.
+  const withFixes = (fixes = fixesViews.ready) => ({
+    "GET /api/session": { body: session },
+    "GET /api/import/current": { body: demoImport },
+    "GET /api/import/7/verify": { body: run },
+    "GET /api/import/7/plan": { body: { ...plan, has_results: true } },
+    "POST /api/import/7/plan": { body: { ...plan, has_results: true } },
+    "GET /api/plans/1/lab": { body: lab },
+    "GET /api/plans/1/fixes": { body: fixes },
+  });
+  const stepButton = (name: string) =>
+    within(screen.getByRole("navigation", { name: "Steps" })).getByRole("button", { name }) as HTMLButtonElement;
+  const currentSteps = () =>
+    within(screen.getByRole("navigation", { name: "Steps" }))
+      .getAllByRole("button")
+      .filter((b) => b.getAttribute("aria-current") === "step")
+      .map((b) => b.textContent);
+  const expandRow = (title: string) => fireEvent.click(screen.getByRole("button", { name: title }));
+  const rowOf = (title: string) => screen.getAllByTestId("lab-row").find((r) => within(r).queryByRole("heading", { name: title }))!;
+  const viewInFixes = (title: string) => fireEvent.click(within(rowOf(title)).getByRole("button", { name: "View in Fixes" }));
+
+  it("opens Fixes from the step bar whenever Evidence Lab can be opened", async () => {
+    const fetchMock = mockApi(withFixes());
+    render(<App />);
+    await screen.findByRole("heading", { name: "Verify" });
+    expect(stepButton("4. Evidence Lab").disabled).toBe(false);
+    expect(stepButton("5. Fixes").disabled).toBe(false);
+    expect(calls(fetchMock)).not.toContain("GET /api/plans/1/fixes");
+
+    fireEvent.click(stepButton("5. Fixes"));
+    const summary = await screen.findByTestId("fix-summary");
+    expect(screen.getByRole("heading", { level: 1, name: "Fixes" })).not.toBeNull();
+    expect(currentSteps()).toEqual(["5. Fixes"]);
+    // With nothing asked for, the first fix in the list is the one shown.
+    expect(summary.getAttribute("data-fix-id")).toBe(CODE_FIX);
+    expect(screen.getByTestId("copilot-panel")).not.toBeNull();
+    expect(screen.getByTestId("mode-line")).not.toBeNull();
+
+    fireEvent.click(stepButton("4. Evidence Lab"));
+    expect(await screen.findAllByTestId("lab-row")).toHaveLength(5);
+    expect(currentSteps()).toEqual(["4. Evidence Lab"]);
+  });
+
+  it("View in Fixes on an Evidence Lab line opens the Fixes step with that fix selected", async () => {
+    mockApi(withFixes());
+    render(<App />);
+    await screen.findByRole("heading", { name: "Verify" });
+    fireEvent.click(stepButton("4. Evidence Lab"));
+    await screen.findAllByTestId("lab-row");
+
+    // The server finding's line opens the second fix in the list, not the first.
+    expandRow("Old TLS versions");
+    viewInFixes("Old TLS versions");
+    expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(TLS_FIX);
+    expect(currentSteps()).toEqual(["5. Fixes"]);
+    expect(screen.getByRole("heading", { level: 2, name: "Server accepts TLS 1.2" })).not.toBeNull();
+    const selected = () =>
+      within(screen.getByRole("navigation", { name: /^Open findings with a fix/ }))
+        .getAllByRole("button")
+        .map((b) => b.getAttribute("aria-current"));
+    expect(selected()).toEqual([null, "true"]);
+
+    // And the signing finding's line opens its own fix.
+    fireEvent.click(stepButton("4. Evidence Lab"));
+    await screen.findAllByTestId("lab-row");
+    expandRow("Official test vectors");
+    viewInFixes("Official test vectors");
+    expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(CODE_FIX);
+    expect(selected()).toEqual(["true", null]);
+  });
+
+  it("keeps the fix that was picked in Fixes while the user looks at another step", async () => {
+    mockApi(withFixes());
+    render(<App />);
+    await screen.findByRole("heading", { name: "Verify" });
+    fireEvent.click(stepButton("5. Fixes"));
+    await screen.findByTestId("fix-summary");
+    fireEvent.click(screen.getByRole("button", { name: /^Server accepts TLS 1\.2/ }));
+    expect(screen.getByTestId("fix-summary").getAttribute("data-fix-id")).toBe(TLS_FIX);
+
+    fireEvent.click(stepButton("4. Evidence Lab"));
+    await screen.findAllByTestId("lab-row");
+    fireEvent.click(stepButton("5. Fixes"));
+    expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(TLS_FIX);
+  });
+
+  it("Retest now calls its route and then opens Evidence Lab, where before and after show", async () => {
+    const retest = `POST /api/plans/1/fixes/${CODE_FIX}/retest`;
+    let retested = false;
+    const fetchMock = mockApi({
+      ...withFixes(fixesViews.merged),
+      "GET /api/plans/1/lab": () => ({ body: retested ? beforeAfter : lab }),
+      [retest]: () => {
+        retested = true;
+        return { body: beforeAfter };
+      },
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Verify" });
+    fireEvent.click(stepButton("5. Fixes"));
+    await screen.findByTestId("fix-summary");
+
+    fireEvent.click(screen.getByRole("button", { name: "Retest now" }));
+    expect(await screen.findByTestId("lab-columns")).not.toBeNull();
+    expect(currentSteps()).toEqual(["4. Evidence Lab"]);
+    expect(screen.queryByTestId("fix-summary")).toBeNull();
+    expect(calls(fetchMock).slice(-3)).toEqual(["GET /api/plans/1/fixes", retest, "GET /api/plans/1/lab"]);
+    expect(calls(fetchMock).filter((c) => c === retest)).toHaveLength(1);
+  });
+
+  it("stays on Fixes when Retest now is refused", async () => {
+    mockApi({
+      ...withFixes(fixesViews.merged),
+      [`POST /api/plans/1/fixes/${CODE_FIX}/retest`]: {
+        status: 409,
+        body: { error: { message: "A retest is running. Wait until it has finished.", line: null, field: null } },
+      },
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Verify" });
+    fireEvent.click(stepButton("5. Fixes"));
+    await screen.findByTestId("fix-summary");
+    fireEvent.click(screen.getByRole("button", { name: "Retest now" }));
+    expect(text(await screen.findByRole("alert"))).toBe("A retest is running. Wait until it has finished.");
+    expect(currentSteps()).toEqual(["5. Fixes"]);
+  });
+
+  it("comes back to Fixes after a refresh", async () => {
+    mockApi(withFixes());
+    const first = render(<App />);
+    await screen.findByRole("heading", { name: "Verify" });
+    fireEvent.click(stepButton("5. Fixes"));
+    await screen.findByTestId("fix-summary");
+    first.unmount();
+
+    render(<App />);
+    expect(await screen.findByTestId("fix-summary")).not.toBeNull();
+    expect(currentSteps()).toEqual(["5. Fixes"]);
+  });
+
+  it("falls back to an earlier step after a refresh when the plan has no results any more", async () => {
+    window.sessionStorage.setItem("evidence-lab-step", "fixes");
+    mockApi({ ...withFixes(), "GET /api/import/7/plan": { body: plan } });
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Verify" })).not.toBeNull();
+    expect(stepButton("5. Fixes").disabled).toBe(true);
+    expect(screen.queryByTestId("fix-summary")).toBeNull();
   });
 
   it("comes back to the step that was open after a refresh", async () => {
@@ -225,10 +386,11 @@ describe("full flow", () => {
       "GET /api/import/7/plan": { body: { ...plan, has_results: true } },
       "POST /api/import/7/plan": { body: { ...plan, has_results: true } },
       "GET /api/plans/1/lab": { body: lab },
+      "GET /api/plans/1/fixes": { body: fixesViews.ready },
     });
     render(<App />);
     await screen.findByRole("heading", { name: "Verify" });
-    for (const [name, testId] of [["3. Tests", "test-card"], ["4. Evidence Lab", "lab-row"]] as const) {
+    for (const [name, testId] of [["3. Tests", "test-card"], ["4. Evidence Lab", "lab-row"], ["5. Fixes", "fix-summary"]] as const) {
       fireEvent.click(screen.getByRole("button", { name }));
       await screen.findAllByTestId(testId);
       expect(document.querySelector('input[type="file"]')).toBeNull();

@@ -10,8 +10,11 @@ Order of decisions, the same for every test:
   4. the reference library got a case wrong              -> Couldn't trust this run
   5. the rule, applied to the raw outcome                -> the result
 
-It never reviews a test it proposed itself. It imports nothing from the engine that proposes tests, the
-code that runs them or the code that words them for the screen (a test checks this)."""
+It also decides, in review_proof, whether a proposed code change may be offered: from the proof record only
+(the reviewed results of every test rerun on the changed code, next to the first results), never from a file.
+
+It never reviews a test or a change it proposed itself. It imports nothing from the engine that proposes
+them, the code that runs tests or the code that words results for the screen (a test checks this)."""
 from __future__ import annotations
 
 import math
@@ -22,6 +25,11 @@ from . import vectors
 from .canonical import sha256_hex
 
 REVIEW_SCHEMA = "isogeny.review/1"
+PROOF_SCHEMA = "isogeny.proof/1"
+PROOF_REVIEW_SCHEMA = "isogeny.proof-review/1"
+# What "passed on the changed code" means for each kind of test that runs it. A report-only test has no
+# pass or fail: it only has to run.
+PROOF_PASS_CODES = {"official_vectors": "passed", "bad_signatures": "passed", "speed_size": "no_slowdown", "mldsa_compare": "measured"}
 
 # Why a test could not run, in plain words (the text inside "Couldn't run (...)").
 COULDNT_RUN_REASONS = {
@@ -120,6 +128,9 @@ class RuleReviewer:
 
     def dig_deeper(self, finding: dict) -> dict:
         raise NotImplementedError("The reviewer does not file research requests.")
+
+    def propose_change(self, request: dict) -> dict | None:
+        raise NotImplementedError("The reviewer does not propose changes.")
 
     def review(self, result: dict) -> dict:
         spec, spec_hash, proposed_by, run = result["spec"], result["spec_hash"], result["proposed_by"], result["run"]
@@ -338,7 +349,7 @@ class RuleReviewer:
         inputs, rule = spec["inputs"], spec["rule"]
         rounds, repeats = inputs["rounds"], inputs["repeats"]
         benches = raw["benches"]
-        retest = run.get("phase") == "retest"
+        retest = run.get("phase") in ("retest", "proof")  # a proof times the old and the changed code side by side too
         base_role = "new" if retest else "subject"
         base = self._series(benches, base_role, rounds, repeats)
         old = self._series(benches, "old", rounds, repeats) if retest else None
@@ -431,3 +442,52 @@ class RuleReviewer:
         review["detail"] = detail
         return "measured", None
 
+    # ---------------------------------------------------------------- the offer rule (a proposed code change)
+
+    def review_proof(self, record: dict) -> dict:
+        """May this change be offered? Decided from the proof record alone. Offered only if ALL of these hold:
+          1. the changed code is byte for byte one of our registered demo components, and that is what ran
+             (the caller made the comparison and passes the fact; no file is read here);
+          2. every test in the proof has a run;
+          3. every test that runs the changed code passed on it (a report-only test only has to run), and
+             there is at least one such test;
+          4. the control behaved in every proof run that reached a result;
+          5. every server test came out the same as before: the same result and the same reason. A test that
+             could not run before, for the same reason, counts as unchanged; its control was not run."""
+        if record.get("proposed_by") == self.engine_id:
+            raise ReviewNotAllowed("The reviewer never reviews a change it proposed itself.")
+        matches = (record.get("built") or {}).get("matches")
+        code_is_ours = (isinstance(matches, dict) and bool(matches.get("name")) and bool(matches.get("version"))
+                        and matches.get("version") == record.get("version"))
+        tests = []
+        for test in record.get("tests") or []:
+            first, run = test.get("first"), test.get("proof")
+            group = "server" if test.get("target") == "server" else "code"
+            if run is None:
+                held, control_ok, reason = False, True, "no_run"
+            else:
+                # A run that could not run has no control outcome to judge; any other run must have a behaving control.
+                control_ok = run.get("code") == "couldnt_run" or run.get("control_outcome") == "as_expected"
+                if group == "code":
+                    held = run.get("code") == PROOF_PASS_CODES.get(test.get("kind"))
+                    reason = (run["code"] if run["code"] in ("passed", "no_slowdown") else "ran") if held else "did_not_pass"
+                elif first is None:
+                    held, reason = False, "nothing_to_compare"
+                else:
+                    held = (run.get("code"), run.get("reason_code")) == (first.get("code"), first.get("reason_code"))
+                    reason = "same_as_before" if held else "changed"
+                if not control_ok:
+                    reason = "control_misbehaved"
+            tests.append({"item_id": test.get("item_id"), "kind": test.get("kind"), "group": group, "held": held,
+                          "control_ok": control_ok, "ok": held and control_ok, "reason": reason})
+        code = [t for t in tests if t["group"] == "code"]
+        server = [t for t in tests if t["group"] == "server"]
+        checks = {"code_is_ours": bool(code_is_ours),
+                  "changed_code_passed": bool(code) and all(t["held"] for t in code),
+                  "controls_behaved": all(t["control_ok"] for t in tests),
+                  "server_unchanged": all(t["held"] for t in server)}
+        counts = {"tests": len(tests), "code": len(code), "code_ok": sum(t["ok"] for t in code),
+                  "server": len(server), "server_ok": sum(t["ok"] for t in server)}
+        return {"reviewer": self.engine_id, "schema": PROOF_REVIEW_SCHEMA, "record_sha256": sha256_hex(record),
+                "offered": all(checks.values()), "checks": checks, "counts": counts,
+                "tests": [{k: t[k] for k in ("item_id", "kind", "group", "ok", "reason")} for t in tests]}

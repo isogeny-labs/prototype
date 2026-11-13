@@ -31,7 +31,8 @@ How Kevin works with you: he's not a developer and doesn't use git. Explain in p
 - Accuracy check: `cd backend && .venv/bin/python -m app.accuracy` (all 15 answers through the same path as the buttons; compares with `demo/expected.json`; exit code 0 only if all match; `--mode demo` or `--mode isolated` picks the mode).
 - Check a downloaded evidence file: `cd backend && .venv/bin/python -m evidence verify file.json` (exit code 0 only if nothing changed and the signer is this app's key; `--data-dir DIR` or `--public-key HEX_OR_FILE` to name the trusted key).
 - Frontend tests: `cd frontend && npm run typecheck && npm test`. Build: `npm run build`.
-- Playwright end-to-end: `cd e2e && npm test` (builds the frontend, starts its own app on port 8010 with a throwaway data folder; stop the app first, it needs port 8443; screenshots go to `docs/screenshots/phase1/` and `docs/screenshots/phase2/`).
+- Playwright end-to-end: `cd e2e && npm test` (builds the frontend, starts its own app on port 8010 with a throwaway data folder; stop the app first, it needs port 8443; screenshots go to `docs/screenshots/phase1/`, `docs/screenshots/phase2/` and `docs/screenshots/phase3a/`).
+- Remake the bundled demo repository: `cd backend && .venv/bin/python -m app.demo_repo` (writes `demo/repos/acme-sign.git/` from the acme-sign 1.4.2 file; needed only if that file changes, and a backend test fails until it is done).
 
 ## How each phase runs
 1. Plan first: list the files, screens and buttons, and how you'll prove it works. Wait for my OK before writing code.

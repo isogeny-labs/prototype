@@ -10,7 +10,7 @@ import pytest
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
-from app import components
+from app import components, gitrepo
 from app.compare import COULDNT, FALSE, TRUE
 from app.components import WITHHELD, lookup, run_component, verify_software_claim
 from app.config import DEMO_DIR
@@ -75,9 +75,9 @@ def test_runner_time_limit(tmp_path):
 
 # ------------------------------------------------------------------ acme-sign 1.4.2 itself
 
-def test_component_is_standalone_and_marked_as_deliberately_flawed():
+def test_component_is_standalone_and_marked_as_demo_software():
     source = ACME.read_text()
-    assert "DELIBERATELY FLAWED" in source.split('"""')[1]
+    assert "DEMO SOFTWARE. DO NOT USE FOR ANYTHING REAL." in source.split('"""')[1]
     imports = {line.split()[1].split(".")[0] for line in source.splitlines() if line.startswith(("import ", "from "))}
     assert imports <= {"hashlib", "hmac", "json", "secrets", "sys", "time"}  # standard library only, never the app
 
@@ -119,13 +119,16 @@ def test_component_also_verifies_signatures_made_by_pyca():
         assert acme.cmd_verify({"public_key": public.hex(), "message": message.hex(), "signature": sig.hex()})["valid"]
 
 
-def test_planted_bug_is_present_in_1_4_2():
-    """The demo depends on this flaw (same kind as CVE-2022-21449). It is a job for the phase 2 tests to
-    catch it; the Verify step does not try this case."""
-    acme = load_acme()
-    keys = acme.cmd_keygen({})
+def test_the_bug_is_still_in_1_4_2_and_gone_in_1_4_3():
+    """The demo depends on this bug (same kind as CVE-2022-21449): 1.4.2 never checks that r and s are in range.
+    The file no longer says so in its comments, so this test is what keeps the bug there. It is a job for the
+    phase 2 tests to catch it; the Verify step does not try this case."""
     zero = "3006020100020100"  # DER for r = 0, s = 0
-    assert acme.cmd_verify({"public_key": keys["public_key"], "message": b"anything".hex(), "signature": zero})["valid"]
+    for path, accepted in ((ACME, True), (ACME_143, False)):
+        acme = load_acme(path)
+        keys = acme.cmd_keygen({})
+        request = {"public_key": keys["public_key"], "message": b"anything".hex(), "signature": zero}
+        assert acme.cmd_verify(request) == {"valid": accepted}, path.parent.name
 
 
 # ------------------------------------------------------------------ the Verify step for a software claim
@@ -333,20 +336,40 @@ def test_bench_shape_counts_and_no_private_key(path):
         assert rc == 1 and set(err) == {"error"}
 
 
-def test_1_4_3_differs_from_1_4_2_only_by_version_docstring_and_the_range_check():
-    def body(path):
-        source = path.read_text()
-        return source.split('"""', 2)[2].splitlines()  # everything after the opening description
-    old, new = body(ACME), body(ACME_143)
-    assert len(old) == len(new)
-    changed = [(a, b) for a, b in zip(old, new) if a != b]
-    assert changed == [
-        ('VERSION = "1.4.2"', 'VERSION = "1.4.3"'),
-        ("    # PLANTED BUG (demo): a correct verifier rejects here unless 1 <= r < N and 1 <= s < N.",
-         "    if not (1 <= r < N and 1 <= s < N):"),
-        ("    # 1.4.2 skips that check.", '        return {"valid": False}'),
-    ]
-    assert "DELIBERATELY FLAWED" in ACME.read_text() and "DELIBERATELY FLAWED" not in ACME_143.read_text()
+RANGE_CHECK = '    if not (1 <= r < N and 1 <= s < N):\n        return {"valid": False}\n'
+
+
+def test_1_4_3_differs_from_1_4_2_only_by_the_version_line_and_the_range_check():
+    """The change Fixes shows is the whole difference between the two files: 3 lines added and 1 removed."""
+    old, new = ACME.read_text(), ACME_143.read_text()
+    assert old.split('"""')[1] == new.split('"""')[1]            # the same description, word for word
+    # taking the fix out of 1.4.3 gives 1.4.2 exactly
+    assert new.count(RANGE_CHECK) == 1 and new.count('VERSION = "1.4.3"\n') == 1
+    assert new.replace(RANGE_CHECK, "").replace('VERSION = "1.4.3"\n', 'VERSION = "1.4.2"\n') == old
+    # the app's own way of counting and placing the change (what the screen and the patch show) says the same
+    assert gitrepo.count_changes(old, new) == (3, 1)
+    version, check = gitrepo.changed_spots(old, new)
+    old_lines, new_lines = old.split("\n"), new.split("\n")
+    assert (old_lines[version.old_start:version.old_end], new_lines[version.new_start:version.new_end]) == (
+        ['VERSION = "1.4.2"'], ['VERSION = "1.4.3"'])
+    assert check.removed == 0 and new_lines[check.new_start:check.new_end] == RANGE_CHECK.splitlines()
+    # the two new lines come right after the lines that turn away a signature that cannot be read
+    assert old_lines[check.old_start - 4:check.old_start + 1] == [
+        "    try:", '        r, s = der_decode(bytes.fromhex(req["signature"]))', "    except ValueError:",
+        '        return {"valid": False}', "    e = digest_int(message)"]
+
+
+@pytest.mark.parametrize("path", [ACME, ACME_143])
+def test_demo_programs_do_not_point_at_the_bug(path):
+    """The comments that gave the bug away are gone from both versions (SPEC 7b). What the demo is stays said
+    by the Demo data labels and docs/LIMITS.md."""
+    source = path.read_text()
+    for word in ("planted", "deliberately", "flaw", "cve", "quietly", "bug"):
+        assert word not in source.lower(), word
+    description = source.split('"""')[1]
+    assert "DEMO SOFTWARE. DO NOT USE FOR ANYTHING REAL." in description
+    assert not re.search(r"\d+\.\d+", description)                             # no version number in it
+    assert "#" not in source.split("def cmd_verify")[1].split("\ndef ")[0]     # the signature check carries no comment
 
 
 @pytest.mark.parametrize("path", [ACME, ACME_143])

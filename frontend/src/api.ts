@@ -120,7 +120,8 @@ export type ResultCode =
 
 export type Tone = "pass" | "fail" | "neutral" | "warn";
 export type JobStatus = "not_run" | "waiting" | "running" | "done";
-export type RichPart = { t: "text" | "mono" | "tag" | "time"; v: string };
+/** "demo" is drawn as the violet "Demo data" label. */
+export type RichPart = { t: "text" | "mono" | "tag" | "time" | "demo"; v: string };
 export type RichText = RichPart[];
 
 export interface Progress {
@@ -244,6 +245,8 @@ export interface LabResult extends Badge {
   locked_test: LockedTestView;
   fix_title: string;
   suggested_fix: string | null;
+  /** When set, suggested_fix is null and the "Suggested fix" box is not drawn. */
+  fix_line: FixLine | null;
   reviewed: { at: string; text: string } | null;
   research: ResearchView | null;
 }
@@ -277,8 +280,20 @@ export interface LabView {
   is_demo: boolean;
   view: "results" | "before_after";
   subline: RichText;
+  /** "Code they ran on: before, ...; after, ..." (before/after view only). */
+  code_line: RichText | null;
   disclaimer: string;
-  columns: { test: string; before: string; after: string } | null;
+  columns: {
+    test: string;
+    before: string;
+    after: string;
+    /** The second line under each heading: which code that side ran on. */
+    before_note: RichText;
+    after_note: RichText;
+    /** The headings of the opened details. */
+    before_heading: string;
+    after_heading: string;
+  } | null;
   rows: LabRow[];
   retest: {
     can_start: boolean;
@@ -301,6 +316,210 @@ export interface EvidenceExport {
   html: { url: string; filename: string };
   message: string;
   verify_hint: string;
+}
+
+// ---- Phase 3a: the Fixes step. Everything a user reads is in here as text written by the backend. ----
+
+/** The one line on a failed result that has a fix in the Fixes step. */
+export interface FixLine {
+  fix_id: string;                 // which fix "View in Fixes" opens
+  lead: string;                   // "Fix ready:"            (drawn bold)
+  rest: string;                   // "3 lines added and 1 removed, proof passed"
+  look: "plain" | "pass" | "fail" | "dashed";
+  busy: boolean;                  // true while the proof runs: a small spinner before the words
+  button: string;                 // "View in Fixes"
+}
+
+export type FixStatusKey =
+  | "not_connected"
+  | "proving"
+  | "ready"
+  | "failed"
+  | "waiting"
+  | "ready_to_merge"
+  | "merged"
+  | "text_only";
+
+export interface FixStatus {
+  key: FixStatusKey;
+  word: string;                   // "Ready for review"
+  busy: boolean;                  // true while proving: the chip shows a spinner
+}
+
+/** "Before: " + strong + rest, e.g. lead "Before:", strong "acme-sign 1.4.2", rest ", nothing removed here". */
+export interface StrongLabel {
+  lead: string;
+  strong: string;
+  rest: string;
+}
+
+/** One line of code in a before or after block. n is the line number in that version of the file. */
+export interface DiffLine {
+  n: number;
+  mark: " " | "-" | "+";
+  text: string;
+}
+
+export interface ChangePart {
+  title: string;                  // "1. The check: reject a signature whose numbers are out of range"
+  why: string;
+  before_label: StrongLabel;
+  before: DiffLine[];
+  after_label: StrongLabel;
+  after: DiffLine[];
+}
+
+/** A result badge and one line under it, as in Evidence Lab's before/after cells. */
+export interface ProofCell {
+  label: string;
+  tone: Tone;
+  short: string;
+}
+
+export interface ProofWaiting {
+  text: string;                   // "Running" or "Waiting"
+  detail: string | null;          // "212 of 484 cases"
+  percent: number | null;
+}
+
+export interface ProofRow {
+  kind: TestKind;
+  title: string;
+  before: ProofCell | null;       // the first result this is compared with
+  proof: ProofCell | null;        // null while this test has no proof result yet
+  waiting: ProofWaiting | null;   // set while it is waiting or running
+  control: string;                // the control line under the proof cell
+  check: { ok: boolean | null; text: string };   // "Passed", "No slowdown", "Same as before", "Did not pass", "Not finished yet"
+}
+
+export interface ProofTable {
+  heading: string;                // "Tests that run the changed code"
+  tag: string;                    // "measured"
+  need: string;
+  columns: [string, string, string, string];     // "Test", "Before: acme-sign 1.4.2", "On the changed code", "Rule check"
+  rows: ProofRow[];
+}
+
+export interface ProofVerdict {
+  tone: "pass" | "fail";
+  title: string;                  // "Why it is ready for review" | "Why this change is not offered"
+  checks: { ok: boolean; text: string }[];
+  shows_title: string | null;     // "What this proof shows, and what it doesn't"
+  shows: string[];
+}
+
+export interface DetailFact {
+  label: string;
+  value: RichText;
+  fingerprint: boolean;           // true: draw the value small, fixed-width, breaking anywhere
+}
+
+export interface RanOn {
+  title: string;                  // "What the tests ran on"
+  text: RichText;
+  fingerprints: { label: string; value: string; tag: string }[];
+  note: string;
+}
+
+/** The fuller text-only suggestion. Words between backticks are names: fixed width, never broken across lines. */
+export interface TextSuggestion {
+  intro: string[];
+  warning: { title: string; text: string } | null;
+  where: {
+    title: string;
+    note: string;
+    columns: [string, string, string];
+    rows: { place: string; setting: string; lead: string; code: string }[];
+    after: string[];
+  } | null;
+  options: { title: string; items: { title: string; when: string; steps: string[]; note: string }[] } | null;
+  exact: { title: string; note: string; blocks: { place: string; code: string }[] } | null;
+}
+
+export type FixSection =
+  | { key: "change"; title: string; line: string; open: boolean; intro: string; parts: ChangePart[] }
+  | {
+      key: "proof";
+      title: string;
+      line: string;               // the one-line summary shown while folded
+      open: boolean;
+      intro: string;
+      tables: ProofTable[];
+      verdict: ProofVerdict | null;      // null while the proof runs
+    }
+  | { key: "details"; title: string; line: string; open: boolean; facts: DetailFact[]; note: string; ran_on: RanOn | null }
+  | { key: "suggestion"; title: string; line: string; open: boolean; suggestion: TextSuggestion };
+
+export interface ReviewerOption {
+  id: string;                     // "you" | "a" | "b"
+  name: string;                   // "You" | "Demo reviewer A"
+  note: string | null;            // "(the person logged in)"
+  demo: boolean;                  // true: the Demo data label follows the name
+  checked: boolean;               // ticked by default
+}
+
+export interface ApprovalRowView {
+  id: string;
+  name: string;
+  note: string | null;
+  demo: boolean;
+  approved_at: string | null;     // ISO time, or null while waiting
+  approved_text: string | null;   // "Approved"
+  approve_label: string | null;   // "Approve" | "Approve as Demo reviewer A"; null once approved or after the merge
+  primary: boolean;               // the "You" row's button is the primary look
+}
+
+export interface FixApprovers {
+  text: string | null;            // a plain sentence, when there is nothing to pick or approve
+  options: ReviewerOption[] | null;      // the tick list (status "ready")
+  rows: ApprovalRowView[] | null;        // once a pull request exists
+  footnote: string | null;        // the one-login sentence
+}
+
+export type FixAction = "connect" | "run_proof_again" | "open_pull_request" | "merge" | "download_patch" | "retest_now";
+
+export interface FixButton {
+  action: FixAction;
+  label: string;
+  primary: boolean;
+  enabled: boolean;
+}
+
+export interface FixDetail {
+  id: string;                     // "fix-ecdsa-range-check" | "fix-tls-versions"
+  kind: "code" | "text";
+  title: string;
+  list_source: string;            // in the list: "Came from 2 failed tests: Official test vectors, Bad signatures"
+  source: RichText;               // in the summary: "Came from 2 failed tests on signing component acme-sign 1.4.2: ..."
+  status: FixStatus;
+  labels: string[];               // ["From a fix template"] for a code fix, [] for a text one
+  is_demo: boolean;
+  what: { label: string; paragraphs: RichText[]; server_line: string | null };
+  proof: {
+    state: "none" | "not_started" | "running" | "passed" | "failed";
+    badge: { label: string; tone: Tone } | null;
+    text: string;
+    muted: string | null;         // "Not offered yet."
+  };
+  pull_request: { title: string; text: RichText } | null;
+  approvers: FixApprovers;
+  actions: { buttons: FixButton[]; note: string | null };
+  patch: { url: string; filename: string } | null;
+  merge_dialog: { title: string; paragraphs: RichText[]; confirm: string; cancel: string } | null;
+  sections: FixSection[];
+  sections_note: string | null;   // shown instead of sections before the code is connected
+}
+
+export interface FixesView {
+  plan_id: number;
+  is_demo: boolean;
+  title: string;                  // "Fixes"
+  subline: string;
+  disclaimer: string;
+  list_title: string;             // "Open findings with a fix (2)"
+  empty_text: string | null;      // when no failed test has a fix: one plain sentence, and fixes is []
+  fixes: FixDetail[];             // in list order; the list on the left is drawn from these too
+  busy: boolean;                  // something is running: ask again in a second
 }
 
 export class ApiError extends Error {
@@ -398,6 +617,10 @@ async function orNullOn404<T>(promise: Promise<T>): Promise<T | null> {
 
 export const MAX_UPLOAD_BYTES = 1024 * 1024;
 
+function fixPath(planId: number, fixId: string): string {
+  return `/api/plans/${planId}/fixes/${encodeURIComponent(fixId)}`;
+}
+
 export const api = {
   getSession: () => request<Session>("/api/session"),
 
@@ -461,6 +684,28 @@ export const api = {
     request<LabView>(`/api/plans/${planId}/retest`, { method: "POST", json: { version } }),
 
   exportEvidence: (planId: number) => request<EvidenceExport>(`/api/plans/${planId}/evidence`, { method: "POST" }),
+
+  // The Fixes step. Every call answers with the whole view as it now stands. Nothing here sends code.
+  getFixes: (planId: number) => request<FixesView>(`/api/plans/${planId}/fixes`),
+
+  connectCode: (planId: number) => request<FixesView>(`/api/plans/${planId}/fixes/connect`, { method: "POST" }),
+
+  runProofAgain: (planId: number, fixId: string) =>
+    request<FixesView>(`${fixPath(planId, fixId)}/proof`, { method: "POST" }),
+
+  openPullRequest: (planId: number, fixId: string, reviewers: string[]) =>
+    request<FixesView>(`${fixPath(planId, fixId)}/pull-request`, { method: "POST", json: { reviewers } }),
+
+  approve: (planId: number, fixId: string, reviewer: string) =>
+    request<FixesView>(`${fixPath(planId, fixId)}/approve`, { method: "POST", json: { reviewer } }),
+
+  /** Only the "Confirm merge" button calls this. */
+  mergePullRequest: (planId: number, fixId: string) =>
+    request<FixesView>(`${fixPath(planId, fixId)}/merge`, { method: "POST" }),
+
+  /** The same retest as "Retest new version", on the merged version. Answers with the Evidence Lab view. */
+  retestNow: (planId: number, fixId: string) =>
+    request<LabView>(`${fixPath(planId, fixId)}/retest`, { method: "POST" }),
 };
 
 export function errorMessage(e: unknown): string {

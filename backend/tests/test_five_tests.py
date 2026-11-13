@@ -43,7 +43,10 @@ def test_old_tls_versions_fails_and_its_control_is_derived_from_the_claim(demo_f
     assert raw["control"]["accepts"] == "TLS 1.2" and raw["control"]["versions"]["TLS 1.2"]["state"] == "accepted"
     assert raw["control"]["versions"]["TLS 1.1"]["state"] == "refused"   # it accepts exactly one step too far
     assert raw["control"]["port"] != demo_flow.lab.settings.demo_tls_port
-    assert "TLS 1.2" in result["suggested_fix"]
+    # the fix is in the Fixes step: Evidence Lab shows one line that points to it, in place of the suggested fix
+    assert result["suggested_fix"] is None
+    assert result["fix_line"] == {"fix_id": "fix-tls-versions", "lead": "Text-only suggestion:", "rest": "a server setting",
+                                  "look": "dashed", "busy": False, "button": "View in Fixes"}
 
 
 def test_certificate_passes_with_the_nist_note_and_the_weak_certificate_is_really_served(demo_flow):
@@ -65,7 +68,9 @@ def test_official_vectors_fail_on_exactly_168_171_364(demo_flow):
     assert table["title"] == "The 3 cases it got wrong" and [r[0] for r in table["rows"]] == ["168", "171", "364"]
     assert all(r[2:] == ["reject", "accepted"] for r in table["rows"])
     assert "all 310 invalid cases wrong" in result["control"]["text"]
-    assert "acme-sign 1.4.3" in result["suggested_fix"] and "Retest new version" in result["suggested_fix"]
+    assert result["suggested_fix"] is None
+    assert result["fix_line"] == {"fix_id": "fix-ecdsa-range-check", "lead": "Fix available,", "rest": "code not connected",
+                                  "look": "plain", "busy": False, "button": "View in Fixes"}
     raw = raw_of(demo_flow.lab, result)
     assert len(raw["subject"]["answers"]) == 484 and len(raw["reference"]["ed25519"]["answers"]) == 210
     assert "ed25519_test.json" in raw["files"]
@@ -97,7 +102,7 @@ def test_bad_signatures_run_alone_cites_no_other_result(lab):
     result = run_kind(lab, plan, "bad_signatures")
     assert result["label"] == "Failed" and result["short"] == "Accepts the signature r=0, s=0. One cause: no range check."
     assert "official" not in result["summary"] and "official" not in result["short"]
-    assert "acme-sign 1.4.3" in result["suggested_fix"]
+    assert result["suggested_fix"] is None and result["fix_line"]["lead"] == "Fix available,"
 
 
 def test_speed_is_measured_with_its_numbers_labelled(demo_flow):
@@ -129,7 +134,10 @@ def test_wording_rules_hold_on_every_result(demo_flow):
                 if r:
                     assert r["shows_title"] == "What this shows, and what it doesn't" and len(r["shows"]) == 2
                     assert r["shows"][0].startswith("It shows") and r["shows"][1].startswith("It doesn't")
-                    assert r["what_happened"] and r["suggested_fix"] and r["run_record"]["outputs"]
+                    assert r["what_happened"] and r["run_record"]["outputs"]
+                    # a suggested fix, or the one line that points to the fix in the Fixes step: never both, never neither
+                    assert bool(r["suggested_fix"]) != bool(r["fix_line"])
+                    assert (r["fix_line"] is not None) == (r["tone"] == "fail")
 
 
 # ---------------------------------------------------------------- a control that is not broken, or that breaks down

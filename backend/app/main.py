@@ -4,13 +4,15 @@ Start it with:  python -m app      (from the backend folder; listens on 127.0.0.
 """
 from __future__ import annotations
 
+import re
 from contextlib import asynccontextmanager
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, StrictBool, StrictInt
+from pydantic import BaseModel, Field, StrictBool, StrictInt, StrictStr
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -40,6 +42,32 @@ class AddTestBody(BaseModel):
 
 class RetestBody(BaseModel):
     version: str = Field(max_length=50)
+
+
+class PullRequestBody(BaseModel):
+    # The picked reviewers, as ids from the fixed list (Lab checks each one against it).
+    reviewers: list[Annotated[StrictStr, Field(max_length=16)]] = Field(max_length=8)
+
+
+class ApproveBody(BaseModel):
+    reviewer: StrictStr = Field(max_length=16)
+
+
+FIX_ID = re.compile(r"[a-z0-9-]{1,48}")
+
+
+def known_shape(fix_id: str) -> str:
+    """A fix id as the app itself makes them, or 404. Whether the plan has that fix is checked in Lab."""
+    if not FIX_ID.fullmatch(fix_id):
+        raise NotFound("That fix does not exist.")
+    return fix_id
+
+
+def download(filename: str, data: bytes, media_type: str) -> Response:
+    """A file to save, never a page of this app: a saved report or patch is opened from disk, where it can reach nothing."""
+    return Response(content=data, media_type=media_type, headers={
+        "Content-Disposition": f'attachment; filename="{filename}"', "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox", "Cache-Control": "no-store"})
 
 
 def error_response(status: int, message: str, line: int | None = None, field: str | None = None) -> JSONResponse:
@@ -224,11 +252,49 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/evidence/{export_id}/{which}", dependencies=[Depends(require_login)])
     def evidence_file(export_id: int, which: str):
-        filename, data, media_type = lab.evidence_file(export_id, which)
-        # Always a download, never a page of this app: the report is opened from disk, where it can reach nothing.
-        return Response(content=data, media_type=media_type, headers={
-            "Content-Disposition": f'attachment; filename="{filename}"', "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox", "Cache-Control": "no-store"})
+        return download(*lab.evidence_file(export_id, which))
+
+    # ---------------------------------------------------------------- Fixes (all need login)
+    # Each route is one action by the person at the keyboard; the app never merges on its own. The bodies are
+    # two small JSON objects that name reviewers from a fixed list. Nothing here accepts software or a file.
+
+    @app.get("/api/plans/{plan_id}/fixes", dependencies=[Depends(require_login)])
+    def fixes_view(plan_id: int):
+        return lab.fixes_view(plan_id)
+
+    @app.post("/api/plans/{plan_id}/fixes/connect", dependencies=[Depends(require_login)])
+    def connect_code(plan_id: int):
+        lab.connect_code(plan_id)
+        return lab.fixes_view(plan_id)
+
+    @app.post("/api/plans/{plan_id}/fixes/{fix_id}/proof", dependencies=[Depends(require_login)])
+    def run_proof_again(plan_id: int, fix_id: str):
+        lab.run_proof_again(plan_id, known_shape(fix_id))
+        return lab.fixes_view(plan_id)
+
+    @app.post("/api/plans/{plan_id}/fixes/{fix_id}/pull-request", dependencies=[Depends(require_login)])
+    def open_pull_request(plan_id: int, fix_id: str, body: PullRequestBody):
+        lab.open_pull_request(plan_id, known_shape(fix_id), list(body.reviewers))
+        return lab.fixes_view(plan_id)
+
+    @app.post("/api/plans/{plan_id}/fixes/{fix_id}/approve", dependencies=[Depends(require_login)])
+    def approve(plan_id: int, fix_id: str, body: ApproveBody):
+        lab.approve(plan_id, known_shape(fix_id), body.reviewer)
+        return lab.fixes_view(plan_id)
+
+    @app.post("/api/plans/{plan_id}/fixes/{fix_id}/merge", dependencies=[Depends(require_login)])
+    def merge(plan_id: int, fix_id: str):
+        lab.merge(plan_id, known_shape(fix_id))  # sent by "Confirm merge" only
+        return lab.fixes_view(plan_id)
+
+    @app.post("/api/plans/{plan_id}/fixes/{fix_id}/retest", dependencies=[Depends(require_login)])
+    def retest_now(plan_id: int, fix_id: str):
+        return lab.retest_now(plan_id, known_shape(fix_id))
+
+    @app.get("/api/plans/{plan_id}/fixes/{fix_id}/patch", dependencies=[Depends(require_login)])
+    def patch_file(plan_id: int, fix_id: str):
+        filename, data = lab.patch_file(plan_id, known_shape(fix_id))
+        return download(filename, data, "text/x-patch; charset=utf-8")
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def no_such_api(rest: str):

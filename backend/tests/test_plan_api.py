@@ -121,7 +121,9 @@ def test_run_one_then_the_lab_then_mark_and_dig(client):
     result = row["result"]
     assert set(result) == {"run_id", "component", "mode", "finished_at", "duration_ms", "code", "label", "tone", "summary", "short",
                            "control", "what_happened", "shows_title", "shows", "evidence", "run_record", "locked_test", "fix_title",
-                           "suggested_fix", "reviewed", "research"}
+                           "suggested_fix", "fix_line", "reviewed", "research"}
+    # a failed result whose fix is in the Fixes step shows one line in place of the "Suggested fix" text
+    assert result["suggested_fix"] is None and result["fix_line"]["fix_id"] == "fix-ecdsa-range-check"
     assert result["component"] == "acme-sign 1.4.2" and result["mode"] == "demo" and result["reviewed"] is None and result["research"] is None
     assert row["control_line"] == "Control: a deliberately broken signer failed this test, as expected."
     assert lab["retest"]["can_start"] is False  # not every test has a result yet
@@ -154,24 +156,33 @@ NEW_ROUTES = [
     ("POST", "/api/plans/1/tests"), ("POST", "/api/plans/1/tests/1/remove"), ("POST", "/api/plans/1/tests/1/run"),
     ("POST", "/api/plans/1/run-all"), ("GET", "/api/plans/1/lab"), ("POST", "/api/runs/1/mark-reviewed"),
     ("POST", "/api/runs/1/dig-deeper"), ("POST", "/api/plans/1/retest"),
+    # phase 3a: the Fixes step
+    ("GET", "/api/plans/1/fixes"), ("POST", "/api/plans/1/fixes/connect"), ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/proof"),
+    ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/pull-request"), ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/approve"),
+    ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/merge"), ("POST", "/api/plans/1/fixes/fix-ecdsa-range-check/retest"),
+    ("GET", "/api/plans/1/fixes/fix-ecdsa-range-check/patch"),
 ]
 
 
 @pytest.mark.parametrize("method, path", NEW_ROUTES)
 def test_every_new_route_needs_a_login(anon_client, method, path):
-    response = anon_client.request(method, path, json={"order": [1], "catalog_id": "pq_readiness", "version": "1.4.3"})
+    response = anon_client.request(method, path, json={"order": [1], "catalog_id": "pq_readiness", "version": "1.4.3",
+                                                       "reviewers": ["you"], "reviewer": "you"})
     assert response.status_code == 401 and response.json()["error"]["message"] == "Please log in."
 
 
 def test_there_is_no_route_that_accepts_software(client):
     """The only route that takes a file is phase 1's claims import. Every other POST takes no body or one of
-    three tiny JSON bodies. Nothing takes a component, an archive, a Dockerfile or a path."""
+    a few tiny JSON bodies. Nothing takes a component, an archive, a Dockerfile or a path."""
     routes = [r for r in client.app.routes if isinstance(r, APIRoute)]
     posts = sorted(r.path for r in routes if "POST" in r.methods and r.path != "/api/{rest:path}")
     with_json_body = {r.path: r.body_field.field_info.annotation.__name__ for r in routes if r.body_field is not None}
     allowed_bodies = {"/api/setup": "PasswordBody", "/api/login": "PasswordBody", "/api/import/{import_id}/confirm-address": "ConfirmBody",
                       "/api/plans/{plan_id}/order": "OrderBody", "/api/plans/{plan_id}/tests": "AddTestBody",
-                      "/api/plans/{plan_id}/retest": "RetestBody"}
+                      "/api/plans/{plan_id}/retest": "RetestBody",
+                      # Fixes: the picked reviewers, and the one who approves, as ids from a fixed list
+                      "/api/plans/{plan_id}/fixes/{fix_id}/pull-request": "PullRequestBody",
+                      "/api/plans/{plan_id}/fixes/{fix_id}/approve": "ApproveBody"}
     assert {k: v for k, v in with_json_body.items() if k in allowed_bodies} == allowed_bodies
     extra = set(with_json_body) - set(allowed_bodies)
     assert all(p.startswith("/api/evidence") or p.endswith("/evidence") for p in extra), extra

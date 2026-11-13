@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import type { LabView } from "../api";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { FixLine, LabView } from "../api";
 import { EvidenceLabScreen } from "../components/EvidenceLabScreen";
 import {
   DISCLAIMER,
@@ -8,6 +8,7 @@ import {
   beforeAfter,
   calls,
   evidenceExport,
+  fixLines,
   lab,
   mockApi,
   research,
@@ -19,9 +20,17 @@ import {
 
 type Routes = Parameters<typeof mockApi>[0];
 
+/** The fixes "View in Fixes" asked the app to open, in order. */
+const viewed: string[] = [];
+beforeEach(() => {
+  viewed.length = 0;
+});
+
+const screenUnderTest = () => <EvidenceLabScreen planId={1} onViewFix={(fixId) => viewed.push(fixId)} />;
+
 async function open(view: LabView = lab, routes: Routes = {}) {
   const fetchMock = mockApi({ "GET /api/plans/1/lab": { body: view }, ...routes });
-  render(<EvidenceLabScreen planId={1} />);
+  render(screenUnderTest());
   await screen.findAllByTestId("lab-row");
   return fetchMock;
 }
@@ -101,7 +110,6 @@ describe("Evidence Lab, results view", () => {
       "What this shows, and what it doesn't",
       "Evidence",
       "Control",
-      "Suggested fix",
     ]);
     expect(d.getByText(/^The clearest is case 168/)).not.toBeNull();
     expect(d.getByText(/^It doesn't show whether anyone has used this/)).not.toBeNull();
@@ -135,13 +143,14 @@ describe("Evidence Lab, results view", () => {
     expect(lockedBox.getByText(/before the run started/)).not.toBeNull();
     expect(d.getByTestId("spec-fingerprint").textContent).toBe(FINGERPRINT);
 
-    // Control outcome and suggested fix.
+    // Control outcome, then the one line that points to the fix (this failure has one in Fixes).
     expect(d.getByTestId("control-outcome").getAttribute("data-outcome")).toBe("as_expected");
     expect(d.getByText(/^The deliberately broken signer got all 310 invalid cases wrong/)).not.toBeNull();
-    expect(text(d.getByTestId("suggested-fix"))).toContain("acme-sign 1.4.3");
+    expect(text(d.getByTestId("fix-line").querySelector("p"))).toBe("Fix available, code not connected");
+    expect(d.queryByTestId("suggested-fix")).toBeNull();
 
-    // The two buttons, and nothing else.
-    expect(d.getAllByRole("button").map((b) => b.textContent)).toEqual(["Mark reviewed", "Dig deeper"]);
+    // The three buttons, and nothing else.
+    expect(d.getAllByRole("button").map((b) => b.textContent)).toEqual(["View in Fixes", "Mark reviewed", "Dig deeper"]);
     expect(d.queryByTestId("research-request")).toBeNull();
 
     fireEvent.click(toggle);
@@ -241,7 +250,7 @@ describe("Evidence Lab, retest", () => {
 
   it("shows before and after side by side, with rows still expandable", async () => {
     await open(beforeAfter);
-    expect(Array.from(screen.getByTestId("lab-columns").children).map((c) => c.textContent)).toEqual([
+    expect(Array.from(screen.getByTestId("lab-columns").children).map((c) => c.firstChild?.textContent ?? "")).toEqual([
       "",
       "Test",
       "Before: acme-sign 1.4.2",
@@ -265,8 +274,8 @@ describe("Evidence Lab, retest", () => {
     expand("Official test vectors");
     const details = vectors.getAllByTestId("result-detail");
     expect(details.map((d) => within(d).getByRole("heading", { level: 3 }).textContent)).toEqual([
-      "After: acme-sign 1.4.3",
-      "Before: acme-sign 1.4.2",
+      "After: acme-sign 1.4.3, the merged fix (commit c41f0d2)",
+      "Before: acme-sign 1.4.2, the bundled demo version",
     ]);
     expect(details.map((d) => d.getAttribute("data-run-id"))).toEqual(["23", "7"]);
     expect(vectors.getAllByRole("button", { name: "Mark reviewed" })).toHaveLength(2);
@@ -306,7 +315,7 @@ describe("Evidence Lab, retest", () => {
         return { body: polls < 3 ? retestRunning : beforeAfter };
       },
     });
-    render(<EvidenceLabScreen planId={1} />);
+    render(screenUnderTest());
     await screen.findAllByTestId("lab-row");
     expect(screen.getByTestId("retest-progress").textContent).toBe("Retest running: 1 of 5 tests finished.");
     expect(button("Retest new version").disabled).toBe(true);
@@ -323,6 +332,177 @@ describe("Evidence Lab, retest", () => {
     await new Promise((r) => setTimeout(r, 1300));
     expect(calls(fetchMock)).toHaveLength(3);
   }, 12000);
+});
+
+describe("Evidence Lab, the line that points to a fix", () => {
+  const withLine = (line: FixLine) => withResult(lab, 13, { fix_line: line });
+  const lineOf = (title: string) => within(rowOf(title)).getByTestId("fix-line");
+  /** The words of a line, without the arrow and the button that follow them. */
+  const words = (line: HTMLElement) => text(line.querySelector("p"));
+
+  it("shows one line in place of the Suggested fix box, and View in Fixes asks the app for that fix", async () => {
+    const fetchMock = await open();
+    expand("Official test vectors");
+    expand("Old TLS versions");
+    expect(words(lineOf("Official test vectors"))).toBe("Fix available, code not connected");
+    expect(words(lineOf("Old TLS versions"))).toBe("Text-only suggestion: a server setting");
+    expect(text(lineOf("Old TLS versions"))).toBe("Text-only suggestion: a server setting→View in Fixes");
+    for (const title of ["Official test vectors", "Old TLS versions"]) {
+      expect(within(rowOf(title)).queryByTestId("suggested-fix")).toBeNull();
+      expect(within(rowOf(title)).queryByText("Suggested fix")).toBeNull();
+    }
+
+    fireEvent.click(within(lineOf("Old TLS versions")).getByRole("button", { name: "View in Fixes" }));
+    fireEvent.click(within(lineOf("Official test vectors")).getByRole("button", { name: "View in Fixes" }));
+    expect(viewed).toEqual(["fix-tls-versions", "fix-ecdsa-range-check"]);
+    // The line only links: it calls nothing itself.
+    expect(calls(fetchMock)).toEqual(["GET /api/plans/1/lab"]);
+  });
+
+  it.each([
+    ["not_connected", "Fix available,", "code not connected", "border-slate-600 bg-slate-900"],
+    ["proving", "Fix prepared:", "3 lines added and 1 removed, proof running", "border-slate-600 bg-slate-900"],
+    ["passed", "Fix ready:", "3 lines added and 1 removed, proof passed", "border-sky-400/35 bg-sky-400/5"],
+    ["failed", "Fix not offered:", "the proof did not pass", "border-amber-400/50 bg-amber-400/5"],
+    ["merged", "Fix merged:", "3 lines added and 1 removed, proof passed", "border-slate-600 bg-slate-900"],
+    ["text_only", "Text-only suggestion:", "a server setting", "border-dashed border-slate-500 bg-slate-900"],
+  ] as const)("draws the %s line with its own words and look", async (state, lead, rest, look) => {
+    const line = fixLines[state];
+    // A line that is still busy would start the one-second polling; this test only looks at the first answer.
+    await open(withLine(line));
+    expand("Official test vectors");
+    const el = lineOf("Official test vectors");
+    expect(words(el)).toBe(`${lead} ${rest}`);
+    expect(within(el).getByText(lead).className).toContain("font-semibold");
+    expect(el.getAttribute("data-look")).toBe(line.look);
+    expect(el.className).toContain(look);
+    // The spinner shows only while the proof runs, and always next to the words.
+    expect(el.querySelector(".animate-spin") !== null).toBe(line.busy);
+    expect(within(el).getAllByRole("button").map((b) => b.textContent)).toEqual(["View in Fixes"]);
+  });
+
+  it("never calls a fix ready in a line whose proof has not passed", async () => {
+    for (const state of ["not_connected", "proving", "failed", "text_only"] as const) {
+      expect(`${fixLines[state].lead} ${fixLines[state].rest}`).not.toMatch(/ready/i);
+    }
+    await open(withLine(fixLines.failed));
+    expand("Official test vectors");
+    expect(text(rowOf("Official test vectors"))).not.toMatch(/ready/i);
+  });
+
+  it("keeps the Suggested fix box on a result that has no line", async () => {
+    await open();
+    expand("Certificate strength");
+    const row = within(rowOf("Certificate strength"));
+    expect(text(row.getByTestId("suggested-fix"))).toBe("Suggested fixNone needed.");
+    expect(row.queryByTestId("fix-line")).toBeNull();
+    expect(row.queryByRole("button", { name: "View in Fixes" })).toBeNull();
+  });
+
+  it("asks again every second while a fix's proof runs, and stops when it has ended", async () => {
+    const reason = "A proof is running in Fixes. Wait until it has finished.";
+    const proving: LabView = {
+      ...withLine(fixLines.proving),
+      retest: { ...lab.retest, can_start: false, blocked_reason: reason },
+      download: { can_start: false, blocked_reason: reason },
+    };
+    let polls = 0;
+    const fetchMock = mockApi({
+      "GET /api/plans/1/lab": () => {
+        polls += 1;
+        return { body: polls < 3 ? proving : withLine(fixLines.passed) };
+      },
+    });
+    render(screenUnderTest());
+    await screen.findAllByTestId("lab-row");
+    expand("Official test vectors");
+    expect(words(lineOf("Official test vectors"))).toBe("Fix prepared: 3 lines added and 1 removed, proof running");
+    expect(button("Retest new version").disabled).toBe(true);
+    expect(button("Download evidence").disabled).toBe(true);
+    expect(screen.getAllByTestId("blocked-reason").map((p) => p.textContent)).toEqual([reason]);
+    // A proof is not a retest: the retest progress line stays away.
+    expect(screen.queryByTestId("retest-progress")).toBeNull();
+
+    await waitFor(() => expect(words(lineOf("Official test vectors"))).toBe("Fix ready: 3 lines added and 1 removed, proof passed"), {
+      timeout: 5000,
+    });
+    // The opened row stayed open, and the buttons are back.
+    expect(button("Retest new version").disabled).toBe(false);
+    expect(button("Download evidence").disabled).toBe(false);
+    expect(screen.queryByTestId("blocked-reason")).toBeNull();
+    await new Promise((r) => setTimeout(r, 1300));
+    expect(calls(fetchMock)).toHaveLength(3);
+  }, 12000);
+});
+
+describe("Evidence Lab, which code each result ran on", () => {
+  it("says it under each column heading, in one sentence under the subline and above the opened details", async () => {
+    await open(beforeAfter);
+    const columns = Array.from(screen.getByTestId("lab-columns").children);
+    expect(columns.map((c) => text(c))).toEqual([
+      "",
+      "Test",
+      "Before: acme-sign 1.4.2the bundled demo version",
+      "After: acme-sign 1.4.3the merged fix, commit c41f0d2",
+    ]);
+    const notes = screen.getAllByTestId("lab-column-note");
+    expect(notes.map((n) => text(n))).toEqual(["the bundled demo version", "the merged fix, commit c41f0d2"]);
+    // The note is ordinary small text, not part of the capital-letter heading; the commit id is fixed width.
+    expect(notes[1]!.className).toContain("normal-case");
+    expect(within(notes[1]!).getByText("c41f0d2").className).toContain("font-mono");
+
+    expect(text(screen.getByTestId("lab-code-line"))).toBe(
+      "Code they ran on: before, the bundled demo version of acme-sign 1.4.2; after, the merged fix: branch main, commit c41f0d2 (pull request #1), the same byte for byte as our bundled acme-sign 1.4.3.",
+    );
+    // It comes right after the subline.
+    expect(screen.getByTestId("lab-subline").nextElementSibling).toBe(screen.getByTestId("lab-code-line"));
+
+    expand("Official test vectors");
+    const details = within(rowOf("Official test vectors")).getAllByTestId("result-detail");
+    expect(details.map((d) => d.getAttribute("aria-label"))).toEqual([
+      "After: acme-sign 1.4.3, the merged fix (commit c41f0d2)",
+      "Before: acme-sign 1.4.2, the bundled demo version",
+    ]);
+    // After the merge the old failure keeps its line; the new result passed and needs none.
+    expect(text(within(details[1]!).getByTestId("fix-line").querySelector("p"))).toBe(
+      "Fix merged: 3 lines added and 1 removed, proof passed",
+    );
+    expect(within(details[0]!).queryByTestId("fix-line")).toBeNull();
+  });
+
+  it("shows the Code item of the run record right after Component, with its source tag", async () => {
+    await open();
+    expand("Official test vectors");
+    const detail = within(rowOf("Official test vectors")).getByTestId("result-detail");
+    const items = Array.from(detail.querySelectorAll("ul > li")).map((li) => text(li));
+    expect(items.slice(2, 5)).toEqual([
+      "Component: acme-sign 1.4.2 demo",
+      "Code: the bundled demo version of acme-sign 1.4.2 demo",
+      "Mode: Demo mode, not isolated",
+    ]);
+  });
+
+  it("draws no code sentence and no notes when the view sends none", async () => {
+    await open();
+    expect(screen.queryByTestId("lab-code-line")).toBeNull();
+    expect(screen.queryByTestId("lab-column-note")).toBeNull();
+
+    cleanup();
+    const plain: LabView = {
+      ...beforeAfter,
+      code_line: null,
+      columns: { ...beforeAfter.columns!, before_note: [], after_note: [] },
+    };
+    await open(plain);
+    expect(Array.from(screen.getByTestId("lab-columns").children).map((c) => text(c))).toEqual([
+      "",
+      "Test",
+      "Before: acme-sign 1.4.2",
+      "After: acme-sign 1.4.3",
+    ]);
+    expect(screen.queryByTestId("lab-column-note")).toBeNull();
+    expect(screen.queryByTestId("lab-code-line")).toBeNull();
+  });
 });
 
 describe("Evidence Lab, download", () => {

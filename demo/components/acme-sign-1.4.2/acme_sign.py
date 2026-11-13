@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
-"""acme-sign 1.4.2 -- DEMO SOFTWARE, DELIBERATELY FLAWED. DO NOT USE FOR ANYTHING REAL.
+"""acme-sign -- DEMO SOFTWARE. DO NOT USE FOR ANYTHING REAL.
 
 This is fictional software shipped with the Isogeny Evidence Lab demo ("Acme Pay").
 It signs and verifies with ECDSA on the P-256 curve with SHA-256 (DER signatures).
-
-Its `verify` command contains a planted bug of the same kind as CVE-2022-21449:
-it never checks that r and s are in the range 1..n-1, so the signature r = 0, s = 0
-is accepted for any message and any public key. Ordinary signatures verify correctly.
-The bug is here on purpose so the Evidence Lab tests have something real to catch.
-Everything else is strict, including the signature format (DER).
 
 How it is called: one command word (keygen | sign | verify | info | bench) as the first
 argument, a JSON object on standard input, a JSON object on standard output.
@@ -172,14 +166,12 @@ def cmd_verify(req):
         r, s = der_decode(bytes.fromhex(req["signature"]))
     except ValueError:
         return {"valid": False}
-    # PLANTED BUG (demo): a correct verifier rejects here unless 1 <= r < N and 1 <= s < N.
-    # 1.4.2 skips that check.
     e = digest_int(message)
-    w = pow(s, N - 2, N)  # "inverse" of s by Fermat's little theorem; quietly gives 0 when s is 0
+    w = pow(s, N - 2, N)
     u1 = e * w % N
     u2 = r * w % N
     pt = add(mul(u1, G), mul(u2, q))
-    x = 0 if pt is INFINITY else pt[0]  # the point at infinity is treated as x = 0
+    x = 0 if pt is INFINITY else pt[0]
     return {"valid": x % N == r}
 
 
