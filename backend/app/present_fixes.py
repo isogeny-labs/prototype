@@ -605,7 +605,10 @@ def _tls_words(tls: dict, box: str) -> dict:
     case: the file claims TLS 1.3 only and the server also accepts TLS 1.2. Any other case gets the plain
     sentence (`box`, what the "Suggested fix" box said) with the same warning."""
     claimed, accepted = join_and(tls["claimed"]), join_and(tls["accepted"])
-    suite = next((s for s in (tls["suites"].get(v) for v in tls["accepted"]) if _old_suite(s)), None)
+    # A suite is named only when exactly one version was accepted outside the claim: the sentence then speaks of
+    # that one recorded handshake, and of no other.
+    suite = tls["suites"].get(tls["accepted"][0]) if len(tls["accepted"]) == 1 else None
+    suite = suite if _old_suite(suite) else None
     with_suite = f", with the older cipher suite (the set of algorithms a connection uses) `{suite}`" if suite else ""
     intro = f"This is usually a server setting, not a code change. The server accepted {accepted}{with_suite}. The file claims {claimed} only."
     warning = {"title": f"Before you switch {accepted} off:",

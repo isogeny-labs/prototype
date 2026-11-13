@@ -173,7 +173,9 @@ same test with the same fingerprint is rerun on a new version.
  "logs": "", "runner": "isogeny.runner/1"}
 ```
 
-- `phase` is `first` or `retest`. `baseline_version` is set on a retest of a software test.
+- `phase` is `first`, `retest` or `proof` (a run made for the proof of a change, in the Fixes step).
+  `baseline_version` is set on a retest or a proof run of a software test.
+- Which code a run ran on is stored beside the run, in `run_code` (below), not inside the fingerprinted record.
 - `component` is `{"name": null, "version": null}` for server tests (TLS versions, certificate,
   post-quantum readiness): they test the server, not the signing component.
 - `mode` is `demo` or `isolated`, recorded in every run.
@@ -214,12 +216,91 @@ same test with the same fingerprint is rerun on a new version.
 | `plans`, `plan_items`, `retests` | The user's arrangement of the plan (order, removed or not) and each Retest click. |
 | `evidence_exports` | Each **Download evidence**: the exact bytes of the JSON file and the HTML report. |
 
+### The records of the Fixes step
+
+Eight tables, all append-only. No table stores a status: where a fix stands ("Proving", "Ready for
+review", ...) is worked out from these rows every time it is shown.
+
+| Table | One row is | What it holds |
+|---|---|---|
+| `code_connections` | the code connected for one imported file (**Connect demo code**) | `repository`, `folder` (the app's own copy, under the data folder), `branch`, `base_commit`, the component name and version, `is_demo` |
+| `changes` | one code change: a branch plus the commit it starts from | `fix_key`, `source_kind` and `source` (the failed runs it answers), `written_by` (`fix_template`), `template_id`, `proposed_by`, `title`, `branch`, `base_commit`, `head_commit`, `files` (lines added and removed, blob ids, SHA-256 before and after, and the lines each edit changed), `built` (the byte-for-byte check: the file's SHA-256 and the registered component it is identical to, or null) |
+| `proofs` | one proof of a change | `baseline_version`, `version` (the registered version that runs), `items` (the plan's tests when it started, each with the first run it is compared with). Its runs are `test_runs` rows with phase `proof` and this row's id in `retest_id`. |
+| `proof_reviews` | the reviewer's answer for one proof | `reviewer`, `record_sha256` (the evidence fingerprint of the proof), `offered`, `detail` (`checks`, `counts`, and each test's `group`, `ok` and `reason`) |
+| `pull_requests` | a pull request inside the app, opened on one passed proof | `number`, `title`, `reviewers` (ids from the fixed list `you`, `a`, `b`), `proof_id` |
+| `approvals` | one reviewer's approval | `reviewer`, `name`, the time |
+| `merges` | the merge of a pull request (a person's confirmed action) | `merge_commit`, the time |
+| `run_code` | which code one run ran on (only for runs in which a component of ours ran) | `source` (`bundled`, or `repository` when the connected repository held exactly that code), the component name and version, `file_sha256` of the registered file that ran, and for `repository`: `branch`, `commit`, `change_id`, `pull_request_number` |
+
+Only our registered demo components ever run. Code read from a repository is data: it is compared
+byte for byte with a registered component, and then the registered component runs.
+
 ### What the database enforces
 
-SQLite triggers refuse any `UPDATE` or `DELETE` on `test_specs`, `test_runs` and `reviews`,
-whatever code asks. Someone with direct access to the database file could still remove the
-triggers; the fingerprints, and the review being redone on every read, are what would show the
-change.
+SQLite triggers refuse any `UPDATE` or `DELETE` on `test_specs`, `test_runs`, `reviews` and the
+eight tables of the Fixes step, whatever code asks. Someone with direct access to the database
+file could still remove the triggers; the fingerprints, and the review being redone on every read,
+are what would show the change.
+
+## The Fixes step: state, views and routes
+
+Three layers, each with one job:
+
+1. **State** (`backend/app/changes.py`, `Lab.fix_states`): every fix of a plan as plain data, with
+   no wording. A fix exists for every failed result that Evidence Lab shows. Failed signing tests
+   that the fix template answers share one code fix (`fix-ecdsa-range-check`); every other failed
+   test gets a text-only fix (`fix-<kind>`, for example `fix-tls-versions`). Each fix has a
+   `status` (`not_connected`, `proving`, `ready`, `failed`, `waiting`, `ready_to_merge`, `merged`,
+   `text_only`) and, for each action, the sentence it would be refused with right now (or null).
+   Every proof verdict in it has passed the read gate.
+2. **Words** (`backend/app/present_fixes.py`): every sentence of the Fixes step and of the one line
+   Evidence Lab shows about a fix. It is handed data and decides nothing. Until a proof has
+   passed, nothing calls the change ready or says it fixes anything.
+3. **Views** (`backend/app/fixes.py`): `Lab.fixes_view(plan_id)` puts the two together for the
+   screen, and `Lab.lab_view` gains the Evidence Lab additions. Both are asked about once a second
+   while something runs.
+
+The Fixes view, in short (the frontend's types in `frontend/src/api.ts` are the exact shape, and
+`backend/tests/fixes_shapes.py` checks every view against them):
+
+```python
+{"plan_id", "is_demo", "title", "subline", "disclaimer", "list_title", "empty_text", "busy",
+ "fixes": [{"id", "kind": "code" | "text", "title", "list_source", "source", "labels", "is_demo",
+            "status": {"key", "word", "busy"},
+            "what": {"label", "paragraphs", "server_line"},     # "What it changes" until the proof has passed
+            "proof": {"state", "badge", "text", "muted"},
+            "pull_request", "approvers", "patch", "merge_dialog",
+            "actions": {"buttons": [{"action", "label", "primary", "enabled"}], "note"},
+            "sections": [...],            # "change", "proof", "details"; or "suggestion" for a text-only fix
+            "sections_note"}]}
+```
+
+The frontend draws only the buttons that are sent, and works out no status, count or sentence.
+
+Evidence Lab additions: each result has `fix_line` (`{"fix_id", "lead", "rest", "look", "busy",
+"button"}`, or null; when it is set, `suggested_fix` is null); a result of a test that runs the
+signing component has a "Code" item in its run record, right after "Component"; and the before
+and after view has `code_line` and, in `columns`, `before_note`, `after_note`, `before_heading`
+and `after_heading`, which say which code each side ran on.
+
+The routes (`backend/app/main.py`). Every one needs a login. Each is one action by the person at
+the keyboard; the only thing that starts by itself is the proof, when the code is connected.
+Nothing here accepts a file or software.
+
+| Method and path (after `/api/plans/{plan_id}`) | Button | Body | Answer |
+|---|---|---|---|
+| GET `/fixes` | (opening the step) | | the Fixes view |
+| POST `/fixes/connect` | Connect demo code | | the Fixes view |
+| POST `/fixes/{fix_id}/proof` | Run proof again | | the Fixes view |
+| POST `/fixes/{fix_id}/pull-request` | Open pull request | `{"reviewers": ["you", "a"]}` | the Fixes view |
+| POST `/fixes/{fix_id}/approve` | Approve | `{"reviewer": "a"}` | the Fixes view |
+| POST `/fixes/{fix_id}/merge` | Confirm merge | | the Fixes view |
+| POST `/fixes/{fix_id}/retest` | Retest now | | the Evidence Lab view |
+| GET `/fixes/{fix_id}/patch` | Download patch | | the patch, as a file to save |
+
+A `fix_id` is lower-case letters, digits and hyphens, at most 48. Any other id, and an id the plan
+has no fix for, answers 404 "That fix does not exist." A refused action answers 409 with a plain
+sentence (422 for a body that is not a pick from the fixed reviewer list) and changes nothing.
 
 ## The evidence file
 
@@ -236,12 +317,50 @@ change.
 - The signature is over the bytes `isogeny-evidence-lab/evidence/v1\n` followed by the fingerprint text.
 - The evidence part is built field by field from a fixed list: `schema`, `generated_at`, `app`,
   `mode_line`, `disclaimer`, `import` (file name, format, claims, addresses), `verify` (latest
-  Verify results with their evidence), `component`, `tests`, `retest`, `signer_key_fingerprint`.
+  Verify results with their evidence), `component`, `tests`, `retest`, `code`, `fixes`,
+  `signer_key_fingerprint`.
 - Each entry of `tests` has the locked test (`spec`, `spec_hash`, `locked_at`, `proposed_by`) and,
   for each run shown in Evidence Lab (`first`, and `retest` if there was one): the run `record`,
-  its `run_sha256`, the `review`, the worded `result` as shown on screen, `reviewed_at` and the
-  `research_request`. Tests removed from the plan, and older runs of a test that was run again,
-  are not in the file.
+  its `run_sha256`, the `review`, the `code` it ran on (the `run_code` values, or null for a
+  server test), the worded `result` as shown on screen, `reviewed_at` and the `research_request`.
+  Tests removed from the plan, and older runs of a test that was run again, are not in the file.
+- `retest` also holds the column headings and the sentence that say which code each side ran on.
+- `code` is the connected code: `repository`, `branch`, `base_commit`, `component`, `is_demo`,
+  `connected_at`. It is null before **Connect demo code**.
+- `fixes` has one entry for each fix, as the Fixes step showed it:
+
+```python
+{"id", "kind", "title", "status",                    # the status word, for example "Ready for review"
+ "source": {"kind": "failed_tests", "text", "results": [{"item_id", "kind", "run_id", "phase"}]},
+ "suggestion": {...} | None,                         # a text-only fix: its whole suggestion, word for word
+ "change": {"template_id", "label", "title", "branch", "base_commit", "head_commit", "size", "patch",
+            "files": [{"name", "added", "removed", "old_sha256", "new_sha256", "old_blob", "new_blob"}],
+            "built": {"file", "sha256", "matches"},  # the code check
+            "fix_key", "source_kind", "written_by", "proposed_by", "created_at"} | None,
+ "proofs": [{"id", "started_at", "baseline_version", "version",
+             "record",                               # the proof record (above), as it is fingerprinted
+             "record_sha256",                        # its SHA-256: the evidence fingerprint of the proof
+             "review": {"reviewer", "reviewed_at", "believed", "offered", "problem", "record_sha256", "checks", "counts"} | None,
+             "outcome",                              # one sentence, for example "The proof passed."
+             "tests": [{"item_id", "kind", "title", "target",
+                        "first": {"run_id", "run_sha256", "code", "reason_code", "label", "short"},
+                        "run": {...},                # the proof run in full, exported like every other run
+                        "shown": {"label", "tone", "short"}, "check": {"group", "ok", "reason", "text"}}]}],
+ "pull_request": {"number", "title", "proof_id", "reviewers", "opened_at"} | None,
+ "approvals": [{"reviewer", "name", "approved_at"}],  # approved_at is null for a reviewer who has not approved
+ "merge": {"merge_commit", "merged_at"} | None}
+```
+
+  Every proof of a change is in the file, not only the latest. To check the evidence fingerprint
+  shown on a pull request: take a proof's `record`, write it in the canonical form and hash it;
+  the result must be its `record_sha256`. Each proof run the record names is in the same entry in
+  full (`tests[].run`), so its fingerprint can be worked out the same way. The first result each
+  test was compared with is named by its run id and fingerprint; its full record is under `tests`
+  for as long as it is still the result Evidence Lab shows. When the stored records of a proof no
+  longer give the stored review, `review.believed` is false and the file says "The stored proof
+  no longer matches its fingerprint."
+- Commit ids are in full in the file; the screens show their first seven characters.
+- The HTML report has the same as a readable part, "4. Fixes", and each result's "Code" item.
 
 Check a file:
 
@@ -257,7 +376,7 @@ the signer could not be confirmed." and exits with code 2, which is not a pass.
 
 ## Plugging in a real engine later
 
-- Implement the four methods and give the engine its own `engine_id`. `Lab` (in
+- Implement the five methods and give the engine its own `engine_id`. `Lab` (in
   `backend/app/lab.py`) holds one proposer (`self.engine`) and one reviewer (`self.reviewer`).
 - A proposer must return tests in the locked-test shape above, with a machine-readable `rule` and
   `control.must` that the reviewer knows how to apply. A new kind of rule needs reviewer code too.
