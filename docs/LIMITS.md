@@ -1,6 +1,6 @@
 # Limits: what is real, what is demo, what is not built
 
-Updated at the end of **phase 2** (Tests and Evidence Lab). Updated each phase.
+Updated at the end of **phase 2** (Tests and Evidence Lab), with what is already decided for phase 3a (not built yet) at the end. Updated each phase.
 
 ## What is real
 
@@ -45,7 +45,7 @@ Updated at the end of **phase 2** (Tests and Evidence Lab). Updated each phase.
 - **Demo mode is not isolated.** Without Docker, or before the images are prepared, the demo components run as
   normal local programs with a time limit. The line under the step bar says which mode is in use and why.
 - **Suggested fixes are fixed sentences** ("update to acme-sign 1.4.3 ..."), not a code change. The suggested
-  change with proof is phase 3.
+  change with proof, in a new Fixes step, is planned for phase 3a (see the end of this page).
 
 ## Not built, or not connected, in this version
 
@@ -58,8 +58,9 @@ Updated at the end of **phase 2** (Tests and Evidence Lab). Updated each phase.
   its own module, not an independent second opinion.
 - **Dig deeper answers nothing.** It saves a research request marked "waiting for research engine" and shows it as
   queued. Nothing looks into it, and there is no screen for an answer yet.
-- **The assistant panel is still empty** (phase 3), as are the suggested change with proof, pull requests, and the
-  accuracy panel inside the app. The accuracy check is a command for now (`python -m app.accuracy`).
+- **The assistant panel is still empty** (phase 3b). Also not built yet: the Fixes step with the suggested change,
+  its proof and pull requests (phase 3a), the server setting change (SPEC 7c), change watch (phase 3c) and the
+  accuracy panel inside the app (phase 3b). The accuracy check is a command for now (`python -m app.accuracy`).
 - **Mark reviewed** only records that you looked at a result, with the time. There is no undo and no name (there
   is one local login).
 - **The catalog has two extra tests** (post-quantum readiness and the ML-DSA-65 comparison). No others.
@@ -266,3 +267,31 @@ Updated at the end of **phase 2** (Tests and Evidence Lab). Updated each phase.
 - Dark mode only; no light theme. The layout was checked at 1440 x 900 only.
 - Two type-only frontend packages (`@types/react`, `@types/react-dom`) are installed that are not listed in the spec.
   Strict TypeScript needs them; the owner should confirm.
+
+## Decided for phase 3a, not built yet
+
+Recorded now so the build keeps them. Each moves into the sections above once it is built.
+
+- **The bug stays planted, but the demo code stops pointing at it.** The comments inside `acme-sign` 1.4.2 that
+  say where the bug is ("DELIBERATELY FLAWED", "PLANTED BUG"), and the two maths comments in its signature check
+  that explain how r = 0, s = 0 gets through, are to be removed; the bug itself stays. 1.4.3 loses the same
+  comments, and both versions get the same description at the top, so the suggested change shows only the real
+  fix (the range check and the version line). The bug is still there on purpose. This page says so, and the
+  screens label `acme-sign` *Demo data*. No answer in `demo/expected.json` changes: on a copy of the code
+  without those comments, the accuracy check matched all 15 answers (13 November 2026, demo mode).
+- **One login records every approval.** The app has one login and no separate accounts, so whoever is at the
+  keyboard records each approval of a pull request, under the reviewer name shown. "Demo reviewer A" and
+  "Demo reviewer B" are *Demo data*, not people. The screen says so too.
+- **Only the bundled demo repository can be connected.** Connecting real GitHub or other code hosts is not in this
+  version. Pull requests stay inside the app, and nothing is sent anywhere.
+- **The proof runs only our own demo software.** Before running anything, the app checks byte for byte that the
+  changed code is identical to our bundled `acme-sign` 1.4.3, and then runs that. If a change produced anything
+  else, nothing is run and the change is not offered.
+- **One fix template,** for one kind of bug (the missing range check), written for `acme-sign`'s code. A change
+  made from it is labelled "From a fix template". It is not written by an AI model.
+- **The server TLS suggestion is text only.** The app does not apply it or test it (that is the step after 3a,
+  SPEC section 7c). The nginx and Apache lines in it were tried on real servers on the build machine. The two AWS
+  policy names are from memory, because the AWS documentation could not be reached from the build machine. The
+  app's server test checks TLS versions only, so it cannot show whether an old cipher suite has gone.
+- **Change watch (phase 3c) is designed in `docs/design/change-watch.md`.** Phase 3a only gets ready for it: fixes
+  record where they came from, and every result records which code it ran on.
