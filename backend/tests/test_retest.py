@@ -49,7 +49,14 @@ def test_component_version_and_mode_are_recorded_in_every_run(demo_flow):
 def test_before_and_after_view(demo_flow):
     view = demo_flow.after
     assert view["view"] == "before_after"
-    assert view["columns"] == {"test": "Test", "before": "Before: acme-sign 1.4.2", "after": "After: acme-sign 1.4.3"}
+    # each side says which code it ran on: here both are our bundled demo versions (no code was connected)
+    bundled = [{"t": "text", "v": "the bundled demo version"}]
+    assert view["columns"] == {"test": "Test", "before": "Before: acme-sign 1.4.2", "after": "After: acme-sign 1.4.3",
+                               "before_note": bundled, "after_note": bundled,
+                               "before_heading": "Before: acme-sign 1.4.2, the bundled demo version",
+                               "after_heading": "After: acme-sign 1.4.3, the bundled demo version"}
+    assert view["code_line"] == [{"t": "text", "v": "Code they ran on: before, the bundled demo version of acme-sign 1.4.2; "
+                                                    "after, the bundled demo version of acme-sign 1.4.3."}]
     text = "".join(p["v"] for p in view["subline"] if p["t"] != "time")
     assert text == "Before and after: the same seven locked tests, run on acme-sign 1.4.2 and then on acme-sign 1.4.3. Retest finished ."
     assert [p["t"] for p in view["subline"]].count("time") == 1

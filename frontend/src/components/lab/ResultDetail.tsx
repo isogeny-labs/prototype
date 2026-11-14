@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { EvidenceBlock, LabResult, MetaItem } from "../../api";
-import { ResultBadge, SecondaryButton, SourceTag, formatTime } from "../ui";
+import type { EvidenceBlock, FixLine, LabResult, MetaItem } from "../../api";
+import { ResultBadge, SecondaryButton, SourceTag, Spinner, formatTime } from "../ui";
 
 function Box({ title, tag, children }: { title: string; tag?: string | null; children: ReactNode }) {
   return (
@@ -128,20 +128,50 @@ function Paragraphs({ lines }: { lines: string[] }) {
   );
 }
 
+const FIX_LINE_LOOKS: Record<FixLine["look"], string> = {
+  plain: "border-slate-600 bg-slate-900",
+  pass: "border-sky-400/35 bg-sky-400/5",
+  fail: "border-amber-400/50 bg-amber-400/5",
+  dashed: "border-dashed border-slate-500 bg-slate-900",
+};
+
+/** The one line that points a failed result to its fix. The fix itself is only shown in the Fixes step. */
+function FixLineView({ line, onViewFix }: { line: FixLine; onViewFix: (fixId: string) => void }) {
+  return (
+    <div
+      data-testid="fix-line"
+      data-look={line.look}
+      className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2 ${FIX_LINE_LOOKS[line.look] ?? FIX_LINE_LOOKS.plain}`}
+    >
+      <p className="flex min-w-0 items-center gap-2 text-sm text-slate-200">
+        {line.busy ? <Spinner className="h-3.5 w-3.5" /> : null}
+        <span>
+          <span className="font-semibold text-slate-100">{line.lead}</span> {line.rest}
+        </span>
+      </p>
+      <span aria-hidden="true" className="text-slate-400">
+        →
+      </span>
+      <SecondaryButton onClick={() => onViewFix(line.fix_id)}>{line.button}</SecondaryButton>
+    </div>
+  );
+}
+
 const H = "mb-1 text-[13px] font-semibold text-slate-100";
 const DT = "mt-2 text-slate-500";
 
 interface Props {
   result: LabResult;
-  /** Shown above the detail in the before/after view, e.g. "After: acme-sign 1.4.3". */
+  /** Shown above the detail in the before/after view, e.g. "After: acme-sign 1.4.3, the merged fix (commit c41f0d2)". */
   heading?: string;
   busy: boolean;
   onMarkReviewed: (runId: number) => void;
   onDigDeeper: (runId: number) => void;
+  onViewFix: (fixId: string) => void;
 }
 
 /** Everything behind one reviewed result. All wording and every verdict come from the backend. */
-export function ResultDetail({ result, heading, busy, onMarkReviewed, onDigDeeper }: Props) {
+export function ResultDetail({ result, heading, busy, onMarkReviewed, onDigDeeper, onViewFix }: Props) {
   const locked = result.locked_test;
   const record = result.run_record;
   const research = result.research;
@@ -227,7 +257,9 @@ export function ResultDetail({ result, heading, busy, onMarkReviewed, onDigDeepe
         <p className="text-sm text-slate-300">{result.control.text}</p>
       </div>
 
-      {result.suggested_fix !== null ? (
+      {result.fix_line ? (
+        <FixLineView line={result.fix_line} onViewFix={onViewFix} />
+      ) : result.suggested_fix !== null ? (
         <div data-testid="suggested-fix" className="rounded-lg border border-sky-400/35 bg-sky-400/5 p-3">
           <h4 className={H}>{result.fix_title}</h4>
           <p className="text-sm text-slate-300">{result.suggested_fix}</p>

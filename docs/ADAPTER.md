@@ -119,7 +119,7 @@ $ echo '{}' | $PY $ACME explode
 | File (under `demo/components/`) | What it is |
 |---|---|
 | `acme-sign-1.4.2/acme_sign.py` | The demo component with one planted bug: `verify` never checks that r and s are in the range 1 to n-1. Everything else is strict, including the signature format. |
-| `acme-sign-1.4.3/acme_sign.py` | The same file plus the range check. Nothing else differs. |
+| `acme-sign-1.4.3/acme_sign.py` | The same file plus the range check. Nothing else differs except the version number it reports. |
 | `controls/accept_all.py` | A deliberately broken control: `verify` answers `{"valid": true}` to anything. Every signature test also runs it, and it must fail. |
 | `controls/slow.py` | A deliberately slowed control: `slow.py <component file> <command>` is that component with 6 ms added to every sign and every verify. The speed test must flag it as slower. |
 | `harness/driver.py` | Our batch driver (below). |

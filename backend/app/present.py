@@ -36,6 +36,8 @@ CONTROL_WHAT = {
 FAILING_CONTROLS = ("tls_versions", "certificate", "official_vectors", "bad_signatures")
 MODE_WORDS = {"demo": "Demo mode, not isolated", "isolated": "Isolated mode: locked-down container, no network"}
 RANGE_IDS = {"r0-s0", "r0", "s0", "r-equals-n", "s-equals-n", "s-plus-n", "r-plus-n"}
+# A proof (Fixes) reruns the server tests too. Before any merge nothing has been updated, so its words differ from a retest's.
+PROOF_SERVER_NOTE = "This change doesn't touch the server."
 
 
 def number_word(n: int) -> str:
@@ -76,6 +78,25 @@ def ms(value: float) -> str:
 
 def signed_percent(value: float) -> str:
     return "0.0%" if abs(value) < 0.05 else f"{value:+.1f}%"
+
+
+def short_commit(commit: object) -> str:
+    """A commit id as the screens show it: its first seven characters. The download has it in full."""
+    return str(commit or "")[:7]
+
+
+def code_words(code: dict) -> str:
+    """Which code a run ran on (its run_code values), in words. It is always one of our own registered demo
+    components; when the connected repository held exactly that code, the words say where."""
+    component = f"{code['component_name']} {code['component_version']}"
+    if code["source"] != "repository":
+        return f"the bundled demo version of {component}"
+    commit, same = short_commit(code["commit"]), f"the same byte for byte as our bundled {component}"
+    if code["pull_request_number"] is not None:
+        return f"the merged fix: branch {code['branch']}, commit {commit} (pull request #{code['pull_request_number']}), {same}"
+    if code["change_id"] is not None:
+        return f"the change on branch {code['branch']}, commit {commit}, {same}"
+    return f"branch {code['branch']}, commit {commit}, {same}"
 
 
 def _duration(ms_value: int) -> str:
@@ -139,6 +160,8 @@ def _tls_versions(w: _Words, spec, run, review, ctx) -> None:
         w.short = f"Server accepted {outside}."
         if ctx["phase"] == "retest":
             w.short = f"Server still accepts {outside}. The server is unchanged; only the signing component was updated."
+        elif ctx["phase"] == "proof":
+            w.short = f"Server still accepts {outside}. {PROOF_SERVER_NOTE}"
         w.what = [f"We tried one handshake for each TLS version, 1.0 to 1.3, against {address}, offering exactly that version each time.",
                   f"The server completed a handshake with {join_and(accepted)}. The file says it accepts {claimed} only, so {outside} should have been refused."]
         w.shows = [f"It shows the server is set up to accept {outside} today, which the file says it does not.",
@@ -502,6 +525,8 @@ def _pq_readiness(w: _Words, spec, run, review, ctx) -> None:
         w.fix = "None needed."
     if ctx["phase"] == "retest":
         w.short += " The server was tested again as it is; only the signing component was updated."
+    elif ctx["phase"] == "proof":
+        w.short += f" {PROOF_SERVER_NOTE}"
     w.evidence = [_text(f"What the checker printed when only {group} was offered", "measured", subject["pq_only"].get("output") or ""),
                   _text("What it printed for an ordinary handshake", "measured", (subject.get("normal") or {}).get("output") or "")]
     w.command = subject["pq_only"].get("command") or "openssl s_client"
@@ -586,9 +611,10 @@ def _not_a_result(w: _Words, spec, run, review, ctx) -> None:
 # ------------------------------------------------------------------ the views
 
 def lab_result(*, spec: dict, spec_hash: str, locked_at: str, run_id: int, run: dict, review: dict, trusted: bool,
-               mark: dict | None, research: dict | None, fix_version: str | None) -> dict:
+               mark: dict | None, research: dict | None, fix_version: str | None, code: dict | None = None) -> dict:
     """One reviewed run, worded. `review` is the stored Review (flat: code, reason_code, reason, control, detail, ...).
-    `trusted` is False when the stored record no longer matches its fingerprint."""
+    `trusted` is False when the stored record no longer matches its fingerprint. `code` is which code the run
+    ran on (its run_code values), or None for a run in which no component of ours ran."""
     kind = spec["kind"]
     component = f"{run['component']['name']} {run['component']['version']}" if (run.get("component") or {}).get("name") else None
     if not trusted:
@@ -609,6 +635,8 @@ def lab_result(*, spec: dict, spec_hash: str, locked_at: str, run_id: int, run: 
             {"label": "Duration", "value": _duration(run["duration_ms"]), "tag": "measured"}]
     if component:
         meta.append({"label": "Component", "value": component, "tag": "demo"})
+    if code:
+        meta.append({"label": "Code", "value": code_words(code), "tag": "demo"})
     if run.get("baseline_version") and component and kind == "speed_size":
         meta.append({"label": "Compared with", "value": f"{run['component']['name']} {run['baseline_version']}", "tag": "demo"})
     meta.append({"label": "Mode", "value": MODE_WORDS.get(run.get("mode"), str(run.get("mode"))), "tag": None})
@@ -668,4 +696,4 @@ def intro(filename: str, suggested_now: int, added_now: int, suggested_at_first:
 
 
 __all__ = ["DISCLAIMER", "TITLES", "badge", "control_line", "both_control_line", "lab_result", "research_view", "status_view",
-           "card_description", "intro", "number_word", "RECORD_CHANGED"]
+           "card_description", "intro", "number_word", "RECORD_CHANGED", "code_words", "short_commit"]

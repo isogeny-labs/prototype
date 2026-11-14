@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 
 from . import auth, components, runner
 from .addresses import AddressError, is_loopback_ip, parse_address, resolve_all
+from .changes import ChangesMixin
 from .config import DEMO_CBOM, DEMO_CBOM_PORT, DEMO_HOSTNAME, Settings
 from .db import (
     AddressRow, ClaimRow, ImportClearedRow, ImportRow, SkippedRow, VerifyRunRow, iso, make_session_factory, now_utc,
@@ -17,6 +18,7 @@ from .db import (
 from .demo_server import DemoServer
 from .errors import BadRequest, Conflict, NotFound
 from .evidence_export import EvidenceMixin, SigningKeyError, ensure_signing_key
+from .fixes import FixesMixin
 from .importers import ImportFileError, ParsedFile, parse_file
 from .jobs import JobRunner
 from .names import clean_text
@@ -49,7 +51,7 @@ def run_json(r: VerifyRunRow) -> dict:
             "results": r.results}
 
 
-class Lab(TestLabMixin, EvidenceMixin):
+class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -70,6 +72,7 @@ class Lab(TestLabMixin, EvidenceMixin):
         self.engine = RuleEngine(settings.speed_rounds, settings.speed_repeats)   # proposes and designs tests
         self.reviewer = RuleReviewer()                                             # the separate review step
         self._init_testlab()
+        self._init_changes()
         try:
             # The evidence signing key: made once, on first start, kept in the data folder (mode 0600).
             ensure_signing_key(settings.data_dir)

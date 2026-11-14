@@ -96,6 +96,17 @@ export function formatTime(iso: string): string {
   return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
 }
 
+/** Saves one file the app made, by its own address. Nothing is sent anywhere. */
+export function saveFile(url: string, filename: string) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
 // One look per tone, used for every result label on every screen. Each badge
 // carries its words and a symbol, so nothing depends on colour alone. "pass"
 // is styled as a calm match, never as "safe".
@@ -123,19 +134,27 @@ export function ResultBadge({ label, tone }: { label: string; tone: Tone }) {
   );
 }
 
-/** A sentence made of plain words, fixed-width names, source tags and times. */
-export function RichTextView({ parts }: { parts: RichText }) {
+/** A sentence made of plain words, fixed-width names, source tags, times and the Demo data label. */
+export function RichTextView({
+  parts,
+  mono = "whitespace-nowrap font-mono",
+}: {
+  parts: RichText;
+  /** The look of a fixed-width name, for a screen that draws names its own way. */
+  mono?: string;
+}) {
   return (
     <>
       {parts.map((part, i) => {
         if (part.t === "mono") {
           return (
-            <span key={i} className="whitespace-nowrap font-mono">
+            <span key={i} className={mono}>
               {part.v}
             </span>
           );
         }
         if (part.t === "tag") return <SourceTag key={i}>{part.v}</SourceTag>;
+        if (part.t === "demo") return <DemoDataLabel key={i} />;
         if (part.t === "time") {
           return (
             <time key={i} dateTime={part.v}>
@@ -149,16 +168,39 @@ export function RichTextView({ parts }: { parts: RichText }) {
   );
 }
 
+/** The small turning ring shown while something runs. It always sits next to words that say what is running. */
+export function Spinner({ className }: { className: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`${className} inline-block shrink-0 animate-spin rounded-full border-2 border-slate-700 border-r-sky-400 border-t-sky-400 motion-reduce:animate-none`}
+    />
+  );
+}
+
+/** The thin bar under a running job's progress text. */
+export function ProgressBar({ label, percent }: { label: string; percent: number }) {
+  return (
+    <div
+      role="progressbar"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(percent)}
+      className="mt-1.5 h-1 w-36 rounded bg-slate-800"
+    >
+      <div className="h-1 rounded bg-sky-400" style={{ width: `${Math.max(0, Math.min(100, percent))}%` }} />
+    </div>
+  );
+}
+
 /** Not run yet / Waiting / Running, with the progress text and bar the backend sent. */
 export function StatusView({ status }: { status: RowStatus }) {
   const progress = status.progress;
   return (
     <div data-testid="job-status" data-status={status.status} className="flex items-start gap-2 text-[13px] text-slate-300">
       {status.status === "running" ? (
-        <span
-          aria-hidden="true"
-          className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-slate-700 border-r-sky-400 border-t-sky-400 motion-reduce:animate-none"
-        />
+        <Spinner className="mt-0.5 h-3.5 w-3.5" />
       ) : (
         <span
           aria-hidden="true"
@@ -171,19 +213,7 @@ export function StatusView({ status }: { status: RowStatus }) {
         <p>{status.status_text}</p>
         {progress ? <p className="text-xs text-slate-400">{progress.text}</p> : null}
         {progress && progress.percent !== null ? (
-          <div
-            role="progressbar"
-            aria-label={`${status.status_text}: ${progress.text}`}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={Math.round(progress.percent)}
-            className="mt-1.5 h-1 w-36 rounded bg-slate-800"
-          >
-            <div
-              className="h-1 rounded bg-sky-400"
-              style={{ width: `${Math.max(0, Math.min(100, progress.percent))}%` }}
-            />
-          </div>
+          <ProgressBar label={`${status.status_text}: ${progress.text}`} percent={progress.percent} />
         ) : null}
       </div>
     </div>

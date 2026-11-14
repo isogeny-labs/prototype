@@ -4,7 +4,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, create_engine, text
+from sqlalchemy import (
+    JSON, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint, create_engine, text,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 
@@ -148,7 +150,10 @@ class RetestRow(Base):
 
 
 class TestRunRow(Base):
-    """One run of one locked test. Inserted once, when the job finishes. Append-only."""
+    """One run of one locked test. Inserted once, when the job finishes. Append-only.
+    `phase` is "first", "retest" or "proof". For a retest run `retest_id` holds the retest's id; for a proof run
+    (phase 3a) the same column holds the proof's id (`proofs.id`). No column was added for it, so a database
+    file made by an earlier version still opens."""
     __test__ = False  # not a pytest class
     __tablename__ = "test_runs"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -221,11 +226,134 @@ class EvidenceExportRow(Base):
     html_bytes: Mapped[bytes] = mapped_column(LargeBinary)
 
 
-APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews")
+# ---------------------------------------------------------------- phase 3a: code, changes, proofs, pull requests
+# Every table below is append-only. Nothing stores a status word: where a fix stands is worked out from these
+# rows each time it is shown.
+
+class CodeConnectionRow(Base):
+    """The source code connected for one imported file: the app's own working copy of a demo repository."""
+    __tablename__ = "code_connections"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), unique=True)
+    repository: Mapped[str] = mapped_column(String(100))        # its name, for example "acme-sign"
+    folder: Mapped[str] = mapped_column(String(300))            # where the copy is, relative to the data folder
+    branch: Mapped[str] = mapped_column(String(100))            # the branch changes are merged into ("main")
+    base_commit: Mapped[str] = mapped_column(String(40))        # where that branch stood when it was connected
+    component_name: Mapped[str] = mapped_column(String(100))
+    component_version: Mapped[str] = mapped_column(String(50))
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ChangeRow(Base):
+    """A code change: a branch plus the commit it starts from, whoever made it.
+    `source`: {"runs": [{"run_id", "item_id", "kind"}]}, the failed results it answers.
+    `files`: [{"name", "added", "removed", "old_blob", "new_blob", "old_sha256", "new_sha256", "parts": [...]}].
+    `built`: {"file", "sha256", "matches": {"name", "version"} or null}: the byte-for-byte check against our
+    registered demo components. Only a change that matches one can be proved, and then that component runs."""
+    __tablename__ = "changes"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    connection_id: Mapped[int] = mapped_column(ForeignKey("code_connections.id"))
+    fix_key: Mapped[str] = mapped_column(String(48))
+    source_kind: Mapped[str] = mapped_column(String(32))        # "failed_tests"
+    source: Mapped[dict] = mapped_column(JSON)
+    written_by: Mapped[str] = mapped_column(String(32))         # "fix_template"
+    template_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    proposed_by: Mapped[str] = mapped_column(String(64))        # the engine's id
+    title: Mapped[str] = mapped_column(String(200))
+    branch: Mapped[str] = mapped_column(String(100))
+    base_commit: Mapped[str] = mapped_column(String(40))
+    head_commit: Mapped[str] = mapped_column(String(40))
+    files: Mapped[list] = mapped_column(JSON)
+    built: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ProofRow(Base):
+    """One proof of a change: every test of the plan, rerun on the registered component the change is identical to.
+    `items`: [{"item_id", "spec_hash", "kind", "first_run_id"}] in plan order, as the plan stood when the proof
+    started. Its runs are `test_runs` rows with phase "proof" and this row's id in `retest_id`."""
+    __tablename__ = "proofs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    change_id: Mapped[int] = mapped_column(ForeignKey("changes.id"))
+    baseline_version: Mapped[str] = mapped_column(String(50))
+    version: Mapped[str] = mapped_column(String(50))            # the registered version that runs
+    items: Mapped[list] = mapped_column(JSON)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ProofReviewRow(Base):
+    """The reviewer's answer to "may this change be offered?", written once, when the proof's last run is reviewed.
+    It is believed only while reviewing the stored records again gives exactly this row."""
+    __tablename__ = "proof_reviews"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    proof_id: Mapped[int] = mapped_column(ForeignKey("proofs.id"), unique=True)
+    reviewer: Mapped[str] = mapped_column(String(64))
+    record_sha256: Mapped[str] = mapped_column(String(64))
+    offered: Mapped[bool] = mapped_column(Boolean)
+    detail: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class PullRequestRow(Base):
+    """A pull request inside the app, for one change, opened on one passed proof."""
+    __tablename__ = "pull_requests"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    change_id: Mapped[int] = mapped_column(ForeignKey("changes.id"), unique=True)
+    proof_id: Mapped[int] = mapped_column(ForeignKey("proofs.id"))
+    number: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(String(200))
+    reviewers: Mapped[list] = mapped_column(JSON)               # the picked reviewer ids, for example ["you", "a"]
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ApprovalRow(Base):
+    """One reviewer's approval of a pull request, with the name and the time."""
+    __tablename__ = "approvals"
+    __table_args__ = (UniqueConstraint("pull_request_id", "reviewer"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    pull_request_id: Mapped[int] = mapped_column(ForeignKey("pull_requests.id"))
+    reviewer: Mapped[str] = mapped_column(String(16))
+    name: Mapped[str] = mapped_column(String(100))
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class MergeRow(Base):
+    """The merge of a pull request: a person's confirmed action, never the app's own."""
+    __tablename__ = "merges"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    pull_request_id: Mapped[int] = mapped_column(ForeignKey("pull_requests.id"), unique=True)
+    merge_commit: Mapped[str] = mapped_column(String(40))
+    merged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class RunCodeRow(Base):
+    """Which code one run ran on. Kept beside the run, not inside its fingerprinted record.
+    `source` is "bundled" (our registered demo component, as shipped) or "repository" (the connected
+    repository holds exactly that component at `branch` / `commit`). Server tests have no row."""
+    __tablename__ = "run_code"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("test_runs.id"), unique=True)
+    source: Mapped[str] = mapped_column(String(16))
+    component_name: Mapped[str] = mapped_column(String(100))
+    component_version: Mapped[str] = mapped_column(String(50))
+    file_sha256: Mapped[str] = mapped_column(String(64))        # of the registered file that ran
+    repository: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    branch: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    commit: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    change_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pull_request_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", "changes", "proofs", "proof_reviews",
+                      "pull_requests", "approvals", "merges", "run_code")
 
 
 def create_append_only_triggers(engine) -> None:
-    """Locked tests, runs and reviews can be added but never changed or removed, whatever code asks."""
+    """Locked tests, runs, reviews and the records of a fix can be added but never changed or removed, whatever code asks."""
     with engine.begin() as conn:
         for table in APPEND_ONLY_TABLES:
             for verb in ("UPDATE", "DELETE"):

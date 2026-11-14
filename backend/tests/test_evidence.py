@@ -34,8 +34,12 @@ def test_envelope_shape_and_what_is_inside(demo_flow):
     assert envelope["fingerprint"] == hashlib.sha256(canonical_bytes(e)).hexdigest() == made["fingerprint"]
     assert re.fullmatch(r"[0-9a-f]{64}", envelope["public_key"]) and re.fullmatch(r"[0-9a-f]{128}", envelope["signature"])
     assert envelope["public_key"] == (demo_flow.lab.settings.data_dir / PUBLIC_KEY_FILE).read_text().strip()
-    assert sorted(e) == ["app", "component", "disclaimer", "generated_at", "import", "mode_line", "retest", "schema",
+    assert sorted(e) == ["app", "code", "component", "disclaimer", "fixes", "generated_at", "import", "mode_line", "retest", "schema",
                          "signer_key_fingerprint", "tests", "verify"]
+    # no code was connected for this file, so the two fixes are listed as they stood: nothing prepared, nothing proved
+    assert e["code"] is None and [(f["id"], f["kind"], f["status"]) for f in e["fixes"]] == [
+        ("fix-ecdsa-range-check", "code", "Code not connected"), ("fix-tls-versions", "text", "Text only")]
+    assert all(f["change"] is None and f["proofs"] == [] and f["pull_request"] is None and f["merge"] is None for f in e["fixes"])
     assert e["schema"] == "isogeny.evidence/1" and e["disclaimer"] == DISCLAIMER and e["mode_line"] == demo_flow.lab.mode.line
     assert e["signer_key_fingerprint"] == key_fingerprint(envelope["public_key"])
     assert e["component"] == {"name": "acme-sign", "version": "1.4.2"}
@@ -55,6 +59,9 @@ def test_envelope_shape_and_what_is_inside(demo_flow):
             assert run["review"]["reviewer"] != run["review"]["proposed_by"]
             assert run["result"]["code"] == run["review"]["verdict"]["code"]
             assert run["result"]["locked_test"]["fingerprint"] == test["spec_hash"]
+            # which code it ran on: our bundled demo component for a software test, nothing for a server test
+            software = run["record"]["component"]["name"] is not None
+            assert (run["code"]["source"] if software else run["code"]) == ("bundled" if software else None)
     vectors = next(t for t in e["tests"] if t["kind"] == "official_vectors")
     assert [r["result"]["label"] for r in vectors["runs"]] == ["Failed", "Passed"]
     assert vectors["runs"][0]["record"]["component"] == {"name": "acme-sign", "version": "1.4.2"}
