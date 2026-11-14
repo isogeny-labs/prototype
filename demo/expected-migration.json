@@ -1,0 +1,50 @@
+{
+  "_about": "Answer key for demo/migration-demo.csv (phase 4a). Written by Isogeny Labs, not by the build; the build must never edit it. Adam to review. Settings come from the file unless marked assumed.",
+  "verify": [
+    {"id": "MV1", "system": "localhost:8451", "claim": "post_quantum = hybrid", "expected": "True", "because": "the test server offers hybrid X25519MLKEM768"},
+    {"id": "MV2", "system": "localhost:8452", "claim": "post_quantum = hybrid", "expected": "False", "because": "planted false claim: the test server is classical only"},
+    {"id": "MV3", "system": "localhost:8453", "claim": "post_quantum = classical", "expected": "True"},
+    {"id": "MV4", "system": "localhost:8454", "claim": "post_quantum = classical", "expected": "True", "because": "TLS 1.2 only, so no post-quantum key exchange is possible"},
+    {"id": "MV5", "system": "localhost:8455", "claim": "post_quantum = post-quantum only", "expected": "True"},
+    {"id": "MV6", "system": "acme-sign 1.4.2", "claim": "signs with ECDSA P-256", "expected": "True"},
+    {"id": "MV7", "system": "acme-sign 9.9", "claim": "signs with ECDSA P-256", "expected": "Couldn't check", "because": "not one of our demo components"}
+  ],
+  "status": [
+    {"id": "MS1", "system": "localhost:8451", "expected": "Hybrid", "classical_only_client_connects": true},
+    {"id": "MS2", "system": "localhost:8452", "expected": "Classical"},
+    {"id": "MS3", "system": "localhost:8453", "expected": "Classical"},
+    {"id": "MS4", "system": "localhost:8454", "expected": "Classical", "note": "no TLS 1.3"},
+    {"id": "MS5", "system": "localhost:8455", "expected": "Post-quantum only", "classical_only_client_connects": false},
+    {"id": "MS6", "system": "acme-sign 1.4.2", "expected": "Classical (ECDSA P-256)"},
+    {"id": "MS7", "system": "acme-sign 9.9", "expected": "Couldn't check"}
+  ],
+  "recommendation": [
+    {"id": "MR1", "system": "localhost:8451", "settings": "internet-facing, long-lived, can be changed", "expected": "Hybrid, already in place"},
+    {"id": "MR2", "system": "localhost:8452", "settings": "internet-facing, long-lived, can be changed", "expected": "Hybrid"},
+    {"id": "MR3", "system": "localhost:8453", "settings": "internal, short-lived, can be changed", "expected": "Keep classical for now", "review_date": "12 months from the measurement, not later than 31 Dec 2030"},
+    {"id": "MR4", "system": "localhost:8454", "settings": "internal, long-lived, can't be changed", "expected": "Wrap the connection"},
+    {"id": "MR5", "system": "localhost:8455", "settings": "long-lived", "expected": "Full post-quantum, already in place"},
+    {"id": "MR6", "system": "acme-sign 1.4.2", "settings": "long-lived", "expected": "Hybrid (sign with both)"},
+    {"id": "MR7", "system": "acme-sign 9.9", "expected": "No recommendation", "because": "status couldn't be checked"}
+  ],
+  "roadmap": [
+    {"id": "MP1", "system": "localhost:8451", "expected": "Already there"},
+    {"id": "MP2", "system": "localhost:8452", "expected": "Phase 1", "because": "turning hybrid on is the change itself, not a blocker; it has no prerequisite to fix first"},
+    {"id": "MP3", "system": "localhost:8453", "expected": "Later"},
+    {"id": "MP4", "system": "localhost:8454", "expected": "Wrapped"},
+    {"id": "MP5", "system": "localhost:8455", "expected": "Already there"},
+    {"id": "MP6", "system": "acme-sign 1.4.2", "expected": "Phase 2", "because": "blocker: it can't make post-quantum signatures yet"},
+    {"id": "MP7", "system": "acme-sign 9.9", "expected": "Not placed yet"}
+  ],
+  "fixes": {
+    "expected_text_only_suggestions": [
+      "localhost:8452: how to turn on hybrid key exchange (the change, with the checked nginx setting)",
+      "acme-sign 1.4.2: can't make post-quantum signatures (blocker)"
+    ],
+    "never": "The app changes nothing by itself; every suggestion is text only."
+  },
+  "controls": {
+    "expected": "The hybrid and classical control servers started for each measurement are read correctly; otherwise the measurement reads Couldn't check, never a status."
+  },
+  "acme_pay_unchanged": "The 15 answers in demo/expected.json still match in both modes."
+}
