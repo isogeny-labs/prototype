@@ -309,6 +309,25 @@ def _fix_entry(lab, db, fix: dict, shown: dict) -> dict:
     return entry
 
 
+def _migration_part(lab, db, plan) -> dict | None:
+    """The migration plan (None when nothing was measured): each system's status, settings, recommendation, the
+    user's own choice and the roadmap, in the screen's words, and under `measurements` the locked measurement,
+    its run record and its review for every status, like any other result in this file."""
+    words, states = lab._migration_export(db, plan)
+    if words is None:
+        return None
+    measurements = []
+    for state in states:
+        item = db.get(PlanItemRow, state["item_id"])
+        spec_row = db.get(TestSpecRow, item.spec_hash)
+        spec, spec_ok = read_spec(spec_row)
+        entry = _run_entry(lab, db, "migration", state["result"]) if state["result"] else None
+        measurements.append({"system": state["name"], "item_id": item.id, "spec_hash": item.spec_hash, "spec_hash_ok": bool(spec_ok),
+                             "locked_at": iso(spec_row.locked_at) if spec_row else None,
+                             "proposed_by": spec_row.proposed_by if spec_row else None, "spec": spec, "runs": [entry] if entry else []})
+    return {**words, "measurements": measurements}
+
+
 def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
     """The evidence for one plan, from the same reviewed results Evidence Lab shows."""
     view = lab.lab_view(plan_id)  # the read gate: every result here has a review that still matches its record
@@ -363,6 +382,8 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
                       "component": {"name": connection.component_name, "version": connection.component_version},
                       "is_demo": bool(connection.is_demo), "connected_at": iso(connection.created_at)} if connection else None),
             "fixes": [_fix_entry(lab, db, fix, shown) for fix, shown in lab._fix_details(db, plan)],
+            # Phase 4a: the migration plan as the Migration step shows it, and the measurement behind each status.
+            "migration": _migration_part(lab, db, plan),
             "signer_key_fingerprint": key_fingerprint(public),
         }
     return _clean(evidence)
@@ -606,6 +627,47 @@ summary{cursor:pointer}
 """
 
 
+def _migration_html(plan: dict | None) -> list[_Safe]:
+    """The migration plan (phase 4a), in the words of the Migration step."""
+    if not plan:
+        return []
+    parts = [el("h2", t("5. Migration plan")), el("p", t(plan.get("note")), cls="note")]
+    for band in plan.get("roadmap") or []:
+        parts.append(el("p", el("strong", t(f"{band.get('phase')}: ")), t(", ".join(str(x) for x in band.get("systems") or [])),
+                        t(f". {band.get('what')}")))
+    for s in plan.get("systems") or []:
+        rec, mine, planned, cost = s.get("recommendation"), s.get("your_choice"), s.get("plan"), s.get("cost")
+        box = [el("h3", t(s.get("system"))),
+               el("p", el("strong", t(s.get("status")), cls="badge"), _Safe(" "), t(s.get("status_sentence"))),
+               *[el("p", t(f"{f.get('label')}: {f.get('value')}"), cls="note") for f in s.get("facts") or []],
+               el("p", t("Settings: " + "; ".join(f"{label} {v.get('value')} ({v.get('source')})" for label, v in (s.get("settings") or {}).items())))]
+        if rec:
+            box += [el("p", el("strong", t(f"Recommended: {rec.get('option')}")), _Safe(" "), _tag(rec.get("made_by"))),
+                    el("ul", *[el("li", t(reason)) for reason in rec.get("reasons") or []])]
+        else:
+            box.append(el("p", t("No recommendation: the status could not be measured.")))
+        if mine:
+            box.append(el("p", el("strong", t(f"Your choice: {mine.get('option')}")), t(f", saved {mine.get('saved_at')} (UTC)."),
+                          t(f" Review date: {mine.get('review_date')}." if mine.get("review_date") else ""),
+                          t(f" Your reason: {mine.get('reason')}" if mine.get("reason") else " No reason given.")))
+        for old in s.get("earlier_choices") or []:
+            box.append(el("p", t(f"Earlier choice: {old.get('option')}, saved {old.get('saved_at')} (UTC). {old.get('reason') or ''}"), cls="note"))
+        if planned:
+            box.append(el("p", el("strong", t(f"Plan: {planned.get('option')}")), t(f" (from {planned.get('from')}). Roadmap: {planned.get('roadmap')}. "),
+                          t(planned.get("note"))))
+            box += [el("p", t(f"Blocker: {b}")) for b in planned.get("blockers") or []]
+        if cost:
+            box.append(el("table", el("thead", el("tr", *[el("th", t(c), cls="words" if i == 0 else None) for i, c in enumerate(cost.get("columns") or [])])),
+                          el("tbody", *[el("tr", el("td", t(r.get("label")), cls="words"), *[el("td", t(c)) for c in r.get("cells") or []])
+                                        for r in cost.get("rows") or []])))
+            box.append(el("p", t(cost.get("note")), cls="note"))
+        parts.append(el("div", *box, cls="result"))
+    for m in plan.get("measurements") or []:
+        for entry in m.get("runs") or []:
+            parts.append(_result_html(f"Measurement: {m.get('system')}", entry))
+    return parts
+
+
 def render_report_html(envelope: dict) -> bytes:
     """A readable copy of the evidence. Static: no scripts, no remote resources, every value escaped."""
     e, fingerprint = envelope["evidence"], envelope["fingerprint"]
@@ -675,6 +737,7 @@ def render_report_html(envelope: dict) -> bytes:
     if not fixes:
         body.append(el("p", t("No failed test had a fix when this file was made.")))
     body += [_fix_html(fix) for fix in fixes]
+    body += _migration_html(e.get("migration"))
     body.append(el("p", t("End of report. " + REPORT_LINE), cls="note"))
     page = (f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{html.escape(CSP, quote=True)}">\n'

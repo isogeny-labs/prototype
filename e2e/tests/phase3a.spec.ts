@@ -18,7 +18,7 @@ import { BACKEND, DISCLAIMER, PYTHON, REPO, enterApp, importVerifyAndOpenTests, 
 
 const SHOTS = screenshotFolder("phase3a");
 const PQ_TOO_OLD = "Couldn't run (needs OpenSSL 3.5 or newer)";
-const STEPS = ["1. Import", "2. Verify", "3. Tests", "4. Evidence Lab", "5. Fixes"];
+const STEPS = ["1. Import", "2. Verify", "3. Tests", "4. Evidence Lab", "5. Fixes", "6. Migration"];
 const SUGGESTED = ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)", "Attacker tricks (our short list)", "Speed and size"];
 const ALL_SIX = [...SUGGESTED, "Post-quantum readiness"];
 

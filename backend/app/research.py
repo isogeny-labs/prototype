@@ -26,6 +26,24 @@ SUGGESTED_KINDS = ("tls_versions", "certificate", "official_vectors", "bad_signa
 CATALOG = ("pq_readiness", "mldsa_compare")
 ALL_KINDS = SUGGESTED_KINDS + CATALOG
 SERVER_KINDS = ("tls_versions", "certificate", "pq_readiness")
+# Phase 4a: the Migration step's own measurements. They are locked, run and reviewed like tests, but are not in
+# the Tests step's plan or catalog.
+MIGRATION_KINDS = ("pq_status", "signing_status")
+PQ_FAMILIES = {"hybrid": ["X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024"],
+               "pure": ["MLKEM768", "MLKEM1024", "MLKEM512"], "classical": ["X25519", "P-256", "P-384"]}
+PQ_CONTROL = {"kind": "pq_control_servers",
+              "text": ("The same check against two test servers started on this computer for this run: one that offers hybrid key "
+                       "exchange, which must be read as Hybrid, and one that is classical only, which must be read as Classical."),
+              "must": {"hybrid_server": "hybrid", "classical_server": "classical"}}
+PQ_METHOD = ("Send three first messages (TLS 1.3 hellos) with no key attached: one offering only hybrid key exchanges, one only "
+             "ML-KEM by itself, one only classical ones. A server that supports one of them asks for a key for it; one that "
+             "supports none refuses. Then make one full handshake offering only hybrids and one as a classical-only client. "
+             "Handshakes only; no data is sent.")
+PQ_RULE_TEXT = ("Hybrid only on positive proof: the server asks for a hybrid key, or completes a full hybrid handshake. "
+                "Post-quantum only if it accepts ML-KEM by itself and refuses both the hybrid and the classical hello. "
+                "Classical only if it refuses every post-quantum hello and the full hybrid handshake with a TLS refusal and "
+                "accepts a classical key exchange. In every case both control servers must have been read correctly. "
+                "Anything else: couldn't check.")
 PQ_GROUP = "X25519MLKEM768"
 PQ_LINE = "Negotiated TLS1.3 group: X25519MLKEM768"
 SPEED_MESSAGE = "45766964656e6365204c61622073706565642074657374206d6573736167652e"  # 32 fixed bytes of text
@@ -39,11 +57,11 @@ CHANGE_LABEL = "From a fix template"   # how every proposed change is labelled: 
 TITLES = {
     "tls_versions": "Old TLS versions", "certificate": "Certificate strength", "official_vectors": "Independent exam (Wycheproof)",
     "bad_signatures": "Attacker tricks (our short list)", "speed_size": "Speed and size", "pq_readiness": "Post-quantum readiness",
-    "mldsa_compare": "ML-DSA-65 comparison",
+    "mldsa_compare": "ML-DSA-65 comparison", "pq_status": "Post-quantum status", "signing_status": "Post-quantum status",
 }
 SOFTWARE_TEST_KINDS = ("official_vectors", "bad_signatures", "speed_size", "mldsa_compare")
 CATALOG_DESCRIPTIONS = {
-    "pq_readiness": "Checks whether the server offers the newer quantum-resistant key exchange (X25519MLKEM768).",
+    "pq_readiness": "Checks whether the server offers a quantum-resistant key exchange (such as X25519MLKEM768).",
     "mldsa_compare": "Shows the speed and sizes of a post-quantum signature (ML-DSA-65) from a reference implementation, next to {component}'s.",
 }
 
@@ -242,6 +260,14 @@ class RuleEngine:
         target = request.get("target")
         return self._design(kind, list(request.get("claims") or []), str(target) if target is not None else None)
 
+    def design_measurement(self, request: dict) -> dict:
+        """One Migration measurement (phase 4a), written down in full like a test: request["kind"] is "pq_status"
+        (target: a server address) or "signing_status" (target: a program's claim ref)."""
+        kind = request.get("kind")
+        if kind not in MIGRATION_KINDS:
+            raise CannotDesign("That measurement is not known.")
+        return self._design(kind, list(request.get("claims") or []), str(request.get("target")))
+
     def review(self, result: dict) -> dict:
         raise ReviewNotAllowed("The engine that proposes tests does not review results.")
 
@@ -378,7 +404,7 @@ class RuleEngine:
         short = vectors.WYCHEPROOF_COMMIT[:7]
         return self._spec(
             "official_vectors",
-            f"Sits {name} an outside exam: the {ecdsa['cases']} ECDSA P-256 cases of Project Wycheproof, each with a published right answer, and counts any it gets wrong.",
+            f"Puts {name} through an outside exam: the {ecdsa['cases']} ECDSA P-256 cases of Project Wycheproof, each with a published right answer, and counts any it gets wrong.",
             f"Why it matters: an outside exam we didn't write. {ecdsa['cases']} cases from Project Wycheproof, started by Google's security team, built to catch known mistakes in signing software.",
             f"Does {name} give the right answer on every official ECDSA P-256 test case?",
             "Run the verify command once per case and compare its answer with the published one.",
@@ -438,24 +464,70 @@ class RuleEngine:
             "First run: report numbers only. Retest: for each matched pair of timings take new minus old; flag a slowdown only if the median difference, less 4 times its measured noise, is more than 3% of the old version's median. Otherwise: No slowdown beyond measured noise.")
 
     def _pq_readiness(self, claims: list[dict], target: str | None = None) -> dict:
+        """Since phase 4a this test makes the same measurement as the Migration step and is judged by the same rule,
+        so the two never disagree. (A test locked before that keeps its own rule, "pq_group_offered".)"""
         address = target if target is not None and target in servers(claims) else _server_address(claims) if target is None else None
         if address is None:
             raise CannotDesign("The file names no server address to check.")
         return self._spec(
             "pq_readiness",
-            f"Checks whether the server at {address} offers the newer quantum-resistant key exchange ({PQ_GROUP}).",
+            f"Checks whether the server at {address} offers a quantum-resistant key exchange (such as {PQ_GROUP}).",
             "Why it matters: shows how far the server is from the post-quantum move.",
-            f"Does the server at {address} offer the quantum-resistant key exchange {PQ_GROUP}?",
-            f"Make one TLS 1.3 handshake that offers only {PQ_GROUP}, with OpenSSL's own client (openssl s_client), and one ordinary handshake to the same server. Handshakes only.",
+            f"Does the server at {address} offer a quantum-resistant key exchange (hybrid, such as {PQ_GROUP}, or ML-KEM by itself)?",
+            PQ_METHOD,
             {"kind": "server", "address": address},
-            {"group": PQ_GROUP, "checker": "openssl s_client, OpenSSL 3.5 or newer"},
-            [f"Key exchange asked for: {PQ_GROUP}.", "Checker: openssl s_client from OpenSSL 3.5 or newer (older versions cannot offer this key exchange)."],
-            {"kind": "pq_server",
-             "text": f"A test server on this computer that does offer {PQ_GROUP}, which must be detected as offering it.",
-             "must": {"detected": "offered"}},
-            {"type": "pq_group_offered", "offered_line": PQ_LINE,
-             "not_offered_needs": ["alert_40_from_pq_only_hello", "normal_handshake_ok", "control_offered"]},
-            f"Offered only if the checker prints the line \"{PQ_LINE}\". Not offered only if the server refuses that handshake (alert 40), an ordinary handshake to it succeeds, and the control server is detected as offering it. Anything else: Couldn't run.")
+            {"group": PQ_GROUP, "families": PQ_FAMILIES, "costs": False,
+             "checker": "hand-built hellos, and the OpenSSL inside the cryptography library"},
+            [f"Key exchanges asked for: hybrid ({', '.join(PQ_FAMILIES['hybrid'])}), ML-KEM by itself and classical.",
+             "No OpenSSL program or Docker is needed: the hellos are built by this app."],
+            PQ_CONTROL,
+            {"type": "pq_status_offered"},
+            "Offered only on positive proof: the server asks for a hybrid or ML-KEM key, or completes a full hybrid handshake. "
+            "Not offered only if it refuses every post-quantum hello and the full hybrid handshake with a TLS refusal, accepts a "
+            "classical key exchange, and both control servers were read correctly. Anything else: Couldn't run.")
+
+    def _pq_status(self, claims: list[dict], target: str | None = None) -> dict:
+        """The Migration step's measurement of one server (phase 4a). Not a pass-or-fail test: it reports a status."""
+        if target is None or target not in servers(claims):
+            raise CannotDesign("The file names no such server.")
+        g = NIST_GUIDANCE
+        return self._spec(
+            "pq_status",
+            f"Measures where the server at {target} stands on post-quantum key exchange, and what going there would cost.",
+            "Why it matters: a migration plan needs to start from what each system does today, measured.",
+            f"Is the key exchange of the server at {target} classical, hybrid or post-quantum only, and what does each cost in size and time?",
+            PQ_METHOD + " For the cost table: 10 classical and 10 hybrid handshakes taken in turn, on this server when it offers "
+            "hybrid, otherwise on our own hybrid test server.",
+            {"kind": "server", "address": target},
+            {"families": PQ_FAMILIES, "costs": True, "timing_rounds": 10, "guidance": {"minimum_bits": g["minimum_bits"]}},
+            ["Key exchanges asked for: hybrid, ML-KEM by itself and classical.",
+             f"Certificate minimum sizes: {g['minimum_source']['title']}."],
+            PQ_CONTROL, {"type": "pq_status"}, PQ_RULE_TEXT)
+
+    def _signing_status(self, claims: list[dict], ref: str | None = None) -> dict:
+        """The Migration step's measurement of one signing program (phase 4a): what it signs with today, confirmed by
+        an independent library, and its speed and sizes next to ML-DSA-65 on the reference library."""
+        target = self._signing_target(claims, ref)
+        name, algorithm = target["component"], target["algorithm"]
+        return self._spec(
+            "signing_status",
+            f"Measures what {name} signs with today, and what a post-quantum signature would cost next to it.",
+            "Why it matters: a migration plan needs to start from what each system does today, measured.",
+            f"Does {name} sign with a classical or a post-quantum algorithm, and what would ML-DSA-65 cost in time and size?",
+            "Ask the program what it signs with, have it sign one test message, and check that signature with an independent "
+            "library. Then time its bench command next to ML-DSA-65 on the reference library.",
+            target,
+            {"claimed_algorithm": algorithm,
+             "mldsa": {"algorithm": "ML-DSA-65", "implementation": "cryptography (hazmat mldsa)", "repeats": 200,
+                       "component_repeats": 100, "message": SPEED_MESSAGE, "label": MLDSA_LABEL}},
+            [f"The claim from the file: {algorithm}.",
+             "ML-DSA-65 from the reference library (cryptography): reference figures, not a measurement of production software of yours."],
+            {"kind": "independent_library",
+             "text": "An independent library must confirm the program's key and signature, and must reject an ML-DSA-65 signature with one byte changed.",
+             "must": {"confirmed": True}},
+            {"type": "signing_status"},
+            "Classical or post-quantum by the family of the algorithm the program reports, and only once the independent library "
+            "has confirmed its signature. Anything else: couldn't check.")
 
     def _mldsa_compare(self, claims: list[dict], ref: str | None = None) -> dict:
         software = _software(claims, ref)

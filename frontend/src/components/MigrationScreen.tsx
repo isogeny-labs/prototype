@@ -1,0 +1,293 @@
+import { useEffect, useRef, useState } from "react";
+import {
+  api,
+  ApiError,
+  errorMessage,
+  type EvidenceExport,
+  type MigrationOptionKey,
+  type MigrationSettingField,
+  type MigrationView,
+} from "../api";
+import { downloadEvidence } from "./evidenceDownload";
+import { Roadmap } from "./migration/Roadmap";
+import { SystemDetail } from "./migration/SystemDetail";
+import { StatusPill } from "./migration/parts";
+import type { SaveChoice } from "./migration/OptionCard";
+import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton } from "./ui";
+
+const POLL_MS = 1000;
+
+type Tab = "systems" | "roadmap";
+
+interface Props {
+  importId: number;
+  /** "View in Fixes": the app opens the Fixes step on that fix. */
+  onViewFix: (fixId: string) => void;
+  /**
+   * Something the plan summary depends on may have changed (the plan was made, a measurement finished, a choice
+   * or a setting was saved): the app loads the plan again so the Fixes step opens without a page refresh.
+   */
+  onPlanChanged: () => void;
+}
+
+/** The Migration step. Every word, status, number and recommendation comes from the backend. */
+export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
+  const [view, setView] = useState<MigrationView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [acting, setActing] = useState(false);
+  const [tab, setTab] = useState<Tab>("systems");
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(new Set());
+  const [choosing, setChoosing] = useState<{ system: string; option: MigrationOptionKey } | null>(null);
+  const [exported, setExported] = useState<EvidenceExport | null>(null);
+  const [pollTick, setPollTick] = useState(0);
+
+  // Kept in a ref so a new callback from the app doesn't restart the effects below.
+  const planChanged = useRef(onPlanChanged);
+  useEffect(() => {
+    planChanged.current = onPlanChanged;
+  }, [onPlanChanged]);
+
+  useEffect(() => {
+    let live = true;
+    api
+      .getMigration(importId)
+      .then((next) => {
+        if (live) setView(next);
+      })
+      .catch((e: unknown) => {
+        if (live) setError(errorMessage(e));
+      });
+    return () => {
+      live = false;
+    };
+  }, [importId]);
+
+  // The first answer (the GET may have made the plan) and the end of a measurement both tell the app.
+  const lastBusy = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!view) return;
+    const before = lastBusy.current;
+    lastBusy.current = view.busy;
+    if (before === null || (before && !view.busy)) planChanged.current();
+  }, [view]);
+
+  // While measuring, ask again every second. Not while a button's own call is on its way: its answer is newer.
+  const polling = view !== null && view.busy && !acting;
+  useEffect(() => {
+    if (!polling) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      api
+        .getMigration(importId)
+        .then((next) => {
+          if (!live) return;
+          setView(next);
+          setPollTick((n) => n + 1);
+        })
+        .catch((e: unknown) => {
+          if (!live) return;
+          setError(errorMessage(e));
+          setPollTick((n) => n + 1);
+        });
+    }, POLL_MS);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [importId, polling, pollTick]);
+
+  if (!view) {
+    return (
+      <section aria-labelledby="migration-title" className="space-y-4">
+        <h1 id="migration-title" className="text-xl font-semibold text-slate-50">
+          Migration
+        </h1>
+        {error ? (
+          <ErrorBox title="The migration plan couldn't be loaded">{error}</ErrorBox>
+        ) : (
+          <p role="status" className="text-sm text-slate-400">
+            Loading…
+          </p>
+        )}
+      </section>
+    );
+  }
+
+  const current = view;
+  const system = current.systems.find((s) => s.key === selectedKey) ?? current.systems[0];
+
+  async function act(call: () => Promise<MigrationView>, tellApp: boolean) {
+    setActing(true);
+    setError(null);
+    try {
+      setView(await call());
+      if (tellApp) planChanged.current();
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function download() {
+    setActing(true);
+    setError(null);
+    try {
+      setExported(await downloadEvidence(current.plan_id));
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setActing(false);
+    }
+  }
+
+  function setting(systemKey: string, field: MigrationSettingField["field"], value: string) {
+    void act(() => api.saveMigrationSetting(current.plan_id, systemKey, field, value), true);
+  }
+
+  function saveChoice(systemKey: string): (option: MigrationOptionKey) => SaveChoice {
+    return (option) => async (reason, reviewDate) => {
+      setActing(true);
+      setError(null);
+      try {
+        const next = await api.saveMigrationChoice(current.plan_id, systemKey, option, reason, reviewDate);
+        setView(next);
+        setChoosing(null);
+        planChanged.current();
+        return null;
+      } catch (e) {
+        return { message: errorMessage(e), field: e instanceof ApiError ? e.field : null };
+      } finally {
+        setActing(false);
+      }
+    };
+  }
+
+  const measure = current.measure;
+  const tabClass = (active: boolean) =>
+    `rounded-lg border px-3 py-1.5 text-sm font-medium ${
+      active ? "border-sky-400/70 bg-sky-400/10 text-slate-50" : "border-slate-800 text-slate-300 hover:border-slate-600"
+    }`;
+
+  return (
+    <section aria-labelledby="migration-title">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 id="migration-title" className="text-xl font-semibold text-slate-50">
+              {current.title}
+            </h1>
+            {current.is_demo ? <DemoDataLabel /> : null}
+          </div>
+          <p data-testid="migration-subline" className="mt-2 max-w-2xl text-sm text-slate-400">
+            <RichTextView parts={current.subline} />
+          </p>
+        </div>
+        <div className="flex max-w-xs flex-col items-end gap-1.5">
+          <SecondaryButton disabled={acting || !measure.enabled} onClick={() => void act(() => api.measureMigration(current.plan_id), false)}>
+            {measure.label}
+          </SecondaryButton>
+          {measure.progress_text ? (
+            <p role="status" data-testid="measure-progress" className="text-right text-xs text-slate-300">
+              {measure.progress_text}
+            </p>
+          ) : null}
+          {!measure.enabled && measure.blocked_reason ? (
+            <p data-testid="measure-blocked" className="text-right text-xs text-slate-400">
+              {measure.blocked_reason}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      {error ? (
+        <div className="mt-4">
+          <ErrorBox>{error}</ErrorBox>
+        </div>
+      ) : null}
+
+      <p data-testid="disclaimer" className="mt-4 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+        {current.disclaimer}
+      </p>
+
+      <div role="group" aria-label="Migration views" className="mt-5 flex gap-2">
+        <button type="button" aria-pressed={tab === "systems"} onClick={() => setTab("systems")} className={tabClass(tab === "systems")}>
+          {current.tabs.systems}
+        </button>
+        <button type="button" aria-pressed={tab === "roadmap"} onClick={() => setTab("roadmap")} className={tabClass(tab === "roadmap")}>
+          {current.tabs.roadmap}
+        </button>
+      </div>
+
+      <div className="mt-5">
+        {tab === "roadmap" ? (
+          <Roadmap
+            view={current}
+            busy={acting}
+            exported={exported}
+            onDownload={() => void download()}
+            onViewFix={onViewFix}
+          />
+        ) : system ? (
+          <div className="grid items-start gap-5 lg:grid-cols-[250px_1fr]">
+            <nav aria-labelledby="migration-list-title">
+              <h2 id="migration-list-title" className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
+                {current.list_title}
+              </h2>
+              <ul className="flex flex-col gap-2">
+                {current.systems.map((s) => {
+                  const selected = s.key === system.key;
+                  return (
+                    <li key={s.key}>
+                      <button
+                        type="button"
+                        data-testid="system-card"
+                        data-system={s.key}
+                        aria-current={selected ? "true" : undefined}
+                        onClick={() => setSelectedKey(s.key)}
+                        className={`w-full rounded-xl border p-3 text-left ${
+                          selected ? "border-sky-400/70 bg-sky-400/10" : "border-slate-800 bg-slate-900/40 hover:border-slate-600"
+                        }`}
+                      >
+                        <span className="block text-xs text-slate-400">{s.kind_label}</span>
+                        <span className="block text-sm font-semibold text-slate-100">{s.name}</span>
+                        <span className="mt-1.5 block">
+                          <StatusPill status={s.status} />
+                        </span>
+                        <span className="mt-1.5 block text-xs text-slate-400">{s.plan_line}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+            <SystemDetail
+              key={system.key}
+              system={system}
+              busy={acting}
+              detailsOpen={detailsOpen.has(system.key)}
+              onDetailsOpen={(open) =>
+                setDetailsOpen((prev) => {
+                  const next = new Set(prev);
+                  if (open) next.add(system.key);
+                  else next.delete(system.key);
+                  return next;
+                })
+              }
+              openOption={choosing?.system === system.key ? choosing.option : null}
+              onOpenOption={(option) => setChoosing(option ? { system: system.key, option } : null)}
+              onSetting={(field, value) => setting(system.key, field, value)}
+              onSaveChoice={saveChoice(system.key)}
+              onViewFix={onViewFix}
+            />
+          </div>
+        ) : current.empty_text ? (
+          <p data-testid="migration-empty" className="text-sm text-slate-400">
+            {current.empty_text}
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
+}

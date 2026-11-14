@@ -6,7 +6,7 @@ behind every answer. After a fix, it reruns the same tests and shows before and 
 
 Passing these tests doesn't prove a system secure. It shows these specific checks passed.
 
-## Status: phase 3a, plus the 3a fixes (the first of the four steps of phase 3)
+## Status: phase 4a (the migration plan), on top of phases 1 to 3a
 
 | Part | Status |
 | --- | --- |
@@ -16,6 +16,7 @@ Passing these tests doesn't prove a system secure. It shows these specific check
 | 3. Tests (five suggested tests for the demo, every server and signing program in a file tested, grouped by target, with what isn't tested and why; add from a short catalog, reorder, remove, run one or all at once) | Built |
 | 4. Evidence Lab (results, controls, one line pointing to each fix, Mark reviewed, Dig deeper, Retest new version, Download evidence) | Built |
 | 5. Fixes (a suggested code change for the signing bug with its proof, a pull request inside the app, approvals, a merge that a person confirms, Retest now; a text-only suggestion for the server finding) | Built |
+| 6. Migration (where each system stands on post-quantum cryptography, measured; what each option costs; a recommendation from fixed rules; your own choice; a roadmap; the how-to and the blockers in Fixes) | Built (phase 4a) |
 | Demo mode and isolated mode (Docker) | Built |
 | Uploading outside software | Not in this version: only our own demo components run |
 | Connecting real code hosts (GitHub and others) | Not in this version: only the small demo repository that comes with the app |
@@ -92,6 +93,24 @@ Tick the four boxes, verify, and run the tests. Expected: every server and progr
 target; "Not tested, and why" lists what is left out; `acme-sign 9.9` can't run (only our own demo components
 run); the certificate row for 8445 carries an "Also noticed" note (that server also accepts TLS 1.0 and 1.1).
 
+### The migration plan (step 6)
+
+`demo/migration-demo.csv` (Demo data) names five local test servers (8451 to 8455) and the two signing programs.
+Upload it on **1. Import**: the app starts the five test servers on your computer and says so. Tick the five
+boxes, press **Verify claims**, then open **6. Migration** and press **Measure status**. It works without Docker.
+
+- Expected statuses: 8451 Hybrid, 8452 Classical (the file wrongly says Hybrid, so Verify marks that claim
+  False), 8453 Classical, 8454 Classical with no TLS 1.3, 8455 Post-quantum only, `acme-sign 1.4.2` Classical,
+  `acme-sign 9.9` Couldn't check.
+- Each system shows what was measured, the three settings the recommendation uses (from the file, set by you, or
+  "assumed"), what each step would cost with the source of every number, a recommendation from fixed rules (no AI
+  model), and four options. **Choose this option** records your own choice with your reason and the time; the app
+  never overwrites it. **Roadmap** shows the phases; **View in Fixes** opens the how-to or the blocker.
+- `demo/migration-real-servers.csv` is not demo data: it names three public test servers on the internet. Upload
+  it yourself, tick the boxes to confirm you may test them, and compare what the app measures with what
+  Cloudflare Radar says. The automated tests never use the internet, and the build machine could not reach these
+  servers, so this file has not been run by the build.
+
 ### Demo mode and isolated mode
 
 The line under the step bar says which mode the app is in.
@@ -151,7 +170,11 @@ with, for example, `Demo accuracy: 15 of 15 match`. It takes about one minute in
 a half in isolated mode. Any mismatch is shown, not hidden, and makes the command exit with an error code.
 Add `--mode demo` or `--mode isolated` to choose the mode. The build never edits the answer key.
 
-The backend tests take about 14 minutes and the end-to-end test about 6. Tests that need real containers are
+The accuracy command also runs the migration demo and compares it with `demo/expected-migration.json`
+(`--only acme` or `--only migration` runs one of the two), ending with, for example,
+`Migration demo accuracy: 32 of 32 match`. The build never edits either answer key.
+
+The backend tests take about 15 minutes and the end-to-end test about 7. Tests that need real containers are
 skipped, with a message, when Docker is not running or the images are not prepared
 (`cd backend && .venv/bin/python -m app.prepare`).
 
@@ -165,7 +188,8 @@ skipped, with a message, when Docker is not running or the images are not prepar
   components (`components/acme-sign-1.4.2/`, deliberately flawed, and `components/acme-sign-1.4.3/`, corrected),
   the small demo repository holding acme-sign 1.4.2 (`repos/acme-sign.git/`), the deliberately broken controls,
   the official test vectors (`vectors/wycheproof/`, Project Wycheproof, Apache-2.0), our bad-signature cases
-  (`vectors/bad-signatures/`) and the answer key (`expected.json`).
+  (`vectors/bad-signatures/`), the answer key (`expected.json`), and the two migration files
+  (`migration-demo.csv`, `migration-real-servers.csv`).
   - The code of acme-sign 1.4.2 no longer has comments pointing at its bug. The bug is still there on purpose.
   - The demo repository is made from the 1.4.2 file by `cd backend && .venv/bin/python -m app.demo_repo`. Run
     that again only if the 1.4.2 file ever changes; a test fails until you do.

@@ -378,8 +378,14 @@ FIX_TABLES = {"code_connections": "repository", "changes": "title", "proofs": "v
               "pull_requests": "title", "approvals": "name", "merges": "merge_commit", "run_code": "source"}
 
 
+# The Migration step's two tables (phase 4a) have their own test of this, on a plan that has such rows:
+# test_migration.py::test_raw_sql_cannot_change_or_delete_a_setting_or_a_choice.
+MIGRATION_TABLES = ("system_settings", "migration_choices")
+
+
 def test_every_append_only_table_is_covered_by_a_test():
-    assert set(RUN_TABLES) | set(FIX_TABLES) == set(APPEND_ONLY_TABLES) and not set(RUN_TABLES) & set(FIX_TABLES)
+    assert set(RUN_TABLES) | set(FIX_TABLES) | set(MIGRATION_TABLES) == set(APPEND_ONLY_TABLES)
+    assert not set(RUN_TABLES) & set(FIX_TABLES) and not set(MIGRATION_TABLES) & (set(RUN_TABLES) | set(FIX_TABLES))
 
 
 @pytest.mark.parametrize("table", FIX_TABLES)

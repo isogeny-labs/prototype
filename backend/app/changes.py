@@ -264,7 +264,7 @@ class ChangesMixin:
 
     def _fix_sources(self) -> list:
         """Where fixes come from, as an explicit list. Phase 3a has one source; phase 3c adds a developer's change."""
-        return [self._fixes_for_failed_tests]
+        return [self._fixes_for_failed_tests, self._fixes_for_migration]   # phase 4a adds the migration plan's entries
 
     def _fixes(self, db, plan: PlanRow) -> list[dict]:
         items = self._items(db, plan.id)

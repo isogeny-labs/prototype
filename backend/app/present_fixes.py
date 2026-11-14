@@ -16,6 +16,10 @@ from .research import CHANGE_LABEL, TITLES, join_and
 
 TITLE = "Fixes"
 SUBLINE = "Fixes for the findings in Evidence Lab. A code change is ready for review only after its proof has passed."
+# Phase 4a: the same line when the list also holds entries from the migration plan (the how-to for a change, a blocker).
+SUBLINE_WITH_MIGRATION = ("Fixes for the findings in Evidence Lab, and what the migration plan needs done. A code change is ready for "
+                          "review only after its proof has passed.")
+MIGRATION_SOURCE = "Migration plan: "
 EMPTY = "No failed test has a fix. Fixes for failed tests show here."
 STATUS_WORDS = {"not_connected": "Code not connected", "proving": "Proving", "ready": "Ready for review", "failed": "Proof failed",
                 "waiting": "Waiting for approval", "ready_to_merge": "Ready to merge", "merged": "Merged", "text_only": "Text only"}
@@ -772,5 +776,7 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
 # ------------------------------------------------------------------ the whole step
 
 def view(plan_id: int, is_demo: bool, fixes: list[dict], busy: bool) -> dict:
-    return {"plan_id": plan_id, "is_demo": is_demo, "title": TITLE, "subline": SUBLINE, "disclaimer": present.DISCLAIMER,
+    from_migration = any(str(fix.get("list_source") or "").startswith(MIGRATION_SOURCE) for fix in fixes)
+    return {"plan_id": plan_id, "is_demo": is_demo, "title": TITLE, "subline": SUBLINE_WITH_MIGRATION if from_migration else SUBLINE,
+            "disclaimer": present.DISCLAIMER,
             "list_title": f"Open findings with a fix ({len(fixes)})", "empty_text": None if fixes else EMPTY, "fixes": fixes, "busy": busy}

@@ -215,16 +215,26 @@ def test_speed_control_that_is_not_slower_means_couldnt_trust(lab, monkeypatch):
 
 
 def test_a_component_that_is_not_ours_is_never_run(client):
+    """Since phase 4a a program that can't run gets no test cards at all: only its line under "Not tested, and why".
+    And where something does ask to run it (the Migration step's measurement), the runner refuses: Couldn't check."""
+    import pytest
     from conftest import csv_bytes, upload
+    from app.errors import Conflict
     lab = client.app.state.lab
     imp = upload(client, "claims.csv", csv_bytes("other-signer 2.0,software,signature_algorithm,ECDSA P-256")).json()
     plan = lab.ensure_plan(imp["id"])
-    assert [t["kind"] for t in plan["tests"]] == ["official_vectors", "bad_signatures", "speed_size"]
-    lab.run_all(plan["id"])
-    lab.wait_until_idle(plan["id"], 60)
+    assert plan["tests"] == [] and plan["catalog"] == []
+    assert plan["not_tested"]["items"] == ["other-signer 2.0: its tests can't run. Only our own demo components can run in this version."]
+    with pytest.raises(Conflict):
+        lab.run_all(plan["id"])
     view = lab.lab_view(plan["id"])
-    assert {r["result"]["label"] for r in view["rows"]} == {"Couldn't run (only our demo components can be run in this version)"}
-    assert view["retest"]["can_start"] is False and view["retest"]["versions"] == []
+    assert view["rows"] == [] and view["retest"]["can_start"] is False and view["retest"]["versions"] == []
+    lab.measure_migration(plan["id"])
+    lab.wait_until_measured(plan["id"], 60)
+    system = lab.migration_view(plan["id"])["systems"][0]
+    assert system["status"]["code"] == "couldnt_check"
+    assert system["today"]["result"]["label"] == "Couldn't check (only our demo components can be run in this version)"
+    assert system["options"] == []
 
 
 def test_control_servers_are_local_throwaway_and_closed_afterwards():

@@ -348,8 +348,36 @@ class RunCodeRow(Base):
     pull_request_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
+class SystemSettingRow(Base):
+    """Phase 4a. One setting of one system in an import, as it was given: by the imported file (`source` "file") or
+    by the user ("user"). Rows are only ever added; the newest row of a system's field is the one in force. A
+    field with no row uses the default, which the screens label "assumed"."""
+    __tablename__ = "system_settings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    import_id: Mapped[int] = mapped_column(ForeignKey("imports.id"))
+    system_key: Mapped[str] = mapped_column(String(600))        # "server:<address>" or "software:<claim ref>"
+    field: Mapped[str] = mapped_column(String(16))              # lifespan | exposure | can_change
+    value: Mapped[str] = mapped_column(String(16))
+    source: Mapped[str] = mapped_column(String(8))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class MigrationChoiceRow(Base):
+    """Phase 4a. The user's own choice of an option for one system, with why and when. Rows are only ever added: a
+    new choice is a new row, and nothing the app works out (a recommendation, a new measurement) ever writes here."""
+    __tablename__ = "migration_choices"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    system_key: Mapped[str] = mapped_column(String(600))
+    option: Mapped[str] = mapped_column(String(16))             # keep | hybrid | full_pq | wrap
+    reason: Mapped[str] = mapped_column(Text)
+    review_date: Mapped[str | None] = mapped_column(String(10), nullable=True)   # YYYY-MM-DD, for "keep"
+    basis: Mapped[dict] = mapped_column(JSON)                   # what was on screen then: status, recommendation, settings
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", "changes", "proofs", "proof_reviews",
-                      "pull_requests", "approvals", "merges", "run_code")
+                      "pull_requests", "approvals", "merges", "run_code", "system_settings", "migration_choices")
 
 
 def create_append_only_triggers(engine) -> None:

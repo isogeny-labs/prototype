@@ -8,18 +8,19 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
-from . import auth, components, plain, runner
+from . import auth, components, migration_servers, plain, present_migration, runner
 from .addresses import AddressError, is_loopback_ip, parse_address, resolve_all
 from .changes import ChangesMixin
 from .config import DEMO_CBOM, DEMO_CBOM_PORT, DEMO_HOSTNAME, Settings
 from .db import (
-    AddressRow, ClaimRow, ImportClearedRow, ImportRow, SkippedRow, VerifyRunRow, iso, make_session_factory, now_utc,
+    AddressRow, ClaimRow, ImportClearedRow, ImportRow, SkippedRow, SystemSettingRow, VerifyRunRow, iso, make_session_factory, now_utc,
 )
 from .demo_server import DemoServer
 from .extra_servers import ExtraServers, claims_match, is_multi_target_file
 from .errors import BadRequest, Conflict, NotFound
 from .evidence_export import EvidenceMixin, SigningKeyError, ensure_signing_key
 from .fixes import FixesMixin
+from .migration import MigrationMixin
 from .importers import ImportFileError, ParsedFile, parse_file
 from .jobs import JobRunner
 from .names import clean_text
@@ -41,10 +42,12 @@ def address_json(a: AddressRow) -> dict:
             "is_loopback": a.is_loopback, "confirmed": a.confirmed, "error": a.error}
 
 
-def import_json(i: ImportRow) -> dict:
+def import_json(i: ImportRow, settings: list[dict] | None = None) -> dict:
+    """`settings`: the system settings the file gave (phase 4a), one line per system, for the Import screen."""
     return {"id": i.id, "filename": i.filename, "format": i.format, "is_demo": i.is_demo,
             "claims": [claim_json(c) for c in i.claims], "addresses": [address_json(a) for a in i.addresses],
-            "skipped": [{"name": s.name, "what": s.what, "source": s.source, "reason": s.reason} for s in i.skipped]}
+            "skipped": [{"name": s.name, "what": s.what, "source": s.source, "reason": s.reason} for s in i.skipped],
+            "settings_title": present_migration.FILE_SETTINGS_TITLE, "settings": settings or []}
 
 
 def run_json(r: VerifyRunRow) -> dict:
@@ -55,7 +58,7 @@ def run_json(r: VerifyRunRow) -> dict:
             "results": results}
 
 
-class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
+class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, EvidenceMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -66,6 +69,8 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
         self.db = make_session_factory(db_path or settings.db_path)
         self.demo = DemoServer(settings.data_dir, settings.demo_tls_port)
         self.extra = ExtraServers(settings.extra_ports)  # the multi-target demo file's test servers, started on import only
+        # The migration demo file's five test servers (phase 4a): also started only when that file is imported.
+        self.migration_servers = migration_servers.MigrationServers(settings.migration_ports)
         self.allow_external_demo_server = allow_external_demo_server
         self._verify_lock = threading.Lock()
         self._stopping = False  # set when the app is closing: a test still unfinished then writes no record
@@ -101,6 +106,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
         self.jobs.stop()
         self.demo.stop()
         self.extra.stop()
+        self.migration_servers.stop()
 
     # ---------------------------------------------------------------- session / login
 
@@ -142,18 +148,43 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
             problems = self.extra.start()
             ports = ", ".join(str(p) for p in self.settings.extra_ports)
             stored["notices"] = problems or [f"Demo data: started the three demo test servers for this file on this computer (ports {ports})."]
+        if migration_servers.is_migration_file(data, self.settings.migration_ports):
+            # Only our own migration demo file starts its five test servers. One that can't start is said, never fatal.
+            problems = self.migration_servers.start()
+            ports = ", ".join(str(p) for p in self.settings.migration_ports)
+            stored["notices"] = problems or [f"Demo data: started the five demo test servers for this file on this computer (ports {ports})."]
         return stored
 
     def ensure_extra_servers(self, import_id: int) -> None:
         """If this import is the multi-target demo file, make sure its test servers are running (after a restart
         of the app they are not). Anything else starts nothing."""
-        if len(self.extra.running) == len(self.settings.extra_ports):
+        if (len(self.extra.running) == len(self.settings.extra_ports)
+                and len(self.migration_servers.running) == len(self.settings.migration_ports)):
             return
         with self.db() as db:
             imp = db.get(ImportRow, import_id)
             claims = [(c.location, c.kind, c.claimed_value) for c in imp.claims] if imp is not None else []
         if claims and claims_match(claims, self.settings.demo_tls_port, self.settings.extra_ports):
             self.extra.start()
+        if self._is_migration_demo(import_id):
+            self.migration_servers.start()
+
+    def _is_migration_demo(self, import_id: int) -> bool:
+        """Is this stored import exactly our migration demo file: the same claims AND the same settings rows? Only then
+        are its five test servers ours to start and to vouch for. A file that merely makes the same claims is not."""
+        ports = self.settings.migration_ports
+        with self.db() as db:
+            imp = db.get(ImportRow, import_id)
+            if imp is None:
+                return False
+            claims = [(c.location, c.kind, c.claimed_value) for c in imp.claims]
+            if not claims or not migration_servers.claims_match(claims, ports):
+                return False
+            names = {"software:" + c.ref: c.location for c in imp.claims if c.location_kind == "software"}
+            rows = db.scalars(select(SystemSettingRow).where(SystemSettingRow.import_id == imp.id, SystemSettingRow.source == "file")).all()
+            given = sorted((names.get(r.system_key, r.system_key.split(":", 1)[-1]), r.field, r.value) for r in rows)
+        wanted = migration_servers.file_settings(ports)
+        return bool(wanted) and given == wanted
 
     def extra_identity(self, import_id: int) -> tuple[dict | None, dict | None]:
         """For the multi-target demo file: (port -> our test server's fingerprint or None, port -> why it is not
@@ -161,6 +192,10 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
         with self.db() as db:
             imp = db.get(ImportRow, import_id)
             claims = [(c.location, c.kind, c.claimed_value) for c in imp.claims] if imp is not None else []
+        if self._is_migration_demo(import_id):
+            ours = self.migration_servers
+            return ({p: ours.fingerprints.get(p) if p in ours.running else None for p in self.settings.migration_ports},
+                    dict(ours.problems))
         if not claims or not claims_match(claims, self.settings.demo_tls_port, self.settings.extra_ports):
             return None, None
         return ({p: self.extra.fingerprints.get(p) if p in self.extra.running else None for p in self.settings.extra_ports},
@@ -179,8 +214,21 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
             for s in parsed.skipped:
                 row.skipped.append(SkippedRow(name=s.name, what=s.what, source=s.source, reason=s.reason))
             db.add(row)
+            db.flush()
+            # Settings the file gives for a system (phase 4a). They are data for the migration plan: nothing checks them.
+            refs = {c.location: c.ref for c in parsed.claims if c.location_kind == "software"}
+            for setting in getattr(parsed, "settings", None) or []:
+                key = "server:" + setting.location if setting.location_kind == "server" else "software:" + str(refs.get(setting.location))
+                db.add(SystemSettingRow(import_id=row.id, system_key=key, field=setting.field, value=setting.value, source="file"))
             db.commit()
-            return import_json(row)
+            return import_json(row, self._file_settings(db, row))
+
+    @staticmethod
+    def _file_settings(db, imp: ImportRow) -> list[dict]:
+        rows = db.scalars(select(SystemSettingRow).where(SystemSettingRow.import_id == imp.id, SystemSettingRow.source == "file")
+                          .order_by(SystemSettingRow.id)).all()
+        names = {"software:" + c.ref: c.location for c in imp.claims if c.location_kind == "software"}
+        return present_migration.file_settings([(names.get(r.system_key, r.system_key.split(":", 1)[-1]), r.field, r.value) for r in rows])
 
     def _new_address(self, address: str, host: str, port: int) -> AddressRow:
         """No name lookups (DNS) when a file is imported: a file must not make this computer contact anything.
@@ -216,7 +264,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
             cleared = db.scalar(select(func.max(ImportClearedRow.after_import_id))) or 0
             if row is None or row.id <= cleared:
                 raise NotFound("Nothing is imported at the moment.")
-            return import_json(row)
+            return import_json(row, self._file_settings(db, row))
 
     def confirm_address(self, import_id: int, address: str, confirmed: bool) -> dict:
         try:
@@ -252,7 +300,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
                                allow_external=self.allow_external_demo_server and self.demo.port_in_use,
                                extra=extra, extra_problems=problems)
             outcomes = verify_claims(list(imp.claims), list(imp.addresses), demo, resolver=self.resolver,
-                                     component_runner=self.component_runner)
+                                     component_runner=self.component_runner, mode=self.mode)
             results = [{"claim_id": c.id, "claim": claim_json(c), **o} for c, o in zip(imp.claims, outcomes)]
             run = VerifyRunRow(import_id=imp.id, started_at=started, finished_at=now_utc(), results=results)
             db.add(run)

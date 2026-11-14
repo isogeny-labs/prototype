@@ -5,11 +5,12 @@ import { CopilotPanel } from "./components/CopilotPanel";
 import { EvidenceLabScreen } from "./components/EvidenceLabScreen";
 import { FixesScreen } from "./components/FixesScreen";
 import { ImportScreen } from "./components/ImportScreen";
+import { MigrationScreen } from "./components/MigrationScreen";
 import { TestsScreen } from "./components/TestsScreen";
 import { VerifyScreen } from "./components/VerifyScreen";
 import { ErrorBox, Wordmark } from "./components/ui";
 
-type Step = "import" | "verify" | "tests" | "lab" | "fixes";
+type Step = "import" | "verify" | "tests" | "lab" | "fixes" | "migration";
 
 const STEP_KEY = "evidence-lab-step";
 
@@ -37,6 +38,7 @@ const STEPS: { step: Step; label: string }[] = [
   { step: "tests", label: "3. Tests" },
   { step: "lab", label: "4. Evidence Lab" },
   { step: "fixes", label: "5. Fixes" },
+  { step: "migration", label: "6. Migration" },
 ];
 
 function StepBar({
@@ -113,8 +115,9 @@ export default function App() {
       setRun(latest);
       setPlan(existingPlan);
       const wanted = rememberedStep();
-      if ((wanted === "lab" || wanted === "fixes") && existingPlan?.has_results) setStep(wanted);
-      else if (wanted === "tests" && current) setStep("tests");
+      if (wanted === "lab" && existingPlan?.has_results) setStep("lab");
+      else if (wanted === "fixes" && (existingPlan?.has_results || existingPlan?.has_migration)) setStep("fixes");
+      else if ((wanted === "tests" || wanted === "migration") && current) setStep(wanted);
       else if (wanted === "import") setStep("import");
       else setStep(latest ? "verify" : "import");
       setSession(s);
@@ -126,6 +129,21 @@ export default function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Loads the plan summary again (for example after Migration made the plan, finished a measurement or saved a
+  // choice), so the steps that depend on it open without a page refresh.
+  const importId = imp?.id ?? null;
+  const reloadPlan = useCallback(async () => {
+    if (importId === null) return null;
+    try {
+      const next = await api.getPlan(importId);
+      setPlan(next);
+      return next;
+    } catch (e) {
+      setLoadError(errorMessage(e));
+      return null;
+    }
+  }, [importId]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
@@ -162,12 +180,22 @@ export default function App() {
   }
 
   // A step whose data is gone (for example after a failed import) falls back to Import.
-  // Fixes opens whenever Evidence Lab does: both need results.
+  // Fixes opens once there are results or the migration plan has something for it.
   const hasResults = plan?.has_results === true;
+  const fixesOpen = hasResults || plan?.has_migration === true;
   const shown: Step =
-    (step === "verify" && imp && run) || (step === "tests" && imp) || ((step === "lab" || step === "fixes") && imp && hasResults)
+    (step === "verify" && imp && run) ||
+    ((step === "tests" || step === "migration") && imp) ||
+    (step === "lab" && imp && hasResults) ||
+    (step === "fixes" && imp && fixesOpen)
       ? step
       : "import";
+
+  // "View in Fixes" from Evidence Lab or Migration: open the Fixes step on that fix.
+  function viewFix(id: string) {
+    setFixId(id);
+    go("fixes");
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -176,7 +204,14 @@ export default function App() {
           <Wordmark />
           <StepBar
             step={shown}
-            canOpen={{ import: true, verify: run !== null, tests: imp !== null, lab: hasResults, fixes: hasResults }}
+            canOpen={{
+              import: true,
+              verify: run !== null,
+              tests: imp !== null,
+              lab: hasResults,
+              fixes: fixesOpen,
+              migration: imp !== null,
+            }}
             onGo={go}
           />
         </div>
@@ -223,15 +258,19 @@ export default function App() {
             ) : shown === "tests" && imp ? (
               <TestsScreen importId={imp.id} plan={plan} onPlan={setPlan} />
             ) : shown === "lab" && plan ? (
-              <EvidenceLabScreen
-                planId={plan.id}
-                onViewFix={(id) => {
-                  setFixId(id);
-                  go("fixes");
-                }}
-              />
+              <EvidenceLabScreen planId={plan.id} onViewFix={viewFix} />
             ) : shown === "fixes" && plan ? (
               <FixesScreen planId={plan.id} selectedId={fixId} onSelect={setFixId} onRetestStarted={() => go("lab")} />
+            ) : shown === "migration" && imp ? (
+              <MigrationScreen
+                key={imp.id}
+                importId={imp.id}
+                onPlanChanged={() => void reloadPlan()}
+                onViewFix={(id) => {
+                  // The plan summary may not know yet that the migration made fixes: load it first, then open Fixes.
+                  void reloadPlan().then(() => viewFix(id));
+                }}
+              />
             ) : null}
           </div>
         </main>

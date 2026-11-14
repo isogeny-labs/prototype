@@ -19,6 +19,7 @@ const KIND_LABELS: Record<ClaimKind, string> = {
   key_exchange: "Key exchange",
   certificate: "Certificate",
   signature_algorithm: "Signature algorithm",
+  post_quantum: "Post-quantum status",
 };
 
 const LOCATION_LABELS: Record<Claim["location_kind"], string> = {
@@ -146,6 +147,8 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
   const waitingForTicks = imp ? imp.addresses.some((a) => !a.confirmed && !a.error) : false;
 
   const skipped = imp?.skipped ?? [];
+  // Settings rows are not claims: nothing checks them. Older stored answers may not have them.
+  const settings = imp?.settings ?? [];
   // Only the upload reply carries these (for example: the demo test servers this file needs were started).
   const notices = imp?.notices ?? [];
 
@@ -267,6 +270,19 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
                 </table>
               </div>
             )}
+            {settings.length > 0 ? (
+              <div data-testid="import-settings" className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3">
+                <h3 className="text-sm font-semibold text-slate-100">{imp.settings_title}</h3>
+                <ul className="mt-1.5 space-y-1 text-sm">
+                  {settings.map((setting, i) => (
+                    <li key={i} data-testid="import-setting">
+                      <span className="font-mono text-slate-100">{setting.location}</span>
+                      <span className="text-slate-300"> {setting.text}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {notices.length > 0 ? (
               <div className="space-y-1.5">
                 {notices.map((notice, i) => (

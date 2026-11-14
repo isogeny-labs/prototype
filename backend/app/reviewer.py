@@ -48,7 +48,162 @@ COULDNT_RUN_REASONS = {
     "isolated_unavailable": "isolated mode is not available",
     "unreadable_answer": "the server's answer could not be read",
     "harness_error": "the test could not be run",
+    # phase 4a: the post-quantum status measurement
+    "pq_engine_unavailable": "this computer's crypto library can't run post-quantum TLS",
+    "unclear_answer": "the server gave no clear answer",
+    "claim_not_confirmed": "the file's claim about what it signs with was not confirmed",
+    "unknown_algorithm": "the algorithm is not one this version knows",
 }
+# Phase 4a. The key-exchange groups by family, and the signature algorithms by family (spelled as in the app).
+HYBRID_GROUPS = ("X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024")
+PURE_GROUPS = ("MLKEM768", "MLKEM1024", "MLKEM512")
+OLD_TLS = ("TLS 1.2", "TLS 1.1", "TLS 1.0")   # no post-quantum key exchange exists in these
+CLASSICAL_SIGNATURES = ("ECDSA", "RSA", "ED25519", "ED448", "DSA")
+POST_QUANTUM_SIGNATURES = ("ML-DSA", "MLDSA", "SLH-DSA", "SLHDSA")
+
+
+def _median_or_none(values: list) -> float | None:
+    good = [float(v) for v in values if isinstance(v, (int, float))]
+    return round(median(good), 3) if good else None
+
+
+def _timing_summary(timing: object) -> dict | None:
+    """Medians of the handshakes that were timed: the classical ones, and when hybrid ones were taken in turn with
+    them, the difference between matched pairs and how much it moved (its middle half), so a difference can be
+    called real or not."""
+    if not isinstance(timing, dict):
+        return None
+    classical = [c for c in timing.get("classical_ms") or [] if isinstance(c, (int, float))]
+    pairs = [(c, h) for c, h in zip(timing.get("classical_ms") or [], timing.get("hybrid_ms") or [])
+             if isinstance(c, (int, float)) and isinstance(h, (int, float))]
+    out = {"handshakes": len(classical), "classical_median_ms": _median_or_none(classical) if len(classical) >= 4 else None,
+           "pairs": len(pairs), "hybrid_median_ms": None, "difference_ms": None, "difference_low_ms": None,
+           "difference_high_ms": None, "beyond_noise": None}
+    if len(pairs) >= 4:
+        diffs = sorted(h - c for c, h in pairs)
+        low, high = diffs[len(diffs) // 4], diffs[(3 * len(diffs)) // 4 - (1 if len(diffs) % 4 == 0 else 0)]
+        out.update(hybrid_median_ms=_median_or_none([h for _, h in pairs]), difference_ms=round(median(diffs), 3),
+                   difference_low_ms=round(low, 3), difference_high_ms=round(high, 3), beyond_noise=bool(low > 0 or high < 0))
+    return out if out["classical_median_ms"] is not None or out["pairs"] >= 4 else None
+
+
+def _sizes(handshake: object) -> dict | None:
+    if not isinstance(handshake, dict) or handshake.get("outcome") != "completed":
+        return None
+    return {k: handshake.get(k) for k in ("group", "tls_version", "client_hello_bytes", "client_share_bytes", "server_share_bytes",
+                                          "certificate_message_bytes", "signature_bytes")}
+
+
+def _certificate_facts(cert: object, minimum_bits: object) -> dict | None:
+    if not isinstance(cert, dict):
+        return None
+    family = str(cert.get("algorithm"))
+    post_quantum = family.upper().startswith(("MLDSA", "ML-DSA", "SLHDSA", "SLH-DSA"))
+    name = str(cert.get("signature_algorithm") or family) if post_quantum else certificate_name(cert)
+    minimum = minimum_bits.get(family) if isinstance(minimum_bits, dict) else None
+    bits = cert.get("key_bits")
+    return {"name": name, "key_bits": bits, "post_quantum": post_quantum, "minimum_bits": minimum,
+            "weak": bool(minimum is not None and isinstance(bits, int) and bits < int(minimum)),
+            "public_key_bytes": cert.get("public_key_bytes"), "der_bytes": cert.get("der_bytes")}
+
+
+def pq_status_of(raw: dict, minimum_bits: object = None) -> dict:
+    """The post-quantum status of one server, from the raw measurement alone (phase 4a). Returns
+    {"control": {...}, "code", "reason_code", "detail"}; code is hybrid, pq_only, classical or couldnt_run.
+
+    Hybrid            - positive proof only: the server asked for a hybrid group, or a full hybrid handshake completed.
+    Post-quantum only - it accepted ML-KEM by itself and refused the hybrid and the classical hello (and no classical
+                        handshake completed).
+    Classical         - the hybrid and the ML-KEM hello and the full hybrid handshake each got a TLS refusal, and a
+                        classical key exchange was accepted.
+    Anything else     - couldn't check. Silence is never read as a status."""
+    def state(probes: object, family: str) -> str | None:
+        probe = probes.get(family) if isinstance(probes, dict) else None
+        return probe.get("state") if isinstance(probe, dict) else None
+
+    def group(probes: object, family: str) -> str | None:
+        probe = probes.get(family) if isinstance(probes, dict) else None
+        return probe.get("group") if isinstance(probe, dict) and probe.get("state") == "offered" else None
+
+    control = raw.get("control")
+    if not isinstance(control, dict) or not isinstance(control.get("hybrid"), dict) or not isinstance(control.get("classical"), dict):
+        why = control.get("error") if isinstance(control, dict) else None
+        control_out = {"outcome": "errored", "reason": str(why or "the control servers could not be started or read")}
+    else:
+        hp, cp = control["hybrid"].get("probes"), control["classical"].get("probes")
+        read_right = (group(hp, "hybrid") in HYBRID_GROUPS and state(hp, "classical") == "offered"
+                      and state(cp, "hybrid") == "refused" and state(cp, "pure") == "refused" and state(cp, "classical") == "offered")
+        control_out = ({"outcome": "as_expected", "reason": "control_servers_read_correctly"} if read_right
+                       else {"outcome": "not_as_expected", "reason": "a_control_server_was_misread"})
+
+    subject = raw["subject"]
+    probes = subject["probes"]
+    h, p, c = state(probes, "hybrid"), state(probes, "pure"), state(probes, "classical")
+    full_hybrid, full_pure = subject.get("hybrid_handshake") or {}, subject.get("pure_handshake") or {}
+    client = subject.get("classical_client") or {}
+    container = subject.get("container") if isinstance(subject.get("container"), dict) else {}
+    versions = subject.get("versions") or {}
+    accepted = [v for v in ("TLS 1.3", *OLD_TLS) if (versions.get(v) or {}).get("state") == "accepted"]
+    old_accepted = any(v in OLD_TLS for v in accepted)
+
+    hybrid_proof = [name for name, seen in (
+        ("probe", group(probes, "hybrid") in HYBRID_GROUPS),
+        ("handshake", full_hybrid.get("outcome") == "completed" and full_hybrid.get("group") in HYBRID_GROUPS),
+        ("container", bool(container.get("ran") and container.get("negotiated_line")))) if seen]
+    hybrid_groups = [g for g in dict.fromkeys([
+        group(probes, "hybrid") if group(probes, "hybrid") in HYBRID_GROUPS else None,
+        full_hybrid.get("group") if full_hybrid.get("outcome") == "completed" and full_hybrid.get("group") in HYBRID_GROUPS else None,
+        "X25519MLKEM768" if container.get("ran") and container.get("negotiated_line") else None]) if g]
+    pure_group = group(probes, "pure") or (full_pure.get("group") if full_pure.get("outcome") == "completed"
+                                           and full_pure.get("group") in PURE_GROUPS else None)
+    client_classical = client.get("outcome") == "completed" and client.get("group") not in HYBRID_GROUPS + PURE_GROUPS
+    # "Accepted" means a classical handshake COMPLETED: by the classical-only client, or in TLS 1.2 or older (where no
+    # post-quantum key exchange exists). A server that only asks for a classical key and then goes quiet has not.
+    classical_accepted = client_classical or old_accepted
+    if client_classical or old_accepted:
+        classical_client = "connects"
+    elif client.get("outcome") == "refused" and c == "refused":
+        classical_client = "cannot"
+    else:
+        classical_client = "unknown"
+    tls13_seen = (any(s == "offered" for s in (h, p, c)) or "TLS 1.3" in accepted
+                  or any(x.get("outcome") == "completed" and x.get("tls_version") == "TLS 1.3" for x in (client, full_hybrid, full_pure)))
+    tls13 = "on" if tls13_seen else "off" if c == "refused" else "unknown"
+    witnesses = {"builtin": full_hybrid.get("outcome") or "not_run",
+                 "container": ("not_run" if not container.get("ran") else "completed" if container.get("negotiated_line")
+                               else "refused" if container.get("alert") == 40 else "unclear")}
+
+    unclear = [name for name, value in (("the hybrid hello", h), ("the ML-KEM hello", p), ("the classical hello", c)) if value not in ("offered", "refused")]
+    if hybrid_groups:
+        code, reason_code = "hybrid", None
+    elif pure_group and h == "refused" and c == "refused" and classical_client != "connects":
+        code, reason_code = "pq_only", None
+    elif (not pure_group and h == "refused" and p == "refused" and full_hybrid.get("outcome") == "refused" and classical_accepted):
+        code, reason_code = "classical", None
+    else:
+        code, reason_code = "couldnt_run", "unclear_answer"
+        if h == "refused" and p == "refused" and full_hybrid.get("outcome") != "refused":
+            unclear.append("the full hybrid handshake")
+        if not classical_accepted:
+            unclear.append("a full classical handshake")
+    reference = control.get("reference") if isinstance(control, dict) and isinstance(control.get("reference"), dict) else {}
+    detail = {"status": code, "hybrid_groups": hybrid_groups, "hybrid_proof": hybrid_proof, "pure_group": pure_group,
+              "classical_group": group(probes, "classical") or (client.get("group") if client_classical else None),
+              "classical_accepted": bool(classical_accepted), "classical_client": classical_client, "tls13": tls13,
+              "tls_versions": accepted, "certificate": _certificate_facts(subject.get("certificate"), minimum_bits),
+              "witnesses": witnesses, "unclear": unclear if code == "couldnt_run" else [],
+              "sizes": {"classical": _sizes(client), "hybrid": _sizes(full_hybrid), "pure": _sizes(full_pure),
+                        "reference_classical": _sizes(reference.get("classical")), "reference_hybrid": _sizes(reference.get("hybrid"))},
+              "timing": _timing_summary(subject.get("timing")), "reference_timing": _timing_summary(reference.get("timing")),
+              "reference_classical_client": (reference.get("classical") or {}).get("outcome") if reference else None}
+    return {"control": control_out, "code": code, "reason_code": reason_code, "detail": detail}
+
+
+def signature_family(algorithm: object) -> str | None:
+    name = str(algorithm or "").upper().replace(" ", "")
+    if name.startswith(POST_QUANTUM_SIGNATURES):
+        return "pq_only"
+    return "classical" if name.startswith(CLASSICAL_SIGNATURES) else None
 
 
 class ReviewNotAllowed(Exception):
@@ -394,9 +549,54 @@ class RuleReviewer:
         detail["noise_band_percent"] = _band(comparison)
         return ("slowdown" if any(c["flagged"] for c in comparison.values()) else "no_slowdown"), None
 
+    # ---------------------------------------------------------------- phase 4a: the post-quantum status
+
+    def _pq_status(self, spec, raw, run, review):
+        found = pq_status_of(raw, (spec["inputs"].get("guidance") or {}).get("minimum_bits"))
+        review["control"], review["detail"] = found["control"], found["detail"]
+        return found["code"], found["reason_code"]
+
+    def _signing_status(self, spec, raw, run, review):
+        subject = raw["subject"]
+        check = subject["check"]
+        if check.get("result") != "True":
+            review["detail"] = {"status": "couldnt_run", "component": subject.get("component"), "found": check.get("found"),
+                                "why": check.get("reason")}
+            raise _CouldntRun("claim_not_confirmed")
+        # The control of this measurement is the independent library: it confirmed the key and the signature.
+        review["control"] = {"outcome": "as_expected", "reason": "independent_library_confirmed_the_signature"}
+        algorithm = spec["inputs"]["claimed_algorithm"]
+        cost = None
+        measured = raw.get("cost")
+        if isinstance(measured, dict) and not measured.get("problem"):
+            side = {"control": {"outcome": "not_run", "reason": None}, "detail": {}}
+            try:
+                self._mldsa_compare({"inputs": spec["inputs"]["mldsa"]}, measured, run, side)
+                if side["control"]["outcome"] == "as_expected":
+                    cost = side["detail"]
+            except (KeyError, TypeError, ValueError, IndexError):
+                cost = None
+        family = signature_family(algorithm)
+        review["detail"] = {"status": family or "couldnt_run", "algorithm": algorithm, "component": subject.get("component"),
+                            "found": check.get("found"), "cost": cost}
+        if family is None:
+            return "couldnt_run", "unknown_algorithm"
+        return family, None
+
     # ---------------------------------------------------------------- catalog: post-quantum readiness
 
     def _pq_readiness(self, spec, raw, run, review):
+        if spec["rule"].get("type") == "pq_status_offered":
+            # Since phase 4a: the same measurement and the same rule as the Migration step, so the two never disagree.
+            found = pq_status_of(raw)
+            review["control"] = found["control"]
+            groups = found["detail"]["hybrid_groups"] or ([found["detail"]["pure_group"]] if found["detail"]["pure_group"] else [])
+            review["detail"] = {**found["detail"], "group": groups[0] if groups else None, "asked_for": spec["inputs"]["group"]}
+            if found["code"] in ("hybrid", "pq_only"):
+                return "offered", None
+            if found["code"] == "classical":
+                return "not_offered", None
+            return found["code"], found["reason_code"]
         line = spec["rule"]["offered_line"]
         control = raw.get("control")
         control_read = None

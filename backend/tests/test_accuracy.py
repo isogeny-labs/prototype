@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from app import accuracy
-from app.config import DEMO_CBOM, EXPECTED_JSON
+from app.config import DEMO_CBOM, EXPECTED_JSON, Settings
 from conftest import free_port
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -66,11 +66,11 @@ def test_a_wrong_answer_is_reported_and_gives_exit_code_1(monkeypatch, capsys):
     answers = right_answers()
     wrong(answers)
     monkeypatch.setattr(accuracy, "collect", lambda settings=None: answers)
-    assert accuracy.main([]) == 1
+    assert accuracy.main(["--only", "acme"]) == 1
     out = capsys.readouterr().out
     assert "T3  MISMATCH" in out and out.strip().endswith("Demo accuracy: 14 of 15 match")
     monkeypatch.setattr(accuracy, "collect", lambda settings=None: right_answers())
-    assert accuracy.main(["--mode", "demo"]) == 0 and capsys.readouterr().out.strip().endswith("Demo accuracy: 15 of 15 match")
+    assert accuracy.main(["--mode", "demo", "--only", "acme"]) == 0 and capsys.readouterr().out.strip().endswith("Demo accuracy: 15 of 15 match")
 
 
 def test_missing_answers_and_an_early_stop_are_mismatches_not_silence():
@@ -143,7 +143,7 @@ def check_15_of_15(done, tmp_path):
 
 def test_command_is_15_of_15_in_demo_mode_and_never_touches_the_answer_key(tmp_path):
     before = hashlib.sha256(EXPECTED_JSON.read_bytes()).hexdigest()
-    done = run_command(tmp_path, free_port(), "--mode", "demo")
+    done = run_command(tmp_path, free_port(), "--mode", "demo", "--only", "acme")
     check_15_of_15(done, tmp_path)
     assert "  mode: Demo mode: running our own demo software, not isolated." in done.stdout
     assert hashlib.sha256(EXPECTED_JSON.read_bytes()).hexdigest() == before
@@ -151,7 +151,7 @@ def test_command_is_15_of_15_in_demo_mode_and_never_touches_the_answer_key(tmp_p
 
 def test_command_is_15_of_15_in_isolated_mode(tmp_path, docker_ready):
     """Skipped with a clear message when Docker is not running or the images are not prepared."""
-    done = run_command(tmp_path, free_port(), "--mode", "isolated")
+    done = run_command(tmp_path, free_port(), "--mode", "isolated", "--only", "acme")
     check_15_of_15(done, tmp_path)
     assert "  mode: Isolated mode: our demo software runs in a locked-down container with no network." in done.stdout
 
@@ -159,7 +159,7 @@ def test_command_is_15_of_15_in_isolated_mode(tmp_path, docker_ready):
 def test_command_shows_mismatches_and_exits_non_zero_when_the_demo_server_cannot_be_reached(tmp_path):
     blocker = socket.create_server(("127.0.0.1", 0))  # something else holds the port and is not the demo server
     try:
-        done = run_command(tmp_path, blocker.getsockname()[1], "--mode", "demo", rounds="2")
+        done = run_command(tmp_path, blocker.getsockname()[1], "--mode", "demo", "--only", "acme", rounds="2")
     finally:
         blocker.close()
     assert done.returncode != 0
@@ -184,3 +184,84 @@ def test_isolated_mode_asked_for_but_missing_is_a_mismatch_not_a_quiet_fallback(
 def test_command_takes_nothing_but_the_mode(bad):
     with pytest.raises(SystemExit):
         accuracy.main(bad)
+
+
+# ---------------------------------------------------------------- the migration demo (phase 4a)
+
+@pytest.fixture(scope="module")
+def migration_answers(tmp_path_factory):
+    """The migration demo run once, in demo mode, on spare ports (no Docker, no internet)."""
+    ports = tuple(free_port() for _ in range(5))
+    settings = Settings(data_dir=tmp_path_factory.mktemp("migration-accuracy") / "data", demo_tls_port=free_port(), force_mode="demo",
+                        migration_ports=ports)
+    return accuracy.collect_migration(settings)
+
+
+def _migration_key():
+    from app.config import EXPECTED_MIGRATION_JSON
+    return json.loads(EXPECTED_MIGRATION_JSON.read_text(encoding="utf-8"))
+
+
+def test_the_migration_demo_matches_its_answer_key(migration_answers):
+    assert migration_answers["stopped"] is None
+    report = accuracy.compare_migration(_migration_key(), migration_answers)
+    assert [line for line in report["lines"] if not line["match"]] == []
+    assert (report["matched"], report["total"]) == (32, 32)
+    assert [line["id"] for line in report["lines"]][:28] == [f"M{part}{n}" for part in "VSRP" for n in range(1, 8)]
+    assert migration_answers["control_misread_reads"] == "Couldn't check"
+
+
+def test_a_wrong_migration_answer_is_a_mismatch_with_its_reason(migration_answers):
+    def lines_after(change):
+        answers = copy.deepcopy(migration_answers)
+        change(answers["systems"])
+        return {line["id"]: line for line in accuracy.compare_migration(_migration_key(), answers)["lines"]}
+
+    wrong = lines_after(lambda s: s["localhost:8452"].update(verify="True", roadmap="Phase 2"))
+    assert wrong["MV2"]["match"] is False and wrong["MP2"]["match"] is False and wrong["MV1"]["match"] is True
+    wrong = lines_after(lambda s: s["localhost:8451"].update(classical_client=False))
+    assert wrong["MS1"]["match"] is False and "classical-only client" in wrong["MS1"]["why"]
+    wrong = lines_after(lambda s: s["localhost:8454"].update(tls_versions="1.3 and 1.2"))
+    assert wrong["MS4"]["match"] is False and "no TLS 1.3" in wrong["MS4"]["why"]
+    wrong = lines_after(lambda s: s["localhost:8453"].update(review_date="2031-06-01"))
+    assert wrong["MR3"]["match"] is False and "review date" in wrong["MR3"]["why"]
+    wrong = lines_after(lambda s: s["localhost:8454"]["settings"].update(can_change=("yes", "assumed")))
+    assert wrong["MR4"]["match"] is False and "can't be changed" in wrong["MR4"]["why"]
+    wrong = lines_after(lambda s: s["localhost:8455"].update(recommended="hybrid", in_place=False))
+    assert wrong["MR5"]["match"] is False
+    wrong = lines_after(lambda s: s["localhost:8452"].update(control="not_as_expected"))
+    assert wrong["controls"]["match"] is False
+    answers = copy.deepcopy(migration_answers)
+    answers["fixes"] = answers["fixes"][1:] + [{**answers["fixes"][1], "title": "Something else", "buttons": 1}]
+    lines = {line["id"]: line for line in accuracy.compare_migration(_migration_key(), answers)["lines"]}
+    assert lines["fix 1"]["match"] is False and lines["fix 2"]["match"] is True and lines["fixes"]["match"] is False
+
+
+def test_what_the_command_does_not_understand_in_the_key_is_a_mismatch_not_silence(migration_answers):
+    key = _migration_key()
+    key["surprise"] = {"x": 1}
+    key["status"][0]["colour"] = "blue"
+    key["recommendation"][1]["expected"] = "Something new"
+    lines = accuracy.compare_migration(key, migration_answers)["lines"]
+    assert lines[0]["match"] is False and "doesn't know that part" in lines[0]["why"]
+    by_id = {line["id"]: line for line in lines}
+    assert by_id["MS1"]["match"] is False and "'colour'" in by_id["MS1"]["why"]
+    assert by_id["MR2"]["match"] is False and "doesn't know that recommendation wording" in by_id["MR2"]["why"]
+    assert accuracy.compare_migration([], migration_answers)["matched"] == 0
+
+
+def test_the_migration_check_never_writes_the_key_and_fails_without_it(monkeypatch, tmp_path, migration_answers):
+    from app import config
+    before = hashlib.sha256(config.EXPECTED_MIGRATION_JSON.read_bytes()).hexdigest()
+    monkeypatch.setattr(accuracy, "collect_migration", lambda settings=None: migration_answers)
+    said = []
+    assert accuracy.print_migration_report(None, say=said.append) == 0 and said[-1] == "Migration demo accuracy: 32 of 32 match"
+    assert hashlib.sha256(config.EXPECTED_MIGRATION_JSON.read_bytes()).hexdigest() == before
+    missing = tmp_path / "expected-migration.json"
+    monkeypatch.setattr(config, "EXPECTED_MIGRATION_JSON", missing)
+    assert accuracy.print_migration_report(None, say=said.append) == 2
+    assert any("NOT COMPARED" in line for line in said) and not missing.exists()
+    # the command runs both checks by default, and its exit code is the worse of the two
+    monkeypatch.setattr(accuracy, "run_accuracy", lambda settings=None: {"matched": 15, "total": 15, "lines": [], "notes": [], "mode_line": None,
+                                                                         "stopped": None, "unmapped_claims": []})
+    assert accuracy.main([]) == 2 and accuracy.main(["--only", "acme"]) == 0

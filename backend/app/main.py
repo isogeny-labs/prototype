@@ -44,6 +44,19 @@ class RetestBody(BaseModel):
     version: str = Field(max_length=50)
 
 
+class MigrationSettingBody(BaseModel):
+    system: StrictStr = Field(max_length=600)
+    field: StrictStr = Field(max_length=16)
+    value: StrictStr = Field(max_length=16)
+
+
+class MigrationChoiceBody(BaseModel):
+    system: StrictStr = Field(max_length=600)
+    option: StrictStr = Field(max_length=16)
+    reason: StrictStr = Field(default="", max_length=2000)
+    review_date: StrictStr | None = Field(default=None, max_length=10)
+
+
 class PullRequestBody(BaseModel):
     # The picked reviewers, as ids from the fixed list (Lab checks each one against it).
     reviewers: list[Annotated[StrictStr, Field(max_length=16)]] = Field(max_length=8)
@@ -257,6 +270,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # ---------------------------------------------------------------- Fixes (all need login)
     # Each route is one action by the person at the keyboard; the app never merges on its own. The bodies are
     # two small JSON objects that name reviewers from a fixed list. Nothing here accepts software or a file.
+
+    # ---- the Migration step (phase 4a)
+    @app.get("/api/import/{import_id}/migration", dependencies=[Depends(require_login)])
+    def migration_view(import_id: int):
+        return lab.migration_view_for_import(import_id)
+
+    @app.post("/api/plans/{plan_id}/migration/measure", dependencies=[Depends(require_login)])
+    def migration_measure(plan_id: int):
+        return lab.measure_migration(plan_id)
+
+    @app.post("/api/plans/{plan_id}/migration/settings", dependencies=[Depends(require_login)])
+    def migration_setting(plan_id: int, body: MigrationSettingBody):
+        return lab.set_migration_setting(plan_id, body.system, body.field, body.value)
+
+    @app.post("/api/plans/{plan_id}/migration/choice", dependencies=[Depends(require_login)])
+    def migration_choice(plan_id: int, body: MigrationChoiceBody):
+        return lab.choose_migration_option(plan_id, body.system, body.option, body.reason, body.review_date)
 
     @app.get("/api/plans/{plan_id}/fixes", dependencies=[Depends(require_login)])
     def fixes_view(plan_id: int):

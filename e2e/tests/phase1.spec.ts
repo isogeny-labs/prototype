@@ -233,8 +233,8 @@ test("Continue to tests shows the five suggested tests", async () => {
   await expect(steps.getByRole("button", { name: /3\. Tests/ })).toHaveAttribute("aria-current", "step");
   await expect(steps.locator('[aria-current="step"]')).toHaveCount(1);
   await expect(steps.getByRole("button", { name: /4\. Evidence Lab/ })).toBeDisabled();
-  // Five steps since phase 3a. Fixes opens when Evidence Lab does: once there is a result.
-  await expect(steps.getByRole("button")).toHaveText(["1. Import", "2. Verify", "3. Tests", "4. Evidence Lab", "5. Fixes"]);
+  // Six steps since phase 4a (Fixes came in phase 3a, Migration in 4a). Fixes opens when Evidence Lab does: once there is a result.
+  await expect(steps.getByRole("button")).toHaveText(["1. Import", "2. Verify", "3. Tests", "4. Evidence Lab", "5. Fixes", "6. Migration"]);
   await expect(steps.getByRole("button", { name: /5\. Fixes/ })).toBeDisabled();
   await shot(page, "09-tests.png");
 });

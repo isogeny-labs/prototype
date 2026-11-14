@@ -105,7 +105,7 @@ def test_the_file_lists_every_fix_as_the_fixes_step_showed_it(flow):
     for name in STAGES:
         seen = getattr(flow, name)
         e = seen.evidence
-        assert sorted(e) == ["app", "code", "component", "disclaimer", "fixes", "generated_at", "import", "mode_line", "retest", "schema",
+        assert sorted(e) == ["app", "code", "component", "disclaimer", "fixes", "generated_at", "import", "migration", "mode_line", "retest", "schema",
                              "signer_key_fingerprint", "tests", "verify"]
         assert [(f["id"], f["kind"], f["status"]) for f in e["fixes"]] == [(FIX, "code", words[name]), (TLS, "text", "Text only")]
         for entry in e["fixes"]:

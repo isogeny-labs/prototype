@@ -9,6 +9,7 @@ import json
 
 from . import plain as plain_words, vectors
 from .guidance import OWN_LINKS
+from . import present_pq
 from .research import TITLES, join_and
 from .reviewer import COULDNT_RUN_REASONS
 
@@ -22,7 +23,9 @@ SHOWS_TITLE = "What this shows, and what it doesn't"
 RECORD_CHANGED = "The stored record no longer matches its fingerprint."
 LABELS = {"passed": ("Passed", "pass"), "failed": ("Failed", "fail"), "couldnt_trust": ("Couldn't trust this run", "warn"),
           "measured": ("Measured", "neutral"), "no_slowdown": ("No slowdown beyond measured noise", "pass"),
-          "slowdown": ("Slowdown found", "fail"), "offered": ("Offered", "neutral"), "not_offered": ("Not offered", "neutral")}
+          "slowdown": ("Slowdown found", "fail"), "offered": ("Offered", "neutral"), "not_offered": ("Not offered", "neutral"),
+          # phase 4a: the post-quantum status of a server or a signing program
+          "hybrid": ("Hybrid", "neutral"), "pq_only": ("Post-quantum only", "neutral"), "classical": ("Classical", "neutral")}
 NUMBER_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
 CONTROL_WHAT = {
     "tls_versions": ("a deliberately misconfigured test server", "failed this test"),
@@ -32,6 +35,8 @@ CONTROL_WHAT = {
     "speed_size": ("a deliberately slowed signer", "was flagged as slower"),
     "pq_readiness": ("a test server that does offer the new key exchange", "was detected as offering it"),
     "mldsa_compare": ("a deliberately altered signature", "was rejected"),
+    "pq_status": ("the same check on our hybrid and our classical test server", "read them as Hybrid and Classical"),
+    "signing_status": ("an independent library", "confirmed the program's signature"),
 }
 FAILING_CONTROLS = ("tls_versions", "certificate", "official_vectors", "bad_signatures")
 MODE_WORDS = {"demo": "Demo mode, not isolated", "isolated": "Isolated mode: locked-down container, no network"}
@@ -548,6 +553,8 @@ def _speed_size(w: _Words, spec, run, review, ctx) -> None:
 
 
 def _pq_readiness(w: _Words, spec, run, review, ctx) -> None:
+    if (spec.get("rule") or {}).get("type") == "pq_status_offered":
+        return present_pq.pq_readiness(w, spec, run, review, ctx)   # since phase 4a: the Migration step's measurement
     d, raw = review["detail"], run["raw"]
     address, group = spec["target"]["address"], d["group"]
     subject = raw["subject"]
@@ -628,7 +635,8 @@ def _mldsa_compare(w: _Words, spec, run, review, ctx) -> None:
 
 
 _WORDS = {"tls_versions": _tls_versions, "certificate": _certificate, "official_vectors": _official_vectors,
-          "bad_signatures": _bad_signatures, "speed_size": _speed_size, "pq_readiness": _pq_readiness, "mldsa_compare": _mldsa_compare}
+          "bad_signatures": _bad_signatures, "speed_size": _speed_size, "pq_readiness": _pq_readiness, "mldsa_compare": _mldsa_compare,
+          "pq_status": present_pq.pq_status, "signing_status": present_pq.signing_status}
 
 
 def _not_a_result(w: _Words, spec, run, review, ctx) -> None:

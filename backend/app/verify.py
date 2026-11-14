@@ -58,9 +58,11 @@ class AddressCheck:
     """Everything for one host:port in one run: the safety gate first, then (only if it passes) the handshakes."""
 
     def __init__(self, row, demo: DemoContext, resolver: Callable[[str], list[str]] = resolve_all,
-                 session_factory: Callable[..., ProbeSession] = ProbeSession):
+                 session_factory: Callable[..., ProbeSession] = ProbeSession, mode=None):
         self.row = row
         self.demo = demo
+        self.mode = mode                 # the app's mode: in isolated mode the OpenSSL 3.5 container gives a second opinion
+        self._pq_cache = None
         self.blocked: str | None = None
         self.evidence: list[Evidence] = []
         self.session: ProbeSession | None = None
@@ -127,7 +129,8 @@ class AddressCheck:
             self._identity_done = True
             self.version_evidence = ev
             if self._is_extra_address():
-                der = self.session.first_certificate()
+                from .execute import pqstatus   # here, not at the top: that package imports this module
+                der = pqstatus.any_certificate(self)   # also reads the certificate of a server that only speaks post-quantum
                 seen = describe_certificate(der)["sha256_fingerprint"] if der is not None else None
                 if seen != self.demo.extra.get(self.row.port):
                     self.blocked = (f"Something other than the Evidence Lab demo test server is answering on {self.row.address} "
@@ -239,6 +242,46 @@ class AddressCheck:
             name = names_for_certificate(cert)
             out["summary"] = plain.verify_certificate(out["result"], claimed, name)
         out["also_noticed"] = noticed
+        return out
+
+    def post_quantum(self, detail: dict) -> dict:
+        """Is the server's key exchange Classical, Hybrid or Post-quantum only, as the file says (phase 4a)? The same
+        measurement and the same rule as the Migration step and the Post-quantum readiness test."""
+        from . import present_pq
+        from .execute import pqstatus
+        from .reviewer import pq_status_of
+        claimed = str(detail.get("status") or "")
+        if self.blocked:
+            return _couldnt(self.blocked, self.wrap(self.base_evidence()))
+        if self._pq_cache is None:
+            try:
+                self._pq_cache = pqstatus.measure_server(self, self.mode, lambda *_: None, lambda *_: None, costs=False)
+            except Exception as exc:  # never a crash and never a guess
+                self._pq_cache = {"problem": {"code": "harness_error", "text": f"The check stopped unexpectedly ({exc.__class__.__name__})."}}
+        raw = self._pq_cache
+        if raw.get("problem"):
+            return _couldnt(str(raw["problem"].get("text") or "The check could not be run."),
+                            raw.get("gate") or self.wrap(self.base_evidence()))
+        evidence = list(raw["subject"].get("evidence") or [])
+        control = raw.get("control") if isinstance(raw.get("control"), dict) else {}
+        for name in ("hybrid", "classical"):
+            evidence += list((control.get(name) or {}).get("evidence") or [])
+        try:
+            found = pq_status_of(raw)
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return _couldnt("The answers could not be read.", evidence)
+        if found["control"]["outcome"] != "as_expected":
+            return _couldnt("The check did not read our own hybrid and classical test servers correctly, so its answer can't be relied on.", evidence)
+        code, d = found["code"], found["detail"]
+        if code not in present_pq.STATUS_LABELS:
+            out = _couldnt(present_pq.unclear_sentence(d), evidence)
+            out["summary"] = present_pq.unclear_sentence(d)
+            return out
+        label = present_pq.STATUS_LABELS[code]
+        sentence = present_pq.status_sentence(code, d)
+        out = _result(TRUE if label == claimed else FALSE, f"Measured: {label}. {sentence}", None, evidence)
+        out["summary"] = (f"{sentence} That matches the claim." if label == claimed else
+                          f"{sentence} The file says {claimed}, so the claim is not true.")
         return out
 
     def key_exchange(self, detail: dict) -> dict:
@@ -376,7 +419,7 @@ def _iana_names() -> dict[str, str]:
 
 def verify_claims(claims: list, address_rows: list, demo: DemoContext,
                   resolver: Callable[[str], list[str]] = resolve_all,
-                  session_factory: Callable[..., ProbeSession] = ProbeSession, component_runner=None) -> list[dict]:
+                  session_factory: Callable[..., ProbeSession] = ProbeSession, component_runner=None, mode=None) -> list[dict]:
     """Check every claim, one address at a time and one handshake at a time. Returns one result per claim.
     `component_runner` is the app's ComponentRunner: a software claim's component runs in the app's own mode."""
     rows = {r.address: r for r in address_rows}
@@ -391,7 +434,7 @@ def verify_claims(claims: list, address_rows: list, demo: DemoContext,
                 res = _couldnt("This is not an address we can safely connect to.")
             else:
                 if claim.location not in checks:
-                    checks[claim.location] = AddressCheck(row, demo, resolver, session_factory)
+                    checks[claim.location] = AddressCheck(row, demo, resolver, session_factory, mode=mode)
                 check = checks[claim.location]
                 if claim.kind == "protocol_versions":
                     res = check.protocol_versions(detail)
@@ -401,6 +444,8 @@ def verify_claims(claims: list, address_rows: list, demo: DemoContext,
                     res = check.cipher_suites(detail)
                 elif claim.kind == "key_exchange":
                     res = check.key_exchange(detail)
+                elif claim.kind == "post_quantum":
+                    res = check.post_quantum(detail)
                 else:
                     res = _couldnt("This version checks signature algorithms on software components only, not on servers.")
         elif claim.location_kind == "software":

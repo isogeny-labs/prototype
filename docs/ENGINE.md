@@ -460,6 +460,54 @@ the signer could not be confirmed." and exits with code 2, which is not a pass.
 - To answer research requests, an engine would read `research_requests` rows with status
   `waiting for research engine`. The table and screens for showing an answer do not exist yet.
 
+## Phase 4a: the migration measurements
+
+A migration measurement takes the same path as a test: it is written down in full and locked (`test_specs`), kept
+as a plan item, run through the job runner, stored as a run record and reviewed by the separate reviewer. Three
+things mark it out:
+
+- **Kinds.** `pq_status` (a server) and `signing_status` (a signing program), designed by
+  `RuleEngine.design_measurement`. They are not in the catalog.
+- **Hidden plan items.** Their `plan_items.origin` is `"migration"` and their runs' `phase` is `"migration"`.
+  `TestLabMixin._items` leaves them out, so they are never among the tests, a retest or a proof, and
+  `run_test` / `remove_test` refuse them. Their jobs run in their own group, `("migration", plan_id)`.
+- **Verdict codes.** `hybrid`, `pq_only`, `classical`, or `couldnt_run` with reason `unclear_answer`,
+  `pq_engine_unavailable`, `claim_not_confirmed` or one of the existing reasons. As for every test, a control
+  that did not behave gives `couldnt_trust`.
+
+The raw outcome of `pq_status` (`execute/pqstatus.measure_server`):
+
+```
+{"engine": {"available": true, "text": "..."},
+ "subject": {"address", "ip",
+             "probes": {"hybrid" | "pure" | "classical": {"state": "offered" | "refused" | "unclear", "group", "alert", "detail", ...}},
+             "versions": {...},                       # the TLS version handshakes, as in the other server tests
+             "classical_client": {handshake}, "hybrid_handshake": {handshake}, "pure_handshake": {handshake} | null,
+             "certificate": {...} | null, "container": {...} | null, "timing": {"classical_ms": [...], "hybrid_ms": [...] | null} | null,
+             "evidence": [...]},
+ "control": {"hybrid": {"port", "probes", "evidence"}, "classical": {...},
+             "reference": {"classical": {handshake}, "hybrid": {handshake}, "timing": {...} | null}} | {"error": "..."}}
+```
+
+The rule is one function, `reviewer.pq_status_of(raw)`, used by the reviewer (`_pq_status`, and `_pq_readiness`
+for a test whose rule type is `pq_status_offered`) and by Verify's `post_quantum` claim check, so the Migration
+step, the Post-quantum readiness test and Verify cannot disagree. A Post-quantum readiness test locked before
+phase 4a has rule type `pq_group_offered` and keeps its own executor, rule and words.
+
+Not records: the recommendation, the blockers, the roadmap and the Fixes entries are worked out on every read
+from the newest reviewed measurement (through the read gate), the settings and the choices
+(`MigrationMixin._migration_states`, rules in `migration_rules.py`). What is stored, in tables that only accept
+new rows: `system_settings` (import, system, field, value, source `file` or `user`) and `migration_choices`
+(plan, system, option, reason, review date, and the status, recommendation and settings on screen at the time).
+
+Routes: `GET /api/import/{id}/migration`, `POST /api/plans/{id}/migration/measure`,
+`POST /api/plans/{id}/migration/settings` `{system, field, value}`,
+`POST /api/plans/{id}/migration/choice` `{system, option, reason, review_date}`.
+
+The evidence file gains `migration`: `systems` (status, settings with their source, cost table, recommendation
+with its reasons, the user's choice and earlier choices, the plan and its roadmap phase), `roadmap`, and
+`measurements` (for each system the locked measurement, its run record and its review, like any test).
+
 ## Phase 3a-fixes: targets, plain sentences and notes in the views
 
 - **Plan view and Evidence Lab view** carry `grouped` (true when the file names more than one server or more

@@ -1,4 +1,4 @@
-# Handoff for the next session (after phase 3a and the 3a fixes; next is the server setting change, SPEC 7c)
+# Handoff for the next session (after phase 4a, the migration plan; the server setting change, SPEC 7c, is still open)
 
 Read `CLAUDE.md` and `docs/SPEC.md` first; they win over this page. State: phases 1, 2 and 3a are on `mvp/crypto-simple`. Phase 3a (the Fixes step) was built on 13 November 2026, and the 3a fixes (from Kevin's own testing) on 14 November 2026. The order after it is fixed in SPEC 9: the server setting change (7c), then change watch (3c), then the co-pilot and accuracy panel (3b). Another session works on the same branch: pull before you start and again right before you push.
 
@@ -13,6 +13,20 @@ Read `CLAUDE.md` and `docs/SPEC.md` first; they win over this page. State: phase
   - **Wording:** a vague TLS answer reads "The server didn't confirm or refuse ...". The two signing tests are titled "Independent exam (Wycheproof)" and "Attacker tricks (our short list)"; ids unchanged.
   - **Multi-target demo file** `demo/multi-target-demo.csv` with three test servers on 8444-8446 (`extra_servers.py`), started only when that file is imported.
   - **Checks on 14 November 2026 (after the reviewer's fixes):** backend 924 passed (none skipped, Docker running), frontend 163 passed, end-to-end 56 passed (one phase 1 check fixed and phase 1 rerun), accuracy 15 of 15 in demo mode and in isolated mode.
+- **Phase 4a (14 November 2026): the sixth step, Migration.**
+  - **Measured status** per system (`pqprobe.py`, `pqtls.py`, `execute/pqstatus.py`, the rule in `reviewer.pq_status_of`): Classical, Hybrid, Post-quantum only, or Couldn't check. No Docker needed; in isolated mode the OpenSSL 3.5 container adds a second opinion.
+  - **Cost table, four options, recommendation** from fixed rules (`migration_rules.py`), words in `present_migration.py`, state put together in `migration.py`. Settings (data lifespan, exposure, can it be changed) come from the file (`system` rows in the CSV), the user, or a default labelled "assumed".
+  - **The user's choice** is recorded with reason, time and (for "keep classical") a review date no later than 31 Dec 2030; rows are only added (`migration_choices`, `system_settings`).
+  - **Roadmap** (Already there, Phase 1, Phase 2, Later, Wrapped, Not placed yet), worked out on every read.
+  - **Into Fixes:** the how-to for the change itself and one entry per blocker, text only (`changes._fix_sources` has a second source). A blocker is only something to fix before the change; turning hybrid on is the change.
+  - **Into the evidence download:** a `migration` part, and section 5 of the report.
+  - **CSV additions:** claim `post_quantum` (checked by Verify with the same measurement), and `system` rows for settings.
+  - **Demo files:** `demo/migration-demo.csv` (five test servers on 8451-8455, `migration_servers.py`, started only on import) and `demo/migration-real-servers.csv` (three public servers; not run by the build).
+  - **Cleanups:** a program that can't run gets no test cards; "Puts acme-sign through an outside exam"; Post-quantum readiness uses the new measurement (old locked tests keep the old path).
+  - **Answer key:** `demo/expected-migration.json` (commit `f961f66`, written by Isogeny Labs; never edit it). `python -m app.accuracy` compares it after the Acme Pay key: 32 of 32 matched, with no change to the app.
+  - **Reviewer's fixes (same day):** the demo servers start only for exactly the demo file (claims and settings rows); Classical needs a classical handshake that completed; the Hybrid sentence names the proof that was seen; "every client must support it" is a thing to check under To do, not a blocker; no extra rule for a program that can't be changed; every number sits under its own source tag; Fixes opens for migration only when the plan has an entry; no button on the roadmap's system names.
+  - **Checks on 14 November 2026 (after the reviewer's fixes), each run once:** backend full suite 1021 passed and 2 failed (two older tests that still expected the old behaviour: cards for a program that can't run, and the list of add-only tables; both updated and rerun with their files, passing; none skipped, Docker running); frontend 193 passed; end-to-end 69 passed (two older steps updated for the six-step bar); accuracy 15 of 15 and migration 32 of 32, in demo mode and in isolated mode.
+  - **Screenshots:** `docs/screenshots/phase4a/` (15), and two retaken in `docs/screenshots/phase3a-fixes/` (02, 03). The older pictures still show a five-step bar.
 - **Checks on 13 November 2026:** backend 904 passed (none skipped, Docker running), frontend 150 passed, end-to-end 48 passed, accuracy 15 of 15 in demo mode and in isolated mode.
 
 ## How the pieces connect
@@ -55,7 +69,8 @@ Read `CLAUDE.md` and `docs/SPEC.md` first; they win over this page. State: phase
 - If the app stops in the instant between the merge in the repository and writing the merge record, that pull request can no longer be merged.
 - The rule engine never raises. Another engine that raises, or answers in another shape, would make the Fixes and Evidence Lab views fail (the engine is asked on every look, before and after the code is connected). Wrap that question when another engine is plugged in.
 - The backend suite takes about 14 minutes and the end-to-end test about 6.
-- The post-quantum check needs Docker host networking; untested on Docker Desktop. The reference library runs outside the container.
+- The post-quantum status needs no Docker. Its second opinion in isolated mode (the OpenSSL 3.5 container's own client) needs Docker host networking; untested on Docker Desktop. The reference library runs outside the container.
+- The post-quantum engine uses `cryptography`'s internal OpenSSL bindings (pinned to 50.0.2). Before raising that pin, run `tests/test_pqtls.py`, `tests/test_migration_servers.py` and `tests/test_migration.py`: `pqtls.available()` names any function a new release dropped.
 - Nobody has compared the app's NIST wording with the NIST document itself yet (the build machine cannot reach the site).
 
 ## Next: the server setting change (SPEC 7c)

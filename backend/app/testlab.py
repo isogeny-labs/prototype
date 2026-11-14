@@ -26,12 +26,15 @@ from .jobs import Job
 from .verify import AddressCheck, DemoContext
 
 RUNNER_ID = "isogeny.runner/1"
+MIGRATION_ORIGIN = "migration"   # a plan item that is a Migration measurement (phase 4a), and the phase of its runs
 RUN_SCHEMA = "isogeny.run/1"
-SOFTWARE_KINDS = research.SOFTWARE_TEST_KINDS
+SOFTWARE_KINDS = research.SOFTWARE_TEST_KINDS + ("signing_status",)
 NOT_DEMO_PROGRAM = "Its tests can't run: only our own demo components can run in this version."
 # Claims that no test in this version covers: what the "Not tested, and why" box says about them.
 UNCOVERED = {"cipher_suites": "its cipher-suite claim is checked in Verify only. No test in this version covers cipher suites.",
-             "key_exchange": "its key-exchange claim is checked in Verify only. No test in this version covers key exchange."}
+             "key_exchange": "its key-exchange claim is checked in Verify only. No test in this version covers key exchange.",
+             "post_quantum": ("its post-quantum claim is checked in Verify and measured in the Migration step. To test it here as well, "
+                              "add the Post-quantum readiness test.")}
 # Why nothing new can start for a plan while its jobs run. A proof (phase 3a, Fixes) has its own sentence.
 BUSY = {"tests": "Tests are still running. Wait until they have finished.",
         "proof": "A proof is running in Fixes. Wait until it has finished."}
@@ -107,7 +110,7 @@ class TestLabMixin:
             plan = db.scalars(select(PlanRow).where(PlanRow.import_id == import_id)).first()
             if plan is None:
                 claims = self._claims(imp)
-                proposal = self.engine.propose_tests(claims)
+                proposal = self._proposal_for(claims)
                 own = self._own_program(claims)
                 plan = PlanRow(import_id=import_id, component_name=own["component"] if own else None,
                                component_version=own["version"] if own else None)
@@ -119,6 +122,15 @@ class TestLabMixin:
                 db.commit()
             plan_id = plan.id
         return self.plan_view(plan_id)
+
+    def _proposal_for(self, claims: list[dict]) -> dict:
+        """The engine's suggested tests, without those for a signing program that can't run (only our own demo
+        components can): such a program gets no test cards and no result rows, only its line under "Not tested,
+        and why". So the count of tests leaves it out."""
+        proposal = self.engine.propose_tests(claims)
+        cant_run = {p["ref"] for p in research.programs(claims) if not components.lookup(p["component"], p["version"])}
+        tests = [t for t in proposal["tests"] if not ((t.get("target") or {}).get("kind") == "software" and t["target"].get("claim") in cant_run)]
+        return {**proposal, "tests": tests}
 
     def get_plan_for_import(self, import_id: int) -> dict:
         with self.db() as db:
@@ -137,7 +149,11 @@ class TestLabMixin:
 
     @staticmethod
     def _items(db, plan_id: int, include_removed: bool = False) -> list[PlanItemRow]:
-        rows = db.scalars(select(PlanItemRow).where(PlanItemRow.plan_id == plan_id).order_by(PlanItemRow.position, PlanItemRow.id)).all()
+        """The plan's tests, in order. The Migration step's own measurements (origin "migration", phase 4a) are kept
+        as plan items too, so they are locked, run and reviewed the same way, but they are never among the tests:
+        not in the plan, the results, a retest or a proof."""
+        rows = db.scalars(select(PlanItemRow).where(PlanItemRow.plan_id == plan_id, PlanItemRow.origin != MIGRATION_ORIGIN)
+                          .order_by(PlanItemRow.position, PlanItemRow.id)).all()
         return [r for r in rows if include_removed or not r.removed]
 
     def _specs(self, db, items: list[PlanItemRow]) -> dict[int, tuple[dict, bool, TestSpecRow]]:
@@ -220,7 +236,7 @@ class TestLabMixin:
         None when nothing is left out. A test the user removed is not listed here: it is back in the catalog."""
         lines: list[str] = []
         have = {(key_of[i.id], specs[i.id][2].kind if specs[i.id][2] else specs[i.id][0].get("kind")) for i in items}
-        proposal = self.engine.propose_tests(claims)
+        proposal = self._proposal_for(claims)
         label = {p["ref"]: p["label"] for p in research.programs(claims)}
         for skip in proposal.get("not_suggested") or []:
             key = ("server:" if skip["target_kind"] == "server" else "software:") + str(skip["target"])
@@ -246,7 +262,7 @@ class TestLabMixin:
             if "server:" + address in used and not confirmed.get(address, False):
                 lines.append(f"{address}: not confirmed yet, so its tests can't run. Tick \u201cI own this system or am allowed to test it\u201d on Import.")
         for program in research.programs(claims):
-            if "software:" + program["ref"] in used and not components.lookup(program["component"], program["version"]):
+            if not components.lookup(program["component"], program["version"]):
                 lines.append(f"{program['label']}: its tests can't run. Only our own demo components can run in this version.")
         for c in claims:
             where = c.get("location") or ""
@@ -324,7 +340,9 @@ class TestLabMixin:
                 card["can_remove"] = not live and not any(j is not None and j.status != "done" for j in reruns)
                 tests.append(card)
             has_results = bool(db.scalar(select(func.count(ReviewRow.id)).join(TestRunRow, TestRunRow.id == ReviewRow.run_id)
-                                         .where(TestRunRow.plan_id == plan_id)))
+                                         .where(TestRunRow.plan_id == plan_id, TestRunRow.phase != MIGRATION_ORIGIN)))
+            # Does the migration plan have something for the Fixes step (a how-to or a blocker)? Then Fixes can be opened.
+            has_migration = any(state["fix_ids"] for state in self._migration_states(db, plan))
             suggested = [i for i in items if i.origin == "suggested"]
             added = [i for i in items if i.origin == "added"]
             first_suggested = [i for i in every if i.origin == "suggested"]
@@ -348,7 +366,7 @@ class TestLabMixin:
                     "subject": subject, "grouped": grouped, "groups": groups,
                     "not_tested": self._not_tested(plan, claims, specs, items, key_of, every),
                     "running": running, "can_run_all": bool(items) and not running,
-                    "has_results": has_results, "max_parallel": self.jobs.max_parallel, "tests": tests,
+                    "has_results": has_results, "has_migration": has_migration, "max_parallel": self.jobs.max_parallel, "tests": tests,
                     "catalog_title": "Tests you can add", "catalog": self._catalog(db, plan, imp, every, specs),
                     "catalog_note": "Tests you remove from the plan come back to this list."}
 
@@ -358,8 +376,9 @@ class TestLabMixin:
         (or just None, "the first that fits", for the ML-DSA-65 figures in a file that names no program)."""
         if kind in research.SERVER_KINDS:
             return list(research.servers(claims))
-        refs = [p["ref"] for p in research.programs(claims)]
-        return refs or ([None] if kind == "mldsa_compare" else [])
+        found = research.programs(claims)
+        refs = [p["ref"] for p in found if components.lookup(p["component"], p["version"])]  # a program that can't run gets no test
+        return refs or ([None] if kind == "mldsa_compare" and not found else [])
 
     def _missing_targets(self, kind: str, claims: list[dict], every: list[PlanItemRow], specs: dict) -> tuple[list, list]:
         """(the removed items of this kind that can come back, one per target; the targets this kind fits that have
@@ -457,7 +476,7 @@ class TestLabMixin:
         with self.db() as db:
             self._plan(db, plan_id)
             item = db.get(PlanItemRow, item_id)
-            if item is None or item.plan_id != plan_id or item.removed:
+            if item is None or item.plan_id != plan_id or item.removed or item.origin == MIGRATION_ORIGIN:
                 raise NotFound("That test is not in this plan.")
             if any(j is not None and j.status != "done" for j in (self.jobs.get((item_id, phase)) for phase in ("first", "retest", "proof"))):
                 raise Conflict("This test is waiting or running. Remove it when it has finished.")
@@ -472,7 +491,7 @@ class TestLabMixin:
             with self.db() as db:
                 plan = self._plan(db, plan_id)
                 item = db.get(PlanItemRow, item_id)
-                if item is None or item.plan_id != plan_id or item.removed:
+                if item is None or item.plan_id != plan_id or item.removed or item.origin == MIGRATION_ORIGIN:
                     raise NotFound("That test is not in this plan.")
                 running = self._running(plan_id)
                 if running:
@@ -525,7 +544,7 @@ class TestLabMixin:
         program = self._program_of(plan, claims, spec) if spec_row_kind in SOFTWARE_KINDS else None
         if spec_row_kind in SOFTWARE_KINDS and program is None and not spec and plan.component_name is not None:
             program = {"component": plan.component_name, "version": plan.component_version, "own": True}  # unreadable test: as before
-        own = bool(program and program["own"])
+        own = bool(program and program["own"]) and phase != MIGRATION_ORIGIN   # a migration measurement runs the bundled program as it is
         version = (rerun.version if (rerun and own) else program["version"]) if program else None
         args = {"plan_id": plan.id, "import_id": plan.import_id, "item_id": item.id, "spec_hash": item.spec_hash, "phase": phase,
                 "retest_id": rerun.id if rerun else None, "component_name": program["component"] if program else None,
@@ -533,7 +552,8 @@ class TestLabMixin:
                 "baseline_version": plan.component_version if (rerun and own) else None,
                 "own": own}  # the plan's own program: in a proof, only it runs the changed code
         try:
-            return self.jobs.submit((item.id, phase), lambda job: self._run_one(job, args), group=plan.id)
+            group = ("migration", plan.id) if phase == MIGRATION_ORIGIN else plan.id   # measuring doesn't make Tests "busy"
+            return self.jobs.submit((item.id, phase), lambda job: self._run_one(job, args), group=group)
         except ValueError as exc:
             raise Conflict("This test is already waiting or running.") from exc
 
@@ -797,7 +817,7 @@ class TestLabMixin:
                            "menu_title": "Choose the version to retest", "versions": menu,
                            "menu_note": (f"Choosing a version reruns the same {n_word} locked {'test' if len(items) == 1 else 'tests'} on it and shows before and after. "
                                          f"Only our {present.number_word(len(versions))} demo versions can be chosen here.")}
-            any_result = len(items) > missing
+            any_result = len(items) > missing or self._has_migration(db, plan_id)   # a migration measurement counts too
             download = {"can_start": any_result and not busy,
                         "blocked_reason": None if any_result and not busy else
                         (BUSY[running] if busy else "Run a test first, so there is something to download.")}

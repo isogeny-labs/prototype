@@ -89,6 +89,6 @@ def test_tests_connect_only_to_the_pinned_ip(client, tls_server):
             if "subject" in run.raw and "ip" in run.raw["subject"]:
                 assert run.raw["subject"]["ip"] == "127.0.0.1"
     pq_result = result_of(view, "pq_readiness")
-    assert pq_result["label"] in ("Not offered", "Couldn't run (needs OpenSSL 3.5 or newer)")
-    if pq_result["label"] == "Not offered":
-        assert "-connect 127.0.0.1:" in pq_result["run_record"]["command"] and "-servername shop.example.test" in pq_result["run_record"]["command"]
+    assert pq_result["label"] == "Not offered"   # since phase 4a: no OpenSSL program or Docker needed
+    assert "(connected to 127.0.0.1)" in pq_result["run_record"]["command"]
+    assert "to 127.0.0.1:" in pq_result["run_record"]["outputs"][0]["text"] and "server name shop.example.test" in pq_result["run_record"]["outputs"][0]["text"]

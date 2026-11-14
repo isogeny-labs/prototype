@@ -242,6 +242,7 @@ export const plan: PlanView = {
   running: false,
   can_run_all: true,
   has_results: false,
+  has_migration: false,
   max_parallel: 4,
   grouped: false,
   groups: [],

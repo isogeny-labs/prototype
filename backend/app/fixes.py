@@ -53,14 +53,16 @@ class FixesMixin:
         same pairs, so the words in it are the words on the screen."""
         states = self._fixes(db, plan)
         is_demo = bool(db.get(ImportRow, plan.import_id).is_demo)
-        answered = {fix["id"]: self._answered(db, fix) for fix in states if fix["kind"] == "text"}
+        answered = {fix["id"]: self._answered(db, fix) for fix in states if fix["kind"] == "text" and fix["source_kind"] != "migration"}
         server_findings = sum(1 for _, address in answered.values() if address is not None)
         claims = self._claims(db.get(ImportRow, plan.import_id))
         several = len(research.servers(claims)) > 1 or len(research.programs(claims)) > 1
         out = []
         for fix in states:
             titles = list(dict.fromkeys(TITLES.get(a["kind"], str(a["kind"])) for a in fix["answers"]))
-            if fix["kind"] == "code":
+            if fix["source_kind"] == "migration":
+                shown = self._migration_fix_view(db, plan, fix, is_demo)   # phase 4a: the migration plan's how-to and blockers
+            elif fix["kind"] == "code":
                 shown = self._code_fix_detail(db, plan, fix, titles, server_findings)
             else:
                 run, address = answered[fix["id"]]

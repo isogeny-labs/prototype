@@ -14,9 +14,9 @@ const SHOTS = path.join(REPO, "docs/screenshots/phase3a-fixes");
 fs.mkdirSync(SHOTS, { recursive: true });
 const FILE = path.resolve(here, "../../demo/multi-target-demo.csv");
 const NOTE = "This server also accepts TLS 1.0 and TLS 1.1, both retired in 2021. The file didn't ask about this, so it doesn't change the result.";
-const ONLY_OURS = "This test couldn't run: only our own demo components can run in this version. So there is no result either way.";
 const SERVERS = ["localhost:8443", "localhost:8444", "localhost:8445", "localhost:8446"];
-const GROUPS = [...SERVERS.map((s) => `Server: ${s}`), "Signing program: acme-sign 1.4.2", "Signing program: acme-sign 9.9"];
+// acme-sign 9.9 can't run (it is not one of ours), so since phase 4a it has no group: only its line under "Not tested, and why".
+const GROUPS = [...SERVERS.map((s) => `Server: ${s}`), "Signing program: acme-sign 1.4.2"];
 
 let context: BrowserContext;
 let page: Page;
@@ -87,16 +87,16 @@ test("Verify: one plain sentence on top of every row, the Also noticed note, the
   await shot("01-verify-multi-target.png");
 });
 
-test("Tests: grouped by target, with what isn't tested and why; eleven tests in all", async () => {
+test("Tests: grouped by target, with what isn't tested and why; eight tests in all", async () => {
   await page.getByRole("button", { name: "Continue to tests" }).click();
   await expect(page.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
   const groups = page.getByTestId("test-group");
-  await expect(groups).toHaveCount(6);
+  await expect(groups).toHaveCount(5);
   for (const heading of GROUPS) await expect(group("test-group", heading)).toBeVisible();
-  await expect(page.getByTestId("test-card")).toHaveCount(11);
+  await expect(page.getByTestId("test-card")).toHaveCount(8);
   await expect(group("test-group", "Server: localhost:8443").getByTestId("test-card")).toHaveCount(2);
-  await expect(group("test-group", "Signing program: acme-sign 9.9").getByTestId("test-group-note"))
-    .toHaveText("Its tests can't run: only our own demo components can run in this version.");
+  // A program that can't run gets no test cards: only its line in the box below.
+  await expect(page.getByRole("heading", { name: "Signing program: acme-sign 9.9", exact: true })).toHaveCount(0);
   const box = page.getByTestId("not-tested");
   await expect(box).toContainText("Not tested, and why");
   await expect(box).toContainText("localhost:8444: no Certificate strength test. The file makes no claim about this server's certificate.");
@@ -112,7 +112,7 @@ test("Run all tests every target, in parallel, within the job limit", async () =
   for (;;) {
     const statuses = await page.getByTestId("test-card").evaluateAll((cards) => cards.map((c) => c.getAttribute("data-status")));
     most = Math.max(most, statuses.filter((s) => s === "running").length);
-    if (statuses.length === 11 && statuses.every((s) => s === "done")) break;
+    if (statuses.length === 8 && statuses.every((s) => s === "done")) break;
     expect(Date.now(), `still running: ${statuses.join(", ")}`).toBeLessThan(deadline);
     await page.waitForTimeout(200);
   }
@@ -120,12 +120,12 @@ test("Run all tests every target, in parallel, within the job limit", async () =
   expect(most).toBeLessThanOrEqual(4);
 });
 
-test("Evidence Lab: grouped results, each with its plain line; 9.9 says why it couldn't run; the note on 8445", async () => {
+test("Evidence Lab: grouped results, each with its plain line; 9.9 is only under Not tested; the note on 8445", async () => {
   await page.getByRole("button", { name: "4. Evidence Lab" }).click();
   await expect(page.getByRole("heading", { name: "Evidence Lab", level: 1 })).toBeVisible();
-  await expect(page.getByTestId("lab-group")).toHaveCount(6);
-  await expect(page.getByTestId("lab-row")).toHaveCount(11);
-  await expect(page.getByTestId("not-tested")).toBeVisible();
+  await expect(page.getByTestId("lab-group")).toHaveCount(5);
+  await expect(page.getByTestId("lab-row")).toHaveCount(8);
+  await expect(page.getByTestId("not-tested")).toContainText("acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.");
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   const g = (heading: string) => group("lab-group", heading);
   await expect(g("Server: localhost:8443").getByTestId("lab-row").first()).toContainText(
@@ -136,9 +136,7 @@ test("Evidence Lab: grouped results, each with its plain line; 9.9 says why it c
   await expect(g("Server: localhost:8446").getByTestId("result-badge").locator("span:last-child")).toHaveText(["Failed"]);
   await expect(g("Signing program: acme-sign 1.4.2").getByTestId("result-badge").locator("span:last-child"))
     .toHaveText(["Failed", "Failed", "Measured"]);
-  const theirs = g("Signing program: acme-sign 9.9").getByTestId("lab-row");
-  await expect(theirs).toHaveCount(3);
-  for (let i = 0; i < 3; i += 1) await expect(theirs.nth(i)).toContainText(ONLY_OURS);
+  await expect(page.getByRole("heading", { name: "Signing program: acme-sign 9.9", exact: true })).toHaveCount(0);
   // The technical text is inside the opened result.
   const row = g("Signing program: acme-sign 1.4.2").getByTestId("lab-row").first();
   await row.getByRole("button", { name: "Independent exam (Wycheproof)" }).click();

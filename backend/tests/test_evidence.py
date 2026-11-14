@@ -34,7 +34,7 @@ def test_envelope_shape_and_what_is_inside(demo_flow):
     assert envelope["fingerprint"] == hashlib.sha256(canonical_bytes(e)).hexdigest() == made["fingerprint"]
     assert re.fullmatch(r"[0-9a-f]{64}", envelope["public_key"]) and re.fullmatch(r"[0-9a-f]{128}", envelope["signature"])
     assert envelope["public_key"] == (demo_flow.lab.settings.data_dir / PUBLIC_KEY_FILE).read_text().strip()
-    assert sorted(e) == ["app", "code", "component", "disclaimer", "fixes", "generated_at", "import", "mode_line", "retest", "schema",
+    assert sorted(e) == ["app", "code", "component", "disclaimer", "fixes", "generated_at", "import", "migration", "mode_line", "retest", "schema",
                          "signer_key_fingerprint", "tests", "verify"]
     # no code was connected for this file, so the two fixes are listed as they stood: nothing prepared, nothing proved
     assert e["code"] is None and [(f["id"], f["kind"], f["status"]) for f in e["fixes"]] == [

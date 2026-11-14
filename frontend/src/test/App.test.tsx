@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import App from "../App";
 import { CODE_FIX, TLS_FIX, fixesViews } from "./fixesFixtures";
 import { address, beforeAfter, calls, demoImport, lab, mockApi, notFound, plan, run, session, text } from "./fixtures";
+import { HYBRID_FIX, measuringView, migrationView } from "./migrationFixtures";
 
 describe("first run and login", () => {
   it("shows the create-password screen the first time", async () => {
@@ -77,12 +78,14 @@ describe("app shell", () => {
       "3. Tests",
       "4. Evidence Lab",
       "5. Fixes",
+      "6. Migration",
     ]);
     expect(steps.getByRole("button", { name: /Import/ }).getAttribute("aria-current")).toBe("step");
     expect((steps.getByRole("button", { name: /Verify/ }) as HTMLButtonElement).disabled).toBe(true);
     expect((steps.getByRole("button", { name: "3. Tests" }) as HTMLButtonElement).disabled).toBe(true);
     expect((steps.getByRole("button", { name: "4. Evidence Lab" }) as HTMLButtonElement).disabled).toBe(true);
     expect((steps.getByRole("button", { name: "5. Fixes" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((steps.getByRole("button", { name: "6. Migration" }) as HTMLButtonElement).disabled).toBe(true);
     expect(document.body.textContent).not.toMatch(/Coming in phase 2/);
   });
 
@@ -482,3 +485,112 @@ describe("full flow", () => {
     expect(await screen.findByRole("heading", { name: "Log in" })).not.toBeNull();
   });
 });
+
+describe("Migration step", () => {
+  const stepButton = (name: string) =>
+    within(screen.getByRole("navigation", { name: "Steps" })).getByRole("button", { name }) as HTMLButtonElement;
+  const currentSteps = () =>
+    within(screen.getByRole("navigation", { name: "Steps" }))
+      .getAllByRole("button")
+      .filter((b) => b.getAttribute("aria-current") === "step")
+      .map((b) => b.textContent);
+  const base = {
+    "GET /api/session": { body: session },
+    "GET /api/import/current": { body: demoImport },
+    "GET /api/import/7/verify": notFound,
+  };
+
+  it("opens as soon as a file is imported, before any test has run", async () => {
+    const fetchMock = mockApi({ ...base, "GET /api/import/7/plan": notFound, "GET /api/import/7/migration": { body: migrationView } });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Import" });
+    expect(stepButton("6. Migration").disabled).toBe(false);
+    expect(stepButton("4. Evidence Lab").disabled).toBe(true);
+    expect(stepButton("5. Fixes").disabled).toBe(true);
+    fireEvent.click(stepButton("6. Migration"));
+    expect(await screen.findByRole("heading", { level: 1, name: "Migration plan" })).not.toBeNull();
+    expect(currentSteps()).toEqual(["6. Migration"]);
+    // The GET made the plan, so the app asks for the plan summary again.
+    await waitFor(() => expect(calls(fetchMock).filter((c) => c === "GET /api/import/7/plan")).toHaveLength(2));
+  });
+
+  it("opens Fixes once the plan has a migration measurement, even with no test results", async () => {
+    mockApi({
+      ...base,
+      "GET /api/import/7/plan": { body: { ...plan, has_migration: true } },
+      "GET /api/plans/1/fixes": { body: fixesViews.ready },
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Import" });
+    expect(stepButton("4. Evidence Lab").disabled).toBe(true);
+    expect(stepButton("5. Fixes").disabled).toBe(false);
+    fireEvent.click(stepButton("5. Fixes"));
+    expect(await screen.findByTestId("fix-summary")).not.toBeNull();
+  });
+
+  it("opens Fixes without a page refresh when a measurement finishes", async () => {
+    let measured = false;
+    let polls = 0;
+    mockApi({
+      ...base,
+      "GET /api/import/7/plan": () => ({ body: { ...plan, has_migration: measured } }),
+      "GET /api/import/7/migration": () => {
+        polls += 1;
+        if (polls >= 2) measured = true;
+        return { body: polls >= 2 ? migrationView : measuringView };
+      },
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Import" });
+    fireEvent.click(stepButton("6. Migration"));
+    await screen.findByRole("heading", { level: 1, name: "Migration plan" });
+    expect(stepButton("5. Fixes").disabled).toBe(true);
+    await waitFor(() => expect(stepButton("5. Fixes").disabled).toBe(false), { timeout: 4000 });
+  });
+
+  it("View in Fixes opens the Fixes step with that fix selected", async () => {
+    mockApi({
+      ...base,
+      "GET /api/import/7/plan": { body: { ...plan, has_migration: true } },
+      "GET /api/import/7/migration": { body: migrationView },
+      "GET /api/plans/1/fixes": {
+        body: { ...fixesViews.ready, fixes: [...fixesViews.ready.fixes, { ...fixesViews.ready.fixes[1]!, id: HYBRID_FIX, title: "Turn on hybrid on localhost:8452" }] },
+      },
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Import" });
+    fireEvent.click(stepButton("6. Migration"));
+    await screen.findByRole("heading", { level: 1, name: "Migration plan" });
+    fireEvent.click(screen.getByRole("button", { name: "Roadmap" }));
+    const phase1 = screen.getAllByTestId("roadmap-band").find((b) => b.getAttribute("data-band") === "phase1")!;
+    fireEvent.click(within(phase1).getByRole("button", { name: "View in Fixes" }));
+    expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(HYBRID_FIX);
+    expect(currentSteps()).toEqual(["5. Fixes"]);
+  });
+
+  it("comes back to Migration after a refresh", async () => {
+    mockApi({ ...base, "GET /api/import/7/plan": { body: plan }, "GET /api/import/7/migration": { body: migrationView } });
+    const first = render(<App />);
+    await screen.findByRole("heading", { name: "Import" });
+    fireEvent.click(stepButton("6. Migration"));
+    await screen.findByRole("heading", { level: 1, name: "Migration plan" });
+    first.unmount();
+
+    render(<App />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Migration plan" })).not.toBeNull();
+    expect(currentSteps()).toEqual(["6. Migration"]);
+  });
+
+  it("comes back to Fixes after a refresh when only the migration plan opens it", async () => {
+    window.sessionStorage.setItem("evidence-lab-step", "fixes");
+    mockApi({
+      ...base,
+      "GET /api/import/7/plan": { body: { ...plan, has_migration: true } },
+      "GET /api/plans/1/fixes": { body: fixesViews.ready },
+    });
+    render(<App />);
+    expect(await screen.findByTestId("fix-summary")).not.toBeNull();
+    expect(currentSteps()).toEqual(["5. Fixes"]);
+  });
+});
+

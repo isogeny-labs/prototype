@@ -53,14 +53,15 @@ def batch_info(result: runner_module.BatchResult) -> dict:
             "started_at": result.started_at, "stderr_tail": result.stderr_tail}
 
 
-EXCLUSIVE_KINDS = ("speed_size", "mldsa_compare")   # these take the gate exclusively themselves, while they measure
+EXCLUSIVE_KINDS = ("speed_size", "mldsa_compare", "signing_status")   # these take the gate exclusively themselves, while they measure
 
 
 def execute(spec: dict, ctx: RunContext) -> dict:
-    from . import pq, server, signing, speed
+    from . import pq, pqstatus, server, signing, speed
     table = {"tls_versions": server.run_tls_versions, "certificate": server.run_certificate,
              "official_vectors": signing.run_official_vectors, "bad_signatures": signing.run_bad_signatures,
-             "speed_size": speed.run_speed_size, "pq_readiness": pq.run_pq_readiness, "mldsa_compare": speed.run_mldsa_compare}
+             "speed_size": speed.run_speed_size, "pq_readiness": pq.run_pq_readiness, "mldsa_compare": speed.run_mldsa_compare,
+             "pq_status": pqstatus.run_pq_status, "signing_status": pqstatus.run_signing_status}
     run = table.get(spec.get("kind"))
     if run is None:
         return problem("harness_error", "This kind of test is not known to this version.")

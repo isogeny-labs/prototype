@@ -18,7 +18,7 @@ from .names import (
     TLS_VERSIONS, clean_text, join_and, normalize_algorithm, normalize_group, normalize_tls_version,
 )
 
-KIND_ORDER = ["protocol_versions", "cipher_suites", "key_exchange", "certificate", "signature_algorithm"]
+KIND_ORDER = ["post_quantum", "protocol_versions", "cipher_suites", "key_exchange", "certificate", "signature_algorithm"]
 NOT_STATED = "(not stated in the file)"
 CSV_HEADER = ["location", "type", "claim", "value"]
 KNOWN_ASSET_TYPES = {"algorithm", "protocol", "certificate", "related-crypto-material"}
@@ -56,10 +56,21 @@ class SkippedItem:
 
 
 @dataclass
+class ParsedSetting:
+    """A setting the file gives for a system (phase 4a): used by the migration plan. Not a claim: nothing checks it."""
+    location: str       # the server address, or "name version" of a software component
+    location_kind: str  # server | software
+    field: str          # lifespan | exposure | can_change
+    value: str          # short | long ; internet | internal ; yes | no
+    source: str
+
+
+@dataclass
 class ParsedFile:
     format: str  # cyclonedx-cbom | csv
     claims: list[ParsedClaim]
     skipped: list[SkippedItem] = field(default_factory=list)
+    settings: list[ParsedSetting] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------- shared helpers
@@ -100,10 +111,14 @@ def parse_file(filename: str, data: bytes) -> ParsedFile:
     fmt = detect_format(filename, data)
     try:
         # A CSV row is either a claim or an error, so a CSV file never has skipped items.
-        claims, skipped = read_cbom(data) if fmt == "cyclonedx-cbom" else (parse_csv(data), [])
+        settings: list[ParsedSetting] = []
+        if fmt == "cyclonedx-cbom":
+            claims, skipped = read_cbom(data)
+        else:
+            (claims, settings), skipped = parse_csv_rows(data), []
     except RecursionError as exc:  # defensive: the depth limits should stop this first
         raise ImportFileError("This file is nested too deeply to read.", field="components") from exc
-    return ParsedFile(format=fmt, claims=claims, skipped=skipped)
+    return ParsedFile(format=fmt, claims=claims, skipped=skipped, settings=settings)
 
 
 def _server_text(kind: str, where: str, detail: dict, claimed: str) -> str:
@@ -115,6 +130,8 @@ def _server_text(kind: str, where: str, detail: dict, claimed: str) -> str:
         return f"{where} accepts only these cipher suites: {claimed}"
     if kind == "key_exchange":
         return f"{where} uses only these key-exchange groups: {claimed}"
+    if kind == "post_quantum":
+        return f"{where} key exchange is {claimed}"
     if kind == "certificate":
         if not detail.get("algorithm") and claimed == NOT_STATED:
             return f"{where} has a certificate (the file does not say which algorithm)"
@@ -129,8 +146,15 @@ def _sorted(claims: list[ParsedClaim]) -> list[ParsedClaim]:
 # ---------------------------------------------------------------- CSV template
 
 _CSV_CLAIMS = {
-    "tls": {"protocol_versions", "cipher_suites", "key_exchange", "certificate"},
+    "tls": {"protocol_versions", "cipher_suites", "key_exchange", "certificate", "post_quantum"},
     "software": {"signature_algorithm"},
+}
+# Phase 4a: what a file may claim about a server's post-quantum key exchange, and the settings it may give a system.
+POST_QUANTUM_VALUES = {"classical": "Classical", "hybrid": "Hybrid", "postquantumonly": "Post-quantum only", "pqonly": "Post-quantum only"}
+_CSV_SETTINGS = {
+    "data_lifespan": ("lifespan", {"short": "short", "shortlived": "short", "long": "long", "longlived": "long"}, "short or long-lived"),
+    "exposure": ("exposure", {"internetfacing": "internet", "internet": "internet", "internal": "internal"}, "internet-facing or internal"),
+    "can_change": ("can_change", {"yes": "yes", "no": "no"}, "yes or no"),
 }
 
 
@@ -147,9 +171,16 @@ def parse_software_location(text: str) -> tuple[str, str] | None:
 
 
 def parse_csv(data: bytes) -> list[ParsedClaim]:
+    return parse_csv_rows(data)[0]
+
+
+def parse_csv_rows(data: bytes) -> tuple[list[ParsedClaim], list[ParsedSetting]]:
+    """(the claims, the settings rows). A settings row has type `system`; it must be about a system the file also
+    makes a claim about."""
     text = _decode(data)
     reader = csv.reader(io.StringIO(text, newline=""), strict=True)
     claims: list[ParsedClaim] = []
+    settings: list[tuple[int, ParsedSetting]] = []
     header_seen = False
     try:
         for row in reader:
@@ -170,16 +201,51 @@ def parse_csv(data: bytes) -> list[ParsedClaim]:
                     "Put quotes around a value that contains a comma.",
                     line=line,
                 )
-            if len(claims) >= MAX_CLAIMS_PER_FILE:
+            if len(claims) + len(settings) >= MAX_CLAIMS_PER_FILE:
                 raise ImportFileError(f"This file has more than {MAX_CLAIMS_PER_FILE} claims.", line=line)
-            claims.append(_csv_row(line, *cells))
+            if cells[1].lower() == "system":
+                settings.append((line, _csv_setting(line, *cells)))
+            else:
+                claims.append(_csv_row(line, *cells))
     except csv.Error as exc:
         raise ImportFileError(f"Line {reader.line_num} is not valid CSV ({exc}).", line=reader.line_num) from exc
     if not header_seen:
         raise ImportFileError("The first line must be exactly: location,type,claim,value", line=1, field="header")
     if not claims:
         raise ImportFileError("This file has the header line but no claims under it.", line=2)
-    return _sorted(claims)
+    known = {c.location for c in claims}
+    seen: set[tuple[str, str]] = set()
+    for line, setting in settings:
+        if setting.location not in known:
+            raise ImportFileError(f"Line {line}: the file sets {setting.field.replace('_', ' ')} for {setting.location}, but makes no claim "
+                                  "about that system.", line=line, field="location")
+        if (setting.location, setting.field) in seen:
+            raise ImportFileError(f"Line {line}: this setting is given twice for {setting.location}.", line=line, field="claim")
+        seen.add((setting.location, setting.field))
+    return _sorted(claims), [setting for _, setting in settings]
+
+
+def _csv_setting(line: int, location: str, type_: str, claim: str, value: str) -> ParsedSetting:
+    def bad(message: str, fld: str) -> ImportFileError:
+        return ImportFileError(f"Line {line}: {message}", line=line, field=fld)
+
+    claim = claim.lower()
+    if claim not in _CSV_SETTINGS:
+        raise bad(f"setting {clean_text(claim, 40)!r} is not known. Use one of: {', '.join(sorted(_CSV_SETTINGS))}.", "claim")
+    name, values, allowed = _CSV_SETTINGS[claim]
+    key = re.sub(r"[\s_\-]+", "", value).lower()
+    if key not in values:
+        raise bad(f"{clean_text(value, 40)!r} is not a value for {claim}. Use {allowed}.", "value")
+    if not location:
+        raise bad("the location is empty.", "location")
+    try:
+        return ParsedSetting(parse_address(location).address, "server", name, values[key], f"line {line}")
+    except AddressError:
+        parsed = parse_software_location(location)
+        if not parsed:
+            raise bad("the location must be a server address (host:port) or a software name and version, for example: "
+                      "acme-sign 1.4.2", "location") from None
+        return ParsedSetting(f"{parsed[0]} {parsed[1]}".strip(), "software", name, values[key], f"line {line}")
 
 
 def _csv_row(line: int, location: str, type_: str, claim: str, value: str) -> ParsedClaim:
@@ -188,7 +254,7 @@ def _csv_row(line: int, location: str, type_: str, claim: str, value: str) -> Pa
 
     type_, claim = type_.lower(), claim.lower()
     if type_ not in _CSV_CLAIMS:
-        raise bad(f"type {clean_text(type_, 40)!r} is not known. Use tls or software.", "type")
+        raise bad(f"type {clean_text(type_, 40)!r} is not known. Use tls, software or system.", "type")
     if claim not in _CSV_CLAIMS[type_]:
         allowed = ", ".join(sorted(_CSV_CLAIMS[type_]))
         raise bad(f"claim {clean_text(claim, 40)!r} can't be used with type {type_}. Use one of: {allowed}.", "claim")
@@ -228,6 +294,12 @@ def _csv_row(line: int, location: str, type_: str, claim: str, value: str) -> Pa
                 raise bad(f"{s!r} is not a cipher suite name.", "value")
         detail["suites"] = list(dict.fromkeys(suites))
         claimed = ", ".join(detail["suites"])
+    elif claim == "post_quantum":
+        status = POST_QUANTUM_VALUES.get(re.sub(r"[\s_\-]+", "", value).lower())
+        if not status:
+            raise bad(f"{clean_text(value, 40)!r} is not a post-quantum status. Use classical, hybrid or post-quantum only.", "value")
+        detail["status"] = status
+        claimed = status
     elif claim == "key_exchange":
         groups = []
         for part in _split_values(value):

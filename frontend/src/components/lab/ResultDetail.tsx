@@ -165,8 +165,9 @@ interface Props {
   /** Shown above the detail in the before/after view, e.g. "After: acme-sign 1.4.3, the merged fix (commit c41f0d2)". */
   heading?: string;
   busy: boolean;
-  onMarkReviewed: (runId: number) => void;
-  onDigDeeper: (runId: number) => void;
+  /** Without these two (the Migration step), the Mark reviewed and Dig deeper buttons are not drawn. */
+  onMarkReviewed?: (runId: number) => void;
+  onDigDeeper?: (runId: number) => void;
   onViewFix: (fixId: string) => void;
 }
 
@@ -299,6 +300,7 @@ export function ResultDetail({ result, heading, busy, onMarkReviewed, onDigDeepe
         </div>
       ) : null}
 
+      {onMarkReviewed && onDigDeeper ? (
       <div className="flex flex-wrap items-center gap-2.5">
         <SecondaryButton
           pressed={result.reviewed !== null}
@@ -316,6 +318,7 @@ export function ResultDetail({ result, heading, busy, onMarkReviewed, onDigDeepe
           </span>
         ) : null}
       </div>
+      ) : null}
     </section>
   );
 }

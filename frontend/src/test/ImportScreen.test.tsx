@@ -284,4 +284,31 @@ describe("Import screen", () => {
     renderImport({ ...demoImport, notices: [] });
     expect(screen.queryByTestId("import-notice")).toBeNull();
   });
+
+  it("lists the settings the file carries under the claims, only when there are some", () => {
+    const withSettings: Import = {
+      ...demoImport,
+      settings_title: "System settings from the file",
+      settings: [
+        { location: "localhost:8451", text: "Exposure: internet-facing. Data lifespan: long-lived." },
+        { location: "localhost:8454", text: "Can it be changed: no." },
+      ],
+    };
+    renderImport(withSettings);
+    const box = within(screen.getByTestId("import-settings"));
+    expect(box.getByRole("heading", { name: "System settings from the file" })).not.toBeNull();
+    expect(screen.getAllByTestId("import-setting").map((li) => text(li))).toEqual([
+      "localhost:8451 Exposure: internet-facing. Data lifespan: long-lived.",
+      "localhost:8454 Can it be changed: no.",
+    ]);
+    expect(box.getByText("localhost:8451").className).toContain("font-mono");
+    cleanup();
+
+    renderImport({ ...demoImport, settings_title: "System settings from the file", settings: [] });
+    expect(screen.queryByTestId("import-settings")).toBeNull();
+    cleanup();
+    // An older stored answer without the field.
+    renderImport(demoImport);
+    expect(screen.queryByTestId("import-settings")).toBeNull();
+  });
 });

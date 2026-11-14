@@ -4,6 +4,6 @@ fastapi
 uvicorn
 sqlalchemy
 pydantic
-cryptography
+cryptography==50.0.2
 pytest
 httpx

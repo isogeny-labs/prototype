@@ -9,6 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEMO_DIR = REPO_ROOT / "demo"
 DEMO_CBOM = DEMO_DIR / "acme-pay-cbom.json"
 EXPECTED_JSON = DEMO_DIR / "expected.json"  # answer key: read-only, never written by the app
+EXPECTED_MIGRATION_JSON = DEMO_DIR / "expected-migration.json"  # the migration demo's answer key: read-only too
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 
 BIND_HOST = "127.0.0.1"
@@ -36,6 +37,8 @@ class Settings:
     speed_repeats: int = 5          # sign+verify pairs per round
     # The three local test servers of the multi-target demo file (phase 3a-fixes). Started only when that file is imported.
     extra_ports: tuple[int, int, int] = (8444, 8445, 8446)
+    # The five local test servers of the migration demo file (phase 4a). Started only when that file is imported.
+    migration_ports: tuple[int, int, int, int, int] = (8451, 8452, 8453, 8454, 8455)
 
     @property
     def db_path(self) -> Path:

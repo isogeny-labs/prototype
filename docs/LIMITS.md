@@ -111,6 +111,78 @@ Updated at the end of **phase 3a** (the Fixes step: a suggested code change with
   file is run against the reference library only. That shows the file and the reference agree; it says nothing
   about any Ed25519 software of yours.
 
+## Limits of the migration plan (phase 4a; 14 November 2026)
+
+What is real:
+- **The status is measured.** For a server: three hand-built first messages (hybrid only, ML-KEM by itself only,
+  classical only, each with no key attached), the TLS version handshakes, one full hybrid handshake and one as a
+  classical-only client. It needs no Docker and no OpenSSL program. For a signing program: what it reports,
+  confirmed by an independent library checking one signature.
+- **Hybrid is only ever said on positive proof** (the server asks for a hybrid key, or completes a hybrid
+  handshake). Classical needs a TLS refusal of every post-quantum attempt and a classical handshake that completed. Silence,
+  a time-out or an unreadable answer is "Couldn't check", never a status.
+- **Every measurement has a control:** the same check must read our own hybrid test server as Hybrid and our own
+  classical one as Classical in the same run, or the run is not trusted.
+- The nginx and Apache lines in the "turn on hybrid" how-to were checked on real software during the build
+  (nginx 1.31.8 and Apache 2.4.71, both with OpenSSL 3.5.9, in containers; nginx 1.24.0 with OpenSSL 3.0.13 for
+  the "stops it starting" warning). Every other config line is labelled "Not checked on real software".
+
+What is demo:
+- The five servers of `demo/migration-demo.csv` are test servers this app starts on this computer (8451 to 8455),
+  with test certificates made at start. The hybrid and the post-quantum-only one are run by the copy of OpenSSL
+  inside the `cryptography` library, pinned to version 50.0.2.
+- `acme-sign 1.4.2` is our own demo program. `acme-sign 9.9` is not one of ours and can't run: Couldn't check.
+- The five test servers start only for exactly that file: the same claims and the same settings rows. A file of
+  your own that makes the same claims starts nothing, and its addresses are checked like any other.
+
+Limits to know:
+- **The three public servers in `demo/migration-real-servers.csv` were not measured by the build.** The build
+  machine has no direct internet. Kevin runs that file by hand and compares with Cloudflare Radar. What the app
+  is expected to say is in the phase 4a plan, not in a checked answer.
+- **The migration answer key** (`demo/expected-migration.json`, written by Isogeny Labs and added to the branch
+  as commit `f961f66` while this phase was being built) is compared by the accuracy command: its 28 numbered
+  answers (MV, MS, MR, MP), the two expected Fixes suggestions, "text only, nothing else", and the controls.
+  The app matched all 32 without being changed to fit. The command reads exactly that file's layout: anything
+  in the key it does not understand is reported as a mismatch, never passed over. The key's line about the Acme
+  Pay demo is checked by the other half of the command (`demo/expected.json`).
+- **The post-quantum engine is a private part of a library.** The test servers and the full handshakes use
+  OpenSSL through `cryptography`'s internal bindings, which that library does not promise to keep. The version is
+  pinned. If that part stops working, the app says "Couldn't check" for every server status, the hybrid and
+  post-quantum-only demo servers don't start (and say so), and nothing crashes or is guessed. The hand-built
+  hellos alone are not used to give a status in that case.
+- **A status is about key exchange only** (and, for a program, the signature algorithm it reports). It says
+  nothing about cipher suites, certificates' chains, or what real clients negotiate. "Post-quantum only" is the
+  server refusing our classical and hybrid hellos; a group this version doesn't offer could still be accepted.
+- **Groups tried:** X25519MLKEM768, SecP256r1MLKEM768, SecP384r1MLKEM1024; ML-KEM-768, -1024, -512; X25519,
+  P-256, P-384. A server that offers only some other hybrid reads as Classical or Couldn't check.
+- **A server that accepts ML-KEM by itself and classical, but no hybrid,** reads "Couldn't check": this version
+  has no name for that status.
+- **Costs:** sizes are measured on the system where it already does the thing, otherwise published (FIPS 203,
+  FIPS 204) or "measured on our test server" (this computer, loopback). Handshake times are medians of 10 on
+  loopback: they show scale, not what a real network adds. Full post-quantum handshake time is not measured.
+  For a signing program the ML-DSA-65 column is the reference library, not software of yours.
+- **The recommendation is a small fixed table** (`migration_rules.py`): status, data lifespan, exposure, can it
+  be changed. It knows nothing else about your systems. Defaults are the careful reading and are labelled
+  "assumed": long-lived data; internet-facing for a public address, internal otherwise.
+- **Full post-quantum is never recommended** unless the system is already there, because the app can't see the
+  clients. "Wrap the connection" names no product and measures nothing about a gateway.
+- **Blockers checked:** no TLS 1.3, a certificate below the NIST minimum, a program that can't make post-quantum
+  signatures. Nothing else (firewalls that drop large first messages, client support) is measured; the how-to
+  warns about the first two in words.
+- **Fixes entries from the migration plan are text only.** The app never changes a system, and never tests the
+  suggested lines on yours. An entry closes when a new measurement shows it done or the plan for it changes.
+- **Choices:** one login, so a choice is recorded for "whoever is at the keyboard". A choice is never changed by
+  the app; a newer choice is a new record and the older ones stay. If a later measurement makes a choice
+  impossible (the system now measures Hybrid and the choice was "keep classical"), the roadmap goes back to the
+  recommendation and the choice stays in the record.
+- **Review dates** are checked against the computer's clock (UTC date) when saved. Nothing reminds you when one
+  passes.
+- **A program that can't run** now has no test cards and no result rows (only its line under "Not tested, and
+  why"). A plan made before this change keeps the cards it had.
+- **Post-quantum readiness (the catalog test)** now uses the same measurement, so it gives a result without
+  Docker. A test of that kind locked before phase 4a keeps its old checker and rule, and its stored results read
+  as before.
+
 ## Limits of the Fixes step (phase 3a)
 
 - **A passed proof shows that these tests passed on the changed code.** It doesn't show that the change is free of

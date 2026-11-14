@@ -378,8 +378,8 @@ def test_the_proof_table_and_why_it_is_ready(flow):
     assert (tls["before"]["short"], tls["proof"]["short"]) == ("Server accepted TLS 1.2.", "Server still accepts TLS 1.2. This change doesn't touch the server.")
     assert (tls["proof"]["label"], tls["proof"]["tone"]) == ("Failed", "fail")  # failed before and after: a code change does not touch the server
     assert certificate["before"] == certificate["proof"] == {"label": "Passed", "tone": "pass", "short": "ECDSA P-256, as claimed. NIST retirement note."}
-    assert (pq_row["before"]["short"], pq_row["proof"]["short"]) == ("Server does not offer X25519MLKEM768.",
-                                                                    "Server does not offer X25519MLKEM768. This change doesn't touch the server.")
+    assert (pq_row["before"]["short"], pq_row["proof"]["short"]) == ("Server does not offer a quantum-resistant key exchange.",
+                                                                    "Server does not offer a quantum-resistant key exchange. This change doesn't touch the server.")
     assert all(r["check"] == {"ok": True, "text": "Same as before"} and r["control"].startswith("Control: ") for r in server["rows"])
     assert proof["verdict"] == {
         "tone": "pass", "title": "Why it is ready for review",

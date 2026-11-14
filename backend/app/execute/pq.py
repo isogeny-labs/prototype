@@ -195,6 +195,10 @@ def _read(result: dict) -> dict:
 
 
 def run_pq_readiness(spec: dict, ctx: RunContext) -> dict:
+    if (spec.get("rule") or {}).get("type") == "pq_status_offered":
+        # Since phase 4a: the same measurement as the Migration step (no OpenSSL program or Docker needed).
+        from .pqstatus import run_pq_status
+        return run_pq_status(spec, ctx)
     address = spec["target"]["address"]
     check, blocked = gate(ctx, address)          # nothing is contacted unless the address passes the gate
     if blocked:

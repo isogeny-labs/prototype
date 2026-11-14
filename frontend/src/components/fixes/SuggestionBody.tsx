@@ -100,8 +100,16 @@ export function SuggestionBody({ suggestion }: { suggestion: TextSuggestion }) {
                         </span>
                       ) : null}
                       {row.code ? (
-                        <code className="whitespace-nowrap rounded bg-slate-900 px-1.5 py-0.5 font-mono text-xs text-slate-100">
-                          {row.code}
+                        // A long setting may wrap after a colon or a space, never inside a name, so it is never cut off
+                        // at the edge of the table. The copied text has no extra characters.
+                        <code className="inline-block rounded bg-slate-900 px-1.5 py-0.5 font-mono text-xs leading-5 text-slate-100">
+                          {row.code.split(":").map((piece, j, all) => (
+                            <span key={j}>
+                              {piece}
+                              {j < all.length - 1 ? ":" : ""}
+                              {j < all.length - 1 ? <wbr /> : null}
+                            </span>
+                          ))}
                         </code>
                       ) : null}
                     </td>

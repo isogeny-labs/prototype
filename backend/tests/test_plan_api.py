@@ -47,7 +47,7 @@ def test_plan_is_proposed_once_and_then_stays(client):
                      "why": "Why it matters: older versions have known weaknesses and are easy to leave switched on.",
                      "status": "not_run", "status_text": "Not run yet", "progress": None, "result": None, "can_run": True, "can_remove": True,
                      "group": f"server:{address}"}
-    assert plan["tests"][2]["description"] == ("Sits acme-sign an outside exam: the 484 ECDSA P-256 cases of Project Wycheproof, "
+    assert plan["tests"][2]["description"] == ("Puts acme-sign through an outside exam: the 484 ECDSA P-256 cases of Project Wycheproof, "
                                                "each with a published right answer, and counts any it gets wrong.")
     # One server and one program: the list stays flat, as it always was, and nothing is left out.
     assert plan["grouped"] is False and plan["not_tested"] is None
@@ -57,7 +57,7 @@ def test_plan_is_proposed_once_and_then_stays(client):
     assert plan["catalog_title"] == "Tests you can add" and plan["catalog_note"] == "Tests you remove from the plan come back to this list."
     assert plan["catalog"] == [
         {"catalog_id": "pq_readiness", "title": "Post-quantum readiness", "tag": None,
-         "description": "Checks whether the server offers the newer quantum-resistant key exchange (X25519MLKEM768)."},
+         "description": "Checks whether the server offers a quantum-resistant key exchange (such as X25519MLKEM768)."},
         {"catalog_id": "mldsa_compare", "title": "ML-DSA-65 comparison", "tag": "reference, not production",
          "description": "Shows the speed and sizes of a post-quantum signature (ML-DSA-65) from a reference implementation, next to acme-sign's."}]
     again = client.post(f"/api/import/{imp['id']}/plan").json()
@@ -186,7 +186,11 @@ def test_there_is_no_route_that_accepts_software(client):
                       "/api/plans/{plan_id}/retest": "RetestBody",
                       # Fixes: the picked reviewers, and the one who approves, as ids from a fixed list
                       "/api/plans/{plan_id}/fixes/{fix_id}/pull-request": "PullRequestBody",
-                      "/api/plans/{plan_id}/fixes/{fix_id}/approve": "ApproveBody"}
+                      "/api/plans/{plan_id}/fixes/{fix_id}/approve": "ApproveBody",
+                      # Migration (phase 4a): one setting of one system from fixed values; and the user's choice of one of
+                      # four options, with a reason in words and a date
+                      "/api/plans/{plan_id}/migration/settings": "MigrationSettingBody",
+                      "/api/plans/{plan_id}/migration/choice": "MigrationChoiceBody"}
     assert {k: v for k, v in with_json_body.items() if k in allowed_bodies} == allowed_bodies
     extra = set(with_json_body) - set(allowed_bodies)
     assert all(p.startswith("/api/evidence") or p.endswith("/evidence") for p in extra), extra

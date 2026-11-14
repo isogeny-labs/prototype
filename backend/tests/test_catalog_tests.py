@@ -5,6 +5,7 @@ from contextlib import contextmanager
 
 import pytest
 
+from app import research
 from app.db import TestRunRow
 from app.execute import pq
 from app.tlsprobe import openssl_cli
@@ -48,8 +49,33 @@ class FakeChecker:
         yield 1
 
 
+def locked_before_phase_4a(engine, claims, target=None):
+    """Post-quantum readiness exactly as it was written down before phase 4a: OpenSSL's own client and the rule
+    "pq_group_offered". Since phase 4a a new test of this kind uses the Migration step's measurement, but a test
+    locked earlier keeps its own checker and rule, so its stored results still read the same. These tests keep
+    that older path honest."""
+    address = target or research.servers(claims)[0]
+    group, line = research.PQ_GROUP, research.PQ_LINE
+    return engine._spec(
+        "pq_readiness",
+        f"Checks whether the server at {address} offers the newer quantum-resistant key exchange ({group}).",
+        "Why it matters: shows how far the server is from the post-quantum move.",
+        f"Does the server at {address} offer the quantum-resistant key exchange {group}?",
+        f"Make one TLS 1.3 handshake that offers only {group}, with OpenSSL's own client (openssl s_client), and one ordinary handshake to the same server. Handshakes only.",
+        {"kind": "server", "address": address},
+        {"group": group, "checker": "openssl s_client, OpenSSL 3.5 or newer"},
+        [f"Key exchange asked for: {group}.", "Checker: openssl s_client from OpenSSL 3.5 or newer (older versions cannot offer this key exchange)."],
+        {"kind": "pq_server", "text": f"A test server on this computer that does offer {group}, which must be detected as offering it.",
+         "must": {"detected": "offered"}},
+        {"type": "pq_group_offered", "offered_line": line,
+         "not_offered_needs": ["alert_40_from_pq_only_hello", "normal_handshake_ok", "control_offered"]},
+        f"Offered only if the checker prints the line \"{line}\". Not offered only if the server refuses that handshake (alert 40), an ordinary "
+        "handshake to it succeeds, and the control server is detected as offering it. Anything else: Couldn't run.")
+
+
 def run_pq(lab, monkeypatch, checker, why="no checker"):
     monkeypatch.setattr(pq, "find_checker", lambda mode: (checker, None) if checker else (None, why))
+    monkeypatch.setattr(lab.engine, "_pq_readiness", lambda claims, target=None: locked_before_phase_4a(lab.engine, claims, target))
     plan = demo_plan(lab)
     view = lab.add_test(plan.id, "pq_readiness")
     item = next(t["id"] for t in view["tests"] if t["kind"] == "pq_readiness")
@@ -136,20 +162,39 @@ def _real_checker_available(lab) -> bool:
     return bool((path and parsed and parsed >= (3, 5)) or (lab.mode.docker_running and lab.mode.openssl_image))
 
 
-def test_live_not_offered_with_the_control_offered(demo_flow):
-    if not _real_checker_available(demo_flow.lab):
-        result = result_of(demo_flow.first, "pq_readiness")
-        assert result["label"] == "Couldn't run (needs OpenSSL 3.5 or newer)"
-        pytest.skip("Skipped: no OpenSSL 3.5 checker here (neither a local openssl 3.5+ nor Docker with the prepared OpenSSL image).")
+def test_live_not_offered_by_the_new_measurement_with_both_controls_read_right(demo_flow):
+    """Since phase 4a the test needs no OpenSSL program and no Docker: the demo server is classical, so Not offered."""
     result = result_of(demo_flow.first, "pq_readiness")
     assert result["label"] == "Not offered" and result["control"]["outcome"] == "as_expected"
+    assert result["plain"] == ("The server doesn't offer a quantum-resistant key exchange: it refused the hybrid and the ML-KEM hellos, "
+                               "while a classical handshake worked.")
     with demo_flow.lab.db() as db:
+        raw = db.get(TestRunRow, result["run_id"]).raw
+    probes = raw["subject"]["probes"]
+    assert [probes[f]["state"] for f in ("hybrid", "pure", "classical")] == ["refused", "refused", "offered"]
+    assert raw["subject"]["hybrid_handshake"]["outcome"] == "refused" and raw["subject"]["classical_client"]["outcome"] == "completed"
+    assert raw["control"]["hybrid"]["probes"]["hybrid"]["group"] == "X25519MLKEM768"
+    assert raw["control"]["hybrid"]["port"] != demo_flow.lab.settings.demo_tls_port
+    assert "PRIVATE KEY" not in str(raw)
+
+
+def test_the_old_checker_still_reads_a_live_server_when_there_is_one(lab, monkeypatch):
+    """The path a test locked before phase 4a takes, against the real demo server, where an OpenSSL 3.5 checker exists."""
+    if not _real_checker_available(lab):
+        pytest.skip("Skipped: no OpenSSL 3.5 checker here (neither a local openssl 3.5+ nor Docker with the prepared OpenSSL image).")
+    monkeypatch.setattr(lab.engine, "_pq_readiness", lambda claims, target=None: locked_before_phase_4a(lab.engine, claims, target))
+    plan = demo_plan(lab)
+    view = lab.add_test(plan.id, "pq_readiness")
+    lab.run_test(plan.id, next(t["id"] for t in view["tests"] if t["kind"] == "pq_readiness"))
+    lab.wait_until_idle(plan.id, 120)
+    result = result_of(lab.lab_view(plan.id), "pq_readiness")
+    assert result["label"] == "Not offered" and result["control"]["outcome"] == "as_expected"
+    with lab.db() as db:
         raw = db.get(TestRunRow, result["run_id"]).raw
     assert "SSL alert number 40" in raw["subject"]["pq_only"]["output"]
     assert "CONNECTION ESTABLISHED" in raw["subject"]["normal"]["output"]
     assert "Negotiated TLS1.3 group: X25519MLKEM768" in raw["control"]["pq_only"]["output"].splitlines()
-    assert raw["control"]["port"] != demo_flow.lab.settings.demo_tls_port and raw["checker"]["version"].startswith("OpenSSL 3.")
-    assert "PRIVATE KEY" not in str(raw)
+    assert raw["checker"]["version"].startswith("OpenSSL 3.")
 
 
 def test_mldsa_comparison_is_measured_and_labelled(demo_flow):

@@ -191,8 +191,7 @@ def test_the_tests_screen_groups_by_target_and_says_what_is_not_tested(flow):
     assert plan["grouped"] is True
     assert [(g["heading"], g["note"]) for g in plan["groups"]] == [
         (f"Server: {flow.demo}", None), (f"Server: {a}", None), (f"Server: {b}", None), (f"Server: {c}", None),
-        ("Signing program: acme-sign 1.4.2", None),
-        ("Signing program: acme-sign 9.9", "Its tests can't run: only our own demo components can run in this version.")]
+        ("Signing program: acme-sign 1.4.2", None)]   # acme-sign 9.9 can't run: no cards (phase 4a), only its line below
     assert plan["not_tested"] == {"title": "Not tested, and why", "items": [
         f"{a}: no Certificate strength test. The file makes no claim about this server's certificate.",
         f"{b}: no Old TLS versions test. The file makes no claim about which TLS versions this server accepts.",
@@ -200,7 +199,7 @@ def test_the_tests_screen_groups_by_target_and_says_what_is_not_tested(flow):
         "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version."]}
     keys = [t["group"] for t in plan["tests"]]
     assert keys == sorted(keys, key=[g["key"] for g in plan["groups"]].index)  # sent group by group
-    assert len(plan["tests"]) == 11
+    assert len(plan["tests"]) == 8 and "Eight tests suggested" in plan["intro"]   # the count leaves the program that can't run out
     assert plan["subject"][:2] == [{"t": "text", "v": "Testing: "}, {"t": "text", "v": "four servers and two signing programs"}]
 
 
@@ -208,7 +207,7 @@ def test_every_result_has_its_plain_line_and_nothing_is_skipped(flow):
     view = flow.lab.lab_view(flow.plan["id"])
     a, b, c = flow.addr
     assert view["grouped"] is True and view["not_tested"]["items"]
-    assert all(r["result"] is not None for r in view["rows"])  # all eleven ran
+    assert len(view["rows"]) == 8 and all(r["result"] is not None for r in view["rows"])  # all eight ran
     assert _row(view, f"server:{flow.demo}", "tls_versions")["result"]["plain"] == "The server accepts TLS 1.2, so ‘TLS 1.3 only’ is not true."
     assert _row(view, f"server:{a}", "tls_versions")["result"]["label"] == "Passed"
     cert_b = _row(view, f"server:{b}", "certificate")["result"]
@@ -220,7 +219,8 @@ def test_every_result_has_its_plain_line_and_nothing_is_skipped(flow):
     theirs = [r for r in view["rows"] if r["group"] == "software:line-8"]
     assert [r["result"]["label"] for r in ours] == ["Failed", "Failed", "Measured"]
     assert [r["result"]["component"] for r in ours] == ["acme-sign 1.4.2"] * 3
-    assert all(r["result"]["code"] == "couldnt_run" and r["result"]["plain"] == ONLY_OURS for r in theirs)
+    assert theirs == []   # a program that can't run has no result rows: only its line under "Not tested, and why"
+    assert "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version." in view["not_tested"]["items"]
     for row in view["rows"]:
         text = row["result"]["plain"].lower()
         assert text and "secure" not in text and "score" not in text
@@ -252,21 +252,21 @@ def test_add_test_adds_it_to_every_server(flow):
 
 
 def test_the_proof_and_the_retest_change_only_our_program(flow):
-    """The code fix's proof reruns all eleven tests: acme-sign 9.9 couldn't run before and after, which counts as
-    unchanged, so it does not stop the change being offered. A retest then runs 1.4.3 for our program only."""
+    """The code fix's proof reruns all eight tests: the five server tests must come out the same as before. (acme-sign
+    9.9 can't run, so it has no tests.) A retest then runs 1.4.3 for our program only."""
     lab, plan_id = flow.lab, flow.plan["id"]
     lab.connect_code(plan_id)
     lab.wait_until_idle(plan_id, 900)
     code = next(f for f in lab.fix_states(plan_id) if f["kind"] == "code")
     targets = {t["item_id"]: t["target"] for t in code["proof"]["tests"]}
-    assert sorted(targets.values()).count("other_program") == 3 and sorted(targets.values()).count("server") == 5
+    assert sorted(targets.values()).count("other_program") == 0 and sorted(targets.values()).count("server") == 5
     assert code["proof"]["state"] == "passed" and code["status"] == "ready", code["proof"]["review"]
     lab.start_retest(plan_id, "1.4.3")
     lab.wait_until_idle(plan_id, 900)
     view = lab.lab_view(plan_id)
     assert [r["after"]["component"] for r in view["rows"] if r["group"] == "software:line-7"] == ["acme-sign 1.4.3"] * 3
     assert [r["after"]["label"] for r in view["rows"] if r["group"] == "software:line-7"][:2] == ["Passed", "Passed"]
-    assert all(r["after"]["code"] == "couldnt_run" for r in view["rows"] if r["group"] == "software:line-8")
+    assert not [r for r in view["rows"] if r["group"] == "software:line-8"]
     assert any(part.get("v") == ". Every other server and program was tested again as it is" for part in view["subline"])
 
 
@@ -379,7 +379,7 @@ def test_fix_ids_come_from_the_plan_not_from_which_tests_have_run(tmp_path):
 
 
 def test_a_plan_from_before_every_target_was_tested_says_what_it_lacks(tmp_path):
-    """Simulate a plan made by the earlier version: the second program's tests are not in it. They are listed under
+    """Simulate a plan made by the earlier version: the second server's test is not in it. It is listed under
     "Not tested, and why", never skipped silently."""
     ports = _ports()
     lab = make_lab(tmp_path, extra_ports=ports)
@@ -389,11 +389,11 @@ def test_a_plan_from_before_every_target_was_tested_says_what_it_lacks(tmp_path)
         from app.db import PlanItemRow
         with lab.db() as db:
             for t in plan["tests"]:
-                if t["group"] == "software:line-8":
+                if t["group"] == f"server:localhost:{ports[0]}":
                     db.delete(db.get(PlanItemRow, t["id"]))
             db.commit()
         items = lab.plan_view(plan["id"])["not_tested"]["items"]
-        assert ("acme-sign 9.9: no Independent exam (Wycheproof) test. This test plan was made by an earlier version that "
+        assert (f"localhost:{ports[0]}: no Old TLS versions test. This test plan was made by an earlier version that "
                 "tested only the first server and program. Import the file again to test it.") in items
     finally:
         lab.stop()

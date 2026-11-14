@@ -9,6 +9,7 @@ import {
   type RichText,
   type RowStatus,
 } from "../api";
+import { DownloadStatus, downloadEvidence } from "./evidenceDownload";
 import { ResultDetail } from "./lab/ResultDetail";
 import {
   AlsoNoticedList,
@@ -20,7 +21,6 @@ import {
   SecondaryButton,
   SourceTag,
   StatusView,
-  saveFile,
   splitByGroup,
   useDismiss,
 } from "./ui";
@@ -326,12 +326,7 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const made = await api.exportEvidence(current.plan_id);
-      saveFile(made.json.url, made.json.filename);
-      // A short gap, so browsers that drop back-to-back downloads keep both.
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      saveFile(made.html.url, made.html.filename);
-      setExported(made);
+      setExported(await downloadEvidence(current.plan_id));
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -452,22 +447,7 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
         </p>
       ))}
 
-      {exported ? (
-        <div
-          role="status"
-          data-testid="download-status"
-          className="mt-3 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-xs text-slate-300"
-        >
-          <p>{exported.message}</p>
-          <p className="mt-1">
-            <span className="text-slate-500">{exported.fingerprint_label}: </span>
-            <span data-testid="evidence-fingerprint" className="break-all font-mono text-slate-200">
-              {exported.fingerprint}
-            </span>
-          </p>
-          <p className="mt-1 break-words font-mono text-slate-400">{exported.verify_hint}</p>
-        </div>
-      ) : null}
+      {exported ? <DownloadStatus exported={exported} /> : null}
 
       {current.not_tested ? (
         <div className="mt-4">

@@ -6,7 +6,9 @@ export type ClaimKind =
   | "cipher_suites"
   | "key_exchange"
   | "certificate"
-  | "signature_algorithm";
+  | "signature_algorithm"
+  /** Phase 4a: "classical", "hybrid" or "post-quantum only", checked with the migration measurement. */
+  | "post_quantum";
 
 export type LocationKind = "server" | "software" | "unknown";
 
@@ -69,6 +71,16 @@ export interface Import {
   skipped?: SkippedItem[];
   /** Plain sentences about what the upload started on this computer (for example the demo test servers). Only on the upload reply. */
   notices?: string[];
+  /** The heading of the settings list, e.g. "System settings from the file". */
+  settings_title?: string;
+  /** Settings rows the file carries (not claims: nothing checks them). Optional: older stored answers may lack it. */
+  settings?: ImportSetting[];
+}
+
+/** One settings row from the file, e.g. location "localhost:8451", text "Exposure: internet-facing. Data lifespan: long-lived." */
+export interface ImportSetting {
+  location: string;
+  text: string;
 }
 
 export interface Evidence {
@@ -189,6 +201,8 @@ export interface PlanView {
   running: boolean;
   can_run_all: boolean;
   has_results: boolean;
+  /** A migration measurement exists for this plan (the Fixes step opens for it too). */
+  has_migration: boolean;
   max_parallel: number;
   /** True when the file has more than one server or signing program: cards are drawn under group headings. */
   grouped: boolean;
@@ -562,6 +576,152 @@ export interface FixesView {
   busy: boolean;                  // something is running: ask again in a second
 }
 
+// ---- Phase 4a: the Migration step. The screen draws only what is sent; it decides no status, recommendation or wording. ----
+
+export type MigrationStatusCode = "hybrid" | "pq_only" | "classical" | "couldnt_check" | "not_measured";
+export type MigrationOptionKey = "keep" | "hybrid" | "full_pq" | "wrap";
+
+/** The status pill. Its look is picked by code; the words are the label. */
+export interface MigrationStatus {
+  code: MigrationStatusCode;
+  label: string;
+}
+
+/** A sentence that may be followed by "View in Fixes" (when fix_id is set). */
+export interface MigrationLine {
+  text: RichText;
+  fix_id: string | null;
+}
+
+export interface MigrationSettingField {
+  field: "lifespan" | "exposure" | "can_change";
+  label: string;
+  /** The small grey question under the control. */
+  help: string;
+  value: string;
+  options: { value: string; label: string }[];
+  /** "from the file" | "assumed" | "set by you": a small tag beside the control. */
+  source: string;
+  /** False while a measurement runs. */
+  enabled: boolean;
+}
+
+export interface MigrationCostTable {
+  title: string;
+  intro: string;
+  /** The first is the row label column. */
+  columns: string[];
+  /** One cell per column after the first. */
+  rows: { label: string; cells: RichText[] }[];
+  note: string | null;
+}
+
+export interface MigrationChooseBox {
+  title: string;
+  /** True: Save stays disabled until the reason has text. */
+  needs_reason: boolean;
+  reason_label: string;
+  /** ISO dates (YYYY-MM-DD); only for "keep". */
+  review_date: { label: string; value: string; min: string; max: string; help: string } | null;
+  save: string;
+  cancel: string;
+  note: string;
+}
+
+export interface MigrationOption {
+  key: MigrationOptionKey;
+  title: string;
+  tags: string[];
+  /** The sky border (the recommended or chosen one). */
+  highlighted: boolean;
+  what: string;
+  sections: { title: string; lines: MigrationLine[] }[];
+  /** When set: no Choose button, this sentence instead. */
+  not_offered: string | null;
+  choose_label: string;
+  /** The box that opens in the card when "Choose this option" is pressed. */
+  choose: MigrationChooseBox | null;
+}
+
+export interface MigrationSystem {
+  key: string;
+  kind_label: string;
+  name: string;
+  status: MigrationStatus;
+  plan_line: string;
+  /** Set while this system's measurement waits or runs (drawn in place of Today's sentence). */
+  measuring: RowStatus | null;
+  today: {
+    title: string;
+    sentence: string;
+    file_note: string | null;
+    facts: { label: string; value: RichText }[];
+    control_line: string | null;
+    details_label: string;
+    /** Drawn with ResultDetail inside a closed disclosure. */
+    result: LabResult | null;
+  };
+  settings: { title: string; intro: string; fields: MigrationSettingField[] };
+  cost: MigrationCostTable | null;
+  recommendation: {
+    title: string;
+    tag: string | null;
+    reasons: RichText[];
+    evidence: RichText | null;
+    /** "See the evidence": opens the details disclosure above and scrolls to it. */
+    evidence_link: string | null;
+    /** Shown instead of reasons when there is no recommendation. */
+    none_text: string | null;
+  };
+  options_title: string;
+  /** In the order keep, hybrid, full_pq, wrap. Empty when there is no status. */
+  options: MigrationOption[];
+  /** The user's saved choice (history: older choices, newest first). */
+  choice: { line: string; history: string[] } | null;
+  choices_note: string;
+}
+
+export interface MigrationRoadmapRow {
+  system_key: string;
+  kind_label: string;
+  name: string;
+  option: string;
+  plan_tag: string | null;
+  note: MigrationLine;
+}
+
+export interface MigrationRoadmapBand {
+  key: string;
+  title: string;
+  sub: string;
+  look: "plain" | "highlight" | "dashed";
+  rows: MigrationRoadmapRow[];
+}
+
+export interface MigrationView {
+  plan_id: number;
+  import_id: number;
+  is_demo: boolean;
+  title: string;
+  subline: RichText;
+  disclaimer: string;
+  /** True while measuring: ask again every second. */
+  busy: boolean;
+  measure: { label: string; enabled: boolean; blocked_reason: string | null; progress_text: string | null };
+  tabs: { systems: string; roadmap: string };
+  list_title: string;
+  /** Set when the file names no server and no signing program. */
+  empty_text: string | null;
+  systems: MigrationSystem[];
+  roadmap: {
+    intro: string;
+    /** The same evidence download as Evidence Lab's button. */
+    download: { label: string; can_start: boolean; blocked_reason: string | null };
+    /** Empty bands are not sent. */
+    bands: MigrationRoadmapBand[];
+  };
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly line: number | null;
@@ -599,7 +759,8 @@ function toApiError(status: number, body: unknown): ApiError {
       );
     }
     if (typeof body["detail"] === "string") {
-      return new ApiError(status, body["detail"]);
+      // A form's refusal can name its field too: {detail, field}.
+      return new ApiError(status, body["detail"], null, typeof body["field"] === "string" ? body["field"] : null);
     }
   }
   return new ApiError(status, `Something went wrong (the server answered ${status}).`);
@@ -746,6 +907,28 @@ export const api = {
   /** The same retest as "Retest new version", on the merged version. Answers with the Evidence Lab view. */
   retestNow: (planId: number, fixId: string) =>
     request<LabView>(`${fixPath(planId, fixId)}/retest`, { method: "POST" }),
+
+  // The Migration step. Every call answers with the whole view as it now stands. The GET makes the test plan if there is none.
+  getMigration: (importId: number) => request<MigrationView>(`/api/import/${importId}/migration`),
+
+  measureMigration: (planId: number) =>
+    request<MigrationView>(`/api/plans/${planId}/migration/measure`, { method: "POST", json: {} }),
+
+  saveMigrationSetting: (planId: number, system: string, field: MigrationSettingField["field"], value: string) =>
+    request<MigrationView>(`/api/plans/${planId}/migration/settings`, { method: "POST", json: { system, field, value } }),
+
+  /** Only "Save choice" calls this. */
+  saveMigrationChoice: (
+    planId: number,
+    system: string,
+    option: MigrationOptionKey,
+    reason: string,
+    reviewDate: string | null,
+  ) =>
+    request<MigrationView>(`/api/plans/${planId}/migration/choice`, {
+      method: "POST",
+      json: { system, option, reason, review_date: reviewDate },
+    }),
 };
 
 export function errorMessage(e: unknown): string {
