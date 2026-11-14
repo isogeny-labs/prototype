@@ -99,6 +99,8 @@ export const run: VerifyRun = {
       found: "Accepts TLS 1.3 and TLS 1.2 (with ECDHE-ECDSA-AES128-SHA). Refuses TLS 1.1 and TLS 1.0.",
       reason: null,
       evidence: [evidence],
+      summary: "The server accepts TLS 1.2, so \u2018TLS 1.3 only\u2019 is not true.",
+      also_noticed: [],
     },
     {
       claim_id: 2,
@@ -107,6 +109,8 @@ export const run: VerifyRun = {
       found: "The certificate uses an ECDSA P-256 key.",
       reason: null,
       evidence: [{ ...evidence, title: "Certificate read", command: "openssl x509 -noout -text" }],
+      summary: "The server's ID card (its certificate) uses ECDSA P-256, which matches the claim.",
+      also_noticed: ["While checking the certificate, the handshakes showed this server also accepts TLS 1.0 and TLS 1.1."],
     },
     {
       claim_id: 3,
@@ -115,6 +119,8 @@ export const run: VerifyRun = {
       found: "Nothing was measured.",
       reason: "The component did not start within the time limit.",
       evidence: [],
+      summary: "acme-sign didn't start in time, so we couldn't check which signature algorithm it uses.",
+      also_noticed: [],
     },
   ],
 };
@@ -166,6 +172,7 @@ function card(id: number, kind: TestKind, title: string, description: string, wh
     result: null,
     can_run: true,
     can_remove: true,
+    group: null,
   };
 }
 
@@ -236,6 +243,9 @@ export const plan: PlanView = {
   can_run_all: true,
   has_results: false,
   max_parallel: 4,
+  grouped: false,
+  groups: [],
+  not_tested: null,
   tests: cards,
   catalog_title: "Tests you can add",
   catalog: [
@@ -329,6 +339,9 @@ export const vectorsResult: LabResult = {
   tone: "fail",
   summary: "3 of 484 official cases wrong. Headline: case 168, a signature made of zeros (r=0 and s=0) was accepted.",
   short: "3 of 484 official cases wrong (168, 171, 364), all from one missing range check.",
+  plain: "acme-sign 1.4.2 accepted 3 forged signatures out of 484 official cases, so it failed.",
+  also_noticed: [],
+  also_noticed_title: "Also noticed",
   control: {
     outcome: "as_expected",
     line: "Control: a deliberately broken signer failed this test, as expected.",
@@ -419,7 +432,14 @@ export const research: NonNullable<LabResult["research"]> = {
 };
 
 /** A small result of any label, for rows whose detail a test doesn't look into. */
-export function result(runId: number, code: LabResult["code"], label: string, tone: LabResult["tone"], summary: string): LabResult {
+export function result(
+  runId: number,
+  code: LabResult["code"],
+  label: string,
+  tone: LabResult["tone"],
+  summary: string,
+  plain: string = summary,
+): LabResult {
   return {
     ...vectorsResult,
     run_id: runId,
@@ -428,6 +448,7 @@ export function result(runId: number, code: LabResult["code"], label: string, to
     tone,
     summary,
     short: summary,
+    plain,
     evidence: [],
     suggested_fix: code === "couldnt_run" || code === "couldnt_trust" ? null : "None needed.",
     fix_line: null,
@@ -474,7 +495,7 @@ export const speedAfter: LabResult = {
 };
 
 function row(item_id: number, kind: TestKind, title: string, control_line: string, r: LabResult | null): LabRow {
-  return { item_id, kind, title, control_line, result: r, result_status: null, after: null, after_status: null };
+  return { item_id, kind, title, control_line, result: r, result_status: null, after: null, after_status: null, group: null };
 }
 
 export const labRows: LabRow[] = [
@@ -529,6 +550,9 @@ export const lab: LabView = {
   code_line: null,
   disclaimer: DISCLAIMER,
   columns: null,
+  grouped: false,
+  groups: [],
+  not_tested: null,
   rows: labRows,
   retest: {
     can_start: true,
@@ -628,4 +652,72 @@ export const evidenceExport: EvidenceExport = {
   html: { url: "/api/evidence/3/html", filename: "evidence-lab-report-20261111-015810.html" },
   message: "Two files were downloaded: the evidence (JSON) and a readable report (HTML). The JSON file is the record.",
   verify_hint: "To check the file: cd backend && .venv/bin/python -m evidence verify <the downloaded .json file>",
+};
+
+// ---- Phase 3a-fixes: a file with more than one server, so cards and rows are grouped by target ----
+
+export const groups: PlanView["groups"] = [
+  { key: "server:localhost:8444", kind: "server", heading: "Server: localhost:8444", note: null },
+  {
+    key: "server:localhost:8445",
+    kind: "server",
+    heading: "Server: localhost:8445",
+    note: "A local test server started for this file (Demo data).",
+  },
+  { key: "software:acme-sign 1.4.2", kind: "software", heading: "Signing program: acme-sign 1.4.2", note: null },
+];
+
+export const notTested: NonNullable<PlanView["not_tested"]> = {
+  title: "Not tested, and why",
+  items: [
+    "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.",
+    "localhost:8446: Post-quantum readiness wasn't added to the plan.",
+  ],
+};
+
+const inGroup = (c: TestCard, id: number, group: string): TestCard => ({ ...c, id, group });
+
+/** Ordered group by group, as the backend sends them. */
+export const groupedCards: TestCard[] = [
+  inGroup(cards[0]!, 21, groups[0]!.key),
+  inGroup(cards[1]!, 22, groups[0]!.key),
+  inGroup(cards[0]!, 31, groups[1]!.key),
+  inGroup(cards[1]!, 32, groups[1]!.key),
+  inGroup(cards[2]!, 41, groups[2]!.key),
+  inGroup(cards[3]!, 42, groups[2]!.key),
+  inGroup(cards[4]!, 43, groups[2]!.key),
+];
+
+export const groupedPlan: PlanView = {
+  ...plan,
+  grouped: true,
+  groups,
+  not_tested: notTested,
+  tests: groupedCards,
+};
+
+const inLabGroup = (r: LabRow, item_id: number, group: string, change: Partial<LabResult> = {}): LabRow => ({
+  ...r,
+  item_id,
+  group,
+  result: r.result ? { ...r.result, run_id: item_id + 100, ...change } : null,
+});
+
+export const groupedLab: LabView = {
+  ...lab,
+  grouped: true,
+  groups,
+  not_tested: notTested,
+  rows: [
+    inLabGroup(labRows[0]!, 21, groups[0]!.key, { plain: "localhost:8444 refused every version older than TLS 1.3, so it passed." }),
+    inLabGroup(labRows[1]!, 22, groups[0]!.key),
+    inLabGroup(labRows[0]!, 31, groups[1]!.key, {
+      plain: "localhost:8445 accepted TLS 1.0 and TLS 1.1, which the file says it refuses, so it failed.",
+    }),
+    inLabGroup(labRows[1]!, 32, groups[1]!.key, {
+      plain: "The server's ID card (its certificate) uses ECDSA P-256, 256 bits, as claimed, so it passed.",
+      also_noticed: ["The handshakes for this check showed the server also accepts TLS 1.0 and TLS 1.1."],
+    }),
+    inLabGroup(labRows[2]!, 41, groups[2]!.key),
+  ],
 };

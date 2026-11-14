@@ -16,7 +16,8 @@ def gate(ctx: RunContext, address: str):
     if check is None:
         return None, problem("address_not_confirmed", "This address is not in the imported file. No connection was attempted.")
     if check.blocked:
-        demo_down = check.row.confirmed and check.blocked == (check.demo.error or "The demo server is not running.")
+        demo_down = check.row.confirmed and (check.blocked == (check.demo.error or "The demo server is not running.")
+                                             or (check._is_extra_address() and not check.demo.extra.get(check.row.port)))
         code = "server_unreachable" if demo_down else "address_not_confirmed"
         text = f"{NOT_CONFIRMED}." if check.blocked == NOT_CONFIRMED else check.blocked
         out = problem(code, f"{text} No connection was attempted.")
@@ -91,7 +92,9 @@ def run_certificate(spec: dict, ctx: RunContext) -> dict:
     if not_ready:
         return not_ready
     der = check.session.first_certificate()
-    subject: dict = {"address": address, "ip": check.row.resolved_ip, "certificate": None,
+    observed, _ = check.session.versions()
+    # The TLS versions the same handshakes saw. Not part of the review: only words ("Also noticed") are made from it.
+    subject: dict = {"address": address, "ip": check.row.resolved_ip, "certificate": None, "versions": _versions(observed),
                      "evidence": _evidence(check.wrap(check.base_evidence()))}
     if der is not None:
         try:

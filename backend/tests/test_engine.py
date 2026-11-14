@@ -16,8 +16,8 @@ from test_records import DEMO_CLAIMS
 def test_the_five_tests_are_proposed_in_order_for_the_demo_claims():
     plan = RuleEngine().propose_tests(DEMO_CLAIMS)
     assert [t["kind"] for t in plan["tests"]] == ["tls_versions", "certificate", "official_vectors", "bad_signatures", "speed_size"]
-    assert [t["title"] for t in plan["tests"]] == ["Old TLS versions", "Certificate strength", "Official test vectors",
-                                                    "Bad signatures", "Speed and size"]
+    assert [t["title"] for t in plan["tests"]] == ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)",
+                                                    "Attacker tricks (our short list)", "Speed and size"]
     assert plan["notes"] == []
     assert plan["tests"][0]["control"]["accepts"] == "TLS 1.2"  # just below the oldest claimed version
 
@@ -107,7 +107,7 @@ def test_dig_deeper_saves_a_request_and_no_answer(demo_flow):
     assert research_box["status"] == "waiting for research engine" and research_box["badge"] == "Queued"
     assert research_box["status_line"] == "Status: waiting for research engine"
     fields = {f["label"]: f["value"] for f in research_box["fields"]}
-    assert fields["Finding"] == "Official test vectors: Failed, 3 of 484 cases wrong on acme-sign 1.4.2"
+    assert fields["Finding"] == "Independent exam (Wycheproof): Failed, 3 of 484 cases wrong on acme-sign 1.4.2"
     assert "168, 171 and 364" in fields["Question"]
     assert "No answer yet" in research_box["note"] and "answer" not in fields
     assert (after["code"], after["summary"]) == (before["code"], before["summary"])  # the result itself is unchanged

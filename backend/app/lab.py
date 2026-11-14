@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
-from . import auth, components, runner
+from . import auth, components, plain, runner
 from .addresses import AddressError, is_loopback_ip, parse_address, resolve_all
 from .changes import ChangesMixin
 from .config import DEMO_CBOM, DEMO_CBOM_PORT, DEMO_HOSTNAME, Settings
@@ -16,6 +16,7 @@ from .db import (
     AddressRow, ClaimRow, ImportClearedRow, ImportRow, SkippedRow, VerifyRunRow, iso, make_session_factory, now_utc,
 )
 from .demo_server import DemoServer
+from .extra_servers import ExtraServers, claims_match, is_multi_target_file
 from .errors import BadRequest, Conflict, NotFound
 from .evidence_export import EvidenceMixin, SigningKeyError, ensure_signing_key
 from .fixes import FixesMixin
@@ -47,8 +48,11 @@ def import_json(i: ImportRow) -> dict:
 
 
 def run_json(r: VerifyRunRow) -> dict:
+    # A row stored before phase 3a-fixes has no plain sentence or notes of its own: it gets a plain fallback.
+    results = [{**res, "summary": res.get("summary") or plain.verify_fallback(res.get("result", ""), res.get("found", "")),
+                "also_noticed": res.get("also_noticed") or []} if isinstance(res, dict) else res for res in r.results or []]
     return {"id": r.id, "import_id": r.import_id, "started_at": iso(r.started_at), "finished_at": iso(r.finished_at),
-            "results": r.results}
+            "results": results}
 
 
 class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
@@ -61,6 +65,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
             pass
         self.db = make_session_factory(db_path or settings.db_path)
         self.demo = DemoServer(settings.data_dir, settings.demo_tls_port)
+        self.extra = ExtraServers(settings.extra_ports)  # the multi-target demo file's test servers, started on import only
         self.allow_external_demo_server = allow_external_demo_server
         self._verify_lock = threading.Lock()
         self._stopping = False  # set when the app is closing: a test still unfinished then writes no record
@@ -95,6 +100,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
         self._stopping = True
         self.jobs.stop()
         self.demo.stop()
+        self.extra.stop()
 
     # ---------------------------------------------------------------- session / login
 
@@ -130,7 +136,35 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
     def import_file(self, filename: str, data: bytes) -> dict:
         shown = clean_text(os.path.basename((filename or "").replace("\\", "/")), 120) or "uploaded file"
         parsed = parse_file(shown, data)
-        return self._store(shown, parsed, is_demo=self._targets_demo(parsed))
+        stored = self._store(shown, parsed, is_demo=self._targets_demo(parsed))
+        if is_multi_target_file(data, self.settings.demo_tls_port, self.settings.extra_ports):
+            # Only our own multi-target demo file starts the three test servers. A taken port is said, never fatal.
+            problems = self.extra.start()
+            ports = ", ".join(str(p) for p in self.settings.extra_ports)
+            stored["notices"] = problems or [f"Demo data: started the three demo test servers for this file on this computer (ports {ports})."]
+        return stored
+
+    def ensure_extra_servers(self, import_id: int) -> None:
+        """If this import is the multi-target demo file, make sure its test servers are running (after a restart
+        of the app they are not). Anything else starts nothing."""
+        if len(self.extra.running) == len(self.settings.extra_ports):
+            return
+        with self.db() as db:
+            imp = db.get(ImportRow, import_id)
+            claims = [(c.location, c.kind, c.claimed_value) for c in imp.claims] if imp is not None else []
+        if claims and claims_match(claims, self.settings.demo_tls_port, self.settings.extra_ports):
+            self.extra.start()
+
+    def extra_identity(self, import_id: int) -> tuple[dict | None, dict | None]:
+        """For the multi-target demo file: (port -> our test server's fingerprint or None, port -> why it is not
+        running). (None, None) for any other import: then those ports are checked like any other address."""
+        with self.db() as db:
+            imp = db.get(ImportRow, import_id)
+            claims = [(c.location, c.kind, c.claimed_value) for c in imp.claims] if imp is not None else []
+        if not claims or not claims_match(claims, self.settings.demo_tls_port, self.settings.extra_ports):
+            return None, None
+        return ({p: self.extra.fingerprints.get(p) if p in self.extra.running else None for p in self.settings.extra_ports},
+                dict(self.extra.problems))
 
     def _store(self, filename: str, parsed: ParsedFile, is_demo: bool) -> dict:
         with self.db() as db:
@@ -206,14 +240,17 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, EvidenceMixin):
     # ---------------------------------------------------------------- verify
 
     def verify(self, import_id: int) -> dict:
+        self.ensure_extra_servers(import_id)
         with self._verify_lock, self.db() as db:
             imp = db.get(ImportRow, import_id)
             if imp is None:
                 raise NotFound("That import does not exist.")
             started = now_utc()
+            extra, problems = self.extra_identity(import_id)
             demo = DemoContext(is_demo_import=imp.is_demo, host=DEMO_HOSTNAME, port=self.settings.demo_tls_port,
                                running=self.demo.running, error=self.demo.error, fingerprint=self.demo.fingerprint,
-                               allow_external=self.allow_external_demo_server and self.demo.port_in_use)
+                               allow_external=self.allow_external_demo_server and self.demo.port_in_use,
+                               extra=extra, extra_problems=problems)
             outcomes = verify_claims(list(imp.claims), list(imp.addresses), demo, resolver=self.resolver,
                                      component_runner=self.component_runner)
             results = [{"claim_id": c.id, "claim": claim_json(c), **o} for c, o in zip(imp.claims, outcomes)]

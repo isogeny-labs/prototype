@@ -238,3 +238,65 @@ export function useDismiss(open: boolean, ref: RefObject<HTMLElement | null>, cl
     };
   }, [open, ref, close]);
 }
+
+/**
+ * One "Also noticed" side note: something a check saw that the file didn't ask about. It is never a result,
+ * so it is drawn as a quiet note with a thin left rule, never as a badge and never in a result colour.
+ */
+export function AlsoNoticedNote({ title, text }: { title: string; text: string }) {
+  return (
+    <p
+      data-testid="also-noticed"
+      className="rounded-md border border-slate-700 border-l-2 border-l-sky-400/50 bg-slate-900/60 px-3 py-2 text-[13px] text-slate-300"
+    >
+      <span className="text-xs font-medium text-sky-200/80">{title}:</span> {text}
+    </p>
+  );
+}
+
+/** Every "Also noticed" note of one result, one per line. Draws nothing when there are none. */
+export function AlsoNoticedList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      {items.map((item, i) => (
+        <AlsoNoticedNote key={i} title={title} text={item} />
+      ))}
+    </div>
+  );
+}
+
+/** The calm "Not tested, and why" box: every target or test the plan leaves out, with its reason. */
+export function NotTestedBox({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div data-testid="not-tested" className="rounded-lg border border-slate-700 bg-slate-900/60 px-4 py-3 text-sm">
+      <h2 className="font-semibold text-slate-100">{title}</h2>
+      <ul className="mt-1.5 list-disc space-y-1 pl-5 text-slate-300 marker:text-slate-500">
+        {items.map((item, i) => (
+          <li key={i}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Splits items into their groups, in the order of `groups`. Items whose group isn't listed go last, in their own group. */
+export function splitByGroup<T>(
+  groups: { key: string }[],
+  items: T[],
+  groupOf: (item: T) => string | null,
+): { key: string | null; items: T[] }[] {
+  const out: { key: string | null; items: T[] }[] = groups.map((g) => ({ key: g.key, items: [] }));
+  const byKey = new Map<string | null, { key: string | null; items: T[] }>(out.map((g) => [g.key, g]));
+  for (const item of items) {
+    const key = groupOf(item);
+    let bucket = byKey.get(key);
+    if (!bucket) {
+      bucket = { key, items: [] };
+      byKey.set(key, bucket);
+      out.push(bucket);
+    }
+    bucket.items.push(item);
+  }
+  return out.filter((g) => g.items.length > 0);
+}

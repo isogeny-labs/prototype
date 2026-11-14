@@ -30,13 +30,13 @@ SERVER_LINE_UNPROVEN = "This change is for the signing program only. The server 
 ONE_LOGIN = "This version has one login and no separate accounts. Whoever is at the keyboard records each approval, under the name shown."
 PROOF_PASSED = ("All 3 tests that run the changed code passed, every control behaved as expected, and the 3 server tests came out "
                 "the same as before.")
-PROOF_FAILED = "1 of the 3 tests that run the changed code did not pass: Official test vectors, Couldn't run (it took too long)."
+PROOF_FAILED = "1 of the 3 tests that run the changed code did not pass: Independent exam (Wycheproof), Couldn't run (it took too long)."
 PROOF_CHANGED = "The stored proof no longer matches its fingerprint."
 PLAN_CHANGED = "The test plan has changed since the proof ran. Run the proof again first."
 RUN_FIRST = "Run every test in the plan first, so there is a result to compare with."
 UNTIL_A_PROOF_PASSES = "Nothing more can be recorded on this pull request until a proof has passed."
 OUT_OF_DATE = "The test plan has changed since the proof ran, so the proof no longer covers exactly the tests in your plan."
-MISSING_ANSWERED = "This proof did not run the failed test the change is for: Bad signatures. Add it back in Tests and run the proof again."
+MISSING_ANSWERED = "This proof did not run the failed test the change is for: Attacker tricks (our short list). Add it back in Tests and run the proof again."
 NO_SPEED = "No speed comparison was made, because this proof ran no Speed and size test. Add it in Tests and run the proof again."
 # What a screen may say only once a proof has passed (the page's own subline is the one place "ready" may stand).
 PROVEN_WORDS = re.compile(r"ready for review|ready to merge|fix ready|what it fixes|this fixes|proof passed|\bpassed:|why it is ready", re.I)
@@ -195,15 +195,15 @@ def test_the_page_itself_and_the_list_on_the_left(flow):
     assert nothing["fixes"] == [] and nothing["list_title"] == "Open findings with a fix (0)"
     assert nothing["empty_text"] == "No failed test has a fix. Fixes for failed tests show here."
     # one failed signing test is enough for its fix to be listed; the server test has not been run yet
-    assert [(f["id"], f["list_source"]) for f in flow.one_result.fixes["fixes"]] == [(FIX, "Came from 1 failed test: Bad signatures")]
+    assert [(f["id"], f["list_source"]) for f in flow.one_result.fixes["fixes"]] == [(FIX, "Came from 1 failed test: Attacker tricks (our short list)")]
     assert flow.one_result.fixes["list_title"] == "Open findings with a fix (1)"
     for stage in STAGES[2:]:
         view = getattr(flow, stage).fixes
         assert view["list_title"] == "Open findings with a fix (2)" and view["empty_text"] is None
         code, server = view["fixes"]  # the code fix first, then the text-only one
         assert (code["id"], code["kind"], code["title"]) == (FIX, "code", "acme-sign accepts out-of-range signatures")
-        assert code["list_source"] == "Came from 2 failed tests: Official test vectors, Bad signatures"
-        assert plain(code["source"]) == "Came from 2 failed tests on signing component acme-sign 1.4.2: Official test vectors and Bad signatures."
+        assert code["list_source"] == "Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)"
+        assert plain(code["source"]) == "Came from 2 failed tests on signing component acme-sign 1.4.2: Independent exam (Wycheproof) and Attacker tricks (our short list)."
         assert {"t": "mono", "v": "acme-sign 1.4.2"} in code["source"]
         assert code["labels"] == ["From a fix template"] and code["is_demo"] is True
         assert (server["id"], server["kind"], server["title"]) == (TLS, "text", "Server accepts TLS 1.2")
@@ -360,11 +360,11 @@ def test_the_proof_table_and_why_it_is_ready(flow):
     assert [r["kind"] for r in server["rows"]] == ["tls_versions", "certificate", "pq_readiness"]
     signer = "Control: a deliberately broken signer failed this test, as expected."
     vectors, bad, speed = code["rows"]
-    assert vectors == {"kind": "official_vectors", "title": "Official test vectors", "waiting": None, "control": signer,
+    assert vectors == {"kind": "official_vectors", "title": "Independent exam (Wycheproof)", "waiting": None, "control": signer,
                        "before": {"label": "Failed", "tone": "fail", "short": "3 of 484 official cases wrong (168, 171, 364), all from one missing range check."},
                        "proof": {"label": "Passed", "tone": "pass", "short": "484 of 484 official cases right."},
                        "check": {"ok": True, "text": "Passed"}}
-    assert bad == {"kind": "bad_signatures", "title": "Bad signatures", "waiting": None, "control": signer,
+    assert bad == {"kind": "bad_signatures", "title": "Attacker tricks (our short list)", "waiting": None, "control": signer,
                    "before": {"label": "Failed", "tone": "fail", "short": "Accepts the signature r=0, s=0. One cause: no range check."},
                    "proof": {"label": "Passed", "tone": "pass", "short": "Rejects r=0, s=0 and every other bad signature tried."},
                    "check": {"ok": True, "text": "Passed"}}
@@ -873,8 +873,8 @@ def test_every_other_state_has_the_same_shape(corners, corner):
 
 def test_a_small_plan_gets_its_own_numbers(corners):
     detail = code_fix(corners.small_ready)
-    assert detail["list_source"] == "Came from 1 failed test: Bad signatures"
-    assert plain(detail["source"]) == "Came from 1 failed test on signing component acme-sign 1.4.2: Bad signatures."
+    assert detail["list_source"] == "Came from 1 failed test: Attacker tricks (our short list)"
+    assert plain(detail["source"]) == "Came from 1 failed test on signing component acme-sign 1.4.2: Attacker tricks (our short list)."
     passed = "All 2 tests that run the changed code passed, every control behaved as expected, and the 2 server tests came out the same as before."
     assert detail["proof"]["text"] == passed
     proof = section(detail, "proof")
@@ -911,7 +911,7 @@ def test_a_report_only_test_is_not_counted_among_the_tests_that_passed(corners):
 
 
 def test_a_proof_that_never_ran_the_failed_test_the_change_is_for(corners):
-    """Review finding 1. The plan lost "Bad signatures" before the proof was run again. Nothing calls the change a
+    """Review finding 1. The plan lost "Attacker tricks (our short list)" before the proof was run again. Nothing calls the change a
     fix, and the view says which test is missing and what to do."""
     detail = code_fix(corners.answered_test_missing)
     assert detail["status"] == {"key": "failed", "word": "Proof failed", "busy": False}
@@ -927,7 +927,7 @@ def test_a_proof_that_never_ran_the_failed_test_the_change_is_for(corners):
     assert [plain(p) for p in detail["what"]["paragraphs"]] == [WHAT_CHANGES]
     assert not PROVEN_WORDS.search(" ".join(texts(detail)))
     # it is still listed as the fix for the failure it came from, and can be proved again
-    assert detail["list_source"] == "Came from 1 failed test: Bad signatures"
+    assert detail["list_source"] == "Came from 1 failed test: Attacker tricks (our short list)"
     assert detail["actions"] == {"buttons": [button("run_proof_again", "Run proof again", False)],
                                  "note": "Reruns all 3 tests in your plan. The change is offered only if the proof passes."}
     assert detail["approvers"]["text"] == "Nobody yet: a change that is not offered can't get a pull request."
@@ -1206,8 +1206,8 @@ def test_a_failed_signing_test_without_a_template_change_gets_a_text_only_fix(co
     view = corners.no_repository.fixes
     assert [(f["id"], f["kind"]) for f in view["fixes"]] == [(TLS, "text"), ("fix-bad-signatures", "text")]
     detail = fix_of(view, "fix-bad-signatures")
-    assert detail["title"] == "Bad signatures: failed" and detail["status"]["word"] == "Text only" and detail["labels"] == []
-    assert plain(detail["source"]) == "Came from 1 failed test on signing component acme-sign 1.4.2: Bad signatures."
+    assert detail["title"] == "Attacker tricks (our short list): failed" and detail["status"]["word"] == "Text only" and detail["labels"] == []
+    assert plain(detail["source"]) == "Came from 1 failed test on signing component acme-sign 1.4.2: Attacker tricks (our short list)."
     assert detail["what"] == {"label": "What it suggests", "server_line": None,
                               "paragraphs": [[{"t": "text", "v": "A suggestion in plain words. The app has not made a change for this finding."}]]}
     assert detail["approvers"]["text"] == "Whoever looks after this software, outside this app."
@@ -1247,9 +1247,9 @@ def test_a_misbehaving_control_and_other_reasons_are_worded_from_the_review(flow
             row["check"] = {**row["check"], "ok": False, "reason": "control_misbehaved"}
     detail = present_fixes.code_fix(state, **more)
     assert problems(detail, FIXES_VIEW["fixes"][0], "detail") == []
-    sentence = "The control did not behave as expected in 2 tests: Certificate strength and Bad signatures."
+    sentence = "The control did not behave as expected in 2 tests: Certificate strength and Attacker tricks (our short list)."
     assert detail["proof"]["badge"] == {"label": "Proof did not pass", "tone": "fail"} and detail["proof"]["text"] == f"{sentence} The change is not offered."
-    assert section(detail, "proof")["line"] == "Did not pass: the control did not behave as expected in 2 tests: Certificate strength and Bad signatures."
+    assert section(detail, "proof")["line"] == "Did not pass: the control did not behave as expected in 2 tests: Certificate strength and Attacker tricks (our short list)."
     assert {"ok": False, "text": "Control did not behave"} == proof_rows(detail)["bad_signatures"]["check"]
     assert detail["what"]["label"] == "What it changes" and not PROVEN_WORDS.search(" ".join(texts(detail)))
     # the code that ran was not the code that was checked
@@ -1286,14 +1286,14 @@ def test_all_of_them_reads_the_n_tests_and_some_of_them_k_of_the_n(flow):
     review["checks"]["changed_code_passed"] = False
     fail_rows(more, ("official_vectors", "bad_signatures", "speed_size"), "Couldn't run (it took too long)")
     detail = present_fixes.code_fix(state, **more)
-    every = ("The 3 tests that run the changed code did not pass: Official test vectors, Couldn't run (it took too long); Bad signatures, "
+    every = ("The 3 tests that run the changed code did not pass: Independent exam (Wycheproof), Couldn't run (it took too long); Attacker tricks (our short list), "
              "Couldn't run (it took too long); Speed and size, Couldn't run (it took too long).")
     assert detail["proof"]["text"] == f"{every} The change is not offered."
     assert section(detail, "proof")["line"] == "Did not pass: the 3 tests that run the changed code did not pass."
     state, more, review = not_offered(flow)
     review["checks"]["changed_code_passed"] = False
     fail_rows(more, ("official_vectors", "speed_size"), "Couldn't run (it took too long)")
-    assert present_fixes.code_fix(state, **more)["proof"]["text"].startswith("2 of the 3 tests that run the changed code did not pass: Official test vectors, ")
+    assert present_fixes.code_fix(state, **more)["proof"]["text"].startswith("2 of the 3 tests that run the changed code did not pass: Independent exam (Wycheproof), ")
     for kinds, lead in ((("tls_versions",), "1 of the 3 server tests did not come out the same as before: Old TLS versions, Passed."),
                         (("tls_versions", "certificate", "pq_readiness"), "The 3 server tests did not come out the same as before: Old TLS versions, Passed; ")):
         state, more, review = not_offered(flow)
@@ -1313,7 +1313,7 @@ def test_the_failed_tests_the_change_is_for_are_named_when_the_proof_did_not_run
     state, more, review = not_offered(flow)
     review["checks"]["answered_tests_passed"] = False
     review["answers"] = [{**a, "ok": False, "reason": "not_in_proof"} for a in review["answers"]]
-    both = "This proof did not run the failed tests the change is for: Official test vectors and Bad signatures. Add them back in Tests and run the proof again."
+    both = "This proof did not run the failed tests the change is for: Independent exam (Wycheproof) and Attacker tricks (our short list). Add them back in Tests and run the proof again."
     detail = present_fixes.code_fix(state, **more)
     assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"}, "text": f"{both} The change is not offered.",
                                "muted": None}
@@ -1323,14 +1323,14 @@ def test_the_failed_tests_the_change_is_for_are_named_when_the_proof_did_not_run
     assert not PROVEN_WORDS.search(" ".join(texts(detail))) and problems(detail, FIXES_VIEW["fixes"][0], "detail") == []
     # one of the two was in the proof and passed
     review["answers"][1] = {**review["answers"][1], "ok": True, "reason": "passed"}
-    one = "This proof did not run 1 of the 2 failed tests the change is for: Official test vectors. Add it back in Tests and run the proof again."
+    one = "This proof did not run 1 of the 2 failed tests the change is for: Independent exam (Wycheproof). Add it back in Tests and run the proof again."
     assert present_fixes.code_fix(state, **more)["proof"]["text"] == f"{one} The change is not offered."
     # a failed test that was in the proof and did not pass is named by the sentence about the tests that run the code, once
     review["answers"][0] = {**review["answers"][0], "reason": "did_not_pass"}
     review["checks"]["changed_code_passed"] = False
     fail_rows(more, ("official_vectors",), "Failed")
     text = present_fixes.code_fix(state, **more)["proof"]["text"]
-    assert text == "1 of the 3 tests that run the changed code did not pass: Official test vectors, Failed. The change is not offered."
+    assert text == "1 of the 3 tests that run the changed code did not pass: Independent exam (Wycheproof), Failed. The change is not offered."
     # a change that names no failed test at all
     state, more, review = not_offered(flow)
     review["checks"]["answered_tests_passed"], review["answers"] = False, []

@@ -19,7 +19,7 @@ import { BACKEND, DISCLAIMER, PYTHON, REPO, enterApp, importVerifyAndOpenTests, 
 const SHOTS = screenshotFolder("phase3a");
 const PQ_TOO_OLD = "Couldn't run (needs OpenSSL 3.5 or newer)";
 const STEPS = ["1. Import", "2. Verify", "3. Tests", "4. Evidence Lab", "5. Fixes"];
-const SUGGESTED = ["Old TLS versions", "Certificate strength", "Official test vectors", "Bad signatures", "Speed and size"];
+const SUGGESTED = ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)", "Attacker tricks (our short list)", "Speed and size"];
 const ALL_SIX = [...SUGGESTED, "Post-quantum readiness"];
 
 const CODE_FIX = "fix-ecdsa-range-check";
@@ -316,8 +316,8 @@ test("a fresh import: Verify, the five suggested tests plus Post-quantum readine
   await runAllAndWait(6);
   await expect(badge(card("Old TLS versions"))).toHaveText("Failed");
   await expect(badge(card("Certificate strength"))).toHaveText("Passed");
-  await expect(badge(card("Official test vectors"))).toHaveText("Failed");
-  await expect(badge(card("Bad signatures"))).toHaveText("Failed");
+  await expect(badge(card("Independent exam (Wycheproof)"))).toHaveText("Failed");
+  await expect(badge(card("Attacker tricks (our short list)"))).toHaveText("Failed");
   await expect(badge(card("Speed and size"))).toHaveText("Measured");
   expect(["Not offered", PQ_TOO_OLD]).toContain((await badge(card("Post-quantum readiness")).innerText()).trim());
   await expect(steps.getByRole("button", { name: "4. Evidence Lab" })).toBeEnabled();
@@ -332,8 +332,8 @@ test("Evidence Lab: each failed result that has a fix shows one line with View i
 
   const lines: Record<string, [string, "plain" | "dashed"]> = {
     "Old TLS versions": [TLS_LINE, "dashed"],
-    "Official test vectors": ["Fix available, code not connected", "plain"],
-    "Bad signatures": ["Fix available, code not connected", "plain"],
+    "Independent exam (Wycheproof)": ["Fix available, code not connected", "plain"],
+    "Attacker tricks (our short list)": ["Fix available, code not connected", "plain"],
   };
   for (const title of ALL_SIX) {
     const row = await openLabRow(title);
@@ -361,7 +361,7 @@ test("Evidence Lab: each failed result that has a fix shows one line with View i
   await expect(labRow("Certificate strength")).toContainText("NIST plans to retire P-256");
 
   // Evidence Lab itself shows no change, no diff and no pull request: only the line.
-  const bad = await openLabRow("Bad signatures");
+  const bad = await openLabRow("Attacker tricks (our short list)");
   await expect(bad.getByTestId("result-detail")).toContainText("r=0, s=0");
   await expect(page.getByTestId("code-line")).toHaveCount(0);
   await expect(page.getByTestId("change-part")).toHaveCount(0);
@@ -377,7 +377,7 @@ test("Evidence Lab: each failed result that has a fix shows one line with View i
 
 test("View in Fixes opens the right fix; Fixes lists the two findings with their statuses", async () => {
   // From the signing failure: the code fix.
-  await labRow("Bad signatures").getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
+  await labRow("Attacker tricks (our short list)").getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Steps" }).locator('[aria-current="step"]')).toHaveText("5. Fixes");
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
@@ -393,7 +393,7 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
   await expect(items).toHaveCount(2);
   await expect(items.nth(0)).toContainText(CODE_FIX_TITLE);
   await expect(items.nth(0).getByTestId("fix-status")).toHaveText("Code not connected");
-  await expect(items.nth(0)).toContainText("Came from 2 failed tests: Official test vectors, Bad signatures");
+  await expect(items.nth(0)).toContainText("Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)");
   await expect(items.nth(0)).toHaveAttribute("aria-current", "true");
   await expect(items.nth(1)).toContainText(TLS_FIX_TITLE);
   await expect(items.nth(1).getByTestId("fix-status")).toHaveText("Text only");
@@ -402,7 +402,7 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
 
   // From the other failed signing test: the same fix (one fix answers both).
   await goTo("4. Evidence Lab");
-  const vectors = await openLabRow("Official test vectors");
+  const vectors = await openLabRow("Independent exam (Wycheproof)");
   await vectors.getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
 
@@ -419,7 +419,7 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
   // And back from the signing failure while the server fix is the one on screen. Until here the code fix was
   // what Fixes showed anyway (it is first in the list); only now does the button have to pick it.
   await goTo("4. Evidence Lab");
-  const badAgain = await openLabRow("Bad signatures");
+  const badAgain = await openLabRow("Attacker tricks (our short list)");
   await badAgain.getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
   await expect(listed(CODE_FIX_TITLE)).toHaveAttribute("aria-current", "true");
@@ -482,7 +482,7 @@ test("before the code is connected: Code not connected, one button, and nothing 
   await expect(s).toContainText("From a fix template");
   await expect(s.getByText("Demo data", { exact: true })).toBeVisible();
   await expect(s.getByTestId("fix-source")).toHaveText(
-    "Came from 2 failed tests on signing component acme-sign 1.4.2: Official test vectors and Bad signatures.",
+    "Came from 2 failed tests on signing component acme-sign 1.4.2: Independent exam (Wycheproof) and Attacker tricks (our short list).",
   );
   await expect(s.getByTestId("fix-what")).toContainText("A fix template exists for this failure");
   await expect(s.getByTestId("fix-proof")).toHaveAttribute("data-state", "not_started");
@@ -562,7 +562,7 @@ test("while the proof runs, Evidence Lab's line says so, and Retest new version 
   await expect(page.getByRole("button", { name: "Run all" })).toBeDisabled();
   for (const title of ALL_SIX) await expect(card(title).getByRole("button", { name: `Run ${title}` })).toBeDisabled();
   expect(await cardStatuses()).toEqual(Array(6).fill("done"));
-  await expect(badge(card("Bad signatures"))).toHaveText("Failed");
+  await expect(badge(card("Attacker tricks (our short list)"))).toHaveText("Failed");
   await shot("22-tests-while-a-proof-runs.png");
   // The addresses behind Run all, Retest new version and Download evidence refuse as well, each with the reason.
   const plan = await planId();
@@ -578,10 +578,10 @@ test("while the proof runs, Evidence Lab's line says so, and Retest new version 
   expect(await codeFixStatus(plan), "the proof was still running while all of this was asked").toBe("proving");
 
   await goTo("4. Evidence Lab");
-  const vectors = await openLabRow("Official test vectors");
+  const vectors = await openLabRow("Independent exam (Wycheproof)");
   await expectFixLine(vectors.getByTestId("result-detail"), `Fix prepared: ${SIZE}, proof running`, "plain");
-  await closeLabRow("Official test vectors");
-  const bad = await openLabRow("Bad signatures");
+  await closeLabRow("Independent exam (Wycheproof)");
+  const bad = await openLabRow("Attacker tricks (our short list)");
   await expectFixLine(bad.getByTestId("result-detail"), `Fix prepared: ${SIZE}, proof running`, "plain");
 
   await expect(page.getByRole("button", { name: "Retest new version" })).toBeDisabled();
@@ -596,7 +596,7 @@ test("while the proof runs, Evidence Lab's line says so, and Retest new version 
 
 test("with nobody pressing anything, the status goes from Proving to Ready for review, with Proof passed", async () => {
   // Back to Fixes through the line's own button. From here nothing is pressed until the proof has ended.
-  await labRow("Bad signatures").getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
+  await labRow("Attacker tricks (our short list)").getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
   const watched = await watchProof();
   test.info().annotations.push({ type: "proof", description: `statuses seen: ${watched.statuses.join(" -> ")}; progress: ${watched.progress.join(" | ")}` });
@@ -642,7 +642,7 @@ test("with nobody pressing anything, the status goes from Proving to Ready for r
   // With the proof over, tests can be started again.
   await goTo("3. Tests");
   await expect(page.getByRole("button", { name: "Run all" })).toBeEnabled();
-  await expect(card("Bad signatures").getByRole("button", { name: "Run Bad signatures" })).toBeEnabled();
+  await expect(card("Attacker tricks (our short list)").getByRole("button", { name: "Run Attacker tricks (our short list)" })).toBeEnabled();
   await goTo("5. Fixes");
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
   await expectStatus("ready", "Ready for review");
@@ -741,19 +741,19 @@ test("the change is 3 lines added and 1 removed; the proof tables show every tes
 
 test("after the proof Evidence Lab's line reads Fix ready, and the server failure still points to its text-only fix", async () => {
   await goTo("4. Evidence Lab");
-  const vectors = await openLabRow("Official test vectors");
+  const vectors = await openLabRow("Independent exam (Wycheproof)");
   await expectFixLine(vectors.getByTestId("result-detail"), `Fix ready: ${SIZE}, proof passed`, "pass");
-  await closeLabRow("Official test vectors");
-  const bad = await openLabRow("Bad signatures");
+  await closeLabRow("Independent exam (Wycheproof)");
+  const bad = await openLabRow("Attacker tricks (our short list)");
   await expectFixLine(bad.getByTestId("result-detail"), `Fix ready: ${SIZE}, proof passed`, "pass");
   // The two buttons are back on, and the first results are what they were.
   await expect(page.getByRole("button", { name: "Retest new version" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Download evidence" })).toBeEnabled();
   await expect(page.getByTestId("blocked-reason")).toHaveCount(0);
-  await expect(badge(labRow("Bad signatures")).first()).toHaveText("Failed");
+  await expect(badge(labRow("Attacker tricks (our short list)")).first()).toHaveText("Failed");
   await expect(page.getByTestId("lab-columns")).toHaveCount(0);
   await shot("07-lab-fix-line-ready.png");
-  await closeLabRow("Bad signatures");
+  await closeLabRow("Attacker tricks (our short list)");
 
   const tls = await openLabRow("Old TLS versions");
   await expectFixLine(tls.getByTestId("result-detail"), TLS_LINE, "dashed");
@@ -968,9 +968,9 @@ test("Retest now runs the retest and lands on Evidence Lab's before and after, w
   const addOn = KEY.add_on[0];
   expect([addOn.expected, addOn.or_if_checker_too_old]).toContain(await before("pq_readiness"));
   expect(await after("pq_readiness")).toBe(await before("pq_readiness"));
-  await expect(row("official_vectors").getByTestId("lab-cell-after")).toContainText("484 of 484 official cases right.");
-  await expect(row("bad_signatures").getByTestId("lab-cell-after")).toContainText("Rejects r=0, s=0");
-  await expect(row("tls_versions").getByTestId("lab-cell-after")).toContainText("Server still accepts TLS 1.2.");
+  await expect(row("official_vectors").getByTestId("lab-cell-after")).toContainText("got all 484 exam cases right.");
+  await expect(row("bad_signatures").getByTestId("lab-cell-after")).toContainText("rejected all 14 forged signatures");
+  await expect(row("tls_versions").getByTestId("lab-cell-after")).toContainText("The server still accepts TLS 1.2");
   await expect(page.getByText("Couldn't trust this run")).toHaveCount(0);
   await expect(page.getByTestId("lab-row")).toHaveCount(6);
 
@@ -989,7 +989,7 @@ test("Retest now runs the retest and lands on Evidence Lab's before and after, w
 });
 
 test("the opened row after the retest: the code each side ran on, the Code item, and the line Fix merged", async () => {
-  const bad = await openLabRow("Bad signatures");
+  const bad = await openLabRow("Attacker tricks (our short list)");
   const details = bad.getByTestId("result-detail");
   await expect(details).toHaveCount(2);
   const after = details.nth(0);
@@ -1014,7 +1014,7 @@ test("the opened row after the retest: the code each side ran on, the Code item,
   await expectFixLine(before, `Fix merged: ${SIZE}, proof passed`, "plain");
   expect(await codeItem(before)).toBe("Code: the bundled demo version of acme-sign 1.4.2 demo");
   await shot("13-lab-bad-signatures-after-fix-merged.png");
-  await closeLabRow("Bad signatures");
+  await closeLabRow("Attacker tricks (our short list)");
 
   // The server is unchanged, so its failure still points to the text-only fix, before and after.
   const tls = await openLabRow("Old TLS versions");
@@ -1025,7 +1025,7 @@ test("the opened row after the retest: the code each side ran on, the Code item,
   await closeLabRow("Old TLS versions");
 
   // View in Fixes on the merged line opens the merged fix, which stays listed after the retest.
-  const again = await openLabRow("Official test vectors");
+  const again = await openLabRow("Independent exam (Wycheproof)");
   await expectFixLine(again.getByTestId("result-detail").nth(1), `Fix merged: ${SIZE}, proof passed`, "plain");
   await again.getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
@@ -1076,7 +1076,7 @@ test("Download evidence: the verify command passes, and the file holds the fix, 
   ]);
   const fix = evidence.fixes[0];
   expect(fix.title).toBe(CODE_FIX_TITLE);
-  expect(fix.source.text).toBe("Came from 2 failed tests: Official test vectors, Bad signatures");
+  expect(fix.source.text).toBe("Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)");
   expect(fix.proof_summary).toEqual({ state: "passed", label: "Proof passed", text: PROOF_PASSED });
   // The fix: the change, labelled, with exactly the patch that Download patch gave.
   expect(fix.change).toMatchObject({
@@ -1171,7 +1171,7 @@ test("the report shows the Fixes part: the change, the proof, the approvals, the
     const body = report.locator("body");
     await expect(body).toContainText("Code connected: the app's own copy of the repository acme-sign, branch main");
     await expect(report.getByRole("heading", { name: CODE_FIX_TITLE, exact: true })).toBeVisible();
-    await expect(body).toContainText("Merged Came from 2 failed tests: Official test vectors, Bad signatures");
+    await expect(body).toContainText("Merged Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)");
     await expect(body).toContainText(`Proof passed: ${PROOF_PASSED}`);
     await expect(body).toContainText("From a fix template");
     await expect(body).toContainText(`Reject signatures whose r or s is out of range. ${SIZE}.`);
@@ -1326,7 +1326,7 @@ test("a second import gets its own fresh copy of the code; with the address not 
 
   // Evidence Lab says the fix is not offered, and never calls it ready.
   await goTo("4. Evidence Lab");
-  const bad = await openLabRow("Bad signatures");
+  const bad = await openLabRow("Attacker tricks (our short list)");
   await expectFixLine(bad.getByTestId("result-detail"), "Fix not offered: the proof did not pass", "fail");
   await shot("18-lab-fix-line-not-offered.png");
 });
@@ -1347,7 +1347,7 @@ test("with the address confirmed again, Run proof again reaches Ready for review
 
   // Watch it from Evidence Lab this time: the line changes with nobody pressing anything.
   await goTo("4. Evidence Lab");
-  const bad = await openLabRow("Bad signatures");
+  const bad = await openLabRow("Attacker tricks (our short list)");
   const line = bad.getByTestId("fix-line");
   await expect(line.locator("p")).toHaveText(`Fix prepared: ${SIZE}, proof running`);
   await expect(page.getByRole("button", { name: "Download evidence" })).toBeDisabled();
@@ -1407,7 +1407,7 @@ test("a test added after the proof passed puts the proof out of date: Proof fail
   await setSection("proof", false);
 
   await goTo("4. Evidence Lab");
-  const bad = await openLabRow("Bad signatures");
+  const bad = await openLabRow("Attacker tricks (our short list)");
   await expectFixLine(bad.getByTestId("result-detail"), "Fix not offered: the test plan changed after the proof", "fail");
   await shot("19-lab-fix-line-plan-changed.png");
 
@@ -1521,13 +1521,13 @@ test("a third import: Fixes says when no failed test has a fix, and Connect demo
   // Run one test that fails. Its fix is listed, but the code can't be connected yet: the proof needs a result
   // for every test in the plan to compare with (the same rule as Retest).
   await goTo("3. Tests");
-  await card("Bad signatures").getByRole("button", { name: "Run Bad signatures" }).click();
-  await expect(badge(card("Bad signatures"))).toHaveText("Failed", { timeout: 120_000 });
+  await card("Attacker tricks (our short list)").getByRole("button", { name: "Run Attacker tricks (our short list)" }).click();
+  await expect(badge(card("Attacker tricks (our short list)"))).toHaveText("Failed", { timeout: 120_000 });
   await goTo("5. Fixes");
   await expect(fixList().getByRole("heading")).toHaveText("Open findings with a fix (1)");
   await expectStatus("not_connected", "Code not connected");
   const s = summary();
-  await expect(listed(CODE_FIX_TITLE)).toContainText("Came from 1 failed test: Bad signatures");
+  await expect(listed(CODE_FIX_TITLE)).toContainText("Came from 1 failed test: Attacker tricks (our short list)");
   await expect(s.getByRole("button")).toHaveText(["Connect demo code"]);
   await expect(s.getByRole("button", { name: "Connect demo code" })).toBeDisabled();
   await expect(s.getByTestId("fix-actions")).toContainText("Run every test in the plan first, so there is a result to compare with.");

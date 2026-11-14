@@ -3,12 +3,14 @@ import { api, errorMessage, type PlanView, type TestCard } from "../api";
 import {
   DemoDataLabel,
   ErrorBox,
+  NotTestedBox,
   PrimaryButton,
   ResultBadge,
   RichTextView,
   SecondaryButton,
   SourceTag,
   StatusView,
+  splitByGroup,
   useDismiss,
 } from "./ui";
 
@@ -38,6 +40,7 @@ function Card({
   onDrop,
   onDragEnd,
   handleRef,
+  headingLevel = 2,
 }: {
   card: TestCard;
   position: number;
@@ -53,7 +56,10 @@ function Card({
   onDrop: (e: DragEvent<HTMLLIElement>) => void;
   onDragEnd: () => void;
   handleRef: (el: HTMLButtonElement | null) => void;
+  /** 2 in the flat list; 3 when the card sits under a group heading. */
+  headingLevel?: 2 | 3;
 }) {
+  const Heading = headingLevel === 3 ? "h3" : "h2";
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
     if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -93,7 +99,7 @@ function Card({
       </button>
 
       <div className="min-w-0">
-        <h2 className="text-[15px] font-semibold text-slate-100">
+        <Heading className="text-[15px] font-semibold text-slate-100">
           {card.title}
           {card.tag ? (
             <>
@@ -101,7 +107,7 @@ function Card({
               <SourceTag>{card.tag}</SourceTag>
             </>
           ) : null}
-        </h2>
+        </Heading>
         <p className="mt-1 text-sm text-slate-300">{card.description}</p>
         <p className="mt-1 text-[13px] text-slate-400">{card.why}</p>
       </div>
@@ -242,16 +248,90 @@ export function TestsScreen({ importId, plan, onPlan }: Props) {
     }
   }
 
+  // With one server and one signing program the list is flat: one section with no heading. When the plan is
+  // grouped, each group is a section, and a card only moves inside its own section.
+  const headings = new Map(current.groups.map((g) => [g.key, g]));
+  const sections = current.grouped
+    ? splitByGroup(current.groups, current.tests, (t) => t.group)
+    : [{ key: null, items: current.tests }];
+  const sectionOf = new Map<number, number>();
+  sections.forEach((section, i) => section.items.forEach((t) => sectionOf.set(t.id, i)));
+
+  /** Moves a card to a place inside its own section, and sends the whole list in the order shown. */
   function reorder(id: number, toIndex: number) {
-    const order = current.tests.map((t) => t.id);
-    const next = moved(order, id, toIndex);
-    if (next === order) return;
+    const at = sectionOf.get(id);
+    if (at === undefined) return;
+    const scope = sections[at]!.items.map((t) => t.id);
+    const nextScope = moved(scope, id, toIndex);
+    if (nextScope === scope) return;
+    const next = sections.flatMap((section, i) => (i === at ? nextScope : section.items.map((t) => t.id)));
     const card = current.tests.find((t) => t.id === id);
     // Show the new order straight away; the server's answer then replaces it.
     const byId = new Map(current.tests.map((t) => [t.id, t]));
     onPlan({ ...current, tests: next.flatMap((x) => byId.get(x) ?? []) });
-    if (card) setAnnounce(`${card.title} moved to position ${toIndex + 1} of ${order.length}.`);
+    const sectionKey = sections[at]!.key;
+    const heading = sectionKey !== null ? headings.get(sectionKey)?.heading : undefined;
+    if (card) {
+      setAnnounce(
+        heading
+          ? `${card.title} moved to position ${toIndex + 1} of ${scope.length} under ${heading}.`
+          : `${card.title} moved to position ${toIndex + 1} of ${scope.length}.`,
+      );
+    }
     void act(() => api.reorder(current.id, next));
+  }
+
+  const dragSection = dragId !== null ? sectionOf.get(dragId) : undefined;
+
+  function renderCards(items: TestCard[], sectionIndex: number, headingLevel: 2 | 3) {
+    return items.map((card, index) => (
+      <Card
+        key={card.id}
+        card={card}
+        position={index + 1}
+        total={items.length}
+        headingLevel={headingLevel}
+        locked={busy}
+        dragging={dragId === card.id}
+        dropTarget={dragId !== null && dragId !== card.id && overId === card.id && dragSection === sectionIndex}
+        handleRef={(el) => {
+          if (el) handles.current.set(card.id, el);
+          else handles.current.delete(card.id);
+        }}
+        onRun={() => void act(() => api.runTest(current.id, card.id))}
+        onRemove={() => void act(() => api.removeTest(current.id, card.id))}
+        onMoveBy={(delta) => {
+          focusAfter.current = card.id;
+          reorder(card.id, index + delta);
+        }}
+        onDragStart={(e) => {
+          setDragId(card.id);
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", String(card.id));
+          const li = e.currentTarget.closest("li");
+          if (li && typeof e.dataTransfer.setDragImage === "function") e.dataTransfer.setDragImage(li, 20, 20);
+        }}
+        onDragOver={(e) => {
+          // A card can't be dropped into another group: no drop is offered there.
+          if (dragId === null || dragSection !== sectionIndex) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          if (overId !== card.id) setOverId(card.id);
+        }}
+        onDrop={(e) => {
+          if (dragId === null || dragSection !== sectionIndex) return;
+          e.preventDefault();
+          const id = dragId;
+          setDragId(null);
+          setOverId(null);
+          reorder(id, index);
+        }}
+        onDragEnd={() => {
+          setDragId(null);
+          setOverId(null);
+        }}
+      />
+    ));
   }
 
   return (
@@ -275,6 +355,12 @@ export function TestsScreen({ importId, plan, onPlan }: Props) {
         <RichTextView parts={current.subject} />
       </p>
 
+      {current.not_tested ? (
+        <div className="mt-4">
+          <NotTestedBox title={current.not_tested.title} items={current.not_tested.items} />
+        </div>
+      ) : null}
+
       {error ? (
         <div className="mt-4">
           <ErrorBox>{error}</ErrorBox>
@@ -283,55 +369,29 @@ export function TestsScreen({ importId, plan, onPlan }: Props) {
 
       {current.tests.length === 0 ? (
         <p className="mt-6 text-sm text-slate-400">There are no tests in the plan.</p>
+      ) : current.grouped ? (
+        <div className="mt-6 flex flex-col gap-6">
+          {sections.map((section, i) => {
+            const group = section.key !== null ? headings.get(section.key) : undefined;
+            return (
+              <section key={section.key ?? `rest-${i}`} data-testid="test-group" data-group={section.key ?? ""}>
+                {group ? (
+                  <>
+                    <h2 className="text-base font-semibold text-slate-100">{group.heading}</h2>
+                    {group.note ? (
+                      <p data-testid="test-group-note" className="mt-0.5 text-[13px] text-slate-400">
+                        {group.note}
+                      </p>
+                    ) : null}
+                  </>
+                ) : null}
+                <ul className="mt-3 flex flex-col gap-3">{renderCards(section.items, i, group ? 3 : 2)}</ul>
+              </section>
+            );
+          })}
+        </div>
       ) : (
-        <ul className="mt-6 flex flex-col gap-3">
-          {current.tests.map((card, index) => (
-            <Card
-              key={card.id}
-              card={card}
-              position={index + 1}
-              total={current.tests.length}
-              locked={busy}
-              dragging={dragId === card.id}
-              dropTarget={dragId !== null && dragId !== card.id && overId === card.id}
-              handleRef={(el) => {
-                if (el) handles.current.set(card.id, el);
-                else handles.current.delete(card.id);
-              }}
-              onRun={() => void act(() => api.runTest(current.id, card.id))}
-              onRemove={() => void act(() => api.removeTest(current.id, card.id))}
-              onMoveBy={(delta) => {
-                focusAfter.current = card.id;
-                reorder(card.id, index + delta);
-              }}
-              onDragStart={(e) => {
-                setDragId(card.id);
-                e.dataTransfer.effectAllowed = "move";
-                e.dataTransfer.setData("text/plain", String(card.id));
-                const li = e.currentTarget.closest("li");
-                if (li && typeof e.dataTransfer.setDragImage === "function") e.dataTransfer.setDragImage(li, 20, 20);
-              }}
-              onDragOver={(e) => {
-                if (dragId === null) return;
-                e.preventDefault();
-                e.dataTransfer.dropEffect = "move";
-                if (overId !== card.id) setOverId(card.id);
-              }}
-              onDrop={(e) => {
-                if (dragId === null) return;
-                e.preventDefault();
-                const id = dragId;
-                setDragId(null);
-                setOverId(null);
-                reorder(id, index);
-              }}
-              onDragEnd={() => {
-                setDragId(null);
-                setOverId(null);
-              }}
-            />
-          ))}
-        </ul>
+        <ul className="mt-6 flex flex-col gap-3">{renderCards(current.tests, 0, 2)}</ul>
       )}
 
       {/* SPEC section 11: every screen that shows a result carries this one line. */}

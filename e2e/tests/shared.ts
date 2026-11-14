@@ -16,7 +16,7 @@ export const DISCLAIMER = "Passing these tests doesn't prove a system secure. It
 export const password: string = process.env.E2E_PASSWORD ?? "";
 if (!password) throw new Error("E2E_PASSWORD is not set; run the tests with `npm test` from the e2e folder.");
 
-export function screenshotFolder(phase: "phase1" | "phase2" | "phase3a"): string {
+export function screenshotFolder(phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes"): string {
   return path.join(REPO, "docs/screenshots", phase);
 }
 
@@ -59,4 +59,12 @@ export async function importVerifyAndOpenTests(page: Page): Promise<void> {
   await expect(badges).toHaveText(["False", "True", "True"]);
   await page.getByRole("button", { name: "Continue to tests" }).click();
   await expect(page.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
+}
+
+/** Phase 3a-fixes: a picture of a demo screen this work changed, taken where the earlier runs already show it. */
+export async function shotFixes(page: Page, name: string): Promise<void> {
+  const fs = await import("node:fs");
+  const folder = screenshotFolder("phase3a-fixes");
+  fs.mkdirSync(folder, { recursive: true });
+  await page.screenshot({ path: path.join(folder, name), fullPage: true, animations: "disabled" });
 }

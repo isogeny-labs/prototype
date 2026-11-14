@@ -425,7 +425,7 @@ def test_no_private_key_in_the_files_with_the_fixes_in_them(flow):
 
 def test_the_report_has_a_readable_fixes_part(flow):
     before = report_text(flow.not_connected.report)
-    assert before.startswith("4. Fixes acme-sign accepts out-of-range signatures Code not connected Came from 1 failed test: Bad signatures")
+    assert before.startswith("4. Fixes acme-sign accepts out-of-range signatures Code not connected Came from 1 failed test: Attacker tricks (our short list)")
     assert ("A fix template exists for this failure. The code was not connected when this file was made, so no change had been prepared "
             "or proved.") in before
     assert "Code connected" not in before and "Pull request" not in before and "Merged" not in before
@@ -434,9 +434,9 @@ def test_the_report_has_a_readable_fixes_part(flow):
     passed = code_entry(flow.retested)["proofs"][1]
     for words in (
             f"Code connected: the app's own copy of the repository acme-sign, branch main, commit {change['base_commit']} (acme-sign 1.4.2). demo",
-            "acme-sign accepts out-of-range signatures Merged Came from 1 failed test: Bad signatures",
+            "acme-sign accepts out-of-range signatures Merged Came from 1 failed test: Attacker tricks (our short list)",
             # under the status, the summary's own sentence about the proof
-            f"Came from 1 failed test: Bad signatures Proof passed: {PROOF_PASSED} The change From a fix template",
+            f"Came from 1 failed test: Attacker tricks (our short list) Proof passed: {PROOF_PASSED} The change From a fix template",
             "The change From a fix template", "Reject signatures whose r or s is out of range. 3 lines added and 1 removed.",
             f"Change branch fix/ecdsa-range-check, commit {change['head_commit']}", f"Starting point: commit {change['base_commit']}",
             f"File acme_sign.py: SHA-256 before {OLD_SHA256}, after {NEW_SHA256}",
@@ -444,7 +444,7 @@ def test_the_report_has_a_readable_fixes_part(flow):
             "that component is what the proof ran.",
             "The change as a patch", "Proof 1 of 2", "The proof did not pass. Started", "Proof 2 of 2", "The proof passed. Started",
             f"Evidence fingerprint of the proof (SHA-256): {passed['record_sha256']}", "Test Before In the proof run Rule check",
-            "Bad signatures Failed Accepts the signature r=0, s=0. One cause: no range check. Passed Rejects r=0, s=0 and every other bad "
+            "Attacker tricks (our short list) Failed Accepts the signature r=0, s=0. One cause: no range check. Passed Rejects r=0, s=0 and every other bad "
             "signature tried. Control: a deliberately broken signer failed this test, as expected. Passed",
             "Old TLS versions Failed Server accepted TLS 1.2. Failed Server still accepts TLS 1.2. This change doesn't touch the server.",
             "Same as before", "Not the same as before",
@@ -467,7 +467,7 @@ def test_the_report_has_a_readable_fixes_part(flow):
     # the short columns of the two tables are marked, so that their words stay whole beside a long sentence
     # (seen in a browser: "Certificat e strength", "Passe d")
     assert "td.words,th.words{overflow-wrap:normal}" in flow.retested.report
-    for cell in ('<th class="words">Test</th>', '<th class="words">Rule check</th>', '<td class="words">Bad signatures</td>',
+    for cell in ('<th class="words">Test</th>', '<th class="words">Rule check</th>', '<td class="words">Attacker tricks (our short list)</td>',
                  '<td class="words">Same as before</td>', '<th class="words">Where TLS is set up</th>', '<td class="words">nginx</td>'):
         assert cell in flow.retested.report, cell
     # the results part says which code each result ran on, and points from a failure to its fix
@@ -488,7 +488,7 @@ def test_the_report_calls_nothing_passed_or_merged_that_the_records_do_not(flow)
     failed = report_text(flow.failed.report)
     assert "acme-sign accepts out-of-range signatures Proof failed" in failed and "The proof did not pass. Started" in failed
     # the status comes with its reason, in the summary's words (review finding 8)
-    assert f"Proof failed Came from 1 failed test: Bad signatures Proof did not pass: {SERVERS_CHANGED} The change is not offered." in failed
+    assert f"Proof failed Came from 1 failed test: Attacker tricks (our short list) Proof did not pass: {SERVERS_CHANGED} The change is not offered." in failed
     assert "The proof passed" not in failed and "Pull request" not in failed and "Merged" not in failed and "Proof 1 of" not in failed
     for name in STAGES:
         page = getattr(flow, name).report
@@ -546,7 +546,7 @@ def test_a_proof_that_is_no_longer_believed_an_interrupted_one_and_code_that_is_
     assert sha256_of(proof["record"]) == proof["record_sha256"]  # the record as it now stands; no review vouches for it
     text = report_text(seen.report)
     assert f"{PROOF_CHANGED} Started" in text and "The proof passed" not in text and "Evidence fingerprint of the proof" not in text
-    assert f"Proof failed Came from 1 failed test: Bad signatures Proof can't be trusted: {PROOF_CHANGED} The change is not offered." in text
+    assert f"Proof failed Came from 1 failed test: Attacker tricks (our short list) Proof can't be trusted: {PROOF_CHANGED} The change is not offered." in text
     assert verify_bytes(seen.raw, flow.public).ok  # the file itself is what the app made, and says what the app found
     # an interrupted proof: no review
     plan = small_plan(lab)
@@ -603,7 +603,7 @@ def test_a_status_never_stands_without_its_reason_and_a_patch_is_never_handed_ou
     assert entry["proof_summary"] == {"state": "failed", "label": "Proof out of date", "text": reason}
     assert entry["proof_summary"]["text"] == fix_of(seen.fixes, FIX)["proof"]["text"]
     text = report_text(seen.report)
-    assert f"Proof failed Came from 1 failed test: Bad signatures Proof out of date: {reason}" in text
+    assert f"Proof failed Came from 1 failed test: Attacker tricks (our short list) Proof out of date: {reason}" in text
     assert text.index("Proof out of date:") < text.index("The proof passed. Started")  # the reason comes first
     assert entry["change"]["patch"] is None and "The change as a patch" not in text
     assert verify_bytes(seen.raw, flow.public).ok
@@ -646,7 +646,7 @@ def test_the_file_says_why_a_proof_that_ran_to_the_end_is_not_offered(flow):
     lab.wait_until_idle(plan.id, 120)
     seen = stage(lab, plan.id)
     entry = code_entry(seen)
-    missing = "This proof did not run the failed test the change is for: Bad signatures. Add it back in Tests and run the proof again."
+    missing = "This proof did not run the failed test the change is for: Attacker tricks (our short list). Add it back in Tests and run the proof again."
     assert entry["status"] == "Proof failed"
     assert entry["proof_summary"] == {"state": "failed", "label": "Proof did not pass", "text": f"{missing} The change is not offered."}
     passed, failed = entry["proofs"]
@@ -658,7 +658,7 @@ def test_the_file_says_why_a_proof_that_ran_to_the_end_is_not_offered(flow):
     again = RuleReviewer().review_proof(failed["record"])  # anyone can redo the review from the record in the file
     assert (again["offered"], again["answers"], again["record_sha256"]) == (False, failed["review"]["answers"], failed["record_sha256"])
     text = report_text(seen.report)
-    assert f"Proof failed Came from 1 failed test: Bad signatures Proof did not pass: {missing} The change is not offered." in text
+    assert f"Proof failed Came from 1 failed test: Attacker tricks (our short list) Proof did not pass: {missing} The change is not offered." in text
     assert entry["change"]["patch"] is None and verify_bytes(seen.raw, flow.public).ok
     # the stored change is edited to name another fix template
     tamper(lab, f"UPDATE changes SET template_id = 'no-such-template' WHERE id = {ready['change']['id']}")

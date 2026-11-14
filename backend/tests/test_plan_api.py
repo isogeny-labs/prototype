@@ -34,7 +34,7 @@ def test_plan_is_proposed_once_and_then_stays(client):
     assert client.get(f"/api/import/{imp['id']}/plan").status_code == 404
     plan = client.post(f"/api/import/{imp['id']}/plan").json()
     assert plan["import_id"] == imp["id"] and plan["is_demo"] is True
-    assert [t["title"] for t in plan["tests"]] == ["Old TLS versions", "Certificate strength", "Official test vectors", "Bad signatures", "Speed and size"]
+    assert [t["title"] for t in plan["tests"]] == ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)", "Attacker tricks (our short list)", "Speed and size"]
     assert plan["intro"] == ("Five tests suggested from the claims in acme-pay-cbom.json. Drag to change the order, remove any you "
                              "don't want, then run them.")
     address = imp["addresses"][0]["address"]
@@ -45,9 +45,13 @@ def test_plan_is_proposed_once_and_then_stays(client):
     assert first == {"id": first["id"], "kind": "tls_versions", "title": "Old TLS versions", "origin": "suggested", "tag": None,
                      "description": f"Checks whether the server at {address} accepts any TLS version older than the file claims (TLS 1.3 only).",
                      "why": "Why it matters: older versions have known weaknesses and are easy to leave switched on.",
-                     "status": "not_run", "status_text": "Not run yet", "progress": None, "result": None, "can_run": True, "can_remove": True}
-    assert plan["tests"][2]["description"] == ("Gives acme-sign 484 published signature cases with known right answers "
-                                               "(Project Wycheproof, ECDSA P-256) and counts any it gets wrong.")
+                     "status": "not_run", "status_text": "Not run yet", "progress": None, "result": None, "can_run": True, "can_remove": True,
+                     "group": f"server:{address}"}
+    assert plan["tests"][2]["description"] == ("Sits acme-sign an outside exam: the 484 ECDSA P-256 cases of Project Wycheproof, "
+                                               "each with a published right answer, and counts any it gets wrong.")
+    # One server and one program: the list stays flat, as it always was, and nothing is left out.
+    assert plan["grouped"] is False and plan["not_tested"] is None
+    assert [g["heading"] for g in plan["groups"]] == [f"Server: {address}", "Signing program: acme-sign 1.4.2"]
     assert plan["tests"][4]["description"].startswith("Times signing and checking inside the program (100 repeats each)")
     assert (plan["running"], plan["can_run_all"], plan["has_results"], plan["max_parallel"]) == (False, True, False, 4)
     assert plan["catalog_title"] == "Tests you can add" and plan["catalog_note"] == "Tests you remove from the plan come back to this list."
@@ -83,7 +87,7 @@ def test_reorder_add_remove_and_add_back(client):
         assert client.post(f"/api/plans/{pid}/tests", json=bad).status_code == 422
     removed = client.post(f"/api/plans/{pid}/tests/{ids[3]}/remove").json()
     assert ids[3] not in [t["id"] for t in removed["tests"]] and len(removed["tests"]) == 5
-    assert removed["catalog"][0]["catalog_id"] == "bad_signatures" and removed["catalog"][0]["title"] == "Bad signatures"
+    assert removed["catalog"][0]["catalog_id"] == "bad_signatures" and removed["catalog"][0]["title"] == "Attacker tricks (our short list)"
     assert removed["intro"].startswith("Five tests in the plan: four suggested from the claims, one added by you.")
     assert client.post(f"/api/plans/{pid}/tests/{ids[3]}/remove").status_code == 404
     back = client.post(f"/api/plans/{pid}/tests", json={"catalog_id": "bad_signatures"}).json()
@@ -119,7 +123,7 @@ def test_run_one_then_the_lab_then_mark_and_dig(client):
     lab = client.get(f"/api/plans/{pid}/lab").json()
     row = next(r for r in lab["rows"] if r["item_id"] == bad)
     result = row["result"]
-    assert set(result) == {"run_id", "component", "mode", "finished_at", "duration_ms", "code", "label", "tone", "summary", "short",
+    assert set(result) == {"run_id", "component", "mode", "finished_at", "duration_ms", "code", "label", "tone", "summary", "short", "plain", "also_noticed", "also_noticed_title",
                            "control", "what_happened", "shows_title", "shows", "evidence", "run_record", "locked_test", "fix_title",
                            "suggested_fix", "fix_line", "reviewed", "research"}
     # a failed result whose fix is in the Fixes step shows one line in place of the "Suggested fix" text

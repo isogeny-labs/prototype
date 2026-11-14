@@ -146,6 +146,8 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
   const waitingForTicks = imp ? imp.addresses.some((a) => !a.confirmed && !a.error) : false;
 
   const skipped = imp?.skipped ?? [];
+  // Only the upload reply carries these (for example: the demo test servers this file needs were started).
+  const notices = imp?.notices ?? [];
 
   return (
     <section aria-labelledby="import-title" className="space-y-6">
@@ -265,6 +267,19 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
                 </table>
               </div>
             )}
+            {notices.length > 0 ? (
+              <div className="space-y-1.5">
+                {notices.map((notice, i) => (
+                  <p
+                    key={i}
+                    data-testid="import-notice"
+                    className="rounded-md border border-slate-700 bg-slate-900/60 px-3 py-2 text-[13px] text-slate-300"
+                  >
+                    {notice}
+                  </p>
+                ))}
+              </div>
+            ) : null}
             {skipped.length > 0 ? (
               <details data-testid="skipped-note" className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-sm">
                 <summary className="cursor-pointer text-slate-300">

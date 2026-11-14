@@ -21,8 +21,8 @@ engine (the autoresearcher) is meant to plug in here later without any screen ch
 ```python
 class ResearchEngine(Protocol):          # backend/app/research.py
     engine_id: str
-    def propose_tests(self, claims: list[dict]) -> dict   # {"tests": [TestSpec, ...], "notes": [str]}
-    def design_test(self, request: dict) -> dict          # {"catalog_id": str, "claims": [...]} -> TestSpec
+    def propose_tests(self, claims: list[dict]) -> dict   # {"tests": [TestSpec, ...], "notes": [str], "not_suggested": [...]}
+    def design_test(self, request: dict) -> dict          # {"catalog_id": str, "claims": [...], "target"?: str} -> TestSpec
     def review(self, result: dict) -> dict                # {"spec", "spec_hash", "proposed_by", "run": RunRecord} -> Review
     def dig_deeper(self, finding: dict) -> dict           # {"run_id", "spec", "review", "view"} -> research request
     def propose_change(self, request: dict) -> dict | None  # failed results + the code as text -> a code change, or None
@@ -30,8 +30,8 @@ class ResearchEngine(Protocol):          # backend/app/research.py
 
 | Call | Used by | What the rule-based version does |
 |---|---|---|
-| `propose_tests` | opening the Tests step | Returns the suggested tests that fit the claims (five for the demo file; fewer if the file names no server or no signing component). |
-| `design_test` | **+ Add test** | Returns one test from the catalog: `pq_readiness`, `mldsa_compare`, or a suggested test that was removed. Raises `CannotDesign` if the test does not fit the file. |
+| `propose_tests` | opening the Tests step, and every look at Tests and Evidence Lab ("Not tested, and why") | Since phase 3a-fixes: every server in the file gets each server test that applies (`tls_versions` if the file says which TLS versions it accepts, `certificate` if it names its certificate) and every signing program each signing test, servers first in file order, then programs. Five for the demo file. `not_suggested` lists, per target, each suggested test it does not get and the reason: `{"kind", "target_kind": "server" \| "software", "target": address or claim ref, "reason"}`. |
+| `design_test` | **+ Add test** | Returns one test for one target (`target`: a server address or a program's claim ref; the first that fits when not given). **+ Add test** asks once for every target that fits and has no such test yet; a removed test comes back instead of a new one. Raises `CannotDesign` if the test does not fit. |
 | `review` | after every run, and again every time a result is read | Only `RuleReviewer` does this. `RuleEngine.review` always refuses (`ReviewNotAllowed`), and the reviewer refuses a test it proposed itself. |
 | `dig_deeper` | **Dig deeper** | Writes down the finding and one question. Looks into nothing. |
 | `propose_change` | **Connect demo code**; the Fixes list before the code is connected; and, once it is connected, every look at the fixes (the same question again, to see whether a failing test that joined the plan later is answered by the same change; the answer is never stored and nothing is run) | Applies the one fix template (below), or returns `None`. No AI model writes anything. `RuleReviewer.propose_change` always refuses. |
@@ -78,7 +78,7 @@ refuses (`ReviewNotAllowed`) a change it proposed itself. The record (`schema: "
  "built": {"file", "sha256", "matches": {"name", "version"} | None},   # the byte-for-byte check, made by the caller
  "baseline_version": "1.4.2", "version": "1.4.3", "proposed_by": "isogeny.rule-engine/1",
  "answers": [{"item_id", "kind"}],          # the failed tests the change was made for (from `changes.source`)
- "tests": [{"item_id", "kind", "spec_hash", "target": "software" | "server",
+ "tests": [{"item_id", "kind", "spec_hash", "target": "software" | "server" | "other_program",   # other_program: another program in the file (phase 3a-fixes), judged like a server test
             "first": {"run_sha256", "code", "reason_code"} | None,                      # the result it is compared with
             "proof": {"run_sha256", "code", "reason_code", "control_outcome"} | None}]}  # its run on the changed code
 ```
@@ -160,11 +160,11 @@ The component version, the mode, the baseline and all times are deliberately **n
 same test with the same fingerprint is rerun on a new version.
 
 ```json
-{"schema": "isogeny.test-spec/1", "kind": "official_vectors", "title": "Official test vectors",
+{"schema": "isogeny.test-spec/1", "kind": "official_vectors", "title": "Independent exam (Wycheproof)",
  "card": {"description": "...", "why": "..."},
  "question": "Does acme-sign give the right answer on every official ECDSA P-256 test case?",
  "method": "Run the verify command once per case and compare its answer with the published one.",
- "target": {"kind": "software", "component": "acme-sign", "algorithm": "ECDSA P-256"},
+ "target": {"kind": "software", "component": "acme-sign", "algorithm": "ECDSA P-256", "claim": "bom-ref-of-the-claim"},
  "inputs": {"files": [{"set": "ecdsa_p256", "file": "ecdsa_secp256r1_sha256_test.json", "sha256": "182db4f3...", "cases": 484, "used_on": "component"},
                       {"set": "ed25519", "file": "ed25519_test.json", "sha256": "ea80ffeb...", "cases": 210, "used_on": "reference"}],
             "commit": "dab4ea2ed021eb633874959ca601004f3457d911", "source_url": "..."},
@@ -177,6 +177,13 @@ same test with the same fingerprint is rerun on a new version.
 - Kinds: `tls_versions`, `certificate`, `official_vectors`, `bad_signatures`, `speed_size`,
   `pq_readiness`, `mldsa_compare`.
 - `target` for a server test is `{"kind": "server", "address": "localhost:8443"}`.
+- `target.claim` (phase 3a-fixes) is the ref of the file's claim that names the program, so two versions of one
+  program (`acme-sign 1.4.2` and `acme-sign 9.9`) are two targets. It names no version: the version a test runs
+  comes from that claim, except that the plan's **own program** (the first program in the file that is one of
+  our demo components) runs on the version a retest or a proof names. Every other server and program is tested
+  again as it is. A test written before phase 3a-fixes has no `claim` and is for the plan's own program.
+- Titles on screen since phase 3a-fixes: `official_vectors` is "Independent exam (Wycheproof)" and
+  `bad_signatures` "Attacker tricks (our short list)". The ids and the answer key are unchanged.
 - `inputs`, `control.must` and `rule` are machine-readable and differ per kind. Input files are
   named with their SHA-256, so a changed vector file stops the test.
 - Specs hold no decimal numbers: thresholds are whole numbers (for example
@@ -452,3 +459,27 @@ the signer could not be confirmed." and exits with code 2, which is not a pass.
   engine from the proposer.
 - To answer research requests, an engine would read `research_requests` rows with status
   `waiting for research engine`. The table and screens for showing an answer do not exist yet.
+
+## Phase 3a-fixes: targets, plain sentences and notes in the views
+
+- **Plan view and Evidence Lab view** carry `grouped` (true when the file names more than one server or more
+  than one signing program), `groups` (`{"key": "server:<address>" | "software:<claim ref>" | "reference",
+  "kind", "heading", "note"}`, in file order) and `not_tested` (`{"title": "Not tested, and why", "items": [str]}`
+  or null). Each card and row carries `group`. When grouped, cards and rows come group by group.
+  "Not tested, and why" lists: a suggested test a target doesn't get (the engine's reason), a program that is not
+  one of our components, a server not confirmed yet, and a claim no test covers. A test the user removed is
+  not listed (it is back in the catalog).
+- **Every worded result** (`present.lab_result`) carries `plain`: one sentence on top, saying what was found and
+  why that gives this result; and `also_noticed` (a list, often empty). `summary` and `short` stay as the
+  technical text. The words are made from the stored review and run record only.
+- **Every Verify row** carries `summary` (one plain sentence, from `plain.py`) and `also_noticed`. A row stored
+  before phase 3a-fixes gets a plain fallback when it is read.
+- **Also noticed** is words only: something a check saw that the file didn't ask about. The one case so far: a
+  certificate check (in Verify, and the `certificate` test, whose raw record now also keeps the TLS versions
+  its handshakes saw) on a server that accepts TLS 1.0 or 1.1. The reviewer never reads it, so it never
+  changes a result.
+- **Text-only fixes** are one per failed test, so each server has its own. The id is `fix-<test>` while the
+  plan holds one test of that kind, else `fix-<test>-<item id>`. In a file with several targets the list line
+  names the server or program.
+- **The multi-target demo file's test servers** (`extra_servers.py`, ports 8444-8446, `Settings.extra_ports`)
+  start only when that exact file is imported, or when that import is verified or tested after a restart.

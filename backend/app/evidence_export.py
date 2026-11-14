@@ -26,7 +26,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlalchemy import select
 
-from . import components, present_fixes
+from . import components, plain, present_fixes
 from .canonical import canonical_bytes, sha256_hex
 from .db import (
     ChangeRow, CodeConnectionRow, EvidenceExportRow, ImportRow, PlanItemRow, PlanRow, ProofReviewRow, ProofRow,
@@ -162,8 +162,9 @@ def _result_view(r: dict) -> dict:
     """The worded result, exactly as Evidence Lab showed it, copied field by field."""
     record, locked, research = r.get("run_record") or {}, r.get("locked_test") or {}, r.get("research")
     return {
-        **_pick(r, ("run_id", "component", "mode", "finished_at", "duration_ms", "code", "label", "tone", "summary", "short",
+        **_pick(r, ("run_id", "component", "mode", "finished_at", "duration_ms", "code", "label", "tone", "plain", "summary", "short",
                     "shows_title", "fix_title", "suggested_fix")),
+        "also_noticed": [str(x) for x in r.get("also_noticed") or []],
         # the one line that stands in place of the suggested fix when the fix is in the Fixes part
         "fix_line": _pick(r["fix_line"], ("fix_id", "lead", "rest")) if r.get("fix_line") else None,
         "control": _pick(r.get("control"), ("outcome", "line", "text")),
@@ -344,7 +345,10 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
                                       "confirmed": bool(a.confirmed)} for a in imp.addresses]},
             "verify": ({"started_at": iso(verify.started_at), "finished_at": iso(verify.finished_at),
                         "results": [{"claim": (r.get("claim") or {}).get("text"), "claim_ref": (r.get("claim") or {}).get("ref"),
-                                     "result": r.get("result"), "found": r.get("found"), "reason": r.get("reason"),
+                                     "result": r.get("result"),
+                                     "summary": r.get("summary") or plain.verify_fallback(r.get("result", ""), r.get("found", "")),
+                                     "also_noticed": [str(x) for x in r.get("also_noticed") or []],
+                                     "found": r.get("found"), "reason": r.get("reason"),
                                      "evidence": [_pick(e, ("title", "command", "output", "started_at", "duration_ms", "tool", "tool_version"))
                                                   for e in r.get("evidence") or [] if isinstance(e, dict)]}
                                     for r in verify.results or [] if isinstance(r, dict)]} if verify else None),
@@ -444,7 +448,9 @@ def _result_html(heading: str, entry: dict) -> _Safe:
     parts = [
         el("h3", t(heading)),
         el("p", el("strong", t(r.get("label")), cls=f"badge tone-{r.get('tone')}" if r.get("tone") in ("pass", "fail", "neutral", "warn") else "badge"),
-           _Safe(" "), t(r.get("summary"))),
+           _Safe(" "), t(r.get("plain") or r.get("summary"))),
+        *[el("p", el("strong", t("Also noticed:")), _Safe(" "), t(note), cls="note") for note in r.get("also_noticed") or []],
+        el("p", t(r.get("summary")), cls="note") if r.get("plain") and r.get("summary") and r.get("plain") != r.get("summary") else _Safe(""),
         el("ul", *[el("li", t(line)) for line in (
             f"Component: {r.get('component')} [demo]" if r.get("component") else "Component: none (this test is about the server)",
             f"Mode: {r.get('mode')}", f"Finished: {r.get('finished_at')} (UTC)",
@@ -629,7 +635,9 @@ def render_report_html(envelope: dict) -> bytes:
         for r in verify.get("results") or []:
             body.append(el("div",
                            el("h3", t(r.get("claim"))),
-                           el("p", el("strong", t(r.get("result")), cls="badge"), _Safe(" "), t(r.get("found"))),
+                           el("p", el("strong", t(r.get("result")), cls="badge"), _Safe(" "), t(r.get("summary") or r.get("found"))),
+                           *[el("p", el("strong", t("Also noticed:")), _Safe(" "), t(note), cls="note") for note in r.get("also_noticed") or []],
+                           el("p", t(r.get("found")), cls="note") if r.get("summary") else _Safe(""),
                            el("p", t(r.get("reason"))) if r.get("reason") else _Safe(""),
                            *[el("details", el("summary", t(f"Evidence: {ev.get('title')}")),
                                 el("p", el("code", t(ev.get("command")))), el("pre", t(ev.get("output"))),

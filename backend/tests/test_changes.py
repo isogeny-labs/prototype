@@ -837,11 +837,11 @@ def test_only_a_newer_result_with_a_verdict_closes_a_finding(lab):
 
 
 def test_a_failing_test_added_after_the_code_was_connected_joins_the_same_code_fix(lab):
-    """Third review, finding 3. "Official test vectors" is not in the plan when the code is connected, so the change
-    is made for "Bad signatures" alone. It is then added and fails for the same missing range check. The same
+    """Third review, finding 3. "Independent exam (Wycheproof)" is not in the plan when the code is connected, so the change
+    is made for "Attacker tricks (our short list)" alone. It is then added and fails for the same missing range check. The same
     change answers it: the failure points to the code fix, not to a text-only entry of its own that would say the
     app has made no change. Nothing is called ready until a proof that reran it has passed."""
-    plan = small_plan(lab)  # without Official test vectors
+    plan = small_plan(lab)  # without Independent exam (Wycheproof)
     code = proved(lab, plan)
     assert code["status"] == "ready" and [(a["kind"], a["phase"]) for a in code["answers"]] == [("bad_signatures", "first")]
     lab.add_test(plan.id, "official_vectors")
@@ -858,7 +858,7 @@ def test_a_failing_test_added_after_the_code_was_connected_joins_the_same_code_f
     assert added["label"] == "Failed" and added["suggested_fix"] is None
     assert (added["fix_line"]["fix_id"], added["fix_line"]["lead"], added["fix_line"]["rest"]) == (FIX, "Fix not offered:", "the test plan changed after the proof")
     detail = next(f for f in lab.fixes_view(plan.id)["fixes"] if f["id"] == FIX)
-    assert detail["list_source"] == "Came from 2 failed tests: Bad signatures, Official test vectors"
+    assert detail["list_source"] == "Came from 2 failed tests: Attacker tricks (our short list), Independent exam (Wycheproof)"
     # the proof is run again on the plan as it is now: it reruns the added test too, and only then is the fix ready
     lab.run_proof_again(plan.id, FIX)
     lab.wait_until_idle(plan.id, 240)

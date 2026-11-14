@@ -352,7 +352,10 @@ class RuleReviewer:
         inputs, rule = spec["inputs"], spec["rule"]
         rounds, repeats = inputs["rounds"], inputs["repeats"]
         benches = raw["benches"]
-        retest = run.get("phase") in ("retest", "proof")  # a proof times the old and the changed code side by side too
+        # A retest or a proof times the old and the new code side by side, but only for the plan's own program: another
+        # program in the same file (phase 3a-fixes) is run again as it is, with no baseline, and measured like a first run.
+        # (Every stored run record names its baseline_version; it is None exactly for those other programs.)
+        retest = run.get("phase") in ("retest", "proof") and not ("baseline_version" in run and run["baseline_version"] is None)
         base_role = "new" if retest else "subject"
         base = self._series(benches, base_role, rounds, repeats)
         old = self._series(benches, "old", rounds, repeats) if retest else None
@@ -455,7 +458,7 @@ class RuleReviewer:
           3. every pass-or-fail test that runs the changed code passed on it, and there is at least one such
              test. A report-only test has no pass or fail: it only has to run, and alone it is not enough;
           4. the control behaved in every proof run that reached a result;
-          5. every server test came out the same as before: the same result and the same reason. A test that
+          5. every server test (and every test of another program in the file) came out the same as before: the same result and the same reason. A test that
              could not run before, for the same reason, counts as unchanged; its control was not run;
           6. every failed test the change was made for (the record's `answers`) is in this proof, runs the
              changed code and passed on it, and there is at least one such test. So a proof of a plan from
@@ -470,7 +473,9 @@ class RuleReviewer:
         tests = []
         for test in record.get("tests") or []:
             first, run = test.get("first"), test.get("proof")
-            group = "server" if test.get("target") == "server" else "code"
+            # Only the plan's own program runs the changed code. Servers, and other programs from the same file
+            # (phase 3a-fixes), don't: like the server tests they only have to come out the same as before.
+            group = "server" if test.get("target") in ("server", "other_program") else "code"
             report_only = group == "code" and PROOF_PASS_CODES.get(test.get("kind")) == REPORT_ONLY_CODE
             if run is None:
                 held, control_ok, reason = False, True, "no_run"

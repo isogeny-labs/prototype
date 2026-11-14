@@ -228,7 +228,7 @@ def test_a_proof_in_which_no_test_runs_the_changed_code_proves_nothing_about_it(
 # ---------------------------------------------------------------- the failed tests the change is for, and the speed comparison
 
 def test_a_proof_that_never_ran_the_failed_tests_the_change_is_for_is_not_offered():
-    """The plan lost "Official test vectors" and "Bad signatures" after the change was made. The proof of what is
+    """The plan lost "Independent exam (Wycheproof)" and "Attacker tricks (our short list)" after the change was made. The proof of what is
     left can pass every test it ran and still shows nothing about the failures the change answers."""
     answer = review(without("official_vectors", "bad_signatures"))
     assert answer["offered"] is False and failed_checks(answer) == ["answered_tests_passed"]

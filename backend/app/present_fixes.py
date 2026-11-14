@@ -117,7 +117,7 @@ def fix_line(fix: dict) -> dict:
     def line(lead: str, rest: str, look: str, busy: bool = False) -> dict:
         return {"fix_id": fix["id"], "lead": lead, "rest": rest, "look": look, "busy": busy, "button": VIEW_IN_FIXES}
     if fix["kind"] != "code":
-        return line("Text-only suggestion:", "a server setting" if fix["id"] == "fix-tls-versions" else "see the suggestion", "dashed")
+        return line("Text-only suggestion:", "a server setting" if fix.get("test_kind", "tls_versions" if fix["id"] == "fix-tls-versions" else None) == "tls_versions" else "see the suggestion", "dashed")
     if fix["status"] == "not_connected":
         return line("Fix available,", "code not connected", "plain")
     size = size_words(fix["change"])
@@ -268,7 +268,9 @@ def _tables(fix: dict, rows: list[dict]) -> list[dict]:
                        "columns": ["Test", f"Before: {fix['component']['name']} {proof['baseline_version']}", "On the changed code", "Rule check"],
                        "rows": code})
     if server:
-        tables.append({"heading": "Tests that don't run this code (they test the server)", "tag": "measured",
+        others = any(r.get("target") == "other_program" for r in rows)
+        tables.append({"heading": "Tests that don't run this code (they test the server" + (" and the other programs in the file)" if others else ")"),
+                       "tag": "measured",
                        "need": "A code change can't affect these. They are rerun anyway and must come out the same as before.",
                        "columns": ["Test", "Before", "Rerun for this proof", "Rule check"], "rows": server})
     return tables
@@ -329,12 +331,15 @@ def _checks(proof: dict, rows: list[dict]) -> list[dict]:
         wrong = [r["title"] for r in rows if r["check"] is not None and r["check"]["reason"] == "control_misbehaved"]
         add(False, f"The control did not behave as expected in {len(wrong)} {_plural(len(wrong), 'test')}: {join_and(wrong)}")
     n = counts["server"]
+    # (with another program from the same file among them, they are named for what they are: tests that don't run this code)
+    which = "server" if not any(r.get("target") == "other_program" for r in rows) else "other"
+    one, many = ("server test", "server tests") if which == "server" else ("test that doesn't run this code", "tests that don't run this code")
     if n and checks["server_unchanged"]:
-        add(True, f"The {n} server {_plural(n, 'test')} came out the same as before")
+        add(True, f"The {n} {_plural(n, one, many)} came out the same as before")
     elif n:
         failed = missed("server", False)
-        add(False, _did_not(len(failed), n, "server test did not come out the same as before",
-                            "server tests did not come out the same as before"), failed)
+        add(False, _did_not(len(failed), n, f"{one} did not come out the same as before",
+                            f"{many} did not come out the same as before"), failed)
     # The failed tests the change is for. One that ran and did not pass is already named above; one that was
     # not in the proof at all is named here, because then no test in it showed that the failure is gone.
     if not checks["answered_tests_passed"]:
@@ -732,7 +737,8 @@ def _tls_words(tls: dict, box: str) -> dict:
             "suggestion": {"intro": [intro], "warning": warning, "where": where, "options": options, "exact": exact}}
 
 
-def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, address: str | None, tls: dict | None) -> dict:
+def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, address: str | None, tls: dict | None,
+             name_target: bool = False) -> dict:
     """One text-only fix as the Fixes step shows it: a suggestion in words that the app has not made or tested.
     `result` is the worded failed result it answers; `address` is the server it is about (None for a test of the
     signing component); `tls` is the recorded outcome of a failed "Old TLS versions" test, when it is that."""
@@ -749,7 +755,9 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         approves = ("Your own server team, outside this app. The app never changes your server." if on_server
                     else "Whoever looks after this software, outside this app.")
     return {
-        "id": fix["id"], "kind": "text", "title": words["title"], "list_source": _list_source(titles), "source": source,
+        # In a file with several servers or programs, the list names which one each suggestion is for.
+        "id": fix["id"], "kind": "text", "title": words["title"],
+        "list_source": _list_source(titles) + (f" on {address if on_server else result['component']}" if name_target else ""), "source": source,
         "status": {"key": "text_only", "word": STATUS_WORDS["text_only"], "busy": False}, "labels": [], "is_demo": is_demo,
         "what": {"label": "What it suggests", "paragraphs": [[_t(words["what"])]], "server_line": None},
         "proof": {"state": "none", "badge": None, "muted": None,

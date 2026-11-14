@@ -34,6 +34,8 @@ class Settings:
     # the computer hits them alike. rounds * repeats = pairs (200).
     speed_rounds: int = 40          # bench rounds (EVIDENCE_LAB_SPEED_ROUNDS, 2..50)
     speed_repeats: int = 5          # sign+verify pairs per round
+    # The three local test servers of the multi-target demo file (phase 3a-fixes). Started only when that file is imported.
+    extra_ports: tuple[int, int, int] = (8444, 8445, 8446)
 
     @property
     def db_path(self) -> Path:

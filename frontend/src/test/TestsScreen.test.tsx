@@ -3,7 +3,7 @@ import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import type { PlanView } from "../api";
 import { TestsScreen } from "../components/TestsScreen";
-import { calls, cards, mockApi, plan, pqCard, runningPlan, text } from "./fixtures";
+import { calls, cards, groupedPlan, mockApi, plan, pqCard, runningPlan, text } from "./fixtures";
 
 function Harness({ initial = null }: { initial?: PlanView | null }) {
   const [current, setCurrent] = useState<PlanView | null>(initial);
@@ -43,6 +43,18 @@ describe("Tests screen", () => {
     expect(screen.getByText(plan.intro)).not.toBeNull();
     expect(screen.getByText("Demo data")).not.toBeNull();
     expect(text(screen.getByTestId("plan-subject"))).toBe("Testing: server localhost:8443 and signing component acme-sign 1.4.2 from the file");
+  });
+
+  it("keeps the flat list when the plan is not grouped: no group headings and no Not tested box", async () => {
+    open();
+    const list = await shownCards();
+    expect(screen.queryByTestId("test-group")).toBeNull();
+    expect(screen.queryByTestId("not-tested")).toBeNull();
+    // One list, straight under the screen, each card with its own level-2 title.
+    const ul = list[0]!.parentElement!;
+    expect(ul.tagName).toBe("UL");
+    expect(ul.children).toHaveLength(5);
+    expect(list.map((c) => within(c).getByRole("heading").tagName)).toEqual(["H2", "H2", "H2", "H2", "H2"]);
   });
 
   it("carries the one fixed line about what passing means, and uses the word 'secure' nowhere else", async () => {
@@ -245,5 +257,76 @@ describe("Tests screen", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("menu")).toBeNull();
     expect(calls(fetchMock)).toEqual(["POST /api/import/7/plan"]);
+  });
+
+  describe("grouped by target", () => {
+    it("draws one heading per group with its note, and each group's cards under it", async () => {
+      open({}, groupedPlan);
+      await shownCards();
+      const groupsShown = screen.getAllByTestId("test-group");
+      expect(groupsShown.map((g) => within(g).getByRole("heading", { level: 2 }).textContent)).toEqual([
+        "Server: localhost:8444",
+        "Server: localhost:8445",
+        "Signing program: acme-sign 1.4.2",
+      ]);
+      expect(screen.getAllByTestId("test-group-note")).toHaveLength(1);
+      expect(within(groupsShown[1]!).getByTestId("test-group-note").textContent).toBe(
+        "A local test server started for this file (Demo data).",
+      );
+      expect(groupsShown.map((g) => within(g).getAllByTestId("test-card").length)).toEqual([2, 2, 3]);
+      expect(
+        within(groupsShown[2]!)
+          .getAllByRole("heading", { level: 3 })
+          .map((h) => h.textContent),
+      ).toEqual(["Official test vectors", "Bad signatures", "Speed and size"]);
+    });
+
+    it("shows the Not tested, and why box above the cards, one line per item, calmly", async () => {
+      open({}, groupedPlan);
+      await shownCards();
+      const box = screen.getByTestId("not-tested");
+      expect(within(box).getByRole("heading").textContent).toBe("Not tested, and why");
+      expect(within(box).getAllByRole("listitem").map((li) => li.textContent)).toEqual(groupedPlan.not_tested!.items);
+      expect(box.getAttribute("role")).toBeNull();
+      expect(box.className).not.toMatch(/amber|red/);
+      expect(box.compareDocumentPosition(screen.getAllByTestId("test-group")[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(screen.getByTestId("plan-subject").compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("moves a card with the arrow keys only inside its own group and sends the whole list in the order shown", async () => {
+      const fetchMock = open({ "POST /api/plans/1/order": { body: groupedPlan } }, groupedPlan);
+      await shownCards();
+      const handles = () => screen.getAllByRole("button", { name: /^Reorder / });
+      // The first card of the second group can't move up into the first group.
+      fireEvent.keyDown(handles()[2]!, { key: "ArrowUp" });
+      // The last card of the first group can't move down into the second group.
+      fireEvent.keyDown(handles()[1]!, { key: "ArrowDown" });
+      expect(calls(fetchMock)).toEqual(["POST /api/import/7/plan"]);
+      expect(handles()[2]!.getAttribute("aria-label")).toMatch(/position 1 of 2\./);
+
+      // Inside a group it moves as before.
+      fireEvent.keyDown(handles()[6]!, { key: "ArrowUp" });
+      await waitFor(() => expect(calls(fetchMock)).toContain("POST /api/plans/1/order"));
+      expect(body(fetchMock, "/api/plans/1/order")).toEqual({ order: [21, 22, 31, 32, 41, 43, 42] });
+      expect(screen.getByText("Speed and size moved to position 2 of 3 under Signing program: acme-sign 1.4.2.")).not.toBeNull();
+    });
+
+    it("doesn't let a card be dropped into another group", async () => {
+      const fetchMock = open({ "POST /api/plans/1/order": { body: groupedPlan } }, groupedPlan);
+      const list = await shownCards();
+      const dataTransfer = { setData: () => {}, effectAllowed: "", dropEffect: "" };
+      const handles = screen.getAllByRole("button", { name: /^Reorder / });
+      fireEvent.dragStart(handles[4]!, { dataTransfer });
+      fireEvent.dragOver(list[0]!, { dataTransfer });
+      fireEvent.drop(list[0]!, { dataTransfer });
+      fireEvent.dragEnd(handles[4]!, { dataTransfer });
+      expect(calls(fetchMock)).toEqual(["POST /api/import/7/plan"]);
+
+      fireEvent.dragStart(handles[3]!, { dataTransfer });
+      fireEvent.dragOver(list[2]!, { dataTransfer });
+      fireEvent.drop(list[2]!, { dataTransfer });
+      await waitFor(() => expect(calls(fetchMock)).toContain("POST /api/plans/1/order"));
+      expect(body(fetchMock, "/api/plans/1/order")).toEqual({ order: [21, 22, 32, 31, 41, 42, 43] });
+    });
   });
 });

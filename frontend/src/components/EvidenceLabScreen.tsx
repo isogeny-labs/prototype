@@ -11,14 +11,17 @@ import {
 } from "../api";
 import { ResultDetail } from "./lab/ResultDetail";
 import {
+  AlsoNoticedList,
   DemoDataLabel,
   ErrorBox,
+  NotTestedBox,
   ResultBadge,
   RichTextView,
   SecondaryButton,
   SourceTag,
   StatusView,
   saveFile,
+  splitByGroup,
   useDismiss,
 } from "./ui";
 
@@ -80,7 +83,7 @@ function Cell({
       {result ? (
         <>
           <ResultBadge label={result.label} tone={result.tone} />
-          <p className="mt-1.5 text-[13px] text-slate-300">{result.short}</p>
+          <p className="mt-1.5 text-[13px] text-slate-300">{result.plain}</p>
         </>
       ) : status ? (
         <StatusView status={status} />
@@ -94,6 +97,7 @@ function Row({
   lab,
   open,
   busy,
+  headingLevel,
   onToggle,
   onMarkReviewed,
   onDigDeeper,
@@ -103,6 +107,8 @@ function Row({
   lab: LabView;
   open: boolean;
   busy: boolean;
+  /** 2 in the flat list; 3 when the row sits under a group heading. */
+  headingLevel: 2 | 3;
   onToggle: () => void;
   onMarkReviewed: (runId: number) => void;
   onDigDeeper: (runId: number) => void;
@@ -112,9 +118,12 @@ function Row({
   const canOpen = row.result !== null || row.after !== null;
   const detailId = `lab-detail-${row.item_id}`;
   const shown = open && canOpen;
+  // The notes of the result the row leads with: the newest one in the before/after view.
+  const noticed = beforeAfter ? (row.after ?? row.result) : row.result;
 
+  const Heading = headingLevel === 3 ? "h3" : "h2";
   const title = (
-    <h2 className="text-[15px] font-semibold text-slate-100">
+    <Heading className="text-[15px] font-semibold text-slate-100">
       {canOpen ? (
         <button
           type="button"
@@ -127,7 +136,7 @@ function Row({
       ) : (
         row.title
       )}
-    </h2>
+    </Heading>
   );
 
   const caret = (
@@ -164,7 +173,7 @@ function Row({
           <>
             <div className="min-w-0">
               {title}
-              {row.result ? <p className="mt-0.5 text-sm text-slate-300">{row.result.summary}</p> : null}
+              {row.result ? <p className="mt-0.5 text-sm text-slate-200">{row.result.plain}</p> : null}
               {row.control_line ? <p className="mt-1 text-xs text-slate-400">{row.control_line}</p> : null}
             </div>
             <div className="max-w-[16rem]">
@@ -177,6 +186,12 @@ function Row({
           </>
         )}
       </div>
+
+      {noticed && noticed.also_noticed.length > 0 ? (
+        <div className="mt-3 pl-7">
+          <AlsoNoticedList title={noticed.also_noticed_title} items={noticed.also_noticed} />
+        </div>
+      ) : null}
 
       {shown ? (
         <div id={detailId}>
@@ -333,6 +348,25 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
     });
   }
 
+  const headings = new Map(current.groups.map((g) => [g.key, g]));
+
+  function renderRows(rows: LabRow[], headingLevel: 2 | 3) {
+    return rows.map((row) => (
+      <Row
+        key={row.item_id}
+        row={row}
+        lab={current}
+        open={openRows.has(row.item_id)}
+        busy={busy}
+        headingLevel={headingLevel}
+        onToggle={() => toggle(row.item_id)}
+        onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
+        onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
+        onViewFix={onViewFix}
+      />
+    ));
+  }
+
   const retest = current.retest;
   const blocked = [
     !retest.can_start && !retest.running ? retest.blocked_reason : null,
@@ -435,6 +469,12 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
         </div>
       ) : null}
 
+      {current.not_tested ? (
+        <div className="mt-4">
+          <NotTestedBox title={current.not_tested.title} items={current.not_tested.items} />
+        </div>
+      ) : null}
+
       {error ? (
         <div className="mt-4">
           <ErrorBox>{error}</ErrorBox>
@@ -459,22 +499,29 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
         ) : null}
         {current.rows.length === 0 ? (
           <p className="text-sm text-slate-400">There are no results yet.</p>
+        ) : current.grouped ? (
+          <div className="flex flex-col gap-6">
+            {splitByGroup(current.groups, current.rows, (r) => r.group).map((section, i) => {
+              const group = section.key !== null ? headings.get(section.key) : undefined;
+              return (
+                <section key={section.key ?? `rest-${i}`} data-testid="lab-group" data-group={section.key ?? ""}>
+                  {group ? (
+                    <>
+                      <h2 className="text-base font-semibold text-slate-100">{group.heading}</h2>
+                      {group.note ? (
+                        <p data-testid="lab-group-note" className="mt-0.5 text-[13px] text-slate-400">
+                          {group.note}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : null}
+                  <ul className="mt-3 flex flex-col gap-3">{renderRows(section.items, group ? 3 : 2)}</ul>
+                </section>
+              );
+            })}
+          </div>
         ) : (
-          <ul className="flex flex-col gap-3">
-            {current.rows.map((row) => (
-              <Row
-                key={row.item_id}
-                row={row}
-                lab={current}
-                open={openRows.has(row.item_id)}
-                busy={busy}
-                onToggle={() => toggle(row.item_id)}
-                onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
-                onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
-                onViewFix={onViewFix}
-              />
-            ))}
-          </ul>
+          <ul className="flex flex-col gap-3">{renderRows(current.rows, 2)}</ul>
         )}
       </div>
     </section>

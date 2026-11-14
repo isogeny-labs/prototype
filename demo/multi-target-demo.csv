@@ -1,0 +1,8 @@
+location,type,claim,value
+localhost:8443,tls,protocol_versions,TLS1.3
+localhost:8443,tls,certificate,ECDSA P-256
+localhost:8444,tls,protocol_versions,TLS1.3
+localhost:8445,tls,certificate,ECDSA P-256
+localhost:8446,tls,certificate,RSA 2048
+acme-sign 1.4.2,software,signature_algorithm,ECDSA P-256
+acme-sign 9.9,software,signature_algorithm,ECDSA P-256

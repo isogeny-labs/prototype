@@ -121,7 +121,10 @@ def test_handshake_failure_or_insufficient_security_on_a_version_probe_is_unknow
         assert obs.detail.startswith(NOT_ABOUT_VERSION) and "cannot offer" not in obs.detail
     assert len(evidence) == 1  # not treated as a local problem: no second try with the hand-built hello
     res = check(port).protocol_versions({"versions": ["TLS 1.3"]})
-    assert res["result"] == COULDNT and res["found"] == "Could not test TLS 1.3, TLS 1.2, TLS 1.1 and TLS 1.0."
+    # Phase 3a-fixes: a vague answer is the server's, not a failure of ours, and the words say so.
+    assert res["result"] == COULDNT and res["found"] == "The server didn't confirm or refuse TLS 1.3, TLS 1.2, TLS 1.1 and TLS 1.0."
+    assert res["summary"] == ("The server didn't confirm or refuse TLS 1.3, TLS 1.2, TLS 1.1 and TLS 1.0, "
+                              "so we can't say whether \u2018TLS 1.3 only\u2019 is true.")
     assert "the server said no to what we offered, but not specifically to this TLS version" in res["reason"]
     # the same alert still counts as "refused" where it is the right answer: a cipher-suite offer
     assert ProbeSession("127.0.0.1", port, "localhost").handshake("TLS 1.2").status == "refused"

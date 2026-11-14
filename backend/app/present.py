@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 
-from . import vectors
+from . import plain as plain_words, vectors
 from .guidance import OWN_LINKS
 from .research import TITLES, join_and
 from .reviewer import COULDNT_RUN_REASONS
@@ -113,6 +113,10 @@ class _Words:
     """Everything one result needs, filled in by the function for its kind."""
 
     def __init__(self):
+        # plain: the one sentence on top (phase 3a-fixes), for a busy engineer who isn't a cryptographer: what was found
+        # and why that gives this result. Never "secure", never a score, nothing beyond what was measured.
+        self.plain = ""
+        self.also_noticed: list[str] = []
         self.summary = self.short = ""
         self.what: list[str] = []
         self.shows: list[str] = []
@@ -155,7 +159,13 @@ def _tls_versions(w: _Words, spec, run, review, ctx) -> None:
     outside = join_and(d["accepted_outside_claim"])
     states = raw["subject"]["versions"]
     accepted = [v for v in reversed(spec["inputs"]["probed"]) if states.get(v, {}).get("state") == "accepted"]
+    claim = plain_words.tls_claim(d["claimed"])
     if review["code"] == "failed":
+        w.plain = f"The server accepts {outside}, so {claim} is not true."  # "still" only where it was seen before
+        if ctx["phase"] == "retest":
+            w.plain = f"The server still accepts {outside}, so {claim} is still not true. The server wasn't changed; only the signing program was."
+        elif ctx["phase"] == "proof":
+            w.plain = f"The server still accepts {outside}, so {claim} is still not true. {PROOF_SERVER_NOTE}"
         w.summary = f"The server accepted {outside}. The file claims {claimed} only."
         w.short = f"Server accepted {outside}."
         if ctx["phase"] == "retest":
@@ -169,6 +179,7 @@ def _tls_versions(w: _Words, spec, run, review, ctx) -> None:
         w.fix = (f"Switch off {outside} on the server so that it accepts {claimed} only, or correct the file if {outside} is meant to stay on. "
                  "Then run this test again.")
     else:
+        w.plain = f"The server refused every TLS version other than {claimed}, so {claim} is true."
         w.summary = f"The server refused every TLS version other than {claimed}, as the file claims."
         w.short = f"Refuses everything except {claimed}."
         w.what = [f"We tried one handshake for each TLS version, 1.0 to 1.3, against {address}, offering exactly that version each time.",
@@ -195,6 +206,18 @@ def _certificate(w: _Words, spec, run, review, ctx) -> None:
     note = d["notes"][0] if d["notes"] else None
     short_name = found.split(" ", 1)[1] if found.startswith("ECDSA ") else found
     w.what = [f"We completed a handshake with {address} and read the certificate it sent."]
+    card = "The server's ID card (its certificate)"
+    uses = f"RSA with a {bits}-bit key" if found.startswith("RSA") else found
+    if not reasons:
+        w.plain = f"{card} uses {uses}, which matches the claim" + (" and meets NIST's minimum key size." if minimum else ".") + (
+            f" Note, not a failure: NIST plans to retire {short_name}." if note else "")
+    elif "algorithm_mismatch" in reasons and "below_minimum" in reasons:
+        w.plain = f"{card} uses {uses}: not {claimed} as claimed, and below NIST's minimum of {minimum} bits."
+    elif "algorithm_mismatch" in reasons:
+        w.plain = f"{card} uses {uses}, not {claimed} as the file claims."
+    else:
+        w.plain = f"{card} uses {uses} as claimed, but its key is below NIST's minimum of {minimum} bits."
+    w.also_noticed = plain_words.also_noticed_tls(raw["subject"].get("versions") or {})
     if not reasons:
         w.summary = f"The certificate is {found}, {bits} bits, as claimed." + (f" Note, not a failure: NIST plans to retire {short_name}." if note else "")
         w.short = f"{found}, as claimed." + (" NIST retirement note." if note else "")
@@ -266,6 +289,9 @@ def _official_vectors(w: _Words, spec, run, review, ctx) -> None:
         head = next((x for x in wrong if x["id"] == "168"), wrong[0])
         one_cause = _range_cause_official(wrong)
         head_words = ("a signature made of zeros (r=0 and s=0)" if head["id"] == "168" else _case_words(head["comment"]))
+        w.plain = (f"{comp} got {n} of the {total} exam cases wrong"
+                   + (": it accepted signatures that aren't genuine." if all(x["got"] == "accept" for x in wrong) else ".")
+                   + " One wrong answer is enough to fail.")
         w.summary = f"{n} of {total} official cases wrong. Headline: case {head['id']}, {head_words} was {_said(head['got'])}."
         shown = join_and(ids) if n <= 8 else ", ".join(ids[:8]) + " and others"
         w.short = f"{n} of {total} official cases wrong ({', '.join(ids) if n <= 8 else shown})" + (", all from one missing range check." if one_cause else ".")
@@ -290,6 +316,7 @@ def _official_vectors(w: _Words, spec, run, review, ctx) -> None:
         else:
             w.fix = f"Correct the signature check in {comp} so that these cases get the right answer, then run the same tests again."
     else:
+        w.plain = f"{comp} got all {total} exam cases right."
         w.summary = w.short = f"{total} of {total} official cases right."
         w.what = [f"{comp} was shown {total} official signatures and asked \"is this one genuine?\". It gave the right answer every time.",
                   "That includes case 168, a signature made only of zeros (r=0 and s=0), which it rejected."]
@@ -329,6 +356,13 @@ def _bad_signatures(w: _Words, spec, run, review, ctx) -> None:
     if wrong:
         accepted_bad = [x for x in wrong if x["expected"] == "invalid"]
         if zero:
+            w.plain = (f"{comp} accepted {len(accepted_bad)} of our {reject_total} forged signatures, including one made of zeros (r=0, s=0). "
+                       "It must reject every one of them." if len(accepted_bad) > 1 else
+                       f"{comp} accepted a forged signature made of zeros (r=0, s=0), which it must reject.")
+        else:
+            w.plain = (f"{comp} gave the wrong answer on {len(wrong)} of the {d['total']} signatures we tried. "
+                       "It must reject every forgery and accept the genuine ones.")
+        if zero:
             w.summary = f"{comp} accepts the signature r=0, s=0, which it must reject."
             w.short = "Accepts the signature r=0, s=0."
         else:
@@ -354,6 +388,7 @@ def _bad_signatures(w: _Words, spec, run, review, ctx) -> None:
         else:
             w.fix = f"Correct the signature check in {comp} so that these signatures get the right answer, then run the same tests again."
     else:
+        w.plain = f"{comp} rejected all {reject_total} forged signatures and accepted both genuine ones."
         w.summary = w.short = "Rejects r=0, s=0 and every other bad signature tried."
         w.what = [f"{comp} was given {reject_total} signatures that must be rejected and {d['valid_total']} genuine ones. It rejected every bad one and accepted both genuine ones.",
                   "That includes r=0, s=0 and the values at or above the curve order n."]
@@ -415,6 +450,8 @@ def _speed_size(w: _Words, spec, run, review, ctx) -> None:
         flagged = [op for op in ("sign", "verify") if cmp[op]["flagged"]]
         op_words = {"sign": "Signing", "verify": "Checking"}
         if flagged:
+            w.plain = " ".join(f"{op_words[op]} is {cmp[op]['change_percent']:.0f}% slower on {new_label} than on {old_label}." for op in flagged) \
+                + f" That is more than the measured noise (±{band}%), so it counts as a slowdown."
             w.summary = " ".join(f"{op_words[op]} is {cmp[op]['change_percent']:.0f}% slower on {new_label} than on {old_label}." for op in flagged) \
                         + f" Measured noise: ±{band}%."
             w.short = w.summary
@@ -427,6 +464,11 @@ def _speed_size(w: _Words, spec, run, review, ctx) -> None:
         # then the words say exactly that, and never call it noise.
         worst = max(cmp[op]["change_percent"] for op in cmp)
         in_gap = not flagged and worst > band
+        if in_gap:
+            w.plain = (f"{new_label} measured up to {worst:.1f}% slower than {old_label}: above the measured noise (±{band}%) "
+                       "but below the level this test calls a slowdown.")
+        elif not flagged:
+            w.plain = f"{new_label} is no slower than {old_label} beyond the measured noise (±{band}%)."
         if not flagged:
             w.fix = ("None needed under this test's rule. The small difference measured is below the level it calls a slowdown." if in_gap
                      else "None needed. No slowdown beyond measured noise was found.")
@@ -474,6 +516,8 @@ def _speed_size(w: _Words, spec, run, review, ctx) -> None:
         w.outputs = [{"title": f"{SUMMARY_TITLE}, {old_label}", "text": _bench_summary(old_label, pairs, old)},
                      {"title": f"{SUMMARY_TITLE}, {new_label}", "text": _bench_summary(new_label, pairs, new)}]
     else:
+        w.plain = (f"On {new_label} a typical signature takes {ms(new['sign']['median_ms'])} to make and {ms(new['verify']['median_ms'])} to check. "
+                   "This is a baseline for later: there is no pass or fail on a first run.")
         w.summary = (f"Sign {ms(new['sign']['median_ms'])}, verify {ms(new['verify']['median_ms'])} (medians over {pairs} repeats). "
                      f"Signature {_bytes(new['signature_bytes'])} in this run, public key {_bytes(new['public_key_bytes'])}.")
         w.short = f"Sign {ms(new['sign']['median_ms'])}, verify {ms(new['verify']['median_ms'])} (medians)."
@@ -508,6 +552,8 @@ def _pq_readiness(w: _Words, spec, run, review, ctx) -> None:
     address, group = spec["target"]["address"], d["group"]
     subject = raw["subject"]
     if review["code"] == "not_offered":
+        w.plain = (f"The server doesn't offer the quantum-resistant key exchange {group}: it refused a handshake that asked only for it, "
+                   "while an ordinary handshake worked.")
         w.summary = f"The server does not offer the quantum-resistant key exchange {group}."
         w.short = f"Server does not offer {group}."
         w.what = [f"We asked {address} for a TLS 1.3 handshake that uses only {group}. The server refused it (alert 40, handshake failure).",
@@ -517,6 +563,7 @@ def _pq_readiness(w: _Words, spec, run, review, ctx) -> None:
         w.fix = (f"Nothing is broken today. To get ready for the post-quantum move, plan to switch on {group} on the server; "
                  "it needs a TLS library that supports it, such as OpenSSL 3.5 or newer.")
     else:
+        w.plain = f"The server offers the quantum-resistant key exchange {group}: a handshake that asked only for it completed."
         w.summary = f"The server offers the quantum-resistant key exchange {group}."
         w.short = f"Server offers {group}."
         w.what = [f"We asked {address} for a TLS 1.3 handshake that uses only {group}. The handshake completed, and the checker printed the group it agreed on."]
@@ -545,6 +592,9 @@ def _mldsa_compare(w: _Words, spec, run, review, ctx) -> None:
     w.summary = (f"ML-DSA-65 ({label}): sign {ms(m['sign']['median_ms'])}, verify {ms(m['verify']['median_ms'])} (medians over {d['repeats']} repeats); "
                  f"signature {m['signature_bytes']} bytes, public key {m['public_key_bytes']} bytes.")
     w.short = f"ML-DSA-65: signature {m['signature_bytes']} bytes, public key {m['public_key_bytes']} bytes ({label})."
+    w.plain = (f"For scale: an ML-DSA-65 signature is {m['signature_bytes']} bytes"
+               + (f", against {_bytes(c['signature_bytes'])} for {_version_label(c)}" if c else "")
+               + ". Reference figures only: this test has no pass or fail.")
     w.what = [f"We timed a post-quantum signature, ML-DSA-65, from the cryptography library: {d['repeats']} key generations, signs and checks. "
               "These are reference figures from the same reference library the speed test uses. They are not a measurement of any ML-DSA software of yours."]
     columns = ["What was measured", {"label": f"ML-DSA-65\n({label})", "align": "right"}]
@@ -586,6 +636,13 @@ def _not_a_result(w: _Words, spec, run, review, ctx) -> None:
     problem = raw.get("problem") if isinstance(raw.get("problem"), dict) else {}
     if review["code"] == "couldnt_run":
         reason = review.get("reason") or COULDNT_RUN_REASONS["harness_error"]
+        w.plain = f"This test couldn't run ({reason}), so there is no result either way."
+        if review.get("reason_code") == "not_a_demo_component":
+            w.plain = "This test couldn't run: only our own demo components can run in this version. So there is no result either way."
+        states = ((raw.get("subject") or {}).get("versions") or {}) if spec.get("kind") == "tls_versions" else {}
+        unclear = [v for v in reversed(plain_words.TLS_VERSIONS) if isinstance(states.get(v), dict) and states[v].get("state") == "unknown"]
+        if review.get("reason_code") == "unreadable_answer" and unclear:
+            w.plain = f"The server didn't confirm or refuse {join_and(unclear)}, so this test has no result either way."
         w.summary = f"This test could not run: {reason}."
         w.short = f"Could not run: {reason}."
         w.what = [w.summary, str(problem.get("text") or "No more detail was recorded.")]
@@ -596,6 +653,8 @@ def _not_a_result(w: _Words, spec, run, review, ctx) -> None:
         w.control_text = "The control was not run, because the test itself could not run."
     else:
         reason = review.get("reason") or "The control did not behave as it must, so this run can't be trusted."
+        w.plain = ("This run can't be relied on either way: the stored record has changed since it was reviewed." if reason == RECORD_CHANGED else
+                   "This test's built-in check didn't behave as it must, so this run can't be relied on either way.")
         w.summary = reason
         w.short = "This run can't be relied on."
         w.what = [reason, "The test ran, but the check that tells us the test itself works did not come out as it must. So neither a pass nor a fail from this run would mean anything."]
@@ -644,7 +703,8 @@ def lab_result(*, spec: dict, spec_hash: str, locked_at: str, run_id: int, run: 
         f"The control did not behave as expected ({review['control'].get('reason')}), so this run can't be trusted."
     return {
         "run_id": run_id, "component": component, "mode": run.get("mode"), "finished_at": run["finished_at"], "duration_ms": run["duration_ms"],
-        **b, "summary": w.summary, "short": w.short,
+        **b, "plain": w.plain or w.summary, "also_noticed": list(w.also_noticed), "also_noticed_title": "Also noticed",
+        "summary": w.summary, "short": w.short,
         "control": {"outcome": outcome, "line": control_line(kind, outcome), "text": control_text},
         "what_happened": w.what, "shows_title": SHOWS_TITLE, "shows": w.shows, "evidence": w.evidence,
         "run_record": {"title": "Run record", "command": w.command, "outputs": w.outputs, "meta": meta + w.meta},

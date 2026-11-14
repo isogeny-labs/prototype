@@ -98,7 +98,7 @@ def test_cipher_suites_per_version(tls_server):
 def test_port_with_no_tls_or_nothing_listening_is_couldnt_check(listener):
     res = AddressCheck(row(listener.port), NO_DEMO, session_factory=lambda *a: ProbeSession(*a, timeout=0.5)) \
         .protocol_versions({"versions": ["TLS 1.3"]})
-    assert res["result"] == COULDNT and "Could not test" in res["found"]
+    assert res["result"] == COULDNT and "didn't confirm or refuse" in res["found"]
     assert listener.connections() == 1  # no answer to the first handshake, so we did not keep trying
     port = listener.port
     listener.close()

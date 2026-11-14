@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Evidence, Import, Result, ResultValue, VerifyRun } from "../api";
-import { DemoDataLabel, PrimaryButton, SourceTag } from "./ui";
+import { AlsoNoticedList, DemoDataLabel, PrimaryButton, SourceTag } from "./ui";
 
 // "True" only means the claim matched what we measured, so it is styled as a
 // neutral match, not as "safe". Every badge carries its text and a symbol, so
@@ -75,23 +75,18 @@ function EvidenceItem({ item }: { item: Evidence }) {
 function ResultRow({ result }: { result: Result }) {
   const [open, setOpen] = useState(false);
   const badge = BADGES[result.result];
-  const evidenceId = `evidence-${result.claim_id}`;
+  const detailsId = `details-${result.claim_id}`;
 
   return (
     <li data-testid="result-row" className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-      <div className="grid gap-4 md:grid-cols-[1fr_1fr_13rem]">
-        <div>
+      <div className="grid gap-4 md:grid-cols-[1fr_13rem]">
+        <div className="min-w-0">
           <p className="text-xs uppercase tracking-wide text-slate-500">Claim</p>
-          <p className="mt-1 text-sm text-slate-100">{result.claim.text}</p>
-          <p className="mt-1.5">
-            <SourceTag>from the file</SourceTag>
+          <p className="mt-1 text-sm text-slate-300">
+            {result.claim.text} <SourceTag>from the file</SourceTag>
           </p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">What we found</p>
-          <p className="mt-1 text-sm text-slate-100">{result.found}</p>
-          <p className="mt-1.5">
-            <SourceTag>measured</SourceTag>
+          <p data-testid="verify-summary" className="mt-2.5 text-base text-slate-100">
+            {result.summary}
           </p>
         </div>
         <div>
@@ -104,27 +99,40 @@ function ResultRow({ result }: { result: Result }) {
             </span>
             <span data-testid="result-badge">{result.result}</span>
           </p>
-          <p className="mt-1.5 text-xs text-slate-400">
-            {result.result === "Couldn't check" && result.reason ? result.reason : badge.meaning}
-          </p>
         </div>
       </div>
+
+      {result.also_noticed.length > 0 ? (
+        <div className="mt-3">
+          <AlsoNoticedList title="Also noticed" items={result.also_noticed} />
+        </div>
+      ) : null}
 
       <div className="mt-3 border-t border-slate-800 pt-3">
         <button
           type="button"
+          data-testid="verify-details-toggle"
           aria-expanded={open}
-          aria-controls={evidenceId}
+          aria-controls={detailsId}
           onClick={() => setOpen((v) => !v)}
           className="flex items-center gap-2 rounded text-sm text-slate-300 hover:text-slate-100"
         >
           <span aria-hidden="true" className="font-mono text-xs">
             {open ? "▾" : "▸"}
           </span>
-          Evidence
+          Details and evidence
         </button>
         {open ? (
-          <div id={evidenceId} className="mt-3">
+          <div id={detailsId} className="mt-3 space-y-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-slate-500">What we found</p>
+              <p className="mt-1 text-sm text-slate-200">
+                {result.found} <SourceTag>measured</SourceTag>
+              </p>
+              <p className="mt-1.5 text-xs text-slate-400">
+                {result.result === "Couldn't check" && result.reason ? result.reason : badge.meaning}
+              </p>
+            </div>
             {result.evidence.length === 0 ? (
               <p className="text-sm text-slate-400">Nothing was run for this claim, so there is no raw output.</p>
             ) : (

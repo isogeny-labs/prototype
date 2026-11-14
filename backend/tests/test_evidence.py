@@ -107,7 +107,7 @@ def test_built_from_an_allow_list_not_from_row_dumps(lab):
     _, raw, report = export(lab, plan.id)
     assert b"PLANTED" not in raw and b"PLANTED" not in report
     e = json.loads(raw)["evidence"]
-    assert sorted(e["verify"]["results"][0]) == ["claim", "claim_ref", "evidence", "found", "reason", "result"]
+    assert sorted(e["verify"]["results"][0]) == ["also_noticed", "claim", "claim_ref", "evidence", "found", "reason", "result", "summary"]
     assert sorted(e["verify"]["results"][0]["evidence"][0]) == ["command", "duration_ms", "output", "started_at", "title", "tool", "tool_version"]
     assert sorted(e["import"]["claims"][0]) == ["claimed_value", "kind", "location", "location_kind", "ref", "source", "text"]
     # nothing about the login is in it

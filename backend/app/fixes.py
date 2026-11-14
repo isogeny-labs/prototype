@@ -11,7 +11,7 @@ import re
 
 from sqlalchemy import select
 
-from . import changes, components, present_fixes
+from . import changes, components, present_fixes, research
 from .db import ImportRow, PlanRow, ReviewRow, TestRunRow, TestSpecRow
 from .gitrepo import GitRepoError
 from .present import TITLES
@@ -55,6 +55,8 @@ class FixesMixin:
         is_demo = bool(db.get(ImportRow, plan.import_id).is_demo)
         answered = {fix["id"]: self._answered(db, fix) for fix in states if fix["kind"] == "text"}
         server_findings = sum(1 for _, address in answered.values() if address is not None)
+        claims = self._claims(db.get(ImportRow, plan.import_id))
+        several = len(research.servers(claims)) > 1 or len(research.programs(claims)) > 1
         out = []
         for fix in states:
             titles = list(dict.fromkeys(TITLES.get(a["kind"], str(a["kind"])) for a in fix["answers"]))
@@ -63,7 +65,8 @@ class FixesMixin:
             else:
                 run, address = answered[fix["id"]]
                 shown = present_fixes.text_fix(fix, titles=titles, is_demo=is_demo, result=self._result(db, run), address=address,
-                                               tls=self._tls_outcome(db, run) if fix["answers"][-1]["kind"] == "tls_versions" else None)
+                                               tls=self._tls_outcome(db, run) if fix["answers"][-1]["kind"] == "tls_versions" else None,
+                                               name_target=several)
             out.append((fix, shown))
         return out
 
@@ -92,7 +95,7 @@ class FixesMixin:
         rows, modes, ran_sha256 = [], [self.mode.name], None
         if proof is not None:
             runs = [db.get(TestRunRow, t["proof"]["run_id"]) for t in proof["tests"] if t["proof"] is not None]
-            rows = [{"kind": t["kind"], "title": TITLES.get(t["kind"], str(t["kind"])), "group": "server" if t["target"] == "server" else "code",
+            rows = [{"kind": t["kind"], "title": TITLES.get(t["kind"], str(t["kind"])), "group": "server" if t["target"] in ("server", "other_program") else "code", "target": t["target"],
                      "first": self._result(db, db.get(TestRunRow, t["first"]["run_id"])) if t["first"] is not None else None,
                      "proof": self._result(db, db.get(TestRunRow, t["proof"]["run_id"])) if t["proof"] is not None else None,
                      "job": t["job"], "check": t["check"]} for t in proof["tests"]]

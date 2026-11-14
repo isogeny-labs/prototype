@@ -6,6 +6,7 @@ import {
   DISCLAIMER,
   FINGERPRINT,
   beforeAfter,
+  groupedLab,
   calls,
   evidenceExport,
   fixLines,
@@ -65,7 +66,7 @@ describe("Evidence Lab, results view", () => {
     expect(document.querySelector("input, textarea, select, form")).toBeNull();
   });
 
-  it("lists collapsed rows with the summary, control line and a badge for every label", async () => {
+  it("lists collapsed rows with the plain sentence, control line and a badge for every label", async () => {
     await open();
     expect(rows()).toHaveLength(5);
     expect(screen.getAllByTestId("result-badge").map(label)).toEqual([
@@ -76,7 +77,13 @@ describe("Evidence Lab, results view", () => {
       "Couldn't run (needs OpenSSL 3.5 or newer)",
     ]);
     const vectors = within(rowOf("Official test vectors"));
-    expect(vectors.getByText(/^3 of 484 official cases wrong\. Headline: case 168/)).not.toBeNull();
+    expect(vectors.getByText("acme-sign 1.4.2 accepted 3 forged signatures out of 484 official cases, so it failed.")).not.toBeNull();
+    // The technical summary waits inside the opened result.
+    expect(vectors.queryByText(/^3 of 484 official cases wrong\. Headline: case 168/)).toBeNull();
+    expect(screen.queryByTestId("technical-summary")).toBeNull();
+    expect(screen.queryByTestId("also-noticed")).toBeNull();
+    expect(screen.queryByTestId("lab-group")).toBeNull();
+    expect(screen.queryByTestId("not-tested")).toBeNull();
     expect(vectors.getByText("Control: a deliberately broken signer failed this test, as expected.")).not.toBeNull();
     expect(screen.queryByTestId("result-detail")).toBeNull();
     // The locked test and its fingerprint are not on the collapsed list.
@@ -105,6 +112,10 @@ describe("Evidence Lab, results view", () => {
 
     const detail = within(rowOf("Official test vectors")).getByTestId("result-detail");
     const d = within(detail);
+    expect(text(d.getByTestId("technical-summary"))).toBe(
+      "Technical summary 3 of 484 official cases wrong. Headline: case 168, a signature made of zeros (r=0 and s=0) was accepted.",
+    );
+    expect(detail.firstElementChild).toBe(d.getByTestId("technical-summary"));
     expect(d.getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual([
       "What happened",
       "What this shows, and what it doesn't",
@@ -263,7 +274,8 @@ describe("Evidence Lab, retest", () => {
     const before = within(vectors.getByTestId("lab-cell-before"));
     const after = within(vectors.getByTestId("lab-cell-after"));
     expect(label(before.getByTestId("result-badge"))).toBe("Failed");
-    expect(before.getByText("3 of 484 official cases wrong (168, 171, 364), all from one missing range check.")).not.toBeNull();
+    expect(before.getByText("acme-sign 1.4.2 accepted 3 forged signatures out of 484 official cases, so it failed.")).not.toBeNull();
+    expect(before.queryByText("3 of 484 official cases wrong (168, 171, 364), all from one missing range check.")).toBeNull();
     expect(label(after.getByTestId("result-badge"))).toBe("Passed");
     expect(after.getByText("484 of 484 official cases right.")).not.toBeNull();
 
@@ -566,5 +578,75 @@ describe("Evidence Lab, download", () => {
     fireEvent.click(button("Download evidence"));
     expect(text(await screen.findByRole("alert"))).toContain("Wait for the tests to finish.");
     expect(screen.queryByTestId("download-status")).toBeNull();
+  });
+});
+
+describe("Evidence Lab, grouped by target", () => {
+  it("draws one heading per group, with its note, and each group's rows under it", async () => {
+    await open(groupedLab);
+    const sections = screen.getAllByTestId("lab-group");
+    expect(sections.map((g) => within(g).getByRole("heading", { level: 2 }).textContent)).toEqual([
+      "Server: localhost:8444",
+      "Server: localhost:8445",
+      "Signing program: acme-sign 1.4.2",
+    ]);
+    expect(screen.getAllByTestId("lab-group-note").map((n) => n.textContent)).toEqual([
+      "A local test server started for this file (Demo data).",
+    ]);
+    expect(within(sections[1]!).getByTestId("lab-group-note")).not.toBeNull();
+    expect(sections.map((g) => within(g).getAllByTestId("lab-row").map((r) => r.getAttribute("data-kind")))).toEqual([
+      ["tls_versions", "certificate"],
+      ["tls_versions", "certificate"],
+      ["official_vectors"],
+    ]);
+    expect(within(sections[0]!).getByText("localhost:8444 refused every version older than TLS 1.3, so it passed.")).not.toBeNull();
+  });
+
+  it("shows the Not tested, and why box with one line per item, calmly and not as an error", async () => {
+    await open(groupedLab);
+    const box = screen.getByTestId("not-tested");
+    expect(within(box).getByRole("heading").textContent).toBe("Not tested, and why");
+    expect(within(box).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.",
+      "localhost:8446: Post-quantum readiness wasn't added to the plan.",
+    ]);
+    expect(box.getAttribute("role")).toBeNull();
+    expect(box.className).not.toMatch(/amber|red/);
+  });
+
+  it("shows an Also noticed note under the row header, outside the badge, before anything is opened", async () => {
+    await open(groupedLab);
+    const notes = screen.getAllByTestId("also-noticed");
+    expect(notes).toHaveLength(1);
+    const certRow = within(screen.getAllByTestId("lab-group")[1]!).getAllByTestId("lab-row")[1]!;
+    expect(certRow.contains(notes[0]!)).toBe(true);
+    expect(text(notes[0])).toBe("Also noticed: The handshakes for this check showed the server also accepts TLS 1.0 and TLS 1.1.");
+    expect(within(certRow).getByTestId("lab-row-header").contains(notes[0]!)).toBe(false);
+    expect(notes[0]!.className).not.toMatch(/amber|green|red|emerald/);
+    expect(within(certRow).getAllByTestId("result-badge").map(label)).toEqual(["Passed"]);
+  });
+
+  it("groups the before/after view the same way, with the plain line in each cell and the notes of the newer result", async () => {
+    const view: LabView = {
+      ...groupedLab,
+      view: "before_after",
+      columns: beforeAfter.columns,
+      rows: groupedLab.rows.map((r) => ({
+        ...r,
+        after: r.result
+          ? { ...r.result, run_id: r.result.run_id + 50, plain: `After: ${r.result.plain}`, also_noticed: [] }
+          : null,
+      })),
+    };
+    await open(view);
+    const sections = screen.getAllByTestId("lab-group");
+    expect(sections).toHaveLength(3);
+    expect(screen.getByTestId("lab-columns")).not.toBeNull();
+    const row = within(within(sections[1]!).getAllByTestId("lab-row")[0]!);
+    expect(within(row.getByTestId("lab-cell-before")).getByText(/^localhost:8445 accepted TLS 1\.0/)).not.toBeNull();
+    expect(within(row.getByTestId("lab-cell-after")).getByText(/^After: localhost:8445 accepted TLS 1\.0/)).not.toBeNull();
+    // The newer result has no notes, so none is shown.
+    expect(screen.queryByTestId("also-noticed")).toBeNull();
+    expect(screen.getByTestId("not-tested")).not.toBeNull();
   });
 });

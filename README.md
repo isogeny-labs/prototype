@@ -6,14 +6,14 @@ behind every answer. After a fix, it reruns the same tests and shows before and 
 
 Passing these tests doesn't prove a system secure. It shows these specific checks passed.
 
-## Status: phase 3a (the first of the four steps of phase 3)
+## Status: phase 3a, plus the 3a fixes (the first of the four steps of phase 3)
 
 | Part | Status |
 | --- | --- |
 | Log in (you create your own password the first time) | Built |
 | 1. Import (demo file, CycloneDX 1.6 CBOM `.json`, CSV template `.csv`) | Built |
-| 2. Verify (True / False / Couldn't check, with evidence) | Built |
-| 3. Tests (five suggested tests, add from a short catalog, reorder, remove, run one or all at once) | Built |
+| 2. Verify (True / False / Couldn't check, one plain sentence on top, Also noticed notes, with evidence) | Built |
+| 3. Tests (five suggested tests for the demo, every server and signing program in a file tested, grouped by target, with what isn't tested and why; add from a short catalog, reorder, remove, run one or all at once) | Built |
 | 4. Evidence Lab (results, controls, one line pointing to each fix, Mark reviewed, Dig deeper, Retest new version, Download evidence) | Built |
 | 5. Fixes (a suggested code change for the signing bug with its proof, a pull request inside the app, approvals, a merge that a person confirms, Retest now; a text-only suggestion for the server finding) | Built |
 | Demo mode and isolated mode (Docker) | Built |
@@ -44,11 +44,12 @@ open **http://127.0.0.1:8000** in your browser.
 2. Click **Use demo file**. You see three claims, labelled *Demo data*.
 3. Tick **I own this system or am allowed to test it** (the address is the app's own demo server on your computer).
 4. Click **Verify claims**. Expected: "TLS 1.3 only" is **False** (the demo server also accepts TLS 1.2),
-   the certificate claim is **True**, the signing component claim is **True**. Open **Evidence** on any row to see the raw output.
+   the certificate claim is **True**, the signing component claim is **True**. Each row starts with one plain sentence; open **Details and evidence**
+   on any row to see the technical text and the raw output.
 5. Open **3. Tests**. Five tests are suggested. You can drag them into another order, remove one with ×, or use
    **+ Add test** to add *Post-quantum readiness*. Click **Run all** (or **Run** on one card).
-   Expected on the demo: Old TLS versions **Failed**, Certificate strength **Passed**, Official test vectors **Failed**
-   (3 of 484 cases wrong), Bad signatures **Failed** (it accepts r = 0, s = 0), Speed and size **Measured**,
+   Expected on the demo: Old TLS versions **Failed**, Certificate strength **Passed**, Independent exam (Wycheproof)
+   **Failed** (3 of 484 cases wrong), Attacker tricks (our short list) **Failed** (it accepts r = 0, s = 0), Speed and size **Measured**,
    Post-quantum readiness **Not offered**. Run all takes about half a minute to a minute.
 6. Open **4. Evidence Lab**. Open any row to see what happened, what it shows and what it doesn't, the evidence
    and the control. **Mark reviewed** records that you looked at it. **Dig deeper** saves a research request,
@@ -82,6 +83,15 @@ open **http://127.0.0.1:8000** in your browser.
 
 To stop the app, press Ctrl+C in the window where it is running.
 
+### A file with several servers and programs
+
+`demo/multi-target-demo.csv` (Demo data) names the Acme server, three local test servers (8444, 8445, 8446)
+and two signing programs (`acme-sign 1.4.2` and `acme-sign 9.9`). Upload it with the drop zone on **1. Import**:
+the app then starts the three test servers on your computer, and says so (or says which port was already taken).
+Tick the four boxes, verify, and run the tests. Expected: every server and program gets its tests, grouped by
+target; "Not tested, and why" lists what is left out; `acme-sign 9.9` can't run (only our own demo components
+run); the certificate row for 8445 carries an "Also noticed" note (that server also accepts TLS 1.0 and 1.1).
+
 ### Demo mode and isolated mode
 
 The line under the step bar says which mode the app is in.
@@ -99,7 +109,7 @@ The line under the step bar says which mode the app is in.
 
 Things to know:
 
-- The app only listens on your own computer (127.0.0.1). The demo TLS server uses `localhost:8443`.
+- The app only listens on your own computer (127.0.0.1). The demo TLS server uses `localhost:8443`; the multi-target demo file's test servers use 8444 to 8446, only after that file is imported.
 - Your data lives in the `data/` folder, which is never committed: a small database, the demo test certificate
   and the app's evidence signing key (a local key, made on first start, readable only by you).
 - Only our own demo software can be run. There is nowhere to upload other software in this version.

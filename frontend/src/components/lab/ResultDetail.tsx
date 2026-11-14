@@ -190,6 +190,11 @@ export function ResultDetail({ result, heading, busy, onMarkReviewed, onDigDeepe
         </div>
       ) : null}
 
+      <p data-testid="technical-summary" className="text-[13px] text-slate-300">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Technical summary</span>{" "}
+        {result.summary}
+      </p>
+
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <h4 className={H}>What happened</h4>

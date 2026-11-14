@@ -23,7 +23,7 @@ from sqlalchemy import func, select
 from . import components, demo_repo, research
 from .canonical import canonical_bytes
 from .db import (
-    ApprovalRow, ChangeRow, CodeConnectionRow, MergeRow, PlanRow, ProofReviewRow, ProofRow, PullRequestRow, RetestRow,
+    ApprovalRow, ChangeRow, CodeConnectionRow, ImportRow, MergeRow, PlanRow, ProofReviewRow, ProofRow, PullRequestRow, RetestRow,
     ReviewRow, TestRunRow, TestSpecRow, iso,
 )
 from .errors import BadRequest, Conflict, NotFound
@@ -195,15 +195,21 @@ class ChangesMixin:
         a retest exists, the newest reviewed run of the latest retest. Each as the read gate lets it through."""
         retest = db.scalars(select(RetestRow).where(RetestRow.plan_id == plan.id).order_by(RetestRow.id.desc()).limit(1)).first()
         phases = [("first", None)] + ([("retest", retest.id)] if retest is not None else [])
+        claims = self._claims(db.get(ImportRow, plan.import_id))
         out = []
         for item in items:
             kind = self._kind(db, item.spec_hash)
+            spec, _ = read_spec(db.get(TestSpecRow, item.spec_hash))
+            program = self._program_of(plan, claims, spec)
             for phase, rerun_id in phases:
                 run = self._latest_run(db, item.id, phase, rerun_id)
                 if run is not None:
                     result = self._result(db, run)
+                    # own: the test runs the plan's own program, the code a code fix changes
                     out.append({"item_id": item.id, "kind": kind, "phase": phase, "run_id": run.id,
-                                "version": run.component_version, "code": result["code"], "tone": result["tone"]})
+                                "version": run.component_version, "code": result["code"], "tone": result["tone"],
+                                "own": bool(program and program["own"]),
+                                "other_program": bool(program and not program["own"])})
         return out
 
     def _repo(self, folder: str) -> GitRepo:
@@ -231,7 +237,7 @@ class ChangesMixin:
     def _proposal(self, db, plan: PlanRow, shown: list[dict], files: dict[str, bytes]) -> tuple[dict, list[dict]] | None:
         """Ask the engine for a change that answers the plan's failed first results, giving it the code as text.
         Returns (the proposal, the results it answers), or None. A change may only edit files already there."""
-        failed = [r for r in shown if r["phase"] == "first" and r["code"] == "failed"]
+        failed = [r for r in shown if r["phase"] == "first" and r["code"] == "failed" and not r.get("other_program")]
         request = []
         for result in failed:
             review = db.scalars(select(ReviewRow).where(ReviewRow.run_id == result["run_id"])).first()
@@ -287,10 +293,17 @@ class ChangesMixin:
         for r in shown:
             if r["tone"] in ("pass", "fail") and (r["item_id"] not in newest or r["run_id"] > newest[r["item_id"]]["run_id"]):
                 newest[r["item_id"]] = r
-        for kind in dict.fromkeys(r["kind"] for r in failed):
-            answers = [r for r in failed if r["kind"] == kind and r["run_id"] not in answered and newest[r["item_id"]]["tone"] == "fail"]
+        # One text-only fix per failed test, so each server (or program) has its own suggestion. Its id is
+        # "fix-<test>" while the plan holds one test of that kind (as it always was), else "fix-<test>-<item>".
+        per_kind: dict[object, set] = {}
+        for item in items:  # counted from the plan, so an id doesn't change when another test of the kind is run
+            per_kind.setdefault(self._kind(db, item.spec_hash), set()).add(item.id)
+        for item_id in dict.fromkeys(r["item_id"] for r in failed):
+            answers = [r for r in failed if r["item_id"] == item_id and r["run_id"] not in answered and newest[item_id]["tone"] == "fail"]
             if answers:
-                fixes.append({"id": "fix-" + str(kind).replace("_", "-"), "kind": "text", "status": "text_only",
+                kind = answers[0]["kind"]
+                fix_id = "fix-" + str(kind).replace("_", "-") + ("" if len(per_kind[kind]) == 1 else f"-{item_id}")
+                fixes.append({"id": fix_id, "test_kind": kind, "kind": "text", "status": "text_only",
                               "source_kind": "failed_tests", "answers": [_answer(r) for r in answers], "component": None,
                               "template_id": None, "rerun_blocked": None, "connection": None, "change": None, "proofs": 0,
                               "proof": None, "pull_request": None, "merge": None, "actions": {}})
@@ -381,13 +394,18 @@ class ChangesMixin:
     def _proof_tests(self, db, proof: ProofRow) -> list[dict]:
         """For each test of a proof, in its order: where it runs, the first result it is compared with and its
         proof run, each as the read gate lets it through (None where there is no reviewed run)."""
+        plan = db.get(PlanRow, proof.plan_id)
+        claims = self._claims(db.get(ImportRow, plan.import_id))
         out = []
         for entry in proof.items:
             spec, _ = read_spec(db.get(TestSpecRow, entry["spec_hash"]))
             first = db.get(TestRunRow, entry["first_run_id"])
             run = self._latest_run(db, entry["item_id"], "proof", proof.id)
-            out.append({"item_id": entry["item_id"], "kind": entry["kind"], "spec_hash": entry["spec_hash"],
-                        "target": "server" if (spec.get("target") or {}).get("kind") == "server" else "software",
+            # where it runs: a server, the plan's own program (the changed code), or another program from the file
+            program = self._program_of(plan, claims, spec) if spec else None
+            target = ("server" if (spec.get("target") or {}).get("kind") == "server" else
+                      "other_program" if program is not None and not program["own"] else "software")
+            out.append({"item_id": entry["item_id"], "kind": entry["kind"], "spec_hash": entry["spec_hash"], "target": target,
                         "first": self._verdict(db, first) if first is not None else None,
                         "proof": self._verdict(db, run) if run is not None else None})
         return out
@@ -510,6 +528,8 @@ class ChangesMixin:
             return None
         code = {"source": "bundled", "component_name": name, "component_version": version, "file_sha256": _sha256(data),
                 "repository": None, "branch": None, "commit": None, "change_id": None, "pull_request_number": None}
+        if not a.get("own", True):
+            return code  # another program in the file (phase 3a-fixes): it runs our bundled file, never the connected code
         with self.db() as db:
             if a["phase"] == "proof":
                 change = db.get(ChangeRow, db.get(ProofRow, a["retest_id"]).change_id)

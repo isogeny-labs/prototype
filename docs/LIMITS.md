@@ -88,7 +88,8 @@ Updated at the end of **phase 3a** (the Fixes step: a suggested code change with
 - **Uploading outside software is not in this version** (owner decision in phase 2). There is no screen, button or
   API address that accepts software. Only our own demo components run. Retest chooses only between our two demo
   versions, 1.4.2 and 1.4.3. A file that names any other software gets "Couldn't check" in Verify and
-  "Couldn't run (only our demo components can be run in this version)" in the tests.
+  "Couldn't run (only our demo components can be run in this version)" in the tests, and "Not tested, and why"
+  says so on the Tests and Evidence Lab screens.
 - **No AI model and no research engine are connected.** Tests are proposed by fixed rules and reviewed by fixed
   rules. Both are code from this same build, written by the same people: the review is a separate step with
   its own module, not an independent second opinion.
@@ -198,6 +199,46 @@ Updated at the end of **phase 3a** (the Fixes step: a suggested code change with
 - **Three looks were built without an approved picture:** the Proof section opened while the proof is still
   running; a pull request whose proof is out of date (Run proof again, with Merge pull request and Download patch
   shown switched off); and the Fixes part of the HTML report. They are in `docs/screenshots/phase3a/` (03a, 25, 14).
+
+## Limits of the 3a fixes (every target, plain sentences, Also noticed; 14 November 2026)
+
+- **Grouping by target shows only when the file names more than one server or more than one signing program.**
+  With one of each (the Acme Pay demo) the list stays flat, as before (Kevin's decision).
+- **Retest and the code fix work on one program only: the plan's own.** That is the first program in the file
+  that is one of our demo components (else the first program). Every other server and program is tested again
+  as it is on a retest or in a proof, and is recorded as running our bundled file. In a proof, tests of another
+  program only have to come out the same as before, like the server tests. A file that names both demo versions
+  can't retest the second one to another version.
+- **Programs that are not ours can't run.** A file naming `acme-sign 9.9` (or any other software) gets its tests
+  in the plan, each showing "Couldn't run", and a line in "Not tested, and why" says so up front.
+- **"Not tested, and why" lists:** a suggested test a target doesn't get (with the reason), a program that isn't
+  ours, a server not confirmed yet, and a claim no test covers (cipher suites, key exchange). It does not list a
+  test you removed: that one is back in the catalog. A test that ran and couldn't run says why on its own card.
+- **A test plan made before these fixes is not remade.** If its file names several servers or programs, the
+  missing tests are listed under "Not tested, and why" with "Import the file again to test it". Its locked tests
+  also keep the old why-lines (the new titles show anyway: titles come from the app, not from the locked test).
+- **The plain sentences are fixed templates**, written from the stored result and run record; no AI model writes
+  them. For cipher-suite and key-exchange claims that come back False, the sentence reuses the technical
+  finding. A Verify row stored before these fixes gets a plain fallback ("This matches the claim." plus the
+  technical text), not a new sentence.
+- **"Also noticed" covers one case:** a certificate check (in Verify or the Certificate strength test) whose
+  handshakes show the server accepts TLS 1.0 or 1.1. It is not shown when the same file also claims that
+  server's TLS versions (the TLS row already says it). It is words only: the reviewer never reads it.
+- **The three test servers (8444, 8445, 8446) are demo only.** They start only when the bundled
+  `demo/multi-target-demo.csv` is imported unchanged (line endings and trailing spaces aside); an edited copy
+  starts nothing. After the app restarts they start again when that import is verified or tested. Each makes a
+  throwaway test certificate when it starts, and Verify and the tests check that certificate, so another program
+  on one of those ports is never reported on as ours ("Couldn't check" instead). Moving the demo server with
+  `EVIDENCE_LAB_DEMO_TLS_PORT` does not move them. The note that they started (or that a port was taken) shows
+  once, right after the upload.
+- **Text-only fixes are one per failed test.** In a file with several targets the Fixes list names the server or
+  program, and the fix id carries the test's number (`fix-tls-versions-<n>`); with one test of a kind it is
+  `fix-tls-versions`, as before. The suggestion for a failed certificate is the plain suggested fix, not the
+  fuller server-setting text the TLS finding has.
+- **Screenshots of phases 1 to 3a were not retaken** (Kevin's instruction). The end-to-end run rewrites them, so
+  they were put back to the committed pictures afterwards; the changed screens are in
+  `docs/screenshots/phase3a-fixes/`. Some earlier pictures therefore show the old titles and rows without the
+  plain sentence.
 
 ## Limits of the tests (phase 2)
 

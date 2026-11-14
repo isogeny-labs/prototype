@@ -4,7 +4,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DISCLAIMER, password } from "./shared";
+import { DISCLAIMER, password, shotFixes } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.resolve(here, "../../docs/screenshots/phase1");
@@ -118,7 +118,11 @@ test("without the tick, the server is not contacted: server claims are Couldn't 
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
   const tls = row(page, "accepts TLS 1.3 only");
   await expect(tls.getByTestId("result-badge")).toHaveText("Couldn't check");
+  // Phase 3a-fixes: the reason is in the plain sentence on top (mid-sentence, so lower case), and as written in the details.
+  await expect(tls.getByTestId("verify-summary")).toContainText("you haven't confirmed you're allowed to test this address");
+  await tls.getByTestId("verify-details-toggle").click();
   await expect(tls).toContainText(NOT_CONFIRMED);
+  await tls.getByTestId("verify-details-toggle").click();
   await expect(row(page, "certificate is ECDSA P-256").getByTestId("result-badge")).toHaveText("Couldn't check");
 });
 
@@ -134,7 +138,8 @@ test("tick the box and Verify claims: False, True, True, with evidence", async (
 
   const tls = row(page, "localhost:8443 accepts TLS 1.3 only");
   await expect(tls.getByTestId("result-badge")).toHaveText("False");
-  await expect(tls).toContainText(/Accepts TLS 1\.3 and TLS 1\.2/);
+  // Phase 3a-fixes: one plain sentence on top; the technical text is folded under "Details and evidence".
+  await expect(tls.getByTestId("verify-summary")).toHaveText("The server accepts TLS 1.2, so \u2018TLS 1.3 only\u2019 is not true.");
 
   const cert = row(page, "localhost:8443 certificate is ECDSA P-256");
   await expect(cert.getByTestId("result-badge")).toHaveText("True");
@@ -147,12 +152,16 @@ test("tick the box and Verify claims: False, True, True, with evidence", async (
   await expect(page.getByText("Demo data", { exact: true })).toBeVisible();
   await expect(page.getByText("Demo mode: running our own demo software, not isolated.")).toBeVisible();
   await expect(tls.getByText("from the file", { exact: true })).toBeVisible();
-  await expect(tls.getByText("measured", { exact: true })).toBeVisible();
+  await tls.getByTestId("verify-details-toggle").click();
+  await expect(tls).toContainText(/Accepts TLS 1\.3 and TLS 1\.2/);
+  await expect(tls.getByText("measured", { exact: true }).first()).toBeVisible();
+  await tls.getByTestId("verify-details-toggle").click();
 
   // The app never calls anything secure and never gives a score.
   const text = (await page.locator("body").innerText()).replace(DISCLAIMER, "");
   expect(text).not.toMatch(/\bsecure\b|security score|time[- ]to[- ]hack/i);
   await shot(page, "05-verify-results.png");
+  await shotFixes(page, "05-verify-demo.png");
 });
 
 test("evidence opens and shows raw output, with no private key in it", async () => {

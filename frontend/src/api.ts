@@ -67,6 +67,8 @@ export interface Import {
   addresses: Address[];
   /** Always sent by the current backend; optional so an older reply doesn't break the screen. */
   skipped?: SkippedItem[];
+  /** Plain sentences about what the upload started on this computer (for example the demo test servers). Only on the upload reply. */
+  notices?: string[];
 }
 
 export interface Evidence {
@@ -86,6 +88,10 @@ export interface Result {
   found: string;
   reason: string | null;
   evidence: Evidence[];
+  /** One plain sentence: what was found and why that gives this result. Shown on top of the row. */
+  summary: string;
+  /** Things the check saw that the file didn't ask about. Side notes, never a result. Often empty. */
+  also_noticed: string[];
 }
 
 export interface VerifyRun {
@@ -149,6 +155,22 @@ export interface TestCard {
   result: Badge | null;
   can_run: boolean;
   can_remove: boolean;
+  /** The key of the group this card is under, when the plan is grouped. */
+  group: string | null;
+}
+
+/** A heading the cards (or Evidence Lab rows) are grouped under, e.g. "Server: localhost:8444". */
+export interface PlanGroup {
+  key: string;
+  kind: "server" | "software" | "reference";
+  heading: string;
+  note: string | null;
+}
+
+/** The "Not tested, and why" box: every target or test the plan leaves out, one line each. */
+export interface NotTested {
+  title: string;
+  items: string[];
 }
 
 export interface CatalogItem {
@@ -168,6 +190,12 @@ export interface PlanView {
   can_run_all: boolean;
   has_results: boolean;
   max_parallel: number;
+  /** True when the file has more than one server or signing program: cards are drawn under group headings. */
+  grouped: boolean;
+  /** In display order. Sent even when not grouped (the screen then ignores them). */
+  groups: PlanGroup[];
+  not_tested: NotTested | null;
+  /** When grouped, already ordered group by group, in the order of `groups`. */
   tests: TestCard[];
   catalog_title: string;
   catalog: CatalogItem[];
@@ -236,6 +264,11 @@ export interface LabResult extends Badge {
   duration_ms: number;
   summary: string;
   short: string;
+  /** One plain sentence: what was found and why that gives this result. */
+  plain: string;
+  /** Side notes about things the test saw that it wasn't asked about. Never a result. */
+  also_noticed: string[];
+  also_noticed_title: string;
   control: { outcome: "as_expected" | "not_as_expected" | "errored" | "not_run"; line: string; text: string };
   what_happened: string[];
   shows_title: string;
@@ -266,6 +299,7 @@ export interface LabRow {
   result_status: RowStatus | null;
   after: LabResult | null;
   after_status: RowStatus | null;
+  group: string | null;
 }
 
 export interface RetestVersion {
@@ -294,6 +328,10 @@ export interface LabView {
     before_heading: string;
     after_heading: string;
   } | null;
+  grouped: boolean;
+  groups: PlanGroup[];
+  not_tested: NotTested | null;
+  /** When grouped, already ordered group by group, in the order of `groups`. */
   rows: LabRow[];
   retest: {
     can_start: boolean;

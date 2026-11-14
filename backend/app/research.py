@@ -34,11 +34,14 @@ MLDSA_LABEL = "reference, not production"
 RESEARCH_STATUS = "waiting for research engine"
 CHANGE_LABEL = "From a fix template"   # how every proposed change is labelled: none is written by an AI model
 
+# The screen titles. The ids stay as they were (the answer key uses them); since phase 3a-fixes the two signing
+# tests are titled so the difference is plain: an outside exam of many cases, and our own short list of forgeries.
 TITLES = {
-    "tls_versions": "Old TLS versions", "certificate": "Certificate strength", "official_vectors": "Official test vectors",
-    "bad_signatures": "Bad signatures", "speed_size": "Speed and size", "pq_readiness": "Post-quantum readiness",
+    "tls_versions": "Old TLS versions", "certificate": "Certificate strength", "official_vectors": "Independent exam (Wycheproof)",
+    "bad_signatures": "Attacker tricks (our short list)", "speed_size": "Speed and size", "pq_readiness": "Post-quantum readiness",
     "mldsa_compare": "ML-DSA-65 comparison",
 }
+SOFTWARE_TEST_KINDS = ("official_vectors", "bad_signatures", "speed_size", "mldsa_compare")
 CATALOG_DESCRIPTIONS = {
     "pq_readiness": "Checks whether the server offers the newer quantum-resistant key exchange (X25519MLKEM768).",
     "mldsa_compare": "Shows the speed and sizes of a post-quantum signature (ML-DSA-65) from a reference implementation, next to {component}'s.",
@@ -64,26 +67,58 @@ def join_and(items: list[str]) -> str:
     return "".join(items) if len(items) <= 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
 
-def _first(claims: list[dict], location_kind: str, kind: str, need: str) -> dict | None:
+def _first(claims: list[dict], location_kind: str, kind: str, need: str, location: str | None = None) -> dict | None:
     for c in claims:
-        if c.get("location_kind") == location_kind and c.get("kind") == kind and (c.get("detail") or {}).get(need):
+        if c.get("location_kind") == location_kind and c.get("kind") == kind and (c.get("detail") or {}).get(need) \
+                and (location is None or str(c.get("location")) == location):
             return c
     return None
 
 
-def _server_address(claims: list[dict]) -> str | None:
+def servers(claims: list[dict]) -> list[str]:
+    """Every server address in the file, once each, in the order the file names them."""
+    return list(dict.fromkeys(str(c["location"]) for c in claims if c.get("location_kind") == "server" and c.get("location")))
+
+
+def programs(claims: list[dict]) -> list[dict]:
+    """Every signing program the file names (a signature_algorithm claim on a software component), once per name
+    and version, in file order: {"ref", "component", "version", "algorithm", "label"}. The claim's ref is how a
+    test remembers which one it is for: two versions of the same program (acme-sign 1.4.2 and acme-sign 9.9) are
+    two programs."""
+    out, seen = [], set()
     for c in claims:
-        if c.get("location_kind") == "server" and c.get("location"):
-            return str(c["location"])
-    return None
+        d = c.get("detail") or {}
+        if c.get("location_kind") != "software" or c.get("kind") != "signature_algorithm" or not d.get("component"):
+            continue
+        version = str(d["version"]) if d.get("version") else None
+        if (str(d["component"]), version) in seen:
+            continue
+        seen.add((str(d["component"]), version))
+        out.append({"ref": str(c.get("ref")), "component": str(d["component"]), "version": version,
+                    "algorithm": str(d.get("algorithm") or c.get("claimed_value") or ""),
+                    "label": f"{d['component']} {version}" if version else str(d["component"])})
+    return out
 
 
-def _software(claims: list[dict]) -> dict | None:
-    c = _first(claims, "software", "signature_algorithm", "component")
-    if c is None:
+def _server_address(claims: list[dict]) -> str | None:
+    found = servers(claims)
+    return found[0] if found else None
+
+
+def _software(claims: list[dict], ref: str | None = None) -> dict | None:
+    """The signing program a software test is for: the one whose claim has this ref, or the first one."""
+    found = [p for p in programs(claims) if ref is None or p["ref"] == ref]
+    if not found:
         return None
-    d = c["detail"]
-    return {"component": str(d["component"]), "algorithm": str(d.get("algorithm") or c.get("claimed_value") or "")}
+    return {"component": found[0]["component"], "algorithm": found[0]["algorithm"], "claim": found[0]["ref"]}
+
+
+def target_key(kind: str, target: dict) -> str | None:
+    """Which target a test is for, as one string: the server address, or the ref of the program's claim
+    (None for a test written before phase 3a-fixes, which named no claim: it is for the first program)."""
+    if (target or {}).get("kind") == "server":
+        return str(target.get("address"))
+    return str(target["claim"]) if (target or {}).get("claim") else None
 
 
 # ---------------------------------------------------------------- the fix template (the only one)
@@ -178,19 +213,34 @@ class RuleEngine:
     # ---------------------------------------------------------------- the interface
 
     def propose_tests(self, claims: list[dict]) -> dict:
-        tests, notes = [], []
-        for kind in SUGGESTED_KINDS:
-            try:
-                tests.append(self._design(kind, claims))
-            except CannotDesign as exc:
-                notes.append(f"{TITLES[kind]}: not suggested. {exc}")
-        return {"tests": tests, "notes": notes}
+        """Every server in the file gets each server test that applies, and every signing program each signing
+        test that applies: servers first, in file order, then programs. `not_suggested` says, per target, which
+        suggested test it does not get and why; `notes` says the same in one line each."""
+        tests, notes, skipped = [], [], []
+        targets = [("server", a) for a in servers(claims)] + [("software", p["ref"]) for p in programs(claims)]
+        for side, key in targets:
+            for kind in SUGGESTED_KINDS:
+                if (kind in SERVER_KINDS) != (side == "server"):
+                    continue
+                try:
+                    tests.append(self._design(kind, claims, key))
+                except CannotDesign as exc:
+                    skipped.append({"kind": kind, "target_kind": side, "target": key, "reason": str(exc)})
+                    notes.append(f"{TITLES[kind]} for {key}: not suggested. {exc}")
+        for side, kinds, why in (("server", ("tls_versions", "certificate"), "The file names no server."),
+                                 ("software", ("official_vectors", "bad_signatures", "speed_size"), "The file names no signing component.")):
+            if not any(s == side for s, _ in targets):
+                notes += [f"{TITLES[kind]}: not suggested. {why}" for kind in kinds]
+        return {"tests": tests, "notes": notes, "not_suggested": skipped}
 
     def design_test(self, request: dict) -> dict:
+        """One catalog test for one target: request["target"] is a server address or a program's claim ref
+        (the first one that fits when it is not given)."""
         kind = request.get("catalog_id")
         if kind not in ALL_KINDS:
             raise CannotDesign("That test is not in the catalog.")
-        return self._design(kind, list(request.get("claims") or []))
+        target = request.get("target")
+        return self._design(kind, list(request.get("claims") or []), str(target) if target is not None else None)
 
     def review(self, result: dict) -> dict:
         raise ReviewNotAllowed("The engine that proposes tests does not review results.")
@@ -254,8 +304,8 @@ class RuleEngine:
 
     # ---------------------------------------------------------------- the tests, written down in full
 
-    def _design(self, kind: str, claims: list[dict]) -> dict:
-        return getattr(self, "_" + kind)(claims)
+    def _design(self, kind: str, claims: list[dict], target: str | None = None) -> dict:
+        return getattr(self, "_" + kind)(claims, target)
 
     @staticmethod
     def _spec(kind: str, description: str, why: str, question: str, method: str, target: dict, inputs: dict,
@@ -264,10 +314,11 @@ class RuleEngine:
                 "question": question, "method": method, "target": target, "inputs": inputs, "inputs_text": inputs_text,
                 "control": control, "rule": rule, "rule_text": rule_text}
 
-    def _tls_versions(self, claims: list[dict]) -> dict:
-        claim = _first(claims, "server", "protocol_versions", "versions")
+    def _tls_versions(self, claims: list[dict], target: str | None = None) -> dict:
+        claim = _first(claims, "server", "protocol_versions", "versions", target)
         if claim is None:
-            raise CannotDesign("The file makes no claim about TLS versions for a server.")
+            raise CannotDesign("The file makes no claim about TLS versions for a server." if target is None else
+                               "The file makes no claim about which TLS versions this server accepts.")
         claimed = [v for v in TLS_VERSIONS if v in claim["detail"]["versions"]]
         outside = [v for v in TLS_VERSIONS if v not in claimed]
         if not claimed or not outside:
@@ -291,10 +342,11 @@ class RuleEngine:
             {"type": "no_accepted_version_outside_claim"},
             f"Failed if the server completes a handshake with any version other than {claimed_words}. Passed only if it refuses every other version and accepts a claimed one.")
 
-    def _certificate(self, claims: list[dict]) -> dict:
-        claim = _first(claims, "server", "certificate", "algorithm")
+    def _certificate(self, claims: list[dict], target: str | None = None) -> dict:
+        claim = _first(claims, "server", "certificate", "algorithm", target)
         if claim is None:
-            raise CannotDesign("The file makes no claim about a server certificate's algorithm.")
+            raise CannotDesign("The file makes no claim about a server certificate's algorithm." if target is None else
+                               "The file makes no claim about this server's certificate.")
         address, algorithm = str(claim["location"]), str(claim["detail"]["algorithm"])
         g = NIST_GUIDANCE
         return self._spec(
@@ -313,21 +365,21 @@ class RuleEngine:
             {"type": "certificate_matches_claim_and_minimum"},
             "Passed only if the certificate's algorithm matches the claim and its key is at least the NIST minimum size. Retirement plans are shown as a note, not a failure.")
 
-    def _signing_target(self, claims: list[dict]) -> dict:
-        software = _software(claims)
+    def _signing_target(self, claims: list[dict], target: str | None = None) -> dict:
+        software = _software(claims, target)
         if software is None:
             raise CannotDesign("The file names no signing component.")
         return {"kind": "software", **software}
 
-    def _official_vectors(self, claims: list[dict]) -> dict:
-        target = self._signing_target(claims)
+    def _official_vectors(self, claims: list[dict], ref: str | None = None) -> dict:
+        target = self._signing_target(claims, ref)
         name = target["component"]
         ecdsa, ed = vectors.WYCHEPROOF["ecdsa_p256"], vectors.WYCHEPROOF["ed25519"]
         short = vectors.WYCHEPROOF_COMMIT[:7]
         return self._spec(
             "official_vectors",
-            f"Gives {name} {ecdsa['cases']} published signature cases with known right answers (Project Wycheproof, ECDSA P-256) and counts any it gets wrong.",
-            "Why it matters: these cases were written to catch real, known mistakes.",
+            f"Sits {name} an outside exam: the {ecdsa['cases']} ECDSA P-256 cases of Project Wycheproof, each with a published right answer, and counts any it gets wrong.",
+            f"Why it matters: an outside exam we didn't write. {ecdsa['cases']} cases from Project Wycheproof, started by Google's security team, built to catch known mistakes in signing software.",
             f"Does {name} give the right answer on every official ECDSA P-256 test case?",
             "Run the verify command once per case and compare its answer with the published one.",
             target,
@@ -342,15 +394,15 @@ class RuleEngine:
             {"type": "all_cases_match", "valid": "accept", "invalid": "reject", "acceptable": "not counted"},
             f"Passed only if all {ecdsa['cases']} answers are right. Any wrong answer means Failed.")
 
-    def _bad_signatures(self, claims: list[dict]) -> dict:
-        target = self._signing_target(claims)
+    def _bad_signatures(self, claims: list[dict], ref: str | None = None) -> dict:
+        target = self._signing_target(claims, ref)
         name = target["component"]
         pin = vectors.BAD_SIGNATURES
         total, accept = pin["cases"], 2
         return self._spec(
             "bad_signatures",
-            f"Feeds {name} signatures it must reject: changed messages, changed signatures, wrong lengths, zeros and out-of-range values.",
-            "Why it matters: accepting one forged signature defeats the point of signing.",
+            f"Tries our own short list of {total - accept} forged signatures on {name} (zeros, out-of-range numbers, changed, cut-short and badly encoded ones), plus {accept} genuine ones it must accept.",
+            f"Why it matters: our own short list of the {total - accept} forgeries an attacker would try first, such as a signature made of zeros. Accepting even one lets someone fake a signature.",
             f"Does {name} reject every signature it must reject, and still accept genuine ones?",
             "Run the verify command once per case. The cases are a fixed list made once from a test key: genuine signatures, and the same signatures or messages changed in ways that must be rejected.",
             target,
@@ -363,8 +415,8 @@ class RuleEngine:
             {"type": "all_cases_match", "valid": "accept", "invalid": "reject", "acceptable": "not counted"},
             f"Passed only if all {total - accept} bad signatures are rejected and both genuine ones are accepted. Any wrong answer means Failed.")
 
-    def _speed_size(self, claims: list[dict]) -> dict:
-        target = self._signing_target(claims)
+    def _speed_size(self, claims: list[dict], ref: str | None = None) -> dict:
+        target = self._signing_target(claims, ref)
         rounds, repeats = self.speed_rounds, self.speed_repeats
         pairs = rounds * repeats
         return self._spec(
@@ -385,8 +437,8 @@ class RuleEngine:
              "sigma": 4, "floor_percent": 3},
             "First run: report numbers only. Retest: for each matched pair of timings take new minus old; flag a slowdown only if the median difference, less 4 times its measured noise, is more than 3% of the old version's median. Otherwise: No slowdown beyond measured noise.")
 
-    def _pq_readiness(self, claims: list[dict]) -> dict:
-        address = _server_address(claims)
+    def _pq_readiness(self, claims: list[dict], target: str | None = None) -> dict:
+        address = target if target is not None and target in servers(claims) else _server_address(claims) if target is None else None
         if address is None:
             raise CannotDesign("The file names no server address to check.")
         return self._spec(
@@ -405,8 +457,8 @@ class RuleEngine:
              "not_offered_needs": ["alert_40_from_pq_only_hello", "normal_handshake_ok", "control_offered"]},
             f"Offered only if the checker prints the line \"{PQ_LINE}\". Not offered only if the server refuses that handshake (alert 40), an ordinary handshake to it succeeds, and the control server is detected as offering it. Anything else: Couldn't run.")
 
-    def _mldsa_compare(self, claims: list[dict]) -> dict:
-        software = _software(claims)
+    def _mldsa_compare(self, claims: list[dict], ref: str | None = None) -> dict:
+        software = _software(claims, ref)
         name = software["component"] if software else "the signing component"
         target = {"kind": "software", **software} if software else {"kind": "reference"}
         return self._spec(

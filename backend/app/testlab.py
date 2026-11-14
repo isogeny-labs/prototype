@@ -27,7 +27,11 @@ from .verify import AddressCheck, DemoContext
 
 RUNNER_ID = "isogeny.runner/1"
 RUN_SCHEMA = "isogeny.run/1"
-SOFTWARE_KINDS = ("official_vectors", "bad_signatures", "speed_size", "mldsa_compare")
+SOFTWARE_KINDS = research.SOFTWARE_TEST_KINDS
+NOT_DEMO_PROGRAM = "Its tests can't run: only our own demo components can run in this version."
+# Claims that no test in this version covers: what the "Not tested, and why" box says about them.
+UNCOVERED = {"cipher_suites": "its cipher-suite claim is checked in Verify only. No test in this version covers cipher suites.",
+             "key_exchange": "its key-exchange claim is checked in Verify only. No test in this version covers key exchange."}
 # Why nothing new can start for a plan while its jobs run. A proof (phase 3a, Fixes) has its own sentence.
 BUSY = {"tests": "Tests are still running. Wait until they have finished.",
         "proof": "A proof is running in Fixes. Wait until it has finished."}
@@ -104,11 +108,9 @@ class TestLabMixin:
             if plan is None:
                 claims = self._claims(imp)
                 proposal = self.engine.propose_tests(claims)
-                software = research._software(claims)
-                version = next((str(c["detail"].get("version")) for c in claims if c["location_kind"] == "software"
-                                and c["kind"] == "signature_algorithm" and c["detail"].get("version")), None)
-                plan = PlanRow(import_id=import_id, component_name=software["component"] if software else None,
-                               component_version=version if software else None)
+                own = self._own_program(claims)
+                plan = PlanRow(import_id=import_id, component_name=own["component"] if own else None,
+                               component_version=own["version"] if own else None)
                 db.add(plan)
                 db.flush()
                 for position, spec in enumerate(proposal["tests"]):
@@ -146,6 +148,137 @@ class TestLabMixin:
             out[item.id] = (spec, ok, row)
         return out
 
+    @staticmethod
+    def _own_program(claims: list[dict]) -> dict | None:
+        """The plan's own signing program: the one Retest, Connect demo code and the proof work on. The first
+        program in the file that is one of our registered demo components, else the first program."""
+        found = research.programs(claims)
+        return next((p for p in found if components.lookup(p["component"], p["version"])), found[0] if found else None)
+
+    @staticmethod
+    def _program_of(plan: PlanRow, claims: list[dict], spec: dict) -> dict | None:
+        """The signing program a test runs: {"component", "version", "ref", "label", "own"} (own: it is the plan's
+        own program, so a retest or a proof runs it on the version chosen there). None for a server test and for
+        a test with no program (the ML-DSA-65 figures when the file names none). A test written before phase
+        3a-fixes names no claim: it is for the plan's own program, as it always was."""
+        target = spec.get("target") or {}
+        if target.get("kind") != "software" or not target.get("component"):
+            return None
+        found = research.programs(claims)
+        ref = target.get("claim")
+        program = next((p for p in found if p["ref"] == ref), None) if ref is not None else \
+            next((p for p in found if (p["component"], p["version"]) == (plan.component_name, plan.component_version)), None)
+        if program is None:
+            if ref is not None or plan.component_name is None:
+                return {"component": str(target["component"]), "version": None, "ref": ref, "label": str(target["component"]), "own": False}
+            program = {"ref": None, "component": plan.component_name, "version": plan.component_version,
+                       "label": f"{plan.component_name} {plan.component_version}"}
+        own = (program["component"], program["version"]) == (plan.component_name, plan.component_version)
+        return {**{k: program[k] for k in ("component", "version", "ref", "label")}, "own": own}
+
+    def _groups(self, plan: PlanRow, claims: list[dict], specs: dict, items: list[PlanItemRow]) -> tuple[bool, list[dict], dict[int, str]]:
+        """(grouped?, the groups in file order, each item's group key). Grouped when the file names more than one
+        server or more than one signing program; with one of each the list stays flat, as it always was."""
+        grouped = len(research.servers(claims)) > 1 or len(research.programs(claims)) > 1
+        order = [("server:" + a, "server", f"Server: {a}", a) for a in research.servers(claims)]
+        order += [("software:" + p["ref"], "software", f"Signing program: {p['label']}", p) for p in research.programs(claims)]
+        key_of = {item.id: self._item_key(plan, claims, specs[item.id][0]) for item in items}
+        used = set(key_of.values())
+        with self.db() as db:
+            confirmed = {r.address: r.confirmed for r in db.scalars(select(AddressRow).where(AddressRow.import_id == plan.import_id)).all()}
+        groups = []
+        for key, side, heading, what in order:
+            if key not in used:
+                continue
+            note = None
+            if side == "server" and not confirmed.get(what, False):
+                note = "Not confirmed yet: its tests can't run until you tick \u201cI own this system or am allowed to test it\u201d on Import."
+            if side == "software" and not components.lookup(what["component"], what["version"]):
+                note = NOT_DEMO_PROGRAM
+            groups.append({"key": key, "kind": side, "heading": heading, "note": note})
+        if "reference" in used:
+            groups.append({"key": "reference", "kind": "reference", "heading": "Reference figures (no signing program from the file)", "note": None})
+        known = {g["key"] for g in groups}
+        for item_id, key in key_of.items():  # a test whose program is no longer in the file still shows, on its own
+            if key not in known:
+                known.add(key)
+                groups.append({"key": key, "kind": "software", "heading": "Signing program: " + key.split(":", 1)[-1], "note": None})
+        return grouped, groups, key_of
+
+    def _item_key(self, plan: PlanRow, claims: list[dict], spec: dict) -> str:
+        """The group a test belongs to: "server:<address>", "software:<claim ref>", or "reference"."""
+        target = spec.get("target") or {}
+        if target.get("kind") == "server":
+            return "server:" + str(target.get("address"))
+        program = self._program_of(plan, claims, spec)
+        return ("software:" + str(program["ref"])) if program and program["ref"] is not None else "reference"
+
+    def _not_tested(self, plan: PlanRow, claims: list[dict], specs: dict, items: list[PlanItemRow], key_of: dict[int, str],
+                    every: list[PlanItemRow] | None = None) -> dict | None:
+        """What the plan leaves out and why, one plain line each: a suggested test a target doesn't get (with the
+        engine's reason), a program whose tests can't run, a server not confirmed yet, a claim no test covers.
+        None when nothing is left out. A test the user removed is not listed here: it is back in the catalog."""
+        lines: list[str] = []
+        have = {(key_of[i.id], specs[i.id][2].kind if specs[i.id][2] else specs[i.id][0].get("kind")) for i in items}
+        proposal = self.engine.propose_tests(claims)
+        label = {p["ref"]: p["label"] for p in research.programs(claims)}
+        for skip in proposal.get("not_suggested") or []:
+            key = ("server:" if skip["target_kind"] == "server" else "software:") + str(skip["target"])
+            if (key, skip["kind"]) not in have:
+                name = skip["target"] if skip["target_kind"] == "server" else label.get(skip["target"], skip["target"])
+                lines.append(f"{name}: no {present.TITLES[skip['kind']]} test. {skip['reason']}")
+        # A plan made before every target was tested (phase 3a-fixes) can lack a test the engine suggests now. Unless
+        # the user removed it (then it is back in the catalog), it is listed, so it is not skipped silently.
+        if every is not None:
+            def kind_of(i):
+                return specs[i.id][2].kind if specs.get(i.id) and specs[i.id][2] else (specs.get(i.id) or ({},))[0].get("kind")
+            known = {(self._item_key(plan, claims, specs[i.id][0]), kind_of(i)) for i in every if i.id in specs}
+            for test in proposal.get("tests") or []:
+                key = self._item_key(plan, claims, test)
+                if (key, test["kind"]) not in known:
+                    name = key.split(":", 1)[-1] if key.startswith("server:") else label.get(key.split(":", 1)[-1], key.split(":", 1)[-1])
+                    lines.append(f"{name}: no {present.TITLES[test['kind']]} test. This test plan was made by an earlier "
+                                 "version that tested only the first server and program. Import the file again to test it.")
+        with self.db() as db:
+            confirmed = {r.address: r.confirmed for r in db.scalars(select(AddressRow).where(AddressRow.import_id == plan.import_id)).all()}
+        used = set(key_of.values())
+        for address in research.servers(claims):
+            if "server:" + address in used and not confirmed.get(address, False):
+                lines.append(f"{address}: not confirmed yet, so its tests can't run. Tick \u201cI own this system or am allowed to test it\u201d on Import.")
+        for program in research.programs(claims):
+            if "software:" + program["ref"] in used and not components.lookup(program["component"], program["version"]):
+                lines.append(f"{program['label']}: its tests can't run. Only our own demo components can run in this version.")
+        for c in claims:
+            where = c.get("location") or ""
+            if c.get("location_kind") == "server" and c.get("kind") in UNCOVERED:
+                lines.append(f"{where}: {UNCOVERED[c['kind']]}")
+            elif c.get("location_kind") == "server" and c.get("kind") not in ("protocol_versions", "certificate"):
+                lines.append(f"{where}: its {str(c.get('kind')).replace('_', ' ')} claim is not covered by any test in this version.")
+            elif c.get("location_kind") == "software" and c.get("kind") != "signature_algorithm":
+                lines.append(f"{where}: its {str(c.get('kind')).replace('_', ' ')} claim is not covered by any test in this version.")
+            elif c.get("location_kind") not in ("server", "software"):
+                lines.append(f"{c.get('claimed_value') or 'A claim'}: the file doesn't say where it is used, so nothing can be tested.")
+        lines = list(dict.fromkeys(lines))
+        return {"title": "Not tested, and why", "items": lines} if lines else None
+
+    @staticmethod
+    def _group_order(items: list, key_of: dict[int, str], groups: list[dict], grouped: bool) -> list:
+        """Plan order, and when grouped: group by group in file order, plan order inside each group."""
+        if not grouped:
+            return items
+        rank = {g["key"]: n for n, g in enumerate(groups)}
+        return sorted(items, key=lambda i: (rank.get(key_of.get(i.id), len(rank)), i.position, i.id))
+
+    @staticmethod
+    def _counted_targets(claims: list[dict]) -> str:
+        n_servers, n_programs = len(research.servers(claims)), len(research.programs(claims))
+        parts = []
+        if n_servers:
+            parts.append(f"{present.number_word(n_servers)} {'server' if n_servers == 1 else 'servers'}")
+        if n_programs:
+            parts.append(f"{present.number_word(n_programs)} signing {'program' if n_programs == 1 else 'programs'}")
+        return " and ".join(parts)
+
     def _component_words(self, plan: PlanRow) -> str | None:
         return f"{plan.component_name} {plan.component_version}" if plan.component_name else None
 
@@ -163,16 +296,19 @@ class TestLabMixin:
             every = self._items(db, plan_id, include_removed=True)
             items = [i for i in every if not i.removed]
             specs = self._specs(db, every)
+            claims = self._claims(imp)
+            grouped, groups, key_of = self._groups(plan, claims, specs, items)
             running = self.jobs.busy(plan_id)
             tests = []
-            for item in items:
+            for item in self._group_order(items, key_of, groups, grouped):
                 spec, _, row = specs[item.id]
                 kind = row.kind if row else spec.get("kind")
                 job = self.jobs.get((item.id, "first"))
                 reruns = (self.jobs.get((item.id, "retest")), self.jobs.get((item.id, "proof")))
                 card = {"id": item.id, "kind": kind, "title": present.TITLES.get(kind, str(kind)), "origin": item.origin,
                         "tag": research.MLDSA_LABEL if kind == "mldsa_compare" else None,
-                        "description": (spec.get("card") or {}).get("description", ""), "why": (spec.get("card") or {}).get("why", "")}
+                        "description": (spec.get("card") or {}).get("description", ""), "why": (spec.get("card") or {}).get("why", ""),
+                        "group": key_of.get(item.id)}
                 live = job is not None and job.status != "done"
                 if live:
                     state = present.status_view(job.status, job.progress_text, job.progress_percent, self.jobs.max_parallel)
@@ -195,40 +331,79 @@ class TestLabMixin:
             changed = bool(added) or len(suggested) != len(first_suggested)
             subject: list[dict] = [{"t": "text", "v": "Testing: "}]
             address, component = self._server_address(specs), self._component_words(plan)
+            if grouped:
+                address = component = None
+                subject.append({"t": "text", "v": self._counted_targets(claims)})
             if address:
                 subject += [{"t": "text", "v": "server "}, {"t": "mono", "v": address}]
             if address and component:
                 subject.append({"t": "text", "v": " and "})
             if component:
                 subject += [{"t": "text", "v": "signing component "}, {"t": "mono", "v": component}]
-            if not address and not component:
+            if not address and not component and not grouped:
                 subject.append({"t": "text", "v": "nothing in this file can be tested"})
             subject += [{"t": "text", "v": " "}, {"t": "tag", "v": "from the file"}]
             return {"id": plan.id, "import_id": plan.import_id, "is_demo": bool(imp.is_demo),
                     "intro": present.intro(imp.filename, len(suggested), len(added), len(first_suggested), changed),
-                    "subject": subject, "running": running, "can_run_all": bool(items) and not running,
+                    "subject": subject, "grouped": grouped, "groups": groups,
+                    "not_tested": self._not_tested(plan, claims, specs, items, key_of, every),
+                    "running": running, "can_run_all": bool(items) and not running,
                     "has_results": has_results, "max_parallel": self.jobs.max_parallel, "tests": tests,
                     "catalog_title": "Tests you can add", "catalog": self._catalog(db, plan, imp, every, specs),
                     "catalog_note": "Tests you remove from the plan come back to this list."}
 
+    @staticmethod
+    def _targets_for(kind: str, claims: list[dict]) -> list[str | None]:
+        """The targets a test of this kind can be for: every server address, or every program's claim ref
+        (or just None, "the first that fits", for the ML-DSA-65 figures in a file that names no program)."""
+        if kind in research.SERVER_KINDS:
+            return list(research.servers(claims))
+        refs = [p["ref"] for p in research.programs(claims)]
+        return refs or ([None] if kind == "mldsa_compare" else [])
+
+    def _missing_targets(self, kind: str, claims: list[dict], every: list[PlanItemRow], specs: dict) -> tuple[list, list]:
+        """(the removed items of this kind that can come back, one per target; the targets this kind fits that have
+        no item of it at all yet)."""
+        first = research._software(claims)
+
+        def key(item: PlanItemRow) -> str | None:
+            found = research.target_key(kind, specs[item.id][0].get("target") or {})
+            if found is None and kind in SOFTWARE_KINDS and first is not None:
+                return first["claim"]  # a test written before phase 3a-fixes: for the first program
+            return found
+        mine = [i for i in every if (specs[i.id][2].kind if specs[i.id][2] else specs[i.id][0].get("kind")) == kind]
+        active = {key(i) for i in mine if not i.removed}
+        back, seen = [], set(active)
+        for item in mine:
+            if item.removed and key(item) not in seen:
+                back.append(item)
+                seen.add(key(item))
+        new = []
+        for target in self._targets_for(kind, claims):
+            if target in seen:
+                continue
+            try:
+                self.engine.design_test({"catalog_id": kind, "claims": claims, "target": target})
+            except research.CannotDesign:
+                continue  # this test does not fit this target
+            new.append(target)
+        return back, new
+
     def _catalog(self, db, plan: PlanRow, imp: ImportRow, every: list[PlanItemRow], specs: dict) -> list[dict]:
-        by_kind = {(specs[i.id][2].kind if specs[i.id][2] else None): i for i in every}
+        """A test is offered while at least one target it fits doesn't have it in the plan. Adding it adds it to
+        every such target. A suggested test only comes back here once removed; the two catalog tests are new."""
         claims = self._claims(imp)
         out = []
         for kind in research.ALL_KINDS:
-            item = by_kind.get(kind)
-            if item is not None and not item.removed:
+            back, new = self._missing_targets(kind, claims, every, specs)
+            if kind not in research.CATALOG:
+                new = []  # a suggested test the engine didn't suggest for a target is listed under "Not tested, and why"
+            if not back and not new:
                 continue
-            if item is not None:
-                description = (specs[item.id][0].get("card") or {}).get("description", "")
+            if back and not new:
+                description = (specs[back[0].id][0].get("card") or {}).get("description", "")
             else:
-                try:
-                    self.engine.design_test({"catalog_id": kind, "claims": claims})
-                except research.CannotDesign:
-                    continue  # this test does not fit the imported file
-                if kind not in research.CATALOG:
-                    continue
-                description = research.CATALOG_DESCRIPTIONS[kind].format(component=plan.component_name or "the signing component")
+                description = research.CATALOG_DESCRIPTIONS.get(kind, "").format(component=plan.component_name or "the signing component")
             if kind == "pq_readiness":
                 description = research.CATALOG_DESCRIPTIONS[kind]
             out.append({"catalog_id": kind, "title": present.TITLES[kind],
@@ -253,18 +428,27 @@ class TestLabMixin:
             plan = self._plan(db, plan_id)
             every = self._items(db, plan_id, include_removed=True)
             last = max([i.position for i in every], default=-1)
-            existing = next((i for i in every if (db.get(TestSpecRow, i.spec_hash) or TestSpecRow(kind=None)).kind == catalog_id), None)
-            if existing is not None and not existing.removed:
-                raise Conflict("That test is already in the plan.")
-            if existing is not None:
-                existing.removed, existing.position = False, last + 1  # the same test comes back, with its runs
-            else:
-                imp = db.get(ImportRow, plan.import_id)
-                try:
-                    spec = self.engine.design_test({"catalog_id": catalog_id, "claims": self._claims(imp)})
+            imp = db.get(ImportRow, plan.import_id)
+            claims = self._claims(imp)
+            back, new = self._missing_targets(catalog_id, claims, every, self._specs(db, every))
+            if catalog_id not in research.CATALOG:
+                new = []
+            if not back and not new:
+                kind_items = [i for i in every if (db.get(TestSpecRow, i.spec_hash) or TestSpecRow(kind=None)).kind == catalog_id]
+                if any(not i.removed for i in kind_items):
+                    raise Conflict("That test is already in the plan.")
+                try:  # say why it doesn't fit
+                    self.engine.design_test({"catalog_id": catalog_id, "claims": claims})
                 except research.CannotDesign as exc:
                     raise BadRequest(str(exc), field="catalog_id") from exc
-                db.add(PlanItemRow(plan_id=plan_id, spec_hash=self._lock_spec(db, spec), position=last + 1,
+                raise Conflict("That test is already in the plan.")
+            for item in back:
+                last += 1
+                item.removed, item.position = False, last  # the same test comes back, with its runs
+            for target in new:
+                spec = self.engine.design_test({"catalog_id": catalog_id, "claims": claims, "target": target})
+                last += 1
+                db.add(PlanItemRow(plan_id=plan_id, spec_hash=self._lock_spec(db, spec), position=last,
                                    origin="added", removed=False))
             db.commit()
         return self.plan_view(plan_id)
@@ -328,18 +512,26 @@ class TestLabMixin:
         return None
 
     def _submit(self, plan: PlanRow, item: PlanItemRow, phase: str, rerun: RetestRow | ProofRow | None) -> Job:
-        """Queue one test. `rerun` is the retest (phase "retest") or the proof (phase "proof") the run belongs to:
+        """Queue one test. (For the multi-target demo file, its test servers are started first if they are not running.) `rerun` is the retest (phase "retest") or the proof (phase "proof") the run belongs to:
         it names the version to run, the plan's own version becomes the baseline, and its id is kept with the run."""
-        spec_row_kind = None
+        self.ensure_extra_servers(plan.import_id)
         with self.db() as db:
             row = db.get(TestSpecRow, item.spec_hash)
             spec_row_kind = row.kind if row else None
-        software = spec_row_kind in SOFTWARE_KINDS and plan.component_name is not None
-        version = (rerun.version if rerun else plan.component_version) if software else None
+            spec, _ = read_spec(row)
+            claims = self._claims(db.get(ImportRow, plan.import_id))
+        # Each test runs on its own target. Only the plan's own program is run on the version a retest or a proof
+        # names; every other server and program is tested again as it is.
+        program = self._program_of(plan, claims, spec) if spec_row_kind in SOFTWARE_KINDS else None
+        if spec_row_kind in SOFTWARE_KINDS and program is None and not spec and plan.component_name is not None:
+            program = {"component": plan.component_name, "version": plan.component_version, "own": True}  # unreadable test: as before
+        own = bool(program and program["own"])
+        version = (rerun.version if (rerun and own) else program["version"]) if program else None
         args = {"plan_id": plan.id, "import_id": plan.import_id, "item_id": item.id, "spec_hash": item.spec_hash, "phase": phase,
-                "retest_id": rerun.id if rerun else None, "component_name": plan.component_name if software else None,
+                "retest_id": rerun.id if rerun else None, "component_name": program["component"] if program else None,
                 "component_version": version,
-                "baseline_version": plan.component_version if (rerun and software) else None}
+                "baseline_version": plan.component_version if (rerun and own) else None,
+                "own": own}  # the plan's own program: in a proof, only it runs the changed code
         try:
             return self.jobs.submit((item.id, phase), lambda job: self._run_one(job, args), group=plan.id)
         except ValueError as exc:
@@ -347,6 +539,7 @@ class TestLabMixin:
 
     def _address_check(self, import_id: int, address: str) -> AddressCheck | None:
         """Phase 1's gate, rebuilt from the address as it is NOW: this computer or confirmed, and the IP pinned."""
+        extra, problems = self.extra_identity(import_id)
         with self.db() as db:
             imp = db.get(ImportRow, import_id)
             row = db.scalars(select(AddressRow).where(AddressRow.import_id == import_id, AddressRow.address == address)).first()
@@ -354,7 +547,8 @@ class TestLabMixin:
                 return None
             demo = DemoContext(is_demo_import=imp.is_demo, host=DEMO_HOSTNAME, port=self.settings.demo_tls_port,
                                running=self.demo.running, error=self.demo.error, fingerprint=self.demo.fingerprint,
-                               allow_external=self.allow_external_demo_server and self.demo.port_in_use)
+                               allow_external=self.allow_external_demo_server and self.demo.port_in_use,
+                               extra=extra, extra_problems=problems)
             db.expunge(row)
         return AddressCheck(row, demo, resolver=self.resolver)
 
@@ -473,6 +667,14 @@ class TestLabMixin:
                                       code=code)
             self._result_cache[run.id] = (key, base, bool(trusted))
         result = dict(base)
+        if result.get("also_noticed") and (spec_row.kind if spec_row else None) == "certificate":
+            # The note is for what the file didn't ask about: none when the file also claims this server's TLS versions.
+            plan = db.get(PlanRow, run.plan_id)
+            imp = db.get(ImportRow, plan.import_id) if plan is not None else None
+            address = ((spec or {}).get("target") or {}).get("address")
+            if imp is not None and any(c.location_kind == "server" and c.kind == "protocol_versions" and c.location == address
+                                       for c in imp.claims):
+                result["also_noticed"] = []
         mark = db.scalars(select(ReviewMarkRow).where(ReviewMarkRow.run_id == run.id)).first()
         request = db.scalars(select(ResearchRequestRow).where(ResearchRequestRow.run_id == run.id)).first()
         if mark is not None:
@@ -526,7 +728,10 @@ class TestLabMixin:
             plan = self._plan(db, plan_id)
             imp = db.get(ImportRow, plan.import_id)
             items = self._items(db, plan_id)
-            specs = self._specs(db, items)
+            every_items = self._items(db, plan_id, include_removed=True)
+            specs = self._specs(db, every_items)
+            claims = self._claims(imp)
+            grouped, groups, key_of = self._groups(plan, claims, specs, items)
             retest = db.scalars(select(RetestRow).where(RetestRow.plan_id == plan_id).order_by(RetestRow.id.desc()).limit(1)).first()
             # What is running is asked FIRST, on purpose, and the answer carries it as "busy" (the Fixes view does the
             # same). The screen asks again for as long as an answer is busy. So if a job ends while the rest is put
@@ -538,7 +743,7 @@ class TestLabMixin:
             busy = running is not None
             retest_live = [j for j in self.jobs.live(plan_id) if j.key[1] == "retest"]
             rows, missing, finished, after_finished, after_done = [], 0, [], [], 0
-            for item in items:
+            for item in self._group_order(items, key_of, groups, grouped):
                 spec, _, spec_row = specs[item.id]
                 kind = spec_row.kind if spec_row else spec.get("kind")
                 first_job = self.jobs.get((item.id, "first"))
@@ -546,7 +751,7 @@ class TestLabMixin:
                 result = None if first_live else self._latest_result(db, item, "first", None, plan)
                 row = {"item_id": item.id, "kind": kind, "title": present.TITLES.get(kind, str(kind)), "control_line": "",
                        "result": result, "result_status": None if result else self._row_status(item.id, "first"),
-                       "after": None, "after_status": None}
+                       "after": None, "after_status": None, "group": key_of.get(item.id)}
                 if result is None:
                     missing += 1
                 else:
@@ -596,8 +801,12 @@ class TestLabMixin:
             download = {"can_start": any_result and not busy,
                         "blocked_reason": None if any_result and not busy else
                         (BUSY[running] if busy else "Run a test first, so there is something to download.")}
+            if grouped:
+                address = component = None
             if retest is None:
                 subline: list[dict] = [{"t": "text", "v": "Results by test for "}]
+                if grouped:
+                    subline.append({"t": "text", "v": self._counted_targets(claims)})
                 if address:
                     subline += [{"t": "text", "v": "server "}, {"t": "mono", "v": address}]
                 if address and component:
@@ -615,6 +824,8 @@ class TestLabMixin:
                 before, after_name = f"{plan.component_name} {retest.baseline_version}", f"{plan.component_name} {retest.version}"
                 subline = [{"t": "text", "v": f"Before and after: the same {n_word} locked {'test' if len(items) == 1 else 'tests'}, run on "},
                            {"t": "mono", "v": before}, {"t": "text", "v": " and then on "}, {"t": "mono", "v": after_name}]
+                if grouped:
+                    subline.append({"t": "text", "v": ". Every other server and program was tested again as it is"})
                 if retest_live:
                     subline.append({"t": "text", "v": ". Retest running."})
                 elif after_finished:
@@ -625,6 +836,8 @@ class TestLabMixin:
                 view, code_line = "before_after", present_fixes.code_line(*ran_on)
                 columns = {"test": "Test", **present_fixes.code_columns(f"Before: {before}", f"After: {after_name}", *ran_on)}
             return {"plan_id": plan.id, "is_demo": bool(imp.is_demo), "view": view, "subline": subline, "code_line": code_line,
+                    "grouped": grouped, "groups": groups,
+                    "not_tested": self._not_tested(plan, claims, specs, items, key_of, every_items),
                     "disclaimer": present.DISCLAIMER, "columns": columns, "rows": rows, "retest": retest_view, "download": download,
                     # (asked once more at the end: work that another request started meanwhile also makes the screen ask again)
                     "busy": busy or any(line["busy"] for line in lines.values()) or self.jobs.busy(plan_id)}

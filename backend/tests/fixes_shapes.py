@@ -119,11 +119,12 @@ FIX_DETAIL = {
 FIXES_VIEW = {"plan_id": int, "is_demo": bool, "title": str, "subline": str, "disclaimer": str, "list_title": str,
               "empty_text": Opt(str), "fixes": [FIX_DETAIL], "busy": bool}
 
-# Evidence Lab (the phase 2 view with the phase 3a additions: fix_line, code_line and the four new column fields)
+# Evidence Lab (the phase 2 view with the phase 3a additions: fix_line, code_line and the four new column fields; and the
+# phase 3a-fixes additions: plain, also_noticed, groups and not_tested)
 META = [dict]  # label, value, tag and sometimes time or href: checked where a test needs it
 LAB_RESULT = {
     "run_id": int, "component": Opt(str), "mode": Lit("demo", "isolated"), "finished_at": str, "duration_ms": int,
-    "code": str, "label": str, "tone": TONE, "summary": str, "short": str,
+    "code": str, "label": str, "tone": TONE, "plain": str, "also_noticed": [str], "also_noticed_title": str, "summary": str, "short": str,
     "control": {"outcome": Lit("as_expected", "not_as_expected", "errored", "not_run"), "line": str, "text": str},
     "what_happened": [str], "shows_title": str, "shows": [str], "evidence": [dict],
     "run_record": {"title": str, "command": str, "outputs": [{"title": str, "text": str}], "meta": META},
@@ -139,7 +140,10 @@ LAB_VIEW = {
     "columns": Opt({"test": str, "before": str, "after": str, "before_note": RICH, "after_note": RICH, "before_heading": str,
                     "after_heading": str}),
     "rows": [{"item_id": int, "kind": KIND, "title": str, "control_line": str, "result": Opt(LAB_RESULT),
-              "result_status": Opt(ROW_STATUS), "after": Opt(LAB_RESULT), "after_status": Opt(ROW_STATUS)}],
+              "result_status": Opt(ROW_STATUS), "after": Opt(LAB_RESULT), "after_status": Opt(ROW_STATUS), "group": Opt(str)}],
+    # phase 3a-fixes: grouped by target when the file names several servers or programs, and what isn't tested
+    "grouped": bool, "groups": [{"key": str, "kind": Lit("server", "software", "reference"), "heading": str, "note": Opt(str)}],
+    "not_tested": Opt({"title": str, "items": [str]}),
     "retest": {"can_start": bool, "blocked_reason": Opt(str), "running": bool, "progress_text": Opt(str), "menu_title": str,
                "versions": [{"version": str, "label": str, "tag": str, "note": str}], "menu_note": str},
     "download": {"can_start": bool, "blocked_reason": Opt(str)},

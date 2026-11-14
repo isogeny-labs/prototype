@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Import, SkippedItem } from "../api";
 import { ImportScreen } from "../components/ImportScreen";
@@ -251,5 +251,37 @@ describe("Import screen", () => {
     expect(screen.getByText("This address could not be found.")).not.toBeNull();
     expect(screen.getByText("The demo server at localhost:8443 isn't running")).not.toBeNull();
     expect(screen.getByText("Port 8443 is already in use.")).not.toBeNull();
+  });
+
+  it("shows the upload reply's notices as small notes under the claims table", async () => {
+    const notices = [
+      "Demo data: started the three demo test servers for this file on this computer (ports 8444, 8445, 8446).",
+      "Port 8446 was already taken on this computer, so that test server didn't start.",
+    ];
+    const uploaded: Import = { ...demoImport, filename: "multi-target-demo.csv", format: "csv", notices };
+    mockApi({ "POST /api/import/file?filename=multi-target-demo.csv": { body: uploaded } });
+    const props = renderImport(null);
+    expect(screen.queryByTestId("import-notice")).toBeNull();
+    const file = new File(["location,type,claim,value\n"], "multi-target-demo.csv", { type: "text/csv" });
+    fireEvent.change(screen.getByLabelText("Choose a file to import"), { target: { files: [file] } });
+    await waitFor(() => expect(props.onImported).toHaveBeenCalledWith(uploaded));
+
+    // The app hands the reply back as the screen's file.
+    cleanup();
+    renderImport(uploaded);
+    const shown = screen.getAllByTestId("import-notice");
+    expect(shown.map((n) => n.textContent)).toEqual(notices);
+    const table = screen.getByRole("table");
+    expect(table.compareDocumentPosition(shown[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(shown[0]!.getAttribute("role")).toBeNull();
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Use demo file", "Verify claims"]);
+  });
+
+  it("shows no notice for the demo file or when the reply has none", () => {
+    renderImport(demoImport);
+    expect(screen.queryByTestId("import-notice")).toBeNull();
+    cleanup();
+    renderImport({ ...demoImport, notices: [] });
+    expect(screen.queryByTestId("import-notice")).toBeNull();
   });
 });

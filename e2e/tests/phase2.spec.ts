@@ -7,11 +7,11 @@ import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_pr
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, DISCLAIMER, PYTHON, enterApp, importVerifyAndOpenTests, password, screenshotFolder } from "./shared";
+import { BACKEND, DISCLAIMER, PYTHON, enterApp, importVerifyAndOpenTests, password, screenshotFolder, shotFixes } from "./shared";
 
 const SHOTS = screenshotFolder("phase2");
 const PQ_TOO_OLD = "Couldn't run (needs OpenSSL 3.5 or newer)";
-const SUGGESTED = ["Old TLS versions", "Certificate strength", "Official test vectors", "Bad signatures", "Speed and size"];
+const SUGGESTED = ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)", "Attacker tricks (our short list)", "Speed and size"];
 const ALL_SIX = [...SUGGESTED, "Post-quantum readiness"];
 
 let context: BrowserContext;
@@ -111,13 +111,14 @@ test("log in, Use demo file, Verify claims, Continue to tests: five tests are su
   await expectNoSoftwareUpload();
   await expectCarefulWording();
   await shot(page, "01-tests-before-running.png");
+  await shotFixes(page, "06-tests-demo.png");
 });
 
 test("reorder two tests (keyboard, then drag); the order is kept after a refresh", async () => {
   // Keyboard: the handle of Speed and size, one place up.
   await card("Speed and size").getByTestId("drag-handle").focus();
   await page.keyboard.press("ArrowUp");
-  const swapped = ["Old TLS versions", "Certificate strength", "Official test vectors", "Speed and size", "Bad signatures"];
+  const swapped = ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)", "Speed and size", "Attacker tricks (our short list)"];
   await expect.poll(cardTitles).toEqual(swapped);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
@@ -126,8 +127,8 @@ test("reorder two tests (keyboard, then drag); the order is kept after a refresh
   const plan = await (await page.request.get(`/api/import/${stored.id}/plan`)).json();
   expect(plan.tests.map((t: any) => t.title)).toEqual(swapped);
 
-  // Mouse: drag Bad signatures back above Speed and size.
-  await card("Bad signatures").getByTestId("drag-handle").dragTo(card("Speed and size"));
+  // Mouse: drag Attacker tricks (our short list) back above Speed and size.
+  await card("Attacker tricks (our short list)").getByTestId("drag-handle").dragTo(card("Speed and size"));
   await expect.poll(cardTitles).toEqual(SUGGESTED);
   await page.reload();
   await expect.poll(cardTitles).toEqual(SUGGESTED);
@@ -202,8 +203,8 @@ test("Run all runs the tests in parallel and every card ends with a result", asy
   const label = (title: string) => card(title).getByTestId("result-badge").locator("span:last-child");
   await expect(label("Old TLS versions")).toHaveText("Failed");
   await expect(label("Certificate strength")).toHaveText("Passed");
-  await expect(label("Official test vectors")).toHaveText("Failed");
-  await expect(label("Bad signatures")).toHaveText("Failed");
+  await expect(label("Independent exam (Wycheproof)")).toHaveText("Failed");
+  await expect(label("Attacker tricks (our short list)")).toHaveText("Failed");
   await expect(label("Speed and size")).toHaveText("Measured");
   const pq = (await label("Post-quantum readiness").innerText()).trim();
   expect(["Not offered", PQ_TOO_OLD]).toContain(pq);
@@ -222,10 +223,10 @@ test("Evidence Lab lists the six results; every control behaved as expected", as
 
   await expect(rows.getByTestId("result-badge").locator("span:last-child")).toHaveCount(6);
   await expect(page.getByText("Couldn't trust this run")).toHaveCount(0);
-  await expect(labRow("Old TLS versions")).toContainText("The server accepted TLS 1.2. The file claims TLS 1.3 only.");
+  await expect(labRow("Old TLS versions")).toContainText("The server accepts TLS 1.2, so \u2018TLS 1.3 only\u2019 is not true.");
   await expect(labRow("Certificate strength")).toContainText("NIST plans to retire P-256");
-  await expect(labRow("Official test vectors")).toContainText("3 of 484 official cases wrong");
-  await expect(labRow("Bad signatures")).toContainText("r=0, s=0");
+  await expect(labRow("Independent exam (Wycheproof)")).toContainText("3 of the 484 exam cases wrong");
+  await expect(labRow("Attacker tricks (our short list)")).toContainText("r=0, s=0");
   for (const title of ALL_SIX) {
     const row = labRow(title);
     const ran = !(await row.getByTestId("result-badge").locator("span:last-child").innerText()).startsWith("Couldn't run");
@@ -240,11 +241,12 @@ test("Evidence Lab lists the six results; every control behaved as expected", as
   await expectNoSoftwareUpload();
   await expectCarefulWording();
   await shot(page, "04-lab-results-collapsed.png");
+  await shotFixes(page, "07-evidence-lab-demo.png");
 });
 
-test("Official test vectors: the three wrong cases, the locked test and its fingerprint", async () => {
-  const row = labRow("Official test vectors");
-  await row.getByRole("button", { name: "Official test vectors" }).click();
+test("Independent exam (Wycheproof): the three wrong cases, the locked test and its fingerprint", async () => {
+  const row = labRow("Independent exam (Wycheproof)");
+  await row.getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
   const detail = row.getByTestId("result-detail");
   await expect(detail).toHaveCount(1);
   const wrong = detail.getByRole("table").first().locator("tbody tr");
@@ -273,11 +275,12 @@ test("Official test vectors: the three wrong cases, the locked test and its fing
   await expect(page.getByText("Suggested change")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Review change" })).toHaveCount(0);
   await shot(page, "05-lab-vectors-expanded.png");
+  await shotFixes(page, "09-evidence-lab-result-opened-demo.png");
 });
 
 test("Dig deeper saves a queued research request with no answer; Mark reviewed records the user's decision", async () => {
-  const detail = labRow("Official test vectors").getByTestId("result-detail");
-  const before = await labRow("Official test vectors").getByTestId("result-badge").locator("span:last-child").first().innerText();
+  const detail = labRow("Independent exam (Wycheproof)").getByTestId("result-detail");
+  const before = await labRow("Independent exam (Wycheproof)").getByTestId("result-badge").locator("span:last-child").first().innerText();
 
   await detail.getByRole("button", { name: "Dig deeper" }).click();
   const request = detail.getByTestId("research-request");
@@ -293,25 +296,25 @@ test("Dig deeper saves a queued research request with no answer; Mark reviewed r
   await expect(detail.getByTestId("reviewed-note")).toContainText("You marked this result as reviewed.");
 
   // Neither button changes the result, and both survive a refresh.
-  await expect(labRow("Official test vectors").getByTestId("result-badge").locator("span:last-child").first()).toHaveText(before);
+  await expect(labRow("Independent exam (Wycheproof)").getByTestId("result-badge").locator("span:last-child").first()).toHaveText(before);
   await shot(page, "06-lab-dig-deeper-queued.png");
   await page.reload();
   await expect(page.getByRole("heading", { name: "Evidence Lab", level: 1 })).toBeVisible();
-  await labRow("Official test vectors").getByRole("button", { name: "Official test vectors" }).click();
-  const again = labRow("Official test vectors").getByTestId("result-detail");
+  await labRow("Independent exam (Wycheproof)").getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
+  const again = labRow("Independent exam (Wycheproof)").getByTestId("result-detail");
   await expect(again.getByRole("button", { name: "Dig deeper: queued" })).toBeDisabled();
   await expect(again.getByRole("button", { name: "Reviewed", exact: true })).toBeDisabled();
   await expect(again.getByTestId("research-request")).toContainText("waiting for research engine");
 });
 
-test("Bad signatures failed on 1.4.2: the r=0, s=0 case is shown, with the one line that points to its fix", async () => {
+test("Attacker tricks (our short list) failed on 1.4.2: the r=0, s=0 case is shown, with the one line that points to its fix", async () => {
   // Close the vectors row so the screenshot shows this one result.
-  await labRow("Official test vectors").getByRole("button", { name: "Official test vectors" }).click();
+  await labRow("Independent exam (Wycheproof)").getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
   await expect(page.getByTestId("result-detail")).toHaveCount(0);
 
-  const row = labRow("Bad signatures");
+  const row = labRow("Attacker tricks (our short list)");
   await expect(row.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed");
-  await row.getByRole("button", { name: "Bad signatures" }).click();
+  await row.getByRole("button", { name: "Attacker tricks (our short list)" }).click();
   const detail = row.getByTestId("result-detail");
   const zeroCase = detail.getByRole("table").first().locator("tbody tr").filter({ hasText: /r\s?=\s?0.*s\s?=\s?0/ });
   await expect(zeroCase.first()).toBeVisible();
@@ -323,7 +326,7 @@ test("Bad signatures failed on 1.4.2: the r=0, s=0 case is shown, with the one l
   await expect(detail.getByRole("button", { name: "Dig deeper" })).toBeEnabled();
   await expectCarefulWording();
   await shot(page, "10-lab-bad-signatures-expanded.png");
-  await row.getByRole("button", { name: "Bad signatures" }).click();
+  await row.getByRole("button", { name: "Attacker tricks (our short list)" }).click();
 });
 
 test("Retest new version offers only our two demo versions; picking 1.4.3 starts it at once", async () => {
@@ -357,15 +360,15 @@ test("Retest new version offers only our two demo versions; picking 1.4.3 starts
   ];
   expect(await cells("Old TLS versions")).toEqual(["Failed", "Failed"]);
   expect(await cells("Certificate strength")).toEqual(["Passed", "Passed"]);
-  expect(await cells("Official test vectors")).toEqual(["Failed", "Passed"]);
-  expect(await cells("Bad signatures")).toEqual(["Failed", "Passed"]);
+  expect(await cells("Independent exam (Wycheproof)")).toEqual(["Failed", "Passed"]);
+  expect(await cells("Attacker tricks (our short list)")).toEqual(["Failed", "Passed"]);
   expect(await cells("Speed and size")).toEqual(["Measured", "No slowdown beyond measured noise"]);
   const [pqBefore, pqAfter] = await cells("Post-quantum readiness");
   expect(["Not offered", PQ_TOO_OLD]).toContain(pqBefore);
   expect(pqAfter).toBe(pqBefore);
 
-  await expect(labRow("Official test vectors").getByTestId("lab-cell-after")).toContainText("484 of 484 official cases right.");
-  await expect(labRow("Bad signatures").getByTestId("lab-cell-after")).toContainText("Rejects r=0, s=0");
+  await expect(labRow("Independent exam (Wycheproof)").getByTestId("lab-cell-after")).toContainText("got all 484 exam cases right.");
+  await expect(labRow("Attacker tricks (our short list)").getByTestId("lab-cell-after")).toContainText("rejected all 14 forged signatures");
   await expect(page.getByText("Couldn't trust this run")).toHaveCount(0);
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   await expect(page.getByTestId("lab-subline")).toContainText("Retest finished");
@@ -375,6 +378,7 @@ test("Retest new version offers only our two demo versions; picking 1.4.3 starts
     "Code they ran on: before, the bundled demo version of acme-sign 1.4.2; after, the bundled demo version of acme-sign 1.4.3.",
   );
   await shot(page, "08-lab-before-after.png");
+  await shotFixes(page, "08-evidence-lab-before-after-demo.png");
 
   // The same locked tests were rerun: every fingerprint is the one from before the retest.
   expect(await specFingerprints()).toEqual(fingerprintsBefore);
@@ -395,8 +399,8 @@ async function specFingerprints(): Promise<Record<string, string[]>> {
 }
 
 test("before and after stays expandable: the bad-signature case now passes, and speed shows the measured noise", async () => {
-  const bad = labRow("Bad signatures");
-  await bad.getByRole("button", { name: "Bad signatures" }).click();
+  const bad = labRow("Attacker tricks (our short list)");
+  await bad.getByRole("button", { name: "Attacker tricks (our short list)" }).click();
   const details = bad.getByTestId("result-detail");
   await expect(details).toHaveCount(2);
   const after = details.nth(0);
@@ -413,7 +417,7 @@ test("before and after stays expandable: the bad-signature case now passes, and 
     await expect(d.getByRole("button", { name: /^Dig deeper/ })).toBeVisible();
   }
   await shot(page, "10a-lab-bad-signatures-after.png");
-  await bad.getByRole("button", { name: "Bad signatures" }).click();
+  await bad.getByRole("button", { name: "Attacker tricks (our short list)" }).click();
 
   const speed = labRow("Speed and size");
   await speed.getByRole("button", { name: "Speed and size" }).click();
@@ -437,12 +441,12 @@ test("before and after stays expandable: the bad-signature case now passes, and 
   await speed.getByRole("button", { name: "Speed and size" }).click();
 
   // The earlier Mark reviewed and Dig deeper are still on the first run's result.
-  const vectors = labRow("Official test vectors");
-  await vectors.getByRole("button", { name: "Official test vectors" }).click();
+  const vectors = labRow("Independent exam (Wycheproof)");
+  await vectors.getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
   const first = vectors.getByTestId("result-detail").nth(1);
   await expect(first.getByRole("button", { name: "Reviewed", exact: true })).toBeDisabled();
   await expect(first.getByTestId("research-request")).toContainText("waiting for research engine");
-  await vectors.getByRole("button", { name: "Official test vectors" }).click();
+  await vectors.getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
 });
 
 test("Download evidence gives a JSON file and an HTML report; the verify command passes on the file", async () => {
@@ -603,16 +607,16 @@ test("isolated mode: the mode line says so and a test really runs in a container
     await enterApp(view);
     await expect(view.getByTestId("mode-line")).toHaveText("Isolated mode: our demo software runs in a locked-down container with no network.");
     await importVerifyAndOpenTests(view);
-    const bad = view.getByTestId("test-card").filter({ hasText: "Bad signatures" });
-    const vectors = view.getByTestId("test-card").filter({ hasText: "Official test vectors" });
-    await bad.getByRole("button", { name: "Run Bad signatures" }).click();
+    const bad = view.getByTestId("test-card").filter({ hasText: "Attacker tricks (our short list)" });
+    const vectors = view.getByTestId("test-card").filter({ hasText: "Independent exam (Wycheproof)" });
+    await bad.getByRole("button", { name: "Run Attacker tricks (our short list)" }).click();
     await expect(bad.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed", { timeout: 120_000 });
-    await vectors.getByRole("button", { name: "Run Official test vectors" }).click();
+    await vectors.getByRole("button", { name: "Run Independent exam (Wycheproof)" }).click();
     await expect(vectors.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed", { timeout: 120_000 });
 
     await view.getByRole("button", { name: "4. Evidence Lab" }).click();
-    const row = view.getByTestId("lab-row").filter({ hasText: "Bad signatures" });
-    await row.getByRole("button", { name: "Bad signatures" }).click();
+    const row = view.getByTestId("lab-row").filter({ hasText: "Attacker tricks (our short list)" });
+    await row.getByRole("button", { name: "Attacker tricks (our short list)" }).click();
     const detail = row.getByTestId("result-detail");
     await expect(detail).toContainText(/Mode: Isolated mode/);
     await expect(detail.getByTestId("control-outcome")).toHaveAttribute("data-outcome", "as_expected");
