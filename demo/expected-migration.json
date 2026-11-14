@@ -1,50 +1,67 @@
 {
-  "_about": "Answer key for demo/migration-demo.csv (phase 4a). Written by Isogeny Labs, not by the build; the build must never edit it. Adam to review. Settings come from the file unless marked assumed.",
+  "_about": "Answer key for demo/migration-demo.csv, revised for phase 4b (two tracks, next steps, try, apply, roll back). Written by Isogeny Labs, not by the build; the build must never edit it. Adam to review. Settings come from the file unless marked assumed. Sizes listed here are the published FIPS 203 / FIPS 204 sizes only; other byte counts are measured by the app and not graded.",
   "verify": [
-    {"id": "MV1", "system": "localhost:8451", "claim": "post_quantum = hybrid", "expected": "True", "because": "the test server offers hybrid X25519MLKEM768"},
+    {"id": "MV1", "system": "localhost:8451", "claim": "post_quantum = hybrid", "expected": "True"},
     {"id": "MV2", "system": "localhost:8452", "claim": "post_quantum = hybrid", "expected": "False", "because": "planted false claim: the test server is classical only"},
     {"id": "MV3", "system": "localhost:8453", "claim": "post_quantum = classical", "expected": "True"},
-    {"id": "MV4", "system": "localhost:8454", "claim": "post_quantum = classical", "expected": "True", "because": "TLS 1.2 only, so no post-quantum key exchange is possible"},
+    {"id": "MV4", "system": "localhost:8454", "claim": "post_quantum = classical", "expected": "True"},
     {"id": "MV5", "system": "localhost:8455", "claim": "post_quantum = post-quantum only", "expected": "True"},
     {"id": "MV6", "system": "acme-sign 1.4.2", "claim": "signs with ECDSA P-256", "expected": "True"},
-    {"id": "MV7", "system": "acme-sign 9.9", "claim": "signs with ECDSA P-256", "expected": "Couldn't check", "because": "not one of our demo components"}
+    {"id": "MV7", "system": "acme-sign 9.9", "claim": "signs with ECDSA P-256", "expected": "Couldn't check"}
   ],
-  "status": [
-    {"id": "MS1", "system": "localhost:8451", "expected": "Hybrid", "classical_only_client_connects": true},
-    {"id": "MS2", "system": "localhost:8452", "expected": "Classical"},
-    {"id": "MS3", "system": "localhost:8453", "expected": "Classical"},
-    {"id": "MS4", "system": "localhost:8454", "expected": "Classical", "note": "no TLS 1.3"},
-    {"id": "MS5", "system": "localhost:8455", "expected": "Post-quantum only", "classical_only_client_connects": false},
-    {"id": "MS6", "system": "acme-sign 1.4.2", "expected": "Classical (ECDSA P-256)"},
-    {"id": "MS7", "system": "acme-sign 9.9", "expected": "Couldn't check"}
+  "tracks": [
+    {"id": "MT1", "system": "localhost:8451", "key_exchange": "Hybrid (interim)", "authentication": "Classical (ECDSA P-256)", "classical_only_client_connects": true, "default_choice": "follows the client's order: hybrid when listed first, classical when listed first"},
+    {"id": "MT2", "system": "localhost:8452", "key_exchange": "Classical", "authentication": "Classical (ECDSA P-256)"},
+    {"id": "MT3", "system": "localhost:8453", "key_exchange": "Classical", "authentication": "Classical (ECDSA P-256)"},
+    {"id": "MT4", "system": "localhost:8454", "key_exchange": "Classical (no TLS 1.3)", "authentication": "Classical (RSA 2048)"},
+    {"id": "MT5", "system": "localhost:8455", "key_exchange": "Post-quantum only", "authentication": "Post-quantum (ML-DSA-65)", "classical_only_client_connects": false},
+    {"id": "MT6", "system": "acme-sign 1.4.2", "signatures": "Classical (ECDSA P-256)"},
+    {"id": "MT7", "system": "acme-sign 9.9", "signatures": "Couldn't check"}
   ],
+  "never_done": "No system shows 'Already there'. Every track shows a Next step and a Why; a track at the target says to keep it there and measure again after any change.",
   "recommendation": [
-    {"id": "MR1", "system": "localhost:8451", "settings": "internet-facing, long-lived, can be changed", "expected": "Hybrid, already in place"},
-    {"id": "MR2", "system": "localhost:8452", "settings": "internet-facing, long-lived, can be changed", "expected": "Hybrid"},
-    {"id": "MR3", "system": "localhost:8453", "settings": "internal, short-lived, can be changed", "expected": "Keep classical for now", "review_date": "12 months from the measurement, not later than 31 Dec 2030"},
-    {"id": "MR4", "system": "localhost:8454", "settings": "internal, long-lived, can't be changed", "expected": "Wrap the connection"},
-    {"id": "MR5", "system": "localhost:8455", "settings": "long-lived", "expected": "Full post-quantum, already in place"},
-    {"id": "MR6", "system": "acme-sign 1.4.2", "settings": "long-lived", "expected": "Hybrid (sign with both)"},
-    {"id": "MR7", "system": "acme-sign 9.9", "expected": "No recommendation", "because": "status couldn't be checked"}
+    {"id": "MR1", "system": "localhost:8451", "expected": "Stay on Hybrid (in place); next for key exchange: post-quantum only once every client supports it; next for authentication: an ML-DSA certificate once clients can check one"},
+    {"id": "MR2", "system": "localhost:8452", "expected": "Hybrid; next for authentication: ML-DSA certificate after key exchange"},
+    {"id": "MR3", "system": "localhost:8453", "expected": "Keep classical for now, review date 12 months from the measurement and not later than 31 Dec 2030"},
+    {"id": "MR4", "system": "localhost:8454", "expected": "Wrap the connection (it can't be changed)"},
+    {"id": "MR5", "system": "localhost:8455", "expected": "Full post-quantum, in place: keep it there"},
+    {"id": "MR6", "system": "acme-sign 1.4.2", "expected": "Hybrid: sign with both, blocked until the library can make post-quantum signatures"},
+    {"id": "MR7", "system": "acme-sign 9.9", "expected": "No recommendation: it couldn't be measured"}
   ],
   "roadmap": [
-    {"id": "MP1", "system": "localhost:8451", "expected": "Already there"},
-    {"id": "MP2", "system": "localhost:8452", "expected": "Phase 1", "because": "turning hybrid on is the change itself, not a blocker; it has no prerequisite to fix first"},
-    {"id": "MP3", "system": "localhost:8453", "expected": "Later"},
-    {"id": "MP4", "system": "localhost:8454", "expected": "Wrapped"},
-    {"id": "MP5", "system": "localhost:8455", "expected": "Already there"},
-    {"id": "MP6", "system": "acme-sign 1.4.2", "expected": "Phase 2", "because": "blocker: it can't make post-quantum signatures yet"},
-    {"id": "MP7", "system": "acme-sign 9.9", "expected": "Not placed yet"}
+    {"id": "MP1", "system": "localhost:8451", "key_exchange": "Done for now", "authentication": "Phase 2"},
+    {"id": "MP2", "system": "localhost:8452", "key_exchange": "Phase 1", "authentication": "Phase 2"},
+    {"id": "MP3", "system": "localhost:8453", "key_exchange": "Later", "authentication": "Later"},
+    {"id": "MP4", "system": "localhost:8454", "key_exchange": "Wrapped", "authentication": "Wrapped"},
+    {"id": "MP5", "system": "localhost:8455", "key_exchange": "At the target", "authentication": "At the target"},
+    {"id": "MP6", "system": "acme-sign 1.4.2", "signatures": "Phase 2"},
+    {"id": "MP7", "system": "acme-sign 9.9", "signatures": "Not placed yet"}
   ],
-  "fixes": {
-    "expected_text_only_suggestions": [
-      "localhost:8452: how to turn on hybrid key exchange (the change, with the checked nginx setting)",
-      "acme-sign 1.4.2: can't make post-quantum signatures (blocker)"
-    ],
-    "never": "The app changes nothing by itself; every suggestion is text only."
+  "tests_step": [
+    {"id": "MQ1", "expected": "8 suggested tests: Post-quantum readiness on each of the five servers, and the three signing tests on acme-sign 1.4.2; acme-sign 9.9 only in 'Not tested, and why'"},
+    {"id": "MQ2", "system": "localhost:8451", "readiness": "Offered"},
+    {"id": "MQ3", "system": "localhost:8452", "readiness": "Not offered"},
+    {"id": "MQ4", "system": "localhost:8453", "readiness": "Not offered"},
+    {"id": "MQ5", "system": "localhost:8454", "readiness": "Not offered"},
+    {"id": "MQ6", "system": "localhost:8455", "readiness": "Offered"}
+  ],
+  "change_8452_to_hybrid": [
+    {"id": "MC1", "step": "Try on a test copy", "expected": "Passed: key exchange Classical -> Hybrid (interim); authentication unchanged, Classical (ECDSA P-256); classical-only clients still connect; key shares become 1,216 and 1,120 bytes"},
+    {"id": "MC2", "step": "Apply", "expected": "Off until the try passed and every chosen reviewer approved; after Apply the automatic re-measure matches the try"},
+    {"id": "MC3", "step": "After Apply", "expected": "Fixes entry closed; roadmap key exchange 'Done for now'; verifying the file again makes MV2 True"},
+    {"id": "MC4", "step": "Roll back", "expected": "Key exchange Classical again; Fixes entry reopened; roadmap key exchange back to Phase 1"}
+  ],
+  "change_8451_to_full_post_quantum": [
+    {"id": "MC5", "step": "Try on a test copy", "expected": "Passed: key exchange Hybrid -> Post-quantum only; authentication Classical -> Post-quantum (ML-DSA-65); classical-only and hybrid-only clients can't connect; key shares 1,184 and 1,088 bytes (FIPS 203); handshake signature 3,309 bytes (FIPS 204)"},
+    {"id": "MC6", "step": "After Apply", "expected": "Re-measure matches the try; both tracks 'At the target'; verifying the file again makes MV1 False"},
+    {"id": "MC7", "step": "Roll back", "expected": "Hybrid plus classical key exchange and an ECDSA P-256 certificate again (a fresh test certificate of the same kind); roadmap back to 'Done for now' and 'Phase 2'"}
+  ],
+  "rules": {
+    "apply_gate": "Apply is never available without a passing try and all chosen approvals.",
+    "other_servers": "Apply is off for any server other than the demo test servers and the lab nginx, and says a connector is needed.",
+    "test_keys": "Test keys are never shown, stored or downloadable.",
+    "records": "Try, approvals, apply, re-measure and roll back appear in the signed evidence."
   },
-  "controls": {
-    "expected": "The hybrid and classical control servers started for each measurement are read correctly; otherwise the measurement reads Couldn't check, never a status."
-  },
+  "controls": {"expected": "The hybrid and classical control servers are read correctly on every measurement, including the new checks; otherwise the measurement reads Couldn't check, never a status."},
   "acme_pay_unchanged": "The 15 answers in demo/expected.json still match in both modes."
 }
