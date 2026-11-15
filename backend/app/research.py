@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from . import vectors
+from . import pq_vectors, real_libraries, vectors
 from .guidance import NIST_GUIDANCE
 from .reviewer import ReviewNotAllowed  # the one shared name; the reviewer imports nothing from here
 
@@ -24,7 +24,9 @@ SPEC_SCHEMA = "isogeny.test-spec/1"
 TLS_VERSIONS = ["TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3"]
 SUGGESTED_KINDS = ("tls_versions", "certificate", "official_vectors", "bad_signatures", "speed_size")
 CATALOG = ("pq_readiness", "mldsa_compare")
-ALL_KINDS = SUGGESTED_KINDS + CATALOG
+# Phase 4c: the two post-quantum exams. Suggested by themselves for a program that claims ML-KEM-768 or ML-DSA-65.
+PQ_EXAM_KINDS = ("mlkem_vectors", "mldsa_vectors")
+ALL_KINDS = SUGGESTED_KINDS + PQ_EXAM_KINDS + CATALOG
 SERVER_KINDS = ("tls_versions", "certificate", "pq_readiness")
 # Phase 4a: the Migration step's own measurements. They are locked, run and reviewed like tests, but are not in
 # the Tests step's plan or catalog.
@@ -66,8 +68,10 @@ TITLES = {
     "tls_versions": "Old TLS versions", "certificate": "Certificate strength", "official_vectors": "Independent exam (Wycheproof)",
     "bad_signatures": "Attacker tricks (our short list)", "speed_size": "Speed and size", "pq_readiness": "Post-quantum readiness",
     "mldsa_compare": "ML-DSA-65 comparison", "pq_status": "Post-quantum status", "signing_status": "Post-quantum status",
+    "mlkem_vectors": "Key exchange exam (ML-KEM-768)", "mldsa_vectors": "Signature exam (ML-DSA-65)",
 }
-SOFTWARE_TEST_KINDS = ("official_vectors", "bad_signatures", "speed_size", "mldsa_compare")
+SOFTWARE_TEST_KINDS = ("official_vectors", "bad_signatures", "speed_size", "mldsa_compare") + PQ_EXAM_KINDS
+PQ_SIGNATURE, PQ_KEY_EXCHANGE = "ML-DSA-65", "ML-KEM-768"
 CATALOG_DESCRIPTIONS = {
     "pq_readiness": "Checks whether the server offers a quantum-resistant key exchange (such as X25519MLKEM768).",
     "mldsa_compare": "Shows the speed and sizes of a post-quantum signature (ML-DSA-65) from a reference implementation, next to {component}'s.",
@@ -107,23 +111,59 @@ def servers(claims: list[dict]) -> list[str]:
 
 
 def programs(claims: list[dict]) -> list[dict]:
-    """Every signing program the file names (a signature_algorithm claim on a software component), once per name
-    and version, in file order: {"ref", "component", "version", "algorithm", "label"}. The claim's ref is how a
-    test remembers which one it is for: two versions of the same program (acme-sign 1.4.2 and acme-sign 9.9) are
-    two programs."""
+    """Every program the file names that this app can test: a signing program (a signature_algorithm claim on a
+    software component) or, since phase 4c, a key exchange program (a key_exchange claim for ML-KEM-768). Once per
+    name, version and algorithm, in file order: {"ref", "component", "version", "algorithm", "label", "role"}.
+    The claim's ref is how a test remembers which one it is for: two versions of the same program (acme-sign 1.4.2
+    and acme-sign 9.9) are two programs, and so are two algorithms of one library (openssl 3.5.9 with ECDSA P-256
+    and with ML-DSA-65); then the label names the algorithm too."""
     out, seen = [], set()
     for c in claims:
         d = c.get("detail") or {}
-        if c.get("location_kind") != "software" or c.get("kind") != "signature_algorithm" or not d.get("component"):
+        if c.get("location_kind") != "software" or not d.get("component"):
+            continue
+        algorithm = str(d.get("algorithm") or c.get("claimed_value") or "")
+        if c.get("kind") == "signature_algorithm":
+            role = "signing"
+        elif c.get("kind") == "key_exchange" and algorithm == PQ_KEY_EXCHANGE:
+            role = "key_exchange"
+        else:
             continue
         version = str(d["version"]) if d.get("version") else None
-        if (str(d["component"]), version) in seen:
+        key = (str(d["component"]), version) if role == "signing" and not _many_algorithms(claims, d) else (str(d["component"]), version, algorithm)
+        if key in seen:
             continue
-        seen.add((str(d["component"]), version))
-        out.append({"ref": str(c.get("ref")), "component": str(d["component"]), "version": version,
-                    "algorithm": str(d.get("algorithm") or c.get("claimed_value") or ""),
-                    "label": f"{d['component']} {version}" if version else str(d["component"])})
+        seen.add(key)
+        out.append({"ref": str(c.get("ref")), "component": str(d["component"]), "version": version, "algorithm": algorithm,
+                    "label": f"{d['component']} {version}" if version else str(d["component"]), "role": role})
+    out.sort(key=lambda p: p["role"] != "signing")   # signing programs first, then key exchange; file order within each
+    for p in out:  # one library named with more than one algorithm: say which
+        if sum(1 for q in out if (q["component"], q["version"]) == (p["component"], p["version"])) > 1:
+            p["label"] = f"{p['label']} ({p['algorithm']})"
     return out
+
+
+def _many_algorithms(claims: list[dict], detail: dict) -> bool:
+    """Does the file name this component and version with more than one algorithm this app can test?"""
+    found = set()
+    for c in claims:
+        d = c.get("detail") or {}
+        if c.get("location_kind") == "software" and (d.get("component"), d.get("version")) == (detail.get("component"), detail.get("version")):
+            algorithm = str(d.get("algorithm") or c.get("claimed_value") or "")
+            if c.get("kind") == "signature_algorithm" or (c.get("kind") == "key_exchange" and algorithm == PQ_KEY_EXCHANGE):
+                found.add((c.get("kind"), algorithm))
+    return len(found) > 1
+
+
+def program_kinds(program: dict) -> tuple[str, ...]:
+    """The tests suggested for one program, by what the file says it does."""
+    if program.get("role") == "key_exchange":
+        return ("mlkem_vectors",)
+    if program.get("algorithm") == PQ_SIGNATURE:
+        return ("mldsa_vectors", "speed_size")
+    if str(program.get("algorithm", "")).startswith(("ML-DSA", "ML-KEM")):
+        return ()
+    return ("official_vectors", "bad_signatures", "speed_size")
 
 
 def _server_address(claims: list[dict]) -> str | None:
@@ -137,6 +177,11 @@ def _software(claims: list[dict], ref: str | None = None) -> dict | None:
     if not found:
         return None
     return {"component": found[0]["component"], "algorithm": found[0]["algorithm"], "claim": found[0]["ref"]}
+
+
+def _program(claims: list[dict], ref: str | None) -> dict | None:
+    found = [p for p in programs(claims) if ref is None or p["ref"] == ref]
+    return found[0] if found else None
 
 
 def target_key(kind: str, target: dict) -> str | None:
@@ -244,9 +289,10 @@ class RuleEngine:
         suggested test it does not get and why; `notes` says the same in one line each."""
         tests, notes, skipped = [], [], []
         targets = [("server", a) for a in servers(claims)] + [("software", p["ref"]) for p in programs(claims)]
+        kinds_of = {p["ref"]: program_kinds(p) for p in programs(claims)}
         pq_claimed = {str(c.get("location")) for c in claims if c.get("location_kind") == "server" and c.get("kind") == "post_quantum"}
         for side, key in targets:
-            for kind in SUGGESTED_KINDS:
+            for kind in (SUGGESTED_KINDS if side == "server" else kinds_of[key]):
                 if (kind in SERVER_KINDS) != (side == "server"):
                     continue
                 try:
@@ -403,14 +449,75 @@ class RuleEngine:
             {"type": "certificate_matches_claim_and_minimum"},
             "Passed only if the certificate's algorithm matches the claim and its key is at least the NIST minimum size. Retirement plans are shown as a note, not a failure.")
 
-    def _signing_target(self, claims: list[dict], target: str | None = None) -> dict:
+    def _signing_target(self, claims: list[dict], target: str | None = None, kind: str | None = None) -> dict:
         software = _software(claims, target)
         if software is None:
             raise CannotDesign("The file names no signing component.")
+        program = _program(claims, target)
+        if kind is not None and kind not in program_kinds(program) and not (kind == "mldsa_compare" and program_kinds(program)[:1] == ("official_vectors",)):
+            raise CannotDesign(f"This test does not fit {program['label']}: the file says it does {program['algorithm']}.")
         return {"kind": "software", **software}
 
+    def _pq_exam(self, kind: str, claims: list[dict], ref: str | None) -> dict:
+        """One of the two post-quantum exams (phase 4c): official cases with published right answers, in parts, each
+        part with its own deliberately broken control."""
+        target = self._signing_target(claims, ref, kind)
+        name, exam = target["component"], pq_vectors.EXAMS[kind]
+        algorithm, kem = exam["algorithm"], kind == "mlkem_vectors"
+        parts = [{"id": part, "title": title, "cases": cases} for part, title, cases in exam["parts"]]
+        total = sum(p["cases"] for p in parts)
+        files = pq_vectors.file_pins(kind)
+        nist = sum(1 for f in files if f["source"] == pq_vectors.NIST)
+        inputs_text = [f"{nist} NIST ACVP files (usnistgov/ACVP-Server, commit {pq_vectors.ACVP_COMMIT[:7]}) and {len(files) - nist} Project Wycheproof "
+                       f"files (C2SP/wycheproof, commit {pq_vectors.WYCHEPROOF_PQ_COMMIT[:7]}), each stored whole and pinned by SHA-256.",
+                       f"{total} cases: " + ", ".join(f"{p['title'].lower()} {p['cases']}" for p in parts) + "."]
+        if exam["left_out"]:
+            inputs_text.append(f"Left out for every library: {exam['left_out']} NIST cases for the pre-hash variant (HashML-DSA), which the adapter does not cover.")
+        if kem:
+            must = {"keygen": {"control": "wrong_answer", "wrong_on": "every case"},
+                    "encaps": {"control": "skip_key_check", "accepts_flag": pq_vectors.KEY_OUT_OF_RANGE, "count": 117},
+                    "decaps": {"control": "skip_key_check", "accepts_flag": pq_vectors.KEY_HASH_WRONG, "count": 6}}
+            control_text = ("Three deliberately broken copies run the same cases. One changes a byte of every key it makes, and must be caught on every "
+                            "key generation case. One skips the two key checks the standard requires: it must wrongly accept all 117 public keys "
+                            "holding a number that is too large, and all 6 private keys whose fingerprint is wrong.")
+            question = f"Does {name} make the published keys, ciphertexts and shared secrets for ML-KEM-768, and refuse every key it must refuse?"
+            why = ("Why it matters: both sides of a key exchange must compute exactly the same thing, and a library that skips a required "
+                   "key check can be handed a bad key. This shows the new post-quantum code is built to the standard (FIPS 203).")
+        else:
+            must = {"keygen": {"control": "wrong_answer", "wrong_on": "every case"},
+                    "sign": {"control": "wrong_answer", "wrong_on": "every published signature"},
+                    "verify": {"control": "accept_all", "wrong_on": "every signature that must be rejected"}}
+            control_text = ("Deliberately broken copies run the same cases. One changes a byte of every key and signature it makes, and must be caught on "
+                            "every key generation and every signing case. One accepts every signature, and must be wrong on every signature "
+                            "that has to be rejected.")
+            question = f"Does {name} make the published keys and signatures for ML-DSA-65, accept every genuine signature and reject every forged one?"
+            why = ("Why it matters: a post-quantum signature is only worth moving to if it is built to the standard (FIPS 204). This checks "
+                   "the new code against official cases instead of taking it on trust.")
+        return self._spec(
+            kind,
+            f"Puts {name}'s {algorithm} through {total} official cases from NIST and Project Wycheproof, each with a published right answer: "
+            + ", ".join(p["title"].lower() for p in parts[:-1]) + f" and {parts[-1]['title'].lower()}.",
+            why, question,
+            "Run one adapter command per case with the published inputs, and compare the SHA-256 of the answer with the SHA-256 of the "
+            "published answer. Where the case holds a key or an input that must be refused, note whether the library refused it.",
+            target,
+            {"algorithm": algorithm, "files": files, "parts": parts, "cases": total, "left_out": exam["left_out"],
+             "sources": {"nist": pq_vectors.ACVP_URL, "wycheproof": pq_vectors.WYCHEPROOF_PQ_URL}},
+            inputs_text,
+            {"kind": "pq_broken_copies", "text": control_text, "must": must},
+            {"type": "pq_known_answers", "answer": "the published answer, by fingerprint", "refuse": "refused", "accept": "not refused",
+             "reject": "said not genuine"},
+            f"Passed only if all {total} answers are right: the published answer where there is one, a refusal where the input must be refused. "
+            "Any wrong answer means Failed. Timing is not looked at: this test says nothing about timing attacks.")
+
+    def _mlkem_vectors(self, claims: list[dict], ref: str | None = None) -> dict:
+        return self._pq_exam("mlkem_vectors", claims, ref)
+
+    def _mldsa_vectors(self, claims: list[dict], ref: str | None = None) -> dict:
+        return self._pq_exam("mldsa_vectors", claims, ref)
+
     def _official_vectors(self, claims: list[dict], ref: str | None = None) -> dict:
-        target = self._signing_target(claims, ref)
+        target = self._signing_target(claims, ref, "official_vectors")
         name = target["component"]
         ecdsa, ed = vectors.WYCHEPROOF["ecdsa_p256"], vectors.WYCHEPROOF["ed25519"]
         short = vectors.WYCHEPROOF_COMMIT[:7]
@@ -425,7 +532,9 @@ class RuleEngine:
                        {"set": "ed25519", "file": ed["file"], "sha256": ed["sha256"], "cases": ed["cases"], "used_on": "reference"}],
              "commit": vectors.WYCHEPROOF_COMMIT, "source_url": vectors.WYCHEPROOF_SOURCE_URL},
             [f"Wycheproof testvectors_v1/{ecdsa['file']} ({ecdsa['cases']} cases), pinned to commit {short}.",
-             f"The second official file, {ed['file']}, is not used on this component: {name} only does ECDSA P-256. It is run on the reference library."],
+             (f"The second official file, {ed['file']}, is not used on this component: this test checks its ECDSA P-256 signatures. It is run on the reference library."
+              if name in real_libraries.LIBRARIES else   # a real library may offer more than ECDSA P-256 (phase 4c)
+              f"The second official file, {ed['file']}, is not used on this component: {name} only does ECDSA P-256. It is run on the reference library.")],
             {"kind": "accept_all_verifier",
              "text": "The same cases run against a deliberately broken signer, which must get every invalid case wrong.",
              "must": {"wrong_on": "every invalid case"}},
@@ -433,7 +542,7 @@ class RuleEngine:
             f"Passed only if all {ecdsa['cases']} answers are right. Any wrong answer means Failed.")
 
     def _bad_signatures(self, claims: list[dict], ref: str | None = None) -> dict:
-        target = self._signing_target(claims, ref)
+        target = self._signing_target(claims, ref, "bad_signatures")
         name = target["component"]
         pin = vectors.BAD_SIGNATURES
         total, accept = pin["cases"], 2
@@ -454,7 +563,7 @@ class RuleEngine:
             f"Passed only if all {total - accept} bad signatures are rejected and both genuine ones are accepted. Any wrong answer means Failed.")
 
     def _speed_size(self, claims: list[dict], ref: str | None = None) -> dict:
-        target = self._signing_target(claims, ref)
+        target = self._signing_target(claims, ref, "speed_size")
         rounds, repeats = self.speed_rounds, self.speed_repeats
         pairs = rounds * repeats
         return self._spec(
@@ -521,6 +630,8 @@ class RuleEngine:
         an independent library, and its speed and sizes next to ML-DSA-65 on the reference library."""
         target = self._signing_target(claims, ref)
         name, algorithm = target["component"], target["algorithm"]
+        if name in real_libraries.LIBRARIES and not algorithm.startswith("ML-"):
+            return self._real_signing_status(target)
         return self._spec(
             "signing_status",
             f"Measures what {name} signs with today, and what a post-quantum signature would cost next to it.",
@@ -541,7 +652,35 @@ class RuleEngine:
             "Classical or post-quantum by the family of the algorithm the program reports, and only once the independent library "
             "has confirmed its signature. Anything else: couldn't check.")
 
+    def _real_signing_status(self, target: dict) -> dict:
+        """Phase 4c: the same measurement for a real library that signs with a classical algorithm, plus one more
+        question that is measured, not looked up: can this library make a post-quantum signature today?"""
+        name, algorithm = target["component"], target["algorithm"]
+        return self._spec(
+            "signing_status",
+            f"Measures what {name} signs with today, whether it can already make a post-quantum signature, and what one would cost next to it.",
+            "Why it matters: a migration plan needs to start from what each system does today, measured.",
+            f"Does {name} sign with a classical or a post-quantum algorithm, can it make an ML-DSA-65 signature today, and what would that cost in time and size?",
+            "Ask the library what it signs with, have it sign one test message, and check that signature with an independent "
+            "library. Then ask it to make one ML-DSA-65 signature, checked the same way. Then time its bench command next to ML-DSA-65 "
+            "on the reference library.",
+            target,
+            {"claimed_algorithm": algorithm, "capability": {"algorithm": PQ_SIGNATURE},
+             "mldsa": {"algorithm": "ML-DSA-65", "implementation": "cryptography (hazmat mldsa)", "repeats": 200,
+                       "component_repeats": 100, "message": SPEED_MESSAGE, "label": MLDSA_LABEL}},
+            [f"The claim from the file: {algorithm}.",
+             "ML-DSA-65 from the reference library (cryptography): reference figures, not a measurement of production software of yours."],
+            {"kind": "independent_library",
+             "text": "An independent library must confirm the library's key and signature, and must reject an ML-DSA-65 signature with one byte changed.",
+             "must": {"confirmed": True}},
+            {"type": "signing_status"},
+            "Classical or post-quantum by the family of the algorithm the library reports, and only once the independent library "
+            "has confirmed its signature. It can make post-quantum signatures only if it made an ML-DSA-65 signature that the "
+            "independent library confirmed. Anything else: couldn't check.")
+
     def _mldsa_compare(self, claims: list[dict], ref: str | None = None) -> dict:
+        if _software(claims, ref) is not None:
+            self._signing_target(claims, ref, "mldsa_compare")   # it compares a classical signer with ML-DSA-65: not for a post-quantum program
         software = _software(claims, ref)
         name = software["component"] if software else "the signing component"
         target = {"kind": "software", **software} if software else {"kind": "reference"}

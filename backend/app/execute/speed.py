@@ -7,7 +7,7 @@ import time
 
 from .. import components, reference
 from . import RunContext, batch_info, batch_problem, problem
-from .signing import NOT_DEMO, component_key
+from .signing import NOT_DEMO, component_key, family_args, real_problem
 
 WAITING = "waiting for the other tests to finish, so the timing is clean"
 
@@ -41,6 +41,9 @@ def run_speed_size(spec: dict, ctx: RunContext) -> dict:
     new_key = component_key(spec, ctx)
     if new_key is None:
         return problem("not_a_demo_component", NOT_DEMO)
+    if (stopped := real_problem(ctx)) is not None:
+        return stopped
+    post_quantum = spec["target"].get("algorithm") == "ML-DSA-65"   # phase 4c: a library that signs with ML-DSA-65
     inputs = spec["inputs"]
     rounds, repeats = inputs["rounds"], inputs["repeats"]
     if ctx.baseline_version is not None:
@@ -65,7 +68,9 @@ def run_speed_size(spec: dict, ctx: RunContext) -> dict:
         ctx.progress(f"measuring, round 1 of {rounds}", 0)
         job = {"op": "bench_rounds", "keygen_with": keygen_with, "subjects": subjects, "rounds": rounds,
                "repeats": repeats, "message": inputs["message"]}
-        result = ctx.runner.run_job(job, time_limit=300.0, on_line=on_line)
+        if post_quantum:
+            job["algorithm"] = "ML-DSA-65"
+        result = ctx.runner.run_job(job, time_limit=300.0, on_line=on_line, **family_args(ctx))
         if not result.ok:
             ctx.log(f"harness: {result.problem}")
             return batch_problem(result)
@@ -74,7 +79,7 @@ def run_speed_size(spec: dict, ctx: RunContext) -> dict:
             out = problem("component_no_answer", "The component did not make a test key.")
             out["batch"] = batch_info(result)
             return out
-        measured = reference.bench_ecdsa_p256(rounds * repeats, inputs["message"])
+        measured = (reference.bench_mldsa65 if post_quantum else reference.bench_ecdsa_p256)(rounds * repeats, inputs["message"])
     ctx.progress("checking the result", 97)
     return {"benches": benches, "subjects": dict(zip(roles, subjects)),
             "reference": {k: measured[k] for k in ("library", "sign_ms", "verify_ms", "signature_bytes", "public_key_bytes")},
@@ -140,7 +145,8 @@ def run_mldsa_compare(spec: dict, ctx: RunContext) -> dict:
         if key is not None:
             ctx.progress("measuring the signing component", 60)
             result = ctx.runner.run_job({"op": "bench_rounds", "keygen_with": key, "subjects": [key], "rounds": 1,
-                                         "repeats": inputs["component_repeats"], "message": inputs["message"]}, time_limit=120.0)
+                                         "repeats": inputs["component_repeats"], "message": inputs["message"]}, time_limit=120.0,
+                                        **family_args(ctx))
             _, benches = _benches(result.lines, ["subject"])
             component = {"key": key, "benches": benches, "batch": batch_info(result)}
             if not result.ok:

@@ -20,7 +20,7 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
-from . import components, demo_repo, research
+from . import components, demo_repo, real_libraries, research
 from .canonical import canonical_bytes
 from .db import (
     ApprovalRow, ChangeRow, CodeConnectionRow, ImportRow, MergeRow, PlanRow, ProofReviewRow, ProofRow, PullRequestRow, RetestRow,
@@ -206,7 +206,7 @@ class ChangesMixin:
                 if run is not None:
                     result = self._result(db, run)
                     # own: the test runs the plan's own program, the code a code fix changes
-                    out.append({"item_id": item.id, "kind": kind, "phase": phase, "run_id": run.id,
+                    out.append({"item_id": item.id, "kind": kind, "phase": phase, "run_id": run.id, "component": run.component_name,
                                 "version": run.component_version, "code": result["code"], "tone": result["tone"],
                                 "own": bool(program and program["own"]),
                                 "other_program": bool(program and not program["own"])})
@@ -325,10 +325,16 @@ class ChangesMixin:
             if answers:
                 kind = answers[0]["kind"]
                 fix_id = "fix-" + str(kind).replace("_", "-") + ("" if len(per_kind[kind]) == 1 else f"-{item_id}")
+                # Phase 4c: a failure on a real library. The fix is its publisher's fixed version, where one is known;
+                # no code change or pull request is ever offered for other people's code.
+                last = max(answers, key=lambda r: r["run_id"])
+                library = real_libraries.library(last.get("component"), last.get("version"))
+                real = ({"name": last["component"], "version": last["version"],
+                         "fixed": real_libraries.fixed_version(last["component"], last["version"])} if library else None)
                 fixes.append({"id": fix_id, "test_kind": kind, "kind": "text", "status": "text_only",
                               "source_kind": "failed_tests", "answers": [_answer(r) for r in answers], "component": None,
                               "template_id": None, "rerun_blocked": None, "connection": None, "change": None, "proofs": 0,
-                              "proof": None, "pull_request": None, "merge": None, "actions": {}})
+                              "proof": None, "pull_request": None, "merge": None, "actions": {}, "real_library": real})
         return fixes
 
     def _code_fix(self, db, plan: PlanRow, items: list, shown: list[dict], failed: list[dict]) -> dict | None:

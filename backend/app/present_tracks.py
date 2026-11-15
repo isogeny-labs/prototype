@@ -175,6 +175,12 @@ def _next_and_why(state: dict, track: str, status: str | None) -> tuple[list, li
     algorithm = (state.get("detail") or {}).get("algorithm")
     if option in ("hybrid", "full_pq"):
         what = "sign with both " + str(algorithm) + " and ML-DSA" if option == "hybrid" else "sign with ML-DSA only"
+        if (state.get("detail") or {}).get("can_make_pq") is True:
+            # Phase 4c: a real library that already makes post-quantum signatures (measured). Nothing blocks the change.
+            pq = (state.get("detail") or {}).get("pq_algorithm") or "ML-DSA-65"
+            return (_parts(f"{what}{yours}. Not blocked: this library can already make {pq} signatures ", _tag(MEASURED), "."),
+                    _parts("a signature made today has to be trusted after ", f"{PQ_DATES['deprecated_after']}, when NIST deprecates {algorithm} ",
+                           _tag(NIST_TAG), "."))
         return (_parts(f"{what}{yours}, once its signing library can (the blocker)."),
                 _parts("a signature made today has to be trusted after ", f"{PQ_DATES['deprecated_after']}, when NIST deprecates {algorithm} ",
                        _tag(NIST_TAG), "."))

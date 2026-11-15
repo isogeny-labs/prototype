@@ -289,9 +289,27 @@ def test_mode_with_docker_but_without_our_image_stays_demo_and_says_why(monkeypa
 
 def test_mode_isolated_when_docker_and_image_are_ready(monkeypatch, tmp_path):
     probe(monkeypatch, (True, "evidence-lab-components:abc", None))
+    monkeypatch.setattr(runner, "_probe_real", lambda running: {})   # no real-library image on this (made-up) computer
     mode = runner.detect_mode(settings_for(tmp_path))
     assert (mode.name, mode.reason, mode.components_image) == ("isolated", None, "evidence-lab-components:abc")
-    assert mode.line == "Isolated mode: our demo software runs in a locked-down container with no network."
+    assert mode.line == ("Isolated mode: our demo software runs in a locked-down container with no network. The real libraries "
+                         "are not prepared on this computer; ./run-demo.sh prepares them.")
+
+
+def test_the_isolated_mode_line_says_which_real_libraries_can_run(monkeypatch, tmp_path):
+    """Phase 4c: real libraries run only in isolated mode, each family in its own image. The line names any that is missing."""
+    first = "Isolated mode: our demo software runs in a locked-down container with no network."
+    probe(monkeypatch, (True, "evidence-lab-components:abc", None))
+    every = {family: f"evidence-lab-real-{family}:abc" for family in ("openssl", "java", "python-ecdsa", "elliptic")}
+    monkeypatch.setattr(runner, "_probe_real", lambda running: dict(every))
+    mode = runner.detect_mode(settings_for(tmp_path))
+    assert mode.line == first + " Real libraries run the same way, each in its own container." and mode.real_images == every
+    monkeypatch.setattr(runner, "_probe_real", lambda running: {k: v for k, v in every.items() if k != "java"})
+    assert runner.detect_mode(settings_for(tmp_path)).line == (
+        first + " Real libraries run the same way, each in its own container; not prepared on this computer: Java.")
+    # demo mode says nothing about them here: each place that names a real library says it needs isolated mode
+    probe(monkeypatch, (False, None, None))
+    assert "eal librar" not in runner.detect_mode(settings_for(tmp_path)).line
 
 
 def test_mode_forced_demo(monkeypatch, tmp_path):

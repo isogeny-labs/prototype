@@ -8,7 +8,8 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
-from . import auth, components, lab_nginx, lab_servers, migration_servers, plain, present_migration, runner
+from .names import join_and as names_join_and
+from . import auth, components, lab_nginx, lab_servers, migration_servers, plain, present_migration, real_libraries, runner
 from .addresses import AddressError, is_loopback_ip, parse_address, resolve_all
 from .changes import ChangesMixin
 from .config import DEMO_CBOM, DEMO_CBOM_PORT, DEMO_HOSTNAME, Settings
@@ -153,6 +154,31 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             stored["notices"] = list(stored.get("notices") or []) + notes
         return stored
 
+    def _real_notice(self, parsed: ParsedFile) -> str | None:
+        """One line on Import when the file names real libraries (phase 4c): where they run, or plainly why they can't."""
+        names, families = [], []
+        for c in parsed.claims:
+            family = real_libraries.family_of(c.detail.get("component"), c.detail.get("version")) if c.location_kind == "software" else None
+            if family is not None and c.location not in names:
+                names.append(c.location)
+                families.append(family)
+        if not names:
+            return None
+        listed = names_join_and(names)
+        if self.mode.name != "isolated":
+            return (f"Real software: {listed}. These are real libraries from outside, not demo data. They run only in isolated mode "
+                    "(Docker), and this run is in demo mode, so their claims can't be checked and their tests can't run here. "
+                    "Nothing of theirs is ever run as a local program.")
+        missing = [real_libraries.FAMILIES[f]["label"] for f in dict.fromkeys(families) if not self.mode.real_images.get(f)]
+        if missing:
+            return (f"Real software: {listed}. These are real libraries from outside, not demo data. The container "
+                    f"{'image' if len(missing) == 1 else 'images'} for {names_join_and(missing)} "
+                    f"{'is' if len(missing) == 1 else 'are'} not prepared on this computer, so "
+                    f"{'that library' if len(missing) == 1 else 'those libraries'} can't run; ./run-demo.sh prepares "
+                    f"{'it' if len(missing) == 1 else 'them'} (it needs internet once). The others run isolated.")
+        return (f"Real software: {listed}. These are real libraries from outside, not demo data. Each runs in its own locked-down "
+                "container with no network.")
+
     def _targets_demo(self, parsed: ParsedFile) -> bool:
         """Does this file point at our own demo: the demo TLS server's address, or a registered demo component?"""
         for c in parsed.claims:
@@ -174,6 +200,9 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         if self._lab_nginx_data(data):
             # Phase 4b: real nginx in the lab, for Apply and Roll back on real server software. Isolated mode only.
             stored["notices"] = [self._start_lab_nginx()]
+        real = self._real_notice(parsed)
+        if real:   # phase 4c: real libraries named in the file, and whether they can run on this computer now
+            stored["notices"] = list(stored.get("notices") or []) + [real]
         if migration_servers.is_migration_file(data, self.settings.migration_ports):
             # Only our own migration demo file starts its five test servers. One that can't start is said, never fatal.
             problems = self.migration_servers.start()
@@ -288,10 +317,16 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             db.add(row)
             db.flush()
             # Settings the file gives for a system (phase 4a). They are data for the migration plan: nothing checks them.
-            refs = {c.location: c.ref for c in parsed.claims if c.location_kind == "software"}
+            # (A library the file names with more than one algorithm, phase 4c, is more than one system: each gets the setting.)
+            refs: dict[str, list[str]] = {}
+            for c in parsed.claims:
+                if c.location_kind == "software":
+                    refs.setdefault(c.location, []).append(c.ref)
             for setting in getattr(parsed, "settings", None) or []:
-                key = "server:" + setting.location if setting.location_kind == "server" else "software:" + str(refs.get(setting.location))
-                db.add(SystemSettingRow(import_id=row.id, system_key=key, field=setting.field, value=setting.value, source="file"))
+                keys = (["server:" + setting.location] if setting.location_kind == "server"
+                        else ["software:" + ref for ref in refs.get(setting.location, [])] or ["software:None"])
+                for key in keys:
+                    db.add(SystemSettingRow(import_id=row.id, system_key=key, field=setting.field, value=setting.value, source="file"))
             db.commit()
             return import_json(row, self._file_settings(db, row))
 
@@ -300,7 +335,9 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         rows = db.scalars(select(SystemSettingRow).where(SystemSettingRow.import_id == imp.id, SystemSettingRow.source == "file")
                           .order_by(SystemSettingRow.id)).all()
         names = {"software:" + c.ref: c.location for c in imp.claims if c.location_kind == "software"}
-        return present_migration.file_settings([(names.get(r.system_key, r.system_key.split(":", 1)[-1]), r.field, r.value) for r in rows])
+        # (once per system name: a library named with several algorithms carries the same setting for each)
+        return present_migration.file_settings(list(dict.fromkeys(
+            (names.get(r.system_key, r.system_key.split(":", 1)[-1]), r.field, r.value) for r in rows)))
 
     def _new_address(self, address: str, host: str, port: int) -> AddressRow:
         """No name lookups (DNS) when a file is imported: a file must not make this computer contact anything.

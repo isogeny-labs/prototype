@@ -1,4 +1,5 @@
-import type { TextSuggestion } from "../../api";
+import type { Advisories, TextSuggestion } from "../../api";
+import { AdvisoriesBox } from "../AdvisoriesBox";
 import { H } from "./parts";
 
 /** Words between backticks are names (a setting, a cipher suite): fixed width and never broken across lines. */
@@ -40,7 +41,7 @@ function CodeBlock({ code }: { code: string }) {
 }
 
 /** A suggestion in words only. The app has not applied or tested it, and it gets no buttons. */
-export function SuggestionBody({ suggestion }: { suggestion: TextSuggestion }) {
+export function SuggestionBody({ suggestion, advisories }: { suggestion: TextSuggestion; advisories?: Advisories | null }) {
   const { warning, where, options, exact } = suggestion;
   return (
     <div data-testid="text-suggestion">
@@ -51,6 +52,12 @@ export function SuggestionBody({ suggestion }: { suggestion: TextSuggestion }) {
           </p>
         ))}
       </div>
+
+      {advisories && advisories.items.length > 0 ? (
+        <div className="mt-4">
+          <AdvisoriesBox advisories={advisories} />
+        </div>
+      ) : null}
 
       {warning ? (
         <div data-testid="suggestion-warning" className="mt-4 rounded-lg border border-slate-400 bg-slate-800 px-3 py-2.5">

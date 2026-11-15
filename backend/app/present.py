@@ -9,7 +9,7 @@ import json
 
 from . import plain as plain_words, vectors
 from .guidance import OWN_LINKS
-from . import present_pq
+from . import present_pq, present_real
 from .research import TITLES, join_and
 from .reviewer import COULDNT_RUN_REASONS
 
@@ -37,8 +37,10 @@ CONTROL_WHAT = {
     "mldsa_compare": ("a deliberately altered signature", "was rejected"),
     "pq_status": ("the same check on our hybrid and our classical test server", "read them as Hybrid and Classical"),
     "signing_status": ("an independent library", "confirmed the program's signature"),
+    "mlkem_vectors": ("each deliberately broken copy", "failed this test"),
+    "mldsa_vectors": ("each deliberately broken copy", "failed this test"),
 }
-FAILING_CONTROLS = ("tls_versions", "certificate", "official_vectors", "bad_signatures")
+FAILING_CONTROLS = ("tls_versions", "certificate", "official_vectors", "bad_signatures", "mlkem_vectors", "mldsa_vectors")
 MODE_WORDS = {"demo": "Demo mode, not isolated", "isolated": "Isolated mode: locked-down container, no network"}
 RANGE_IDS = {"r0-s0", "r0", "s0", "r-equals-n", "s-equals-n", "s-plus-n", "r-plus-n"}
 # A proof (Fixes) reruns the server tests too. Before any merge nothing has been updated, so its words differ from a retest's.
@@ -265,6 +267,8 @@ def _certificate(w: _Words, spec, run, review, ctx) -> None:
 
 def _case_words(comment: str) -> str:
     text = comment.replace("Signature with special case values ", "")
+    if text == "Legacy: ASN encoding of s misses leading 0":
+        return "a number written without its leading zero (a missing leading zero)"
     if text == "r=0 and s=0":
         return "r=0 and s=0 (a signature made of zeros)"
     if text == "r=0 and s=n":
@@ -294,8 +298,19 @@ def _official_vectors(w: _Words, spec, run, review, ctx) -> None:
         head = next((x for x in wrong if x["id"] == "168"), wrong[0])
         one_cause = _range_cause_official(wrong)
         head_words = ("a signature made of zeros (r=0 and s=0)" if head["id"] == "168" else _case_words(head["comment"]))
+        accepted, refused = sum(1 for x in wrong if x["got"] == "accept"), sum(1 for x in wrong if x["got"] != "accept")
+        mixed = (f": it accepted {accepted} {_plural(accepted, 'signature')} that must be rejected"
+                 + (", including a blank one (r=0 and s=0)," if "168" in ids else "")
+                 + f" and rejected {refused} genuine {_plural(refused, 'one')}.") if accepted and refused else "."
+        encoding_flags = {"InvalidEncoding", "BerEncodedSignature", "MissingZero"}
+        if all(x["got"] == "accept" for x in wrong) and all(set(x.get("flags") or []) & encoding_flags for x in wrong):
+            # (never so for our demo component: its three wrong cases are range cases)
+            accepted_words = (": it accepted a signature with a missing leading zero, which must be rejected." if n == 1 and "MissingZero" in wrong[0]["flags"]
+                              else f": it accepted {n} {_plural(n, 'signature')} with a malformed encoding, which must be rejected.")
+        else:
+            accepted_words = ": it accepted signatures that aren't genuine."
         w.plain = (f"{comp} got {n} of the {total} exam cases wrong"
-                   + (": it accepted signatures that aren't genuine." if all(x["got"] == "accept" for x in wrong) else ".")
+                   + (accepted_words if all(x["got"] == "accept" for x in wrong) else mixed)
                    + " One wrong answer is enough to fail.")
         w.summary = f"{n} of {total} official cases wrong. Headline: case {head['id']}, {head_words} was {_said(head['got'])}."
         shown = join_and(ids) if n <= 8 else ", ".join(ids[:8]) + " and others"
@@ -636,7 +651,8 @@ def _mldsa_compare(w: _Words, spec, run, review, ctx) -> None:
 
 _WORDS = {"tls_versions": _tls_versions, "certificate": _certificate, "official_vectors": _official_vectors,
           "bad_signatures": _bad_signatures, "speed_size": _speed_size, "pq_readiness": _pq_readiness, "mldsa_compare": _mldsa_compare,
-          "pq_status": present_pq.pq_status, "signing_status": present_pq.signing_status}
+          "pq_status": present_pq.pq_status, "signing_status": present_pq.signing_status,
+          "mlkem_vectors": present_real.pq_exam, "mldsa_vectors": present_real.pq_exam}
 
 
 def _not_a_result(w: _Words, spec, run, review, ctx) -> None:
@@ -647,6 +663,12 @@ def _not_a_result(w: _Words, spec, run, review, ctx) -> None:
         w.plain = f"This test couldn't run ({reason}), so there is no result either way."
         if review.get("reason_code") == "not_a_demo_component":
             w.plain = "This test couldn't run: only our own demo components can run in this version. So there is no result either way."
+        if review.get("reason_code") == "needs_isolated_mode":
+            w.plain = ("This test couldn't run: this is real software from outside, which runs only in isolated mode (Docker), and this "
+                       "run is in demo mode. So there is no result either way.")
+        if review.get("reason_code") == "real_image_missing":
+            w.plain = ("This test couldn't run: this library's container image is not prepared on this computer "
+                       "(./run-demo.sh prepares it, with internet, once). So there is no result either way.")
         states = ((raw.get("subject") or {}).get("versions") or {}) if spec.get("kind") == "tls_versions" else {}
         unclear = [v for v in reversed(plain_words.TLS_VERSIONS) if isinstance(states.get(v), dict) and states[v].get("state") == "unknown"]
         if review.get("reason_code") == "unreadable_answer" and unclear:
@@ -690,8 +712,10 @@ def lab_result(*, spec: dict, spec_hash: str, locked_at: str, run_id: int, run: 
     w = _Words()
     ctx = {"component": component or spec["target"].get("component") or "the component", "phase": run.get("phase"), "fix_version": fix_version}
     filler = _WORDS[kind] if review["code"] not in ("couldnt_run", "couldnt_trust") else _not_a_result
+    real = present_real.is_real(run.get("component"))   # phase 4c: a real library, not one of our demo components
     try:
         filler(w, spec, run, review, ctx)
+        present_real.extras(w, kind, run.get("component"), review)
     except (KeyError, TypeError, ValueError, IndexError, AttributeError):
         w = _Words()
         _not_a_result(w, spec, run, {**review, "code": "couldnt_trust", "reason": "The stored result could not be read."}, ctx)
@@ -701,19 +725,27 @@ def lab_result(*, spec: dict, spec_hash: str, locked_at: str, run_id: int, run: 
     meta = [{"label": "Time", "value": "", "time": run["started_at"], "tag": None},
             {"label": "Duration", "value": _duration(run["duration_ms"]), "tag": "measured"}]
     if component:
-        meta.append({"label": "Component", "value": component, "tag": "demo"})
+        meta.append({"label": "Component", "value": component, "tag": present_real.REAL_TAG if real else "demo"})
     if code:
         meta.append({"label": "Code", "value": code_words(code), "tag": "demo"})
+    elif real:
+        meta.append({"label": "Code", "value": present_real.code_words(run["component"]["name"], run["component"]["version"]),
+                     "tag": present_real.REAL_TAG})
     if run.get("baseline_version") and component and kind == "speed_size":
-        meta.append({"label": "Compared with", "value": f"{run['component']['name']} {run['baseline_version']}", "tag": "demo"})
+        meta.append({"label": "Compared with", "value": f"{run['component']['name']} {run['baseline_version']}",
+                     "tag": present_real.REAL_TAG if real else "demo"})
     meta.append({"label": "Mode", "value": MODE_WORDS.get(run.get("mode"), str(run.get("mode"))), "tag": None})
+    line = control_line(kind, outcome)
+    if kind == "signing_status" and real and run["component"]["name"] == "openssl":
+        # (the same caveat as in the sentence above: for OpenSSL the reference library is not an outside opinion)
+        line = line.replace("an independent library", "the app's reference library (itself built on OpenSSL)")
     control_text = w.control_text if outcome == "as_expected" or review["code"] in ("couldnt_run", "couldnt_trust") else \
         f"The control did not behave as expected ({review['control'].get('reason')}), so this run can't be trusted."
     return {
         "run_id": run_id, "component": component, "mode": run.get("mode"), "finished_at": run["finished_at"], "duration_ms": run["duration_ms"],
         **b, "plain": w.plain or w.summary, "also_noticed": list(w.also_noticed), "also_noticed_title": "Also noticed",
         "summary": w.summary, "short": w.short,
-        "control": {"outcome": outcome, "line": control_line(kind, outcome), "text": control_text},
+        "control": {"outcome": outcome, "line": line, "text": control_text},
         "what_happened": w.what, "shows_title": SHOWS_TITLE, "shows": w.shows, "evidence": w.evidence,
         "run_record": {"title": "Run record", "command": w.command, "outputs": w.outputs, "meta": meta + w.meta},
         "locked_test": {
@@ -724,6 +756,9 @@ def lab_result(*, spec: dict, spec_hash: str, locked_at: str, run_id: int, run: 
             "locked_at": locked_at, "locked_text": "before the run started",
             "fingerprint_label": "Fingerprint of these details (SHA-256)", "fingerprint": spec_hash,
             "note": "The details can't change after locking. The run record carries the same fingerprint, so anyone can confirm the test wasn't adjusted to fit the result."},
+        # Phase 4c: is the component a real library (not demo data), and the advisories its publisher has out for this version.
+        "real": real,
+        "advisories": present_real.advisories(run.get("component"), kind) if review["code"] not in ("couldnt_run", "couldnt_trust") else None,
         "fix_title": "Suggested fix", "suggested_fix": w.fix,
         "reviewed": {"at": mark["at"], "text": "You marked this result as reviewed."} if mark else None,
         "research": research_view(research) if research else None,

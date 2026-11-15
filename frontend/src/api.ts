@@ -270,6 +270,13 @@ export interface ResearchView {
   note: string;
 }
 
+/** Published advisories for the tested version. Information from the advisory, never a result. */
+export interface Advisories {
+  title: string;
+  tag: string;
+  items: { id: string; text: string; link: string; href: string; covered: string }[];
+}
+
 export interface LabResult extends Badge {
   run_id: number;
   component: string | null;
@@ -296,6 +303,8 @@ export interface LabResult extends Badge {
   fix_line: FixLine | null;
   reviewed: { at: string; text: string } | null;
   research: ResearchView | null;
+  /** Phase 4c: advisories for this version. Missing in older answers: treated as null. */
+  advisories?: Advisories | null;
 }
 
 export interface RowStatus {
@@ -318,6 +327,8 @@ export interface LabRow {
 
 export interface RetestVersion {
   version: string;
+  /** Which library this version belongs to. Missing in older answers: the plan's own program. */
+  component?: string;
   label: string;
   tag: string;
   note: string;
@@ -564,6 +575,8 @@ export interface FixDetail {
   sections_note: string | null;   // shown instead of sections before the code is connected
   /** Phase 4b: the change box, drawn first in the fix's detail. Missing in older answers: treated as null. */
   change_box?: ChangeView | null;
+  /** Phase 4c: advisories for a text-only fix. Missing in older answers: treated as null. */
+  advisories?: Advisories | null;
 }
 
 export interface FixesView {
@@ -992,8 +1005,11 @@ export const api = {
   digDeeper: (runId: number) => request<LabView>(`/api/runs/${runId}/dig-deeper`, { method: "POST" }),
 
   /** The version is one of the demo versions the backend listed. No software is sent. */
-  retest: (planId: number, version: string) =>
-    request<LabView>(`/api/plans/${planId}/retest`, { method: "POST", json: { version } }),
+  retest: (planId: number, version: string, component?: string) =>
+    request<LabView>(`/api/plans/${planId}/retest`, {
+      method: "POST",
+      json: component !== undefined ? { version, component } : { version },
+    }),
 
   exportEvidence: (planId: number) => request<EvidenceExport>(`/api/plans/${planId}/evidence`, { method: "POST" }),
 

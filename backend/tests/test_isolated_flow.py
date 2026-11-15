@@ -13,7 +13,7 @@ def test_tests_run_in_containers_and_the_mode_is_recorded(docker_ready, tmp_path
     lab = make_lab(tmp_path, force_mode=None, speed_rounds=40, speed_repeats=5)  # the real default: 200 pairs
     try:
         assert lab.mode.name == "isolated" and lab.session_json(None)["mode"] == "isolated"
-        assert lab.session_json(None)["mode_line"] == "Isolated mode: our demo software runs in a locked-down container with no network."
+        assert lab.session_json(None)["mode_line"].startswith("Isolated mode: our demo software runs in a locked-down container with no network.")
         plan = demo_plan(lab)
         # The Verify step's software check also runs in the container, never as a local process.
         monkeypatch.setattr(components, "run_component", lambda *a, **k: pytest.fail("Verify ran the component locally"))

@@ -1,0 +1,36 @@
+{
+  "python-ecdsa-0.13.2": [
+    "/usr/local/bin/python",
+    "-I",
+    "-X",
+    "pycache_prefix=/scratch/pyc",
+    "/opt/evidence-lab/real/ecdsa_adapter.py",
+    "/opt/evidence-lab/real/ecdsa-0.13.2"
+  ],
+  "python-ecdsa-0.13.3": [
+    "/usr/local/bin/python",
+    "-I",
+    "-X",
+    "pycache_prefix=/scratch/pyc",
+    "/opt/evidence-lab/real/ecdsa_adapter.py",
+    "/opt/evidence-lab/real/ecdsa-0.13.3"
+  ],
+  "control-slow:python-ecdsa-0.13.2": [
+    "/usr/local/bin/python",
+    "-I",
+    "-X",
+    "pycache_prefix=/scratch/pyc",
+    "/opt/evidence-lab/real/ecdsa_adapter.py",
+    "/opt/evidence-lab/real/ecdsa-0.13.2",
+    "--slow"
+  ],
+  "control-slow:python-ecdsa-0.13.3": [
+    "/usr/local/bin/python",
+    "-I",
+    "-X",
+    "pycache_prefix=/scratch/pyc",
+    "/opt/evidence-lab/real/ecdsa_adapter.py",
+    "/opt/evidence-lab/real/ecdsa-0.13.3",
+    "--slow"
+  ]
+}

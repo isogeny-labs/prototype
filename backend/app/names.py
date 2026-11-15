@@ -54,6 +54,10 @@ def normalize_algorithm(name: object, curve: object = None, size: object = None)
         return "Ed25519"
     if "ED448" in c:
         return "Ed448"
+    # Post-quantum (phase 4c): the FIPS 204 signatures and FIPS 203 key exchanges, by their standard names.
+    m = re.fullmatch(r"(?:IDALG)?ML(DSA|KEM)(44|65|87|512|768|1024)", c)
+    if m and m.group(2) in (("44", "65", "87") if m.group(1) == "DSA" else ("512", "768", "1024")):
+        return f"ML-{m.group(1)}-{m.group(2)}"
     stripped = re.sub(r"SHA3?\d{1,3}", "", c).replace("WITH", "")
     if "ECDSA" in stripped or stripped in ("EC", "ECC"):
         found = normalize_curve(curve) if curve else None

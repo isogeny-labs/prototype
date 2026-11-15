@@ -4,15 +4,17 @@ accept-everything control. The reference library answers the same cases here in 
 Raw answers only: nothing in this file says which answer is right."""
 from __future__ import annotations
 
-from .. import components, reference, vectors
+from .. import components, real_libraries, reference, vectors
 from . import RunContext, batch_info, batch_problem, problem
 
 CONTROL = "control-accept-all"
 NOT_DEMO = "Only our own demo components can be run in this version."
+GENERAL_ERROR = "general error: "   # how a wrapper marks a crash that was not the library's own "bad signature" answer
 
 
 def component_key(spec: dict, ctx: RunContext) -> str | None:
-    """The harness name of the component to run, or None if it is not one of our registered demo components."""
+    """The harness name of the component to run, or None if it is not a registered component (one of our demo
+    components, or since phase 4c a real library)."""
     if ctx.component is None or spec["target"].get("component") != ctx.component[0]:
         return None
     try:
@@ -21,10 +23,38 @@ def component_key(spec: dict, ctx: RunContext) -> str | None:
         return None
 
 
+def family_of(ctx: RunContext, version: str | None = None) -> str | None:
+    """The real-library image a run needs (phase 4c), or None for one of our own demo components."""
+    if ctx.component is None:
+        return None
+    return real_libraries.family_of(ctx.component[0], version or ctx.component[1])
+
+
+def family_args(ctx: RunContext) -> dict:
+    """The extra argument a harness run needs for a real library: {"family": ...}. Empty for our own demo components,
+    so their runs are started exactly as they always were."""
+    family = family_of(ctx)
+    return {"family": family} if family is not None else {}
+
+
+def real_problem(ctx: RunContext) -> dict | None:
+    """Why a real library can't run here, said before anything is started: it never runs as a local program."""
+    family = family_of(ctx)
+    if family is None:
+        return None
+    if ctx.mode.name != "isolated":
+        return problem("needs_isolated_mode", real_libraries.NEEDS_ISOLATED + ", and this run is in demo mode.")
+    if not ctx.mode.real_images.get(family):
+        return problem("real_image_missing", f"The container image for {real_libraries.FAMILIES[family]['label']} is not prepared on this computer.")
+    return None
+
+
 def _run(spec: dict, ctx: RunContext, subject_set: vectors.VectorSet, files: dict, progress_text, reference_sets: dict) -> dict:
     key = component_key(spec, ctx)
     if key is None:
         return problem("not_a_demo_component", NOT_DEMO)
+    if (stopped := real_problem(ctx)) is not None:
+        return stopped
     cases = subject_set.cases
     total = len(cases)
     seen = {"n": 0}
@@ -41,12 +71,13 @@ def _run(spec: dict, ctx: RunContext, subject_set: vectors.VectorSet, files: dic
     ctx.progress(progress_text(0, total), 0)
     job = {"op": "verify_batch", "subjects": [key, CONTROL],
            "cases": [{"id": c.id, "public_key": c.public_key, "message": c.message, "signature": c.signature} for c in cases]}
-    result = ctx.runner.run_job(job, time_limit=240.0, on_line=on_line)
+    result = ctx.runner.run_job(job, time_limit=240.0, on_line=on_line, **family_args(ctx))
     if not result.ok:
         ctx.log(f"harness: {result.problem}")
         return batch_problem(result)
     answers: dict[str, dict] = {key: {}, CONTROL: {}}
     no_answer: dict[str, dict] = {key: {}, CONTROL: {}}
+    crashes: dict[str, str] = {}   # phase 4c: cases the library did not accept by crashing, not by its own "no"
     position = 0
     for line in result.lines:
         # Lines come per subject in the order asked, each subject's cases in order (also when both subjects are the same).
@@ -61,12 +92,17 @@ def _run(spec: dict, ctx: RunContext, subject_set: vectors.VectorSet, files: dic
             answers[subject][case_id] = "reject"
         else:
             no_answer[subject][case_id] = str(line.get("error") or "no answer")[:120]
+        note = line.get("note")
+        if subject == key and line.get("valid") is False and isinstance(note, str) and note.startswith(GENERAL_ERROR):
+            crashes[case_id] = note[len(GENERAL_ERROR):][:60]
     ctx.progress("checking the result", 97)
     raw = {"subject": {"key": key, "answers": answers[key], "no_answer": no_answer[key]},
            "control": {"key": CONTROL, "answers": answers[CONTROL], "no_answer": no_answer[CONTROL]},
            "reference": {"library": reference.LIBRARY}, "files": files, "batch": batch_info(result)}
     for name, (algorithm, case_list) in reference_sets.items():
         raw["reference"][name] = {"answers": reference.answers(algorithm, case_list)}
+    if crashes:   # only when there are any, so a run of our own demo components is recorded exactly as before
+        raw["subject"]["general_errors"] = crashes
     return raw
 
 

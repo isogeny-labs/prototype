@@ -41,6 +41,10 @@ def batch_problem(result: runner_module.BatchResult) -> dict:
         code = "timeout"
     elif result.problem == runner_module.PROBLEM_ISOLATED:
         code = "isolated_unavailable"
+    elif result.problem == runner_module.PROBLEM_REAL_NEEDS_ISOLATED:
+        code = "needs_isolated_mode"        # phase 4c: a real library never runs as a local program
+    elif result.problem == runner_module.PROBLEM_REAL_IMAGE_MISSING:
+        code = "real_image_missing"
     else:
         code = "harness_error"
     out = problem(code, result.problem or "the test harness gave no result")
@@ -57,11 +61,12 @@ EXCLUSIVE_KINDS = ("speed_size", "mldsa_compare", "signing_status")   # these ta
 
 
 def execute(spec: dict, ctx: RunContext) -> dict:
-    from . import pq, pqstatus, server, signing, speed
+    from . import pq, pqstatus, pqvectors, server, signing, speed
     table = {"tls_versions": server.run_tls_versions, "certificate": server.run_certificate,
              "official_vectors": signing.run_official_vectors, "bad_signatures": signing.run_bad_signatures,
              "speed_size": speed.run_speed_size, "pq_readiness": pq.run_pq_readiness, "mldsa_compare": speed.run_mldsa_compare,
-             "pq_status": pqstatus.run_pq_status, "signing_status": pqstatus.run_signing_status}
+             "pq_status": pqstatus.run_pq_status, "signing_status": pqstatus.run_signing_status,
+             "mlkem_vectors": pqvectors.run_pq_exam, "mldsa_vectors": pqvectors.run_pq_exam}
     run = table.get(spec.get("kind"))
     if run is None:
         return problem("harness_error", "This kind of test is not known to this version.")

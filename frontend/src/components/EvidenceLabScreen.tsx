@@ -397,13 +397,13 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
               <p className="px-2.5 pb-1.5 pt-2 text-xs text-slate-400">{retest.menu_title}</p>
               {retest.versions.map((v) => (
                 <button
-                  key={v.version}
+                  key={`${v.component ?? ""}/${v.version}`}
                   type="button"
                   role="menuitem"
                   onClick={() => {
                     setMenuOpen(false);
                     setExported(null);
-                    void act(() => api.retest(current.plan_id, v.version));
+                    void act(() => api.retest(current.plan_id, v.version, v.component));
                   }}
                   className="block w-full rounded-md p-2.5 text-left hover:bg-slate-800 focus-visible:bg-slate-800"
                 >

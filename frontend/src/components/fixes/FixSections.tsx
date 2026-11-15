@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
-import type { FixSection } from "../../api";
+import type { Advisories, FixSection } from "../../api";
 import { ChangeBody } from "./ChangeBody";
 import { DetailsBody } from "./DetailsBody";
 import { ProofBody } from "./ProofBody";
 import { SuggestionBody } from "./SuggestionBody";
 
-function Body({ section }: { section: FixSection }): ReactNode {
+function Body({ section, advisories }: { section: FixSection; advisories?: Advisories | null }): ReactNode {
   switch (section.key) {
     case "change":
       return <ChangeBody section={section} />;
@@ -14,18 +14,20 @@ function Body({ section }: { section: FixSection }): ReactNode {
     case "details":
       return <DetailsBody section={section} />;
     case "suggestion":
-      return <SuggestionBody suggestion={section.suggestion} />;
+      return <SuggestionBody suggestion={section.suggestion} advisories={advisories} />;
   }
 }
 
 interface Props {
   sections: FixSection[];
+  /** Published advisories of a text-only fix, drawn under the suggestion's intro. */
+  advisories?: Advisories | null;
   isOpen: (section: FixSection) => boolean;
   onToggle: (section: FixSection) => void;
 }
 
 /** The folded parts under the summary. Each shows its title and one line; a click opens or closes it. */
-export function FixSections({ sections, isOpen, onToggle }: Props) {
+export function FixSections({ sections, advisories, isOpen, onToggle }: Props) {
   return (
     <>
       {sections.map((section) => {
@@ -59,7 +61,7 @@ export function FixSections({ sections, isOpen, onToggle }: Props) {
             </h3>
             {open ? (
               <div id={bodyId} className="flex flex-col gap-4 border-t border-slate-800 px-4 pb-4 pt-3.5">
-                <Body section={section} />
+                <Body section={section} advisories={advisories} />
               </div>
             ) : null}
           </section>

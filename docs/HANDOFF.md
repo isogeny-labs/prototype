@@ -1,6 +1,6 @@
-# Handoff for the next session (after phase 4b, make it real)
+# Handoff for the next session (after phase 4c, real code)
 
-Read `CLAUDE.md` and `docs/SPEC.md` first; they win over this page. State: phases 1, 2, 3a and 4a are on `mvp/crypto-simple`; phase 4b (below) is committed too. Phase 3a (the Fixes step) was built on 13 November 2026, and the 3a fixes (from Kevin's own testing) on 14 November 2026. The order after it is fixed in SPEC 9: 4c Real code, 4d Dependency readiness and knowledge base, 5 Auto (the autoresearcher, Adam's repository), then Projects and assessments, Change watch (3c), Connectors and the Install package. The co-pilot and accuracy panel (3b) are still open too. Another session works on the same branch: pull before you start and again right before you push.
+Read `CLAUDE.md` and `docs/SPEC.md` first; they win over this page. State: phases 1, 2, 3a, 4a and 4b are on `mvp/crypto-simple`; phase 4c (below) was built on 15 November 2026. Phase 3a (the Fixes step) was built on 13 November 2026, and the 3a fixes (from Kevin's own testing) on 14 November 2026. The order after it is fixed in SPEC 9: 4c+ Engineering cleanup, 4d Dependency readiness and knowledge base, 5 Auto (the autoresearcher, Adam's repository), then Projects and assessments, Change watch (3c), Connectors and the Install package. The co-pilot and accuracy panel (3b) are still open too. Another session works on the same branch: pull before you start and again right before you push.
 
 ## What is built
 - **Phase 1:** Import (demo file or upload of the claims file), Verify (True / False / Couldn't check with evidence), a demo TLS server on localhost:8443, a demo CBOM, and an empty co-pilot panel.
@@ -37,6 +37,23 @@ Read `CLAUDE.md` and `docs/SPEC.md` first; they win over this page. State: phase
   - **Accuracy:** migration half graded against the revised `demo/expected-migration.json` (47 answers); 47 of 47 match (Kevin decided MC7 on 15 November 2026: Roll back undoes the server change, not the person's choice).
   - **Screenshots:** `docs/screenshots/phase4b/`.
 - **Checks on 15 November 2026 (phase 4b):** backend 1068 passed (none skipped, Docker running), frontend 225 passed, end-to-end 79 passed, accuracy: Acme Pay 18 of 18 and the migration demo 47 of 47, in demo mode and in isolated mode (after the answer key's MC7 correction, commit ece368f).
+
+- **Phase 4c: real code (15 November 2026).** Real crypto libraries written by others are test subjects, in isolated mode only.
+  - **The libraries** (`real_libraries.py`: versions, pins, advisories; nothing in a file can add to it): `openjdk` 17.0.2 and 17.0.3 (Temurin), `python-ecdsa` 0.13.2 and 0.13.3, `elliptic` 6.5.6 and 6.5.7, `openssl` 3.5.9 (ECDSA P-256, ML-DSA-65, ML-KEM-768). One image per family, built by `app.prepare` on the pinned Python base with the library's files copied in (`prepare_real`, `build_real`, `fetch`); wrappers in `demo/real-libraries/<family>/` with a `Dockerfile` and a `subjects.json` each.
+  - **Running them.** `components.kind_of(name, version)` says "demo", "real" or None. `ComponentRunner.run_job(..., family=...)` runs a job in that family's image with the driver started `--real`; in demo mode it answers `PROBLEM_REAL_NEEDS_ISOLATED` and starts nothing. `execute/signing.real_problem(ctx)` says why a real library can't run before anything starts.
+  - **The driver** (`demo/components/harness/driver.py`): `--real` reads the image's own `/opt/evidence-lab/real/subjects.json`; new jobs `kat_batch` (answers as SHA-256 only; the per-case field is `declined`, because a line holding `refused` means the driver refused the job) and `kem_roundtrip`; an optional `algorithm` on the older jobs.
+  - **The two exams** (`mlkem_vectors`, `mldsa_vectors`): cases in `pq_vectors.py` (11 pinned files in `demo/vectors/`), designed in `research._pq_exam`, run in `execute/pqvectors.py`, judged in `reviewer._pq_exam`, worded in `present_real.py`. Controls: `demo/real-libraries/openssl/pq_controls.py` and the accept-everything signer.
+  - **Kevin's decision 1:** an error raised by the library counts as "not accepted". The wrappers answer `{"valid": false}` and add `"note": "general error: <Class>"` for a crash; `execute/signing.py` keeps those as `subject.general_errors`, the reviewer lists them in `detail.general_errors` (only when there are any), and `present_real.extras` shows them under Also noticed. Never a result.
+  - **Programs.** `research.programs()` now gives one program per name, version and algorithm when a library is named with several, and a `key_exchange` claim for ML-KEM-768 is a program too (role `key_exchange`). `research.program_kinds()` picks the tests by algorithm.
+  - **Retest** can move one library: `testlab._retest_choices`, `_retest_menu`, `start_retest(plan_id, version, component)`; the swapped program is kept in the new table `retest_programs` (no column was added to `retests`, so an older database still opens).
+  - **Results** carry `real` and `advisories` (`present_real.advisories`; links allowed in the report through `evidence_export.REPORT_LINKS`). A failed test on a real library gets a text-only fix with `real_library` (`changes._fixes_for_failed_tests`, `present_fixes.text_fix`, `fix_line`).
+  - **Verify:** `components.verify_real_claim` (signatures, and a key exchange round trip confirmed by the reference library's ML-KEM). **Migration:** `execute/pqstatus.run_signing_status` asks a real library to make one ML-DSA-65 signature; the reviewer writes `can_make_pq`; `migration.py` uses it for the blocker; a key exchange program has no track.
+  - **Accuracy:** `accuracy_real.py` (`python -m app.accuracy --only real`) against `demo/expected-real-libraries.json` (commit `13ffac8`, written by Isogeny Labs; never edit it): 33 answers in isolated mode, 1 in demo mode, plus the key's six trial counts as a consistency check. It takes about 25 minutes.
+  - **Blind test:** `blind.py` (`python -m app.blind seal|run|reveal`), `docs/BLIND-TEST.md`, `demo/blind/`. Rehearsed on acme-sign only; Adam's case has not been run.
+  - **Helper tool:** `backend/tools/try_real_library.py <name> <version>`.
+  - **Screenshots:** `docs/screenshots/phase4c/` (17).
+  - **The reviewer's findings, all fixed the same day:** the blind test's freeze now covers every code file of the app except `real_libraries.py`, plus the exams' controls, and the run records the reviewer's own verdict; for OpenSSL, Verify says its second opinion (`cryptography`) is itself built on OpenSSL; the key-check control is judged on all 117 public keys that hold a number out of range (found by reading each key), not on 17 flagged ones; an exam's controls always run in the OpenSSL image; "the version its publisher fixed this in" became "fixed the fault the advisory describes"; the accuracy check confirms which version each answer ran on.
+  - **Checks on 15 November 2026 (phase 4c, after the reviewer's fixes), each run once:** backend full suite 1298 passed (none skipped, Docker running, 23.5 minutes); frontend 231 passed, type check clean; end-to-end 77 passed and 1 failed in the full run (an older phase 4a check looked for the words "in this version" in a sentence this phase rewrote; the words were kept and that file rerun: 13 of 13, so all 81 pass); accuracy in demo mode 18 of 18, 47 of 47 and 1 of 1 for the real libraries (the other 32 need isolated mode); accuracy in isolated mode 18 of 18, 47 of 47 and 33 of 33, with the key's six trial counts unchanged.
 
 ## How the pieces connect
 - `backend/app/lab.py` (`Lab`) is the hub: it owns the database, the mode and the job runner. Mixed into it: `testlab.py` (plans, runs, Evidence Lab), `evidence_export.py`, and for phase 3a `changes.py` (where every fix stands, and every action on it) and `fixes.py` (the views). `main.py` only exposes it as HTTP; every route needs the login.
@@ -77,13 +94,14 @@ Read `CLAUDE.md` and `docs/SPEC.md` first; they win over this page. State: phase
 - `gitrepo.py` handles loose objects, flat repositories and UTF-8 text only, and lines up changed lines with Python's own method, which can differ from git by one line for some texts. Both matter from 3c on.
 - If the app stops in the instant between the merge in the repository and writing the merge record, that pull request can no longer be merged.
 - The rule engine never raises. Another engine that raises, or answers in another shape, would make the Fixes and Evidence Lab views fail (the engine is asked on every look, before and after the code is connected). Wrap that question when another engine is plugged in.
-- The backend suite takes about 14 minutes and the end-to-end test about 6.
+- The backend suite takes about 24 minutes with Docker ready, the end-to-end test about 20 (10 of them the real-libraries flow in isolated mode), and the accuracy check about 35 in isolated mode (25 of them the real libraries).
 - The post-quantum status needs no Docker. Its second opinion in isolated mode (the OpenSSL 3.5 container's own client) needs Docker host networking; untested on Docker Desktop. The reference library runs outside the container.
 - The post-quantum engine uses `cryptography`'s internal OpenSSL bindings (pinned to 50.0.2). Before raising that pin, run `tests/test_pqtls.py`, `tests/test_migration_servers.py` and `tests/test_migration.py`: `pqtls.available()` names any function a new release dropped.
 - Nobody has compared the app's NIST wording with the NIST document itself yet (the build machine cannot reach the site).
 
 ## Next phases (SPEC 9)
-- **4c Real code:** OpenSSL 3.5's ML-KEM and ML-DSA against official test sets, old library versions with published bugs, and a blind test.
+- **The blind test** (from 4c): Adam seals his case, the build adds his library without changing a test, then run and reveal (`docs/BLIND-TEST.md`).
+- **4c+ Engineering cleanup** (SPEC 9).
 - **4d Dependency readiness and a knowledge base:** what is connected to each system, and whether each piece supports post-quantum.
 - **5 Auto:** the autoresearcher (Adam's repository).
 - **Then:** Projects and assessments; Change watch (3c); Connectors, for one-click apply on servers that aren't ours (the place where today's "a connector comes in a later phase" gets built); the Install package. Each phase: plan first, wait for Kevin's OK.
@@ -115,10 +133,10 @@ The lines below are still the suggestion's text. Tested on real nginx 1.24.0 and
 
 ## Working habits that matter
 - Plan first and wait for Kevin's OK; build; get a separate review; show test output, screenshots and accuracy; commit and push only after his OK. He isn't a developer: explain plainly and handle git yourself. A Stop hook keeps asking to commit; his rule wins.
-- After every machine restart start Docker by hand (`dockerd`) and run `cd backend && .venv/bin/python -m app.prepare`, or the container tests skip and the post-quantum check can't run. Use `backend/.venv`, never plain `python3`.
+- After every machine restart start Docker by hand (`dockerd`) and run `cd backend && .venv/bin/python -m app.prepare`, or the container tests skip, the post-quantum check can't run and the real libraries can't run. A change to any file under `demo/components/` or `demo/real-libraries/<family>/` changes that image's tag: run prepare again. Use `backend/.venv`, never plain `python3`.
 - Run the long checks one at a time. The speed test measures time, so two heavy runs at once can make it read "Couldn't trust this run".
 - If the demo component files ever change, run `python -m app.demo_repo` and `python -m app.prepare` again (the image tag is made from the files).
-- These sites are blocked from the build machine: csrc.nist.gov, nginx.org, httpd.apache.org, docs.aws.amazon.com.
+- These sites are blocked from the build machine: csrc.nist.gov, nginx.org, httpd.apache.org, docs.aws.amazon.com. Docker Hub, PyPI, the npm registry and public GitHub repositories (read only) could be reached on 15 November 2026.
 - Never edit `demo/expected.json` or `docs/wireframes/`. Ask before adding any dependency not in SPEC section 3. Never put keys or secrets in code, logs or replies.
 - Kevin keeps a gallery of the screenshots ("Evidence Lab Screens"). After a phase is committed, read it first, keep everything in it and add the new pictures.
 - Another session may be working on the same branch at the same time. Pull before you start and right before you push, and change only the files you were asked to.

@@ -175,7 +175,8 @@ same test with the same fingerprint is rerun on a new version.
 ```
 
 - Kinds: `tls_versions`, `certificate`, `official_vectors`, `bad_signatures`, `speed_size`,
-  `pq_readiness`, `mldsa_compare`.
+  `pq_readiness`, `mldsa_compare`, and since phase 4c `mlkem_vectors` and `mldsa_vectors`
+  (see "Phase 4c" below).
 - `target` for a server test is `{"kind": "server", "address": "localhost:8443"}`.
 - `target.claim` (phase 3a-fixes) is the ref of the file's claim that names the program, so two versions of one
   program (`acme-sign 1.4.2` and `acme-sign 9.9`) are two targets. It names no version: the version a test runs
@@ -585,3 +586,97 @@ Roll back and its measurement) and the report gains part 6, "Changes: tried, app
   names the server or program.
 - **The multi-target demo file's test servers** (`extra_servers.py`, ports 8444-8446, `Settings.extra_ports`)
   start only when that exact file is imported, or when that import is verified or tested after a restart.
+
+## Phase 4c: real libraries and the two post-quantum exams
+
+Same path as before: written down and locked, run, stored, reviewed by the separate reviewer. Words only in the
+`present_*` files (the real-library words are in `present_real.py`). A real library (`real_libraries.py`) runs only
+in isolated mode, in its own image; in demo mode its tests come out as Couldn't run ("needs isolated mode"). A real
+library is a target like any other signing program: `target.component` and `target.claim` name it.
+
+**Two new test kinds**, designed in `research.py` (`_pq_exam`), run in `execute/pqvectors.py`, judged in
+`reviewer.py` (`_pq_exam`, `_pq_right`). The cases are in `pq_vectors.py` (`FILES` with their SHA-256 pins, `EXAMS`).
+
+- `mlkem_vectors`, titled "Key exchange exam (ML-KEM-768)": parts `keygen` (125 cases), `encaps` (300), `decaps` (230).
+- `mldsa_vectors`, titled "Signature exam (ML-DSA-65)": parts `keygen` (25), `sign` (195), `verify` (255), and
+  `left_out` 45 (NIST cases for the pre-hash variant, which the adapter does not cover).
+
+The locked spec's own fields:
+
+```json
+{"kind": "mlkem_vectors",
+ "inputs": {"algorithm": "ML-KEM-768",
+            "files": [{"file": "ML-KEM-keyGen-FIPS203.json", "sha256": "d7a62a2c...", "source": "NIST ACVP"}],
+            "parts": [{"id": "keygen", "title": "Key generation", "cases": 125}],
+            "cases": 655, "left_out": 0,
+            "sources": {"nist": "<ACVP url>", "wycheproof": "<Wycheproof url>"}},
+ "control": {"kind": "pq_broken_copies", "text": "...",
+             "must": {"keygen": {"control": "wrong_answer", "wrong_on": "every case"},
+                      "encaps": {"control": "skip_key_check", "accepts_flag": "KeyOutOfRange", "count": 117},
+                      "decaps": {"control": "skip_key_check", "accepts_flag": "KeyHashWrong", "count": 6}}},
+ "rule": {"type": "pq_known_answers", "answer": "the published answer, by fingerprint", "refuse": "refused",
+          "accept": "not refused", "reject": "said not genuine"}}
+```
+
+- `inputs.files` lists every file the exam reads with its SHA-256 and source (`NIST ACVP` or `Wycheproof`); a changed
+  file stops the exam (`vector_file_changed`). `inputs.parts` has each part's `id`, `title` and `cases`.
+- `control.must` has one entry per part, and each says which broken copy is that part's control: `wrong_answer`
+  (changes a byte of every answer), `skip_key_check` (skips the two key checks FIPS 203 requires; judged on the cases
+  carrying the flag `accepts_flag`, which must number `count`) or `accept_all` (the accept-everything signer; for
+  ML-DSA `verify`, with `wrong_on` "every signature that must be rejected"). The ML-DSA exam's `must` is `keygen` and
+  `sign` with `wrong_answer`, and `verify` with `accept_all`.
+- `rule.type` is `pq_known_answers`: a case passes when the library gave the published answer (compared by SHA-256),
+  refused an input that must be refused, did not refuse a good key, or said the right yes or no on a signature.
+  Any wrong answer is Failed. Timing is not looked at.
+
+**Raw run record of an exam** (`raw`; the harness job is `kat_batch`, see docs/ADAPTER.md; no key, secret or
+signature is ever in it, only fingerprints):
+
+```
+{"subject": {"key": "openssl-3.5.9",
+             "answers": {"<case id>": {"refused": false, "valid": null, "sha256": "<64 hex>" | null}},
+             "no_answer": {"<case id>": "<why>"}},
+ "controls": {"<part id>": {"control": "wrong_answer", "answers": {...as above...}, "no_answer": {...}}
+                         | {"control": "...", "problem": "<text>"}},
+ "files": {"<file name>": "<SHA-256 the loader just checked>"},
+ "batch": {...}}
+```
+
+**Review detail** of an exam (`reviewer._pq_exam`): `total`, `right`, `wrong`, `no_answer`, `parts`, `left_out`.
+
+- `wrong`: one entry per wrong case: `id`, `part`, `source`, `comment`, `flags`, `expected` (`answer`, `refuse`,
+  `accept` or `reject`) and `got` (`the published answer`, `a different answer`, `refused`, `not refused`,
+  `accepted`, `rejected`).
+- `parts`: for each part `id`, `title`, `cases`, `right`, `nist`, `wycheproof` (how many cases came from each source)
+  and `control` (`{"control", "caught", "of"}`, or `caught` and `of` null if that control did not answer every case).
+- The review's `control` is `as_expected` (reason `every_broken_copy_failed_as_it_must`) only if every part's broken
+  copy was caught; `not_as_expected` (reason `a_broken_copy_was_not_caught`) if one was not; `errored` if one did not
+  answer every case. If the run recorded a problem, the verdict is Couldn't run; a case with no answer gives
+  `couldnt_run` with `component_no_answer`.
+
+**`general_errors`** (the owner's decision 1: an error raised by a library while it checks a signature counts as
+"not accepted"). The batch driver passes on the wrapper's note `general error: <ClassName>` and the signing test
+records it in `raw.subject.general_errors` (`{"<case id>": "<ClassName>"}`). In the review of `official_vectors` and
+`bad_signatures`, those cases are scored like any other (as not accepted), and `detail.general_errors` lists them as
+`[{"id", "error", "comment", "expected"}]`. It is written **only when there are any**, so the record and the review
+of a run on our own demo components stay exactly what they were. It is shown under "Also noticed", never as a result.
+
+**`can_make_pq`**: the review of a `signing_status` measurement on a real library carries `detail.can_make_pq`
+(true, false or null) and `detail.pq_algorithm`. It is read from `raw.capability`: true when the check of that
+capability (the library making an ML-DSA-65 signature today) said True, false when it said False, null otherwise. It is written only when a capability was
+measured. `migration.py` reads it as the "post-quantum signatures" setting of that program.
+
+**Retest of one library.** `POST /api/plans/{plan_id}/retest` takes `{"version": "...", "component": "..." | null}`.
+`component` names which program of the file moves to the other version, when the file names more than one. It is
+chosen from `_retest_choices` (each registered program with more than one version: our demo components and, since
+phase 4c, the real libraries), shown by `_retest_menu`, and stored in the add-only table `retest_programs`
+(`retest_id`, `component_name`). Without it the plan's own program is swapped, as before. The code that runs is
+`TestLabMixin.start_retest(plan_id, version, component)`.
+
+**Result view.** Each worded result gains `real` (true when its component is a real library, not one of our demo
+components) and `advisories`: `null`, or `{"title", "tag", "items": [{"id", "text", "link", "href", "covered"}]}`,
+the published advisories for that exact version (from `real_libraries.ADVISORIES`). Advisories are information from
+the publisher. They only appear on `official_vectors` and `bad_signatures` results that are not Couldn't run or
+Couldn't trust, and they never set a result. `covered` says whether and how these tests look at the problem. A
+failed test on a real library gets a text-only fix ("Update <name> to the fixed version (<version>)", or "no fixed
+version is known"); it is only text.

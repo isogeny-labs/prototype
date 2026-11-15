@@ -61,6 +61,8 @@ def problems(value, shape, path: str = "view") -> list[str]:
 
 
 TONE = Lit("pass", "fail", "neutral", "warn")
+# Phase 4c: the published advisories for a real library's version (information from the publisher, never a result).
+ADVISORIES = {"title": str, "tag": str, "items": [{"id": str, "text": str, "link": str, "href": str, "covered": str}]}
 KIND = Lit("tls_versions", "certificate", "official_vectors", "bad_signatures", "speed_size", "pq_readiness", "mldsa_compare")
 RICH = [{"t": Lit("text", "mono", "tag", "time", "demo"), "v": str}]
 STATUS_KEYS = ("not_connected", "proving", "ready", "failed", "waiting", "ready_to_merge", "merged", "text_only")
@@ -141,6 +143,7 @@ FIX_DETAIL = {
     "merge_dialog": Opt({"title": str, "paragraphs": [RICH], "confirm": str, "cancel": str}),
     "sections": [SECTION], "sections_note": Opt(str),
     "change_box": Opt(CHANGE_BOX),
+    "advisories": Opt(ADVISORIES),   # phase 4c: only on a text fix for a real library
 }
 FIXES_VIEW = {"plan_id": int, "is_demo": bool, "title": str, "subline": str, "disclaimer": str, "list_title": str,
               "empty_text": Opt(str), "fixes": [FIX_DETAIL], "busy": bool}
@@ -156,6 +159,7 @@ LAB_RESULT = {
     "run_record": {"title": str, "command": str, "outputs": [{"title": str, "text": str}], "meta": META},
     "locked_test": {"title": str, "fields": [{"label": str, "lines": [str]}], "locked_at": str, "locked_text": str,
                     "fingerprint_label": str, "fingerprint": str, "note": str},
+    "real": bool, "advisories": Opt(ADVISORIES),   # phase 4c: a real library, and its publisher's advisories
     "fix_title": str, "suggested_fix": Opt(str), "fix_line": Opt(FIX_LINE),
     "reviewed": Opt({"at": str, "text": str}), "research": Opt(dict),
 }
@@ -171,7 +175,7 @@ LAB_VIEW = {
     "grouped": bool, "groups": [{"key": str, "kind": Lit("server", "software", "reference"), "heading": str, "note": Opt(str)}],
     "not_tested": Opt({"title": str, "items": [str]}),
     "retest": {"can_start": bool, "blocked_reason": Opt(str), "running": bool, "progress_text": Opt(str), "menu_title": str,
-               "versions": [{"version": str, "label": str, "tag": str, "note": str}], "menu_note": str},
+               "versions": [{"version": str, "component": str, "label": str, "tag": str, "note": str}], "menu_note": str},
     "download": {"can_start": bool, "blocked_reason": Opt(str)},
     "busy": bool,
 }

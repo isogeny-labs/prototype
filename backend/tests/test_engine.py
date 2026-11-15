@@ -77,7 +77,7 @@ def test_the_reviewer_imports_nothing_from_the_engine_or_the_runner():
                 imported.add(node.module.split(".")[0])
     assert not imported & {"research", "execute", "present", "jobs", "lab", "testlab", "runner", "components", "reference", "main"}
     # tls_names (phase 4b) is pure data: the TLS signature algorithm numbers and their names, with no imports of its own
-    assert imported <= {"__future__", "math", "re", "statistics", "vectors", "canonical", "guidance", "tls_names"}, imported
+    assert imported <= {"__future__", "math", "re", "statistics", "vectors", "canonical", "guidance", "tls_names", "pq_vectors"}, imported
     assert "import" not in (Path(reviewer.__file__).parent / "tls_names.py").read_text().replace('"""', "").split("\n\n", 1)[1]
 
 

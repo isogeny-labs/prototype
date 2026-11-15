@@ -1,0 +1,40 @@
+{
+  "openjdk-17.0.2": [
+    "/opt/java/17.0.2/bin/java",
+    "-XX:+UseSerialGC",
+    "-XX:TieredStopAtLevel=1",
+    "-XX:-UsePerfData",
+    "-cp",
+    "/opt/evidence-lab/real/classes-17.0.2",
+    "EcdsaAdapter"
+  ],
+  "openjdk-17.0.3": [
+    "/opt/java/17.0.3/bin/java",
+    "-XX:+UseSerialGC",
+    "-XX:TieredStopAtLevel=1",
+    "-XX:-UsePerfData",
+    "-cp",
+    "/opt/evidence-lab/real/classes-17.0.3",
+    "EcdsaAdapter"
+  ],
+  "control-slow:openjdk-17.0.2": [
+    "/opt/java/17.0.2/bin/java",
+    "-XX:+UseSerialGC",
+    "-XX:TieredStopAtLevel=1",
+    "-XX:-UsePerfData",
+    "-cp",
+    "/opt/evidence-lab/real/classes-17.0.2",
+    "EcdsaAdapter",
+    "--slow"
+  ],
+  "control-slow:openjdk-17.0.3": [
+    "/opt/java/17.0.3/bin/java",
+    "-XX:+UseSerialGC",
+    "-XX:TieredStopAtLevel=1",
+    "-XX:-UsePerfData",
+    "-cp",
+    "/opt/evidence-lab/real/classes-17.0.3",
+    "EcdsaAdapter",
+    "--slow"
+  ]
+}

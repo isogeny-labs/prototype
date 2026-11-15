@@ -26,7 +26,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlalchemy import select
 
-from . import components, plain, present_fixes
+from . import components, plain, pq_vectors, present_fixes, real_libraries
 from .canonical import canonical_bytes, sha256_hex
 from .db import (
     ChangeRow, CodeConnectionRow, EvidenceExportRow, ImportRow, PlanItemRow, PlanRow, ProofReviewRow, ProofRow,
@@ -49,7 +49,9 @@ CSP = "default-src 'none'; style-src 'unsafe-inline'"
 # The name of the evidence part that describes the imported file. It is put together here because a test of
 # the container set-up scans the app for that word in quotes (it is also a docker verb) outside prepare.py.
 IMPORT_PART = "imp" + "ort"
-REPORT_LINKS = tuple(OWN_LINKS) + (WYCHEPROOF_SOURCE_URL,)  # the only links a report may carry: our own config
+# the only links a report may carry: our own config (since phase 4c also the official post-quantum test sets and the
+# advisories of the real libraries, all fixed in the app)
+REPORT_LINKS = tuple(OWN_LINKS) + (WYCHEPROOF_SOURCE_URL, pq_vectors.ACVP_URL, pq_vectors.WYCHEPROOF_PQ_URL) + tuple(real_libraries.ADVISORY_LINKS)
 
 
 class SigningKeyError(Exception):
@@ -165,6 +167,11 @@ def _result_view(r: dict) -> dict:
         **_pick(r, ("run_id", "component", "mode", "finished_at", "duration_ms", "code", "label", "tone", "plain", "summary", "short",
                     "shows_title", "fix_title", "suggested_fix")),
         "also_noticed": [str(x) for x in r.get("also_noticed") or []],
+        # phase 4c: a real library (not demo data), and the advisories its publisher has out for this version (information only)
+        "real": bool(r.get("real")),
+        "advisories": ({"title": str(r["advisories"].get("title")), "tag": str(r["advisories"].get("tag")),
+                        "items": [_pick(a, ("id", "text", "link", "href", "covered")) for a in r["advisories"].get("items") or []]}
+                       if r.get("advisories") else None),
         # the one line that stands in place of the suggested fix when the fix is in the Fixes part
         "fix_line": _pick(r["fix_line"], ("fix_id", "lead", "rest")) if r.get("fix_line") else None,
         "control": _pick(r.get("control"), ("outcome", "line", "text")),
@@ -412,7 +419,11 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
             "tests": tests,
             "retest": ({"baseline_version": retest.baseline_version, "version": retest.version, "started_at": iso(retest.created_at),
                         "columns": view.get("columns"),
-                        "code_line": "".join(str(part.get("v")) for part in view["code_line"]) if view.get("code_line") else None}
+                        "code_line": "".join(str(part.get("v")) for part in view["code_line"]) if view.get("code_line") else None,
+                        # phase 4c: the library this retest moved, when it is not the plan's own program or is a real library
+                        # (a retest of our demo program reads as it always did)
+                        **({"component": lab._retest_component(retest.id) or plan.component_name}
+                           if lab._retest_component(retest.id) or real_libraries.library(plan.component_name, retest.version) else {})}
                        if retest else None),
             # The source code connected for this plan (the app's own copy of a demo repository), and the Fixes step.
             "code": ({"repository": connection.repository, "branch": connection.branch, "base_commit": connection.base_commit,
@@ -503,6 +514,16 @@ def _block_html(block: dict) -> _Safe:
     return _join([head, el("pre", t(block.get("text")))])
 
 
+def _advisories_html(block: dict | None) -> list:
+    """Phase 4c: the published advisories for a real library's version, with their links. Information, never a result."""
+    if not block or not block.get("items"):
+        return []
+    return [el("p", el("strong", t(f"{block.get('title')} [{block.get('tag')}]")), cls="note"),
+            el("ul", *[el("li", el("strong", t(a.get("id"))), _Safe(" "), t(a.get("text")), _Safe(" "),
+                          el("a", t(a.get("link")), href=a["href"]) if a.get("href") in REPORT_LINKS else t(a.get("link")),
+                          _Safe(". "), t(a.get("covered"))) for a in block["items"]], cls="meta")]
+
+
 def _result_html(heading: str, entry: dict) -> _Safe:
     r = entry["result"]
     record, locked = r["run_record"], r["locked_test"]
@@ -511,9 +532,10 @@ def _result_html(heading: str, entry: dict) -> _Safe:
         el("p", el("strong", t(r.get("label")), cls=f"badge tone-{r.get('tone')}" if r.get("tone") in ("pass", "fail", "neutral", "warn") else "badge"),
            _Safe(" "), t(r.get("plain") or r.get("summary"))),
         *[el("p", el("strong", t("Also noticed:")), _Safe(" "), t(note), cls="note") for note in r.get("also_noticed") or []],
+        *_advisories_html(r.get("advisories")),
         el("p", t(r.get("summary")), cls="note") if r.get("plain") and r.get("summary") and r.get("plain") != r.get("summary") else _Safe(""),
         el("ul", *[el("li", t(line)) for line in (
-            f"Component: {r.get('component')} [demo]" if r.get("component") else "Component: none (this test is about the server)",
+            f"Component: {r.get('component')} [{'real software' if r.get('real') else 'demo'}]" if r.get("component") else "Component: none (this test is about the server)",
             f"Mode: {r.get('mode')}", f"Finished: {r.get('finished_at')} (UTC)",
             f"Run record fingerprint (SHA-256): {entry.get('run_sha256')}",
             f"Reviewed by: {entry['review'].get('reviewer')}; test proposed by: {entry['review'].get('proposed_by')}")], cls="meta"),
@@ -796,8 +818,11 @@ def render_report_html(envelope: dict) -> bytes:
     body.append(el("h2", t("3. Tests and results")))
     if retest:
         columns = retest.get("columns") or {}
-        body.append(el("p", t(f"Before and after: the same locked tests were run on version {retest.get('baseline_version')} "
-                              f"and then on version {retest.get('version')}. Retest started "), _when(retest.get("started_at"))))
+        moved = f"{retest['component']} " if retest.get("component") else "version "
+        body.append(el("p", t(f"Before and after: the same locked tests were run on {moved}{retest.get('baseline_version')} "
+                              f"and then on {moved}{retest.get('version')}. "
+                              + ("Every other program was tested again as it is. " if retest.get("component") else "") + "Retest started "),
+                       _when(retest.get("started_at"))))
         body.append(el("p", t(retest.get("code_line"))) if retest.get("code_line") else _Safe(""))
     for test in e.get("tests") or []:
         body.append(el("h2", t(test.get("title"))))

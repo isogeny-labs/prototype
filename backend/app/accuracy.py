@@ -11,6 +11,9 @@ then Retest on acme-sign 1.4.3. Answers are read only from reviewed results (the
 applied to the demo server, then Verify and the server test again (rolled back at the end, in the check's own data).
 It only READS the answer keys; it never writes them. Any mismatch or missing answer is printed and makes the command
 exit with code 1.
+
+Then the migration demo against demo/expected-migration.json (47 answers), and since phase 4c the real libraries
+against demo/expected-real-libraries.json (accuracy_real.py). `--only acme|migration|real` runs one of the three.
 """
 from __future__ import annotations
 
@@ -793,9 +796,10 @@ def print_migration_report(settings: Settings | None, say=print) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.accuracy", description="Compare the app's demo answers with demo/expected.json.")
-    parser.add_argument("--only", choices=("acme", "migration"), default=None,
+    parser.add_argument("--only", choices=("acme", "migration", "real"), default=None,
                         help="acme = only the Acme Pay demo (demo/expected.json); migration = only the migration demo "
-                             "(demo/expected-migration.json). Default: both.")
+                             "(demo/expected-migration.json); real = only the real libraries "
+                             "(demo/expected-real-libraries.json). Default: all three.")
     parser.add_argument("--mode", choices=("auto", "demo", "isolated"), default=None,
                         help="demo = local processes; isolated = containers (needs Docker and the prepared images); "
                              "auto = isolated when it is available. Default: the EVIDENCE_LAB_MODE setting, else auto.")
@@ -804,10 +808,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.mode is not None:
         settings = dataclasses.replace(settings, force_mode=None if args.mode == "auto" else args.mode)
     codes = []
-    if args.only != "migration":
+    if args.only in (None, "acme"):
         codes.append(print_report(run_accuracy(settings)))
-    if args.only != "acme":
+    if args.only in (None, "migration"):
         codes.append(print_migration_report(settings))
+    if args.only in (None, "real"):
+        from .accuracy_real import print_real_report   # phase 4c: the real libraries (isolated mode; in demo mode only RD1 applies)
+        codes.append(print_real_report(settings))
     return max(codes)
 
 

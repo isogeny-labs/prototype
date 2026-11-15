@@ -226,21 +226,38 @@ def run_pq_status(spec: dict, ctx: RunContext) -> dict:
 def run_signing_status(spec: dict, ctx: RunContext) -> dict:
     """A signing program: what it says it signs with, confirmed by one sign-and-check round trip that an independent
     library checks (exactly Verify's check), then its own bench next to ML-DSA-65 on the reference library."""
-    from .signing import NOT_DEMO, component_key
+    from .signing import NOT_DEMO, component_key, real_problem
     from .speed import run_mldsa_compare
     if component_key(spec, ctx) is None:
         return problem("not_a_demo_component", NOT_DEMO)
+    if (stopped := real_problem(ctx)) is not None:   # phase 4c: a real library is measured in isolated mode only
+        return stopped
     name, version = ctx.component
     path = components.lookup(name, version)
+    claimed = spec["inputs"]["claimed_algorithm"]
+    capability = None
     ctx.progress("waiting for a timing measurement to finish", None)
     with ctx.gate.shared():
         ctx.begin()
         ctx.progress("asking the program what it signs with", 10)
-        check = components.verify_software_claim(path, name, version, spec["inputs"]["claimed_algorithm"], runner=ctx.runner)
-    raw: dict = {"subject": {"component": f"{name} {version}", "claimed_algorithm": spec["inputs"]["claimed_algorithm"],
+        if path is None:   # a real library, in its own container image
+            check = components.verify_real_claim(name, version, claimed, runner=ctx.runner)
+            wanted = (spec["inputs"].get("capability") or {}).get("algorithm")
+            if check.get("result") == "True" and wanted:
+                # Can it make a post-quantum signature today? Asked of the library itself and checked independently.
+                ctx.progress(f"asking it to make one {wanted} signature", 30)
+                can = components.verify_real_claim(name, version, wanted, runner=ctx.runner)
+                capability = {"algorithm": wanted, "check": {k: can.get(k) for k in ("result", "found", "reason")},
+                              "evidence": list(can.get("evidence") or [])}
+        else:
+            check = components.verify_software_claim(path, name, version, claimed, runner=ctx.runner)
+    raw: dict = {"subject": {"component": f"{name} {version}", "claimed_algorithm": claimed,
                              "check": {k: check.get(k) for k in ("result", "found", "reason")},
                              "evidence": list(check.get("evidence") or [])}, "cost": None}
-    if check.get("result") == "True":
+    if capability is not None:
+        raw["capability"] = capability
+    if check.get("result") == "True" and not (path is None and str(claimed).startswith("ML-")):
+        # (a library that already signs with a post-quantum algorithm has nothing to be compared with)
         raw["cost"] = run_mldsa_compare({"inputs": spec["inputs"]["mldsa"], "target": spec["target"]}, ctx)
     return raw
 

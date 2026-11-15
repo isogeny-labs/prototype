@@ -149,6 +149,14 @@ class RetestRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class RetestProgramRow(Base):
+    """Phase 4c: which program a retest swaps to another version, when it is not the plan's own program (for example
+    openjdk in a file that names several libraries). Its own table, so an older database still opens. Append-only."""
+    __tablename__ = "retest_programs"
+    retest_id: Mapped[int] = mapped_column(ForeignKey("retests.id"), primary_key=True)
+    component_name: Mapped[str] = mapped_column(String(100))
+
+
 class TestRunRow(Base):
     """One run of one locked test. Inserted once, when the job finishes. Append-only.
     `phase` is "first", "retest" or "proof". For a retest run `retest_id` holds the retest's id; for a proof run

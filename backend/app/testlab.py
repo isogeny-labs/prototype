@@ -13,12 +13,12 @@ from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 
-from . import components, present, present_fixes, research
+from . import components, present, present_fixes, real_libraries, research
 from .canonical import canonical_bytes, sha256_hex
 from .config import DEMO_HOSTNAME
 from .db import (
-    AddressRow, ImportRow, PlanItemRow, PlanRow, ProofRow, ResearchRequestRow, RetestRow, ReviewMarkRow, ReviewRow,
-    RunCodeRow, TestRunRow, TestSpecRow, iso,
+    AddressRow, ImportRow, PlanItemRow, PlanRow, ProofRow, ResearchRequestRow, RetestProgramRow, RetestRow, ReviewMarkRow,
+    ReviewRow, RunCodeRow, TestRunRow, TestSpecRow, iso,
 )
 from .errors import BadRequest, Conflict, NotFound
 from .execute import RunContext, execute, problem
@@ -128,7 +128,7 @@ class TestLabMixin:
         components can): such a program gets no test cards and no result rows, only its line under "Not tested,
         and why". So the count of tests leaves it out."""
         proposal = self.engine.propose_tests(claims)
-        cant_run = {p["ref"] for p in research.programs(claims) if not components.lookup(p["component"], p["version"])}
+        cant_run = {p["ref"] for p in research.programs(claims) if not components.kind_of(p["component"], p["version"])}
         tests = [t for t in proposal["tests"] if not ((t.get("target") or {}).get("kind") == "software" and t["target"].get("claim") in cant_run)]
         return {**proposal, "tests": tests}
 
@@ -169,7 +169,7 @@ class TestLabMixin:
         """The plan's own signing program: the one Retest, Connect demo code and the proof work on. The first
         program in the file that is one of our registered demo components, else the first program."""
         found = research.programs(claims)
-        return next((p for p in found if components.lookup(p["component"], p["version"])), found[0] if found else None)
+        return next((p for p in found if components.kind_of(p["component"], p["version"])), found[0] if found else None)
 
     @staticmethod
     def _program_of(plan: PlanRow, claims: list[dict], spec: dict) -> dict | None:
@@ -197,7 +197,9 @@ class TestLabMixin:
         server or more than one signing program; with one of each the list stays flat, as it always was."""
         grouped = len(research.servers(claims)) > 1 or len(research.programs(claims)) > 1
         order = [("server:" + a, "server", f"Server: {a}", a) for a in research.servers(claims)]
-        order += [("software:" + p["ref"], "software", f"Signing program: {p['label']}", p) for p in research.programs(claims)]
+        order += [("software:" + p["ref"], "software",
+                   f"{'Key exchange program' if p.get('role') == 'key_exchange' else 'Signing program'}: {p['label']}", p)
+                  for p in research.programs(claims)]
         key_of = {item.id: self._item_key(plan, claims, specs[item.id][0]) for item in items}
         used = set(key_of.values())
         with self.db() as db:
@@ -209,8 +211,10 @@ class TestLabMixin:
             note = None
             if side == "server" and not confirmed.get(what, False):
                 note = "Not confirmed yet: its tests can't run until you tick \u201cI own this system or am allowed to test it\u201d on Import."
-            if side == "software" and not components.lookup(what["component"], what["version"]):
+            if side == "software" and not components.kind_of(what["component"], what["version"]):
                 note = NOT_DEMO_PROGRAM
+            elif side == "software":
+                note = self._real_note(what)   # a real library that can't run here (demo mode, or its image is missing)
             groups.append({"key": key, "kind": side, "heading": heading, "note": note})
         if "reference" in used:
             groups.append({"key": "reference", "kind": "reference", "heading": "Reference figures (no signing program from the file)", "note": None})
@@ -220,6 +224,20 @@ class TestLabMixin:
                 known.add(key)
                 groups.append({"key": key, "kind": "software", "heading": "Signing program: " + key.split(":", 1)[-1], "note": None})
         return grouped, groups, key_of
+
+    def _real_note(self, program: dict) -> str | None:
+        """Why a real library named in the file can't run on this computer right now, or None when it can (and for
+        our own demo components). Said plainly wherever the library shows; nothing of it ever runs as a local program."""
+        family = real_libraries.family_of(program["component"], program["version"])
+        if family is None:
+            return None
+        if self.mode.name != "isolated":
+            return ("This is real software from outside. It runs only in isolated mode (Docker), and this run is in demo mode, "
+                    "so its tests can't run here.")
+        if not self.mode.real_images.get(family):
+            return (f"This is real software from outside. Its container image ({real_libraries.FAMILIES[family]['label']}) is not prepared on "
+                    "this computer, so its tests can't run. ./run-demo.sh prepares it (it needs internet once).")
+        return None
 
     def _item_key(self, plan: PlanRow, claims: list[dict], spec: dict) -> str:
         """The group a test belongs to: "server:<address>", "software:<claim ref>", or "reference"."""
@@ -262,8 +280,10 @@ class TestLabMixin:
             if "server:" + address in used and not confirmed.get(address, False):
                 lines.append(f"{address}: not confirmed yet, so its tests can't run. Tick \u201cI own this system or am allowed to test it\u201d on Import.")
         for program in research.programs(claims):
-            if not components.lookup(program["component"], program["version"]):
+            if not components.kind_of(program["component"], program["version"]):
                 lines.append(f"{program['label']}: its tests can't run. Only our own demo components can run in this version.")
+            elif (note := self._real_note(program)) is not None:
+                lines.append(f"{program['label']}: " + note[0].lower() + note[1:])
         tested_pq = {key.split(":", 1)[-1] for (key, kind) in have if kind == "pq_readiness"}
         for c in claims:
             where = c.get("location") or ""
@@ -273,7 +293,8 @@ class TestLabMixin:
                 lines.append(f"{where}: {UNCOVERED[c['kind']]}")
             elif c.get("location_kind") == "server" and c.get("kind") not in ("protocol_versions", "certificate"):
                 lines.append(f"{where}: its {str(c.get('kind')).replace('_', ' ')} claim is not covered by any test in this version.")
-            elif c.get("location_kind") == "software" and c.get("kind") != "signature_algorithm":
+            elif c.get("location_kind") == "software" and c.get("kind") != "signature_algorithm" \
+                    and str(c.get("ref")) not in label:   # (a key exchange program, phase 4c, has its own tests)
                 lines.append(f"{where}: its {str(c.get('kind')).replace('_', ' ')} claim is not covered by any test in this version.")
             elif c.get("location_kind") not in ("server", "software"):
                 lines.append(f"{c.get('claimed_value') or 'A claim'}: the file doesn't say where it is used, so nothing can be tested.")
@@ -290,13 +311,17 @@ class TestLabMixin:
 
     @staticmethod
     def _counted_targets(claims: list[dict]) -> str:
-        n_servers, n_programs = len(research.servers(claims)), len(research.programs(claims))
+        found = research.programs(claims)
+        n_servers, n_programs = len(research.servers(claims)), sum(1 for p in found if p.get("role") != "key_exchange")
+        n_kem = len(found) - n_programs
         parts = []
         if n_servers:
             parts.append(f"{present.number_word(n_servers)} {'server' if n_servers == 1 else 'servers'}")
         if n_programs:
             parts.append(f"{present.number_word(n_programs)} signing {'program' if n_programs == 1 else 'programs'}")
-        return " and ".join(parts)
+        if n_kem:
+            parts.append(f"{present.number_word(n_kem)} key exchange {'program' if n_kem == 1 else 'programs'}")
+        return research.join_and(parts) if len(parts) > 2 else " and ".join(parts)
 
     def _component_words(self, plan: PlanRow) -> str | None:
         return f"{plan.component_name} {plan.component_version}" if plan.component_name else None
@@ -381,7 +406,7 @@ class TestLabMixin:
         if kind in research.SERVER_KINDS:
             return list(research.servers(claims))
         found = research.programs(claims)
-        refs = [p["ref"] for p in found if components.lookup(p["component"], p["version"])]  # a program that can't run gets no test
+        refs = [p["ref"] for p in found if components.kind_of(p["component"], p["version"])]  # a program that can't run gets no test
         return refs or ([None] if kind == "mldsa_compare" and not found else [])
 
     def _missing_targets(self, kind: str, claims: list[dict], every: list[PlanItemRow], specs: dict) -> tuple[list, list]:
@@ -549,17 +574,29 @@ class TestLabMixin:
         if spec_row_kind in SOFTWARE_KINDS and program is None and not spec and plan.component_name is not None:
             program = {"component": plan.component_name, "version": plan.component_version, "own": True}  # unreadable test: as before
         own = bool(program and program["own"]) and phase != MIGRATION_ORIGIN   # a migration measurement runs the bundled program as it is
-        version = (rerun.version if (rerun and own) else program["version"]) if program else None
+        # Which program a rerun swaps to the version it names: the plan's own program, or (phase 4c) the program a
+        # retest was started for. Every other program is run again on the version the file names.
+        swap = bool(rerun and own)
+        other = self._retest_component(rerun.id) if (rerun is not None and phase == "retest") else None
+        if other is not None:
+            swap = bool(program) and program["component"] == other and program["version"] == rerun.baseline_version
+        version = (rerun.version if swap else program["version"]) if program else None
         args = {"plan_id": plan.id, "import_id": plan.import_id, "item_id": item.id, "spec_hash": item.spec_hash, "phase": phase,
                 "retest_id": rerun.id if rerun else None, "component_name": program["component"] if program else None,
                 "component_version": version,
-                "baseline_version": plan.component_version if (rerun and own) else None,
+                "baseline_version": (rerun.baseline_version if other is not None else plan.component_version) if swap else None,
                 "own": own}  # the plan's own program: in a proof, only it runs the changed code
         try:
             group = ("migration", plan.id) if phase == MIGRATION_ORIGIN else plan.id   # measuring doesn't make Tests "busy"
             return self.jobs.submit((item.id, phase), lambda job: self._run_one(job, args), group=group)
         except ValueError as exc:
             raise Conflict("This test is already waiting or running.") from exc
+
+    def _retest_component(self, retest_id: int) -> str | None:
+        """The program a retest swaps when it is not the plan's own (phase 4c), else None."""
+        with self.db() as db:
+            row = db.get(RetestProgramRow, retest_id)
+            return row.component_name if row is not None else None
 
     def _address_check(self, import_id: int, address: str) -> AddressCheck | None:
         """Phase 1's gate, rebuilt from the address as it is NOW: this computer or confirmed, and the IP pinned."""
@@ -668,7 +705,7 @@ class TestLabMixin:
     # ---------------------------------------------------------------- results (read gate)
 
     def _fix_version(self, name: str | None, version: str | None) -> str | None:
-        versions = components.VERSIONS.get(name or "", [])
+        versions = components.versions_of(name)
         if version in versions and versions.index(version) + 1 < len(versions):
             return f"{name} {versions[versions.index(version) + 1]}"
         return None
@@ -823,22 +860,23 @@ class TestLabMixin:
                             shown["suggested_fix"] = None
             address, component = self._server_address(specs), self._component_words(plan)
             n_word = present.number_word(len(items))
+            choices = self._retest_choices(plan, claims)
             versions = components.VERSIONS.get(plan.component_name or "", [])
-            demo_component = plan.component_version in versions
-            if not demo_component:
-                blocked = "A retest needs one of our demo signing components, and this file doesn't name one."
+            if not choices:
+                blocked = ("A retest needs one of our demo signing components, and this file doesn't name one." if not self._real_programs(claims)
+                           else "A retest needs a program that has another version in this app, and this file names none.")
             else:
                 blocked = BUSY[running] if busy else self._compare_blocked(plan_id, items, missing)
-            menu = [{"version": v, "label": f"{plan.component_name} {v}", "tag": "demo",
-                     "note": ("The demo version these results are for." if v == plan.component_version
-                              else "The corrected demo version." if versions.index(v) > versions.index(plan.component_version)
-                              else "An earlier demo version.")}
-                    for v in sorted(versions, key=lambda v: (v == plan.component_version, -versions.index(v)))] if demo_component else []
+            menu = self._retest_menu(plan, choices)
+            only_demo = all(components.lookup(p["component"], p["version"]) for p in choices)
+            tests_word = f"the same {n_word} locked {'test' if len(items) == 1 else 'tests'}"
             retest_view = {"can_start": blocked is None, "blocked_reason": blocked, "running": bool(retest_live),
                            "progress_text": (f"Retest running: {after_done} of {len(items)} tests finished." if retest_live else None),
                            "menu_title": "Choose the version to retest", "versions": menu,
-                           "menu_note": (f"Choosing a version reruns the same {n_word} locked {'test' if len(items) == 1 else 'tests'} on it and shows before and after. "
-                                         f"Only our {present.number_word(len(versions))} demo versions can be chosen here.")}
+                           "menu_note": (f"Choosing a version reruns {tests_word} on it and shows before and after. "
+                                         f"Only our {present.number_word(len(versions))} demo versions can be chosen here." if only_demo else
+                                         f"Choosing a version reruns {tests_word} with that library moved to it, and shows before and after. "
+                                         "Every other program is tested again as it is. Only the versions listed here can be chosen.")}
             any_result = len(items) > missing or self._has_migration(db, plan_id)   # a migration measurement counts too
             download = {"can_start": any_result and not busy,
                         "blocked_reason": None if any_result and not busy else
@@ -863,7 +901,8 @@ class TestLabMixin:
                     subline.append({"t": "text", "v": ". No test has been run yet."})
                 view, columns, code_line = "results", None, None
             else:
-                before, after_name = f"{plan.component_name} {retest.baseline_version}", f"{plan.component_name} {retest.version}"
+                swapped = self._retest_component(retest.id) or plan.component_name
+                before, after_name = f"{swapped} {retest.baseline_version}", f"{swapped} {retest.version}"
                 subline = [{"t": "text", "v": f"Before and after: the same {n_word} locked {'test' if len(items) == 1 else 'tests'}, run on "},
                            {"t": "mono", "v": before}, {"t": "text", "v": " and then on "}, {"t": "mono", "v": after_name}]
                 if grouped:
@@ -920,22 +959,70 @@ class TestLabMixin:
 
     # ---------------------------------------------------------------- retest
 
-    def start_retest(self, plan_id: int, version: str) -> dict:
+    @staticmethod
+    def _real_programs(claims: list[dict]) -> list[dict]:
+        return [p for p in research.programs(claims) if components.kind_of(p["component"], p["version"]) == "real"]
+
+    @staticmethod
+    def _retest_choices(plan: PlanRow, claims: list[dict]) -> list[dict]:
+        """The programs in the file a retest can move to another version: each registered program (one of our demo
+        components, or since phase 4c a real library) that has more than one version in this app. Once per name."""
+        out, seen = [], set()
+        for p in research.programs(claims):
+            versions = components.versions_of(p["component"])
+            if p["component"] in seen or p["version"] not in versions or len(versions) < 2 \
+                    or not components.kind_of(p["component"], p["version"]):
+                continue
+            seen.add(p["component"])
+            out.append(p)
+        return out
+
+    @staticmethod
+    def _retest_menu(plan: PlanRow, choices: list[dict]) -> list[dict]:
+        menu = []
+        for p in choices:
+            name, current, versions = p["component"], p["version"], components.versions_of(p["component"])
+            demo = components.lookup(name, current) is not None
+            for v in sorted(versions, key=lambda v: (v == current, -versions.index(v))):
+                if demo:
+                    note = ("The demo version these results are for." if v == current
+                            else "The corrected demo version." if versions.index(v) > versions.index(current) else "An earlier demo version.")
+                else:
+                    fixes = [cve for cve in (real_libraries.LIBRARIES[name]["advisories"].get(current, ()))
+                             if real_libraries.fixed_version(name, current) == v]
+                    note = ("The version these results are for." if v == current
+                            else f"The version its publisher fixed {research.join_and(fixes)} in." if fixes
+                            else "A later version." if versions.index(v) > versions.index(current) else "An earlier version.")
+                menu.append({"version": v, "component": name, "label": f"{name} {v}", "tag": "demo" if demo else "real software", "note": note})
+        return menu
+
+    def start_retest(self, plan_id: int, version: str, component: str | None = None) -> dict:
+        """`component` names the program to move to `version` (phase 4c). Left out, it is the plan's own program."""
         with self._plan_lock:
             with self.db() as db:
                 plan = self._plan(db, plan_id)
-                versions = components.VERSIONS.get(plan.component_name or "", [])
-                if plan.component_version not in versions:
-                    raise Conflict("A retest needs one of our demo signing components, and this file doesn't name one.")
-                if version not in versions:
-                    raise BadRequest("Only our demo versions can be chosen for a retest.", field="version")
+                claims = self._claims(db.get(ImportRow, plan.import_id))
+                choices = {p["component"]: p for p in self._retest_choices(plan, claims)}
+                if not choices:
+                    raise Conflict("A retest needs one of our demo signing components, and this file doesn't name one." if not self._real_programs(claims)
+                                   else "A retest needs a program that has another version in this app, and this file names none.")
+                name = component if component is not None else (plan.component_name if plan.component_name in choices else next(iter(choices)))
+                if name not in choices:
+                    raise BadRequest("That program can't be chosen for a retest of this file.", field="component")
+                if version not in components.versions_of(name):
+                    raise BadRequest("Only our demo versions can be chosen for a retest." if components.lookup(name, choices[name]["version"])
+                                     else "Only the versions listed for this library can be chosen for a retest.", field="version")
+                baseline = choices[name]["version"]
             view = self.lab_view(plan_id)
             if not view["retest"]["can_start"]:
                 raise Conflict(view["retest"]["blocked_reason"] or "A retest can't start right now.")
             with self.db() as db:
                 plan = self._plan(db, plan_id)
-                retest = RetestRow(plan_id=plan_id, baseline_version=plan.component_version, version=version)
+                retest = RetestRow(plan_id=plan_id, baseline_version=baseline, version=version)
                 db.add(retest)
+                db.flush()
+                if name != plan.component_name:
+                    db.add(RetestProgramRow(retest_id=retest.id, component_name=name))
                 db.commit()
                 for item in self._items(db, plan_id):
                     self._submit(plan, item, "retest", retest)

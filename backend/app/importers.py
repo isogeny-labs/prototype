@@ -147,7 +147,7 @@ def _sorted(claims: list[ParsedClaim]) -> list[ParsedClaim]:
 
 _CSV_CLAIMS = {
     "tls": {"protocol_versions", "cipher_suites", "key_exchange", "certificate", "post_quantum"},
-    "software": {"signature_algorithm"},
+    "software": {"signature_algorithm", "key_exchange"},   # key_exchange for software since phase 4c (for example ML-KEM-768)
 }
 # Phase 4a: what a file may claim about a server's post-quantum key exchange, and the settings it may give a system.
 POST_QUANTUM_VALUES = {"classical": "Classical", "hybrid": "Hybrid", "postquantumonly": "Post-quantum only", "pqonly": "Post-quantum only"}
@@ -270,7 +270,7 @@ def _csv_row(line: int, location: str, type_: str, claim: str, value: str) -> Pa
             raise bad("a software location needs a name and a version, for example: acme-sign 1.4.2", "location")
         name, version = parsed
         algorithm = normalize_algorithm(value) or clean_text(value, 80)
-        return _software_claim(ref, source, name, version, algorithm)
+        return _software_claim(ref, source, name, version, algorithm, kind=claim)
 
     try:
         hp = parse_address(location)

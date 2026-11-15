@@ -572,6 +572,35 @@ export const lab: LabView = {
   busy: false,
 };
 
+/** Phase 4c: the advisories box of a result or a text fix. */
+export const advisories: NonNullable<LabResult["advisories"]> = {
+  title: "Published advisories for this version",
+  tag: "from the advisory, not a result",
+  items: [
+    {
+      id: "CVE-2022-21449",
+      text: "Java 15 to 18 accept a blank ECDSA signature (r = 0, s = 0). Fixed in 17.0.3.",
+      link: "OpenJDK advisory, 19 April 2022",
+      href: "https://openjdk.org/groups/vulnerability/advisories/2022-04-19",
+      covered: "The Independent exam and the Attacker tricks test both try a blank signature.",
+    },
+  ],
+};
+
+/** A lab view whose retest menu holds two versions of each of two libraries. */
+export const multiLibraryLab: LabView = {
+  ...lab,
+  retest: {
+    ...lab.retest,
+    versions: [
+      { version: "0.13.3", component: "python-ecdsa", label: "python-ecdsa 0.13.3", tag: "real software", note: "Newer." },
+      { version: "0.13.2", component: "python-ecdsa", label: "python-ecdsa 0.13.2", tag: "real software", note: "Older." },
+      { version: "6.5.7", component: "elliptic", label: "elliptic 6.5.7", tag: "real software", note: "Newer." },
+      { version: "6.5.6", component: "elliptic", label: "elliptic 6.5.6", tag: "real software", note: "Older." },
+    ],
+  },
+};
+
 /** Swaps one row's first-run result. */
 export function withResult(view: LabView, itemId: number, change: Partial<LabResult>): LabView {
   return {

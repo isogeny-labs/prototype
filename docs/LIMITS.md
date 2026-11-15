@@ -1,6 +1,6 @@
 # Limits: what is real, what is demo, what is not built
 
-Updated at the end of **phase 3a** (the Fixes step: a suggested code change with its proof, a pull request inside the app, approvals and a merge that a person confirms). Updated each phase.
+Updated at the end of **phase 4c** (real code: real crypto libraries written by others as test subjects, and the two post-quantum exams). Updated each phase; each phase has its own section below.
 
 ## What is real
 
@@ -86,10 +86,13 @@ Updated at the end of **phase 3a** (the Fixes step: a suggested code change with
 ## Not built, or not connected, in this version
 
 - **Uploading outside software is not in this version** (owner decision in phase 2). There is no screen, button or
-  API address that accepts software. Only our own demo components run. Retest chooses only between our two demo
-  versions, 1.4.2 and 1.4.3. A file that names any other software gets "Couldn't check" in Verify and
-  "Couldn't run (only our demo components can be run in this version)" in the tests, and "Not tested, and why"
-  says so on the Tests and Evidence Lab screens.
+  API address that accepts software. What runs is fixed in the app: our own demo components, the pinned lab images,
+  and since phase 4c the real libraries listed in "Limits of phase 4c" below, each in an exact version, in isolated
+  mode only. Retest chooses only between the versions the app knows for a program (our two demo versions, 1.4.2 and
+  1.4.3; the affected and the fixed version of a real library). A file that names any other software gets
+  "Couldn't check" in Verify and "Couldn't run (only our demo components can be run in this version)" in the tests,
+  and "Not tested, and why" says so on the Tests and Evidence Lab screens. (That sentence is older than phase 4c: read
+  it as "only the software this version knows".)
 - **No AI model and no research engine are connected.** Tests are proposed by fixed rules and reviewed by fixed
   rules. Both are code from this same build, written by the same people: the review is a separate step with
   its own module, not an independent second opinion.
@@ -220,8 +223,8 @@ approval asked for. It measures again right after, and can roll back. What follo
   comes later. Hybrid changes the key exchange only, so authentication stays Classical.
 - **Keep classical, Wrap and a signing program's change are text.** The app gives a review date and what to recheck, what a
   gateway in front must do, or the steps for whoever looks after the program (download only). It applies nothing for them,
-  and Keep classical and Wrap text appears only once the person chooses that option. A signing program's real code
-  change is phase 4c.
+  and Keep classical and Wrap text appears only once the person chooses that option. A signing program's change stays
+  text after phase 4c too: the lab runs and tests signing libraries, but it does not hold your program that calls one.
 - **The default-choice check is one hello offering both key shares in each order.** It shows what the server picks in those
   two handshakes. It is not a model of every browser or client, and it is information, not a pass or a fail. The controls
   must also read it right, or the measurement says Couldn't check.
@@ -235,6 +238,102 @@ approval asked for. It measures again right after, and can roll back. What follo
 - **Roll back undoes the server change, not your choice** (Kevin's decision on answer MC7, 15 November 2026). After Roll
   back of Full post-quantum the server is back as it was, but the choice of Full post-quantum stays recorded, so its key
   exchange track stays in "Phase 2" until you choose again.
+
+## Limits of phase 4c (real code; 15 November 2026)
+
+### What is real
+
+- **The libraries are real, in exact published versions:** Java (OpenJDK, the Temurin build) 17.0.2 and 17.0.3,
+  python-ecdsa 0.13.2 and 0.13.3, elliptic (npm) 6.5.6 and 6.5.7, and OpenSSL 3.5.9. Their files come from pinned
+  sources (container images by digest, packages by SHA-256 or npm's integrity value) and are checked before they
+  are used. None of them is stored in this repository.
+- **The crypto is the library's.** Each has one short wrapper that turns the adapter's JSON into the library's own
+  call and back. The wrappers hold no crypto of ours. Two details to know: elliptic does not hash, so its wrapper
+  hashes with `hash.js`, elliptic's own dependency; and each wrapper wraps a raw public key in the standard
+  envelope its library expects (a fixed prefix, no maths).
+- **They run only in isolated mode,** each family in its own locked-down container (no network, read-only, not
+  root, the same limits as our demo components). In demo mode nothing of theirs runs: Verify says Couldn't check,
+  the tests say Couldn't run (needs isolated mode), and Import, Tests, Evidence Lab and Migration say why.
+- **The right answers are not ours.** The Independent exam is the Project Wycheproof file the app already used.
+  The two post-quantum exams use NIST's ACVP files and Project Wycheproof's ML-KEM-768 and ML-DSA-65 files,
+  stored whole and pinned by SHA-256 (`demo/vectors/`, with NIST's notice in `demo/vectors/acvp/NOTICE.md`).
+- **The post-quantum exams compare fingerprints.** The test harness reports the SHA-256 of each answer and the
+  reviewer compares it with the SHA-256 of the published answer. No key or shared secret is stored, although
+  they are published test values.
+- **Every part of an exam has a control that must fail:** a copy of the OpenSSL wrapper that changes one byte of
+  every answer; a copy that skips two key checks the standard requires (it must wrongly accept all 117 public keys
+  that hold a number that is too large, and the 6 private keys whose fingerprint is wrong); and for ML-DSA
+  verification the accept-everything signer. The controls always run in the OpenSSL image.
+- **The advisories shown beside a result are the publisher's,** with their links. They are information: no result
+  is ever set from an advisory, and the result says which advisories its test does not catch.
+- **A real before and after:** Retest new version can move one library to its fixed version. The others are tested
+  again as they are.
+
+### What the tests catch, and what they miss (measured, not tuned)
+
+- **Java 17.0.2:** the Independent exam finds 13 wrong answers of 484, the blank signature (r = 0, s = 0) among
+  them; our short list finds the blank signature too. This is CVE-2022-21449.
+- **Java 17.0.3, the fixed version, still fails the Independent exam on 3 cases:** it accepts a number written
+  without its leading zero (case 6) and rejects two genuine signatures (cases 350 and 479). We found no
+  published advisory for these in one search. The app shows them as wrong answers on official cases and says no
+  fixed version is known to it. It makes no claim about how serious they are.
+- **python-ecdsa 0.13.2:** the exam finds 24 malformed signatures accepted, our short list one. This is
+  CVE-2019-14859. On about 67 more cases the library stops with a general program error. By the owner's rule
+  (an error raised by the library means "not accepted") those count as rejected and are shown under Also noticed.
+  That is CVE-2019-14853, which these tests therefore **note but do not fail**.
+- **python-ecdsa 0.13.3** passes both tests and still stops with a general error on 5 cases, noted the same way.
+- **elliptic 6.5.6:** the exam finds exactly one wrong answer, case 6 (CVE-2024-42460). **Our short list finds
+  nothing on elliptic:** it has no missing-zero case, and we did not add one, because that would be tuning a test to
+  one library. **CVE-2024-42461 is not caught:** the loose length form it allows needs a signature longer than
+  127 bytes, and a P-256 signature is at most 72; it would need a test on a larger curve. **CVE-2024-42459 is
+  not caught:** it is in EdDSA, and the wrapper covers ECDSA P-256 only.
+- **OpenSSL 3.5.9** passes everything it is given: 484 and 16 for ECDSA, 655 for ML-KEM-768, 475 for ML-DSA-65.
+
+### Limits
+
+- **Timing attacks are out of scope.** The post-quantum exams compare answers. They say nothing about how long a
+  step takes, so a fault such as KyberSlash (a secret-dependent timing in ML-KEM) would not be found. Each result
+  says so.
+- **The pre-hash variant of ML-DSA (HashML-DSA) is not tested.** OpenSSL 3.5 does not offer it and the adapter
+  does not cover it, so 45 NIST cases are left out for every library. The locked test and the result say so.
+- **One parameter set each:** ML-KEM-768 and ML-DSA-65 only. One curve for ECDSA: P-256.
+- **Only OpenSSL is tested for post-quantum.** The exams would run on any library whose wrapper offers the
+  algorithm; in this version that is one. Their controls are broken copies of the OpenSSL wrapper and always run
+  in the OpenSSL image, so an exam on another library still needs the OpenSSL image to be prepared.
+- **For OpenSSL, Verify's second opinion is not an outside one.** Verify (and the Migration measurement) confirm a
+  round trip with the app's reference library, `cryptography`, which is itself built on a release of OpenSSL
+  (4.0.3 on the build machine). So for `openssl 3.5.9` that check shows two releases of OpenSSL agree; a fault
+  shared by both would pass it. The result says so. The two exams and the Independent exam are the outside
+  check: their right answers are NIST's and Wycheproof's. For Java, python-ecdsa and elliptic the reference library
+  is a different implementation.
+- **"An error means no" is a choice.** It is the owner's rule (decision 1, 15 November 2026). A stricter rule would
+  count a crash as a wrong answer; python-ecdsa 0.13.3 would then fail on 5 cases.
+- **A wrapper could be wrong.** It is our code. Each is short enough to read, each reports the version from the
+  library itself, and Verify checks one round trip against an independent library, but a wrapper is not proven.
+- **Java is the Temurin build of OpenJDK.** Other builds of the same OpenJDK version were not tried. Its images
+  are for Intel and AMD processors; on an Apple Silicon Mac Docker runs them through emulation, slower.
+- **The Java versions are timed on the same test key; the wrapper is given both halves of it,** because the JDK
+  can't work out a public key from a private one without maths of our own.
+- **The slowed control of a real library is its own wrapper told to wait 6 ms** inside every timed step, as our
+  slowed demo control does.
+- **Retest moves one library at a time,** and Evidence Lab shows the latest retest only. To see another library's
+  before and after, retest it; the earlier retest's runs stay in the records and in the evidence file.
+- **No code fix for a real library.** The fix is its publisher's fixed version, as a text-only entry in Fixes with
+  the advisory link. The app writes no patch and opens no pull request for other people's code.
+- **Migration:** a real signing library's track says whether it can make an ML-DSA-65 signature today, by having
+  it make one. The key exchange row (ML-KEM-768) has no Migration track in this version. A signing program's
+  change is still text: the lab holds the library, not the program that calls it.
+- **Preparing takes longer.** The first `./run-demo.sh` with Docker downloads what the images are built from (a
+  few hundred MB) and uses about 3 GB of disk. A library whose image could not be prepared is named, and the
+  others still run.
+- **The first run of the real-libraries file takes about 5 minutes, and each retest about 5 more,** on the build
+  machine (15 tests; the speed tests run one at a time).
+- **The blind test has not been run.** Its procedure is in `docs/BLIND-TEST.md`; the three commands were rehearsed
+  on our own demo program only.
+- **The advisory links were taken from search results;** the build did not open each page. The NIST site is blocked
+  from the build machine.
+- **A sentence older than this phase is still on screen** for a program the app does not know: "Only our own demo
+  components can run in this version." Read it as "only the software this version knows".
 
 ## Limits of the Fixes step (phase 3a)
 
@@ -602,7 +701,7 @@ Kevin accepted every rule below after testing phase 3a end to end. They stand un
 - Most backend tests of the Fixes step play back made-up speed timings, so that they are quick and come out the
   same on a busy machine. The speed rule itself, the two full flows and the isolated-mode test time the real
   programs.
-- The whole backend suite takes about 14 minutes and the end-to-end test about 6 (build machine, 4 cores).
+- The whole backend suite takes about 24 minutes and the end-to-end test about 20 since phase 4c (build machine, 4 cores, Docker ready); the accuracy check in isolated mode takes about 35.
 - Dark mode only; no light theme. The layout was checked at 1440 x 900 only.
 - Two type-only frontend packages (`@types/react`, `@types/react-dom`) are installed that are not listed in the spec.
   Strict TypeScript needs them; the owner should confirm.

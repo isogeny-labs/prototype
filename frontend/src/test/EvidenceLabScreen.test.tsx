@@ -10,8 +10,10 @@ import {
   calls,
   evidenceExport,
   fixLines,
+  advisories,
   lab,
   mockApi,
+  multiLibraryLab,
   research,
   result,
   retestRunning,
@@ -257,6 +259,22 @@ describe("Evidence Lab, retest", () => {
     const call = fetchMock.mock.calls.find(([url]) => String(url) === "/api/plans/1/retest");
     expect(JSON.parse(String(call?.[1]?.body))).toEqual({ version: "1.4.3" });
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("lists every library's versions in the order sent and sends the chosen library with the version", async () => {
+    const fetchMock = await open(multiLibraryLab, { "POST /api/plans/1/retest": { body: beforeAfter } });
+    fireEvent.click(button("Retest new version"));
+    const items = within(screen.getByRole("menu")).getAllByRole("menuitem");
+    expect(items.map((i) => i.querySelector("span")?.textContent)).toEqual([
+      "python-ecdsa 0.13.3",
+      "python-ecdsa 0.13.2",
+      "elliptic 6.5.7",
+      "elliptic 6.5.6",
+    ]);
+    fireEvent.click(items[0]!);
+    await screen.findByTestId("lab-columns");
+    const call = fetchMock.mock.calls.find(([url]) => String(url) === "/api/plans/1/retest");
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ version: "0.13.3", component: "python-ecdsa" });
   });
 
   it("shows before and after side by side, with rows still expandable", async () => {
@@ -648,5 +666,41 @@ describe("Evidence Lab, grouped by target", () => {
     // The newer result has no notes, so none is shown.
     expect(screen.queryByTestId("also-noticed")).toBeNull();
     expect(screen.getByTestId("not-tested")).not.toBeNull();
+  });
+});
+
+describe("Evidence Lab, published advisories", () => {
+  const openVectors = async (change: Record<string, unknown> | null) => {
+    await open(change ? withResult(lab, 13, change) : lab);
+    expand("Official test vectors");
+    return within(within(rowOf("Official test vectors")).getByTestId("result-detail"));
+  };
+
+  it("draws the title, the tag, the id, the text, a safe link and the covered sentence", async () => {
+    const detail = await openVectors({ advisories });
+    const box = within(detail.getByTestId("advisories"));
+    expect(box.getByText("Published advisories for this version")).not.toBeNull();
+    expect(box.getByText("from the advisory, not a result")).not.toBeNull();
+    expect(box.getByText("CVE-2022-21449")).not.toBeNull();
+    expect(box.getByText(/Java 15 to 18 accept a blank ECDSA signature/)).not.toBeNull();
+    expect(box.getByText("The Independent exam and the Attacker tricks test both try a blank signature.")).not.toBeNull();
+    const link = box.getByRole("link", { name: "OpenJDK advisory, 19 April 2022" });
+    expect(link.getAttribute("href")).toBe("https://openjdk.org/groups/vulnerability/advisories/2022-04-19");
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toContain("noreferrer");
+  });
+
+  it("draws no box when advisories is null or missing", async () => {
+    expect((await openVectors({ advisories: null })).queryByTestId("advisories")).toBeNull();
+    cleanup();
+    expect((await openVectors(null)).queryByTestId("advisories")).toBeNull();
+  });
+
+  it("shows the link text without an anchor when the address is not https", async () => {
+    const bad = { ...advisories, items: [{ ...advisories.items[0]!, href: "http://example.com/x" }] };
+    const detail = await openVectors({ advisories: bad });
+    const box = within(detail.getByTestId("advisories"));
+    expect(box.getByText(/OpenJDK advisory, 19 April 2022/)).not.toBeNull();
+    expect(box.queryByRole("link")).toBeNull();
   });
 });

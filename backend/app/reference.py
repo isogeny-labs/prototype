@@ -65,3 +65,38 @@ def bench_ecdsa_p256(repeats: int, message_hex: str, warmups: int = 2) -> dict:
     return {"library": LIBRARY, "repeats": repeats, "warmups": warmups, "clock": "time.perf_counter",
             "sign_ms": sign_ms, "verify_ms": verify_ms, "signature_bytes": len(signature),
             "public_key_bytes": len(point), "all_verified": True}
+
+
+def bench_mldsa65(repeats: int, message_hex: str, warmups: int = 2) -> dict:
+    """The same measurement for ML-DSA-65 (phase 4c), with the reference library's own ML-DSA. For scale only."""
+    from cryptography.hazmat.primitives.asymmetric import mldsa
+
+    message = bytes.fromhex(message_hex)
+    key = mldsa.MLDSA65PrivateKey.generate()  # throwaway test key; never leaves this function
+    public = key.public_key()
+    for _ in range(warmups):
+        public.verify(key.sign(message), message)
+    sign_ms, verify_ms = [], []
+    signature = b""
+    for _ in range(repeats):
+        t0 = time.perf_counter()
+        signature = key.sign(message)
+        t1 = time.perf_counter()
+        public.verify(signature, message)
+        t2 = time.perf_counter()
+        sign_ms.append(round((t1 - t0) * 1000, 4))
+        verify_ms.append(round((t2 - t1) * 1000, 4))
+    return {"library": LIBRARY, "repeats": repeats, "warmups": warmups, "clock": "time.perf_counter",
+            "sign_ms": sign_ms, "verify_ms": verify_ms, "signature_bytes": len(signature),
+            "public_key_bytes": len(public.public_bytes_raw()), "all_verified": True}
+
+
+def verify_mldsa65(public_key_hex: str, message_hex: str, signature_hex: str) -> bool:
+    """True only if the signature is a valid ML-DSA-65 signature (empty context). Anything unreadable is False."""
+    from cryptography.hazmat.primitives.asymmetric import mldsa
+    try:
+        key = mldsa.MLDSA65PublicKey.from_public_bytes(bytes.fromhex(public_key_hex))
+        key.verify(bytes.fromhex(signature_hex), bytes.fromhex(message_hex))
+        return True
+    except (InvalidSignature, ValueError, TypeError):
+        return False

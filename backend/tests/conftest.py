@@ -169,10 +169,10 @@ def play_back_speed(lab) -> None:
     if getattr(real, "plays_back_speed", False):
         return
 
-    def run_job(job, *, time_limit=120.0, on_line=None):
+    def run_job(job, *, time_limit=120.0, on_line=None, family=None):
         subjects = job.get("subjects") or []
         if job.get("op") != "bench_rounds" or len(subjects) < 2:  # only the speed test times two or three programs side by side
-            return real(job, time_limit=time_limit, on_line=on_line)
+            return real(job, time_limit=time_limit, on_line=on_line, family=family)
         rng = random.Random(7)
         # A test may set this on the lab to play back a real slowdown: in a comparison of old, new and the slowed
         # control (a retest or a proof), the new version then takes this much longer on every sign and verify.

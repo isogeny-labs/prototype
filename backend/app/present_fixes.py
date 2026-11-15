@@ -120,6 +120,8 @@ def fix_line(fix: dict) -> dict:
     proof has passed; while the proof runs it is "prepared", and after a proof that did not pass, "not offered"."""
     def line(lead: str, rest: str, look: str, busy: bool = False) -> dict:
         return {"fix_id": fix["id"], "lead": lead, "rest": rest, "look": look, "busy": busy, "button": VIEW_IN_FIXES}
+    if fix["kind"] != "code" and fix.get("real_library"):   # phase 4c: a real library; the fix is its publisher's fixed version
+        return line("Text-only suggestion:", "update to the fixed version" if fix["real_library"]["fixed"] else "no fixed version is known", "dashed")
     if fix["kind"] != "code":
         return line("Text-only suggestion:", "a server setting" if fix.get("test_kind", "tls_versions" if fix["id"] == "fix-tls-versions" else None) == "tls_versions" else "see the suggestion", "dashed")
     if fix["status"] == "not_connected":
@@ -659,7 +661,7 @@ def code_fix(fix: dict, *, plan_id: int, titles: list[str], server_findings: int
         "actions": _actions(fix, plan_tests, holds),
         "patch": ({"url": f"/api/plans/{plan_id}/fixes/{fix['id']}/patch", "filename": patch_name}
                   if patch_name and fix["actions"]["download_patch"] is None else None),
-        "merge_dialog": _merge_dialog(fix, holds), "sections": sections, "sections_note": None if connected else SECTIONS_NOTE,
+        "merge_dialog": _merge_dialog(fix, holds), "sections": sections, "sections_note": None if connected else SECTIONS_NOTE, "advisories": None,
         "change_box": None,
     }
 
@@ -753,6 +755,20 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
     if tls:
         words = _tls_words(tls, result["suggested_fix"])
         approves = "Your own server team, outside this app. The app never changes your server."
+    elif fix.get("real_library"):
+        # Phase 4c: a real library written by others. The fix is its publisher's fixed version; the app offers no code
+        # change and no pull request for other people's code.
+        lib = fix["real_library"]
+        words = {"title": (f"Update {lib['name']} to the fixed version ({lib['fixed']})" if lib["fixed"]
+                           else f"{lib['name']} {lib['version']}: no fixed version is known"),
+                 "line": "What to do, in plain words",
+                 "what": ("Update the library to the version in which its publisher fixed the fault the advisory describes, then retest "
+                          "to see what, if anything, remains. This is other people's code: the app offers no code change and no pull "
+                          "request for it." if lib["fixed"] else
+                          "No fixed version of this library is known to this app. This is other people's code: the app offers no code "
+                          "change and no pull request for it."),
+                 "suggestion": {"intro": [result["suggested_fix"]], "warning": None, "where": None, "options": None, "exact": None}}
+        approves = "Whoever looks after this software, outside this app."
     else:
         words = {"title": f"{titles[0]}: {_lower(result['label'])}", "line": "What to change, in plain words",
                  "what": "A suggestion in plain words. The app has not made a change for this finding.",
@@ -771,6 +787,8 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None,
         "sections": [{"key": "suggestion", "title": "The suggestion", "line": words["line"], "open": True, "suggestion": words["suggestion"]}],
         "sections_note": None, "change_box": None,
+        # Phase 4c: the published advisories for a real library's version, with their links (information, never a result).
+        "advisories": result.get("advisories") if fix.get("real_library") else None,
     }
 
 
@@ -800,7 +818,7 @@ def applied_change_fix(fix: dict, box: dict, address: str, is_demo: bool) -> dic
         "proof": {"state": "none", "badge": None, "muted": None, "text": "In the change box below: the Apply in force and its Roll back."},
         "pull_request": None,
         "approvers": {"text": "Roll back needs no approval.", "options": None, "rows": None, "footnote": None},
-        "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None, "sections": [], "sections_note": None,
+        "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None, "sections": [], "sections_note": None, "advisories": None,
         "change_box": box,
     }
 

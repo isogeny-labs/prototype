@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable
 
-from . import components, plain
+from . import components, plain, real_libraries
 from .addresses import AddressError, is_loopback_ip, resolve_all, validate_host, validate_port
 from .compare import COULDNT, FALSE, TRUE, certificate_matches, compare_only_claim
 from .names import TLS_VERSIONS, join_and
@@ -449,8 +449,14 @@ def verify_claims(claims: list, address_rows: list, demo: DemoContext,
                 else:
                     res = _couldnt("This version checks signature algorithms on software components only, not on servers.")
         elif claim.location_kind == "software":
-            if claim.kind != "signature_algorithm":
+            known = components.kind_of(detail.get("component"), detail.get("version"))
+            # Phase 4c: a real library's key exchange claim (ML-KEM-768) is checked too; any other is not.
+            kem = claim.kind == "key_exchange" and known == "real" and str(detail.get("algorithm", "")) == "ML-KEM-768"
+            if claim.kind != "signature_algorithm" and not kem:
                 res = _couldnt("This version checks signing components only.")
+            elif known == "real":
+                res = components.verify_real_claim(detail["component"], detail["version"], str(detail.get("algorithm", "")),
+                                                   runner=component_runner, key_exchange=kem)
             else:
                 path = components.lookup(detail.get("component"), detail.get("version"))
                 if path is None:
@@ -484,11 +490,16 @@ def _with_summary(claim, res: dict) -> dict:
             label = f"{detail.get('component', '')} {detail.get('version', '')}".strip() or "this program"
             res["summary"] = (f"We couldn't run {label}: only our own demo components can run in this version, "
                               "so there is no answer either way.")
+        elif claim.location_kind == "software" and str(res.get("reason") or "").startswith(real_libraries.NEEDS_ISOLATED):
+            label = f"{detail.get('component', '')} {detail.get('version', '')}".strip() or "this library"
+            res["summary"] = (f"We couldn't run {label}: it is real software from outside, which runs only in isolated mode (Docker), "
+                              "and this run is in demo mode. So there is no answer either way.")
         else:
             res["summary"] = plain.couldnt(res.get("reason"))
     elif claim.location_kind == "software":
         label = f"{detail.get('component', '')} {detail.get('version', '')}".strip()
-        res["summary"] = plain.verify_software(res["result"], label, str(detail.get("algorithm", "")), res.get("found", ""))
+        res["summary"] = plain.verify_software(res["result"], label, str(detail.get("algorithm", "")), res.get("found", ""),
+                                               key_exchange=claim.kind == "key_exchange")
     elif claim.kind in ("cipher_suites", "key_exchange") and res["result"] == FALSE:
         res["summary"] = f"{res.get('found', '').strip()} That doesn't match the claim, so it is not true."
     else:

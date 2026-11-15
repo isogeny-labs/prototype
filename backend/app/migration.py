@@ -51,7 +51,7 @@ class MigrationMixin:
         """Every system the file names, servers first, in file order."""
         out = [{"key": "server:" + a, "kind": "server", "name": a, "target": a, "measure": "pq_status"} for a in research.servers(claims)]
         out += [{"key": "software:" + p["ref"], "kind": "software", "name": p["label"], "target": p["ref"], "measure": "signing_status",
-                 "program": p} for p in research.programs(claims)]
+                 "program": p} for p in research.programs(claims) if p.get("role") != "key_exchange"]   # (a key exchange program has no track yet)
         return out
 
     def _measurement_hash(self, claims: list[dict], system: dict) -> tuple[dict, str]:
@@ -131,7 +131,7 @@ class MigrationMixin:
             status = state["status"]
             detail = state["detail"]
             facts = ({"tls13": detail.get("tls13"), "weak_certificate": bool((detail.get("certificate") or {}).get("weak"))} if kind == "server"
-                     else {"post_quantum_signatures": status == "pq_only"})
+                     else {"post_quantum_signatures": status == "pq_only" or detail.get("can_make_pq") is True})   # phase 4c: measured on a real library
             state["offered"] = rules.offered(kind, status)
             state["recommendation"] = rules.recommend(kind, status, values)
             state["blockers"] = {o: rules.blockers(kind, o, facts) for o in rules.OPTIONS}

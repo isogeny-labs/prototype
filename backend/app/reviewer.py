@@ -21,7 +21,7 @@ import math
 import re
 from statistics import median
 
-from . import vectors
+from . import pq_vectors, vectors
 from .canonical import sha256_hex
 
 REVIEW_SCHEMA = "isogeny.review/1"
@@ -55,6 +55,9 @@ COULDNT_RUN_REASONS = {
     "unknown_algorithm": "the algorithm is not one this version knows",
     # phase 4b: a run on a test copy
     "copy_unavailable": "the test copy could not be started",
+    # phase 4c: real libraries
+    "needs_isolated_mode": "needs isolated mode",
+    "real_image_missing": "this library's container image is not prepared",
 }
 # Phase 4a. The key-exchange groups by family, and the signature algorithms by family (spelled as in the app).
 HYBRID_GROUPS = ("X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024")
@@ -526,9 +529,101 @@ class RuleReviewer:
                             "no_answer": len(scored["missing"]), "control_wrong": control_wrong_invalid,
                             "invalid_total": len(invalid), "valid_total": sum(1 for c in cases if c.expected == "valid"),
                             "reference": ref_detail}
+        crashes = subject.get("general_errors")
+        if isinstance(crashes, dict) and crashes:
+            # Phase 4c (Kevin's decision 1): an error raised by the library is "not accepted", so these cases are scored
+            # above like any other answer. They are listed here as a note, never as a result. (Only written when there
+            # are any, so the review of an older run stays exactly what it was.)
+            by_id = {c.id: c for c in cases}
+            review["detail"]["general_errors"] = [
+                {"id": str(case_id), "error": str(error)[:60], "comment": by_id[case_id].comment, "expected": by_id[case_id].expected}
+                for case_id, error in crashes.items() if case_id in by_id]
         if scored["missing"] or subject.get("no_answer"):
             return "couldnt_run", "component_no_answer"
         return ("failed" if scored["wrong"] else "passed"), None
+
+    # ---------------------------------------------------------------- phase 4c: the two post-quantum exams
+
+    @staticmethod
+    def _pq_right(case, got: dict) -> tuple[bool, str]:
+        """(is this the right answer?, what the library did, in a few words)"""
+        refused, valid = got.get("refused") is True, got.get("valid")
+        if case.command == "verify":
+            did = "accepted" if valid is True else "rejected"
+            return (valid is True) == (case.expect == "accept"), did
+        if refused:
+            return case.expect == "refuse", "refused"
+        if case.expect == "answer":
+            same = got.get("sha256") == case.answer_sha256
+            return same, "the published answer" if same else "a different answer"
+        return case.expect == "accept", "not refused"
+
+    def _pq_exam(self, spec, raw, run, review):
+        exam = spec["kind"]
+        try:
+            cases = pq_vectors.load(exam)
+        except vectors.VectorFileChanged:
+            raise _CouldntRun("vector_file_changed") from None
+        if raw.get("files") != {f["file"]: f["sha256"] for f in spec["inputs"]["files"]}:
+            raise _CouldntRun("vector_file_changed")
+        # The controls first: each part's broken copy must have failed for its stated reason.
+        controls, outcomes = {}, []
+        for part, must in spec["control"]["must"].items():
+            ran = (raw.get("controls") or {}).get(part)
+            mine = [c for c in cases if c.part == part]
+            if not isinstance(ran, dict) or not isinstance(ran.get("answers"), dict) or ran.get("problem") or ran.get("no_answer"):
+                outcomes.append("errored")
+                controls[part] = {"control": must["control"], "caught": None, "of": None}
+                continue
+            answers = ran["answers"]
+            if must["control"] == "skip_key_check":
+                judged = [c for c in mine if must["accepts_flag"] in c.flags]
+                ok_count = len(judged) == must["count"]
+            else:
+                judged = [c for c in mine if (c.expect == "answer" if must["control"] == "wrong_answer" else c.expect == "reject")]
+                ok_count = bool(judged)
+            missing = [c.id for c in judged if not isinstance(answers.get(c.id), dict)]
+            caught = sum(1 for c in judged if isinstance(answers.get(c.id), dict) and not self._pq_right(c, answers[c.id])[0])
+            controls[part] = {"control": must["control"], "caught": caught, "of": len(judged)}
+            outcomes.append("errored" if missing else "as_expected" if ok_count and caught == len(judged) else "not_as_expected")
+        if "errored" in outcomes or not outcomes:
+            review["control"] = {"outcome": "errored", "reason": "a broken copy did not answer every case"}
+        elif all(o == "as_expected" for o in outcomes):
+            review["control"] = {"outcome": "as_expected", "reason": "every_broken_copy_failed_as_it_must"}
+        else:
+            review["control"] = {"outcome": "not_as_expected", "reason": "a_broken_copy_was_not_caught"}
+        # The library's own answers, part by part.
+        answers = (raw.get("subject") or {}).get("answers") or {}
+        wrong, missing, parts = [], [], []
+        for part in spec["inputs"]["parts"]:
+            mine = [c for c in cases if c.part == part["id"]]
+            right = 0
+            for c in mine:
+                got = answers.get(c.id)
+                if not isinstance(got, dict):
+                    missing.append(c.id)
+                    continue
+                ok, did = self._pq_right(c, got)
+                if ok:
+                    right += 1
+                else:
+                    wrong.append({"id": c.id, "part": c.part, "source": c.source, "comment": c.comment, "flags": list(c.flags),
+                                  "expected": c.expect, "got": did})
+            parts.append({"id": part["id"], "title": part["title"], "cases": len(mine), "right": right,
+                          "nist": sum(1 for c in mine if c.source == pq_vectors.NIST),
+                          "wycheproof": sum(1 for c in mine if c.source == pq_vectors.WYCHEPROOF),
+                          "control": controls.get(part["id"])})
+        review["detail"] = {"total": len(cases), "right": sum(p["right"] for p in parts), "wrong": wrong, "no_answer": len(missing),
+                            "parts": parts, "left_out": spec["inputs"].get("left_out", 0)}
+        if missing or (raw.get("subject") or {}).get("no_answer"):
+            return "couldnt_run", "component_no_answer"
+        return ("failed" if wrong else "passed"), None
+
+    def _mlkem_vectors(self, spec, raw, run, review):
+        return self._pq_exam(spec, raw, run, review)
+
+    def _mldsa_vectors(self, spec, raw, run, review):
+        return self._pq_exam(spec, raw, run, review)
 
     def _official_vectors(self, spec, raw, run, review):
         return self._signing(spec, raw, review, "ecdsa_p256", "ed25519")
@@ -638,6 +733,13 @@ class RuleReviewer:
         family = signature_family(algorithm)
         review["detail"] = {"status": family or "couldnt_run", "algorithm": algorithm, "component": subject.get("component"),
                             "found": check.get("found"), "cost": cost}
+        capability = raw.get("capability")
+        if isinstance(capability, dict):
+            # Phase 4c, a real library: it can make post-quantum signatures only if it made one that the independent
+            # library confirmed. (Written only when it was asked, so the review of an older run stays what it was.)
+            said = (capability.get("check") or {}).get("result")
+            review["detail"]["can_make_pq"] = True if said == "True" else False if said == "False" else None
+            review["detail"]["pq_algorithm"] = capability.get("algorithm")
         if family is None:
             return "couldnt_run", "unknown_algorithm"
         return family, None

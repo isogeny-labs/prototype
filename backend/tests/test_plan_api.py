@@ -125,7 +125,7 @@ def test_run_one_then_the_lab_then_mark_and_dig(client):
     result = row["result"]
     assert set(result) == {"run_id", "component", "mode", "finished_at", "duration_ms", "code", "label", "tone", "summary", "short", "plain", "also_noticed", "also_noticed_title",
                            "control", "what_happened", "shows_title", "shows", "evidence", "run_record", "locked_test", "fix_title",
-                           "suggested_fix", "fix_line", "reviewed", "research"}
+                           "suggested_fix", "fix_line", "reviewed", "research", "real", "advisories"}
     # a failed result whose fix is in the Fixes step shows one line in place of the "Suggested fix" text
     assert result["suggested_fix"] is None and result["fix_line"]["fix_id"] == "fix-ecdsa-range-check"
     assert result["component"] == "acme-sign 1.4.2" and result["mode"] == "demo" and result["reviewed"] is None and result["research"] is None

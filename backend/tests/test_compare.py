@@ -80,7 +80,9 @@ def test_certificate_rule(claimed, cert, want):
     ("SHA256withRSA", None, 3072, "RSA 3072"),
     ("SHA256withRSA", None, None, None),
     ("Ed25519", None, None, "Ed25519"),
-    ("ML-DSA-65", None, None, None),
+    ("ML-DSA-65", None, None, "ML-DSA-65"),   # since phase 4c the post-quantum names are known
+    ("mlkem768", None, None, "ML-KEM-768"),
+    ("ML-DSA-99", None, None, None),
     ("", None, None, None),
 ])
 def test_algorithm_names(name, curve, size, want):

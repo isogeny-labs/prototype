@@ -185,12 +185,26 @@ def signing_status(w, spec, run, review, ctx) -> None:
     d, code = review["detail"], review["code"]
     name, algorithm = d.get("component") or ctx["component"], d.get("algorithm")
     kind = "a classical algorithm" if code == "classical" else "a post-quantum algorithm"
-    w.plain = (f"{name} says it signs with {algorithm}, and an independent library confirmed its signature. {algorithm} is {kind}, "
+    # For OpenSSL the second opinion is not an outside one: the app's reference library is itself built on OpenSSL (phase 4c).
+    same_maker = str(name).split(" ")[0] == "openssl"
+    checker = "the app's reference library, which is itself built on OpenSSL," if same_maker else "an independent library"
+    w.plain = (f"{name} says it signs with {algorithm}, and {checker} confirmed its signature. {algorithm} is {kind}, "
                f"so it is {STATUS_LABELS[code]}.")
     w.summary = f"{name} signs with {algorithm} today: {STATUS_LABELS[code]}."
     w.short = f"{STATUS_LABELS[code]} ({algorithm})."
-    w.what = [f"We asked {name} what it signs with, had it sign one test message, and checked that signature with an independent library.",
-              "Then we timed its bench command next to ML-DSA-65 on the reference library, for the cost table."]
+    w.what = [f"We asked {name} what it signs with, had it sign one test message, and checked that signature with "
+              + ("the app's reference library (itself built on a release of OpenSSL, so not an outside opinion here)." if same_maker
+                 else "an independent library.")]
+    if "can_make_pq" in d:   # phase 4c, a real library: it was also asked to make one post-quantum signature
+        pq = d.get("pq_algorithm") or "ML-DSA-65"
+        w.what.append(f"We also asked it to make one {pq} signature. " + (
+            "It did, and the reference library confirmed that signature, so it can make post-quantum signatures today." if d["can_make_pq"] is True
+            else f"It does not offer {pq}, so it can't make post-quantum signatures today." if d["can_make_pq"] is False
+            else "That could not be checked."))
+    if d.get("cost") is not None or code != "pq_only":
+        w.what.append("Then we timed its bench command next to ML-DSA-65 on the reference library, for the cost table.")
+    else:   # it already signs with a post-quantum algorithm: there is nothing to compare it with
+        w.what.append("No cost comparison was made: it already signs with a post-quantum algorithm.")
     w.shows = [f"It shows the algorithm this program signs with today: {algorithm}.",
                "It doesn't show where its signatures are used, or how long they must stay trusted: that is the Data lifespan setting."]
     subject = run["raw"].get("subject") or {}
@@ -199,6 +213,8 @@ def signing_status(w, spec, run, review, ctx) -> None:
     w.command = f"{str(name).split(' ')[0]}: report the algorithm, sign one test message; an independent library checks the signature"
     w.outputs = [{"title": "Raw output", "text": _evidence_text(subject.get("evidence"))},
                  {"title": "Raw output, cost measurement", "text": json.dumps(d.get("cost") or {"note": "not measured"}, indent=1)}]
-    w.control_text = ("An independent library confirmed the program's key and signature, as expected. "
-                      "That tells us the program really signs with what it reports.")
+    w.control_text = (("The app's reference library confirmed the program's key and signature, as expected. That library is itself built "
+                       "on OpenSSL, so this shows two releases of OpenSSL agree; the exams are the outside check." if same_maker else
+                       "An independent library confirmed the program's key and signature, as expected. "
+                       "That tells us the program really signs with what it reports."))
     w.fix = None

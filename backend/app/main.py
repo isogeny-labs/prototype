@@ -42,6 +42,7 @@ class AddTestBody(BaseModel):
 
 class RetestBody(BaseModel):
     version: str = Field(max_length=50)
+    component: str | None = Field(default=None, max_length=100)   # phase 4c: which program to swap, when the file names several
 
 
 class MigrationSettingBody(BaseModel):
@@ -271,7 +272,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.post("/api/plans/{plan_id}/retest", dependencies=[Depends(require_login)])
     def retest(plan_id: int, body: RetestBody):
-        return lab.start_retest(plan_id, body.version)
+        return lab.start_retest(plan_id, body.version, body.component)
 
     @app.post("/api/plans/{plan_id}/evidence", dependencies=[Depends(require_login)])
     def export_evidence(plan_id: int):

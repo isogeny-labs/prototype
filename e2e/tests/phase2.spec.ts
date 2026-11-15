@@ -605,7 +605,8 @@ test("isolated mode: the mode line says so and a test really runs in a container
 
     const view = await second.newPage();
     await enterApp(view);
-    await expect(view.getByTestId("mode-line")).toHaveText("Isolated mode: our demo software runs in a locked-down container with no network.");
+    // (since phase 4c the line goes on to say which real libraries can run)
+    await expect(view.getByTestId("mode-line")).toContainText("Isolated mode: our demo software runs in a locked-down container with no network.");
     await importVerifyAndOpenTests(view);
     const bad = view.getByTestId("test-card").filter({ hasText: "Attacker tricks (our short list)" });
     const vectors = view.getByTestId("test-card").filter({ hasText: "Independent exam (Wycheproof)" });

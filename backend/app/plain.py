@@ -66,7 +66,9 @@ def verify_certificate(result: str, claimed: str, found: str | None) -> str:
     return ""
 
 
-def verify_software(result: str, label: str, algorithm: str, found: str) -> str:
+def verify_software(result: str, label: str, algorithm: str, found: str, key_exchange: bool = False) -> str:
+    if result == TRUE and key_exchange:
+        return f"{label} says it uses {algorithm}, and a normal key exchange round trip worked, which matches the claim."
     if result == TRUE:
         return f"{label} says it uses {algorithm}, and a normal sign-and-check round trip worked, which matches the claim."
     if result == FALSE:

@@ -82,6 +82,7 @@ class FixesMixin:
                     box = present_changes.change_view(change, rec, self._change_gates(change, rec))
                     shown = present_fixes.with_change_box(shown, box)
             shown.setdefault("change_box", None)
+            shown.setdefault("advisories", None)   # phase 4c: only a text fix for a real library carries any
             out.append((fix, shown))
         return out
 

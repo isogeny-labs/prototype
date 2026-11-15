@@ -185,6 +185,7 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
             ) : null}
             <FixSections
               sections={fix.sections}
+              advisories={fix.advisories}
               isOpen={(section) => toggled[sectionKey(fix.id, section)] ?? section.open}
               onToggle={(section) =>
                 setToggled((prev) => {

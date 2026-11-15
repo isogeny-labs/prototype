@@ -300,4 +300,10 @@ def test_the_migration_check_never_writes_the_key_and_fails_without_it(monkeypat
     # the command runs both checks by default, and its exit code is the worse of the two
     monkeypatch.setattr(accuracy, "run_accuracy", lambda settings=None: {"matched": 18, "total": 18, "lines": [], "notes": [], "mode_line": None,
                                                                          "stopped": None, "unmapped_claims": []})
+    # (the third check, the real libraries, takes about 25 minutes for real: a stand-in here; its own tests are test_accuracy_real.py)
+    from app import accuracy_real
+    monkeypatch.setattr(accuracy_real, "print_real_report", lambda settings, say=print: 0)
     assert accuracy.main([]) == 2 and accuracy.main(["--only", "acme"]) == 0
+    # the command runs all three checks by default, and its exit code is the worst of the three
+    monkeypatch.setattr(accuracy_real, "print_real_report", lambda settings, say=print: 1)
+    assert accuracy.main(["--only", "real"]) == 1 and accuracy.main(["--only", "acme"]) == 0

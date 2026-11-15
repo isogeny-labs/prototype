@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FixStatusKey, FixesView } from "../api";
@@ -16,7 +16,7 @@ import {
   tlsSuggestion,
   withCodeFix,
 } from "./fixesFixtures";
-import { DISCLAIMER, calls, lab, mockApi, text } from "./fixtures";
+import { DISCLAIMER, advisories, calls, lab, mockApi, text } from "./fixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
 
@@ -986,6 +986,37 @@ describe("Fixes, a text-only suggestion", () => {
     const body = within(section("suggestion")).getByTestId("text-suggestion");
     expect(text(body)).toBe(short);
     expect(body.querySelector("table, pre, h4, ol")).toBeNull();
+  });
+});
+
+describe("Fixes, published advisories on a text fix", () => {
+  const withAdvisories = (value: typeof advisories | null | undefined): FixesView => ({
+    ...fixesViews.ready,
+    fixes: fixesViews.ready.fixes.map((fix) =>
+      fix.id === TLS_FIX ? (value === undefined ? fix : { ...fix, advisories: value }) : fix,
+    ),
+  });
+
+  it("draws the box under the intro paragraphs when the fix has advisories", async () => {
+    await open(withAdvisories(advisories), {}, TLS_FIX);
+    const body = within(section("suggestion")).getByTestId("text-suggestion");
+    const box = within(within(body).getByTestId("advisories"));
+    expect(box.getByText("Published advisories for this version")).not.toBeNull();
+    expect(box.getByText("from the advisory, not a result")).not.toBeNull();
+    expect(box.getByText("CVE-2022-21449")).not.toBeNull();
+    expect(box.getByRole("link", { name: "OpenJDK advisory, 19 April 2022" }).getAttribute("href")).toBe(
+      advisories.items[0]!.href,
+    );
+    const intro = body.querySelector("p")!;
+    expect(intro.compareDocumentPosition(within(body).getByTestId("advisories")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("draws no box when advisories is null or missing", async () => {
+    await open(withAdvisories(null), {}, TLS_FIX);
+    expect(screen.queryByTestId("advisories")).toBeNull();
+    cleanup();
+    await open(withAdvisories(undefined), {}, TLS_FIX);
+    expect(screen.queryByTestId("advisories")).toBeNull();
   });
 });
 

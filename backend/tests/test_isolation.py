@@ -245,6 +245,6 @@ def test_a_missing_image_is_an_error_not_a_download_and_not_a_local_run(docker_r
 
 def test_detected_mode_is_isolated_with_the_prepared_image(docker_ready, tmp_path):
     assert docker_ready.name == "isolated" and docker_ready.components_image == runner.components_image_tag()
-    assert docker_ready.line == "Isolated mode: our demo software runs in a locked-down container with no network."
+    assert docker_ready.line.startswith("Isolated mode: our demo software runs in a locked-down container with no network.")
     forced = runner.detect_mode(Settings(data_dir=tmp_path, demo_tls_port=1, force_mode="demo"))
     assert forced.name == "demo" and forced.docker_running is True

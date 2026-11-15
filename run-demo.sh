@@ -55,9 +55,9 @@ fi
 #    no Docker, no internet or a slow download just means the app runs in demo mode and says so.
 if command -v docker >/dev/null 2>&1; then
   say "Checking isolated mode (Docker)"
-  echo "   The first time, with internet, this can take a minute or two. Without Docker or internet it is skipped."
+  echo "   The first time, with internet, this can take several minutes (the real libraries are a few hundred MB). Without Docker or internet it is skipped."
   if command -v timeout >/dev/null 2>&1; then
-    (cd "$BACKEND" && timeout 480 "$VENV/bin/python" -m app.prepare) \
+    (cd "$BACKEND" && timeout 2400 "$VENV/bin/python" -m app.prepare) \
       || echo "   Isolated mode could not be prepared. The app will run in demo mode."
   else
     (cd "$BACKEND" && "$VENV/bin/python" -m app.prepare) \

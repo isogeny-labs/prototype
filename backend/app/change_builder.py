@@ -136,7 +136,8 @@ def build(*, key: str, kind: str, option: str, system_key: str, address: str | N
                              "It protects the connection only, not cryptography inside the application (for example signing)."]
     elif option in ("sign_both", "mldsa_only"):
         change["text"] = ["This change is to the program and its signing library, made by whoever looks after it. It can't be tried or "
-                          "applied in the lab in this version: running real libraries and their post-quantum code comes in phase 4c."]
+                          "applied in the lab in this version: the lab runs signing libraries and tests them, but it does not hold your program that "
+                          "calls one, so it has nothing to change."]
     change["fingerprint"] = sha256_hex({k: v for k, v in change.items() if k != "fingerprint"})
     return change
 

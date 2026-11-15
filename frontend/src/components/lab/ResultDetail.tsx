@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { EvidenceBlock, FixLine, LabResult, MetaItem } from "../../api";
+import { AdvisoriesBox } from "../AdvisoriesBox";
 import { ResultBadge, SecondaryButton, SourceTag, Spinner, formatTime } from "../ui";
 
 function Box({ title, tag, children }: { title: string; tag?: string | null; children: ReactNode }) {
@@ -262,6 +263,8 @@ export function ResultDetail({ result, heading, busy, onMarkReviewed, onDigDeepe
         <h4 className={H}>Control</h4>
         <p className="text-sm text-slate-300">{result.control.text}</p>
       </div>
+
+      <AdvisoriesBox advisories={result.advisories} />
 
       {result.fix_line ? (
         <FixLineView line={result.fix_line} onViewFix={onViewFix} />

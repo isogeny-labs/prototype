@@ -119,6 +119,12 @@ def today_sentence(state: dict) -> str:
     if code == "couldnt_run":
         if reason == "not_a_demo_component":
             return "Couldn't check: only our own demo components can run in this version. So there is no status either way."
+        if reason == "needs_isolated_mode":
+            return ("Couldn't check: this is real software from outside, which runs only in isolated mode (Docker), and this run is in "
+                    "demo mode. So there is no status either way.")
+        if reason == "real_image_missing":
+            return ("Couldn't check: this library's container image is not prepared on this computer (./run-demo.sh prepares it). "
+                    "So there is no status either way.")
         if reason == "address_not_confirmed":
             return ("Couldn't check: you haven't confirmed you're allowed to test this address. Tick the box for it on Import, "
                     "then press Measure again.")
@@ -836,7 +842,7 @@ def fix_view(fix: dict, state: dict, is_demo: bool) -> dict:
                                else "Whoever looks after this software, outside this app."), "options": None, "rows": None, "footnote": None},
         "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None,
         "sections": [{"key": "suggestion", "title": "The suggestion", "line": words["line"], "open": True, "suggestion": words["suggestion"]}],
-        "sections_note": None, "change_box": None,
+        "sections_note": None, "change_box": None, "advisories": None,
     }
 
 
@@ -866,7 +872,7 @@ def change_fix_view(fix: dict, state: dict, is_demo: bool) -> dict:
         "approvers": {"text": ("Pick them in the change box below. The app applies a change only when a person presses Apply." if target else
                                "Your own server team, outside this app." if on_server else "Whoever looks after this software, outside this app."),
                       "options": None, "rows": None, "footnote": None},
-        "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None, "sections": [], "sections_note": None,
+        "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None, "sections": [], "sections_note": None, "advisories": None,
         "change_box": view,
     }
 

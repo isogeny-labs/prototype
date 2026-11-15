@@ -6,7 +6,7 @@ behind every answer. After a fix, it reruns the same tests and shows before and 
 
 Passing these tests doesn't prove a system secure. It shows these specific checks passed.
 
-## Status: phase 4b (make it real), on top of phases 1 to 4a
+## Status: phase 4c (real code), on top of phases 1 to 4b
 
 | Part | Status |
 | --- | --- |
@@ -18,7 +18,8 @@ Passing these tests doesn't prove a system secure. It shows these specific check
 | 5. Fixes (a suggested code change for the signing bug with its proof, a pull request inside the app, approvals, a merge that a person confirms, Retest now; the server's TLS fix and each migration change as a change box: try on a test copy, approve, apply, roll back) | Built (phase 4b for the change boxes) |
 | 6. Migration (where each system stands on post-quantum cryptography, measured on two tracks, key exchange and authentication; the target is post-quantum; what each option costs; a recommendation from fixed rules; your own choice; a roadmap by track; a change ready to apply, tried on a test copy, then applied with approval and rolled back if needed, on our own servers only) | Built (phase 4a, made real in phase 4b) |
 | Demo mode and isolated mode (Docker) | Built |
-| Uploading outside software | Not in this version: only our own demo components run |
+| Real crypto libraries written by others (phase 4c): Java (OpenJDK), python-ecdsa, elliptic (npm), OpenSSL | Built, isolated mode (Docker) only |
+| Uploading outside software | Not in this version: only our own demo components and the pinned real libraries run |
 | Connecting real code hosts (GitHub and others) | Not in this version: only the small demo repository that comes with the app |
 | Server setting change with proof (SPEC section 7c) | Built (phase 4b), on the Acme Pay demo server only |
 | Changing a server that isn't ours (connectors) | Not built (a later phase); Download change still works |
@@ -142,6 +143,39 @@ The same change box sits in Fixes.
   pinned nginx image that `cd backend && .venv/bin/python -m app.prepare` pulls (nothing else pulls it).
 - Every step (try, approvals, Apply, the measurement after, Roll back) is in the evidence download and the report.
 
+### Real libraries (phase 4c)
+
+Besides its own demo program, the app can test **real crypto libraries written by others**, in exact versions:
+Java (OpenJDK, Temurin build) 17.0.2 and 17.0.3, python-ecdsa 0.13.2 and 0.13.3, elliptic (npm) 6.5.6 and 6.5.7,
+and OpenSSL 3.5.9. They run **only in isolated mode** (Docker), each family in its own locked-down container image
+with no network. In demo mode the app says "needs isolated mode" and runs nothing of theirs. The library's own
+files are not stored in this repository: `python -m app.prepare` downloads them once and checks each by its
+fingerprint (see [demo/real-libraries/README.md](demo/real-libraries/README.md); the pins are in
+`backend/app/real_libraries.py`).
+
+- The first `./run-demo.sh` with Docker running now also downloads what the real-library images are built from
+  (a few hundred MB for each Java image; about 3 GB of disk in all) and builds the images. It can take several
+  minutes. Later starts reuse them.
+- The Java images are built for Intel/AMD processors only. On an Apple Silicon Mac, Docker runs them through
+  emulation, which is slower.
+- To try it: on **1. Import**, upload `demo/real-libraries.csv` (it is not Demo data) with the drop zone, tick the
+  box, **Verify claims**, then open **3. Tests** and run them. The signature tests (Independent exam, Attacker tricks,
+  Speed and size) run on each library. For OpenSSL there are two more: **Key exchange exam (ML-KEM-768)** and
+  **Signature exam (ML-DSA-65)**, which put the library through official cases from NIST and Project Wycheproof.
+  They compare answers only; they say nothing about timing attacks.
+- A result on a real library shows the publisher's advisories for that version as information, never as a result,
+  and may carry an **Also noticed** note. A failed test gets a text-only fix, "Update <name> to the fixed version",
+  or says no fixed version is known.
+- **Retest new version** can move one library of the file to another version (for example Java 17.0.2 to 17.0.3).
+- Three more commands:
+  - `cd backend && .venv/bin/python -m app.accuracy --only real` runs the real libraries through the same path as the
+    buttons and compares with the third answer key, `demo/expected-real-libraries.json`.
+  - `cd backend && .venv/bin/python tools/try_real_library.py <name> <version>` tries one library by hand, for
+    example `openjdk 17.0.2` (isolated mode).
+  - `cd backend && .venv/bin/python -m app.blind seal|run|reveal` is the blind test: a cryptographer's expected
+    findings are sealed before a library is added, and revealed after the run. See
+    [docs/BLIND-TEST.md](docs/BLIND-TEST.md).
+
 ### Demo mode and isolated mode
 
 The line under the step bar says which mode the app is in.
@@ -149,7 +183,7 @@ The line under the step bar says which mode the app is in.
 - **Demo mode** (no Docker needed): our demo software runs as normal local programs with a time limit. Not isolated.
 - **Isolated mode** (Docker running): the same demo software runs in a locked-down container with no network and
   no access to your files. `./run-demo.sh` prepares the two small images it needs once, the first time Docker is
-  running and you are online. If Docker is missing, not running, or you are offline, the app simply starts in
+  running and you are online (since phase 4c it also prepares the real-library images, above). If Docker is missing, not running, or you are offline, the app simply starts in
   demo mode and says why. The app itself never downloads anything.
 - The post-quantum readiness test needs OpenSSL 3.5 or newer on your computer, or Docker with the prepared
   image. Without either it shows **Couldn't run (needs OpenSSL 3.5 or newer)**. On Docker Desktop (Mac, Windows)
@@ -162,7 +196,7 @@ Things to know:
 - The app only listens on your own computer (127.0.0.1). The demo TLS server uses `localhost:8443`; the multi-target demo file's test servers use 8444 to 8446, only after that file is imported.
 - Your data lives in the `data/` folder, which is never committed: a small database, the demo test certificate
   and the app's evidence signing key (a local key, made on first start, readable only by you).
-- Only our own demo software can be run. There is nowhere to upload other software in this version.
+- Only our own demo software and the pinned real libraries can be run. There is nowhere to upload other software in this version.
 - The suggested code change is proved before it is offered: the app first checks that the changed file is, byte
   for byte, one of our own demo components, and then runs that component. Nothing else is ever run.
 - Each imported file gets its own fresh copy of the demo repository, in `data/repos/`. So importing the demo file
@@ -203,7 +237,9 @@ Add `--mode demo` or `--mode isolated` to choose the mode. The build never edits
 
 The accuracy command also runs the migration demo and compares it with `demo/expected-migration.json`
 (`--only acme` or `--only migration` runs one of the two), ending with, for example,
-`Migration demo accuracy: 47 of 47 match`. The build never edits either answer key.
+`Migration demo accuracy: 47 of 47 match`. Since phase 4c it also runs the real libraries against
+`demo/expected-real-libraries.json` (`--only real` runs just those; they need isolated mode and the prepared
+images). The build never edits any answer key.
 
 The backend tests take about 15 minutes and the end-to-end test about 7. Tests that need real containers are
 skipped, with a message, when Docker is not running or the images are not prepared
@@ -218,7 +254,8 @@ skipped, with a message, when Docker is not running or the images are not prepar
 - `demo/` – the demo file (`acme-pay-cbom.json`), the CSV template (`claims-template.csv`), the demo signing
   components (`components/acme-sign-1.4.2/`, deliberately flawed, and `components/acme-sign-1.4.3/`, corrected),
   the small demo repository holding acme-sign 1.4.2 (`repos/acme-sign.git/`), the deliberately broken controls,
-  the official test vectors (`vectors/wycheproof/`, Project Wycheproof, Apache-2.0), our bad-signature cases
+  the official test vectors (`vectors/wycheproof/`, Project Wycheproof, Apache-2.0, and `vectors/acvp/`, NIST ACVP),
+  the real-library wrappers (`real-libraries/`) and their demo file (`real-libraries.csv`), our bad-signature cases
   (`vectors/bad-signatures/`), the answer key (`expected.json`), and the two migration files
   (`migration-demo.csv`, `migration-real-servers.csv`) and `lab-nginx.csv` (the lab nginx, isolated mode).
   - The code of acme-sign 1.4.2 no longer has comments pointing at its bug. The bug is still there on purpose.
