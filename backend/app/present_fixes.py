@@ -660,6 +660,7 @@ def code_fix(fix: dict, *, plan_id: int, titles: list[str], server_findings: int
         "patch": ({"url": f"/api/plans/{plan_id}/fixes/{fix['id']}/patch", "filename": patch_name}
                   if patch_name and fix["actions"]["download_patch"] is None else None),
         "merge_dialog": _merge_dialog(fix, holds), "sections": sections, "sections_note": None if connected else SECTIONS_NOTE,
+        "change_box": None,
     }
 
 
@@ -769,8 +770,44 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         "pull_request": None, "approvers": {"text": approves, "options": None, "rows": None, "footnote": None},
         "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None,
         "sections": [{"key": "suggestion", "title": "The suggestion", "line": words["line"], "open": True, "suggestion": words["suggestion"]}],
-        "sections_note": None,
+        "sections_note": None, "change_box": None,
     }
+
+
+# ------------------------------------------------------------------ phase 4b (SPEC 7c): the demo server's TLS fix as a change
+
+def with_change_box(shown: dict, box: dict) -> dict:
+    """The demo server's TLS fix once it is a change the app can try on a test copy and apply: the summary points to
+    the change box below it, and its status is the box's."""
+    return {**shown, "change_box": box, "status": {**shown["status"], "word": box["badge"]["label"], "busy": box["busy"]},
+            "proof": {**shown["proof"], "text": "In the change box below: a try on a test copy of the demo server comes first, "
+                                                "then the approvals, then Apply."},
+            "approvers": {**shown["approvers"], "text": "Pick them in the change box below. The app changes the demo server only "
+                                                        "when a person presses Apply."}}
+
+
+def applied_change_fix(fix: dict, box: dict, address: str, is_demo: bool) -> dict:
+    """An Apply still in force on our demo server, made from another import of the file: its own entry, so that its Roll
+    back is always on a screen. The results of this file show the server as it is now."""
+    return {
+        "id": fix["id"], "kind": "text", "title": f"TLS 1.3 only is applied to {address}",
+        "list_source": "Applied from another import of this file", "labels": [], "is_demo": is_demo,
+        "source": [_t("This app applied a change to the demo server "), {"t": "mono", "v": address},
+                   _t(" from another import of this file, and it is still in force. This file's results show the server as it is now.")],
+        "status": {"key": "text_only", "word": box["badge"]["label"], "busy": box["busy"]},
+        "what": {"label": "What it is", "server_line": None, "paragraphs": [[_t(
+            "The server accepts TLS 1.3 only. Roll back puts TLS 1.2 back, as the demo starts, and the app measures again.")]]},
+        "proof": {"state": "none", "badge": None, "muted": None, "text": "In the change box below: the Apply in force and its Roll back."},
+        "pull_request": None,
+        "approvers": {"text": "Roll back needs no approval.", "options": None, "rows": None, "footnote": None},
+        "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None, "sections": [], "sections_note": None,
+        "change_box": box,
+    }
+
+
+def server_change_line(line: dict) -> dict:
+    """Evidence Lab's one line for that fix."""
+    return {**line, "lead": "Server setting change:", "rest": "try it on a test copy, then apply"}
 
 
 # ------------------------------------------------------------------ the whole step

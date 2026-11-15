@@ -133,11 +133,27 @@ def file_settings(ports: tuple[int, ...]) -> list[tuple[str, str, str]]:
         return []
 
 
+# Phase 4b: each role's settings, in the settings model of lab_servers (what a change starts from).
+ROLE_SETTINGS = {
+    "hybrid": {"groups": "X25519MLKEM768:X25519:P-256", "versions": ["TLS 1.2", "TLS 1.3"], "certificate": "ecdsa-p256"},
+    "classical_internet": {"groups": "X25519", "versions": ["TLS 1.2", "TLS 1.3"], "certificate": "ecdsa-p256"},
+    "classical_internal": {"groups": "P-256", "versions": ["TLS 1.2", "TLS 1.3"], "certificate": "ecdsa-p256"},
+    "legacy_tls12": {"groups": "P-256", "versions": ["TLS 1.2"], "certificate": "rsa-2048"},
+    "pq_only": {"groups": "MLKEM768", "versions": ["TLS 1.3"], "certificate": "mldsa-65"},
+}
+
+
 class MigrationServers:
-    """Owns the five test servers. start() is safe to call again; it never raises."""
+    """Owns the five test servers. start() is safe to call again; it never raises.
+    Phase 4b: `settings_for(port)` (set by the app) says which settings an Apply put in force on a port; such a server
+    starts with those settings, and apply() changes a running one."""
 
     def __init__(self, ports: tuple[int, ...] = DEFAULT_PORTS):
         self.ports = tuple(ports)
+        self.settings_for = lambda port: None
+        self.settings: dict[int, dict] = {}
+        self._keep: dict[int, tuple] = {}
+        self._previous: dict[int, tuple] = {}
         self._servers: dict[int, object] = {}
         self.fingerprints: dict[int, str] = {}  # so a check can tell our own test server from another program on the port
         self.problems: dict[int, str] = {}
@@ -151,7 +167,15 @@ class MigrationServers:
                     continue
                 where = f"{DEMO_HOSTNAME}:{port}"
                 try:
-                    server, der = _start(role, port)
+                    applied = self.settings_for(port)
+                    if applied:
+                        from .lab_servers import LabServer
+                        lab = LabServer(applied, port, f"demo-{role.replace('_', '-')}")
+                        server, der = lab, lab.certificate[2]
+                        self.settings[port], self._keep[port] = lab.settings, lab.certificate
+                    else:
+                        server, der = _start(role, port)
+                        self.settings[port] = dict(ROLE_SETTINGS[role])
                     self._servers[port] = server
                     self.fingerprints[port] = hashlib.sha256(der).hexdigest()
                     self.problems.pop(port, None)
@@ -176,6 +200,42 @@ class MigrationServers:
     def running(self) -> list[int]:
         return sorted(self._servers)
 
+    def role_settings(self, port: int) -> dict | None:
+        return dict(ROLE_SETTINGS[ROLES[self.ports.index(port)]]) if port in self.ports else None
+
+    def certificate_of(self, port: int) -> tuple | None:
+        return self._keep.get(port)
+
+    def apply(self, port: int, settings: dict, keep: tuple | None = None) -> tuple[bool, str]:
+        """Restart one running test server on the same port with new settings (phase 4b). The test certificate is
+        kept when its kind doesn't change (or `keep` is given, on a roll back). (taken?, plain words)."""
+        from .lab_servers import LabServer, keep_kind, normal
+        with self._lock:
+            old = self._servers.get(port)
+            if old is None:
+                return False, f"The demo test server for {DEMO_HOSTNAME}:{port} is not running."
+            s = normal(settings)
+            current = self._keep.get(port)
+            reuse = keep or (current if current and keep_kind(current) == s["certificate"] else None)
+            try:
+                old.close()
+                server = LabServer(s, port, f"demo-{port}", reuse)
+            except Exception as exc:   # the port is free again: put the earlier settings back so the server keeps answering
+                try:
+                    back = LabServer(self.settings[port], port, f"demo-{port}", current)
+                    self._servers[port], self.fingerprints[port] = back, back.fingerprint
+                    self._keep[port] = back.certificate
+                except Exception:
+                    self._servers.pop(port, None)
+                return False, f"the test server could not take these settings ({exc.__class__.__name__}); it kept the earlier ones"
+            self._previous[port] = current
+            self._servers[port], self.fingerprints[port] = server, server.fingerprint
+            self.settings[port], self._keep[port] = server.settings, server.certificate
+            return True, "the demo test server restarted on the same port with the new settings"
+
+    def previous_certificate(self, port: int) -> tuple | None:
+        return self._previous.get(port)
+
     def stop(self) -> None:
         with self._lock:
             for server in self._servers.values():
@@ -185,3 +245,6 @@ class MigrationServers:
                     pass
             self._servers.clear()
             self.fingerprints.clear()
+            self.settings.clear()
+            self._keep.clear()
+            self._previous.clear()

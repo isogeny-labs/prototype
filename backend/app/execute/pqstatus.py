@@ -19,6 +19,10 @@ from . import RunContext, problem
 from .server import _certificate, _evidence, _ready, _versions, gate
 
 HYBRID_GROUPS = "X25519MLKEM768:SecP256r1MLKEM768:SecP384r1MLKEM1024"
+# Phase 4b: one hello carrying BOTH a hybrid and a classical key share ("*" = send a key for this group), in the two
+# orders. Which share the server takes shows whether it chooses hybrid when a client offers both.
+BOTH_HYBRID_FIRST = "*X25519MLKEM768:*X25519"
+BOTH_CLASSICAL_FIRST = "*X25519:*X25519MLKEM768"
 PURE_GROUPS = "MLKEM768:MLKEM1024:MLKEM512"
 CLASSICAL_GROUPS = "X25519:P-256:P-384"
 TIMING_ROUNDS = 10
@@ -31,6 +35,7 @@ def _compact(h) -> dict:
             "duration_ms": round(float(h.duration_ms), 3), "client_hello_bytes": h.client_hello_bytes,
             "client_share_bytes": h.client_share_bytes, "server_share_bytes": h.server_share_bytes,
             "certificate_message_bytes": h.certificate_message_bytes, "signature_bytes": h.signature_bytes,
+            "signature_scheme": getattr(h, "signature_scheme", None),
             "messages": [{"direction": m["direction"], "type": m["type"], "bytes": m["bytes"]} for m in h.messages]}
 
 
@@ -40,7 +45,7 @@ def _full(session: ProbeSession, groups: str, min_version: str = "TLS 1.3"):
     if blocked:
         return {"outcome": "unknown", "detail": blocked, "group": None, "tls_version": None, "alert": None, "duration_ms": 0,
                 "client_hello_bytes": None, "client_share_bytes": None, "server_share_bytes": None,
-                "certificate_message_bytes": None, "signature_bytes": None, "messages": []}, None
+                "certificate_message_bytes": None, "signature_bytes": None, "signature_scheme": None, "messages": []}, None
     h = pqtls.handshake(session.ip, session.port, session.server_name, groups, timeout=session.timeout,
                         min_version=min_version, max_version="TLS 1.3")
     return _compact(h), h.certificate_der
@@ -102,8 +107,17 @@ def any_certificate(check) -> bytes | None:
     return der
 
 
-def measure_server(check, mode, progress, log, costs: bool) -> dict:
-    """The raw measurement of one server whose address has already passed the gate (`check` is its AddressCheck)."""
+def _default_choice(session: ProbeSession) -> dict:
+    """Two full handshakes, each offering a hybrid and a classical key share at once: hybrid listed first, then
+    classical listed first. Records which key exchange the server took each time (phase 4b)."""
+    first, _ = _full(session, BOTH_HYBRID_FIRST)
+    second, _ = _full(session, BOTH_CLASSICAL_FIRST)
+    return {"hybrid_first": first, "classical_first": second}
+
+
+def measure_server(check, mode, progress, log, costs: bool, tracks: bool = False) -> dict:
+    """The raw measurement of one server whose address has already passed the gate (`check` is its AddressCheck).
+    `tracks` (phase 4b): also measure whether hybrid is chosen when a client offers both key shares."""
     usable, engine = pqtls.available()
     if not usable:
         return problem("pq_engine_unavailable", engine)
@@ -129,13 +143,19 @@ def measure_server(check, mode, progress, log, costs: bool) -> dict:
                 certificate = None
         subject: dict = {"address": check.row.address, "ip": check.row.resolved_ip, "probes": probes, "versions": _versions(observed),
                          "classical_client": classical_client, "hybrid_handshake": hybrid_handshake, "pure_handshake": pure_handshake,
-                         "certificate": certificate, "container": None, "timing": None}
+                         "certificate": certificate, "container": None, "timing": None, "default_choice": None}
+        if tracks and hybrid_handshake["outcome"] == "completed":
+            progress("offering a hybrid and a classical key at once", 30)
+            subject["default_choice"] = _default_choice(session)
         if mode is not None and getattr(mode, "name", None) == "isolated":
             progress("asking the OpenSSL 3.5 container", 35)
             subject["container"] = _container(mode, session)
         handshakes = [("classical-only client (X25519, P-256, P-384)", classical_client), ("hybrid groups only", hybrid_handshake)]
         if pure_handshake is not None:
             handshakes.append(("ML-KEM by itself", pure_handshake))
+        if subject["default_choice"] is not None:
+            handshakes += [("both keys, hybrid listed first", subject["default_choice"]["hybrid_first"]),
+                           ("both keys, classical listed first", subject["default_choice"]["classical_first"])]
         if costs:
             progress("timing handshakes", 45)
             subject["timing"] = _timing(session, hybrid_too=hybrid_handshake["outcome"] == "completed")
@@ -143,13 +163,13 @@ def measure_server(check, mode, progress, log, costs: bool) -> dict:
             pqprobe.evidence(session, probes), _handshake_evidence("Full handshakes", session, handshakes, engine)]))
         raw: dict = {"engine": {"available": True, "text": engine}, "subject": subject}
         progress("running the control servers", 70)
-        raw["control"] = _control(costs and hybrid_handshake["outcome"] != "completed", engine, session.server_name)
+        raw["control"] = _control(costs and hybrid_handshake["outcome"] != "completed", engine, session.server_name, tracks)
     except pqtls.PqTlsUnavailable as exc:
         return problem("pq_engine_unavailable", str(exc))
     return raw
 
 
-def _control(with_reference_timing: bool, engine: str, server_name: str | None = None) -> dict:
+def _control(with_reference_timing: bool, engine: str, server_name: str | None = None, tracks: bool = False) -> dict:
     """The same hellos against our own hybrid and classical control servers, plus the reference handshakes on the
     hybrid one (the numbers shown as "measured on our test server"). The reference handshakes send the same server
     name as the handshakes to the server itself, so their message sizes can be compared like for like."""
@@ -161,6 +181,8 @@ def _control(with_reference_timing: bool, engine: str, server_name: str | None =
                 probes = pqprobe.offer_all(session)
                 out[name] = {"port": ports[name], "probes": probes, "evidence": _evidence([pqprobe.evidence(
                     session, probes, f"Control, our own {name} test server: the same three hellos")])}
+                if tracks:   # the same two "both keys at once" hellos as on the server itself (phase 4b)
+                    out[name]["default_choice"] = _default_choice(session)
             session = ProbeSession("127.0.0.1", ports["hybrid"], server_name)
             classical, _ = _full(session, CLASSICAL_GROUPS, min_version="TLS 1.2")
             hybrid, _ = _full(session, HYBRID_GROUPS)
@@ -197,7 +219,8 @@ def run_pq_status(spec: dict, ctx: RunContext) -> dict:
     check, blocked = gate(ctx, address)
     if blocked:
         return blocked
-    return measure_server(check, ctx.mode, ctx.progress, ctx.log, costs=bool(spec["inputs"].get("costs")))
+    return measure_server(check, ctx.mode, ctx.progress, ctx.log, costs=bool(spec["inputs"].get("costs")),
+                          tracks=bool(spec["inputs"].get("tracks")))
 
 
 def run_signing_status(spec: dict, ctx: RunContext) -> dict:

@@ -264,8 +264,11 @@ class TestLabMixin:
         for program in research.programs(claims):
             if not components.lookup(program["component"], program["version"]):
                 lines.append(f"{program['label']}: its tests can't run. Only our own demo components can run in this version.")
+        tested_pq = {key.split(":", 1)[-1] for (key, kind) in have if kind == "pq_readiness"}
         for c in claims:
             where = c.get("location") or ""
+            if c.get("location_kind") == "server" and c.get("kind") == "post_quantum" and where in tested_pq:
+                continue   # phase 4b: covered by its Post-quantum readiness test
             if c.get("location_kind") == "server" and c.get("kind") in UNCOVERED:
                 lines.append(f"{where}: {UNCOVERED[c['kind']]}")
             elif c.get("location_kind") == "server" and c.get("kind") not in ("protocol_versions", "certificate"):
@@ -342,7 +345,8 @@ class TestLabMixin:
             has_results = bool(db.scalar(select(func.count(ReviewRow.id)).join(TestRunRow, TestRunRow.id == ReviewRow.run_id)
                                          .where(TestRunRow.plan_id == plan_id, TestRunRow.phase != MIGRATION_ORIGIN)))
             # Does the migration plan have something for the Fixes step (a how-to or a blocker)? Then Fixes can be opened.
-            has_migration = any(state["fix_ids"] for state in self._migration_states(db, plan))
+            # (phase 4b: a system's change is an entry too)
+            has_migration = any(state["fix_ids"] for state in self._with_changes(db, plan, self._migration_states(db, plan)))
             suggested = [i for i in items if i.origin == "suggested"]
             added = [i for i in items if i.origin == "added"]
             first_suggested = [i for i in every if i.origin == "suggested"]
@@ -572,6 +576,16 @@ class TestLabMixin:
             db.expunge(row)
         return AddressCheck(row, demo, resolver=self.resolver)
 
+    def _copy_check(self, copy: dict, address: str) -> AddressCheck:
+        """Phase 4b: the gate for a run on a test copy. The copy is on this computer, started by this app for this run:
+        its port, and the fingerprint of the test certificate it was given, so the run checks it is talking to it."""
+        from types import SimpleNamespace
+        row = SimpleNamespace(address=address, host=DEMO_HOSTNAME, port=int(copy["port"]), confirmed=True, resolved_ip="127.0.0.1",
+                              is_loopback=True, error=None)
+        demo = DemoContext(is_demo_import=False, host=DEMO_HOSTNAME, port=-1, running=True, error=None, fingerprint=None,
+                           extra={int(copy["port"]): copy["fingerprint"]}, extra_problems={})
+        return AddressCheck(row, demo, resolver=lambda host: ["127.0.0.1"], mode=self.mode)
+
     def _run_one(self, job: Job, a: dict) -> None:
         """One job: run the locked test, write the run record, then have it reviewed. Leaves a run and a review,
         except when the app is closing: an interrupted test leaves nothing, so it reads "Not run yet" afterwards."""
@@ -586,10 +600,14 @@ class TestLabMixin:
         code = self._code_for_run(a)  # which code this run is about to run on (None when no component of ours runs)
         if not spec_ok:
             raw = problem("spec_changed", "The stored test no longer matches the fingerprint it was locked with, so it was not run.")
+        elif a.get("copy_problem"):   # phase 4b: the test copy for a try could not be started
+            raw = problem("copy_unavailable", a["copy_problem"])
         else:
+            # Phase 4b: a run "on a test copy" connects to the copy this app started for it, never to the real address.
+            check_for = ((lambda address: self._copy_check(a["copy"], address)) if a.get("copy")
+                         else (lambda address: self._address_check(a["import_id"], address)))
             ctx = RunContext(settings=self.settings, mode=self.mode, runner=self.component_runner, gate=self.jobs.gate,
-                             progress=job.progress, log=job.log,
-                             address_check=lambda address: self._address_check(a["import_id"], address),
+                             progress=job.progress, log=job.log, address_check=check_for,
                              component=component, baseline_version=a["baseline_version"])
             try:
                 raw = execute(spec, ctx)
@@ -600,6 +618,10 @@ class TestLabMixin:
         if self._stopping:  # the app began closing while this test was waiting or running: its outcome means nothing
             return
         job.progress("checking the result", 98)
+        if a.get("copy") or a.get("copy_problem"):   # which copy this run measured (part of the fingerprinted record)
+            copy = a.get("copy") or {}
+            raw = {**raw, "copy": {"label": a.get("copy_label"), "port": copy.get("port"), "settings": copy.get("settings"),
+                                   "accepted": copy.get("accepted"), "problem": a.get("copy_problem")}}
         try:
             raw = json.loads(json.dumps(components.scrub(raw), allow_nan=False))  # redacted, and exactly what will be stored
         except (TypeError, ValueError):

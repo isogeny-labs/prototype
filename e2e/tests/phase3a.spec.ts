@@ -36,7 +36,8 @@ const SERVER_LINE_PROVEN = "This fixes the signing program. The server finding i
 const PROOF_PASSED =
   "All 3 tests that run the changed code passed, every control behaved as expected, and the 3 server tests came out the same as before.";
 const PROOF_RUNNING_BLOCKS = "A proof is running in Fixes. Wait until it has finished.";
-const TLS_LINE = "Text-only suggestion: a server setting";
+// Since phase 4b the server TLS fix has a change box (try on a test copy, approvals, Apply), so its line says so.
+const TLS_LINE = "Server setting change: try it on a test copy, then apply";
 
 // The answer key. It is read here and never edited: the right result of every demo test on 1.4.2 and on 1.4.3.
 const KEY = JSON.parse(fs.readFileSync(path.join(REPO, "demo/expected.json"), "utf8"));
@@ -396,7 +397,7 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
   await expect(items.nth(0)).toContainText("Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)");
   await expect(items.nth(0)).toHaveAttribute("aria-current", "true");
   await expect(items.nth(1)).toContainText(TLS_FIX_TITLE);
-  await expect(items.nth(1).getByTestId("fix-status")).toHaveText("Text only");
+  await expect(items.nth(1).getByTestId("fix-status")).toHaveText("Ready to try");
   await expect(items.nth(1)).toContainText("Came from 1 failed test: Old TLS versions");
   await expect(items.nth(1)).not.toHaveAttribute("aria-current", "true");
 
@@ -427,22 +428,28 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
   await selectFix(TLS_FIX_TITLE, TLS_FIX);
 });
 
-test("the server fix is Text only: its suggestion, and no button of any kind", async () => {
+test("the server fix has a change box (Ready to try) and its suggestion; the summary itself has no button", async () => {
   const s = summary();
-  await expect(s.getByTestId("fix-status")).toHaveText("Text only");
+  // Since phase 4b the status word is the change box's badge, and the change box holds the buttons.
+  await expect(s.getByTestId("fix-status")).toHaveText("Ready to try");
   await expect(s.getByTestId("fix-status")).toHaveAttribute("data-status", "text_only");
   await expect(s.getByTestId("fix-source")).toHaveText(
     "Came from 1 failed test on server localhost:8443: Old TLS versions. The file claims TLS 1.3 only.",
   );
   await expect(s.getByTestId("fix-what")).toContainText("A server setting, not a code change");
-  await expect(s.getByTestId("fix-proof")).toHaveText("None. This suggestion is text only: the app has not applied it or tested it.");
-  await expect(s.getByTestId("fix-approvers")).toHaveText("Your own server team, outside this app. The app never changes your server.");
+  await expect(s.getByTestId("fix-proof")).toHaveText(
+    "In the change box below: a try on a test copy of the demo server comes first, then the approvals, then Apply.");
+  await expect(s.getByTestId("fix-approvers")).toHaveText(
+    "Pick them in the change box below. The app changes the demo server only when a person presses Apply.");
   await expect(s).not.toContainText("From a fix template");
 
-  // No button: none in the summary, and none of a code fix's anywhere on the screen.
+  // No button in the summary, and none of a code fix's anywhere on the screen. The change box has its own.
   await expect(s.getByRole("button")).toHaveCount(0);
   await expect(s.getByTestId("fix-actions")).toHaveCount(0);
-  await expect(page.getByRole("checkbox")).toHaveCount(0);
+  await expect(page.getByTestId("change-box")).toHaveCount(1);
+  await expect(page.getByTestId("change-box").getByRole("button", { name: "Try on a test copy" })).toBeEnabled();
+  await expect(page.getByTestId("change-box").getByTestId("change-badge")).toContainText("Ready to try");
+  await expect(page.getByRole("checkbox")).toHaveCount(3);   // the reviewers of the change box
   for (const name of ["Connect demo code", "Run proof again", "Open pull request", /^Approve/, "Merge pull request", "Download patch", "Retest now", "Prepare change"]) {
     await expect(page.getByRole("button", { name })).toHaveCount(0);
   }
@@ -760,10 +767,10 @@ test("after the proof Evidence Lab's line reads Fix ready, and the server failur
   await shot("17-lab-fix-line-server-text-only.png");
   await tls.getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(summary()).toHaveAttribute("data-fix-id", TLS_FIX);
-  await expect(summary().getByTestId("fix-status")).toHaveText("Text only");
-  await expect(summary().getByRole("button")).toHaveCount(0);
+  await expect(summary().getByTestId("fix-status")).toHaveText("Ready to try");
+  await expect(summary().getByRole("button")).toHaveCount(0);   // its buttons are in the change box below
   await expect(listed(CODE_FIX_TITLE).getByTestId("fix-status")).toHaveText("Ready for review");
-  await expect(section("suggestion").getByTestId("text-suggestion")).toBeVisible();
+  await expect(page.getByTestId("change-box")).toBeVisible();
   await shot("11-fixes-server-tls-text-only.png");
 });
 
@@ -1031,7 +1038,7 @@ test("the opened row after the retest: the code each side ran on, the Code item,
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
   await expectStatus("merged", "Merged");
   await expect(fixList().getByRole("button")).toHaveCount(2);
-  await expect(listed(TLS_FIX_TITLE).getByTestId("fix-status")).toHaveText("Text only");
+  await expect(listed(TLS_FIX_TITLE).getByTestId("fix-status")).toHaveText("Ready to try");
   await expect(summary().getByRole("button")).toHaveText(["Retest now", "Download patch"]);
   await expectNoSoftwareUpload();
   await expectCarefulWording();
@@ -1072,7 +1079,7 @@ test("Download evidence: the verify command passes, and the file holds the fix, 
 
   expect(evidence.fixes.map((f: any) => [f.id, f.kind, f.status])).toEqual([
     [CODE_FIX, "code", "Merged"],
-    [TLS_FIX, "text", "Text only"],
+    [TLS_FIX, "text", "Ready to try"],   // since phase 4b the change box's status
   ]);
   const fix = evidence.fixes[0];
   expect(fix.title).toBe(CODE_FIX_TITLE);
@@ -1185,7 +1192,7 @@ test("the report shows the Fixes part: the change, the proof, the approvals, the
     await expect(body).toContainText(ONE_LOGIN);
     await expect(body).toContainText(/Merged \S+ \(UTC\) by the person logged in, after confirming \(merge commit [0-9a-f]{40}\)\. Nothing was deployed\./);
     await expect(report.getByRole("heading", { name: TLS_FIX_TITLE, exact: true })).toBeVisible();
-    await expect(body).toContainText("text only: the app has not applied it or tested it");
+    await expect(body).toContainText("its try on a test copy, approvals, Apply and Roll back are in part 6");   // since phase 4b
     await expect(body).toContainText("Before you switch TLS 1.2 off:");
     // Which code each run ran on is in the report too.
     await expect(body).toContainText("the merged fix: branch main, commit");

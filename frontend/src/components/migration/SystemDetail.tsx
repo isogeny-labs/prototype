@@ -1,7 +1,8 @@
 import { useRef, type ReactNode, type RefObject } from "react";
-import type { MigrationOptionKey, MigrationSettingField, MigrationSystem } from "../../api";
+import type { MigrationOptionKey, MigrationSettingField, MigrationSystem, MigrationTrack } from "../../api";
 import { ResultDetail } from "../lab/ResultDetail";
-import { RichTextView, SourceTag, StatusView } from "../ui";
+import { ChangeBox } from "../change/ChangeBox";
+import { AlsoNoticedList, RichTextView, SourceTag, StatusView } from "../ui";
 import { OptionCard, type SaveChoice } from "./OptionCard";
 import { StatusPill } from "./parts";
 
@@ -14,6 +15,38 @@ function Box({ children, testId, className = "border-slate-800" }: { children: R
 }
 
 const H3 = "text-[15px] font-semibold text-slate-100";
+
+function TrackBox({ track }: { track: MigrationTrack }) {
+  return (
+    <div data-testid="migration-track" data-track={track.key} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{track.title}</p>
+      <div className="mt-1.5 flex flex-wrap items-start gap-3">
+        <StatusPill status={track.status} large />
+        <p data-testid="track-sentence" className="min-w-0 flex-1 basis-72 text-[15px] text-slate-100">
+          {track.sentence}
+        </p>
+      </div>
+      {track.facts.length > 0 ? (
+        <dl className="mt-3 grid grid-cols-[minmax(0,15rem)_1fr] gap-x-4 gap-y-2 text-[13px]">
+          {track.facts.map((fact, i) => (
+            <div key={i} className="contents">
+              <dt className="text-slate-400">{fact.label}</dt>
+              <dd className="text-slate-200">
+                <RichTextView parts={fact.value} />
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      <p data-testid="track-next" className="mt-3 border-t border-slate-800 pt-2.5 text-[13px] text-slate-200">
+        <span className="font-semibold text-sky-200">{track.next_label}</span> <RichTextView parts={track.next} />
+      </p>
+      <p data-testid="track-why" className="mt-1 text-[13px] text-slate-400">
+        <span className="font-medium text-slate-300">{track.why_label}</span> <RichTextView parts={track.why} />
+      </p>
+    </div>
+  );
+}
 
 function Today({
   system,
@@ -29,6 +62,7 @@ function Today({
   onViewFix: (fixId: string) => void;
 }) {
   const today = system.today;
+  const tracks = system.tracks ?? [];
   const detailsId = `migration-details-${system.key}`;
   return (
     <Box testId="migration-today">
@@ -36,6 +70,12 @@ function Today({
       <div className="mt-3 flex flex-wrap items-start gap-3">
         {system.measuring ? (
           <StatusView status={system.measuring} />
+        ) : tracks.length > 0 ? (
+          system.target_line ? (
+            <p data-testid="target-line" className="text-sm text-slate-300">
+              {system.target_line}
+            </p>
+          ) : null
         ) : (
           <>
             <StatusPill status={system.status} large />
@@ -64,6 +104,18 @@ function Today({
             </div>
           ))}
         </dl>
+      ) : null}
+      {tracks.length > 0 && !system.measuring ? (
+        <div className="mt-3 flex flex-col gap-3">
+          {tracks.map((track) => (
+            <TrackBox key={track.key} track={track} />
+          ))}
+        </div>
+      ) : null}
+      {(system.also_noticed ?? []).length > 0 ? (
+        <div className="mt-3">
+          <AlsoNoticedList title={system.also_noticed_title ?? ""} items={system.also_noticed ?? []} />
+        </div>
       ) : null}
       {today.control_line ? (
         <p data-testid="today-control" className="mt-3 text-xs text-slate-400">
@@ -247,6 +299,9 @@ interface Props {
   onSetting: (field: MigrationSettingField["field"], value: string) => void;
   onSaveChoice: (option: MigrationOptionKey) => SaveChoice;
   onViewFix: (fixId: string) => void;
+  /** After a change-box call went through: load the view again and tell the app. */
+  onChanged: () => Promise<void>;
+  planId: number;
 }
 
 /** The selected system on the Systems view, top to bottom as the view sends it. */
@@ -260,6 +315,8 @@ export function SystemDetail({
   onSetting,
   onSaveChoice,
   onViewFix,
+  onChanged,
+  planId,
 }: Props) {
   const detailsRef = useRef<HTMLDivElement | null>(null);
 
@@ -287,6 +344,7 @@ export function SystemDetail({
       <Settings system={system} busy={busy} onChange={onSetting} />
       {system.cost ? <Cost cost={system.cost} /> : null}
       <Recommendation system={system} onSeeEvidence={seeEvidence} />
+      {system.change ? <ChangeBox change={system.change} planId={planId} onChanged={onChanged} onViewFix={onViewFix} /> : null}
       {hasOptions ? (
         <section data-testid="migration-options" aria-labelledby={`options-${system.key}`}>
           <h3 id={`options-${system.key}`} className={`${H3} mb-2 px-1`}>

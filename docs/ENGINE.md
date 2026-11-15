@@ -508,6 +508,60 @@ The evidence file gains `migration`: `systems` (status, settings with their sour
 with its reasons, the user's choice and earlier choices, the plan and its roadmap phase), `roadmap`, and
 `measurements` (for each system the locked measurement, its run record and its review, like any test).
 
+## Phase 4b: tracks, changes, tries, Apply and Roll back
+
+Same path as before: written down and locked, run, stored, reviewed by the separate reviewer. Words only in the
+`present_*` files.
+
+**The rule type `pq_status_tracks`** (`research.PQ_TRACKS_RULE_TEXT`; inputs `tracks: true`) is a new locked-spec
+fingerprint. A migration measured in phase 4a keeps its `pq_status` rule and words and must be measured again.
+`reviewer.pq_status_of(raw, ..., tracks=True)` decides:
+
+- `code`: hybrid, pq_only, classical or couldnt_run, exactly as in phase 4a. This is the **key exchange** track.
+- `detail.auth`: the **authentication** track. `classical` when the certificate key and the handshake signature are
+  both classical, `post_quantum` when both are post-quantum (ML-DSA), otherwise `couldnt_check` with a reason
+  (`no_certificate`, `no_signature`, `mixed`). The signature is read from the first completed handshake that reports it
+  (CertificateVerify in TLS 1.3, ServerKeyExchange in TLS 1.2).
+- `detail.default_choice`: what the server picked when one hello offered a hybrid and a classical key share, hybrid
+  listed first and classical listed first. Information, not a status.
+- `detail.also_noticed`: `old_tls` (TLS 1.0 or 1.1 accepted) and `pure_too` (ML-KEM by itself also accepted). Never changes
+  a status.
+- the control: besides the old reading, the hybrid control server must pick hybrid and the classical one classical on the
+  both-keys hello. If not, the control reads not as expected and the run can't be trusted.
+
+**A change** (`change_builder.py`) is pure: the same plan and settings give the same change and fingerprint. It is worked
+out on every read and stored only when acted on. It carries the settings before and after, the lines for nginx, Apache and
+an application, and the **promise**: the facts a try, and the measurement after Apply, are held to (`kex`, `auth`,
+`classical_client`, or `tls` for the Acme Pay server protocol check).
+
+**Four pure outcome functions in `reviewer.py`** (the only place that decides these; `_facts_of` reads a reviewed
+measurement):
+
+- `meets_promise(promise, measured)`: (True/False/None, one check per promised fact). None when the measurement gave no
+  answer or a promised fact is missing. A promise of None for a fact (authentication stays as it was, with nothing earlier
+  to compare) is skipped.
+- `change_try_outcome(promise, copies)`: one entry per copy (the lab server copy, and real nginx in isolated mode).
+  `passed` only when every copy that was tried meets the promise and at least one was tried. A copy that couldn't be tried
+  (for example "needs isolated mode") is listed and decides nothing. A copy that was tried but gave no answer makes the try
+  `couldnt_run`. No copy tried: `not_run`. Otherwise `failed`.
+- `apply_outcome(promise, tried, after)`: `matches` when the first measurement after Apply meets the promise and shows no
+  difference from the try on `kex`, `auth`, `classical_client`, `tls`; `differs` otherwise, with the differences listed by
+  fact; `no_answer` when it gave no answer.
+- `rollback_outcome(before, after)`: `as_before` when the same four facts equal the ones measured before the change;
+  `differs` with the differences; `no_answer` when either side has no answer.
+
+**The copy measurement runs through the same executor** as the system's own measurement, with the address replaced by the
+copy's port. Real nginx (`lab_nginx.py`) is a second copy, run in a locked-down container from the pinned image.
+
+**Records and flow** (`system_changes.py`): add-only tables `change_tries`, `apply_requests`, `apply_approvals`, `applies`,
+`rollbacks`. Routes `POST /api/plans/{id}/changes/try`, `.../ask-approval`, `.../approve`, `.../apply`, `.../rollback` and
+`GET .../changes/download`. Apply is refused unless the latest try passed, every picked reviewer approved and the server is
+one of ours. The settings in force are worked out by replaying applies and roll backs. After Apply and after Roll back the
+app runs the system's measurement again by itself, and the verdict comes from `apply_outcome` or `rollback_outcome`.
+
+The evidence file gains `changes` (every try with its runs, approval request and approvals, Apply, the measurement after,
+Roll back and its measurement) and the report gains part 6, "Changes: tried, approved, applied, rolled back".
+
 ## Phase 3a-fixes: targets, plain sentences and notes in the views
 
 - **Plan view and Evidence Lab view** carry `grouped` (true when the file names more than one server or more

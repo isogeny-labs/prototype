@@ -381,11 +381,15 @@ FIX_TABLES = {"code_connections": "repository", "changes": "title", "proofs": "v
 # The Migration step's two tables (phase 4a) have their own test of this, on a plan that has such rows:
 # test_migration.py::test_raw_sql_cannot_change_or_delete_a_setting_or_a_choice.
 MIGRATION_TABLES = ("system_settings", "migration_choices")
+# The five tables of a change that is tried, approved, applied and rolled back (phase 4b) have theirs too, on a plan
+# that has such rows: test_phase4b.py::test_the_records_only_accept_new_rows.
+SYSTEM_CHANGE_TABLES = ("change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks")
 
 
 def test_every_append_only_table_is_covered_by_a_test():
-    assert set(RUN_TABLES) | set(FIX_TABLES) | set(MIGRATION_TABLES) == set(APPEND_ONLY_TABLES)
-    assert not set(RUN_TABLES) & set(FIX_TABLES) and not set(MIGRATION_TABLES) & (set(RUN_TABLES) | set(FIX_TABLES))
+    groups = (set(RUN_TABLES), set(FIX_TABLES), set(MIGRATION_TABLES), set(SYSTEM_CHANGE_TABLES))
+    assert set().union(*groups) == set(APPEND_ONLY_TABLES)
+    assert sum(len(g) for g in groups) == len(set().union(*groups))     # no table is counted twice
 
 
 @pytest.mark.parametrize("table", FIX_TABLES)

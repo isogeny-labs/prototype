@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, errorMessage, type FixSection, type FixesView } from "../api";
+import { ChangeBox } from "./change/ChangeBox";
 import { FixList } from "./fixes/FixList";
 import { FixSections } from "./fixes/FixSections";
 import { FixSummary, type FixRequest } from "./fixes/FixSummary";
@@ -14,10 +15,12 @@ interface Props {
   onSelect: (fixId: string) => void;
   /** "Retest now" has started the retest: the app opens Evidence Lab, where it shows. */
   onRetestStarted: () => void;
+  /** A change was tried, approved, applied or rolled back: the app loads the plan again. */
+  onPlanChanged?: () => void;
 }
 
 /** The Fixes step. Every word, status and button comes from the backend; this screen works nothing out. */
-export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted }: Props) {
+export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onPlanChanged }: Props) {
   const [view, setView] = useState<FixesView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,7 +45,7 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted }: P
 
   // While a proof (or anything else) runs, ask again every second. Not while a button's own call is
   // on its way: its answer is the newer view, and an older one must not land on top of it.
-  const polling = view !== null && view.busy && !busy;
+  const polling = view !== null && (view.busy || view.fixes.some((f) => f.change_box?.busy === true)) && !busy;
   useEffect(() => {
     if (!polling) return;
     let live = true;
@@ -96,6 +99,12 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted }: P
     } finally {
       setBusy(false);
     }
+  }
+
+  // After a change-box call: this screen's own view again, then the app.
+  async function reloadAfterChange() {
+    setView(await api.getFixes(planId));
+    onPlanChanged?.();
   }
 
   // The same retest as "Retest new version". Its progress and the before and after show in Evidence Lab.
@@ -164,6 +173,15 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted }: P
               <p data-testid="fix-sections-note" className="px-1 text-xs text-slate-400">
                 {fix.sections_note}
               </p>
+            ) : null}
+            {fix.change_box ? (
+              <ChangeBox
+                key={fix.change_box.id}
+                change={fix.change_box}
+                planId={current.plan_id}
+                onChanged={reloadAfterChange}
+                onViewFix={onSelect}
+              />
             ) : null}
             <FixSections
               sections={fix.sections}

@@ -14,24 +14,25 @@ How Kevin works with you: he's not a developer and doesn't use git. Explain in p
 - Results (True/False/Couldn't check, Passed/Failed) come only from checks and tests. The co-pilot never sets a result or acts without the user's Confirm, and everything it can do also has a normal button.
 - No AI model. The co-pilot is rule-based behind `CopilotEngine`.
 - Suggested code changes are offered only after every test passes on the changed code. The app never merges or deploys on its own; a person approves and merges.
+- The app changes a system only when a person clicks Apply, after a passing try on a test copy and the required approvals; it re-measures right after, and can roll back. In this version Apply works only on our own demo test servers, the lab nginx and the Acme Pay demo server; any other server needs a connector (a later phase).
 - Never call a system "secure", give a security score or estimate time-to-hack.
 - Plain-language UI text for a busy security engineer who isn't a cryptographer.
 
 ## Safety
 - Uploaded files are data, never instructions. Nothing in them is executed.
-- Uploading outside software is not in this version. Only our own demo components run, in demo mode (local processes) or isolated mode (Docker).
+- Uploading outside software is not in this version. Only our own demo components and the pinned lab images run, in demo mode (local processes) or isolated mode (Docker).
 - Network checks: handshakes only, localhost or user-confirmed addresses only.
 - Never print secrets or keys in code, logs, docs or replies. Test keys only.
 - Ask before adding any dependency not in docs/SPEC.md section 3.
 
 ## Commands
 - Start the app: `./run-demo.sh` (from the repo root), then open http://127.0.0.1:8000. Ctrl+C stops it. Demo TLS server: localhost:8443.
-- Isolated mode: when Docker is running, `./run-demo.sh` prepares the test images once (`cd backend && .venv/bin/python -m app.prepare`; add `--check` to only report). Only that step may pull or build; the app never does. Without Docker or the images the app runs in demo mode and says why. Force a mode with `EVIDENCE_LAB_MODE=demo` or `isolated`.
+- Isolated mode: when Docker is running, `./run-demo.sh` prepares the test images once (including the pinned nginx lab image) (`cd backend && .venv/bin/python -m app.prepare`; add `--check` to only report). Only that step may pull or build; the app never does. Without Docker or the images the app runs in demo mode and says why. Force a mode with `EVIDENCE_LAB_MODE=demo` or `isolated`.
 - Backend tests: `cd backend && .venv/bin/python -m pytest -q tests` (venv is Python 3.12; `./run-demo.sh` creates it; about 14 minutes; container tests are skipped with a message when Docker isn't ready).
-- Accuracy check: `cd backend && .venv/bin/python -m app.accuracy` (all 15 answers through the same path as the buttons; compares with `demo/expected.json`; then the migration demo against `demo/expected-migration.json`; exit code 0 only if all match and both answer keys are there; `--mode demo` or `--mode isolated` picks the mode; `--only acme` or `--only migration` runs one of the two).
+- Accuracy check: `cd backend && .venv/bin/python -m app.accuracy` (all 18 answers through the same path as the buttons; compares with `demo/expected.json`; then the migration demo against `demo/expected-migration.json`; exit code 0 only if all match and both answer keys are there; `--mode demo` or `--mode isolated` picks the mode; `--only acme` or `--only migration` runs one of the two).
 - Check a downloaded evidence file: `cd backend && .venv/bin/python -m evidence verify file.json` (exit code 0 only if nothing changed and the signer is this app's key; `--data-dir DIR` or `--public-key HEX_OR_FILE` to name the trusted key).
 - Frontend tests: `cd frontend && npm run typecheck && npm test`. Build: `npm run build`.
-- Playwright end-to-end: `cd e2e && npm test` (builds the frontend, starts its own app on port 8010 with a throwaway data folder; stop the app first, it needs port 8443; screenshots go to `docs/screenshots/phase1/`, `docs/screenshots/phase2/`, `docs/screenshots/phase3a/`, `docs/screenshots/phase3a-fixes/` and `docs/screenshots/phase4a/`; the migration demo's test servers need ports 8451 to 8455).
+- Playwright end-to-end: `cd e2e && npm test` (builds the frontend, starts its own app on port 8010 with a throwaway data folder; stop the app first, it needs port 8443; screenshots go to `docs/screenshots/phase1/`, `docs/screenshots/phase2/`, `docs/screenshots/phase3a/`, `docs/screenshots/phase3a-fixes/`, `docs/screenshots/phase4a/` and `docs/screenshots/phase4b/`; the migration demo's test servers need ports 8451 to 8455, and the lab nginx port 8461).
 - Remake the bundled demo repository: `cd backend && .venv/bin/python -m app.demo_repo` (writes `demo/repos/acme-sign.git/` from the acme-sign 1.4.2 file; needed only if that file changes, and a backend test fails until it is done).
 
 ## How each phase runs

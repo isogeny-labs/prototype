@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from . import migration_rules as rules, present_pq
+from . import migration_rules as rules, present_pq, present_tracks
 from .guidance import PQ_DATES, PQ_PUBLISHED
 from .names import join_and
 
@@ -27,7 +27,7 @@ FIELD_LABELS = {"lifespan": "Data lifespan", "exposure": "Exposure", "can_change
 VALUE_LABELS = {"lifespan": {"long": "Long-lived", "short": "Short-lived"}, "exposure": {"internet": "Internet-facing", "internal": "Internal"},
                 "can_change": {"yes": "Yes", "no": "No"}}
 SOURCE_LABELS = {"file": "from the file", "user": "set by you", "assumed": "assumed"}
-BANDS = {
+BANDS = {   # phase 4a's single-track bands, kept for reading older words; phase 4b places each track (present_tracks.BANDS)
     "already": ("Already there", "Measured in place. Nothing to do now.", "plain"),
     "phase1": ("Phase 1", "Hybrid key exchange on internet-facing, long-lived systems with nothing in the way.", "highlight"),
     "phase2": ("Phase 2", "Hybrid or post-quantum on the other systems, once their blockers are fixed.", "plain"),
@@ -145,6 +145,13 @@ def _facts(state: dict) -> list[dict]:
                 {"label": "Public key size", "value": [_t(_bytes(c.get("public_key_bytes"))), _t(" "), _tag(MEASURED)]},
                 {"label": "Signing, median", "value": [_t(_ms(c["sign"]["median_ms"])), _t(" "), _tag(MEASURED)]}]
     return out
+
+
+def _general_facts(state: dict) -> list[dict]:
+    """The facts that belong to no one track (phase 4b): the TLS versions, and the container's second opinion."""
+    if state["kind"] != "server":
+        return []
+    return [f for f in _facts(state) if f["label"] in ("TLS versions", "Second opinion (OpenSSL 3.5 container)")]
 
 
 def _file_note(state: dict) -> str | None:
@@ -547,34 +554,40 @@ def choice_line(kind: str, choice: dict) -> str:
 
 
 def plan_line(state: dict) -> str:
-    if not state["status"]:
-        return "No plan yet: status not measured" if state["code"] is None else "No plan yet: couldn't check"
-    option, band = state["plan_option"], state["band"]
-    short = {"keep": "Keep classical", "hybrid": "Hybrid", "full_pq": "Full post-quantum", "wrap": "Wrap the connection"}[option]
-    tail = {"already": " · already there", "phase1": " · Phase 1", "phase2": " · Phase 2", "wrapped": "",
-            "later": f" · review {day((state.get('review_date') or {}).get('value'))}"}.get(band, "")
-    return f"Plan: {short}{tail}"
+    view = state.get("change_view")
+    change_line = None
+    if view and view["badge"]["label"] not in ("Ready to try", "Text only", "Ready to download"):
+        short = {"keep": "Keep classical", "hybrid": "Hybrid", "full_pq": "Full post-quantum", "wrap": "Wrap the connection"}.get(state["plan_option"], "")
+        change_line = f"{'Your choice' if state['plan_source'] == 'choice' else 'Recommended'}: {short} · {view['badge']['label'][0].lower() + view['badge']['label'][1:]}"
+    return present_tracks.plan_line(state, change_line)
 
 
 # ------------------------------------------------------------------ the roadmap
 
-def roadmap_note(state: dict) -> dict:
-    band, detail, option = state["band"], state["detail"], state["plan_option"]
+def roadmap_note(state: dict, track: str | None = None, band: str | None = None) -> dict:
+    detail, option = state["detail"], state["plan_option"]
+    band = band or next(iter(state["track_bands"].values()))
     if band == "not_placed":
         return _line(today_sentence(state))
-    if band == "already":
-        if state["kind"] != "server":
+    if band == "target":
+        if track == "signatures":
             return _line(f"Signs with {detail.get('algorithm')} ", _tag(MEASURED), ".")
-        if state["status"] == "hybrid":
-            still = "; a classical-only client still connects" if detail.get("classical_client") == "connects" else ""
-            return _line(f"Offers {(detail.get('hybrid_groups') or ['hybrid'])[0]}{still} ", _tag(MEASURED), ".")
-        cert = detail.get("certificate") or {}
-        return _line(f"Accepts only {present_pq.group_words(detail.get('pure_group'))}" + (f", with an {cert.get('name')} certificate " if cert.get("post_quantum") else " "),
+        if track == "auth":
+            auth = detail.get("auth") or {}
+            return _line(f"{auth.get('certificate')} certificate and {auth.get('signature')} handshake signature ", _tag(MEASURED), ".")
+        return _line(f"Accepts only {present_pq.group_words(detail.get('pure_group'))} ", _tag(MEASURED), ".")
+    if band == "done_for_now":
+        still = " Classical-only clients still connect " if detail.get("classical_client") == "connects" else " "
+        return _line(f"Offers {(detail.get('hybrid_groups') or ['hybrid'])[0]}. Next: post-quantum only, once every client supports it.{still}",
                      _tag(MEASURED), ".")
+    if track == "auth" and band == "phase2":
+        if option == "full_pq":
+            return _line("Part of the Full post-quantum change (an ML-DSA certificate).", fix_id=state["fix_ids"].get("howto"))
+        return _line("An ML-DSA certificate, once your clients can check one. After key exchange; in this version it comes with Full post-quantum.")
     if band in ("phase1", "phase2"):
         fixable = [c for c in state["blockers"][option] if c in rules.FIXABLE_BLOCKERS]
         if fixable:
-            first = _blocker_line(state, fixable[0], state["fix_ids"].get(fixable[0]))
+            first = _blocker_line(state, fixable[0], state["fix_ids"].get(fixable[0]) or state["fix_ids"].get("howto"))
             return {"text": [_t("Blocker: " + first["text"][0]["v"][0].lower() + first["text"][0]["v"][1:])] + first["text"][1:], "fix_id": first["fix_id"]}
         todo = {("server", "hybrid"): "turn on hybrid key exchange", ("server", "full_pq"): "move to post-quantum key exchange and certificate only",
                 ("software", "hybrid"): "sign with both algorithms", ("software", "full_pq"): "sign with ML-DSA only"}[(state["kind"], option)]
@@ -593,23 +606,53 @@ def roadmap_note(state: dict) -> dict:
     return _line(f"{why} Protects the connection only, not cryptography inside the application.".strip())
 
 
+def roadmap_rows(state: dict) -> list[tuple[str, dict]]:
+    """(band, row) for each track of one system (phase 4b). A system kept classical, wrapped, or not measured has one row
+    for both tracks; otherwise each track has its own row and its own place."""
+    tag = None if not state["status"] else "chosen by you" if state["plan_source"] == "choice" else "recommended, not yet chosen by you"
+    base = {"system_key": state["key"], "kind_label": kind_label(state), "name": state["name"], "plan_tag": tag}
+    bands, statuses, option = state["track_bands"], state["tracks"], state["plan_option"]
+    both = state["kind"] == "server" and (len(set(bands.values())) == 1 and next(iter(bands.values())) in ("later", "wrapped", "not_placed"))
+    if both or state["kind"] == "software" and next(iter(bands.values())) == "not_placed":
+        band = next(iter(bands.values()))
+        option_words = option_title(state["kind"], option) if state["status"] and option else "No option yet"
+        return [(band, {**base, "track": "Both tracks" if state["kind"] == "server" else "Signatures", "option": option_words,
+                        "plan_tag": tag if band != "not_placed" else None, "note": roadmap_note(state, None, band)})]
+    out = []
+    for track, band in bands.items():
+        status = statuses[track]
+        out.append((band, {**base, "track": present_tracks.TRACK_TITLES[track][1], "option": _track_option(state, track, status, band),
+                           "plan_tag": tag if band not in ("target",) else None, "note": roadmap_note(state, track, band)}))
+    return out
+
+
+def _track_option(state: dict, track: str, status: str | None, band: str) -> str:
+    label = present_tracks.TRACK_LABELS.get(status or "", "")
+    option = state["plan_option"]
+    if band in ("target", "done_for_now"):
+        return label
+    if track == "kex":
+        goal = {"hybrid": "Hybrid", "full_pq": "Post-quantum only"}.get(option, option_title("server", option))
+        return f"{label} → {goal}"
+    if track == "auth":
+        return f"{label} → ML-DSA certificate"
+    return f"{label} → {option_title('software', option)}"
+
+
 def _roadmap(states: list[dict], download: dict) -> dict:
     chosen = sum(1 for s in states if s["choice"])
     placed = [s for s in states if s["status"]]
-    intro = (f"Built from your choices: {chosen} of {len(states)} chosen" + (", so the rest use the recommendation" if chosen < len(placed) else "")
+    rows = [(band, row) for s in states for band, row in roadmap_rows(s)]
+    n_tracks = sum(len(s["tracks"]) for s in states)
+    at_target = sum(1 for s in states for b in s["track_bands"].values() if b == "target")
+    intro = (f"Every track of every system has a place: {n_tracks} tracks, {at_target} at the target. "
+             f"Built from your choices: {chosen} of {len(states)} chosen" + (", so the rest use the recommendation" if chosen < len(placed) else "")
              + ". It updates when a choice, a setting or a measurement changes.")
     bands = []
-    for key, (title, sub, look) in BANDS.items():
-        rows = []
-        for s in states:
-            if s["band"] != key:
-                continue
-            option = option_title(s["kind"], s["plan_option"]) if s["status"] and s["plan_option"] else "No option yet"
-            tag = None if not s["status"] else "chosen by you" if s["plan_source"] == "choice" else "recommended, not yet chosen by you"
-            rows.append({"system_key": s["key"], "kind_label": kind_label(s), "name": s["name"], "option": option, "plan_tag": tag,
-                         "note": roadmap_note(s)})
-        if rows:
-            bands.append({"key": key, "title": title, "sub": sub, "look": look, "rows": rows})
+    for key, (title, sub, look) in present_tracks.BANDS.items():
+        in_band = [row for band, row in rows if band == key]
+        if in_band:
+            bands.append({"key": key, "title": title, "sub": sub, "look": look, "rows": in_band})
     return {"intro": intro, "download": {"label": "Download evidence", **download}, "bands": bands}
 
 
@@ -637,13 +680,18 @@ def system_view(state: dict, today: date, busy: bool) -> dict:
     return {
         "key": state["key"], "kind_label": kind_label(state), "name": state["name"], "status": status_of(state), "plan_line": plan_line(state),
         "measuring": state["job"],
-        "today": {"title": "Today", "sentence": today_sentence(state), "file_note": _file_note(state), "facts": _facts(state),
+        "today": {"title": "Today, on two tracks" if state["kind"] == "server" else "Today", "sentence": today_sentence(state),
+                  "file_note": _file_note(state), "facts": _general_facts(state),
                   "control_line": (result or {}).get("control", {}).get("line") if state["status"] else None,
                   "details_label": "Details and evidence", "result": result},
         "settings": _settings_view(state, enabled=not busy),
         "cost": (_server_cost(state) if state["kind"] == "server" else _program_cost(state)),
         "recommendation": _recommendation(state),
         "options_title": "The four options", "options": _options(state, today),
+        # phase 4b: two tracks and a target, the Also noticed notes, and the change ready to apply
+        "tracks": present_tracks.track_views(state), "tracks_brief": present_tracks.tracks_brief(state) if (state["status"] or state["code"] is not None) else [],
+        "target_line": present_tracks.target_line(state), "also_noticed_title": "Also noticed",
+        "also_noticed": present_tracks.also_noticed(state), "change": state.get("change_view"),
         "choice": {"line": choice_line(state["kind"], choice), "history": [choice_line(state["kind"], c) for c in state["history"]]} if choice else None,
         "choices_note": (("The roadmap uses your choice. A new measurement or recommendation never changes it." if state["choice_applies"] else
                           f"Your choice no longer applies, because this system now measures {status_of(state)['label']}. It stays in the "
@@ -788,7 +836,38 @@ def fix_view(fix: dict, state: dict, is_demo: bool) -> dict:
                                else "Whoever looks after this software, outside this app."), "options": None, "rows": None, "footnote": None},
         "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None,
         "sections": [{"key": "suggestion", "title": "The suggestion", "line": words["line"], "open": True, "suggestion": words["suggestion"]}],
-        "sections_note": None,
+        "sections_note": None, "change_box": None,
+    }
+
+
+def change_fix_view(fix: dict, state: dict, is_demo: bool) -> dict:
+    """A system's change as its entry in Fixes (phase 4b): the change box carries everything, the same as in Migration."""
+    view = state["change_view"]
+    change = state["change"]
+    on_server = state["kind"] == "server"
+    titles = {"hybrid": f"Turn on hybrid key exchange on {state['name']}", "full_pq": f"Move {state['name']} to post-quantum only",
+              "keep": f"Keep {state['name']} classical for now: review by {day(change.get('review_date'))}",
+              "wrap": f"Wrap the connection to {state['name']}", "sign_both": f"{state['name']} can't make post-quantum signatures",
+              "mldsa_only": f"{state['name']} can't make post-quantum signatures"}
+    plan = option_title(state["kind"], state["plan_option"])
+    source = [_t("From the Migration step: "), _m(state["name"]), _t(f" measured {STATUS_LABELS[state['status']]}, and its plan is {plan}"
+                                                                   + (" (your choice)." if state["plan_source"] == "choice" else " (recommended, not yet chosen by you)."))]
+    target = change.get("target")
+    what = ("A change ready to try on a test copy and, after approval, to apply here: " + change["target_words"] + "." if target else
+            "A change to download and apply yourself. " + (change.get("no_target") or ""))
+    return {
+        "id": fix["id"], "kind": "text", "title": titles.get(change["option"], view["title"]), "list_source": f"Migration plan: {state['name']}",
+        "source": source, "status": {"key": "text_only", "word": view["badge"]["label"], "busy": view["busy"]}, "labels": [], "is_demo": is_demo,
+        "what": {"label": "What it suggests", "paragraphs": [[_t(what)]], "server_line": None},
+        "proof": {"state": "none", "badge": None, "muted": None,
+                  "text": ("The change box below shows its try on a test copy, its approvals, and Apply." if target
+                           else "None in the lab: this server can't be copied or changed from here. The app has not applied it to your system.")},
+        "pull_request": None,
+        "approvers": {"text": ("Pick them in the change box below. The app applies a change only when a person presses Apply." if target else
+                               "Your own server team, outside this app." if on_server else "Whoever looks after this software, outside this app."),
+                      "options": None, "rows": None, "footnote": None},
+        "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None, "sections": [], "sections_note": None,
+        "change_box": view,
     }
 
 
@@ -814,14 +893,21 @@ def export(states: list[dict]) -> dict:
                             "saved_at": choice["at"]} if choice else None,
             "earlier_choices": [{"option": option_title(s["kind"], c["option"]), "reason": c["reason"], "review_date": c.get("review_date"),
                                  "saved_at": c["at"]} for c in s["history"]],
+            "tracks": [{"track": t["short_title"], "status": t["status"]["label"], "sentence": t["sentence"],
+                        "facts": [{"label": f["label"], "value": _plain(f["value"])} for f in t["facts"]],
+                        "next": _plain(t["next"]), "why": _plain(t["why"]),
+                        "roadmap": present_tracks.BANDS[s["track_bands"][t["key"]]][0]} for t in present_tracks.track_views(s)],
+            "also_noticed": present_tracks.also_noticed(s),
             "plan": {"option": option_title(s["kind"], s["plan_option"]), "from": "your choice" if s["plan_source"] == "choice" else "the recommendation",
-                     "roadmap": BANDS[s["band"]][0], "note": _plain(roadmap_note(s)["text"]),
+                     "roadmap": "; ".join(f"{row['track']}: {present_tracks.BANDS[band][0]}" for band, row in roadmap_rows(s)),
+                     "note": "; ".join(_plain(row["note"]["text"]) for _, row in roadmap_rows(s)),
                      "review_date": (s.get("review_date") or {}).get("value"),
                      "blockers": [_plain(_blocker_line(s, code, None)["text"]) for code in s["blockers"].get(s["plan_option"], [])]}
             if s["status"] and s["plan_option"] else None,
         })
-    roadmap = [{"phase": title, "what": sub, "systems": [x["system"] for x, s in zip(systems, states) if s["band"] == key]}
-               for key, (title, sub, _) in BANDS.items() if any(s["band"] == key for s in states)]
+    placed = [(band, row) for s in states for band, row in roadmap_rows(s)]
+    roadmap = [{"phase": title, "what": sub, "systems": [f"{row['name']} ({row['track']})" for band, row in placed if band == key]}
+               for key, (title, sub, _) in present_tracks.BANDS.items() if any(band == key for band, _ in placed)]
     return {"title": TITLE, "note": ("Statuses are measured. Recommendations come from fixed rules, with no AI model. A choice is the user's own, recorded "
                                      "with the time, and never overwritten by the app."),
             "systems": systems, "roadmap": roadmap}

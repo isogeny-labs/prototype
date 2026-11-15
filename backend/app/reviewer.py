@@ -53,6 +53,8 @@ COULDNT_RUN_REASONS = {
     "unclear_answer": "the server gave no clear answer",
     "claim_not_confirmed": "the file's claim about what it signs with was not confirmed",
     "unknown_algorithm": "the algorithm is not one this version knows",
+    # phase 4b: a run on a test copy
+    "copy_unavailable": "the test copy could not be started",
 }
 # Phase 4a. The key-exchange groups by family, and the signature algorithms by family (spelled as in the app).
 HYBRID_GROUPS = ("X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024")
@@ -107,7 +109,37 @@ def _certificate_facts(cert: object, minimum_bits: object) -> dict | None:
             "public_key_bytes": cert.get("public_key_bytes"), "der_bytes": cert.get("der_bytes")}
 
 
-def pq_status_of(raw: dict, minimum_bits: object = None) -> dict:
+def _auth_track(subject: dict, certificate: dict | None) -> dict:
+    """The authentication track of a server (phase 4b): its certificate key and the algorithm it signs the handshake
+    with. Classical when both are classical, Post-quantum when both are post-quantum, otherwise couldn't check."""
+    from .tls_names import SIGNATURE_SCHEMES, scheme_family
+    scheme = next((h.get("signature_scheme") for h in (subject.get("classical_client"), subject.get("hybrid_handshake"),
+                                                       subject.get("pure_handshake"))
+                   if isinstance(h, dict) and h.get("outcome") == "completed" and h.get("signature_scheme") is not None), None)
+    family = scheme_family(scheme)
+    out = {"certificate": (certificate or {}).get("name"), "signature": SIGNATURE_SCHEMES.get(scheme), "signature_scheme": scheme,
+           "status": "couldnt_check", "why": None}
+    if not certificate:
+        out["why"] = "no_certificate"
+    elif family is None:
+        out["why"] = "no_signature"
+    elif certificate.get("post_quantum") and family == "post_quantum":
+        out["status"] = "post_quantum"
+    elif not certificate.get("post_quantum") and family == "classical":
+        out["status"] = "classical"
+    else:
+        out["why"] = "mixed"
+    return out
+
+
+def _picked(handshake: object) -> str | None:
+    """Which family a "both keys at once" handshake ended with: hybrid, classical, or None when it didn't complete."""
+    if not isinstance(handshake, dict) or handshake.get("outcome") != "completed":
+        return None
+    return "hybrid" if handshake.get("group") in HYBRID_GROUPS else "pure" if handshake.get("group") in PURE_GROUPS else "classical"
+
+
+def pq_status_of(raw: dict, minimum_bits: object = None, tracks: bool = False) -> dict:
     """The post-quantum status of one server, from the raw measurement alone (phase 4a). Returns
     {"control": {...}, "code", "reason_code", "detail"}; code is hybrid, pq_only, classical or couldnt_run.
 
@@ -196,6 +228,32 @@ def pq_status_of(raw: dict, minimum_bits: object = None) -> dict:
                         "reference_classical": _sizes(reference.get("classical")), "reference_hybrid": _sizes(reference.get("hybrid"))},
               "timing": _timing_summary(subject.get("timing")), "reference_timing": _timing_summary(reference.get("timing")),
               "reference_classical_client": (reference.get("classical") or {}).get("outcome") if reference else None}
+    if tracks:
+        # Phase 4b. The controls must also read right on both "both keys at once" hellos: our hybrid server takes hybrid
+        # when hybrid is listed first and classical when classical is (it follows the client's order), and our classical
+        # one takes classical both times. Otherwise the run is not trusted, whatever the server did.
+        if control_out["outcome"] == "as_expected":
+            hc = (control.get("hybrid") or {}).get("default_choice") if isinstance(control, dict) else None
+            cc = (control.get("classical") or {}).get("default_choice") if isinstance(control, dict) else None
+            hc, cc = (hc if isinstance(hc, dict) else {}), (cc if isinstance(cc, dict) else {})
+            read = (_picked(hc.get("hybrid_first")), _picked(hc.get("classical_first")),
+                    _picked(cc.get("hybrid_first")), _picked(cc.get("classical_first")))
+            if read != ("hybrid", "classical", "classical", "classical"):
+                control_out = {"outcome": "not_as_expected", "reason": "a_control_server_was_misread"}
+        choice = subject.get("default_choice") if isinstance(subject.get("default_choice"), dict) else None
+        detail["auth"] = _auth_track(subject, detail["certificate"])
+        detail["default_choice"] = ({"hybrid_first": _picked(choice.get("hybrid_first")), "classical_first": _picked(choice.get("classical_first")),
+                                     "hybrid_first_group": (choice.get("hybrid_first") or {}).get("group"),
+                                     "classical_first_group": (choice.get("classical_first") or {}).get("group")} if choice else None)
+        noticed = []
+        old = [v for v in ("TLS 1.0", "TLS 1.1") if (versions.get(v) or {}).get("state") == "accepted"]
+        if old:
+            noticed.append({"code": "old_tls", "versions": old})
+        if pure_group and (hybrid_groups or classical_accepted):
+            noticed.append({"code": "pure_too", "group": pure_group})
+        detail["also_noticed"] = noticed
+        sizes = detail["sizes"]
+        sizes["default_hybrid_first"] = _sizes(choice.get("hybrid_first")) if choice else None
     return {"control": control_out, "code": code, "reason_code": reason_code, "detail": detail}
 
 
@@ -552,7 +610,8 @@ class RuleReviewer:
     # ---------------------------------------------------------------- phase 4a: the post-quantum status
 
     def _pq_status(self, spec, raw, run, review):
-        found = pq_status_of(raw, (spec["inputs"].get("guidance") or {}).get("minimum_bits"))
+        found = pq_status_of(raw, (spec["inputs"].get("guidance") or {}).get("minimum_bits"),
+                             tracks=spec["rule"].get("type") == "pq_status_tracks")
         review["control"], review["detail"] = found["control"], found["detail"]
         return found["code"], found["reason_code"]
 
@@ -731,3 +790,83 @@ class RuleReviewer:
                 "offered": all(checks.values()), "checks": checks, "counts": counts,
                 "tests": [{k: t[k] for k in ("item_id", "kind", "group", "report_only", "ok", "reason")} for t in tests],
                 "answers": answers, "speed": speed}
+
+
+# ---------------------------------------------------------------- phase 4b: a change tried on a test copy, then applied
+# Pure functions over reviewed measurements (each already through the read gate). Nothing here is stored: the
+# outcome of a try, of an Apply and of a Roll back is worked out again, from the records, every time it is shown.
+
+KEX_STATUSES = ("classical", "hybrid", "pq_only")
+
+
+def _facts_of(measured: dict | None) -> dict | None:
+    """The facts a promise is checked against, from one reviewed measurement; None when it gave no answer."""
+    if not isinstance(measured, dict):
+        return None
+    code, detail = measured.get("code"), measured.get("detail") or {}
+    if code in KEX_STATUSES:
+        auth = (detail.get("auth") or {}).get("status")
+        return {"kex": code, "auth": auth if auth in ("classical", "post_quantum") else None,
+                "classical_client": detail.get("classical_client"), "tls": None}
+    if code in ("passed", "failed"):          # a server protocol check (the Acme Pay server's TLS fix, SPEC 7c)
+        return {"kex": None, "auth": None, "classical_client": None, "tls": code}
+    return None
+
+
+def meets_promise(promise: dict, measured: dict | None) -> tuple[bool | None, list[dict]]:
+    """(does this measurement show what the change promises?, one check per promised fact). None = no answer."""
+    facts = _facts_of(measured)
+    if facts is None or not promise:
+        return None, []
+    checks = []
+    for key, want in promise.items():
+        got = facts.get(key)
+        if want is None:            # "authentication stays as it was" with no earlier answer to compare: not checked
+            continue
+        if got is None:
+            return None, checks
+        checks.append({"fact": key, "want": want, "got": got, "ok": got == want})
+    return all(c["ok"] for c in checks), checks
+
+
+def change_try_outcome(promise: dict, copies: list[tuple[str, dict | None, str | None]]) -> dict:
+    """The verdict of one "Try on a test copy". copies: (which copy, its reviewed measurement, or None with the reason
+    it was not tried, for example "needs isolated mode"). Passed only when every copy that was measured shows what
+    the change promises, and at least one was. A copy whose measurement could not run or can't be trusted gives no
+    answer, and then the try can't pass. A copy that was not tried is listed, and decides nothing."""
+    out, measured = [], 0
+    for label, m, skipped in copies:
+        if m is None:
+            out.append({"copy": label, "ok": None, "checks": [], "skipped": skipped})
+            continue
+        measured += 1
+        ok, checks = meets_promise(promise, m)
+        out.append({"copy": label, "ok": ok, "checks": checks, "skipped": None})
+    if not measured:
+        return {"code": "not_run", "checks": out}
+    tried = [c for c in out if c["skipped"] is None]
+    if any(c["ok"] is None for c in tried):
+        return {"code": "couldnt_run", "checks": out}
+    return {"code": "passed" if all(c["ok"] for c in tried) else "failed", "checks": out}
+
+
+def apply_outcome(promise: dict, tried: dict | None, after: dict | None) -> dict:
+    """After an Apply: does the first measurement of the system itself match the try? Differences are listed by fact."""
+    ok, checks = meets_promise(promise, after)
+    if ok is None:
+        return {"code": "no_answer", "differences": []}
+    tried_facts, after_facts = _facts_of(tried) or {}, _facts_of(after) or {}
+    differences = [{"fact": key, "tried": tried_facts.get(key), "after": after_facts.get(key)}
+                   for key in ("kex", "auth", "classical_client", "tls")
+                   if tried_facts.get(key) is not None and tried_facts.get(key) != after_facts.get(key)]
+    return {"code": "matches" if ok and not differences else "differs", "differences": differences, "checks": checks}
+
+
+def rollback_outcome(before: dict | None, after: dict | None) -> dict:
+    """After a Roll back: does the system measure as it did before the change?"""
+    b, a = _facts_of(before), _facts_of(after)
+    if a is None or b is None:
+        return {"code": "no_answer", "differences": []}
+    differences = [{"fact": key, "before": b.get(key), "after": a.get(key)} for key in ("kex", "auth", "classical_client", "tls")
+                   if b.get(key) is not None and b.get(key) != a.get(key)]
+    return {"code": "as_before" if not differences else "differs", "differences": differences}

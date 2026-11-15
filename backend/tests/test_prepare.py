@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 from app import prepare
-from app.config import OPENSSL_IMAGE, PYTHON_BASE_IMAGE, REPO_ROOT
+from app.config import NGINX_IMAGE, OPENSSL_IMAGE, PYTHON_BASE_IMAGE, REPO_ROOT
 
 APP = Path(prepare.__file__).parent
 
@@ -26,18 +26,18 @@ def test_without_docker_it_says_so_and_exits_0(monkeypatch):
 def test_check_builds_and_downloads_nothing(monkeypatch):
     code, text, pulled, built = run(monkeypatch, ["--check"])
     assert code == 0 and pulled == built == []
-    assert text.count(": missing  (") == 3 and "Isolated mode: not ready" in text
+    assert text.count(": missing  (") == 4 and "Isolated mode: not ready" in text and "nginx lab image is missing" in text
 
 
 def test_it_downloads_only_the_pinned_images_and_builds_our_image(monkeypatch):
     code, text, pulled, built = run(monkeypatch, [])
-    assert code == 0 and pulled == [PYTHON_BASE_IMAGE, OPENSSL_IMAGE] and built == [prepare.components_image_tag()]
+    assert code == 0 and pulled == [PYTHON_BASE_IMAGE, OPENSSL_IMAGE, NGINX_IMAGE] and built == [prepare.components_image_tag()]
     assert "Isolated mode: ready" in text
     assert all("@sha256:" in ref and len(ref.split("@sha256:")[1]) == 64 for ref in pulled)
 
 
 def test_nothing_to_do_when_everything_is_present(monkeypatch):
-    everything = (PYTHON_BASE_IMAGE, OPENSSL_IMAGE, prepare.components_image_tag())
+    everything = (PYTHON_BASE_IMAGE, OPENSSL_IMAGE, NGINX_IMAGE, prepare.components_image_tag())
     code, text, pulled, built = run(monkeypatch, [], present=everything)
     assert code == 0 and pulled == built == [] and text.count("ready") >= 4
 
@@ -75,3 +75,5 @@ def test_only_prepare_can_build_or_pull():
     assert pattern.search((APP / "prepare.py").read_text())
     run_flags = (APP / "runner.py").read_text()
     assert '"--pull", "never"' in run_flags  # a missing image is an error, never a download
+    assert '"--pull", "never"' in (APP / "lab_nginx.py").read_text()   # the lab nginx too (phase 4b)
+    assert NGINX_IMAGE.startswith("nginx@sha256:") and len(NGINX_IMAGE.split("@sha256:")[1]) == 64

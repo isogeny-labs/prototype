@@ -190,7 +190,12 @@ def test_there_is_no_route_that_accepts_software(client):
                       # Migration (phase 4a): one setting of one system from fixed values; and the user's choice of one of
                       # four options, with a reason in words and a date
                       "/api/plans/{plan_id}/migration/settings": "MigrationSettingBody",
-                      "/api/plans/{plan_id}/migration/choice": "MigrationChoiceBody"}
+                      "/api/plans/{plan_id}/migration/choice": "MigrationChoiceBody",
+                      # Changes (phase 4b): the key of one change the app built itself, and reviewer ids from a fixed list
+                      "/api/plans/{plan_id}/changes/try": "ChangeBody", "/api/plans/{plan_id}/changes/apply": "ChangeBody",
+                      "/api/plans/{plan_id}/changes/rollback": "ChangeBody",
+                      "/api/plans/{plan_id}/changes/ask-approval": "AskApprovalBody",
+                      "/api/plans/{plan_id}/changes/approve": "ApproveChangeBody"}
     assert {k: v for k, v in with_json_body.items() if k in allowed_bodies} == allowed_bodies
     extra = set(with_json_body) - set(allowed_bodies)
     assert all(p.startswith("/api/evidence") or p.endswith("/evidence") for p in extra), extra

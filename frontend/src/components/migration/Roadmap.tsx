@@ -57,14 +57,17 @@ export function Roadmap({ view, busy, exported, onDownload, onViewFix }: Props) 
             <ul className="mt-2">
               {band.rows.map((row) => (
                 <li
-                  key={row.system_key}
+                  key={`${row.system_key}:${row.track ?? ""}`}
                   data-testid="roadmap-row"
                   data-system={row.system_key}
-                  className="grid gap-x-4 gap-y-1 border-t border-slate-800 py-2.5 first:border-t-0 md:grid-cols-[210px_250px_1fr]"
+                  className="grid gap-x-4 gap-y-1 border-t border-slate-800 py-2.5 first:border-t-0 md:grid-cols-[200px_130px_230px_1fr]"
                 >
                   <span>
                     <span className="block text-xs text-slate-400">{row.kind_label}</span>
                     <span className="block text-sm font-semibold text-slate-100">{row.name}</span>
+                  </span>
+                  <span data-testid="roadmap-track" className="text-[13px] text-slate-300">
+                    {row.track ?? ""}
                   </span>
                   <span className="text-sm text-slate-200">
                     {row.option}

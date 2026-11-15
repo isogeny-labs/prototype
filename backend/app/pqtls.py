@@ -27,6 +27,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from .config import BIND_HOST
+# TLS SignatureScheme numbers and their names (pure data, so the reviewer can read them too)
+from .tls_names import POST_QUANTUM_SCHEMES, SIGNATURE_SCHEMES, scheme_family  # noqa: F401
 
 # ---------------------------------------------------------------------------------------------- names and numbers
 
@@ -324,6 +326,7 @@ class Handshake:
     certificate_der: bytes | None = None
     certificate_message_bytes: int | None = None
     signature_bytes: int | None = None
+    signature_scheme: int | None = None   # phase 4b: the server's handshake signature algorithm (TLS SignatureScheme number)
 
 
 def _u16(data: bytes, at: int) -> int:
@@ -420,8 +423,14 @@ def _summarise(raw: list[tuple[str, int, bytes]], result: Handshake) -> int | No
                 result.certificate_der = _first_certificate(msg, tls13)
             elif kind == 15 and direction == "received" and result.signature_bytes is None:
                 result.signature_bytes = len(msg) - 8
+                result.signature_scheme = _u16(msg, 4)                     # CertificateVerify: the scheme comes first
             elif kind == 12 and direction == "received" and msg[4] == 3:  # TLS 1.2 ECDHE: named curve
                 group_id, result.server_share_bytes = _u16(msg, 5), msg[7]
+                at = 8 + msg[7]                                            # after the point: scheme, length, signature
+                if result.signature_scheme is None and len(msg) >= at + 4:
+                    result.signature_scheme = _u16(msg, at)
+                    if result.signature_bytes is None:
+                        result.signature_bytes = _u16(msg, at + 2)
             elif kind == 16 and direction == "sent" and len(msg) > 4:      # TLS 1.2 ECDHE client point
                 tls12_client_share = msg[4]
         except (IndexError, struct.error):

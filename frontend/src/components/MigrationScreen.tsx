@@ -73,7 +73,7 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
   }, [view]);
 
   // While measuring, ask again every second. Not while a button's own call is on its way: its answer is newer.
-  const polling = view !== null && view.busy && !acting;
+  const polling = view !== null && (view.busy || view.systems.some((s) => s.change?.busy === true)) && !acting;
   useEffect(() => {
     if (!polling) return;
     let live = true;
@@ -140,6 +140,12 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
     } finally {
       setActing(false);
     }
+  }
+
+  // After a change-box call: this screen's own view again, then the app (the step bar and Fixes may have changed).
+  async function reloadAfterChange() {
+    setView(await api.getMigration(importId));
+    planChanged.current();
   }
 
   function setting(systemKey: string, field: MigrationSettingField["field"], value: string) {
@@ -252,9 +258,18 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
                       >
                         <span className="block text-xs text-slate-400">{s.kind_label}</span>
                         <span className="block text-sm font-semibold text-slate-100">{s.name}</span>
-                        <span className="mt-1.5 block">
-                          <StatusPill status={s.status} />
-                        </span>
+                        {(s.tracks_brief ?? []).length > 0 ? (
+                          (s.tracks_brief ?? []).map((brief, i) => (
+                            <span key={i} data-testid="card-track" className="mt-1.5 flex items-center justify-between gap-2">
+                              <span className="text-[11px] text-slate-400">{brief.title}</span>
+                              <StatusPill status={brief.status} />
+                            </span>
+                          ))
+                        ) : (
+                          <span className="mt-1.5 block">
+                            <StatusPill status={s.status} />
+                          </span>
+                        )}
                         <span className="mt-1.5 block text-xs text-slate-400">{s.plan_line}</span>
                       </button>
                     </li>
@@ -280,6 +295,8 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
               onSetting={(field, value) => setting(system.key, field, value)}
               onSaveChoice={saveChoice(system.key)}
               onViewFix={onViewFix}
+              planId={current.plan_id}
+              onChanged={reloadAfterChange}
             />
           </div>
         ) : current.empty_text ? (

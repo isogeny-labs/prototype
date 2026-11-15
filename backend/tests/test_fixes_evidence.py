@@ -105,9 +105,10 @@ def test_the_file_lists_every_fix_as_the_fixes_step_showed_it(flow):
     for name in STAGES:
         seen = getattr(flow, name)
         e = seen.evidence
-        assert sorted(e) == ["app", "code", "component", "disclaimer", "fixes", "generated_at", "import", "migration", "mode_line", "retest", "schema",
-                             "signer_key_fingerprint", "tests", "verify"]
-        assert [(f["id"], f["kind"], f["status"]) for f in e["fixes"]] == [(FIX, "code", words[name]), (TLS, "text", "Text only")]
+        assert sorted(e) == ["app", "changes", "code", "component", "disclaimer", "fixes", "generated_at", "import", "migration", "mode_line", "retest",
+                             "schema", "signer_key_fingerprint", "tests", "verify"]
+        # phase 4b: the demo server's TLS fix has a change box, and its status is the box's
+        assert [(f["id"], f["kind"], f["status"]) for f in e["fixes"]] == [(FIX, "code", words[name]), (TLS, "text", "Ready to try")]
         for entry in e["fixes"]:
             shown = fix_of(seen.fixes, entry["id"])
             assert sorted(entry) == ["approvals", "change", "id", "kind", "merge", "proof_summary", "proofs", "pull_request", "source", "status",
@@ -456,8 +457,8 @@ def test_the_report_has_a_readable_fixes_part(flow):
             # a demo reviewer is marked as demo data, and the approvals carry the one-login sentence (review finding 6)
             "Demo reviewer A (Demo data): approved", f"(UTC) {ONE_LOGIN} Merged",
             f"by the person logged in, after confirming (merge commit {merge['merge_commit']}). Nothing was deployed.",
-            "Server accepts TLS 1.2 Text only Came from 1 failed test: Old TLS versions",
-            "The suggestion (text only: the app has not applied it or tested it)", "Where the setting lives", "Two ways to fix it",
+            "Server accepts TLS 1.2 Ready to try Came from 1 failed test: Old TLS versions",
+            "The suggestion (its try on a test copy, approvals, Apply and Roll back are in part 6)", "Where the setting lives", "Two ways to fix it",
             "Option 2: the exact settings", "End of report. The JSON file is the record. This page is a readable copy and is not signed."):
         assert words in text, words
     # the lock-out warning comes before any setting that could be copied
@@ -475,7 +476,7 @@ def test_the_report_has_a_readable_fixes_part(flow):
     assert "Code they ran on: before, the bundled demo version of acme-sign 1.4.2; after, the merged fix: branch main, commit" in whole
     assert "Code: the bundled demo version of acme-sign 1.4.2 demo" in whole and "After: acme-sign 1.4.3, the merged fix (commit " in whole
     assert "Fix merged: 3 lines added and 1 removed, proof passed. It is in part 4, Fixes." in whole
-    assert "Text-only suggestion: a server setting. It is in part 4, Fixes." in whole
+    assert "Server setting change: try it on a test copy, then apply. It is in part 4, Fixes." in whole
     # one approval missing: said plainly
     opened = report_text(flow.opened.report)
     assert f"Demo reviewer A (Demo data): has not approved {ONE_LOGIN}" in opened and "Merged" not in opened

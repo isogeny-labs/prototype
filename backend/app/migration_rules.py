@@ -123,3 +123,39 @@ def review_date_problem(value: str | None, today: date) -> str | None:
 
 __all__ = ["OPTIONS", "FIELDS", "LATEST_REVIEW", "FIXABLE_BLOCKERS", "default_settings", "recommend", "offered", "in_place",
            "blockers", "band", "default_review_date", "review_date_problem"]
+
+
+# ------------------------------------------------------------------ phase 4b: two tracks and a target
+
+TRACK_BANDS = ("target", "done_for_now", "phase1", "phase2", "later", "wrapped", "not_placed")
+
+
+def track_band(kind: str, track: str, status: str | None, option: str | None, settings: dict, blocking: list[str]) -> str:
+    """Where one track of a system sits on the roadmap. track: "kex" | "auth" (a server) or "signatures" (a program).
+    status: kex classical | hybrid | pq_only; auth classical | post_quantum; signatures classical | pq_only; None = no status.
+    Post-quantum on a track is the target; hybrid key exchange is an interim step ("done for now"), never the end."""
+    if status is None or option is None:
+        return "not_placed"
+    if status in ("pq_only", "post_quantum"):
+        return "target"
+    if option == "keep":
+        return "later"
+    if option == "wrap":
+        return "wrapped"
+    if track == "kex":
+        if status == "hybrid":
+            return "done_for_now" if option == "hybrid" else "phase2"
+        if option == "hybrid":
+            first = kind == "server" and settings["exposure"] == "internet" and settings["lifespan"] == "long" and not blocking
+            return "phase1" if first else "phase2"
+        return "phase2"     # straight to post-quantum only: every client must support it first
+    return "phase2"         # authentication and signatures come after key exchange (a recording can't forge them later)
+
+
+def track_promise(option: str, before_auth: str | None) -> dict:
+    """What a change promises, track by track, for "Try on a test copy" and for the measurement after Apply."""
+    if option == "hybrid":
+        return {"kex": "hybrid", "auth": before_auth, "classical_client": "connects"}
+    if option == "full_pq":
+        return {"kex": "pq_only", "auth": "post_quantum"}
+    return {}

@@ -11,7 +11,7 @@ import re
 
 from sqlalchemy import select
 
-from . import changes, components, present_fixes, research
+from . import changes, components, present_changes, present_fixes, research
 from .db import ImportRow, PlanRow, ReviewRow, TestRunRow, TestSpecRow
 from .gitrepo import GitRepoError
 from .present import TITLES
@@ -44,7 +44,7 @@ class FixesMixin:
             # Asked first, on purpose. If a job ends while the rest is put together, the screen is told to ask
             # again and the next answer is the settled one. Asked last, a proof that ended in between would be
             # shown as still running with nothing left to make the screen ask again.
-            busy = self.jobs.busy(plan.id)
+            busy = self.jobs.busy(plan.id) or self.jobs.busy(("changes", plan.id)) or self.jobs.busy(("migration", plan.id))
             shown = [detail for _, detail in self._fix_details(db, plan)]
             return present_fixes.view(plan.id, bool(imp.is_demo), shown, busy or any(d["status"]["busy"] for d in shown))
 
@@ -53,15 +53,22 @@ class FixesMixin:
         same pairs, so the words in it are the words on the screen."""
         states = self._fixes(db, plan)
         is_demo = bool(db.get(ImportRow, plan.import_id).is_demo)
-        answered = {fix["id"]: self._answered(db, fix) for fix in states if fix["kind"] == "text" and fix["source_kind"] != "migration"}
+        answered = {fix["id"]: self._answered(db, fix) for fix in states
+                    if fix["kind"] == "text" and fix["source_kind"] not in ("migration", "applied_change")}
         server_findings = sum(1 for _, address in answered.values() if address is not None)
         claims = self._claims(db.get(ImportRow, plan.import_id))
         several = len(research.servers(claims)) > 1 or len(research.programs(claims)) > 1
+        tls_changes = self._tls_changes(db, plan)
         out = []
         for fix in states:
             titles = list(dict.fromkeys(TITLES.get(a["kind"], str(a["kind"])) for a in fix["answers"]))
             if fix["source_kind"] == "migration":
                 shown = self._migration_fix_view(db, plan, fix, is_demo)   # phase 4a: the migration plan's how-to and blockers
+            elif fix["source_kind"] == "applied_change":
+                change = next(c for c in tls_changes if c["key"] == fix["change_key"])     # phase 4b: an Apply still in force
+                rec = self._change_records(db, plan, change)
+                shown = present_fixes.applied_change_fix(fix, present_changes.change_view(change, rec, self._change_gates(change, rec)),
+                                                         change["address"], is_demo)
             elif fix["kind"] == "code":
                 shown = self._code_fix_detail(db, plan, fix, titles, server_findings)
             else:
@@ -69,6 +76,12 @@ class FixesMixin:
                 shown = present_fixes.text_fix(fix, titles=titles, is_demo=is_demo, result=self._result(db, run), address=address,
                                                tls=self._tls_outcome(db, run) if fix["answers"][-1]["kind"] == "tls_versions" else None,
                                                name_target=several)
+                change = next((c for c in tls_changes if c["_item_id"] == fix["answers"][-1]["item_id"]), None)
+                if change is not None:   # phase 4b (SPEC 7c): try, approve, Apply and Roll back on the demo server
+                    rec = self._change_records(db, plan, change)
+                    box = present_changes.change_view(change, rec, self._change_gates(change, rec))
+                    shown = present_fixes.with_change_box(shown, box)
+            shown.setdefault("change_box", None)
             out.append((fix, shown))
         return out
 
@@ -142,8 +155,12 @@ class FixesMixin:
     def _fix_lines(self, db, plan: PlanRow) -> dict[int, dict]:
         """The one line Evidence Lab shows about a fix, for each failed result that has one (by run id)."""
         lines = {}
+        tls_items = {c["_item_id"] for c in self._tls_changes(db, plan)}
         for fix in self._fixes(db, plan):
             line = present_fixes.fix_line(fix)
+            if fix["kind"] != "code" and fix["answers"] and fix["answers"][-1]["item_id"] in tls_items:
+                # phase 4b (SPEC 7c): on our own demo server the setting can be tried on a test copy and applied
+                line = present_fixes.server_change_line(line)
             lines.update({answer["run_id"]: line for answer in fix["answers"]})
         return lines
 

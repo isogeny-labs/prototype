@@ -45,8 +45,8 @@ def test_old_tls_versions_fails_and_its_control_is_derived_from_the_claim(demo_f
     assert raw["control"]["port"] != demo_flow.lab.settings.demo_tls_port
     # the fix is in the Fixes step: Evidence Lab shows one line that points to it, in place of the suggested fix
     assert result["suggested_fix"] is None
-    assert result["fix_line"] == {"fix_id": "fix-tls-versions", "lead": "Text-only suggestion:", "rest": "a server setting",
-                                  "look": "dashed", "busy": False, "button": "View in Fixes"}
+    assert result["fix_line"] == {"fix_id": "fix-tls-versions", "lead": "Server setting change:", "rest": "try it on a test copy, then apply",
+                                  "look": "dashed", "busy": False, "button": "View in Fixes"}   # on our demo server (phase 4b, SPEC 7c)
 
 
 def test_certificate_passes_with_the_nist_note_and_the_weak_certificate_is_really_served(demo_flow):

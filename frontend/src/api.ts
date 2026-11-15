@@ -562,6 +562,8 @@ export interface FixDetail {
   merge_dialog: { title: string; paragraphs: RichText[]; confirm: string; cancel: string } | null;
   sections: FixSection[];
   sections_note: string | null;   // shown instead of sections before the code is connected
+  /** Phase 4b: the change box, drawn first in the fix's detail. Missing in older answers: treated as null. */
+  change_box?: ChangeView | null;
 }
 
 export interface FixesView {
@@ -579,6 +581,8 @@ export interface FixesView {
 // ---- Phase 4a: the Migration step. The screen draws only what is sent; it decides no status, recommendation or wording. ----
 
 export type MigrationStatusCode = "hybrid" | "pq_only" | "classical" | "couldnt_check" | "not_measured";
+/** Phase 4b: a track's status adds "post_quantum" (a post-quantum signature or certificate). */
+export type TrackStatusCode = MigrationStatusCode | "post_quantum";
 export type MigrationOptionKey = "keep" | "hybrid" | "full_pq" | "wrap";
 
 /** The status pill. Its look is picked by code; the words are the label. */
@@ -679,6 +683,111 @@ export interface MigrationSystem {
   /** The user's saved choice (history: older choices, newest first). */
   choice: { line: string; history: string[] } | null;
   choices_note: string;
+
+  // ---- Phase 4b. Older answers lack these: draw them as empty. ----
+  tracks?: MigrationTrack[];
+  tracks_brief?: { title: string; status: { code: TrackStatusCode; label: string } }[];
+  target_line?: string;
+  also_noticed_title?: string;
+  also_noticed?: string[];
+  change?: ChangeView | null;
+}
+
+export type TrackKey = "kex" | "auth" | "signatures";
+
+export interface MigrationTrack {
+  key: TrackKey;
+  title: string;
+  short_title: string;
+  status: { code: TrackStatusCode; label: string };
+  sentence: string;
+  facts: { label: string; value: RichText }[];
+  next: RichText;
+  why: RichText;
+  next_label: string;
+  why_label: string;
+}
+
+// ---- Phase 4b: the change box (Migration and Fixes) ----
+
+export type ChangeAction = "try" | "ask_approval" | "approve" | "apply" | "rollback" | "download";
+
+export interface ChangeButton {
+  action: ChangeAction;
+  label: string;
+  primary: boolean;
+  enabled: boolean;
+  reason: string | null;
+}
+
+export interface ChangeStep {
+  key: "built" | "tried" | "approvals" | "applied" | "measured";
+  label: string;
+  state: "done" | "now" | "off" | "failed";
+  text: string;
+}
+
+export type ChangeSection =
+  | { kind: "table"; title: string; columns: string[]; rows: RichText[][] }
+  | { kind: "lines"; title: string; rows: { place: string; lead: string; code: string }[]; note: string | null }
+  | { kind: "text"; title: string; paragraphs: RichText[] };
+
+export interface ChangeBadge {
+  label: string;
+  look: "pass" | "fail" | "warn" | "neutral";
+}
+
+export interface TryView {
+  title: string;
+  running: RowStatus | null;
+  verdict: { label: string; look: "pass" | "fail" | "warn"; text: string } | null;
+  columns: string[];
+  rows: { label: string; cells: RichText[] }[];
+  notes: string[];
+  results: { label: string; result: LabResult }[];
+}
+
+export interface ApprovalsView {
+  title: string;
+  picker: {
+    options: { id: string; name: string; demo: boolean; checked: boolean }[];
+    button: string;
+    enabled: boolean;
+    reason: string | null;
+  } | null;
+  rows: {
+    reviewer: string;
+    name: string;
+    demo: boolean;
+    approved_at: string | null;
+    status_text: string;
+    approve: { label: string; enabled: boolean } | null;
+  }[];
+  footnote: string;
+}
+
+export interface ApplyView {
+  title: string;
+  badge: ChangeBadge;
+  paragraphs: RichText[];
+  differences: string[];
+  history: string[];
+}
+
+export interface ChangeView {
+  /** The key to send back, e.g. "migration:server:localhost:8452". */
+  id: string;
+  title: string;
+  badge: ChangeBadge;
+  intro: RichText;
+  steps: ChangeStep[];
+  sections: ChangeSection[];
+  try: TryView | null;
+  approvals: ApprovalsView | null;
+  applied: ApplyView | null;
+  buttons: ChangeButton[];
+  note: string | null;
+  busy: boolean;
 }
 
 export interface MigrationRoadmapRow {
@@ -688,6 +797,8 @@ export interface MigrationRoadmapRow {
   option: string;
   plan_tag: string | null;
   note: MigrationLine;
+  /** Phase 4b: "Key exchange" | "Authentication" | "Signatures" | "Both tracks". */
+  track?: string;
 }
 
 export interface MigrationRoadmapBand {
@@ -929,6 +1040,26 @@ export const api = {
       method: "POST",
       json: { system, option, reason, review_date: reviewDate },
     }),
+
+  // Phase 4b: the change box. Each POST answers { ok: true }; the screen then loads its own view again.
+  changeTry: (planId: number, change: string) =>
+    request<{ ok: true }>(`/api/plans/${planId}/changes/try`, { method: "POST", json: { change } }),
+
+  changeAskApproval: (planId: number, change: string, reviewers: string[]) =>
+    request<{ ok: true }>(`/api/plans/${planId}/changes/ask-approval`, { method: "POST", json: { change, reviewers } }),
+
+  changeApprove: (planId: number, change: string, reviewer: string) =>
+    request<{ ok: true }>(`/api/plans/${planId}/changes/approve`, { method: "POST", json: { change, reviewer } }),
+
+  changeApply: (planId: number, change: string) =>
+    request<{ ok: true }>(`/api/plans/${planId}/changes/apply`, { method: "POST", json: { change } }),
+
+  changeRollback: (planId: number, change: string) =>
+    request<{ ok: true }>(`/api/plans/${planId}/changes/rollback`, { method: "POST", json: { change } }),
+
+  /** The address of the change file; the page saves it like the evidence files. */
+  changeDownloadUrl: (planId: number, change: string) =>
+    `/api/plans/${planId}/changes/download?change=${encodeURIComponent(change)}`,
 };
 
 export function errorMessage(e: unknown): string {

@@ -8,7 +8,7 @@ import re
 from contextlib import asynccontextmanager
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -55,6 +55,20 @@ class MigrationChoiceBody(BaseModel):
     option: StrictStr = Field(max_length=16)
     reason: StrictStr = Field(default="", max_length=2000)
     review_date: StrictStr | None = Field(default=None, max_length=10)
+
+
+class ChangeBody(BaseModel):
+    change: StrictStr = Field(max_length=700)
+
+
+class AskApprovalBody(BaseModel):
+    change: StrictStr = Field(max_length=700)
+    reviewers: list[Annotated[StrictStr, Field(max_length=16)]] = Field(max_length=8)
+
+
+class ApproveChangeBody(BaseModel):
+    change: StrictStr = Field(max_length=700)
+    reviewer: StrictStr = Field(max_length=16)
 
 
 class PullRequestBody(BaseModel):
@@ -287,6 +301,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/plans/{plan_id}/migration/choice", dependencies=[Depends(require_login)])
     def migration_choice(plan_id: int, body: MigrationChoiceBody):
         return lab.choose_migration_option(plan_id, body.system, body.option, body.reason, body.review_date)
+
+    # ---- a change: try on a test copy, approvals, Apply and Roll back (phase 4b)
+    @app.post("/api/plans/{plan_id}/changes/try", dependencies=[Depends(require_login)])
+    def change_try(plan_id: int, body: ChangeBody):
+        return lab.try_change(plan_id, body.change)
+
+    @app.post("/api/plans/{plan_id}/changes/ask-approval", dependencies=[Depends(require_login)])
+    def change_ask(plan_id: int, body: AskApprovalBody):
+        return lab.ask_approval(plan_id, body.change, list(body.reviewers))
+
+    @app.post("/api/plans/{plan_id}/changes/approve", dependencies=[Depends(require_login)])
+    def change_approve(plan_id: int, body: ApproveChangeBody):
+        return lab.approve_change(plan_id, body.change, body.reviewer)
+
+    @app.post("/api/plans/{plan_id}/changes/apply", dependencies=[Depends(require_login)])
+    def change_apply(plan_id: int, body: ChangeBody):
+        return lab.apply_change(plan_id, body.change)
+
+    @app.post("/api/plans/{plan_id}/changes/rollback", dependencies=[Depends(require_login)])
+    def change_rollback(plan_id: int, body: ChangeBody):
+        return lab.rollback_change(plan_id, body.change)
+
+    @app.get("/api/plans/{plan_id}/changes/download", dependencies=[Depends(require_login)])
+    def change_download(plan_id: int, change: str = Query(max_length=700)):
+        filename, data = lab.change_download(plan_id, change)
+        return Response(content=data, media_type="text/plain; charset=utf-8",
+                        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
     @app.get("/api/plans/{plan_id}/fixes", dependencies=[Depends(require_login)])
     def fixes_view(plan_id: int):

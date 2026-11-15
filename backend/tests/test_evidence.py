@@ -34,11 +34,11 @@ def test_envelope_shape_and_what_is_inside(demo_flow):
     assert envelope["fingerprint"] == hashlib.sha256(canonical_bytes(e)).hexdigest() == made["fingerprint"]
     assert re.fullmatch(r"[0-9a-f]{64}", envelope["public_key"]) and re.fullmatch(r"[0-9a-f]{128}", envelope["signature"])
     assert envelope["public_key"] == (demo_flow.lab.settings.data_dir / PUBLIC_KEY_FILE).read_text().strip()
-    assert sorted(e) == ["app", "code", "component", "disclaimer", "fixes", "generated_at", "import", "migration", "mode_line", "retest", "schema",
-                         "signer_key_fingerprint", "tests", "verify"]
+    assert sorted(e) == ["app", "changes", "code", "component", "disclaimer", "fixes", "generated_at", "import", "migration", "mode_line", "retest",
+                         "schema", "signer_key_fingerprint", "tests", "verify"]
     # no code was connected for this file, so the two fixes are listed as they stood: nothing prepared, nothing proved
     assert e["code"] is None and [(f["id"], f["kind"], f["status"]) for f in e["fixes"]] == [
-        ("fix-ecdsa-range-check", "code", "Code not connected"), ("fix-tls-versions", "text", "Text only")]
+        ("fix-ecdsa-range-check", "code", "Code not connected"), ("fix-tls-versions", "text", "Ready to try")]   # phase 4b: the change box's status
     assert all(f["change"] is None and f["proofs"] == [] and f["pull_request"] is None and f["merge"] is None for f in e["fixes"])
     assert e["schema"] == "isogeny.evidence/1" and e["disclaimer"] == DISCLAIMER and e["mode_line"] == demo_flow.lab.mode.line
     assert e["signer_key_fingerprint"] == key_fingerprint(envelope["public_key"])

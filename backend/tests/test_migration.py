@@ -348,18 +348,25 @@ def test_each_system_gets_its_measured_status_recommendation_and_place_on_the_ro
     assert view["tabs"]["systems"] == "Systems · 7"
     got = {s["name"]: (s["status"]["label"], s["recommendation"]["title"], s["plan_line"]) for s in view["systems"]}
     a = flow.addr
-    assert got[a["hybrid"]] == ("Hybrid", "Recommended: Hybrid (in place today)", "Plan: Hybrid · already there")
-    assert got[a["classical_internet"]] == ("Classical", "Recommended: Hybrid", "Plan: Hybrid · Phase 1")
+    # phase 4b: a plan line names the next step; hybrid is never the end, and nothing is "already there"
+    assert got[a["hybrid"]] == ("Hybrid", "Recommended: Hybrid (in place today)", "Next: authentication · Phase 2")
+    assert got[a["classical_internet"]] == ("Classical", "Recommended: Hybrid", "Next: hybrid key exchange · Phase 1")
     assert got[a["classical_internal"]][:2] == ("Classical", "Recommended: Keep classical for now")
-    assert got[a["classical_internal"]][2].startswith("Plan: Keep classical · review ")
-    assert got[a["legacy_tls12"]] == ("Classical", "Recommended: Wrap the connection", "Plan: Wrap the connection")
-    assert got[a["pq_only"]] == ("Post-quantum only", "Recommended: Full post-quantum (in place today)", "Plan: Full post-quantum · already there")
-    assert got["acme-sign 1.4.2"] == ("Classical", "Recommended: Hybrid: sign with both", "Plan: Hybrid · Phase 2")
+    assert got[a["classical_internal"]][2].startswith("Kept classical · review ")
+    assert got[a["legacy_tls12"]] == ("Classical", "Recommended: Wrap the connection", "Next: wrap the connection")
+    assert got[a["pq_only"]] == ("Post-quantum only", "Recommended: Full post-quantum (in place today)", "At the target · keep measuring")
+    assert got["acme-sign 1.4.2"] == ("Classical", "Recommended: Hybrid: sign with both", "Next: sign with both · Phase 2")
     assert got["acme-sign 9.9"] == ("Couldn't check", "No recommendation yet", "No plan yet: couldn't check")
-    bands = {b["key"]: [r["name"] for r in b["rows"]] for b in view["roadmap"]["bands"]}
-    assert bands == {"already": [a["hybrid"], a["pq_only"]], "phase1": [a["classical_internet"]], "phase2": ["acme-sign 1.4.2"],
-                     "later": [a["classical_internal"]], "wrapped": [a["legacy_tls12"]], "not_placed": ["acme-sign 9.9"]}
-    assert all(r["plan_tag"] == "recommended, not yet chosen by you" for b in view["roadmap"]["bands"] for r in b["rows"] if b["key"] != "not_placed")
+    bands = {b["key"]: [(r["name"], r["track"]) for r in b["rows"]] for b in view["roadmap"]["bands"]}
+    assert bands == {"target": [(a["pq_only"], "Key exchange"), (a["pq_only"], "Authentication")],
+                     "done_for_now": [(a["hybrid"], "Key exchange")], "phase1": [(a["classical_internet"], "Key exchange")],
+                     "phase2": [(a["hybrid"], "Authentication"), (a["classical_internet"], "Authentication"), ("acme-sign 1.4.2", "Signatures")],
+                     "later": [(a["classical_internal"], "Both tracks")], "wrapped": [(a["legacy_tls12"], "Both tracks")],
+                     "not_placed": [("acme-sign 9.9", "Signatures")]}
+    assert view["roadmap"]["intro"].startswith("Every track of every system has a place: 12 tracks, 2 at the target.")
+    assert all(r["plan_tag"] == "recommended, not yet chosen by you" for b in view["roadmap"]["bands"] for r in b["rows"]
+               if b["key"] not in ("not_placed", "target"))
+    assert all(r["plan_tag"] is None for b in view["roadmap"]["bands"] if b["key"] == "target" for r in b["rows"])
 
 
 def test_turning_hybrid_on_is_the_change_itself_not_a_blocker(flow):
@@ -439,13 +446,13 @@ def test_no_score_and_no_verdict_beyond_what_was_measured(flow):
 def test_the_measurements_are_not_tests(flow):
     plan = flow.lab.plan_view(flow.plan["id"])
     assert plan["has_migration"] is True and plan["has_results"] is False
-    # only acme-sign 1.4.2's three tests: the servers' claims have no suggested test, and a program that can't run gets no cards
-    assert [t["kind"] for t in plan["tests"]] == ["official_vectors", "bad_signatures", "speed_size"]
-    assert "Three tests suggested" in plan["intro"]
+    # acme-sign 1.4.2's three tests, and (phase 4b) Post-quantum readiness for each server with a post_quantum claim; a program
+    # that can't run gets no cards. The migration measurements themselves are not among them.
+    assert sorted(t["kind"] for t in plan["tests"]) == sorted(["official_vectors", "bad_signatures", "speed_size"] + ["pq_readiness"] * 5)
     assert "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version." in plan["not_tested"]["items"]
     assert all(g["heading"] != "Signing program: acme-sign 9.9" for g in plan["groups"])
     lab_view = flow.lab.lab_view(plan["id"])
-    assert len(lab_view["rows"]) == 3 and lab_view["download"]["can_start"] is True
+    assert len(lab_view["rows"]) == 8 and lab_view["download"]["can_start"] is True
     view = flow.lab.migration_view(plan["id"])
     hidden = _system(view, flow.addr["hybrid"])["today"]["result"]["run_id"]
     from app.db import TestRunRow
@@ -457,29 +464,31 @@ def test_the_measurements_are_not_tests(flow):
         flow.lab.remove_test(plan["id"], item_id)
 
 
-def test_the_fixes_step_gets_the_how_to_and_the_blocker_as_text_only(flow):
+def test_the_fixes_step_gets_the_change_box_and_the_blocker_as_text_only(flow):
     view = flow.lab.fixes_view(flow.plan["id"])
     assert view["subline"].startswith("Fixes for the findings in Evidence Lab, and what the migration plan needs done.")
     fixes = view["fixes"]
     titles = [f["title"] for f in fixes]
     assert titles == [f"Turn on hybrid key exchange on {flow.addr['classical_internet']}", "acme-sign 1.4.2 can't make post-quantum signatures"]
     howto = fixes[0]
-    assert howto["kind"] == "text" and howto["status"]["key"] == "text_only" and howto["actions"]["buttons"] == []
-    assert "the app has not applied it or tested it" in howto["proof"]["text"]
-    suggestion = howto["sections"][0]["suggestion"]
-    assert suggestion["intro"][0] == "This is the change itself, not a blocker: nothing that was measured stands in its way."
-    rows = {r["place"]: r for r in suggestion["where"]["rows"]}
-    assert (rows["nginx"]["lead"], rows["nginx"]["code"]) == ("Checked on nginx 1.31.8 with OpenSSL 3.5.9:", "ssl_ecdh_curve X25519MLKEM768:X25519:prime256v1;")
-    assert rows["Apache"]["lead"].startswith("Checked on Apache ") and rows["Your own application"]["lead"].startswith("Not checked on real software")
-    assert all(r["lead"].startswith(("Checked on ", "Not checked on real software")) for r in rows.values())   # every line says which
-    assert "stops nginx from starting" in suggestion["where"]["after"][1] and "Measure again" in suggestion["where"]["after"][2]
-    assert "can't make post-quantum signatures" in fixes[1]["title"] and fixes[1]["approvers"]["text"].startswith("Whoever looks after this software")
+    assert howto["kind"] == "text" and howto["status"]["word"] == "Ready to try" and howto["actions"]["buttons"] == []
+    assert howto["proof"]["text"] == "The change box below shows its try on a test copy, its approvals, and Apply."
+    box = howto["change_box"]
+    assert box["id"] == f"migration:server:{flow.addr['classical_internet']}" and howto["sections"] == []
+    lines = {r["place"]: r for s in box["sections"] if s["kind"] == "lines" for r in s["rows"]}
+    assert (lines["nginx"]["lead"], lines["nginx"]["code"]) == ("Checked on nginx 1.31.8 with OpenSSL 3.5.9:",
+                                                                "ssl_protocols TLSv1.2 TLSv1.3;\nssl_ecdh_curve X25519MLKEM768:X25519;")
+    assert lines["Apache"]["lead"].startswith("Checked on Apache ") and lines["Your own application"]["lead"].startswith("Not checked on real software")
+    assert all(r["lead"].startswith(("Checked on ", "Not checked on real software")) for r in lines.values())   # every line says which
+    assert {b["action"]: b["enabled"] for b in box["buttons"]} == {"try": True, "apply": False, "download": True}
+    blocker = fixes[1]
+    assert "can't make post-quantum signatures" in blocker["title"] and blocker["approvers"]["text"].startswith("Whoever looks after this software")
+    assert blocker["status"]["word"] == "Text only" and [b["action"] for b in blocker["change_box"]["buttons"]] == ["download"]
 
 
 def test_the_readiness_test_and_the_migration_step_never_disagree(flow):
     lab = flow.lab
-    lab.add_test(flow.plan["id"], "pq_readiness")
-    plan = lab.plan_view(flow.plan["id"])
+    plan = lab.plan_view(flow.plan["id"])        # suggested for each server with a post_quantum claim (phase 4b)
     cards = [t for t in plan["tests"] if t["kind"] == "pq_readiness"]
     assert len(cards) == 5
     for card in cards:
@@ -491,15 +500,13 @@ def test_the_readiness_test_and_the_migration_step_never_disagree(flow):
         want = "offered" if status[address] in ("hybrid", "pq_only") else "not_offered"
         assert rows["server:" + address]["code"] == want, address
         assert rows["server:" + address]["mode"] == "demo"        # no Docker and no OpenSSL program needed
-    for card in cards:
-        lab.remove_test(flow.plan["id"], card["id"])
 
 
 def test_a_setting_changes_the_recommendation_and_the_file_value_is_kept(flow):
     lab, plan_id, key = flow.lab, flow.plan["id"], "server:" + flow.addr["classical_internal"]
     view = lab.set_migration_setting(plan_id, key, "lifespan", "long")
     system = _system(view, flow.addr["classical_internal"])
-    assert system["recommendation"]["title"] == "Recommended: Hybrid" and system["plan_line"] == "Plan: Hybrid · Phase 2"
+    assert system["recommendation"]["title"] == "Recommended: Hybrid" and system["plan_line"] == "Next: hybrid key exchange · Phase 2"
     assert [f["source"] for f in system["settings"]["fields"]] == ["set by you", "from the file", "assumed"]
     assert len(lab.fixes_view(plan_id)["fixes"]) == 3                       # its how-to joined the list
     from app.db import SystemSettingRow
@@ -539,7 +546,7 @@ def test_the_users_choice_is_recorded_followed_and_never_overwritten(flow):
     key = "server:" + address
     view = lab.choose_migration_option(plan_id, key, "keep", "Server is replaced in Q2 2027.", "2027-06-30")
     system = _system(view, address)
-    assert system["plan_line"] == "Plan: Keep classical · review 30 Jun 2027"
+    assert system["plan_line"] == "Kept classical · review 30 Jun 2027"
     assert system["choice"]["line"].startswith("Your choice: Keep classical for now, saved ") and "Server is replaced in Q2 2027." in system["choice"]["line"]
     assert system["recommendation"]["title"] == "Recommended: Hybrid"             # the recommendation still says what the rules say
     keep = next(o for o in system["options"] if o["key"] == "keep")
@@ -551,11 +558,11 @@ def test_the_users_choice_is_recorded_followed_and_never_overwritten(flow):
     # a new measurement changes nothing about the choice
     lab.measure_migration(plan_id)
     lab.wait_until_measured(plan_id, 300)
-    assert _system(lab.migration_view(plan_id), address)["plan_line"] == "Plan: Keep classical · review 30 Jun 2027"
+    assert _system(lab.migration_view(plan_id), address)["plan_line"] == "Kept classical · review 30 Jun 2027"
     # a second choice is a new record; the first one is kept
     view = lab.choose_migration_option(plan_id, key, "hybrid", "", None)
     system = _system(view, address)
-    assert system["plan_line"] == "Plan: Hybrid · Phase 1" and len(system["choice"]["history"]) == 1
+    assert system["plan_line"] == "Next: hybrid key exchange · Phase 1" and len(system["choice"]["history"]) == 1
     assert "Keep classical for now" in system["choice"]["history"][0]
     from app.db import MigrationChoiceRow
     with lab.db() as db:
@@ -595,9 +602,11 @@ def test_the_plan_goes_into_the_evidence_file_and_the_report(flow, tmp_path):
     assert server["status"] == "Classical" and server["recommendation"]["option"] == "Hybrid"
     assert server["recommendation"]["made_by"] == "from fixed rules, no AI model" and server["recommendation"]["reasons"]
     assert server["your_choice"]["option"] == "Hybrid" and server["earlier_choices"][0]["reason"] == "Server is replaced in Q2 2027."
-    assert server["plan"]["roadmap"] == "Phase 1" and server["plan"]["from"] == "your choice"
+    assert server["plan"]["roadmap"] == "Key exchange: Phase 1; Authentication: Phase 2" and server["plan"]["from"] == "your choice"
+    assert [(t["track"], t["status"], t["roadmap"]) for t in server["tracks"]] == [("Key exchange", "Classical", "Phase 1"),
+                                                                                    ("Authentication", "Classical", "Phase 2")]
     assert by_name["acme-sign 9.9"]["recommendation"] is None and by_name["acme-sign 9.9"]["plan"] is None
-    assert [b["phase"] for b in migration["roadmap"]] == ["Already there", "Phase 1", "Phase 2", "Later", "Wrapped", "Not placed yet"]
+    assert [b["phase"] for b in migration["roadmap"]] == ["At the target", "Done for now", "Phase 1", "Phase 2", "Later", "Wrapped", "Not placed yet"]
     measured = {m["system"]: m for m in migration["measurements"]}
     run = measured[flow.addr["pq_only"]]["runs"][0]
     assert run["review"]["verdict"]["code"] == "pq_only" and run["record"]["raw"]["subject"]["probes"]["pure"]["state"] == "offered"
@@ -648,8 +657,7 @@ def test_without_the_post_quantum_engine_it_says_couldnt_check_and_never_crashes
         assert {s["status"]["code"] for s in servers} == {"couldnt_check"}
         assert all(s["recommendation"]["title"] == "No recommendation yet" and s["options"] == [] for s in servers)
         assert {b["key"] for b in view["roadmap"]["bands"]} == {"not_placed", "phase2"}      # only the signing program still has a status
-        lab.add_test(plan["id"], "pq_readiness")
-        lab.run_all(plan["id"])
+        lab.run_all(plan["id"])          # Post-quantum readiness is suggested for each server (phase 4b)
         lab.wait_until_idle(plan["id"], 300)
         rows = [r["result"] for r in lab.lab_view(plan["id"])["rows"] if r["kind"] == "pq_readiness"]
         assert rows and all(r["code"] == "couldnt_run" for r in rows)

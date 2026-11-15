@@ -1,17 +1,18 @@
-import type { MigrationLine, MigrationStatus, MigrationStatusCode } from "../../api";
+import type { MigrationLine, TrackStatusCode } from "../../api";
 import { RichTextView } from "../ui";
 
 // One look per status code. Each pill carries a symbol and its words, so nothing depends on colour alone.
-const LOOKS: Record<MigrationStatusCode, { symbol: string; className: string }> = {
+const LOOKS: Record<TrackStatusCode, { symbol: string; className: string }> = {
   hybrid: { symbol: "◑", className: "border-sky-400/60 bg-sky-400/10 text-sky-100" },
   pq_only: { symbol: "●", className: "border-sky-400/60 bg-sky-400/20 text-sky-50" },
+  post_quantum: { symbol: "●", className: "border-sky-400/60 bg-sky-400/20 text-sky-50" },
   classical: { symbol: "○", className: "border-slate-500 bg-slate-700/40 text-slate-100" },
   couldnt_check: { symbol: "?", className: "border-dashed border-amber-300/60 bg-slate-800 text-slate-100" },
   not_measured: { symbol: "–", className: "border-dashed border-slate-500 bg-slate-900 text-slate-300" },
 };
 
 /** The status as the backend worded it. `large` is the Today box's version; the list uses the small one. */
-export function StatusPill({ status, large }: { status: MigrationStatus; large?: boolean }) {
+export function StatusPill({ status, large }: { status: { code: TrackStatusCode; label: string }; large?: boolean }) {
   const look = LOOKS[status.code] ?? LOOKS.not_measured;
   const shape = large
     ? "items-start gap-1.5 rounded-md px-2.5 py-1 text-sm"

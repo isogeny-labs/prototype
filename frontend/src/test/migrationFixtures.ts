@@ -1,13 +1,17 @@
 import type {
+  ChangeView,
   MigrationChooseBox,
   MigrationLine,
   MigrationOption,
   MigrationSettingField,
   MigrationStatus,
   MigrationSystem,
+  MigrationTrack,
   MigrationView,
+  TrackStatusCode,
   RichText,
 } from "../api";
+import { cantTry, readyToTry, textOnly } from "./changeFixtures";
 import { DISCLAIMER, result } from "./fixtures";
 
 // A realistic Migration view for the phase 4a demo file (migration-demo.csv): five local test servers and two
@@ -495,3 +499,187 @@ export const measuringView: MigrationView = {
 export function withSystem(view: MigrationView, key: string, change: Partial<MigrationSystem>): MigrationView {
   return { ...view, systems: view.systems.map((s) => (s.key === key ? { ...s, ...change } : s)) };
 }
+
+// ---------------------------------------------------------------- Phase 4b: two tracks, the change box, the roadmap's track column
+
+const TARGET_LINE = "Target: post-quantum on both tracks. Hybrid is an interim step, never the end. No system is “done” until both are there.";
+const NIST = "reference: NIST IR 8547";
+
+const trackStatus = (code: TrackStatusCode, label: string) => ({ code, label });
+const KEX_HYBRID = trackStatus("hybrid", "Hybrid (interim)");
+const KEX_CLASSICAL = trackStatus("classical", "Classical");
+const KEX_PQ = trackStatus("pq_only", "Post-quantum only");
+const AUTH_CLASSICAL = trackStatus("classical", "Classical");
+
+function track(
+  key: MigrationTrack["key"],
+  title: string,
+  short_title: string,
+  status: MigrationTrack["status"],
+  sentence: string,
+  facts: [string, RichText][],
+  next: RichText,
+  why: RichText,
+): MigrationTrack {
+  return {
+    key,
+    title,
+    short_title,
+    status,
+    sentence,
+    facts: facts.map(([label, value]) => ({ label, value })),
+    next,
+    why,
+    next_label: "Next:",
+    why_label: "Why:",
+  };
+}
+
+const kex = (status: MigrationTrack["status"], sentence: string, facts: [string, RichText][], next: RichText, why: RichText) =>
+  track("kex", "Track 1 · Key exchange", "Key exchange", status, sentence, facts, next, why);
+const auth = (status: MigrationTrack["status"], sentence: string, facts: [string, RichText][], next: RichText, why: RichText) =>
+  track("auth", "Track 2 · Authentication", "Authentication", status, sentence, facts, next, why);
+
+function twoTracks(system: MigrationSystem, tracks: MigrationTrack[], extra: Partial<MigrationSystem> = {}): MigrationSystem {
+  return {
+    ...system,
+    tracks,
+    tracks_brief: tracks.map((x) => ({ title: x.short_title, status: x.status })),
+    target_line: TARGET_LINE,
+    also_noticed_title: "Also noticed",
+    also_noticed: [],
+    change: null,
+    ...extra,
+  };
+}
+
+const serverWhyKex = tagged("Hybrid is the interim step, not the end. Its classical half is deprecated after 2030 and disallowed after 2035", NIST);
+const ecdsaWhy = tagged("ECDSA P-256 is deprecated after 2030 and disallowed after 2035", NIST);
+
+const s8451b = twoTracks(
+  s8451,
+  [
+    kex(KEX_HYBRID, "It asked for a hybrid key (X25519MLKEM768) when we offered only hybrid key exchanges, so it is Hybrid.", [
+      ["Chosen by default?", tagged("Yes: it picked X25519MLKEM768", "measured")],
+      ["ML-KEM by itself", tagged("Refused", "measured")],
+    ], t("post-quantum only (ML-KEM by itself), once every client supports it."), serverWhyKex),
+    auth(AUTH_CLASSICAL, "Its certificate key is ECDSA P-256 and it signs the handshake with ECDSA: both classical.", [
+      ["Certificate key", tagged("ECDSA P-256, 65 bytes", "measured")],
+    ], t("an ML-DSA certificate, once your clients can check one."), ecdsaWhy),
+  ],
+  { plan_line: "Next: authentication · Phase 2" },
+);
+
+const s8452b = twoTracks(
+  s8452,
+  [
+    kex(KEX_CLASSICAL, "It refused every post-quantum key exchange we offered, so it is Classical.", [
+      ["Hybrid key exchange", tagged("Refused: X25519MLKEM768 and two others", "measured")],
+    ], t("turn on hybrid key exchange."), tagged("Long-lived data is exposed to recording today", "from the file")),
+    auth(AUTH_CLASSICAL, "Its certificate key is ECDSA P-256: classical.", [["Certificate key", tagged("ECDSA P-256", "measured")]], t("an ML-DSA certificate, later."), ecdsaWhy),
+  ],
+  {
+    also_noticed: ["It also accepts TLS 1.0 and TLS 1.1, both retired in 2021. This doesn't change a status."],
+    change: readyToTry,
+    plan_line: "Your choice: Hybrid · change ready to try",
+  },
+);
+
+const s8453b = twoTracks(
+  s8453,
+  [
+    kex(KEX_CLASSICAL, "Classical.", [], t("none now: kept classical."), t("short-lived, internal data.")),
+    auth(AUTH_CLASSICAL, "Classical.", [], t("none now: kept classical."), t("short-lived, internal data.")),
+  ],
+  { change: textOnly },
+);
+
+const s8454b = twoTracks(
+  s8454,
+  [
+    kex({ code: "classical", label: "Classical (no TLS 1.3)" }, "It only speaks TLS 1.2, so it is Classical.", [["TLS versions", tagged("1.2 only", "measured")]], t("wrap the connection."), t("it can't be changed.")),
+    auth({ code: "classical", label: "Classical (RSA 2048)" }, "Its certificate key is RSA 2048.", [["Certificate key", tagged("RSA 2048", "measured")]], t("wrap the connection."), t("it can't be changed.")),
+  ],
+  { change: cantTry },
+);
+
+const s8455b = twoTracks(
+  s8455,
+  [
+    kex(KEX_PQ, "It accepted ML-KEM by itself, so it is Post-quantum only.", [["ML-KEM by itself", tagged("Accepted: ML-KEM-768", "measured")]], t("keep measuring."), t("it is at the target.")),
+    auth({ code: "post_quantum", label: "Post-quantum (ML-DSA-65)" }, "Its certificate key is ML-DSA-65.", [["Certificate key", tagged("ML-DSA-65", "measured")]], t("keep measuring."), t("it is at the target.")),
+  ],
+  { plan_line: "At the target · keep measuring" },
+);
+
+const sign142b = twoTracks(
+  sign142,
+  [track("signatures", "Signatures", "Signatures", { code: "classical", label: "Classical" }, "It signs with ECDSA P-256.", [["Signs with", tagged("ECDSA P-256", "measured")]], t("sign with both."), ecdsaWhy)],
+  { plan_line: "Next: sign with both · Phase 2" },
+);
+
+const sign99b = twoTracks(
+  sign99,
+  [track("signatures", "Signatures", "Signatures", { code: "couldnt_check", label: "Couldn't check" }, "Only our own demo components can run in this version.", [], t("none until it can be measured."), t("no measurement."))],
+  {},
+);
+
+const systems4b = [s8451b, s8452b, s8453b, s8454b, s8455b, sign142b, sign99b];
+
+const rowB = (s: MigrationSystem, trackName: string, option: string, note: MigrationLine, plan_tag: string | null = "recommended, not yet chosen by you") => ({
+  system_key: s.key,
+  kind_label: s.kind_label,
+  name: s.name,
+  track: trackName,
+  option,
+  plan_tag,
+  note,
+});
+
+export const migrationView4b: MigrationView = {
+  ...migrationView,
+  systems: systems4b,
+  roadmap: {
+    ...migrationView.roadmap,
+    bands: [
+      {
+        key: "done_for_now",
+        title: "Done for now",
+        sub: "At the target, or the interim step is in place.",
+        look: "plain",
+        rows: [
+          rowB(s8451, "Key exchange", "Hybrid (interim)", line(tagged("Offers X25519MLKEM768", "measured")), null),
+          rowB(s8455, "Both tracks", "Full post-quantum", line(tagged("ML-KEM-768 with an ML-DSA-65 certificate", "measured")), null),
+        ],
+      },
+      {
+        key: "phase1",
+        title: "Phase 1",
+        sub: "Hybrid key exchange on internet-facing, long-lived systems.",
+        look: "highlight",
+        rows: [rowB(s8452, "Key exchange", "Hybrid", line("To do: turn on hybrid key exchange.", HYBRID_FIX))],
+      },
+      {
+        key: "phase2",
+        title: "Phase 2",
+        sub: "Authentication, and the other systems.",
+        look: "plain",
+        rows: [rowB(s8451, "Authentication", "ML-DSA certificate", line("Later: once clients can check one.")), rowB(sign142, "Signatures", "Hybrid: sign with both", line("Blocker: it can't make post-quantum signatures.", SIGN_FIX))],
+      },
+      {
+        key: "not_placed",
+        title: "Not placed yet",
+        sub: "The status couldn't be measured, so there is no plan.",
+        look: "dashed",
+        rows: [rowB(sign99, "Signatures", "No option yet", line("Couldn't check."), null)],
+      },
+    ],
+  },
+};
+
+/** Replaces the change of one system. */
+export function withChange(view: MigrationView, key: string, change: ChangeView | null): MigrationView {
+  return withSystem(view, key, { change });
+}
+
+export const S8452 = "server:localhost:8452";

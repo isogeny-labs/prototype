@@ -260,7 +260,13 @@ export default function App() {
             ) : shown === "lab" && plan ? (
               <EvidenceLabScreen planId={plan.id} onViewFix={viewFix} />
             ) : shown === "fixes" && plan ? (
-              <FixesScreen planId={plan.id} selectedId={fixId} onSelect={setFixId} onRetestStarted={() => go("lab")} />
+              <FixesScreen
+                planId={plan.id}
+                selectedId={fixId}
+                onSelect={setFixId}
+                onRetestStarted={() => go("lab")}
+                onPlanChanged={() => void reloadPlan()}
+              />
             ) : shown === "migration" && imp ? (
               <MigrationScreen
                 key={imp.id}

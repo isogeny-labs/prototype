@@ -6,7 +6,7 @@ behind every answer. After a fix, it reruns the same tests and shows before and 
 
 Passing these tests doesn't prove a system secure. It shows these specific checks passed.
 
-## Status: phase 4a (the migration plan), on top of phases 1 to 3a
+## Status: phase 4b (make it real), on top of phases 1 to 4a
 
 | Part | Status |
 | --- | --- |
@@ -15,12 +15,13 @@ Passing these tests doesn't prove a system secure. It shows these specific check
 | 2. Verify (True / False / Couldn't check, one plain sentence on top, Also noticed notes, with evidence) | Built |
 | 3. Tests (five suggested tests for the demo, every server and signing program in a file tested, grouped by target, with what isn't tested and why; add from a short catalog, reorder, remove, run one or all at once) | Built |
 | 4. Evidence Lab (results, controls, one line pointing to each fix, Mark reviewed, Dig deeper, Retest new version, Download evidence) | Built |
-| 5. Fixes (a suggested code change for the signing bug with its proof, a pull request inside the app, approvals, a merge that a person confirms, Retest now; a text-only suggestion for the server finding) | Built |
-| 6. Migration (where each system stands on post-quantum cryptography, measured; what each option costs; a recommendation from fixed rules; your own choice; a roadmap; the how-to and the blockers in Fixes) | Built (phase 4a) |
+| 5. Fixes (a suggested code change for the signing bug with its proof, a pull request inside the app, approvals, a merge that a person confirms, Retest now; the server's TLS fix and each migration change as a change box: try on a test copy, approve, apply, roll back) | Built (phase 4b for the change boxes) |
+| 6. Migration (where each system stands on post-quantum cryptography, measured on two tracks, key exchange and authentication; the target is post-quantum; what each option costs; a recommendation from fixed rules; your own choice; a roadmap by track; a change ready to apply, tried on a test copy, then applied with approval and rolled back if needed, on our own servers only) | Built (phase 4a, made real in phase 4b) |
 | Demo mode and isolated mode (Docker) | Built |
 | Uploading outside software | Not in this version: only our own demo components run |
 | Connecting real code hosts (GitHub and others) | Not in this version: only the small demo repository that comes with the app |
-| Server setting change with proof (SPEC section 7c) | Not built (next step) |
+| Server setting change with proof (SPEC section 7c) | Built (phase 4b), on the Acme Pay demo server only |
+| Changing a server that isn't ours (connectors) | Not built (a later phase); Download change still works |
 | Change watch | Not built (phase 3c) |
 | Assistant panel | Empty panel only; the assistant is phase 3b. No AI model is connected |
 | Accuracy panel in the app | Not built (phase 3b); the accuracy check is a command for now |
@@ -57,8 +58,13 @@ open **http://127.0.0.1:8000** in your browser.
    shown as queued (no research engine is connected, so there is no answer). Each failed result has one line
    about its fix, for example "Fix available, code not connected", with a **View in Fixes** button.
 7. Open **5. Fixes**. Two findings are listed.
-   - *Server accepts TLS 1.2* is **Text only**: a written suggestion for the server's settings. The app does not
-     apply it or test it.
+   - *Server accepts TLS 1.2* has a **change box** (since phase 4b): the setting that turns TLS 1.2 off, with the
+     lines for nginx, Apache and an application. Click **Try on a test copy**: the app starts a copy of the demo
+     server with TLS 1.2 off on a spare port and runs the server protocol check on it. When the try passes, pick
+     who must approve, click **Ask for approval**, **Approve** for each picked reviewer, then **Apply to** the
+     demo server. The app reruns the server tests by itself: the server protocol check now reads **Passed**. Press
+     **Verify claims** again (step 1) and "TLS 1.3 only" reads **True**. **Roll back** puts TLS 1.2 back. Apply works only on our own demo server; there is
+     no confirm box, so a click is a change. **Download change** gives the same lines as a file.
    - *acme-sign accepts out-of-range signatures* starts as **Code not connected**. Click **Connect demo code**.
      The app copies the small demo repository that comes with it, writes the change on a branch (3 lines added,
      1 removed) and proves it by itself: every test in your plan runs again on the changed code. This takes
@@ -99,7 +105,7 @@ run); the certificate row for 8445 carries an "Also noticed" note (that server a
 Upload it on **1. Import**: the app starts the five test servers on your computer and says so. Tick the five
 boxes, press **Verify claims**, then open **6. Migration** and press **Measure status**. It works without Docker.
 
-- Expected statuses: 8451 Hybrid, 8452 Classical (the file wrongly says Hybrid, so Verify marks that claim
+- Expected key exchange statuses: 8451 Hybrid, 8452 Classical (the file wrongly says Hybrid, so Verify marks that claim
   False), 8453 Classical, 8454 Classical with no TLS 1.3, 8455 Post-quantum only, `acme-sign 1.4.2` Classical,
   `acme-sign 9.9` Couldn't check.
 - Each system shows what was measured, the three settings the recommendation uses (from the file, set by you, or
@@ -110,6 +116,31 @@ boxes, press **Verify claims**, then open **6. Migration** and press **Measure s
   it yourself, tick the boxes to confirm you may test them, and compare what the app measures with what
   Cloudflare Radar says. The automated tests never use the internet, and the build machine could not reach these
   servers, so this file has not been run by the build.
+
+Each system shows two tracks for a server, **Key exchange** (Classical, Hybrid (interim), Post-quantum only) and
+**Authentication** (Classical or Post-quantum), and one track, **Signatures**, for a signing program. The target is
+post-quantum on every track; hybrid is a step on the way, never the end. Every track has a **Next step** and a
+**Why**. **Measure again** is needed if you measured in phase 4a: the rule changed, so the old numbers keep their
+old words and are not reused.
+
+Since phase 4b, choosing an option builds a **change**: the settings before and after, and the exact lines for
+nginx and Apache (marked with what they were checked on) and for an application ("Not checked on real software").
+The same change box sits in Fixes.
+
+- **Try on a test copy** starts a copy of the server with the change on a spare port on your computer and runs the
+  same locked measurement on it. Before and after show side by side. In isolated mode the same change also runs on
+  real nginx; in demo mode that column says real nginx needs isolated mode.
+- **Ask for approval**, then **Approve** for each reviewer you picked (you, Demo reviewer A, Demo reviewer B; one
+  login, and the demo reviewers are demo data). **Apply to** the server is off until the latest try passed and every
+  picked reviewer approved. It is one click, with no confirm box.
+- After Apply the app measures again by itself. If the result doesn't match the try it says so and offers **Roll
+  back**; it never rolls back by itself. Roll back is one click and measures again.
+- Apply works only on our own servers: the five migration demo servers, the lab nginx and the Acme Pay demo server.
+  For any other server Try and Apply are off and say a connector comes in a later phase; **Download change** stays.
+  Changes for Keep classical, Wrap and signing programs are text for a person to act on.
+- `demo/lab-nginx.csv` (Demo data) names the lab nginx on localhost:8461. It runs only in isolated mode, from the
+  pinned nginx image that `cd backend && .venv/bin/python -m app.prepare` pulls (nothing else pulls it).
+- Every step (try, approvals, Apply, the measurement after, Roll back) is in the evidence download and the report.
 
 ### Demo mode and isolated mode
 
@@ -165,14 +196,14 @@ On a new computer the end-to-end test also needs Playwright's browser once: `cd 
 
 The **accuracy check** runs the whole demo through the same path as the buttons (import, verify, propose and lock
 the tests, add the post-quantum test, Run all, Retest on 1.4.3) and compares every answer with the answer key in
-`demo/expected.json`: V1 to V3, T1 to T5, R1 to R5, the controls and A1. It prints one line per answer and ends
-with, for example, `Demo accuracy: 15 of 15 match`. It takes about one minute in demo mode and about a minute and
+`demo/expected.json`: V1 to V3, T1 to T5, R1 to R5, the controls, A1 and (since phase 4b) S1 to S3, the server TLS fix. It prints one line per answer and ends
+with, for example, `Demo accuracy: 18 of 18 match`. It takes about one minute in demo mode and about a minute and
 a half in isolated mode. Any mismatch is shown, not hidden, and makes the command exit with an error code.
 Add `--mode demo` or `--mode isolated` to choose the mode. The build never edits the answer key.
 
 The accuracy command also runs the migration demo and compares it with `demo/expected-migration.json`
 (`--only acme` or `--only migration` runs one of the two), ending with, for example,
-`Migration demo accuracy: 32 of 32 match`. The build never edits either answer key.
+`Migration demo accuracy: 47 of 47 match`. The build never edits either answer key.
 
 The backend tests take about 15 minutes and the end-to-end test about 7. Tests that need real containers are
 skipped, with a message, when Docker is not running or the images are not prepared
@@ -189,7 +220,7 @@ skipped, with a message, when Docker is not running or the images are not prepar
   the small demo repository holding acme-sign 1.4.2 (`repos/acme-sign.git/`), the deliberately broken controls,
   the official test vectors (`vectors/wycheproof/`, Project Wycheproof, Apache-2.0), our bad-signature cases
   (`vectors/bad-signatures/`), the answer key (`expected.json`), and the two migration files
-  (`migration-demo.csv`, `migration-real-servers.csv`).
+  (`migration-demo.csv`, `migration-real-servers.csv`) and `lab-nginx.csv` (the lab nginx, isolated mode).
   - The code of acme-sign 1.4.2 no longer has comments pointing at its bug. The bug is still there on purpose.
   - The demo repository is made from the 1.4.2 file by `cd backend && .venv/bin/python -m app.demo_repo`. Run
     that again only if the 1.4.2 file ever changes; a test fails until you do.

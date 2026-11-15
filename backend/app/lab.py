@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
-from . import auth, components, migration_servers, plain, present_migration, runner
+from . import auth, components, lab_nginx, lab_servers, migration_servers, plain, present_migration, runner
 from .addresses import AddressError, is_loopback_ip, parse_address, resolve_all
 from .changes import ChangesMixin
 from .config import DEMO_CBOM, DEMO_CBOM_PORT, DEMO_HOSTNAME, Settings
@@ -21,6 +21,7 @@ from .errors import BadRequest, Conflict, NotFound
 from .evidence_export import EvidenceMixin, SigningKeyError, ensure_signing_key
 from .fixes import FixesMixin
 from .migration import MigrationMixin
+from .system_changes import LAB_NGINX_SETTINGS, SystemChangesMixin
 from .importers import ImportFileError, ParsedFile, parse_file
 from .jobs import JobRunner
 from .names import clean_text
@@ -58,7 +59,7 @@ def run_json(r: VerifyRunRow) -> dict:
             "results": results}
 
 
-class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, EvidenceMixin):
+class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, EvidenceMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -71,6 +72,10 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, EvidenceMixin)
         self.extra = ExtraServers(settings.extra_ports)  # the multi-target demo file's test servers, started on import only
         # The migration demo file's five test servers (phase 4a): also started only when that file is imported.
         self.migration_servers = migration_servers.MigrationServers(settings.migration_ports)
+        # Phase 4b: a server an Apply changed starts again with the settings in force (they are kept in the records).
+        self.migration_servers.settings_for = lambda port: self._settings_in_force(f"{DEMO_HOSTNAME}:{port}")
+        # The lab nginx of demo/lab-nginx.csv (real nginx, isolated mode only), started only when that file is imported.
+        self.lab_nginx_server = lab_nginx.LabNginx(settings.lab_nginx_port)
         self.allow_external_demo_server = allow_external_demo_server
         self._verify_lock = threading.Lock()
         self._stopping = False  # set when the app is closing: a test still unfinished then writes no record
@@ -92,6 +97,9 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, EvidenceMixin)
     def start(self) -> None:
         global _swept
         self._stopping = False
+        applied = self._settings_in_force(self.settings.demo_address)   # phase 4b: an Apply to the demo server stays in force
+        if applied:
+            self.demo.versions = tuple(applied.get("versions") or self.demo.versions)
         self.demo.start()
         self.jobs.start()
         if self.mode.docker_running and not _swept:
@@ -107,6 +115,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, EvidenceMixin)
         self.demo.stop()
         self.extra.stop()
         self.migration_servers.stop()
+        self.lab_nginx_server.stop()
 
     # ---------------------------------------------------------------- session / login
 
@@ -128,7 +137,21 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, EvidenceMixin)
         if self.settings.demo_tls_port != DEMO_CBOM_PORT:
             # The demo server was moved with EVIDENCE_LAB_DEMO_TLS_PORT; point the demo file at the same port.
             data = data.replace(f"{DEMO_HOSTNAME}:{DEMO_CBOM_PORT}".encode(), self.settings.demo_address.encode())
-        return self._store(DEMO_CBOM.name, parse_file(DEMO_CBOM.name, data), is_demo=True)
+        return self._with_in_force_notices(self._store(DEMO_CBOM.name, parse_file(DEMO_CBOM.name, data), is_demo=True))
+
+    def _with_in_force_notices(self, stored: dict) -> dict:
+        """Phase 4b: a change this app applied to one of our own servers stays in force until it is rolled back, also
+        for a new import of the same file. Say so on Import, so its results are not a surprise."""
+        notes = []
+        for entry in stored.get("addresses") or []:
+            settings = self._settings_in_force(entry["address"])
+            if settings is not None:
+                notes.append(f"Demo data: a change this app applied to {entry['address']} is still in force (TLS "
+                             f"{lab_servers.versions_words(settings)}; key exchange {lab_servers.groups_words(settings)}). Its results "
+                             "show it as changed until it is rolled back: Roll back is in its change box.")
+        if notes:
+            stored["notices"] = list(stored.get("notices") or []) + notes
+        return stored
 
     def _targets_demo(self, parsed: ParsedFile) -> bool:
         """Does this file point at our own demo: the demo TLS server's address, or a registered demo component?"""
@@ -142,18 +165,21 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, EvidenceMixin)
     def import_file(self, filename: str, data: bytes) -> dict:
         shown = clean_text(os.path.basename((filename or "").replace("\\", "/")), 120) or "uploaded file"
         parsed = parse_file(shown, data)
-        stored = self._store(shown, parsed, is_demo=self._targets_demo(parsed))
+        stored = self._store(shown, parsed, is_demo=self._targets_demo(parsed) or self._lab_nginx_data(data))
         if is_multi_target_file(data, self.settings.demo_tls_port, self.settings.extra_ports):
             # Only our own multi-target demo file starts the three test servers. A taken port is said, never fatal.
             problems = self.extra.start()
             ports = ", ".join(str(p) for p in self.settings.extra_ports)
             stored["notices"] = problems or [f"Demo data: started the three demo test servers for this file on this computer (ports {ports})."]
+        if self._lab_nginx_data(data):
+            # Phase 4b: real nginx in the lab, for Apply and Roll back on real server software. Isolated mode only.
+            stored["notices"] = [self._start_lab_nginx()]
         if migration_servers.is_migration_file(data, self.settings.migration_ports):
             # Only our own migration demo file starts its five test servers. One that can't start is said, never fatal.
             problems = self.migration_servers.start()
             ports = ", ".join(str(p) for p in self.settings.migration_ports)
             stored["notices"] = problems or [f"Demo data: started the five demo test servers for this file on this computer (ports {ports})."]
-        return stored
+        return self._with_in_force_notices(stored)
 
     def ensure_extra_servers(self, import_id: int) -> None:
         """If this import is the multi-target demo file, make sure its test servers are running (after a restart
@@ -168,6 +194,46 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, EvidenceMixin)
             self.extra.start()
         if self._is_migration_demo(import_id):
             self.migration_servers.start()
+
+    def _lab_nginx_data(self, data: bytes) -> bool:
+        """Is this exactly demo/lab-nginx.csv (with this app's lab nginx port written in)?"""
+        return _normal_text(data) == _normal_text(self._lab_nginx_file())
+
+    def _lab_nginx_file(self) -> bytes:
+        from .config import DEMO_DIR
+        text = (DEMO_DIR / "lab-nginx.csv").read_text(encoding="utf-8")
+        return text.replace("localhost:8461,", f"localhost:{self.settings.lab_nginx_port},").encode()
+
+    def _is_lab_nginx_file(self, import_id: int) -> bool:
+        """Is this stored import exactly demo/lab-nginx.csv (claims and settings rows)?"""
+        from .importers import parse_file
+        try:
+            parsed = parse_file("lab-nginx.csv", self._lab_nginx_file())
+        except Exception:
+            return False
+        with self.db() as db:
+            imp = db.get(ImportRow, import_id)
+            if imp is None:
+                return False
+            claims = [(c.location, c.kind, c.claimed_value) for c in imp.claims]
+            rows = db.scalars(select(SystemSettingRow).where(SystemSettingRow.import_id == imp.id, SystemSettingRow.source == "file")).all()
+            given = sorted((r.system_key.split(":", 1)[-1], r.field, r.value) for r in rows)
+        return claims == [(c.location, c.kind, c.claimed_value) for c in parsed.claims] and \
+            given == sorted((s.location, s.field, s.value) for s in parsed.settings)
+
+    def _start_lab_nginx(self) -> str:
+        """Start the lab nginx (with the settings an Apply put in force, if any). One plain sentence about it."""
+        address = f"{DEMO_HOSTNAME}:{self.settings.lab_nginx_port}"
+        usable, why = lab_nginx.ready(self.mode)
+        if not usable:
+            return f"{why} So {address} is not started, and its row will show Couldn't check. In demo mode, without Docker, it can't run."
+        if self.lab_nginx_server.running:
+            return f"Lab data: the lab nginx is running on {address} ({lab_nginx.NGINX_VERSION_WORDS}, in a locked-down container)."
+        try:
+            self.lab_nginx_server.start(self._settings_in_force(address) or LAB_NGINX_SETTINGS)
+        except lab_nginx.NginxUnavailable as exc:
+            return f"The lab nginx could not start: {exc} Its row will show Couldn't check."
+        return f"Lab data: started the lab nginx on {address} ({lab_nginx.NGINX_VERSION_WORDS}, in a locked-down container)."
 
     def _is_migration_demo(self, import_id: int) -> bool:
         """Is this stored import exactly our migration demo file: the same claims AND the same settings rows? Only then
@@ -192,6 +258,12 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, EvidenceMixin)
         with self.db() as db:
             imp = db.get(ImportRow, import_id)
             claims = [(c.location, c.kind, c.claimed_value) for c in imp.claims] if imp is not None else []
+        if self._is_lab_nginx_file(import_id):
+            port, nginx = self.settings.lab_nginx_port, self.lab_nginx_server
+            if not nginx.running and lab_nginx.ready(self.mode)[0]:
+                self._start_lab_nginx()
+            return ({port: nginx.fingerprint if nginx.running else None},
+                    {port: lab_nginx.ready(self.mode)[1] or "The lab nginx is not running."} if not nginx.running else {})
         if self._is_migration_demo(import_id):
             ours = self.migration_servers
             return ({p: ours.fingerprints.get(p) if p in ours.running else None for p in self.settings.migration_ports},
@@ -314,6 +386,10 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, EvidenceMixin)
             if run is None:
                 raise NotFound("These claims have not been verified yet.")
             return run_json(run)
+
+
+def _normal_text(data: bytes) -> bytes:
+    return b"\n".join(line.rstrip() for line in data.replace(b"\r\n", b"\n").strip().split(b"\n"))
 
 
 __all__ = ["Lab", "NotFound", "BadRequest", "Conflict", "ImportFileError"]

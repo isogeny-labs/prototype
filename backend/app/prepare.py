@@ -4,7 +4,8 @@ This is the ONLY code that may download or build a container image. ./run-demo.s
 before the app starts; the app itself never builds or downloads anything.
 
 - Docker not running: says so and stops. The app then runs in demo mode.
-- A pinned base image is missing: tries to download exactly that pinned image (time limit; needs internet).
+- A pinned base image is missing: tries to download exactly that pinned image (time limit; needs internet). Since
+  phase 4b that includes the pinned nginx lab image (Try on real nginx, and the lab nginx of demo/lab-nginx.csv).
 - Our components image is missing: builds it from demo/components/ on the pinned Python base, with no network.
 
 It always exits with code 0, so it can never stop the app from starting. `--check` only reports.
@@ -14,7 +15,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from .config import COMPONENTS_DIR, OPENSSL_IMAGE, PYTHON_BASE_IMAGE
+from .config import COMPONENTS_DIR, NGINX_IMAGE, OPENSSL_IMAGE, PYTHON_BASE_IMAGE
 from .runner import _docker_env, components_image_tag, docker_running, image_present
 
 PULL_LIMIT_SECONDS = 120
@@ -44,7 +45,7 @@ def main(argv: list[str] | None = None, say=print) -> int:
     if not docker_running():
         say("Isolated mode: not available (Docker is not running). The app will run in demo mode.")
         return 0
-    bases = (("Python base image", PYTHON_BASE_IMAGE), ("OpenSSL checker image", OPENSSL_IMAGE))
+    bases = (("Python base image", PYTHON_BASE_IMAGE), ("OpenSSL checker image", OPENSSL_IMAGE), ("nginx lab image", NGINX_IMAGE))
     present = {}
     for label, reference in bases:
         present[reference] = image_present(reference)
@@ -69,6 +70,8 @@ def main(argv: list[str] | None = None, say=print) -> int:
         say("Isolated mode: not ready. The app will run in demo mode.")
     if not present[OPENSSL_IMAGE]:
         say("Post-quantum check: the OpenSSL checker image is missing, so it needs OpenSSL 3.5 or newer on this computer.")
+    if not present[NGINX_IMAGE]:
+        say("Real nginx in the lab: the nginx lab image is missing, so a try runs on the test copy only and the lab nginx can't start.")
     return 0
 
 

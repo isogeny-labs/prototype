@@ -35,6 +35,14 @@ PQ_CONTROL = {"kind": "pq_control_servers",
               "text": ("The same check against two test servers started on this computer for this run: one that offers hybrid key "
                        "exchange, which must be read as Hybrid, and one that is classical only, which must be read as Classical."),
               "must": {"hybrid_server": "hybrid", "classical_server": "classical"}}
+# Phase 4b: two tracks. The same control, plus the "both keys at once" hello, which our hybrid test server must answer
+# with hybrid and our classical one with classical.
+PQ_CONTROL_TRACKS = {**PQ_CONTROL, "text": PQ_CONTROL["text"] + (" Both are also sent one hello with a hybrid and a classical key at "
+                                                                  "once: the hybrid one must take hybrid, the classical one classical."),
+                     "must": {**PQ_CONTROL["must"], "both_keys": {"hybrid_server": "hybrid", "classical_server": "classical"}}}
+PQ_TRACKS_RULE_TEXT = ("Authentication (a second track): Classical when the certificate key and the handshake signature are both classical, "
+                       "Post-quantum when both are ML-DSA, anything else couldn't check. Whether hybrid is chosen by default, and whether a "
+                       "classical-only client still connects, are recorded as facts, not as a pass or a fail.")
 PQ_METHOD = ("Send three first messages (TLS 1.3 hellos) with no key attached: one offering only hybrid key exchanges, one only "
              "ML-KEM by itself, one only classical ones. A server that supports one of them asks for a key for it; one that "
              "supports none refuses. Then make one full handshake offering only hybrids and one as a classical-only client. "
@@ -236,6 +244,7 @@ class RuleEngine:
         suggested test it does not get and why; `notes` says the same in one line each."""
         tests, notes, skipped = [], [], []
         targets = [("server", a) for a in servers(claims)] + [("software", p["ref"]) for p in programs(claims)]
+        pq_claimed = {str(c.get("location")) for c in claims if c.get("location_kind") == "server" and c.get("kind") == "post_quantum"}
         for side, key in targets:
             for kind in SUGGESTED_KINDS:
                 if (kind in SERVER_KINDS) != (side == "server"):
@@ -245,6 +254,9 @@ class RuleEngine:
                 except CannotDesign as exc:
                     skipped.append({"kind": kind, "target_kind": side, "target": key, "reason": str(exc)})
                     notes.append(f"{TITLES[kind]} for {key}: not suggested. {exc}")
+            if side == "server" and key in pq_claimed:
+                # Phase 4b: a post-quantum claim suggests the Post-quantum readiness test for that server.
+                tests.append(self._design("pq_readiness", claims, key))
         for side, kinds, why in (("server", ("tls_versions", "certificate"), "The file names no server."),
                                  ("software", ("official_vectors", "bad_signatures", "speed_size"), "The file names no signing component.")):
             if not any(s == side for s, _ in targets):
@@ -499,10 +511,10 @@ class RuleEngine:
             PQ_METHOD + " For the cost table: 10 classical and 10 hybrid handshakes taken in turn, on this server when it offers "
             "hybrid, otherwise on our own hybrid test server.",
             {"kind": "server", "address": target},
-            {"families": PQ_FAMILIES, "costs": True, "timing_rounds": 10, "guidance": {"minimum_bits": g["minimum_bits"]}},
-            ["Key exchanges asked for: hybrid, ML-KEM by itself and classical.",
-             f"Certificate minimum sizes: {g['minimum_source']['title']}."],
-            PQ_CONTROL, {"type": "pq_status"}, PQ_RULE_TEXT)
+            {"families": PQ_FAMILIES, "costs": True, "timing_rounds": 10, "guidance": {"minimum_bits": g["minimum_bits"]}, "tracks": True},
+            ["Key exchanges asked for: hybrid, ML-KEM by itself and classical; and one hello with a hybrid and a classical key at once, "
+             "in both orders.", f"Certificate minimum sizes: {g['minimum_source']['title']}."],
+            PQ_CONTROL_TRACKS, {"type": "pq_status_tracks"}, PQ_RULE_TEXT + " " + PQ_TRACKS_RULE_TEXT)
 
     def _signing_status(self, claims: list[dict], ref: str | None = None) -> dict:
         """The Migration step's measurement of one signing program (phase 4a): what it signs with today, confirmed by

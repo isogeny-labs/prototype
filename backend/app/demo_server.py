@@ -153,7 +153,7 @@ class DemoServer:
         try:
             cert_path, key_path = ensure_demo_certificate(self.data_dir)
             self.fingerprint = certificate_fingerprint(cert_path)
-            ctx = make_server_context(cert_path, key_path)
+            ctx = self.context_for(self.versions)
         except (OSError, ValueError, ssl.SSLError) as exc:
             self.error = f"The demo server could not be set up ({exc.__class__.__name__}). Restart Evidence Lab."
             return
@@ -169,6 +169,29 @@ class DemoServer:
                               f"({exc.strerror or exc.__class__.__name__}).")
             return
         self.running, self.error = True, None
+
+    # Phase 4b: the TLS versions the demo server accepts can be changed by Apply (SPEC 7c), and put back by Roll back.
+    versions: tuple[str, ...] = ("TLS 1.2", "TLS 1.3")
+
+    def context_for(self, versions) -> ssl.SSLContext:
+        """A server context for the demo certificate that accepts exactly these TLS versions (lowest to highest)."""
+        order = {"TLS 1.0": ssl.TLSVersion.TLSv1, "TLS 1.1": ssl.TLSVersion.TLSv1_1, "TLS 1.2": ssl.TLSVersion.TLSv1_2,
+                 "TLS 1.3": ssl.TLSVersion.TLSv1_3}
+        chosen = [v for v in order if v in versions] or ["TLS 1.2", "TLS 1.3"]
+        cert_path, key_path = ensure_demo_certificate(self.data_dir)
+        return make_server_context(cert_path, key_path, minimum=order[chosen[0]], maximum=order[chosen[-1]])
+
+    def set_versions(self, versions) -> tuple[bool, str]:
+        """Accept exactly these TLS versions from now on. The listener keeps running; new handshakes use the new
+        settings. (taken?, words)."""
+        try:
+            ctx = self.context_for(versions)
+        except (OSError, ValueError, ssl.SSLError) as exc:
+            return False, f"the demo server could not take these settings ({exc.__class__.__name__})"
+        self.versions = tuple(v for v in ("TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3") if v in versions) or ("TLS 1.2", "TLS 1.3")
+        if self._server is not None:
+            self._server._ctx = ctx
+        return True, "the demo server now accepts " + " and ".join(self.versions)
 
     def stop(self) -> None:
         if self._server:

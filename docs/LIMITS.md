@@ -76,8 +76,8 @@ Updated at the end of **phase 3a** (the Fixes step: a suggested code change with
   once by us from a throwaway test key that was then discarded. It is fixed data, not an official set.
 - **Demo mode is not isolated.** Without Docker, or before the images are prepared, the demo components run as
   normal local programs with a time limit. The line under the step bar says which mode is in use and why.
-- **The server TLS suggestion is text only.** The app does not apply it or test it (that is the step after 3a,
-  SPEC section 7c). The nginx and Apache lines in it were tried on real servers on the build machine. The two AWS
+- **The server TLS suggestion** was text only in 3a. Since phase 4b it is also a change box that can be tried on a test copy
+  and applied to our own Acme Pay demo server (see "Limits of phase 4b"); on any other server it is text and a download. The nginx and Apache lines in it were tried on real servers on the build machine. The two AWS
   policy names are from memory, because the AWS documentation could not be reached from the build machine. The
   app's server test checks TLS versions only, so it cannot show whether an old cipher suite has gone.
 - **The "Suggested fix" text in Evidence Lab is a fixed sentence.** A failed result whose fix is in the Fixes step
@@ -169,8 +169,9 @@ Limits to know:
 - **Blockers checked:** no TLS 1.3, a certificate below the NIST minimum, a program that can't make post-quantum
   signatures. Nothing else (firewalls that drop large first messages, client support) is measured; the how-to
   warns about the first two in words.
-- **Fixes entries from the migration plan are text only.** The app never changes a system, and never tests the
-  suggested lines on yours. An entry closes when a new measurement shows it done or the plan for it changes.
+- **Fixes entries from the migration plan** were text only in phase 4a. Since phase 4b each is a change box (see "Limits of
+  phase 4b"). The app still never tests the suggested lines on your own server. An entry closes when a new
+  measurement shows it done or the plan for it changes.
 - **Choices:** one login, so a choice is recorded for "whoever is at the keyboard". A choice is never changed by
   the app; a newer choice is a new record and the older ones stay. If a later measurement makes a choice
   impossible (the system now measures Hybrid and the choice was "keep classical"), the roadmap goes back to the
@@ -182,6 +183,58 @@ Limits to know:
 - **Post-quantum readiness (the catalog test)** now uses the same measurement, so it gives a result without
   Docker. A test of that kind locked before phase 4a keeps its old checker and rule, and its stored results read
   as before.
+
+## Limits of phase 4b (make it real)
+
+The new rule: the app changes a system only when a person presses Apply, after a passing try on a test copy and every
+approval asked for. It measures again right after, and can roll back. What follows is where that stops.
+
+- **An applied change stays in force across imports.** Our demo servers are shared by every import of a file, so a change that
+  was applied and not rolled back is still there when the file is imported again: Verify and the tests then show the server as
+  changed, and differ from the answer key. Import says so, and the new import's Fixes step lists the change with its Roll back.
+  After a Roll back the demo gives its starting results again.
+- **Apply works only on our own servers:** the five migration demo test servers (localhost:8451 to 8455), the lab nginx
+  (`demo/lab-nginx.csv`, localhost:8461, isolated mode only) and the Acme Pay demo server (localhost:8443, its TLS 1.2
+  fix only). For any other server, Try and Apply are off and say that a connector to that server comes in a later phase.
+  **Download change** still works.
+- **The Acme Pay demo server and the multi-target demo's extra servers can't take a post-quantum change.** They run on
+  Python's built-in TLS, which can't be set to post-quantum key exchange.
+- **The test copy is our own lab server with the same settings.** It is not a copy of your software, your load balancer
+  or your certificates. A pass shows that these settings do what the change promises on our lab server, and (in isolated
+  mode) on real nginx. It doesn't show it on your server. In demo mode there is no real nginx run, and the column says so.
+- **Real nginx is pinned:** `nginx@sha256:fed7e14be83cbd2661a75cdc5b872d936cf155d46c327084d30b8df19ae88d72`
+  (nginx 1.31.8, OpenSSL 3.5.9), pulled only by `cd backend && .venv/bin/python -m app.prepare`. It runs locked down:
+  read-only, no capabilities, user 101, 64 MB, 32 processes, host network on 127.0.0.1 only.
+- **"Checked on" lines were checked during the build, not at each run.** "Checked on nginx 1.31.8 with OpenSSL 3.5.9" and
+  "Checked on Apache 2.4.71 with OpenSSL 3.5.9" were true when the change builder was made. Only real nginx in isolated
+  mode is run again at each try. Application lines say "Not checked on real software."
+- **One login for approvals.** Whoever is at the keyboard records each approval, under the name shown. Demo reviewer A
+  and B are demo data, not people. Apply is one click with no confirm box: it is off until the latest try passed and every
+  picked reviewer approved.
+- **A try is out of date after an Apply or a Roll back.** Try again first.
+- **Fresh test certificates after a restart.** The settings in force are worked out by replaying the applies and roll
+  backs, so they survive a restart. The test certificate and key of a changed test server live only in memory, so
+  after a restart the server gets a new test certificate of the same kind (and Roll back then also gives a new one of the
+  earlier kind). Test keys are never shown, stored or exported, and downloads never hold a private key.
+- **The ML-DSA test certificate comes only with Full post-quantum for now.** Serving two certificates as an interim step
+  comes later. Hybrid changes the key exchange only, so authentication stays Classical.
+- **Keep classical, Wrap and a signing program's change are text.** The app gives a review date and what to recheck, what a
+  gateway in front must do, or the steps for whoever looks after the program (download only). It applies nothing for them,
+  and Keep classical and Wrap text appears only once the person chooses that option. A signing program's real code
+  change is phase 4c.
+- **The default-choice check is one hello offering both key shares in each order.** It shows what the server picks in those
+  two handshakes. It is not a model of every browser or client, and it is information, not a pass or a fail. The controls
+  must also read it right, or the measurement says Couldn't check.
+- **Authentication reads Couldn't check** when the certificate key and the handshake signature (CertificateVerify in
+  TLS 1.3, ServerKeyExchange in TLS 1.2) disagree, or one of them can't be read. It never guesses.
+- **A measurement from phase 4a must be measured again.** The rule changed (`pq_status_tracks`), so the locked-spec
+  fingerprint is new. Old stored results keep their phase 4a rule and words.
+- **Also noticed** (for example TLS 1.0 or 1.1 accepted) never changes a status.
+- **After Apply the app only says whether the new measurement matches the try.** If not, it says so and offers Roll
+  back; it never rolls back by itself. The Fixes entry reads "In place (measured)" only when a new measurement shows the change in place.
+- **Roll back undoes the server change, not your choice** (Kevin's decision on answer MC7, 15 November 2026). After Roll
+  back of Full post-quantum the server is back as it was, but the choice of Full post-quantum stays recorded, so its key
+  exchange track stays in "Phase 2" until you choose again.
 
 ## Limits of the Fixes step (phase 3a)
 

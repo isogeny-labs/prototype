@@ -102,6 +102,31 @@ APPROVERS = {
                   "approve_label": Opt(str), "primary": bool}]),
     "footnote": Opt(str),
 }
+# phase 4b: the change box (frontend ChangeView): Try on a test copy, approvals, Apply and Roll back
+CHANGE_BADGE = {"label": str, "look": Lit("pass", "fail", "warn", "neutral")}
+CHANGE_SECTION = By("kind", {
+    "table": {"kind": str, "title": str, "columns": [str], "rows": [[RICH]]},
+    "lines": {"kind": str, "title": str, "rows": [{"place": str, "lead": str, "code": str}], "note": Opt(str)},
+    "text": {"kind": str, "title": str, "paragraphs": [RICH]},
+})
+CHANGE_BOX = {
+    "id": str, "title": str, "badge": CHANGE_BADGE, "intro": RICH,
+    "steps": [{"key": Lit("built", "tried", "approvals", "applied", "measured"), "label": str,
+               "state": Lit("done", "now", "off", "failed"), "text": str}],
+    "sections": [CHANGE_SECTION],
+    "try": Opt({"title": str, "running": Opt(dict), "verdict": Opt({"label": str, "look": Lit("pass", "fail", "warn"), "text": str}),
+                "columns": [str], "rows": [{"label": str, "cells": [RICH]}], "notes": [str], "results": [{"label": str, "result": dict}]}),
+    "approvals": Opt({"title": str,
+                      "picker": Opt({"options": [{"id": str, "name": str, "demo": bool, "checked": bool}], "button": str, "enabled": bool,
+                                     "reason": Opt(str)}),
+                      "rows": [{"reviewer": str, "name": str, "demo": bool, "approved_at": Opt(str), "status_text": str,
+                                "approve": Opt({"label": str, "enabled": bool})}],
+                      "footnote": str}),
+    "applied": Opt({"title": str, "badge": CHANGE_BADGE, "paragraphs": [RICH], "differences": [str], "history": [str]}),
+    "buttons": [{"action": Lit("try", "ask_approval", "approve", "apply", "rollback", "download"), "label": str, "primary": bool,
+                 "enabled": bool, "reason": Opt(str)}],
+    "note": Opt(str), "busy": bool,
+}
 FIX_DETAIL = {
     "id": str, "kind": Lit("code", "text"), "title": str, "list_source": str, "source": RICH,
     "status": {"key": Lit(*STATUS_KEYS), "word": str, "busy": bool},
@@ -115,6 +140,7 @@ FIX_DETAIL = {
     "patch": Opt({"url": str, "filename": str}),
     "merge_dialog": Opt({"title": str, "paragraphs": [RICH], "confirm": str, "cancel": str}),
     "sections": [SECTION], "sections_note": Opt(str),
+    "change_box": Opt(CHANGE_BOX),
 }
 FIXES_VIEW = {"plan_id": int, "is_demo": bool, "title": str, "subline": str, "disclaimer": str, "list_title": str,
               "empty_text": Opt(str), "fixes": [FIX_DETAIL], "busy": bool}

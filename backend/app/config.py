@@ -23,6 +23,8 @@ VECTORS_DIR = DEMO_DIR / "vectors"
 # Container base images, pinned by digest. Only `python -m app.prepare` may pull or build; the app never does.
 PYTHON_BASE_IMAGE = "python:3.12-alpine@sha256:e064671ca452259bab50e8e2c7bd896e39e9a343bb06ca25234adf6fe18d0fc7"
 OPENSSL_IMAGE = "alpine/openssl@sha256:6821afa2476e11be343f29275f2ca24291720ff0a7148bd131fd8e314ff26d9e"
+# Phase 4b: the real nginx of the lab (nginx 1.31.8 on OpenSSL 3.5.9), pinned by digest. Pulled only by app.prepare.
+NGINX_IMAGE = "nginx@sha256:fed7e14be83cbd2661a75cdc5b872d936cf155d46c327084d30b8df19ae88d72"
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,8 @@ class Settings:
     extra_ports: tuple[int, int, int] = (8444, 8445, 8446)
     # The five local test servers of the migration demo file (phase 4a). Started only when that file is imported.
     migration_ports: tuple[int, int, int, int, int] = (8451, 8452, 8453, 8454, 8455)
+    # The lab nginx of demo/lab-nginx.csv (phase 4b): real nginx in isolated mode, started only when that file is imported.
+    lab_nginx_port: int = 8461
 
     @property
     def db_path(self) -> Path:

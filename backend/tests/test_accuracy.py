@@ -1,4 +1,5 @@
-"""The accuracy command: all 15 answers, through the same service path as the buttons, read from reviewed results."""
+"""The accuracy command: all 18 answers (15, and since phase 4b S1-S3 for the server TLS fix), through the same service path
+as the buttons, read from reviewed results; then the migration demo against its own answer key."""
 import copy
 import hashlib
 import json
@@ -16,7 +17,7 @@ from conftest import free_port
 
 BACKEND = Path(__file__).resolve().parents[1]
 EXPECTED = json.loads(EXPECTED_JSON.read_text(encoding="utf-8"))
-ALL_IDS = ["V1", "V2", "V3", "T1", "T2", "T3", "T4", "T5", "R1", "R2", "R3", "R4", "R5", "controls", "A1"]
+ALL_IDS = ["V1", "V2", "V3", "T1", "T2", "T3", "T4", "T5", "R1", "R2", "R3", "R4", "R5", "controls", "A1", "S1", "S2", "S3"]
 
 
 def right_answers() -> dict:
@@ -29,7 +30,9 @@ def right_answers() -> dict:
         tests[accuracy.TEST_IDS[entry["id"]]] = {"label": entry["expected"], "code": code, "summary": "s", "control": "as_expected",
                                                  "mode": "demo", "reason_code": None}
     tests[("pq_readiness", "retest")] = dict(tests[("pq_readiness", "first")])
-    return {"notes": [], "mode_line": "Demo mode", "verify": verify, "unmapped_claims": [], "tests": tests, "stopped": None}
+    server_fix = {e["id"]: {"label": e["expected"], "summary": "s"} for e in EXPECTED["after_server_fix"]["entries"]}
+    return {"notes": [], "mode_line": "Demo mode", "verify": verify, "unmapped_claims": [], "tests": tests, "stopped": None,
+            "server_fix": server_fix}
 
 
 def report_for(change) -> dict:
@@ -42,10 +45,10 @@ def lines_of(report) -> dict:
     return {line["id"]: line for line in report["lines"]}
 
 
-def test_the_answer_key_has_fifteen_entries_and_each_is_mapped():
+def test_the_answer_key_has_eighteen_entries_and_each_is_mapped():
     report = report_for(lambda a: None)
     assert [line["id"] for line in report["lines"]] == ALL_IDS
-    assert (report["matched"], report["total"]) == (15, 15) and accuracy.print_report(report, say=lambda s: None) == 0
+    assert (report["matched"], report["total"]) == (18, 18) and accuracy.print_report(report, say=lambda s: None) == 0
     refs = {c.get("bom-ref") for c in json.loads(DEMO_CBOM.read_text())["components"]}
     assert {ref for ref, _ in accuracy.DEMO_CLAIM_IDS} <= refs
     assert sorted(accuracy.DEMO_CLAIM_IDS.values()) == ["V1", "V2", "V3"]
@@ -56,21 +59,21 @@ def test_a_wrong_answer_is_reported_and_gives_exit_code_1(monkeypatch, capsys):
     def wrong(a):
         a["tests"][("official_vectors", "first")].update(label="Passed", code="passed")
     report = report_for(wrong)
-    assert (report["matched"], report["total"]) == (14, 15)
+    assert (report["matched"], report["total"]) == (17, 18)
     assert lines_of(report)["T3"]["match"] is False and lines_of(report)["T3"]["actual"] == "Passed"
     said = []
     assert accuracy.print_report(report, say=said.append) == 1
     assert any(s.startswith("  T3  MISMATCH  expected 'Failed', app says 'Passed'") for s in said)
-    assert said[-1] == "Demo accuracy: 14 of 15 match"
+    assert said[-1] == "Demo accuracy: 17 of 18 match"
     # and through the command's own entry point
     answers = right_answers()
     wrong(answers)
     monkeypatch.setattr(accuracy, "collect", lambda settings=None: answers)
     assert accuracy.main(["--only", "acme"]) == 1
     out = capsys.readouterr().out
-    assert "T3  MISMATCH" in out and out.strip().endswith("Demo accuracy: 14 of 15 match")
+    assert "T3  MISMATCH" in out and out.strip().endswith("Demo accuracy: 17 of 18 match")
     monkeypatch.setattr(accuracy, "collect", lambda settings=None: right_answers())
-    assert accuracy.main(["--mode", "demo", "--only", "acme"]) == 0 and capsys.readouterr().out.strip().endswith("Demo accuracy: 15 of 15 match")
+    assert accuracy.main(["--mode", "demo", "--only", "acme"]) == 0 and capsys.readouterr().out.strip().endswith("Demo accuracy: 18 of 18 match")
 
 
 def test_missing_answers_and_an_early_stop_are_mismatches_not_silence():
@@ -78,14 +81,14 @@ def test_missing_answers_and_an_early_stop_are_mismatches_not_silence():
     got = lines_of(report)
     assert got["R5"]["match"] is False and got["R5"]["actual"] == "(no answer)"
     assert got["V2"]["match"] is False and got["controls"]["match"] is False and "speed_size (retest)" in got["controls"]["actual"]
-    assert report["matched"] == 12
+    assert report["matched"] == 15
     stopped = report_for(lambda a: a.update(stopped="The check stopped early: boom"))
     said = []
     assert accuracy.print_report(stopped, say=said.append) == 1 and any("PROBLEM" in s and "boom" in s for s in said)
     extra = report_for(lambda a: a["unmapped_claims"].append("a claim nobody listed"))
     assert accuracy.print_report(extra, say=lambda s: None) == 1
     nothing = accuracy.compare(copy.deepcopy(EXPECTED), {"notes": [], "verify": {}, "tests": {}, "unmapped_claims": [], "stopped": None, "mode_line": None})
-    assert nothing["matched"] == 0 and nothing["total"] == 15
+    assert nothing["matched"] == 0 and nothing["total"] == 18
 
 
 def test_controls_line_fails_on_any_untrusted_run_or_misbehaving_control():
@@ -105,10 +108,10 @@ def test_a1_alternative_only_counts_when_the_recorded_reason_is_the_checker_vers
     assert alternative == "Couldn't run (needs OpenSSL 3.5 or newer)"
     old = report_for(lambda a: a["tests"][("pq_readiness", "first")].update(label=alternative, code="couldnt_run", control="not_run", reason_code="checker_too_old"))
     assert lines_of(old)["A1"]["match"] is True and "checker is too old" in lines_of(old)["A1"]["reason"]
-    assert old["matched"] == 15
+    assert old["matched"] == 18
     for reason in (None, "checker_cannot_reach", "timeout"):
         other = report_for(lambda a: a["tests"][("pq_readiness", "first")].update(label=alternative, code="couldnt_run", control="not_run", reason_code=reason))
-        assert lines_of(other)["A1"]["match"] is False and other["matched"] == 14
+        assert lines_of(other)["A1"]["match"] is False and other["matched"] == 17
     another_label = report_for(lambda a: a["tests"][("pq_readiness", "first")].update(label="Couldn't run (it took too long)", code="couldnt_run", reason_code="checker_too_old"))
     assert lines_of(another_label)["A1"]["match"] is False
     offered = report_for(lambda a: a["tests"][("pq_readiness", "first")].update(label="Offered", code="offered"))
@@ -123,9 +126,9 @@ def run_command(tmp_path, port, *args, rounds="25"):
     return subprocess.run([sys.executable, "-m", "app.accuracy", *args], cwd=BACKEND, env=env, capture_output=True, text=True, timeout=600)
 
 
-def check_15_of_15(done, tmp_path):
+def check_18_of_18(done, tmp_path):
     assert done.returncode == 0, done.stdout + done.stderr
-    assert done.stdout.strip().endswith("Demo accuracy: 15 of 15 match")
+    assert done.stdout.strip().endswith("Demo accuracy: 18 of 18 match")
     for answer_id in ALL_IDS:
         assert f"  {answer_id}  MATCH" in done.stdout, answer_id
     assert "MISMATCH" not in done.stdout and "PROBLEM" not in done.stdout
@@ -141,18 +144,19 @@ def check_15_of_15(done, tmp_path):
     assert not any(marker in done.stdout + done.stderr for marker in MARKERS)
 
 
-def test_command_is_15_of_15_in_demo_mode_and_never_touches_the_answer_key(tmp_path):
+def test_command_is_18_of_18_in_demo_mode_and_never_touches_the_answer_key(tmp_path):
     before = hashlib.sha256(EXPECTED_JSON.read_bytes()).hexdigest()
     done = run_command(tmp_path, free_port(), "--mode", "demo", "--only", "acme")
-    check_15_of_15(done, tmp_path)
+    check_18_of_18(done, tmp_path)
+    assert "Rolled the server TLS fix back at the end of this check." in done.stdout
     assert "  mode: Demo mode: running our own demo software, not isolated." in done.stdout
     assert hashlib.sha256(EXPECTED_JSON.read_bytes()).hexdigest() == before
 
 
-def test_command_is_15_of_15_in_isolated_mode(tmp_path, docker_ready):
+def test_command_is_18_of_18_in_isolated_mode(tmp_path, docker_ready):
     """Skipped with a clear message when Docker is not running or the images are not prepared."""
     done = run_command(tmp_path, free_port(), "--mode", "isolated", "--only", "acme")
-    check_15_of_15(done, tmp_path)
+    check_18_of_18(done, tmp_path)
     assert "  mode: Isolated mode: our demo software runs in a locked-down container with no network." in done.stdout
 
 
@@ -165,7 +169,7 @@ def test_command_shows_mismatches_and_exits_non_zero_when_the_demo_server_cannot
     assert done.returncode != 0
     assert "V1  MISMATCH" in done.stdout and "T1  MISMATCH" in done.stdout and "V3  MATCH" in done.stdout
     last = done.stdout.strip().splitlines()[-1]
-    assert last.startswith("Demo accuracy: ") and last.endswith(" of 15 match") and last != "Demo accuracy: 15 of 15 match"
+    assert last.startswith("Demo accuracy: ") and last.endswith(" of 18 match") and last != "Demo accuracy: 18 of 18 match"
 
 
 def test_isolated_mode_asked_for_but_missing_is_a_mismatch_not_a_quiet_fallback(tmp_path, monkeypatch):
@@ -176,7 +180,7 @@ def test_isolated_mode_asked_for_but_missing_is_a_mismatch_not_a_quiet_fallback(
     got = lines_of(report)
     assert report["mode_line"].startswith("Isolated mode was asked for, but it is not available")
     assert got["T3"]["actual"] == "Couldn't run (isolated mode is not available)" and got["T3"]["match"] is False
-    assert got["V1"]["match"] is True and report["matched"] < 15
+    assert got["V1"]["match"] is True and report["matched"] < 18
     assert accuracy.print_report(report, say=lambda s: None) == 1
 
 
@@ -186,14 +190,26 @@ def test_command_takes_nothing_but_the_mode(bad):
         accuracy.main(bad)
 
 
-# ---------------------------------------------------------------- the migration demo (phase 4a)
+# ---------------------------------------------------------------- the server TLS fix (S1 to S3, SPEC 7c)
+
+def test_s1_to_s3_are_graded_and_a_missing_answer_is_a_mismatch():
+    report = report_for(lambda a: a["server_fix"].pop("S2"))
+    got = lines_of(report)
+    assert got["S2"]["match"] is False and got["S2"]["actual"] == "(no answer)" and got["S1"]["match"] is got["S3"]["match"] is True
+    wrong = lines_of(report_for(lambda a: a["server_fix"]["S1"].update(label="Failed")))
+    assert wrong["S1"]["match"] is False and wrong["S1"]["expected"] == "Passed"
+
+
+# ---------------------------------------------------------------- the migration demo (phases 4a and 4b)
+
+
 
 @pytest.fixture(scope="module")
 def migration_answers(tmp_path_factory):
     """The migration demo run once, in demo mode, on spare ports (no Docker, no internet)."""
     ports = tuple(free_port() for _ in range(5))
     settings = Settings(data_dir=tmp_path_factory.mktemp("migration-accuracy") / "data", demo_tls_port=free_port(), force_mode="demo",
-                        migration_ports=ports)
+                        migration_ports=ports, lab_nginx_port=free_port())
     return accuracy.collect_migration(settings)
 
 
@@ -202,51 +218,71 @@ def _migration_key():
     return json.loads(EXPECTED_MIGRATION_JSON.read_text(encoding="utf-8"))
 
 
+def _lines(answers, key=None) -> dict:
+    return {line["id"]: line for line in accuracy.compare_migration(key or _migration_key(), answers)["lines"]}
+
+
 def test_the_migration_demo_matches_its_answer_key(migration_answers):
     assert migration_answers["stopped"] is None
     report = accuracy.compare_migration(_migration_key(), migration_answers)
     assert [line for line in report["lines"] if not line["match"]] == []
-    assert (report["matched"], report["total"]) == (32, 32)
-    assert [line["id"] for line in report["lines"]][:28] == [f"M{part}{n}" for part in "VSRP" for n in range(1, 8)]
+    assert (report["matched"], report["total"]) == (47, 47)
+    ids = [line["id"] for line in report["lines"]]
+    assert ids[:35] == [f"M{part}{n}" for part in "VT" for n in range(1, 8)] + ["never_done"] + \
+        [f"M{part}{n}" for part in "RP" for n in range(1, 8)] + [f"MQ{n}" for n in range(1, 7)]
     assert migration_answers["control_misread_reads"] == "Couldn't check"
+    back = migration_answers["changes"]["localhost:8451"]
+    assert back["after_rollback"]["kex"] == "Hybrid (interim)" and back["choice_after_rollback"] == "full_pq"   # the server back, the choice kept
+    # MC7: the choice is what keeps key exchange in Phase 2; without it the answer is a mismatch
+    answers = copy.deepcopy(migration_answers)
+    answers["changes"]["localhost:8451"]["choice_after_rollback"] = None
+    assert _lines(answers)["MC7"]["match"] is False
 
 
 def test_a_wrong_migration_answer_is_a_mismatch_with_its_reason(migration_answers):
-    def lines_after(change):
+    def after(change):
         answers = copy.deepcopy(migration_answers)
-        change(answers["systems"])
-        return {line["id"]: line for line in accuracy.compare_migration(_migration_key(), answers)["lines"]}
+        change(answers)
+        return _lines(answers)
 
-    wrong = lines_after(lambda s: s["localhost:8452"].update(verify="True", roadmap="Phase 2"))
-    assert wrong["MV2"]["match"] is False and wrong["MP2"]["match"] is False and wrong["MV1"]["match"] is True
-    wrong = lines_after(lambda s: s["localhost:8451"].update(classical_client=False))
-    assert wrong["MS1"]["match"] is False and "classical-only client" in wrong["MS1"]["why"]
-    wrong = lines_after(lambda s: s["localhost:8454"].update(tls_versions="1.3 and 1.2"))
-    assert wrong["MS4"]["match"] is False and "no TLS 1.3" in wrong["MS4"]["why"]
-    wrong = lines_after(lambda s: s["localhost:8453"].update(review_date="2031-06-01"))
+    wrong = after(lambda a: a["systems"]["localhost:8452"].update(verify="True", roadmap={"Key exchange": "Phase 2", "Authentication": "Phase 2"}))
+    assert wrong["MV2"]["match"] is False and wrong["MP2"]["match"] is False and "Phase 2" in wrong["MP2"]["why"] and wrong["MV1"]["match"] is True
+    wrong = after(lambda a: a["systems"]["localhost:8451"].update(classical_client=False))
+    assert wrong["MT1"]["match"] is False and "classical_only_client_connects" in wrong["MT1"]["why"]
+    wrong = after(lambda a: a["systems"]["localhost:8454"].update(kex="Classical"))
+    assert wrong["MT4"]["match"] is False and "no TLS 1.3" in wrong["MT4"]["why"]
+    wrong = after(lambda a: a["systems"]["localhost:8453"].update(review_date="2031-06-01"))
     assert wrong["MR3"]["match"] is False and "review date" in wrong["MR3"]["why"]
-    wrong = lines_after(lambda s: s["localhost:8454"]["settings"].update(can_change=("yes", "assumed")))
-    assert wrong["MR4"]["match"] is False and "can't be changed" in wrong["MR4"]["why"]
-    wrong = lines_after(lambda s: s["localhost:8455"].update(recommended="hybrid", in_place=False))
-    assert wrong["MR5"]["match"] is False
-    wrong = lines_after(lambda s: s["localhost:8452"].update(control="not_as_expected"))
+    wrong = after(lambda a: a["changes"]["localhost:8452"].update(after_apply="differs"))
+    assert wrong["MC2"]["match"] is False and "after Apply: differs" in wrong["MC2"]["why"]
+    wrong = after(lambda a: a["changes"]["localhost:8452"]["copy"].update(classical_client="cannot"))
+    assert wrong["MC1"]["match"] is False
+    wrong = after(lambda a: a["changes"]["localhost:8452"].update(refused_before_try=False))
+    assert wrong["MC2"]["match"] is False and wrong["rule apply_gate"]["match"] is False
+    wrong = after(lambda a: a["rules"]["other_server"].update(apply_enabled=True))
+    assert wrong["rule other_servers"]["match"] is False
+    wrong = after(lambda a: a["rules"].update(keys_in_evidence=True))
+    assert wrong["rule test_keys"]["match"] is False
+    wrong = after(lambda a: a.update(control_misread_reads="a status"))
     assert wrong["controls"]["match"] is False
-    answers = copy.deepcopy(migration_answers)
-    answers["fixes"] = answers["fixes"][1:] + [{**answers["fixes"][1], "title": "Something else", "buttons": 1}]
-    lines = {line["id"]: line for line in accuracy.compare_migration(_migration_key(), answers)["lines"]}
-    assert lines["fix 1"]["match"] is False and lines["fix 2"]["match"] is True and lines["fixes"]["match"] is False
+    wrong = after(lambda a: a["never_done"].update(already_there_shown=True))
+    assert wrong["never_done"]["match"] is False
 
 
 def test_what_the_command_does_not_understand_in_the_key_is_a_mismatch_not_silence(migration_answers):
     key = _migration_key()
     key["surprise"] = {"x": 1}
-    key["status"][0]["colour"] = "blue"
+    key["tracks"][0]["colour"] = "blue"
     key["recommendation"][1]["expected"] = "Something new"
+    key["change_8452_to_hybrid"][0]["expected"] += "; and a clause nobody wrote a rule for"
+    key["rules"]["new_rule"] = "Something the command has never seen."
     lines = accuracy.compare_migration(key, migration_answers)["lines"]
     assert lines[0]["match"] is False and "doesn't know that part" in lines[0]["why"]
     by_id = {line["id"]: line for line in lines}
-    assert by_id["MS1"]["match"] is False and "'colour'" in by_id["MS1"]["why"]
-    assert by_id["MR2"]["match"] is False and "doesn't know that recommendation wording" in by_id["MR2"]["why"]
+    assert by_id["MT1"]["match"] is False and "'colour'" in by_id["MT1"]["why"]
+    assert by_id["MR2"]["match"] is False and "doesn't understand this clause" in by_id["MR2"]["why"]
+    assert by_id["MC1"]["match"] is False and "doesn't understand this clause" in by_id["MC1"]["why"]
+    assert by_id["rule new_rule"]["match"] is False
     assert accuracy.compare_migration([], migration_answers)["matched"] == 0
 
 
@@ -255,13 +291,13 @@ def test_the_migration_check_never_writes_the_key_and_fails_without_it(monkeypat
     before = hashlib.sha256(config.EXPECTED_MIGRATION_JSON.read_bytes()).hexdigest()
     monkeypatch.setattr(accuracy, "collect_migration", lambda settings=None: migration_answers)
     said = []
-    assert accuracy.print_migration_report(None, say=said.append) == 0 and said[-1] == "Migration demo accuracy: 32 of 32 match"
+    assert accuracy.print_migration_report(None, say=said.append) == 0 and said[-1] == "Migration demo accuracy: 47 of 47 match"
     assert hashlib.sha256(config.EXPECTED_MIGRATION_JSON.read_bytes()).hexdigest() == before
     missing = tmp_path / "expected-migration.json"
     monkeypatch.setattr(config, "EXPECTED_MIGRATION_JSON", missing)
     assert accuracy.print_migration_report(None, say=said.append) == 2
     assert any("NOT COMPARED" in line for line in said) and not missing.exists()
     # the command runs both checks by default, and its exit code is the worse of the two
-    monkeypatch.setattr(accuracy, "run_accuracy", lambda settings=None: {"matched": 15, "total": 15, "lines": [], "notes": [], "mode_line": None,
+    monkeypatch.setattr(accuracy, "run_accuracy", lambda settings=None: {"matched": 18, "total": 18, "lines": [], "notes": [], "mode_line": None,
                                                                          "stopped": None, "unmapped_claims": []})
     assert accuracy.main([]) == 2 and accuracy.main(["--only", "acme"]) == 0

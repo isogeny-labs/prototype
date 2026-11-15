@@ -70,7 +70,9 @@ def line(lead: str, rest: str, look: str, busy: bool = False, fix_id: str = FIX)
     return {"fix_id": fix_id, "lead": lead, "rest": rest, "look": look, "busy": busy, "button": "View in Fixes"}
 
 
-TEXT_ONLY_LINE = line("Text-only suggestion:", "a server setting", "dashed", fix_id=TLS)
+# phase 4b (SPEC 7c): on our own demo server the setting can be tried on a test copy and applied (elsewhere it stays
+# "Text-only suggestion: a server setting": test_phase4b.py::test_the_tls_fix_on_a_server_that_is_not_ours_stays_text_only)
+SERVER_CHANGE_LINE = line("Server setting change:", "try it on a test copy, then apply", "dashed", fix_id=TLS)
 
 
 @contextmanager
@@ -207,7 +209,8 @@ def test_the_page_itself_and_the_list_on_the_left(flow):
         assert {"t": "mono", "v": "acme-sign 1.4.2"} in code["source"]
         assert code["labels"] == ["From a fix template"] and code["is_demo"] is True
         assert (server["id"], server["kind"], server["title"]) == (TLS, "text", "Server accepts TLS 1.2")
-        assert server["status"] == {"key": "text_only", "word": "Text only", "busy": False}
+        assert server["status"] == {"key": "text_only", "word": "Ready to try", "busy": False}   # the change box's status (phase 4b)
+        assert server["change_box"]["id"] == f"tls:server:{flow.lab.settings.demo_address}"
         assert server["list_source"] == "Came from 1 failed test: Old TLS versions"
 
 
@@ -499,11 +502,12 @@ def test_the_text_only_fix_is_built_from_what_the_failed_test_recorded(flow):
             "A server setting, not a code change: stop accepting TLS 1.2, or keep it with strong settings only and correct the scanner "
             "file. The suggestion below says where the setting lives and gives two ways to do it.")}]]}
         assert detail["proof"] == {"state": "none", "badge": None, "muted": None,
-                                   "text": "None. This suggestion is text only: the app has not applied it or tested it."}
-        assert detail["approvers"] == {"text": "Your own server team, outside this app. The app never changes your server.",
+                                   "text": "In the change box below: a try on a test copy of the demo server comes first, then the approvals, then Apply."}
+        assert detail["approvers"] == {"text": "Pick them in the change box below. The app changes the demo server only when a person presses Apply.",
                                        "options": None, "rows": None, "footnote": None}
-        # a text-only fix has no buttons
+        # its own buttons are in the change box (phase 4b), none above it
         assert detail["actions"] == {"buttons": [], "note": None} and detail["pull_request"] is detail["patch"] is detail["merge_dialog"] is None
+        assert [b["action"] for b in detail["change_box"]["buttons"]] == ["try", "apply", "download"]
         (only,) = detail["sections"]
         assert (only["key"], only["title"], only["open"]) == ("suggestion", "The suggestion", True)
         assert only["line"] == "A warning first, where the setting lives, and two ways to fix it"
@@ -563,7 +567,7 @@ def test_the_evidence_lab_line_in_every_state(flow):
     for stage, wanted in expected.items():
         lines = lab_lines(getattr(flow, stage))
         assert lines[("official_vectors", "result")] == lines[("bad_signatures", "result")] == wanted, stage
-        assert lines[("tls_versions", "result")] == TEXT_ONLY_LINE
+        assert lines[("tls_versions", "result")] == SERVER_CHANGE_LINE
         # results that are not failures have no line and keep their "Suggested fix" text
         for kind in ("certificate", "speed_size", "pq_readiness"):
             assert lines[(kind, "result")] is None and result_of(getattr(flow, stage).lab, kind)["suggested_fix"]
@@ -576,7 +580,7 @@ def test_the_evidence_lab_line_in_every_state(flow):
     # after the retest: the passed after-results need no fix; the server test failed again and still has its suggestion
     after = lab_lines(flow.after)
     assert after[("official_vectors", "after")] is None and after[("bad_signatures", "after")] is None
-    assert after[("tls_versions", "after")] == TEXT_ONLY_LINE
+    assert after[("tls_versions", "after")] == SERVER_CHANGE_LINE
     assert lab_lines(flow.one_result) == {("bad_signatures", "result"): line("Fix available,", "code not connected", "plain")}
 
 

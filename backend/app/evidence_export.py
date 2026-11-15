@@ -328,6 +328,43 @@ def _migration_part(lab, db, plan) -> dict | None:
     return {**words, "measurements": measurements}
 
 
+def _changes_part(lab, db, plan) -> list[dict]:
+    """Every change of the plan as it stands now, and every round taken with it (every try, approval request, Apply and
+    Roll back, with the runs in full), also of changes that are no longer the plan's (an option changed since)."""
+    from . import present_changes
+    from .system_changes import change_history
+    current = lab._plan_changes(db, plan)
+    history = change_history(lab, db, plan, current)
+    out = []
+
+    def runs_of(h: dict | None) -> list[dict]:
+        runs, seen = [], set()
+
+        def add(label: str, measured: dict | None) -> None:
+            if measured and measured.get("result") and measured.get("run_id") not in seen:
+                run_entry = _run_entry(lab, db, label, measured["result"])
+                if run_entry:
+                    seen.add(measured["run_id"])
+                    runs.append({"copy": label, **run_entry})
+        for t in (h or {}).get("tries", []):
+            for c in t["copies"]:
+                add(c["label"], c["measured"])
+        for a in (h or {}).get("applies", []):
+            add("measured right after Apply", a["after"])
+            add("measured right after Roll back", a["after_rollback"])
+        return runs
+    for change in current:
+        rec = lab._change_records(db, plan, change)
+        h = history.get(change["key"])
+        out.append({**present_changes.export(change, rec), "current": True,
+                    "rounds": present_changes.export_history(h) if h else None, "runs": runs_of(h)})
+    for key, h in history.items():
+        if key not in {c["key"] for c in current}:
+            out.append({"change": {k: v for k, v in (h["change"] or {}).items() if not k.startswith("_")}, "current": False,
+                        "rounds": present_changes.export_history(h), "runs": runs_of(h)})
+    return out
+
+
 def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
     """The evidence for one plan, from the same reviewed results Evidence Lab shows."""
     view = lab.lab_view(plan_id)  # the read gate: every result here has a review that still matches its record
@@ -384,6 +421,9 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
             "fixes": [_fix_entry(lab, db, fix, shown) for fix, shown in lab._fix_details(db, plan)],
             # Phase 4a: the migration plan as the Migration step shows it, and the measurement behind each status.
             "migration": _migration_part(lab, db, plan),
+            # Phase 4b: every change of this plan and every step taken with it: tries (with their runs), approvals, Apply,
+            # the measurement right after, Roll back.
+            "changes": _changes_part(lab, db, plan),
             "signer_key_fingerprint": key_fingerprint(public),
         }
     return _clean(evidence)
@@ -511,10 +551,13 @@ def _words_html(text: object) -> _Safe:
     return _join(el("code", t(piece)) if n % 2 else t(piece) for n, piece in enumerate(pieces))
 
 
-def _suggestion_html(given: dict) -> list[_Safe]:
-    """A text-only suggestion, in the order the Fixes step shows it: the warning before any setting."""
+def _suggestion_html(given: dict, text_only: bool = True) -> list[_Safe]:
+    """A text-only suggestion, in the order the Fixes step shows it: the warning before any setting. On our own demo
+    server (phase 4b) the same setting is also a change the app can try and apply; its records are in part 6."""
     warning, where, options, exact = given.get("warning"), given.get("where"), given.get("options"), given.get("exact")
-    parts = [el("h4", t("The suggestion (text only: the app has not applied it or tested it)")),
+    heading = ("The suggestion (text only: the app has not applied it or tested it)" if text_only else
+               "The suggestion (its try on a test copy, approvals, Apply and Roll back are in part 6)")
+    parts = [el("h4", t(heading)),
              *[el("p", _words_html(line)) for line in given.get("intro") or []]]
     if warning:
         parts.append(el("p", el("strong", t(warning.get("title"))), _Safe(" "), _words_html(warning.get("text"))))
@@ -578,7 +621,7 @@ def _fix_html(fix: dict) -> _Safe:
         # proof that passed without saying why)
         parts.append(el("p", *([el("strong", t(f"{said.get('label')}:")), _Safe(" ")] if said.get("label") else []), t(said.get("text"))))
     if suggestion:
-        parts += _suggestion_html(suggestion)
+        parts += _suggestion_html(suggestion, text_only=fix.get("status") == "Text only")
     if change:
         built = change.get("built") or {}
         matches = built.get("matches")
@@ -625,6 +668,48 @@ code{overflow-wrap:anywhere}td.mono{white-space:nowrap;overflow-wrap:normal}td.w
 .tone-warn{border-color:#9a6700;color:#7a5200}.note{color:#4a5568;font-size:.88rem}ul.meta{margin:4px 0;padding-left:18px;font-size:.9rem}
 summary{cursor:pointer}
 """
+
+
+def _changes_html(changes: list | None) -> list[_Safe]:
+    """Every change and every step taken with it (phase 4b), with the runs behind each verdict."""
+    if not changes:
+        return []
+    parts = [el("h2", t("6. Changes: tried, approved, applied, rolled back")),
+             el("p", t("The app changes a system only when a person presses Apply, after a passing try on a test copy and every approval "
+                       "asked for. It measures again right after; Roll back puts the earlier settings back."), cls="note")]
+    for entry in changes:
+        change = entry.get("change") or {}
+        box = [el("h3", t(f"{change.get('name')}: {change.get('option')}")),
+               el("p", t(f"Change fingerprint (SHA-256): "), el("code", t(change.get("fingerprint"))))]
+        for line in change.get("lines") or []:
+            box.append(el("p", t(f"{line.get('place')}: {line.get('lead')} "), el("code", t(line.get("code")))))
+        if not entry.get("current"):
+            box.append(el("p", t("No longer the plan's change (its option changed since). Its records are kept."), cls="note"))
+        rounds = entry.get("rounds") or {}
+        for tried in rounds.get("tries") or []:
+            box.append(el("p", el("strong", t(f"Try on a test copy: {tried.get('outcome')}")), t(f", {tried.get('tried_at')}. "),
+                          t("; ".join(f"{c.get('label')}: " + (f"not tried ({c.get('skipped')})" if c.get("skipped") else f"run {c.get('run_id')}")
+                                      for c in tried.get("copies") or []))))
+        for request in rounds.get("approval_requests") or []:
+            box.append(el("p", t(f"Approval asked {request.get('asked_at')} of {', '.join(request.get('reviewers') or [])}. Approved: "
+                                 + (", ".join(f"{a.get('name')} ({a.get('approved_at')})" for a in request.get("approvals") or []) or "nobody yet") + ".")))
+        for applied in rounds.get("applies") or []:
+            box.append(el("p", el("strong", t("Applied" if applied.get("accepted") else "Apply refused by the server")),
+                          t(f" {applied.get('applied_at')} to the {str(applied.get('target')).replace('_', ' ')}"
+                            + ("" if applied.get("from_this_import") else ", from another import of this file")
+                            + f": {applied.get('server_words')}.")))
+            if applied.get("accepted"):
+                box.append(el("p", t(f"Measured right after Apply: {applied.get('after_apply') or 'measuring'} "
+                                     f"(run {applied.get('measured_after_run_id')}).")))
+            back = applied.get("rollback")
+            if back:
+                box.append(el("p", el("strong", t("Rolled back" if back.get("accepted") else "Roll back refused by the server")),
+                              t(f" {back.get('rolled_back_at')}: {back.get('server_words')}. Measured after: "
+                                f"{back.get('outcome') or 'measuring'} (run {back.get('measured_after_run_id')}).")))
+        parts.append(el("div", *box, cls="result"))
+        for run in entry.get("runs") or []:
+            parts.append(_result_html(f"{change.get('name')}: {run.get('copy')}", run))
+    return parts
 
 
 def _migration_html(plan: dict | None) -> list[_Safe]:
@@ -738,6 +823,7 @@ def render_report_html(envelope: dict) -> bytes:
         body.append(el("p", t("No failed test had a fix when this file was made.")))
     body += [_fix_html(fix) for fix in fixes]
     body += _migration_html(e.get("migration"))
+    body += _changes_html(e.get("changes"))
     body.append(el("p", t("End of report. " + REPORT_LINE), cls="note"))
     page = (f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{html.escape(CSP, quote=True)}">\n'

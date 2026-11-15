@@ -298,8 +298,30 @@ class ChangesMixin:
         per_kind: dict[object, set] = {}
         for item in items:  # counted from the plan, so an id doesn't change when another test of the kind is run
             per_kind.setdefault(self._kind(db, item.spec_hash), set()).add(item.id)
+        # Phase 4b: the Acme Pay server's TLS fix stays listed once it was applied (with Roll back), even when the newest
+        # result passes; it then reads "In place (measured)".
+        kept = {c["_item_id"] for c in self._tls_changes(db, plan) if self._ever_applied(db, c["key"])}
+        for item_id in kept - {r["item_id"] for r in failed}:
+            # its newest result passes now, so Evidence Lab shows no failure for it: answer the last failure on record
+            run = db.scalars(select(TestRunRow).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
+                             .where(TestRunRow.plan_item_id == item_id, TestRunRow.phase == "first", ReviewRow.code == "failed")
+                             .order_by(TestRunRow.id.desc()).limit(1)).first()
+            if run is not None:
+                failed.append({"item_id": item_id, "kind": self._kind(db, run.spec_hash), "run_id": run.id, "phase": "first", "tone": "fail"})
+                newest.setdefault(item_id, failed[-1])
+        # Phase 4b: an Apply that is still in force on our demo server, made from another import of the file, has an entry
+        # too, so its Roll back is always on a screen, even where this file's own tests show no failure.
+        listed = {r["item_id"] for r in failed}
+        for change in self._tls_changes(db, plan):
+            in_force, _ = self._settings_history(db, change["address"])
+            if in_force is not None and change["_item_id"] not in listed:
+                fixes.append({"id": "fix-tls-versions-applied", "test_kind": "tls_versions", "kind": "text", "status": "text_only",
+                              "source_kind": "applied_change", "answers": [], "component": None, "template_id": None,
+                              "rerun_blocked": None, "connection": None, "change": None, "proofs": 0, "proof": None,
+                              "pull_request": None, "merge": None, "actions": {}, "change_key": change["key"]})
         for item_id in dict.fromkeys(r["item_id"] for r in failed):
-            answers = [r for r in failed if r["item_id"] == item_id and r["run_id"] not in answered and newest[item_id]["tone"] == "fail"]
+            answers = [r for r in failed if r["item_id"] == item_id and r["run_id"] not in answered
+                       and (newest[item_id]["tone"] == "fail" or item_id in kept)]
             if answers:
                 kind = answers[0]["kind"]
                 fix_id = "fix-" + str(kind).replace("_", "-") + ("" if len(per_kind[kind]) == 1 else f"-{item_id}")

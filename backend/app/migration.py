@@ -8,7 +8,9 @@ blockers and the roadmap come from the fixed rules in migration_rules.py, worked
 follow a new measurement, setting or choice at once and are never stored.
 
 What IS stored, and only ever added to: the settings the file or the user gave (system_settings) and the user's
-own choices (migration_choices). Nothing the app works out is written to either. The app never changes a system."""
+own choices (migration_choices). Nothing the app works out is written to either. Since phase 4b the app changes a
+system only when a person presses Apply, after a passing try on a test copy and every approval asked for, and only on
+our own servers (system_changes.py); it measures again right after, and can roll back."""
 from __future__ import annotations
 
 import hashlib
@@ -17,7 +19,7 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 
-from . import components, migration_rules as rules, present, present_migration, research
+from . import components, migration_rules as rules, present, present_changes, present_migration, present_tracks, research
 from .canonical import canonical_bytes
 from .db import (
     AddressRow, ImportRow, MigrationChoiceRow, PlanItemRow, PlanRow, ReviewRow, SystemSettingRow, VerifyRunRow, iso,
@@ -100,16 +102,17 @@ class MigrationMixin:
             job = self.jobs.get((item.id, MIGRATION_ORIGIN))
             if job is not None and job.status != "done":
                 state["job"] = present.status_view(job.status, job.progress_text, job.progress_percent, self.jobs.max_parallel)
-            else:
-                run = self._latest_run(db, item.id, MIGRATION_ORIGIN, None)
-                result = self._result(db, run) if run is not None else None
-                if result is not None:
-                    review = db.scalars(select(ReviewRow).where(ReviewRow.run_id == run.id)).first()
-                    stands = self._result_cache[run.id][2] and result["code"] == review.code   # the read gate
-                    state.update(result=result, run_id=run.id, measured_at=run.finished_at, code=result["code"],
-                                 reason_code=review.reason_code if stands else None, reason=review.reason if stands else None,
-                                 detail=dict(review.detail or {}) if stands else {}, raw=run.raw if stands and isinstance(run.raw, dict) else {})
-                    state["status"] = result["code"] if stands and result["code"] in STATUSES else None
+            # The last reviewed measurement stands while a new one runs (phase 4b: so a system's change, and its entry in
+            # Fixes, stays on screen during the measurement right after an Apply or a Roll back).
+            run = self._latest_run(db, item.id, MIGRATION_ORIGIN, None)
+            result = self._result(db, run) if run is not None else None
+            if result is not None:
+                review = db.scalars(select(ReviewRow).where(ReviewRow.run_id == run.id)).first()
+                stands = self._result_cache[run.id][2] and result["code"] == review.code   # the read gate
+                state.update(result=result, run_id=run.id, measured_at=run.finished_at, code=result["code"],
+                             reason_code=review.reason_code if stands else None, reason=review.reason if stands else None,
+                             detail=dict(review.detail or {}) if stands else {}, raw=run.raw if stands and isinstance(run.raw, dict) else {})
+                state["status"] = result["code"] if stands and result["code"] in STATUSES else None
             # the three settings: what the user set, else what the file gave, else the default ("assumed")
             row = addresses.get(system["target"]) if kind == "server" else None
             defaults = rules.default_settings(kind, self._public_address(row))
@@ -151,15 +154,31 @@ class MigrationMixin:
             if option == "keep":
                 mine = state["choice"]["review_date"] if applies and state["choice"].get("review_date") else None
                 state["review_date"] = {"value": mine or state["default_review_date"], "source": "chosen" if mine else "assumed"}
-            # the Fixes entries this system has now: the how-to for the change itself (servers), and one per blocker
+            # Phase 4b: two tracks (key exchange and authentication for a server, signatures for a program), each placed on
+            # the roadmap by itself. The Fixes entries (the change, and a weak certificate) are added by _with_changes.
+            state["tracks"] = present_tracks.tracks_of(state)
+            state["track_bands"] = present_tracks.track_bands(state)
             state["fix_ids"] = {}
-            if status and option in ("hybrid", "full_pq") and not rules.in_place(status, option):
-                if kind == "server":
-                    state["fix_ids"]["howto"] = _fix_id(item.id, "howto")
-                for code in state["blockers"][option]:
-                    if code in rules.FIXABLE_BLOCKERS:
-                        state["fix_ids"][code] = _fix_id(item.id, code)
+            if status and option in ("hybrid", "full_pq") and "weak_certificate" in state["blockers"][option]:
+                state["fix_ids"]["weak_certificate"] = _fix_id(item.id, "weak_certificate")
+            state["change"], state["change_view"] = None, None
             states.append(state)
+        return states
+
+    def _with_changes(self, db, plan: PlanRow, states: list[dict]) -> list[dict]:
+        """Attach each system's change (phase 4b): what it is, what happened to it, and its box for the screens."""
+        by_key = {c["system_key"]: c for c in self._migration_changes(db, plan, states)}
+        for state in states:
+            change = by_key.get(state["key"])
+            if change is None:
+                continue
+            rec = self._change_records(db, plan, change)
+            gates = self._change_gates(change, rec)
+            state["change"], state["change_rec"] = change, rec
+            state["change_view"] = present_changes.change_view(change, rec, gates)
+            state["fix_ids"]["howto"] = f"change-{state['item_id']}"
+            if state["kind"] == "software":
+                state["fix_ids"]["no_pq_signature"] = f"change-{state['item_id']}"
         return states
 
     @staticmethod
@@ -191,8 +210,8 @@ class MigrationMixin:
         with self.db() as db:
             plan = self._plan(db, plan_id)
             imp = db.get(ImportRow, plan.import_id)
-            busy = self.jobs.busy(("migration", plan_id))   # asked first, so the screen asks again until it is settled
-            states = self._migration_states(db, plan)
+            busy = self.jobs.busy(("migration", plan_id)) or self.jobs.busy(("changes", plan_id))   # asked first: the screen asks again
+            states = self._with_changes(db, plan, self._migration_states(db, plan))
             measured = [s["measured_at"] for s in states if s["measured_at"]]
             return present_migration.view(
                 plan_id=plan.id, import_id=imp.id, is_demo=bool(imp.is_demo), filename=imp.filename, states=states,
@@ -277,12 +296,15 @@ class MigrationMixin:
     # ---------------------------------------------------------------- into Fixes and the evidence download
 
     def _fixes_for_migration(self, db, plan: PlanRow, items: list, shown: list[dict]) -> list[dict]:
-        """Text-only entries for the Fixes step, from the plan as it stands now: for a server whose plan is not in
-        place yet, the how-to for the change itself; and one entry for each blocker that must be fixed first. An
-        entry is gone once a new measurement shows it done, or the plan for the system changes."""
+        """The Fixes step's entries from the migration plan as it stands now (phase 4b): each system's change (with its
+        try, approvals, Apply and Roll back where it can be applied here), and a weak certificate that must be replaced
+        first. A change stays listed once it was applied, with Roll back; it reads "In place (measured)" only when a new
+        measurement shows it in place."""
         fixes = []
-        for state in self._migration_states(db, plan):
-            for what, fix_id in state["fix_ids"].items():
+        for state in self._with_changes(db, plan, self._migration_states(db, plan)):
+            entries = dict(state["fix_ids"])
+            entries.pop("no_pq_signature", None)            # the program's change is that entry
+            for what, fix_id in entries.items():
                 fixes.append({"id": fix_id, "test_kind": "pq_status" if state["kind"] == "server" else "signing_status", "kind": "text",
                               "status": "text_only", "source_kind": "migration",
                               "answers": [{"item_id": state["item_id"], "kind": "pq_status" if state["kind"] == "server" else "signing_status",
@@ -293,7 +315,11 @@ class MigrationMixin:
         return fixes
 
     def _migration_fix_view(self, db, plan: PlanRow, fix: dict, is_demo: bool) -> dict:
-        state = self._system_state(db, plan, fix["migration"]["system"])
+        state = next((s for s in self._with_changes(db, plan, self._migration_states(db, plan)) if s["key"] == fix["migration"]["system"]), None)
+        if state is None:
+            raise NotFound("That system is not in this file.")
+        if fix["migration"]["what"] == "howto":
+            return present_migration.change_fix_view(fix, state, is_demo)
         return present_migration.fix_view(fix, state, is_demo)
 
     def _has_migration(self, db, plan_id: int) -> bool:

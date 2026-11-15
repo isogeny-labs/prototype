@@ -376,8 +376,79 @@ class MigrationChoiceRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class ChangeTryRow(Base):
+    """Phase 4b. One "Try on a test copy" of one change: the change exactly as it was tried (with its fingerprint), the
+    measurement it is compared with, and which copies were tried (or why one was not). The copies' runs are ordinary
+    runs of the system's locked measurement (test_runs, phase "try" or "try_nginx", retest_id = this id)."""
+    __tablename__ = "change_tries"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    change_key: Mapped[str] = mapped_column(String(700))
+    change_fp: Mapped[str] = mapped_column(String(64))
+    change: Mapped[dict] = mapped_column(JSON)
+    item_id: Mapped[int] = mapped_column(Integer)                  # the plan item whose locked measurement runs on the copies
+    before_run_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    copies: Mapped[list] = mapped_column(JSON)                     # [{"label", "phase", "skipped": reason | None}]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ApplyRequestRow(Base):
+    """Phase 4b. "Ask for approval" of one change (by its fingerprint), with the reviewers who must approve it."""
+    __tablename__ = "apply_requests"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    change_key: Mapped[str] = mapped_column(String(700))
+    change_fp: Mapped[str] = mapped_column(String(64))
+    reviewers: Mapped[list] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ApplyApprovalRow(Base):
+    """Phase 4b. One reviewer's approval of an apply request, with the name and the time."""
+    __tablename__ = "apply_approvals"
+    __table_args__ = (UniqueConstraint("request_id", "reviewer"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    request_id: Mapped[int] = mapped_column(ForeignKey("apply_requests.id"))
+    reviewer: Mapped[str] = mapped_column(String(16))
+    name: Mapped[str] = mapped_column(String(100))
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ApplyRow(Base):
+    """Phase 4b. One Apply, pressed by a person, of one tried and approved change to a lab or demo server: the settings
+    before and after, whether the server took them (and its own words), and the newest run id at that moment, so the
+    measurement made right after can be found."""
+    __tablename__ = "applies"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    change_key: Mapped[str] = mapped_column(String(700))
+    change_fp: Mapped[str] = mapped_column(String(64))
+    address: Mapped[str] = mapped_column(String(300))
+    target: Mapped[str] = mapped_column(String(32))                # demo_test_server | lab_nginx | demo_server
+    try_id: Mapped[int] = mapped_column(ForeignKey("change_tries.id"))
+    request_id: Mapped[int] = mapped_column(ForeignKey("apply_requests.id"))
+    settings_before: Mapped[dict] = mapped_column(JSON)
+    settings_after: Mapped[dict] = mapped_column(JSON)
+    accepted: Mapped[bool] = mapped_column(Boolean)
+    words: Mapped[str] = mapped_column(Text)
+    runs_before: Mapped[int] = mapped_column(Integer)
+    applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class RollbackRow(Base):
+    """Phase 4b. One Roll back of one Apply: the earlier settings put back, whether the server took them, its words."""
+    __tablename__ = "rollbacks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    apply_id: Mapped[int] = mapped_column(ForeignKey("applies.id"), unique=True)
+    accepted: Mapped[bool] = mapped_column(Boolean)
+    words: Mapped[str] = mapped_column(Text)
+    runs_before: Mapped[int] = mapped_column(Integer)
+    rolled_back_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", "changes", "proofs", "proof_reviews",
-                      "pull_requests", "approvals", "merges", "run_code", "system_settings", "migration_choices")
+                      "pull_requests", "approvals", "merges", "run_code", "system_settings", "migration_choices",
+                      "change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks")
 
 
 def create_append_only_triggers(engine) -> None:
