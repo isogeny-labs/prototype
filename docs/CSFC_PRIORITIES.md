@@ -60,6 +60,9 @@ to justify without an anchor customer.
 
 None of these rows is built. They are the proposed backlog.
 
+A first constant-time implementation of the CNSA 2.0 suite (priority 2) now exists in `ctcrypto/`; its evidence
+and limits are in `ctcrypto/README.md`. It is not connected to the Evidence Lab.
+
 ## Sources
 
 - [CSfC Components List](https://www.nsa.gov/Resources/Commercial-Solutions-for-Classified-Program/components-list/) (not retrieved: HTTP 403)

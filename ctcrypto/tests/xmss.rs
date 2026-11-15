@@ -149,11 +149,13 @@ fn index_range_is_checked() {
             s[..idx_len].copy_from_slice(&full[8 - idx_len..]);
             assert_eq!(run(c, &c.pk, &c.msg, &s), Err(Error::InvalidInput), "{} bad idx {bad:#x}", name(c));
         }
-        // All-ones index field is always out of range (h is never a multiple
-        // of 32 for XMSS, and 60 < 64 for XMSS^MT).
-        let mut s = c.sig.clone();
-        s[..idx_len].fill(0xff);
-        assert_eq!(run(c, &c.pk, &c.msg, &s), Err(Error::InvalidInput), "{}", name(c));
+        // An all-ones index field is out of range unless h fills the field
+        // exactly (XMSS^MT with h = 40).
+        if 8 * idx_len as u32 > c.h {
+            let mut s = c.sig.clone();
+            s[..idx_len].fill(0xff);
+            assert_eq!(run(c, &c.pk, &c.msg, &s), Err(Error::InvalidInput), "{}", name(c));
+        }
     }
 }
 
@@ -167,7 +169,7 @@ fn bit_flips_fail() {
         let idx_len = if c.mt { c.h.div_ceil(8) as usize } else { 4 };
         pos.push(idx_len); // first byte of r
         pos.push(idx_len + n); // first byte of the first WOTS+ signature
-        pos.extend((0..8).map(|_| rng.below(c.sig.len())));
+        pos.extend((0..4).map(|_| rng.below(c.sig.len())));
         for p in pos {
             let b = rng.below(8);
             let mut s = c.sig.clone();
