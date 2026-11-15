@@ -103,7 +103,8 @@ fn mont_reduce(a: i64) -> i32 {
     ((a - (t as i64) * (Q as i64)) >> 32) as i32
 }
 
-/// For |a| <= 2^31 - 2^22 returns r = a mod q with -6283008 <= r <= 6283008.
+/// For |a| <= 2^31 - 2^22 returns r = a mod q with |r| <= 6291200
+/// (|r| < 2^22 + 2^18 for the |a| < 2^28 used here).
 #[inline]
 fn reduce32(a: i32) -> i32 {
     let t = (a + (1 << 22)) >> 23;
@@ -1006,7 +1007,11 @@ mod tests {
         let mut a: i64 = -(1 << 31) + (1 << 22);
         while a <= (1 << 31) - (1 << 22) - 1 {
             let r = reduce32(a as i32);
-            assert!(r.abs() <= 6_283_008);
+            // |r| <= 2^22 + |t| (2^23 - q); every caller passes |a| < 2^28
+            assert!(r.abs() <= 6_291_200);
+            if a.abs() < 1 << 28 {
+                assert!(r.abs() <= (1 << 22) + 32 * 8191);
+            }
             assert_eq!((r as i64).rem_euclid(Q as i64), a.rem_euclid(Q as i64));
             assert_eq!(freeze(a as i32) as i64, a.rem_euclid(Q as i64));
             a += 12_345;
