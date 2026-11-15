@@ -80,5 +80,12 @@ What this does **not** show:
 - Speed was not a goal. AES-256-GCM seal measured about 10.7 MiB/s on one cloud VM, a single uncontrolled run.
   There is no AES-NI path, because the library forbids `unsafe`.
 - Stack: ML-DSA signing needs roughly 123 KiB in a release build (about 231 KiB in debug).
-- The modules were written by AI agents in one session. The lead session reran every test, read the ML-KEM
-  decapsulation and ML-DSA signing paths, and ran the harness; it did not line-by-line review all 4,100 lines.
+- The algorithm modules were written by AI subagents in one session. The lead session reran every test, ran
+  the harness, and then read all five algorithm source files line by line against FIPS 203, FIPS 204,
+  SP 800-38D, RFC 8554 and RFC 8391 (arithmetic bounds, sampling, encodings, input checks, declassification
+  points). It found no defects. That is one reviewer, and not an independent one. The test files and unit-test
+  modules were not reviewed the same way.
+- AES-GCM does not track nonces. Reusing a nonce with the same key breaks both secrecy and authenticity; the
+  caller must prevent it.
+- `lms::verify_hss` accepts a different hash family at each HSS level, as RFC 8554 allows. If your profile
+  requires one hash function throughout (check SP 800-208 for your use), enforce that in the caller.

@@ -474,6 +474,9 @@ pub mod gcm {
 
     /// Encrypts `data` in place and returns the tag.
     ///
+    /// The caller must never reuse a `nonce` with the same `key`: one repeat
+    /// reveals the XOR of the plaintexts and lets an attacker forge tags.
+    ///
     /// # Panics
     /// Panics if `data.len()` exceeds [`MAX_DATA_LEN`] (`(2^32 - 2)` blocks,
     /// the SP 800-38D limit). The length is public. The AAD limit (2^64 bits)
