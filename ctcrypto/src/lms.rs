@@ -339,26 +339,34 @@ pub fn verify_hss(public_key: &[u8], msg: &[u8], signature: &[u8]) -> Result<(),
         return Err(Error::InvalidInput);
     }
 
+    // Pass 1: walk the whole signature structure (cheap, no hashing) so that
+    // every malformed or truncated input is rejected before any LM-OTS work.
+    let mut walk = &signature[4..];
+    for _ in 0..nspk {
+        let sl = lms_sig_len(walk)?;
+        let after_sig = walk.get(sl..).ok_or(Error::InvalidInput)?;
+        let pl = lms_pub_len_at(after_sig)?;
+        walk = after_sig.get(pl..).ok_or(Error::InvalidInput)?;
+    }
+    if lms_sig_len(walk)? != walk.len() {
+        return Err(Error::InvalidInput);
+    }
+
+    // Pass 2: verify each level. The lengths were validated above.
     let mut rest = &signature[4..];
     let mut key = top;
     for _ in 0..nspk {
         // sig[i]
         let sl = lms_sig_len(rest)?;
-        if rest.len() < sl {
-            return Err(Error::InvalidInput);
-        }
-        let (sig_i, after_sig) = rest.split_at(sl);
+        let (sig_i, after_sig) = rest.split_at_checked(sl).ok_or(Error::InvalidInput)?;
         // pub[i+1], which is the message signed by level i
         let pl = lms_pub_len_at(after_sig)?;
-        if after_sig.len() < pl {
-            return Err(Error::InvalidInput);
-        }
-        let (next_pub, after_pub) = after_sig.split_at(pl);
+        let (next_pub, after_pub) = after_sig.split_at_checked(pl).ok_or(Error::InvalidInput)?;
         lms_verify(key, next_pub, sig_i)?;
         key = next_pub;
         rest = after_pub;
     }
-    // sig[Nspk] covers the message and must consume the remaining bytes
-    // exactly (lms_verify checks the exact length).
+    // sig[Nspk] covers the message and consumes the remaining bytes exactly
+    // (lms_verify checks the exact length again).
     lms_verify(key, msg, rest)
 }

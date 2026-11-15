@@ -629,7 +629,7 @@ pub fn sign_mu(sk: &[u8; SK_LEN], mu: &[u8; 64], rnd: &[u8; 32]) -> [u8; SIG_LEN
     ct::zeroize(&mut key);
 
     let mut y = [[0i32; N]; L];
-    let mut z = [[0i32; N]; L];
+    let mut z: [Poly; L];
     let mut w = [[0i32; N]; K];
     let mut w1 = [[0i32; N]; K];
     let mut hint = [[0u8; N]; K];
@@ -806,6 +806,21 @@ fn hint_unpack(y: &[u8], h: &mut [[u8; N]; K]) -> bool {
     y[index..OMEGA].iter().all(|&b| b == 0)
 }
 
+/// z = BitUnpack(.., gamma1 - 1, gamma1) for each polynomial. Returns false
+/// if ||z|| >= gamma1 - beta (public data: verification only).
+fn unpack_z(sig: &[u8; SIG_LEN], z: &mut [Poly; L]) -> bool {
+    let mut ok = true;
+    for (j, p) in z.iter_mut().enumerate() {
+        let off = SIG_Z_OFF + j * POLY_Z_LEN;
+        unpack_poly(&sig[off..off + POLY_Z_LEN], 20, |n, v| {
+            let c = GAMMA1 - v as i32;
+            ok &= c.abs() < GAMMA1 - BETA;
+            p[n] = c;
+        });
+    }
+    ok
+}
+
 /// Algorithm 8 ML-DSA.Verify_internal.
 pub fn verify_internal(pk: &[u8; PK_LEN], m_prime: &[u8], sig: &[u8; SIG_LEN]) -> bool {
     let mu = compute_mu(&tr_of_pk(pk), &[m_prime]);
@@ -832,18 +847,8 @@ pub fn verify_mu(pk: &[u8; PK_LEN], mu: &[u8; 64], sig: &[u8; SIG_LEN]) -> bool 
     let mut rho = [0u8; 32];
     rho.copy_from_slice(&pk[..32]);
 
-    // z = BitUnpack(.., gamma1 - 1, gamma1); reject if ||z|| >= gamma1 - beta
     let mut z = [[0i32; N]; L];
-    let mut z_bad = false;
-    for (j, p) in z.iter_mut().enumerate() {
-        let off = SIG_Z_OFF + j * POLY_Z_LEN;
-        unpack_poly(&sig[off..off + POLY_Z_LEN], 20, |n, v| {
-            let c = GAMMA1 - v as i32;
-            z_bad |= c.abs() >= GAMMA1 - BETA;
-            p[n] = c;
-        });
-    }
-    if z_bad {
+    if !unpack_z(sig, &mut z) {
         return false;
     }
     let mut h = [[0u8; N]; K];
@@ -1065,6 +1070,94 @@ mod tests {
     fn eta_coefficient_formula() {
         for b in 0u32..15 {
             assert_eq!(ETA - (b - ((205 * b) >> 10) * 5) as i32, 2 - (b % 5) as i32);
+        }
+    }
+
+    #[test]
+    fn hint_unpack_and_z_range_reject_malformed() {
+        let (_pk, sk) = keygen_internal(&[7u8; 32]);
+        // find a signature with >= 2 hints in one polynomial and < omega total
+        let mut found = None;
+        for i in 0..64u8 {
+            let sig = sign_internal(&sk, &[i], &[0; 32]);
+            let cnt = &sig[SIG_H_OFF + OMEGA..];
+            let mut prev = 0usize;
+            let mut poly = None;
+            for (k, &c) in cnt.iter().enumerate() {
+                if c as usize >= prev + 2 && poly.is_none() {
+                    poly = Some((k, prev));
+                }
+                prev = c as usize;
+            }
+            if let (Some(p), true) = (poly, (cnt[K - 1] as usize) < OMEGA) {
+                found = Some((sig, p));
+                break;
+            }
+        }
+        let (sig, (pi, start)) = found.expect("fixture");
+        let mut h = [[0u8; N]; K];
+        let hint = |s: &[u8; SIG_LEN], h: &mut [[u8; N]; K]| hint_unpack(&s[SIG_H_OFF..], h);
+        assert!(hint(&sig, &mut h));
+        let total = sig[SIG_H_OFF + OMEGA + K - 1] as usize;
+        assert_eq!(h.iter().flatten().filter(|&&b| b == 1).count(), total);
+
+        let mut s = sig;
+        s.swap(SIG_H_OFF + start, SIG_H_OFF + start + 1);
+        assert!(!hint(&s, &mut h), "decreasing indices");
+        let mut s = sig;
+        s[SIG_H_OFF + start + 1] = s[SIG_H_OFF + start];
+        assert!(!hint(&s, &mut h), "repeated index");
+        let mut s = sig;
+        s[SIG_H_OFF + OMEGA + K - 1] = OMEGA as u8 + 1;
+        assert!(!hint(&s, &mut h), "count > omega");
+        let mut s = sig;
+        s[SIG_H_OFF + OMEGA + pi] = 255;
+        assert!(!hint(&s, &mut h), "count 255");
+        if pi + 1 < K {
+            let mut s = sig;
+            s[SIG_H_OFF + OMEGA + pi + 1] = sig[SIG_H_OFF + OMEGA + pi] - 1;
+            assert!(!hint(&s, &mut h), "decreasing counts");
+        }
+        for p in [total, OMEGA - 1] {
+            let mut s = sig;
+            s[SIG_H_OFF + p] = 1;
+            assert!(!hint(&s, &mut h), "nonzero padding at {p}");
+        }
+        // a count of exactly omega with all-zero indices is malformed (not increasing)
+        let mut s = sig;
+        s[SIG_H_OFF..SIG_H_OFF + OMEGA].fill(0);
+        s[SIG_H_OFF + OMEGA..].fill(OMEGA as u8);
+        assert!(!hint(&s, &mut h));
+        // the empty hint is well formed
+        let mut s = sig;
+        s[SIG_H_OFF..].fill(0);
+        assert!(hint(&s, &mut h));
+        assert!(h.iter().flatten().all(|&b| b == 0));
+
+        // z range: valid signature passes; boundary values fail exactly at
+        // |z| = gamma1 - beta
+        let mut z = [[0i32; N]; L];
+        assert!(unpack_z(&sig, &mut z));
+        let set = |s: &mut [u8; SIG_LEN], poly: usize, n: usize, packed: u32| {
+            let off = SIG_Z_OFF + poly * POLY_Z_LEN;
+            let mut zz = [0u32; N];
+            unpack_poly(&s[off..off + POLY_Z_LEN], 20, |i, v| zz[i] = v);
+            zz[n] = packed;
+            pack_poly(&mut s[off..off + POLY_Z_LEN], 20, |i| zz[i]);
+        };
+        for (packed, okv) in [
+            (BETA as u32, false),                             // z = gamma1 - beta
+            (BETA as u32 + 1, true),                          // z = gamma1 - beta - 1
+            (0, false),                                       // z = gamma1
+            ((1 << 20) - 1, false),                           // z = -gamma1 + 1
+            ((2 * GAMMA1 - BETA) as u32, false),              // z = -(gamma1 - beta)
+            ((2 * GAMMA1 - BETA - 1) as u32, true),           // z = -(gamma1 - beta) + 1
+        ] {
+            for (poly, n) in [(0, 0), (L - 1, N - 1), (3, 77)] {
+                let mut s = sig;
+                set(&mut s, poly, n, packed);
+                assert_eq!(unpack_z(&s, &mut z), okv, "packed {packed} at {poly},{n}");
+            }
         }
     }
 
