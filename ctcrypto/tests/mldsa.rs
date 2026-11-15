@@ -278,7 +278,7 @@ fn fixture() -> ([u8; PK_LEN], [u8; SIG_LEN], Vec<u8>) {
             prev = c as usize;
             ok
         });
-        if two && total < OMEGA && total >= 2 {
+        if two && (2..OMEGA).contains(&total) {
             assert!(mldsa::verify(&pk, &msg, b"ctx", &sig));
             return (pk, sig, msg);
         }

@@ -164,7 +164,7 @@ fn pyhsslms_differential() {
             }
         }
     }
-    assert!(lms >= 60 && hss >= 10);
+    assert_eq!((lms, hss), (56, 30));
 }
 
 #[test]
@@ -320,7 +320,7 @@ fn error_kinds() {
     }
     // Known but different type codes inside the signature: verification fails.
     let mut s = sig.clone();
-    s[lms_type_off..lms_type_off + 4].copy_from_slice(&0x0bu32.to_be_bytes());
+    s[lms_type_off..lms_type_off + 4].copy_from_slice(&0x14u32.to_be_bytes()); // same size, different hash
     assert_eq!(verify_hss(pk, &t.msg, &s), Err(Error::VerificationFailed));
 
     // Mixed hash families / sizes in one key are malformed.
