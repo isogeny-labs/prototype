@@ -6,6 +6,7 @@ How Kevin works with you: he's not a developer and doesn't use git. Explain in p
 
 ## Repo
 - Work only on branch `mvp/crypto-simple` (created from `claude/isogeny-evidence-lab-mvp-sg3pva`; there is no `main`). Commit at the end of each phase. Never push or change the default branch unless asked.
+- New files under `docs/screenshots/` and `demo/vectors/` go to Git LFS (set in `.gitattributes`; `./run-demo.sh` fetches the test sets by itself). Commit only a phase's new pictures; restore the others the end-to-end run rewrote with `git checkout -- docs/screenshots/<folder>`.
 - This is a fresh build. Don't read, copy or restore code from the old prototype in git history.
 - Never edit `demo/expected.json`, `demo/expected-migration.json` or `demo/expected-real-libraries.json` (the answer keys) or `docs/wireframes/`. If the app disagrees with the key, fix the app or explain why the key is wrong.
 
@@ -28,7 +29,13 @@ How Kevin works with you: he's not a developer and doesn't use git. Explain in p
 ## Commands
 - Start the app: `./run-demo.sh` (from the repo root), then open http://127.0.0.1:8000. Ctrl+C stops it. Demo TLS server: localhost:8443.
 - Isolated mode: when Docker is running, `./run-demo.sh` prepares the test images once (including the pinned nginx lab image and one image for each real library; the first time this downloads a few hundred MB and can take several minutes) (`cd backend && .venv/bin/python -m app.prepare`; add `--check` to only report). Only that step may pull or build; the app never does. Without Docker or the images the app runs in demo mode and says why. Force a mode with `EVIDENCE_LAB_MODE=demo` or `isolated`.
-- Backend tests: `cd backend && .venv/bin/python -m pytest -q tests` (venv is Python 3.12; `./run-demo.sh` creates it; about 24 minutes with Docker ready, since phase 4c; container tests are skipped with a message when Docker isn't ready).
+- Backend tests, fast set (a few minutes; says how many slow tests it left out): `cd backend && .venv/bin/python -m pytest -q tests` (venv is Python 3.12; `./run-demo.sh` creates it).
+- Backend tests, everything (about 24 minutes with Docker ready; container tests are skipped with a message when Docker isn't ready): `cd backend && .venv/bin/python -m pytest -q tests --full`. A new test that needs Docker is slow by itself; one that takes more than about 5 seconds, or reads a long demo walk built for its file, gets `@pytest.mark.slow` (or its walk goes into `SLOW_SHARED_WALKS` in `tests/conftest.py`).
+- Install the dev tools (lint, type check, pip-tools) once: `cd backend && .venv/bin/python -m pip install --require-hashes -r requirements.lock -r requirements-dev.lock`. Packages are locked (`requirements.in` is the list, `requirements.lock` the exact versions); changing a version needs Kevin's OK.
+- Lint: `cd backend && .venv/bin/ruff check app tests tools evidence`. Type check: `cd backend && .venv/bin/python tools/typecheck.py` (only new problems fail; `--write-baseline` after a fix or a move). Never change what code does to satisfy either.
+- Screen data types: change the backend, then `backend/app/web/models.py`, then `cd backend && .venv/bin/python tools/api_schema.py` and `cd frontend && npm run gen:api` (add `--check`, or `-- --check` for npm, to only compare), then the frontend.
+- GitHub checks (`.github/workflows/`): "Checks" runs on every push and pull request (lint, type check, generated files up to date, fast tests, demo-mode accuracy, frontend tests and build); "Slow checks" runs nightly and by hand (full backend suite, isolated-mode accuracy, end-to-end).
+- Map of the code: `docs/LAYOUT.md`.
 - Accuracy check: `cd backend && .venv/bin/python -m app.accuracy` (all 18 answers through the same path as the buttons; compares with `demo/expected.json`; then the migration demo against `demo/expected-migration.json`; then the real libraries against `demo/expected-real-libraries.json`, which takes about 25 minutes in isolated mode and in demo mode grades only the key's demo-mode answer; exit code 0 only if all match and all three answer keys are there; `--mode demo` or `--mode isolated` picks the mode; `--only acme`, `--only migration` or `--only real` runs one of the three).
 - Check a downloaded evidence file: `cd backend && .venv/bin/python -m evidence verify file.json` (exit code 0 only if nothing changed and the signer is this app's key; `--data-dir DIR` or `--public-key HEX_OR_FILE` to name the trusted key).
 - Frontend tests: `cd frontend && npm run typecheck && npm test`. Build: `npm run build`.

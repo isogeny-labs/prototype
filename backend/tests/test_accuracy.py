@@ -110,7 +110,7 @@ def test_a1_alternative_only_counts_when_the_recorded_reason_is_the_checker_vers
     assert lines_of(old)["A1"]["match"] is True and "checker is too old" in lines_of(old)["A1"]["reason"]
     assert old["matched"] == 18
     for reason in (None, "checker_cannot_reach", "timeout"):
-        other = report_for(lambda a: a["tests"][("pq_readiness", "first")].update(label=alternative, code="couldnt_run", control="not_run", reason_code=reason))
+        other = report_for(lambda a: a["tests"][("pq_readiness", "first")].update(label=alternative, code="couldnt_run", control="not_run", reason_code=reason))  # noqa: B023
         assert lines_of(other)["A1"]["match"] is False and other["matched"] == 17
     another_label = report_for(lambda a: a["tests"][("pq_readiness", "first")].update(label="Couldn't run (it took too long)", code="couldnt_run", reason_code="checker_too_old"))
     assert lines_of(another_label)["A1"]["match"] is False
@@ -144,6 +144,7 @@ def check_18_of_18(done, tmp_path):
     assert not any(marker in done.stdout + done.stderr for marker in MARKERS)
 
 
+@pytest.mark.slow
 def test_command_is_18_of_18_in_demo_mode_and_never_touches_the_answer_key(tmp_path):
     before = hashlib.sha256(EXPECTED_JSON.read_bytes()).hexdigest()
     done = run_command(tmp_path, free_port(), "--mode", "demo", "--only", "acme")
@@ -160,6 +161,7 @@ def test_command_is_18_of_18_in_isolated_mode(tmp_path, docker_ready):
     assert "  mode: Isolated mode: our demo software runs in a locked-down container with no network." in done.stdout
 
 
+@pytest.mark.slow
 def test_command_shows_mismatches_and_exits_non_zero_when_the_demo_server_cannot_be_reached(tmp_path):
     blocker = socket.create_server(("127.0.0.1", 0))  # something else holds the port and is not the demo server
     try:
@@ -173,7 +175,7 @@ def test_command_shows_mismatches_and_exits_non_zero_when_the_demo_server_cannot
 
 
 def test_isolated_mode_asked_for_but_missing_is_a_mismatch_not_a_quiet_fallback(tmp_path, monkeypatch):
-    from app import runner
+    from app.run import runner
     from app.config import Settings
     monkeypatch.setattr(runner, "_probe", lambda: (False, None, None))
     report = accuracy.run_accuracy(Settings(data_dir=tmp_path / "data", demo_tls_port=free_port(), force_mode="isolated", speed_rounds=2))
@@ -222,6 +224,7 @@ def _lines(answers, key=None) -> dict:
     return {line["id"]: line for line in accuracy.compare_migration(key or _migration_key(), answers)["lines"]}
 
 
+@pytest.mark.slow
 def test_the_migration_demo_matches_its_answer_key(migration_answers):
     assert migration_answers["stopped"] is None
     report = accuracy.compare_migration(_migration_key(), migration_answers)

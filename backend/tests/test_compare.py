@@ -1,6 +1,6 @@
 import pytest
 
-from app.compare import COULDNT, FALSE, TRUE, certificate_matches, compare_only_claim
+from app.engine.compare import COULDNT, FALSE, TRUE, certificate_matches, compare_only_claim
 from app.names import normalize_algorithm, normalize_tls_version, same_algorithm
 
 A, R, U = "accepted", "refused", "unknown"

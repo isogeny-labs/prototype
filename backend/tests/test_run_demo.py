@@ -15,7 +15,7 @@ def test_prepare_is_called_before_the_start_and_cannot_fail_it():
     text = SCRIPT.read_text(encoding="utf-8")
     calls = [m.start() for m in re.finditer(r"-m app\.prepare", text)]
     assert calls and max(calls) < text.index('exec "$VENV/bin/python" -m app')
-    for line in (l for l in text.splitlines() if "-m app.prepare" in l):
+    for line in (l for l in text.splitlines() if "-m app.prepare" in l):  # noqa: E741
         assert line.rstrip().endswith("\\")  # the next line is the `|| echo ...` guard
     assert text.count("-m app.prepare") == text.count('|| echo "   Isolated mode could not be prepared.')
     assert "command -v docker" in text

@@ -3,7 +3,8 @@ And a failed upload leaves nothing imported."""
 import json
 
 from app.config import DEMO_CBOM
-from app.importers import parse_cbom, parse_file
+from app.importer.cbom import parse_cbom
+from app.importer.reader import parse_file
 
 from conftest import csv_bytes, upload
 from test_importers import cbom

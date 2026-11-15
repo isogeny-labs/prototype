@@ -9,7 +9,7 @@ import sys
 
 import pytest
 
-from app.components import WITHHELD
+from app.run.components import WITHHELD
 from app.config import COMPONENTS_DIR
 
 # fixed answers of the fake wrapper: none of these may appear anywhere in what the driver writes

@@ -4,102 +4,22 @@ Start it with:  python -m app      (from the backend folder; listens on 127.0.0.
 """
 from __future__ import annotations
 
-import re
 from contextlib import asynccontextmanager
-from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, StrictBool, StrictInt, StrictStr
-from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from . import auth
-from .config import FRONTEND_DIST, MAX_UPLOAD_BYTES, Settings, load_settings
-from .importers import ImportFileError
-from .lab import BadRequest, Conflict, Lab, NotFound
-
-
-class PasswordBody(BaseModel):
-    password: str = Field(max_length=auth.MAX_PASSWORD_LENGTH)
-
-
-class ConfirmBody(BaseModel):
-    address: str = Field(max_length=300)
-    confirmed: StrictBool
-
-
-class OrderBody(BaseModel):
-    order: list[StrictInt] = Field(max_length=50)
-
-
-class AddTestBody(BaseModel):
-    catalog_id: str = Field(max_length=40)
-
-
-class RetestBody(BaseModel):
-    version: str = Field(max_length=50)
-    component: str | None = Field(default=None, max_length=100)   # phase 4c: which program to swap, when the file names several
-
-
-class MigrationSettingBody(BaseModel):
-    system: StrictStr = Field(max_length=600)
-    field: StrictStr = Field(max_length=16)
-    value: StrictStr = Field(max_length=16)
-
-
-class MigrationChoiceBody(BaseModel):
-    system: StrictStr = Field(max_length=600)
-    option: StrictStr = Field(max_length=16)
-    reason: StrictStr = Field(default="", max_length=2000)
-    review_date: StrictStr | None = Field(default=None, max_length=10)
-
-
-class ChangeBody(BaseModel):
-    change: StrictStr = Field(max_length=700)
-
-
-class AskApprovalBody(BaseModel):
-    change: StrictStr = Field(max_length=700)
-    reviewers: list[Annotated[StrictStr, Field(max_length=16)]] = Field(max_length=8)
-
-
-class ApproveChangeBody(BaseModel):
-    change: StrictStr = Field(max_length=700)
-    reviewer: StrictStr = Field(max_length=16)
-
-
-class PullRequestBody(BaseModel):
-    # The picked reviewers, as ids from the fixed list (Lab checks each one against it).
-    reviewers: list[Annotated[StrictStr, Field(max_length=16)]] = Field(max_length=8)
-
-
-class ApproveBody(BaseModel):
-    reviewer: StrictStr = Field(max_length=16)
-
-
-FIX_ID = re.compile(r"[a-z0-9-]{1,48}")
-
-
-def known_shape(fix_id: str) -> str:
-    """A fix id as the app itself makes them, or 404. Whether the plan has that fix is checked in Lab."""
-    if not FIX_ID.fullmatch(fix_id):
-        raise NotFound("That fix does not exist.")
-    return fix_id
-
-
-def download(filename: str, data: bytes, media_type: str) -> Response:
-    """A file to save, never a page of this app: a saved report or patch is opened from disk, where it can reach nothing."""
-    return Response(content=data, media_type=media_type, headers={
-        "Content-Disposition": f'attachment; filename="{filename}"', "X-Content-Type-Options": "nosniff",
-        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox", "Cache-Control": "no-store"})
-
-
-def error_response(status: int, message: str, line: int | None = None, field: str | None = None) -> JSONResponse:
-    return JSONResponse(status_code=status, content={"error": {"message": message, "line": line, "field": field}})
+from app import auth
+from app.config import FRONTEND_DIST, Settings, load_settings
+from app.importer.common import ImportFileError
+from app.lab.hub import BadRequest, Conflict, Lab, NotFound
+from app.web import changes, fixes, importing, migration, session
+from app.web import lab as lab_routes
+from app.web import tests as test_routes
+from app.web.common import error_response
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -155,218 +75,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         response.set_cookie(auth.COOKIE_NAME, token, httponly=True, samesite="strict", path="/",
                             max_age=int(auth.SESSION_LIFETIME.total_seconds()))
 
-    # ---------------------------------------------------------------- open endpoints
-
-    @app.get("/api/session")
-    def get_session(request: Request):
-        return lab.session_json(request.cookies.get(auth.COOKIE_NAME))
-
-    @app.post("/api/setup")
-    def setup(body: PasswordBody, response: Response):
-        with lab.db() as db:
-            if not auth.setup_required(db):
-                return error_response(409, "A password has already been created. Log in with it.")
-            if len(body.password) < auth.MIN_PASSWORD_LENGTH:
-                return error_response(422, f"Choose a password of at least {auth.MIN_PASSWORD_LENGTH} characters.",
-                                      field="password")
-            auth.create_password(db, body.password)
-            set_cookie(response, auth.new_session(db))
-        return {"ok": True}
-
-    @app.post("/api/login")
-    def login(body: PasswordBody, response: Response):
-        with lab.db() as db:
-            if not auth.password_matches(db, body.password):
-                return error_response(401, "That password is not right.", field="password")
-            set_cookie(response, auth.new_session(db))
-        return {"ok": True}
-
-    # ---------------------------------------------------------------- needs login
-
-    @app.post("/api/import/demo", dependencies=[Depends(require_login)])
-    def import_demo():
-        return lab.import_demo()
-
-    @app.post("/api/import/file", dependencies=[Depends(require_login)])
-    async def import_file(request: Request, filename: str = ""):
-        try:
-            return await read_upload(request, filename)
-        except ImportFileError:
-            # A failed upload leaves nothing imported: the previous file's claims must not come back on a refresh.
-            await run_in_threadpool(lab.clear_current_import)
-            raise
-
-    async def read_upload(request: Request, filename: str):
-        declared = request.headers.get("content-length")
-        if declared and declared.isdigit() and int(declared) > MAX_UPLOAD_BYTES:
-            raise ImportFileError("This file is larger than 1 MB. Evidence Lab reads files up to 1 MB.")
-        data = bytearray()
-        async for chunk in request.stream():
-            data.extend(chunk)
-            if len(data) > MAX_UPLOAD_BYTES:
-                raise ImportFileError("This file is larger than 1 MB. Evidence Lab reads files up to 1 MB.")
-        return await run_in_threadpool(lab.import_file, filename[:300], bytes(data))
-
-    @app.get("/api/import/current", dependencies=[Depends(require_login)])
-    def current_import():
-        return lab.current_import()
-
-    @app.post("/api/import/{import_id}/confirm-address", dependencies=[Depends(require_login)])
-    def confirm_address(import_id: int, body: ConfirmBody):
-        return lab.confirm_address(import_id, body.address, body.confirmed)
-
-    @app.post("/api/import/{import_id}/verify", dependencies=[Depends(require_login)])
-    def run_verify(import_id: int):
-        return lab.verify(import_id)
-
-    @app.get("/api/import/{import_id}/verify", dependencies=[Depends(require_login)])
-    def latest_verify(import_id: int):
-        return lab.latest_verify(import_id)
-
-    # ---------------------------------------------------------------- tests and Evidence Lab (all need login)
-    # There is no route here that accepts software, or any file: bodies are the small JSON objects above.
-
-    @app.get("/api/import/{import_id}/plan", dependencies=[Depends(require_login)])
-    def get_plan_for_import(import_id: int):
-        return lab.get_plan_for_import(import_id)
-
-    @app.post("/api/import/{import_id}/plan", dependencies=[Depends(require_login)])
-    def ensure_plan(import_id: int):
-        return lab.ensure_plan(import_id)
-
-    @app.get("/api/plans/{plan_id}", dependencies=[Depends(require_login)])
-    def get_plan(plan_id: int):
-        return lab.plan_view(plan_id)
-
-    @app.post("/api/plans/{plan_id}/order", dependencies=[Depends(require_login)])
-    def reorder(plan_id: int, body: OrderBody):
-        return lab.reorder(plan_id, list(body.order))
-
-    @app.post("/api/plans/{plan_id}/tests", dependencies=[Depends(require_login)])
-    def add_test(plan_id: int, body: AddTestBody):
-        return lab.add_test(plan_id, body.catalog_id)
-
-    @app.post("/api/plans/{plan_id}/tests/{item_id}/remove", dependencies=[Depends(require_login)])
-    def remove_test(plan_id: int, item_id: int):
-        return lab.remove_test(plan_id, item_id)
-
-    @app.post("/api/plans/{plan_id}/tests/{item_id}/run", dependencies=[Depends(require_login)])
-    def run_test(plan_id: int, item_id: int):
-        return lab.run_test(plan_id, item_id)
-
-    @app.post("/api/plans/{plan_id}/run-all", dependencies=[Depends(require_login)])
-    def run_all(plan_id: int):
-        return lab.run_all(plan_id)
-
-    @app.get("/api/plans/{plan_id}/lab", dependencies=[Depends(require_login)])
-    def lab_view(plan_id: int):
-        return lab.lab_view(plan_id)
-
-    @app.post("/api/runs/{run_id}/mark-reviewed", dependencies=[Depends(require_login)])
-    def mark_reviewed(run_id: int):
-        return lab.mark_reviewed(run_id)
-
-    @app.post("/api/runs/{run_id}/dig-deeper", dependencies=[Depends(require_login)])
-    def dig_deeper(run_id: int):
-        return lab.dig_deeper(run_id)
-
-    @app.post("/api/plans/{plan_id}/retest", dependencies=[Depends(require_login)])
-    def retest(plan_id: int, body: RetestBody):
-        return lab.start_retest(plan_id, body.version, body.component)
-
-    @app.post("/api/plans/{plan_id}/evidence", dependencies=[Depends(require_login)])
-    def export_evidence(plan_id: int):
-        return lab.export_evidence(plan_id)
-
-    @app.get("/api/evidence/{export_id}/{which}", dependencies=[Depends(require_login)])
-    def evidence_file(export_id: int, which: str):
-        return download(*lab.evidence_file(export_id, which))
-
-    # ---------------------------------------------------------------- Fixes (all need login)
-    # Each route is one action by the person at the keyboard; the app never merges on its own. The bodies are
-    # two small JSON objects that name reviewers from a fixed list. Nothing here accepts software or a file.
-
-    # ---- the Migration step (phase 4a)
-    @app.get("/api/import/{import_id}/migration", dependencies=[Depends(require_login)])
-    def migration_view(import_id: int):
-        return lab.migration_view_for_import(import_id)
-
-    @app.post("/api/plans/{plan_id}/migration/measure", dependencies=[Depends(require_login)])
-    def migration_measure(plan_id: int):
-        return lab.measure_migration(plan_id)
-
-    @app.post("/api/plans/{plan_id}/migration/settings", dependencies=[Depends(require_login)])
-    def migration_setting(plan_id: int, body: MigrationSettingBody):
-        return lab.set_migration_setting(plan_id, body.system, body.field, body.value)
-
-    @app.post("/api/plans/{plan_id}/migration/choice", dependencies=[Depends(require_login)])
-    def migration_choice(plan_id: int, body: MigrationChoiceBody):
-        return lab.choose_migration_option(plan_id, body.system, body.option, body.reason, body.review_date)
-
-    # ---- a change: try on a test copy, approvals, Apply and Roll back (phase 4b)
-    @app.post("/api/plans/{plan_id}/changes/try", dependencies=[Depends(require_login)])
-    def change_try(plan_id: int, body: ChangeBody):
-        return lab.try_change(plan_id, body.change)
-
-    @app.post("/api/plans/{plan_id}/changes/ask-approval", dependencies=[Depends(require_login)])
-    def change_ask(plan_id: int, body: AskApprovalBody):
-        return lab.ask_approval(plan_id, body.change, list(body.reviewers))
-
-    @app.post("/api/plans/{plan_id}/changes/approve", dependencies=[Depends(require_login)])
-    def change_approve(plan_id: int, body: ApproveChangeBody):
-        return lab.approve_change(plan_id, body.change, body.reviewer)
-
-    @app.post("/api/plans/{plan_id}/changes/apply", dependencies=[Depends(require_login)])
-    def change_apply(plan_id: int, body: ChangeBody):
-        return lab.apply_change(plan_id, body.change)
-
-    @app.post("/api/plans/{plan_id}/changes/rollback", dependencies=[Depends(require_login)])
-    def change_rollback(plan_id: int, body: ChangeBody):
-        return lab.rollback_change(plan_id, body.change)
-
-    @app.get("/api/plans/{plan_id}/changes/download", dependencies=[Depends(require_login)])
-    def change_download(plan_id: int, change: str = Query(max_length=700)):
-        filename, data = lab.change_download(plan_id, change)
-        return Response(content=data, media_type="text/plain; charset=utf-8",
-                        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
-
-    @app.get("/api/plans/{plan_id}/fixes", dependencies=[Depends(require_login)])
-    def fixes_view(plan_id: int):
-        return lab.fixes_view(plan_id)
-
-    @app.post("/api/plans/{plan_id}/fixes/connect", dependencies=[Depends(require_login)])
-    def connect_code(plan_id: int):
-        lab.connect_code(plan_id)
-        return lab.fixes_view(plan_id)
-
-    @app.post("/api/plans/{plan_id}/fixes/{fix_id}/proof", dependencies=[Depends(require_login)])
-    def run_proof_again(plan_id: int, fix_id: str):
-        lab.run_proof_again(plan_id, known_shape(fix_id))
-        return lab.fixes_view(plan_id)
-
-    @app.post("/api/plans/{plan_id}/fixes/{fix_id}/pull-request", dependencies=[Depends(require_login)])
-    def open_pull_request(plan_id: int, fix_id: str, body: PullRequestBody):
-        lab.open_pull_request(plan_id, known_shape(fix_id), list(body.reviewers))
-        return lab.fixes_view(plan_id)
-
-    @app.post("/api/plans/{plan_id}/fixes/{fix_id}/approve", dependencies=[Depends(require_login)])
-    def approve(plan_id: int, fix_id: str, body: ApproveBody):
-        lab.approve(plan_id, known_shape(fix_id), body.reviewer)
-        return lab.fixes_view(plan_id)
-
-    @app.post("/api/plans/{plan_id}/fixes/{fix_id}/merge", dependencies=[Depends(require_login)])
-    def merge(plan_id: int, fix_id: str):
-        lab.merge(plan_id, known_shape(fix_id))  # sent by "Confirm merge" only
-        return lab.fixes_view(plan_id)
-
-    @app.post("/api/plans/{plan_id}/fixes/{fix_id}/retest", dependencies=[Depends(require_login)])
-    def retest_now(plan_id: int, fix_id: str):
-        return lab.retest_now(plan_id, known_shape(fix_id))
-
-    @app.get("/api/plans/{plan_id}/fixes/{fix_id}/patch", dependencies=[Depends(require_login)])
-    def patch_file(plan_id: int, fix_id: str):
-        filename, data = lab.patch_file(plan_id, known_shape(fix_id))
-        return download(filename, data, "text/x-patch; charset=utf-8")
+    app.include_router(session.routes(lab, set_cookie))
+    app.include_router(importing.routes(lab, require_login))
+    app.include_router(test_routes.routes(lab, require_login))
+    app.include_router(lab_routes.routes(lab, require_login))
+    app.include_router(migration.routes(lab, require_login))
+    app.include_router(changes.routes(lab, require_login))
+    app.include_router(fixes.routes(lab, require_login))
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def no_such_api(rest: str):

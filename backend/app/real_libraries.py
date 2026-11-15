@@ -13,7 +13,7 @@ An advisory shown beside a result is information from its publisher. It never se
 only from the tests."""
 from __future__ import annotations
 
-from .config import DEMO_DIR, OPENSSL_IMAGE
+from app.config import DEMO_DIR, OPENSSL_IMAGE
 
 REAL_DIR = DEMO_DIR / "real-libraries"
 NEEDS_ISOLATED = "Real software from outside runs only in isolated mode (Docker)"

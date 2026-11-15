@@ -2,14 +2,18 @@
 Apply with approval, Roll back, and the Acme Pay server's TLS fix (SPEC 7c). Demo mode unless a test asks for Docker;
 no internet: every server is on this computer, on a spare port."""
 import json
-import socket
 
 import pytest
 
-from app import change_builder, lab_servers, migration_rules as rules, migration_servers, pqtls
+from app.migration import change_builder
+from app.migration import rules
+from app.servers import migration_servers
+from app.checks import pqtls
 from app.errors import BadRequest, Conflict, NotFound
-from app.reviewer import apply_outcome, change_try_outcome, meets_promise, pq_status_of, rollback_outcome
-from conftest import csv_bytes, free_port, make_lab, upload
+from app.engine.reviewer import apply_outcome, change_try_outcome, meets_promise, pq_status_of, rollback_outcome
+from app.web import models
+from conftest import csv_bytes, free_port, make_lab
+from view_helpers import problems
 
 
 def _ports(n=5):
@@ -188,7 +192,7 @@ def flow(tmp_path_factory):
         plan = lab.ensure_plan(imp["id"])
         lab.measure_migration(plan["id"])
         lab.wait_until_measured(plan["id"], 300)
-        addr = dict(zip(("hybrid", "c1", "c2", "legacy", "pq"), [f"localhost:{p}" for p in ports]))
+        addr = dict(zip(("hybrid", "c1", "c2", "legacy", "pq"), [f"localhost:{p}" for p in ports]))  # noqa: B905
         yield type("Flow", (), dict(lab=lab, imp=imp, pid=plan["id"], addr=addr, ports=ports))
     finally:
         lab.stop()
@@ -259,6 +263,9 @@ def test_apply_measures_again_closes_the_fix_and_roll_back_reopens_it(flow):
     assert fix["status"]["word"] == "In place (measured)" and fix["title"] == f"Turn on hybrid key exchange on {name}"
     assert {r["track"]: b["title"] for b in lab.migration_view(flow.pid)["roadmap"]["bands"] for r in b["rows"] if r["name"] == name} == \
         {"Key exchange": "Done for now", "Authentication": "Phase 2"}
+    # the views, with a try, an Apply and the measurement after it, have exactly the shape the screens receive (phase 4c+)
+    assert problems(lab.migration_view(flow.pid), models.MigrationView, "migration") == []
+    assert problems(lab.fixes_view(flow.pid), models.FixesView, "fixes") == []
     with pytest.raises(Conflict, match="applied"):
         lab.apply_change(flow.pid, key)                        # not twice
     lab.rollback_change(flow.pid, key)
@@ -270,6 +277,7 @@ def test_apply_measures_again_closes_the_fix_and_roll_back_reopens_it(flow):
         lab.apply_change(flow.pid, key)                        # the server changed since the try
     fix = next(f for f in lab.fixes_view(flow.pid)["fixes"] if (f.get("change_box") or {}).get("id") == key)
     assert fix["status"]["word"] == "Rolled back"
+    assert problems(lab.migration_view(flow.pid), models.MigrationView, "migration") == []
 
 
 def test_every_step_is_in_the_signed_evidence_and_no_key_is(flow, tmp_path):
@@ -306,6 +314,7 @@ def test_the_records_only_accept_new_rows(flow):
                 db.rollback()
 
 
+@pytest.mark.slow
 def test_an_applied_change_stays_in_force_after_the_app_restarts(tmp_path):
     ports = _ports()
     settings = dict(migration_ports=ports, lab_nginx_port=free_port())
@@ -370,6 +379,7 @@ def test_a_server_that_is_not_ours_gets_a_change_to_download_and_no_apply(tmp_pa
         lab.stop()
 
 
+@pytest.mark.slow
 def test_the_acme_pay_tls_fix_is_tried_applied_and_rolled_back(tmp_path):
     from conftest import play_back_speed
     lab = make_lab(tmp_path, migration_ports=_ports(), lab_nginx_port=free_port(), speed_rounds=4, speed_repeats=2)
@@ -485,7 +495,7 @@ def test_the_lab_nginx_needs_isolated_mode_and_says_so(tmp_path):
 
 def test_real_nginx_takes_the_change_on_apply_and_gives_it_back_on_roll_back(docker_ready, tmp_path):
     from app.config import DEMO_DIR
-    from app import lab_nginx
+    from app.servers import lab_nginx
     if not lab_nginx.ready(docker_ready)[0]:
         pytest.skip("Skipped: the pinned nginx lab image is not prepared (run: cd backend && .venv/bin/python -m app.prepare).")
     lab = make_lab(tmp_path, migration_ports=_ports(), lab_nginx_port=free_port(), force_mode="isolated")

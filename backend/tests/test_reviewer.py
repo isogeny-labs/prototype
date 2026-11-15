@@ -4,12 +4,12 @@ import copy
 import pytest
 from sqlalchemy import text
 
-from app import vectors
+from app.engine import vectors
 from app.canonical import sha256_hex
 from app.db import TestRunRow
-from app.guidance import NIST_GUIDANCE
-from app.research import RuleEngine
-from app.reviewer import RuleReviewer
+from app.engine.guidance import NIST_GUIDANCE
+from app.engine.research import RuleEngine
+from app.engine.reviewer import RuleReviewer
 from conftest import demo_plan, result_of, run_kind
 from test_records import DEMO_CLAIMS
 

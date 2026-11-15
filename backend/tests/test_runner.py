@@ -1,7 +1,6 @@
 """The batch driver's protocol, the runner's limits, and how the mode is decided. All in demo mode (no Docker needed)."""
 import dataclasses
 import json
-import os
 import subprocess
 import sys
 import time
@@ -9,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from app import runner
-from app.components import WITHHELD
+from app.run import runner
+from app.run.components import WITHHELD
 from app.config import COMPONENTS_DIR, OPENSSL_IMAGE, Settings, load_settings
 
 # a real point on P-256 (the curve's base point), so it is accepted as a public key
@@ -356,7 +355,7 @@ def test_container_command_is_one_fixed_list(monkeypatch):
     assert argv == ["docker", "run", "--name", "evlab-0123456789ab", *runner.DOCKER_RUN_FLAGS, "evidence-lab-components:abc",
                     "python", "-I", "-X", "pycache_prefix=/scratch/pyc", "/opt/evidence-lab/components/harness/driver.py"]
     flags = runner.DOCKER_RUN_FLAGS
-    pairs = dict(zip(flags[2:], flags[3:]))
+    pairs = dict(zip(flags[2:], flags[3:]))  # noqa: B905
     assert flags[:2] == ("--rm", "-i") and "--read-only" in flags
     for flag, value in {"--network": "none", "--user": "65534:65534", "--cap-drop": "ALL", "--security-opt": "no-new-privileges",
                         "--memory": "256m", "--memory-swap": "256m", "--cpus": "2", "--pids-limit": "64", "--pull": "never",

@@ -1,0 +1,138 @@
+# Slow checks, nightly and by hand. One job, one step after another (the speed tests measure time).
+# This repository is public: no secrets are used or needed.
+name: Slow checks
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  slow:
+    name: Everything, one step at a time
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+          persist-credentials: false
+
+      - name: Large files - work out which ones are needed
+        id: lfs
+        run: echo "hash=$(git lfs ls-files --long --include "demo/vectors/**" | sha256sum | cut -d" " -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Large files - reuse the saved copy
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ steps.lfs.outputs.hash }}
+
+      - name: Large files - download only the test vectors
+        run: git lfs pull --include "demo/vectors/**"
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Reuse the saved Python downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('backend/requirements.lock', 'backend/requirements-dev.lock') }}
+
+      - name: Backend - install the pinned Python packages
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install --disable-pip-version-check --require-hashes -r backend/requirements.lock -r backend/requirements-dev.lock
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - name: Frontend - install the pinned packages
+        working-directory: frontend
+        run: npm ci
+
+      - name: End-to-end test - install the pinned packages
+        working-directory: e2e
+        run: npm ci
+
+      - name: Browser for the end-to-end test
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      # The test images are built from the files hashed in this key (see backend/app/prepare.py, runner.py,
+      # config.py and real_libraries.py: image tags come from demo/components and demo/real-libraries, the base
+      # images are pinned by digest in the Python files).
+      - name: Test images - reuse the saved copy
+        id: images
+        uses: actions/cache@v4
+        with:
+          path: ~/docker-images
+          key: docker-images-${{ hashFiles('demo/components/**', 'demo/real-libraries/**', 'backend/app/**/*.py') }}
+
+      - name: Test images - load the saved copy
+        if: steps.images.outputs.cache-hit == 'true'
+        run: |
+          for f in "$HOME"/docker-images/*.tar; do
+            docker load --input "$f"
+          done
+
+      - name: "Prepare the test images (isolated mode)"
+        working-directory: backend
+        run: .venv/bin/python -m app.prepare
+
+      - name: Test images - save a copy for next time
+        if: steps.images.outputs.cache-hit != 'true'
+        working-directory: backend
+        run: |
+          mkdir -p "$HOME/docker-images"
+          .venv/bin/python - > "$RUNNER_TEMP/images.txt" <<'PY'
+          from app import real_libraries
+          from app.config import NGINX_IMAGE, OPENSSL_IMAGE, PYTHON_BASE_IMAGE
+          from app.run.runner import components_image_tag, real_image_tag
+          names = [PYTHON_BASE_IMAGE, OPENSSL_IMAGE, NGINX_IMAGE, components_image_tag()]
+          for family, pins in real_libraries.FAMILIES.items():
+              names += list(pins["images"].values()) + [real_image_tag(family)]
+          print("\n".join(dict.fromkeys(names)))
+          PY
+          n=0
+          while read -r image; do
+            n=$((n + 1))
+            if docker image inspect "$image" > /dev/null 2>&1; then
+              docker save --output "$HOME/docker-images/image-$n.tar" "$image"
+            fi
+          done < "$RUNNER_TEMP/images.txt"
+          ls -l "$HOME/docker-images"
+
+      - name: "Backend: every test (slow set included)"
+        working-directory: backend
+        run: .venv/bin/python -m pytest -q tests --full --durations=30
+
+      - name: "Accuracy check (isolated mode, all three answer keys)"
+        working-directory: backend
+        run: .venv/bin/python -m app.accuracy --mode isolated
+
+      - name: "End-to-end test"
+        working-directory: e2e
+        run: npm test
+
+      - name: Keep the end-to-end results if something failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: e2e/test-results/
+          if-no-files-found: ignore
+          retention-days: 7

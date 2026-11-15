@@ -8,7 +8,8 @@ from collections import Counter
 
 import pytest
 
-from app import pq_vectors, vectors
+from app.engine import pq_vectors
+from app.engine import vectors
 from app.config import COMPONENTS_DIR, VECTORS_DIR
 
 NON_HEX_INPUTS = ("algorithm", "deterministic", "interface")

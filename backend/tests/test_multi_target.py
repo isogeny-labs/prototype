@@ -7,9 +7,10 @@ import socket
 
 import pytest
 
-from app import extra_servers, research
-from app.compare import COULDNT, FALSE, TRUE
-from app.reviewer import RuleReviewer
+from app.servers import extra_servers
+from app.engine import research
+from app.engine.compare import COULDNT, FALSE, TRUE
+from app.engine.reviewer import RuleReviewer
 from conftest import csv_bytes, free_port, make_lab, play_back_speed
 
 ONLY_OURS = "This test couldn't run: only our own demo components can run in this version. So there is no result either way."
@@ -133,6 +134,7 @@ def test_after_a_restart_verify_starts_them_again_for_that_import(tmp_path):
 # ------------------------------------------------------------------ Verify: plain sentences and Also noticed
 
 
+@pytest.mark.slow
 def test_verify_gives_every_row_one_plain_sentence_and_the_also_noticed_note(flow):
     rows = {r["claim"]["text"]: r for r in flow.verify["results"]}
     a, b, c = flow.addr
@@ -170,7 +172,7 @@ def test_the_certificate_review_ignores_the_versions_it_also_saw(flow):
     view = flow.lab.lab_view(flow.plan["id"])
     run_id = _row(view, f"server:{flow.addr[1]}", "certificate")["result"]["run_id"]
     from app.db import TestRunRow, TestSpecRow
-    from app.testlab import read_spec, run_record
+    from app.lab.testlab import read_spec, run_record
     with flow.lab.db() as db:
         run = db.get(TestRunRow, run_id)
         record = run_record(run)
@@ -251,6 +253,7 @@ def test_add_test_adds_it_to_every_server(flow):
     assert len(flow.lab.plan_view(flow.plan["id"])["tests"]) == len(before["tests"])
 
 
+@pytest.mark.slow
 def test_the_proof_and_the_retest_change_only_our_program(flow):
     """The code fix's proof reruns all eight tests: the five server tests must come out the same as before. (acme-sign
     9.9 can't run, so it has no tests.) A retest then runs 1.4.3 for our program only."""
@@ -273,7 +276,7 @@ def test_the_proof_and_the_retest_change_only_our_program(flow):
 def test_the_evidence_file_carries_the_plain_lines_and_notes(flow):
     import json
 
-    from app.evidence_export import build_evidence
+    from app.evidence.export import build_evidence
     text = json.dumps(build_evidence(flow.lab, flow.plan["id"]), ensure_ascii=False)
     assert NOTE in text and "\u2018TLS 1.3 only\u2019 is not true" in text
     assert '"plain": "acme-sign 1.4.2 got 3 of the 484 exam cases wrong' in text
@@ -282,6 +285,7 @@ def test_the_evidence_file_carries_the_plain_lines_and_notes(flow):
 # ------------------------------------------------------------------ review findings (phase 3a-fixes review)
 
 
+@pytest.mark.slow
 def test_a_second_demo_program_is_run_again_as_it_is_on_retest_and_proof(tmp_path):
     """A file naming acme-sign 1.4.2 and acme-sign 1.4.3, both ours. The plan's own program is 1.4.2. On a retest
     and in the proof, 1.4.3's tests run again as they are: its speed test is measured like a first run (not
@@ -338,7 +342,7 @@ def test_no_also_noticed_when_the_file_claims_that_servers_tls_versions(tls_serv
 def test_another_program_on_a_test_server_port_is_not_reported_on(tmp_path, test_cert):
     """A TLS program of someone else holds 8445's port: the import says so, and Verify gives Couldn't check for
     that address instead of reporting on the other program as if it were our test server."""
-    from app.demo_server import TlsServer, make_server_context
+    from app.servers.demo_server import TlsServer, make_server_context
     ports = _ports()
     other = TlsServer(make_server_context(*test_cert, ciphers="ALL:@SECLEVEL=0", minimum=__import__("ssl").TLSVersion.TLSv1_2), ports[1])
     lab = make_lab(tmp_path, extra_ports=ports)

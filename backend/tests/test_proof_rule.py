@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from app import reviewer
+from app.engine import reviewer
 from app.canonical import sha256_hex
-from app.research import ReviewNotAllowed, RuleEngine
-from app.reviewer import RuleReviewer
+from app.engine.research import ReviewNotAllowed, RuleEngine
+from app.engine.reviewer import RuleReviewer
 from test_speed_rule import SPEC as SPEED_SPEC, benches, timings
 
 ENGINE = "isogeny.rule-engine/1"

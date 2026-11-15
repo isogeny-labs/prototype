@@ -4,11 +4,11 @@ import json
 import os
 import subprocess
 import time
-from pathlib import Path
 
 import pytest
 
-from app import runner, vectors
+from app.run import runner
+from app.engine import vectors
 from app.config import COMPONENTS_DIR, REPO_ROOT, Settings
 
 PROBE = r'''

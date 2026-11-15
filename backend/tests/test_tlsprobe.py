@@ -1,11 +1,11 @@
 """Live handshakes against throwaway TLS servers on this computer (spare ports)."""
 from types import SimpleNamespace
 
-from app import tlsprobe
-from app.compare import COULDNT, FALSE, TRUE
-from app.demo_server import DEMO_TLS12_CIPHER, certificate_fingerprint
-from app.tlsprobe import ProbeSession, classify_s_client, describe_certificate
-from app.verify import AddressCheck, DemoContext
+from app.checks import tlsprobe
+from app.engine.compare import COULDNT, FALSE, TRUE
+from app.servers.demo_server import DEMO_TLS12_CIPHER, certificate_fingerprint
+from app.checks.tlsprobe import ProbeSession, classify_s_client, describe_certificate
+from app.checks.verify import AddressCheck, DemoContext
 
 NO_DEMO = DemoContext(False, "localhost", 1, False, None, None)
 
@@ -162,7 +162,7 @@ def test_unconfirmed_address_makes_no_connection(listener):
 def test_hostile_stored_address_is_blocked_before_any_connection():
     for host in ("-connect", "a b", "x;rm", "../"):
         made = []
-        c = AddressCheck(row(443, host=host), NO_DEMO, session_factory=lambda *a: made.append(a))
+        c = AddressCheck(row(443, host=host), NO_DEMO, session_factory=lambda *a: made.append(a))  # noqa: B023
         assert c.protocol_versions({"versions": ["TLS 1.3"]})["result"] == COULDNT
         assert made == []
     c = AddressCheck(SimpleNamespace(address="localhost:70000", host="localhost", port=70000, resolved_ip="127.0.0.1",

@@ -5,12 +5,13 @@ import copy
 
 import pytest
 
-from app import pq_vectors, vectors
+from app.engine import pq_vectors
+from app.engine import vectors
 from app.canonical import sha256_hex
-from app.execute.pqvectors import control_cases
-from app.importers import parse_csv
-from app.research import RuleEngine, programs
-from app.reviewer import RuleReviewer
+from app.run.execute.pqvectors import control_cases
+from app.importer.csv_file import parse_csv
+from app.engine.research import RuleEngine, programs
+from app.engine.reviewer import RuleReviewer
 from conftest import csv_bytes
 from test_real_libraries import claims_of, real_claims
 

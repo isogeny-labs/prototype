@@ -4,7 +4,10 @@ import json
 import pytest
 
 from app.config import DEMO_CBOM, DEMO_DIR
-from app.importers import ImportFileError, parse_cbom, parse_csv, parse_file
+from app.importer.common import ImportFileError
+from app.importer.cbom import parse_cbom
+from app.importer.csv_file import parse_csv
+from app.importer.reader import parse_file
 
 DEMO = json.loads(DEMO_CBOM.read_text())
 

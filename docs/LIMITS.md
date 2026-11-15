@@ -164,7 +164,7 @@ Limits to know:
   FIPS 204) or "measured on our test server" (this computer, loopback). Handshake times are medians of 10 on
   loopback: they show scale, not what a real network adds. Full post-quantum handshake time is not measured.
   For a signing program the ML-DSA-65 column is the reference library, not software of yours.
-- **The recommendation is a small fixed table** (`migration_rules.py`): status, data lifespan, exposure, can it
+- **The recommendation is a small fixed table** (`migration/rules.py`): status, data lifespan, exposure, can it
   be changed. It knows nothing else about your systems. Defaults are the careful reading and are labelled
   "assumed": long-lived data; internet-facing for a public address, internal otherwise.
 - **Full post-quantum is never recommended** unless the system is already there, because the app can't see the
@@ -531,7 +531,7 @@ approval asked for. It measures again right after, and can roll back. What follo
 - **The ML-DSA-65 comparison is "reference, not production".** The figures come from the `cryptography` library's
   ML-DSA code run inside the app. It reports numbers only; it is not a test of any ML-DSA software of yours,
   and it was only run in demo mode.
-- **The NIST guidance is a stored value with its source links** (`backend/app/guidance.py`): minimum key sizes from
+- **The NIST guidance is a stored value with its source links** (`backend/app/engine/guidance.py`): minimum key sizes from
   SP 800-131A Rev. 2 and the retirement note from NIST IR 8547. It is not fetched or kept up to date by the app.
   - The note on the certificate result reads: "Under NIST IR 8547 (final, Oct 2026), ECDSA including P-256 is
     deprecated after 2030 and disallowed after 2035." The final report was published October 27, 2026, as the
@@ -543,7 +543,7 @@ approval asked for. It measures again right after, and can roll back. What follo
     changed this from the 2024 draft. Three independent summaries of the final agree that all ECDSA, including
     P-256, is deprecated after 2030 and disallowed after 2035 (as the owner told us on 11 November 2026). Nobody
     has yet compared the app's wording with the NIST document itself. Confirm it there before relying on it,
-    and update the value in `backend/app/guidance.py` if it differs.
+    and update the value in `backend/app/engine/guidance.py` if it differs.
 - **Old TLS versions:** the control accepts the version just below the oldest claimed one. SSL 3.0 and older are not tried.
 - **Isolated mode needs the images prepared.** `./run-demo.sh` prepares them once when Docker is running (it
   downloads two pinned base images the first time, which needs internet). The app itself never downloads or builds.
@@ -701,7 +701,7 @@ Kevin accepted every rule below after testing phase 3a end to end. They stand un
 - Most backend tests of the Fixes step play back made-up speed timings, so that they are quick and come out the
   same on a busy machine. The speed rule itself, the two full flows and the isolated-mode test time the real
   programs.
-- The whole backend suite takes about 24 minutes and the end-to-end test about 20 since phase 4c (build machine, 4 cores, Docker ready); the accuracy check in isolated mode takes about 35.
+- The whole backend suite (`--full`) takes about 24 minutes and the end-to-end test about 20 since phase 4c (build machine, 4 cores, Docker ready); the accuracy check in isolated mode takes about 35. Since phase 4c+ the everyday run leaves the slow tests out and takes a few minutes; the slow ones run nightly on GitHub ("Slow checks") and by hand with `--full`.
 - Dark mode only; no light theme. The layout was checked at 1440 x 900 only.
 - Two type-only frontend packages (`@types/react`, `@types/react-dom`) are installed that are not listed in the spec.
   Strict TypeScript needs them; the owner should confirm.

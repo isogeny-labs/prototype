@@ -4,11 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from app import research, reviewer
+from app.engine import research
+from app.engine import reviewer
 from app.canonical import sha256_hex
 from app.db import ResearchRequestRow
-from app.research import CATALOG, ReviewNotAllowed, RuleEngine
-from app.reviewer import RuleReviewer
+from app.engine.research import CATALOG, ReviewNotAllowed, RuleEngine
+from app.engine.reviewer import RuleReviewer
 from conftest import result_of
 from test_records import DEMO_CLAIMS
 
@@ -65,26 +66,32 @@ def test_the_reviewer_refuses_a_test_it_proposed_and_proposes_nothing():
 
 
 def test_the_reviewer_imports_nothing_from_the_engine_or_the_runner():
+    backend = Path(reviewer.__file__).resolve().parents[2]
     tree = ast.parse(Path(reviewer.__file__).read_text())
-    imported = set()
+    imported = set()  # full dotted module names
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            imported |= {a.name.split(".")[0] for a in node.names}
+            imported |= {a.name for a in node.names}
         elif isinstance(node, ast.ImportFrom):
-            if node.level:  # from . import x / from .x import y
-                imported |= {node.module.split(".")[0]} if node.module else {a.name for a in node.names}
-            else:
-                imported.add(node.module.split(".")[0])
-    assert not imported & {"research", "execute", "present", "jobs", "lab", "testlab", "runner", "components", "reference", "main"}
+            assert not node.level  # the app imports by full name only
+            for a in node.names:
+                full = f"{node.module}.{a.name}"
+                path = backend / full.replace(".", "/")
+                imported.add(full if path.with_suffix(".py").is_file() or path.is_dir() else node.module)
+    forbidden = ("app.engine.research", "app.run", "app.present", "app.jobs", "app.lab", "app.main")
+    assert not [m for m in imported if any(m == f or m.startswith(f + ".") for f in forbidden)], imported
+    app_modules = {m for m in imported if m == "app" or m.startswith("app.")}
     # tls_names (phase 4b) is pure data: the TLS signature algorithm numbers and their names, with no imports of its own
-    assert imported <= {"__future__", "math", "re", "statistics", "vectors", "canonical", "guidance", "tls_names", "pq_vectors"}, imported
-    assert "import" not in (Path(reviewer.__file__).parent / "tls_names.py").read_text().replace('"""', "").split("\n\n", 1)[1]
+    must = {"app.engine.vectors", "app.engine.pq_vectors", "app.canonical", "app.checks.tls_names"}
+    assert must <= app_modules <= must | {"app.engine.guidance"}, app_modules
+    assert imported - app_modules <= {"__future__", "math", "re", "statistics"}, imported
+    assert "import" not in (Path(reviewer.__file__).parent.parent / "checks" / "tls_names.py").read_text().replace('"""', "").split("\n\n", 1)[1]
 
 
 def test_only_the_reviewer_holds_verdict_logic():
     """The modules that run tests and the engine that proposes them never name a result."""
-    app = Path(reviewer.__file__).parent
-    for path in [app / "research.py", *sorted((app / "execute").glob("*.py"))]:
+    app = Path(reviewer.__file__).parent.parent
+    for path in [app / "engine" / "research.py", *sorted((app / "run" / "execute").glob("*.py"))]:
         source = path.read_text()
         for word in ('"passed"', '"no_slowdown"', '"not_offered"', '"couldnt_trust"', '"measured"'):
             assert word not in source, f"{path.name} mentions {word}"

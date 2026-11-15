@@ -60,6 +60,7 @@ def test_run_is_refused_when_a_test_changed_after_the_seal_or_the_library_is_not
         blind.run("unknown-library", folder, lambda text: None, settings)
 
 
+@pytest.mark.slow
 def test_seal_run_reveal_on_the_rehearsal_case(tmp_path, settings):
     folder, said = tmp_path / "blind", []
     expected = write(tmp_path, EXPECTED)
@@ -120,6 +121,7 @@ def test_the_freeze_covers_every_app_file_but_the_registry_and_the_exam_controls
     assert blind.frozen_fingerprint() == sealed
 
 
+@pytest.mark.slow
 def test_the_run_records_the_reviewers_own_verdict(tmp_path, settings):
     folder = tmp_path / "blind"
     blind.seal(write(tmp_path, EXPECTED), folder, lambda text: None)

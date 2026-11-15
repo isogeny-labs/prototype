@@ -24,9 +24,9 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-from . import real_libraries
-from .config import COMPONENTS_DIR, NGINX_IMAGE, OPENSSL_IMAGE, PYTHON_BASE_IMAGE, REPO_ROOT
-from .runner import _docker_env, components_image_tag, docker_running, image_present, real_image_tag
+from app import real_libraries
+from app.config import COMPONENTS_DIR, NGINX_IMAGE, OPENSSL_IMAGE, PYTHON_BASE_IMAGE, REPO_ROOT
+from app.run.runner import _docker_env, components_image_tag, docker_running, image_present, real_image_tag
 
 PULL_LIMIT_SECONDS = 120
 REAL_PULL_LIMIT_SECONDS = 900     # the two Java images are a few hundred MB each

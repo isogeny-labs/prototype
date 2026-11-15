@@ -74,6 +74,7 @@ def test_before_and_after_view(demo_flow):
     assert result_of(view, "bad_signatures", "after")["component"] == "acme-sign 1.4.3"
 
 
+@pytest.mark.slow   # its verdict comes from a real timed run
 def test_speed_after_the_retest_compares_side_by_side(demo_flow):
     after = result_of(demo_flow.after, "speed_size", "after")
     table = after["evidence"][0]

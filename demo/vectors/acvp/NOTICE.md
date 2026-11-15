@@ -4,7 +4,7 @@ The five JSON files in this folder are copied unchanged from NIST's ACVP-Server 
 https://github.com/usnistgov/ACVP-Server at commit 975de31eb83d87039ec88934fdc47d8c312b892d (12 August 2026),
 folder `gen-val/json-files/<name>/internalProjection.json`, saved here as `<name>.json`.
 Source: the National Institute of Standards and Technology (NIST). Nothing in them was changed.
-The app reads them as data and refuses to use one whose SHA-256 differs from the value pinned in `backend/app/pq_vectors.py`.
+The app reads them as data and refuses to use one whose SHA-256 differs from the value pinned in `backend/app/engine/pq_vectors.py`.
 
 ## NIST's notice (from the repository's README, section "License"), kept intact
 

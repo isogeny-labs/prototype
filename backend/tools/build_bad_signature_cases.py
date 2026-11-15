@@ -2,7 +2,7 @@
 
 Kept for transparency. The app never runs this. It was run ONCE; every run makes a fresh throwaway
 test key (never written anywhere, gone when the script ends), so running it again would produce a
-different file whose SHA-256 no longer matches the value pinned in backend/app/vectors.py.
+different file whose SHA-256 no longer matches the value pinned in backend/app/engine/vectors.py.
 
     cd backend && .venv/bin/python tools/build_bad_signature_cases.py [output file]
 

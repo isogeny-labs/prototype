@@ -1,4 +1,4 @@
-"""The small git reader and writer (app/gitrepo.py).
+"""The small git reader and writer (app/fixes/gitrepo.py).
 
 What it writes has to be what git itself would write. So the ids below were worked out once with the real git
 program, and the tests at the end ask git itself when it is installed. They are skipped with a message when
@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from app import gitrepo
-from app.gitrepo import Commit, GitRepo, GitRepoError, Person, Spot
+from app.fixes import gitrepo
+from app.fixes.gitrepo import Commit, GitRepo, GitRepoError, Person, Spot
 
 WHO = Person("Test Person", "test@example.invalid")
 OTHER = Person("Other One", "other@example.invalid")

@@ -3,7 +3,7 @@
 The first two files below are published test cases with known right answers, from Project Wycheproof.
 They are copied here byte for byte so the demo runs with no internet. The app reads them as
 data only (JSON), never runs anything in them, and refuses to use a file whose SHA-256
-differs from the value below (the same values are pinned in `backend/app/vectors.py`).
+differs from the value below (the same values are pinned in `backend/app/engine/vectors.py`).
 
 - Source: https://github.com/C2SP/wycheproof (folder `testvectors_v1/`)
 - Commit: `dab4ea2ed021eb633874959ca601004f3457d911`
@@ -28,7 +28,7 @@ How they are used:
 Six more Wycheproof files are stored here, unchanged and byte for byte, for the two
 post-quantum exams ("Key exchange exam (ML-KEM-768)" and "Signature exam (ML-DSA-65)"). They are
 read as data only, and refused if their SHA-256 differs from the value below (these values are
-pinned in `backend/app/pq_vectors.py`, `FILES`).
+pinned in `backend/app/engine/pq_vectors.py`, `FILES`).
 
 - Source: https://github.com/C2SP/wycheproof (folder `testvectors_v1/`)
 - Commit: `65ca494727a52944c204441c860b039e6786b99b`

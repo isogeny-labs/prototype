@@ -9,7 +9,9 @@ import subprocess
 
 import pytest
 
-from app import real_libraries, runner, vectors
+from app import real_libraries
+from app.run import runner
+from app.engine import vectors
 
 SUBJECTS = [("openjdk-17.0.2", "openjdk", "17.0.2", "java"), ("openjdk-17.0.3", "openjdk", "17.0.3", "java"),
             ("python-ecdsa-0.13.2", "python-ecdsa", "0.13.2", "python-ecdsa"), ("python-ecdsa-0.13.3", "python-ecdsa", "0.13.3", "python-ecdsa"),

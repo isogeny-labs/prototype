@@ -4,7 +4,7 @@ import time
 import pytest
 from fastapi.routing import APIRoute
 
-from conftest import csv_bytes, upload
+from conftest import api_routes, csv_bytes, upload
 
 
 def start(client):
@@ -93,7 +93,7 @@ def test_reorder_add_remove_and_add_back(client):
     back = client.post(f"/api/plans/{pid}/tests", json={"catalog_id": "bad_signatures"}).json()
     assert back["tests"][-1]["id"] == ids[3] and back["tests"][-1]["origin"] == "suggested"  # the same test, at the end
     assert client.post(f"/api/plans/{pid}/tests/999/remove").status_code == 404
-    assert client.post(f"/api/plans/999/tests", json={"catalog_id": "pq_readiness"}).status_code == 404
+    assert client.post("/api/plans/999/tests", json={"catalog_id": "pq_readiness"}).status_code == 404
 
 
 def test_run_one_then_the_lab_then_mark_and_dig(client):
@@ -178,7 +178,7 @@ def test_every_new_route_needs_a_login(anon_client, method, path):
 def test_there_is_no_route_that_accepts_software(client):
     """The only route that takes a file is phase 1's claims import. Every other POST takes no body or one of
     a few tiny JSON bodies. Nothing takes a component, an archive, a Dockerfile or a path."""
-    routes = [r for r in client.app.routes if isinstance(r, APIRoute)]
+    routes = [r for r in api_routes(client.app) if isinstance(r, APIRoute)]
     posts = sorted(r.path for r in routes if "POST" in r.methods and r.path != "/api/{rest:path}")
     with_json_body = {r.path: r.body_field.field_info.annotation.__name__ for r in routes if r.body_field is not None}
     allowed_bodies = {"/api/setup": "PasswordBody", "/api/login": "PasswordBody", "/api/import/{import_id}/confirm-address": "ConfirmBody",
@@ -213,5 +213,5 @@ def test_there_is_no_route_that_accepts_software(client):
     for sneaky in ({"version": "1.4.3", "path": "/tmp/x.py"}, {"version": "../../evil"}, {"version": "1.4.3\n"}):
         r = client.post(f"/api/plans/{pid}/retest", json=sneaky)
         assert r.status_code in (409, 422)
-    from app import components
+    from app.run import components
     assert components.VERSIONS == {"acme-sign": ["1.4.2", "1.4.3"]}

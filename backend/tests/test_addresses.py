@@ -1,6 +1,6 @@
 import pytest
 
-from app.addresses import AddressError, is_loopback_ip, parse_address, resolve_all, validate_host, validate_port
+from app.checks.addresses import AddressError, is_loopback_ip, parse_address, resolve_all, validate_host, validate_port
 
 
 @pytest.mark.parametrize("text,host,port", [

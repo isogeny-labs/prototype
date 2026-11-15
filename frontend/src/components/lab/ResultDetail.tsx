@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { EvidenceBlock, FixLine, LabResult, MetaItem } from "../../api";
+import type { EvidenceBlock, FixLine, LabResult, MeasurementResult, MetaItem } from "../../api";
 import { AdvisoriesBox } from "../AdvisoriesBox";
 import { ResultBadge, SecondaryButton, SourceTag, Spinner, formatTime } from "../ui";
 
@@ -162,7 +162,8 @@ const H = "mb-1 text-[13px] font-semibold text-slate-100";
 const DT = "mt-2 text-slate-500";
 
 interface Props {
-  result: LabResult;
+  /** A test's result, or a measurement's (Migration and a change's try), whose code can also be a status. */
+  result: LabResult | MeasurementResult;
   /** Shown above the detail in the before/after view, e.g. "After: acme-sign 1.4.3, the merged fix (commit c41f0d2)". */
   heading?: string;
   busy: boolean;

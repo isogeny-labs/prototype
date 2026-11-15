@@ -1,0 +1,112 @@
+# Fast checks on every push and pull request. This repository is public: no secrets are used or needed.
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+          persist-credentials: false
+
+      - name: Large files - work out which ones are needed
+        id: lfs
+        run: echo "hash=$(git lfs ls-files --long --include "demo/vectors/**" | sha256sum | cut -d" " -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Large files - reuse the saved copy
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ steps.lfs.outputs.hash }}
+
+      - name: Large files - download only the test vectors
+        run: git lfs pull --include "demo/vectors/**"
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Reuse the saved Python downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('backend/requirements.lock', 'backend/requirements-dev.lock') }}
+
+      - name: Backend - install the pinned Python packages
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install --disable-pip-version-check --require-hashes -r backend/requirements.lock -r backend/requirements-dev.lock
+
+      - name: "Backend: lint (ruff)"
+        working-directory: backend
+        run: .venv/bin/ruff check app tests tools evidence
+
+      - name: "Backend: type check (new problems only)"
+        working-directory: backend
+        run: .venv/bin/python tools/typecheck.py
+
+      - name: "Backend: the API description is up to date"
+        working-directory: backend
+        run: .venv/bin/python tools/api_schema.py --check
+
+      - name: "Backend: fast tests"
+        working-directory: backend
+        run: .venv/bin/python -m pytest -q tests --durations=15
+
+      - name: "Accuracy check (demo mode)"
+        working-directory: backend
+        run: .venv/bin/python -m app.accuracy --mode demo
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+          persist-credentials: false
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend - install the pinned packages
+        working-directory: frontend
+        run: npm ci
+
+      - name: "Frontend: the generated types are up to date"
+        working-directory: frontend
+        run: npm run gen:api -- --check
+
+      - name: "Frontend: type check"
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: "Frontend: tests"
+        working-directory: frontend
+        run: npm test
+
+      - name: "Frontend: build"
+        working-directory: frontend
+        run: npm run build

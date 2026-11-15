@@ -1,8 +1,11 @@
 """The one fix template (the missing range check in acme-sign): it applies only to the exact lines it expects."""
 import pytest
 
-from app import components, gitrepo, present, vectors
-from app.research import CHANGE_LABEL, RANGE_CHECK, RuleEngine, out_of_range_cause
+from app.run import components
+from app.fixes import gitrepo
+from app.present import results as present
+from app.engine import vectors
+from app.engine.research import CHANGE_LABEL, RANGE_CHECK, RuleEngine, out_of_range_cause
 
 OLD = components.lookup("acme-sign", "1.4.2").read_text()
 NEW = components.lookup("acme-sign", "1.4.3").read_bytes()

@@ -10,8 +10,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from app import reference, runner, vectors                      # noqa: E402
-from app.components import component_key                        # noqa: E402
+from app.run import reference
+from app.run import runner
+from app.engine import vectors
+from app.run.components import component_key                        # noqa: E402
 from app.config import load_settings                            # noqa: E402
 from app.real_libraries import family_of                        # noqa: E402
 
@@ -47,7 +49,7 @@ def main(name: str, version: str) -> int:
             continue
         mine = result.lines[:len(cases)]
         wrong, no_answer, notes = [], [], collections.Counter()
-        for case, line in zip(cases, mine):
+        for case, line in zip(cases, mine):  # noqa: B905
             if line.get("note"):
                 notes[line["note"]] += 1
             if case.expected == "acceptable":
@@ -56,7 +58,7 @@ def main(name: str, version: str) -> int:
                 no_answer.append((case.id, line.get("error")))
             elif line["valid"] != (case.expected == "valid"):
                 wrong.append(f"{case.id} ({'accepted' if line['valid'] else 'rejected'}; should be {case.expected})")
-        control_wrong = sum(1 for case, line in zip(cases, result.lines[len(cases):]) if case.expected == "invalid" and line.get("valid") is True)
+        control_wrong = sum(1 for case, line in zip(cases, result.lines[len(cases):]) if case.expected == "invalid" and line.get("valid") is True)  # noqa: B905
         print(f"{label}: {len(cases)} cases, wrong {len(wrong)}, no answer {len(no_answer)}, took {result.duration_ms / 1000:.0f} s")
         print("  wrong:", ", ".join(wrong) or "none")
         if no_answer:

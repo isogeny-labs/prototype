@@ -10,13 +10,15 @@ import pytest
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from app import components
+from app.run import components
 from app.config import DEMO_CBOM, Settings
 from app.db import ApprovalRow, ChangeRow, CodeConnectionRow, MergeRow, ProofRow, PullRequestRow, RetestRow
-from app.gitrepo import GitRepo
-from app.main import ApproveBody, PullRequestBody, create_app
-from conftest import PASSWORD, free_port, play_back_speed, upload
-from fixes_shapes import FIXES_VIEW, LAB_VIEW, fix as fix_of, problems
+from app.fixes.gitrepo import GitRepo
+from app.main import create_app
+from app.web.common import ApproveBody, PullRequestBody
+from app.web import models
+from conftest import PASSWORD, api_routes, free_port, play_back_speed, upload
+from view_helpers import fix as fix_of, problems
 from test_changes import tamper
 from test_fixes_view import held
 from test_gitrepo import real_git
@@ -202,6 +204,7 @@ def test_every_route_needs_a_login(anon_client, route):
     assert counts(anon_client.app.state.lab)["connections"] == 0
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("route", ROUTES, ids=[f"{m} {t or '/'}" for m, t, _ in ROUTES])
 def test_an_unknown_plan_is_404(api, route):
     assert refused(call(api.client, 999, route), 404) == NO_PLAN
@@ -224,7 +227,7 @@ def test_a_fix_id_of_the_wrong_shape_or_that_does_not_exist_is_404(api, route):
 
 
 def test_only_the_eight_routes_exist_and_none_accepts_a_file_or_software(api):
-    routes = [r for r in api.client.app.routes if isinstance(r, APIRoute) and "/fixes" in r.path]
+    routes = [r for r in api_routes(api.client.app) if isinstance(r, APIRoute) and "/fixes" in r.path]
     assert sorted((sorted(r.methods)[0], r.path.removeprefix("/api/plans/{plan_id}/fixes")) for r in routes) == sorted(
         (method, tail.replace("{fix}", "{fix_id}")) for method, tail, _ in ROUTES)
     # two of them take a body: one small JSON object each, naming reviewers from the fixed list. Nothing else is read.
@@ -262,18 +265,18 @@ def test_every_successful_post_answers_with_the_whole_view(api):
         response = getattr(api, name)
         assert response.status_code == 200, name
         view = response.json()
-        assert problems(view, FIXES_VIEW, name) == [] and view["plan_id"] == api.pid
+        assert problems(view, models.FixesView, name) == [] and view["plan_id"] == api.pid
         assert fix_of(view, FIX)["status"]["key"] == key and [f["id"] for f in view["fixes"]] == [FIX, TLS]
     assert api.connected.json()["busy"] is True and api.proof_again.json()["busy"] is True  # so the screen asks again
     # "Retest now" answers with the Evidence Lab view, where the retest then shows
-    assert api.retest.status_code == 200 and problems(api.retest.json(), LAB_VIEW, "retest") == []
+    assert api.retest.status_code == 200 and problems(api.retest.json(), models.LabView, "retest") == []
     assert api.retest.json()["view"] == "before_after" and api.retest.json()["retest"]["running"] is True
     # the GET answers are the same shape, at every moment
     for view in (api.empty, api.not_connected, api.polled_while_proving, api.failed, api.ready, api.plan_changed["view"],
                  api.pull_request_out_of_date["view"], api.proved_again, api.back_to_waiting, api.polled_before_merge[0], api.after_retest[0]):
-        assert problems(view, FIXES_VIEW) == []
+        assert problems(view, models.FixesView) == []
     assert api.empty["fixes"] == [] and api.empty["empty_text"] == "No failed test has a fix. Fixes for failed tests show here."
-    assert problems(api.polled_before_merge[1], LAB_VIEW) == [] and problems(api.after_retest[1], LAB_VIEW) == []
+    assert problems(api.polled_before_merge[1], models.LabView) == [] and problems(api.after_retest[1], models.LabView) == []
 
 
 def test_what_each_step_shows(api):
@@ -532,7 +535,7 @@ def test_connect_is_refused_for_a_file_that_names_no_demo_component_we_hold(app_
     unknown = plan_for("9.9.9")  # not one of ours: nothing of it runs, and there is no code to connect
     assert refused(client.post(f"/api/plans/{unknown}/fixes/connect")) == "Connecting code needs one of our demo signing components, and this file doesn't name one."
     view = client.get(f"/api/plans/{unknown}/fixes").json()
-    assert problems(view, FIXES_VIEW) == [] and [f["id"] for f in view["fixes"]] == [TLS]  # the server finding still has its suggestion
+    assert problems(view, models.FixesView) == [] and [f["id"] for f in view["fixes"]] == [TLS]  # the server finding still has its suggestion
     assert refused(client.post(f"/api/plans/{unknown}/fixes/{FIX}/proof"), 404) == NO_FIX
     newer = plan_for("1.4.3")  # ours, but the demo repository holds 1.4.2
     assert refused(client.post(f"/api/plans/{newer}/fixes/connect")) == "The demo repository does not hold the demo component this file names. The code was not connected."

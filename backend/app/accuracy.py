@@ -27,9 +27,9 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from .config import EXPECTED_JSON, Settings, load_settings
-from .db import ReviewRow
-from .lab import Lab
+from app.config import EXPECTED_JSON, Settings, load_settings
+from app.db import ReviewRow
+from app.lab.hub import Lab
 
 # Which claim in demo/acme-pay-cbom.json answers which entry of the answer key: (bom-ref, kind) -> id.
 DEMO_CLAIM_IDS = {
@@ -286,7 +286,7 @@ def _choice_phrase(choice: dict | None) -> str | None:
 
 def _copy_facts(measured: dict | None) -> dict:
     """The facts of one reviewed measurement that the key's clauses talk about."""
-    from .present_tracks import TRACK_LABELS, hybrid_client
+    from app.present.tracks import TRACK_LABELS, hybrid_client
     if not measured:
         return {}
     detail = measured.get("detail") or {}
@@ -302,7 +302,6 @@ def _copy_facts(measured: dict | None) -> dict:
 
 
 def _system_answers(view: dict, verify: dict) -> dict:
-    from .present_tracks import TRACK_LABELS
     out = {}
     rows = [(band["title"], row) for band in view["roadmap"]["bands"] for row in band["rows"]]
     for system in view["systems"]:
@@ -325,7 +324,7 @@ def _system_answers(view: dict, verify: dict) -> dict:
             "can_change": fields["can_change"]["value"],
             "roadmap": {row["track"]: title for title, row in rows if row["system_key"] == system["key"]},
             "blockers": [l["text"] for o in system["options"] if "Recommended" in o["tags"] for s in o["sections"] if s["title"] == "Blockers"
-                         for l in s["lines"]],
+                         for l in s["lines"]],  # noqa: E741
             "change_badge": (system.get("change") or {}).get("badge", {}).get("label"),
         }
         a = out[system["name"]]
@@ -347,10 +346,11 @@ def collect_migration(settings: Settings | None = None) -> dict:
     Measure status, then the two changes of the key (8452 to Hybrid, 8451 to Full post-quantum): Try on a test copy, Ask for
     approval, Approve, Apply, Verify again, Roll back. Also one server that is not ours (a throwaway local server this
     check starts), the evidence download, and the control tried for real. Returns the app's answers, read from the views."""
-    from . import migration_servers, pqtls
-    from .db import TestRunRow, TestSpecRow
-    from .errors import Conflict
-    from .testlab import read_spec, run_record
+    from app.servers import migration_servers
+    from app.checks import pqtls
+    from app.db import TestRunRow, TestSpecRow
+    from app.errors import Conflict
+    from app.lab.testlab import read_spec, run_record
     settings = settings or load_settings()
     out: dict = {"mode_line": None, "notes": [], "systems": {}, "tests": {}, "changes": {}, "rules": {}, "never_done": {},
                  "control_misread_reads": None, "stopped": None}
@@ -360,8 +360,8 @@ def collect_migration(settings: Settings | None = None) -> dict:
         try:
             out["mode_line"] = lab.mode.line
             ports = settings.migration_ports
-            as_in_file = {f"localhost:{p}": f"localhost:{d}" for p, d in zip(ports, migration_servers.DEFAULT_PORTS)}
-            named = lambda name: as_in_file.get(name, name)
+            as_in_file = {f"localhost:{p}": f"localhost:{d}" for p, d in zip(ports, migration_servers.DEFAULT_PORTS)}  # noqa: B905
+            named = lambda name: as_in_file.get(name, name)  # noqa: E731
             here = {v: k for k, v in as_in_file.items()}
             imp = lab.import_file("migration-demo.csv", migration_servers.file_for(ports))
             out["notes"] += list(imp.get("notices") or [])
@@ -421,7 +421,7 @@ def collect_migration(settings: Settings | None = None) -> dict:
                 def records():
                     with lab.db() as db:
                         p = lab._plan(db, pid)
-                        change = lab._change_by_key(db, p, key)
+                        change = lab._change_by_key(db, p, key)  # noqa: B023
                         return change, lab._change_records(db, p, change)
                 change, rec = records()
                 copy = next((c for c in rec["try_copies"] if c["phase"] == "try"), {})
@@ -516,7 +516,7 @@ def collect_migration(settings: Settings | None = None) -> dict:
 
 def _twelve_months_after(day: str | None, latest: str) -> str | None:
     from datetime import date
-    from . import migration_rules
+    from app.migration import rules as migration_rules
     try:
         return min(migration_rules.default_review_date(date.fromisoformat(str(day))), date.fromisoformat(latest)).isoformat()
     except (TypeError, ValueError):
@@ -621,7 +621,7 @@ def _grade_clause(clause: str, ctx: dict) -> tuple[bool | None, str]:
     if c == "(it cant be changed)" or c == "it cant be changed":
         return sysa.get("can_change") == "no", f"can it be changed: {sysa.get('can_change')}"
     if c == "blocked until the library can make post-quantum signatures":
-        return any("post-quantum signatures" in "".join(p["v"] for p in l) for l in sysa.get("blockers") or []), "blockers listed"
+        return any("post-quantum signatures" in "".join(p["v"] for p in l) for l in sysa.get("blockers") or []), "blockers listed"  # noqa: E741
     return None, ""
 
 
@@ -708,7 +708,7 @@ def compare_migration(expected: object, answers: dict) -> dict:
             if label is None:
                 problems.append(f"the key's field {field!r} is not one this command knows")
                 continue
-            have = next((got[l] for l in label if l in got), None)
+            have = next((got[l] for l in label if l in got), None)  # noqa: E741
             if have != want:
                 problems.append(f"{field}: the key says {want!r}, the app places it in {have!r}")
         add(entry["id"], f"roadmap: {entry['system']}", {k: v for k, v in entry.items() if k not in ("id", "system")}, got, not problems,
@@ -765,7 +765,7 @@ def compare_migration(expected: object, answers: dict) -> dict:
 
 def print_migration_report(settings: Settings | None, say=print) -> int:
     """The migration demo against demo/expected-migration.json. Exit code 0 only if the key is there and all match."""
-    from . import config
+    from app import config
     say("")
     say("Migration demo accuracy check against demo/expected-migration.json (Verify, two tracks, recommendations, roadmap, Tests, "
         "try, Apply, Roll back, rules, controls)")
@@ -813,7 +813,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.only in (None, "migration"):
         codes.append(print_migration_report(settings))
     if args.only in (None, "real"):
-        from .accuracy_real import print_real_report   # phase 4c: the real libraries (isolated mode; in demo mode only RD1 applies)
+        from app.accuracy_real import print_real_report   # phase 4c: the real libraries (isolated mode; in demo mode only RD1 applies)
         codes.append(print_real_report(settings))
     return max(codes)
 

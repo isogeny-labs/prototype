@@ -4,10 +4,11 @@ import json
 import ssl
 from contextlib import contextmanager
 
+import pytest
 
 from app.db import TestRunRow
-from app.demo_server import TlsServer, make_server_context
-from app.execute import controls, signing
+from app.servers.demo_server import TlsServer, make_server_context
+from app.run.execute import controls, signing
 from conftest import demo_plan, result_of, run_kind
 
 FIVE = ("tls_versions", "certificate", "official_vectors", "bad_signatures", "speed_size")
@@ -195,7 +196,7 @@ def test_signature_control_that_checks_properly_means_couldnt_trust(lab, monkeyp
 
 
 def test_harness_timeout_is_couldnt_run_not_a_guess(lab, monkeypatch):
-    from app import runner
+    from app.run import runner
     monkeypatch.setattr(lab.component_runner, "run_job", lambda job, **_k: runner.BatchResult(
         False, [], runner.PROBLEM_TIMEOUT, "demo", "x", "2026-11-11T00:00:00.000Z", 1, ""))
     plan = demo_plan(lab)
@@ -203,6 +204,7 @@ def test_harness_timeout_is_couldnt_run_not_a_guess(lab, monkeypatch):
     assert run_kind(lab, plan, "speed_size")["label"] == "Couldn't run (it took too long)"
 
 
+@pytest.mark.slow
 def test_speed_control_that_is_not_slower_means_couldnt_trust(lab, monkeypatch):
     real = lab.component_runner.run_job
 
@@ -239,7 +241,7 @@ def test_a_component_that_is_not_ours_is_never_run(client):
 
 def test_control_servers_are_local_throwaway_and_closed_afterwards():
     import socket
-    from app.tlsprobe import ProbeSession, describe_certificate
+    from app.checks.tlsprobe import ProbeSession, describe_certificate
     with controls.weak_certificate_server() as port:
         session = ProbeSession("127.0.0.1", port, None)
         cert = describe_certificate(session.first_certificate())

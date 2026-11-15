@@ -9,7 +9,7 @@ import pytest
 
 import evidence
 from app.canonical import canonical_bytes
-from app.evidence_export import PUBLIC_KEY_FILE, ensure_signing_key, key_fingerprint, sign_envelope
+from app.evidence.export import PUBLIC_KEY_FILE, ensure_signing_key, key_fingerprint, sign_envelope
 from evidence import FAILED, SIGNER_NOT_CONFIRMED, VERIFIED, verify_bytes
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -52,6 +52,7 @@ def test_every_single_byte_changed_fails_small_file(tmp_path):
         assert verify_bytes(raw[:position] + raw[position + 1:], public).code == FAILED or position == len(raw)
 
 
+@pytest.mark.slow
 def test_a_broad_sample_of_bytes_changed_fails_real_file(demo_flow):
     made = demo_flow.lab.export_evidence(demo_flow.plan.id)
     raw = demo_flow.lab.evidence_file(made["id"], "json")[1]
@@ -181,7 +182,7 @@ def test_the_checker_imports_almost_nothing_from_the_app():
         app_modules = {m for m in modules if m == "app" or m.startswith("app.")}
         assert app_modules <= {"app.canonical", "app.config"}, app_modules
         assert not {m for m in modules if m.split(".")[0] in ("subprocess", "pickle", "sqlalchemy", "fastapi", "requests", "socket")}
-    assert evidence.SIGNING_CONTEXT == __import__("app.evidence_export").evidence_export.SIGNING_CONTEXT
+    assert evidence.SIGNING_CONTEXT == __import__("app.evidence.export").evidence.export.SIGNING_CONTEXT
 
 
 @pytest.mark.parametrize("value", ["", "abc", "g" * 64, "A" * 63])

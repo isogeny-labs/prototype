@@ -15,11 +15,17 @@ from types import SimpleNamespace
 
 import pytest
 
-from app import changes, components, demo_repo, fixes, present, present_fixes
+from app.fixes import changes
+from app.run import components
+from app import demo_repo
+from app.fixes import views as fixes
+from app.present import results as present
+from app.present import fixes as present_fixes
 from app.db import PlanRow, TestRunRow
-from app.execute import pq
+from app.run.execute import pq
+from app.web import models
 from conftest import demo_plan, held, make_lab, result_of  # noqa: F401 (held is also used by test_fixes_api.py from here)
-from fixes_shapes import FIXES_VIEW, LAB_VIEW, fix as fix_of, plain, problems, section, texts
+from view_helpers import fix as fix_of, plain, problems, section, texts
 from test_catalog_tests import ALERT_40, FakeChecker
 from test_changes import proved, small_plan, tamper
 
@@ -180,10 +186,11 @@ STATUS_AT = {"one_result": ("not_connected", "Code not connected"), "not_connect
 UNPROVEN, PROVEN = ("one_result", "not_connected", "proving", "failed"), ("ready", "opened", "waiting", "ready_to_merge", "merged", "after")
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("stage", STAGES)
 def test_every_view_has_exactly_the_shape_the_frontend_expects(flow, stage):
     seen = getattr(flow, stage)
-    assert problems(seen.fixes, FIXES_VIEW, "fixes") == [] and problems(seen.lab, LAB_VIEW, "lab") == []
+    assert problems(seen.fixes, models.FixesView, "fixes") == [] and problems(seen.lab, models.LabView, "lab") == []
 
 
 def test_the_page_itself_and_the_list_on_the_left(flow):
@@ -675,6 +682,7 @@ def test_nothing_is_called_ready_or_a_fix_before_its_proof_has_passed(flow):
         assert detail["what"]["label"] == "What it fixes" and detail["what"]["server_line"] == SERVER_LINE and detail["proof"]["state"] == "passed"
 
 
+@pytest.mark.slow
 def test_wording_rules_hold_in_every_view(flow, corners):
     seen = [getattr(flow, stage) for stage in STAGES] + list(vars(corners).values())
     for views in seen:
@@ -872,7 +880,7 @@ CORNERS = ("server_changed", "review_edited", "interrupted", "not_ours", "small_
 @pytest.mark.parametrize("corner", CORNERS)
 def test_every_other_state_has_the_same_shape(corners, corner):
     seen = getattr(corners, corner)
-    assert problems(seen.fixes, FIXES_VIEW, "fixes") == [] and problems(seen.lab, LAB_VIEW, "lab") == []
+    assert problems(seen.fixes, models.FixesView, "fixes") == [] and problems(seen.lab, models.LabView, "lab") == []
 
 
 def test_a_small_plan_gets_its_own_numbers(corners):
@@ -1161,7 +1169,7 @@ def test_the_server_finding_is_open_only_while_its_newest_result_fails(corners):
     assert first["fix_line"] is None and first["suggested_fix"] and after["fix_line"] is None
     # the code fix is listed as before: its change is on record
     assert lab_lines(seen)[("bad_signatures", "result")] == line("Fix ready:", f"{SIZE}, proof passed", "pass")
-    assert problems(view, FIXES_VIEW, "fixes") == []
+    assert problems(view, models.FixesView, "fixes") == []
 
 
 UNKNOWN_TEMPLATE = ("unknown_template", "unknown_template_with_pull_request", "unknown_template_after_merge", "unknown_template_unproved")
@@ -1198,11 +1206,11 @@ def test_a_change_that_names_a_fix_template_the_app_does_not_have_is_not_believe
         assert state["actions"]["merge"] == state["actions"]["download_patch"] == PROOF_CHANGED
     else:
         assert detail["status"]["word"] == "Merged" and shown["lead"] == "Fix merged:" and state["actions"]["download_patch"] == PROOF_CHANGED
-    assert problems(seen.fixes, FIXES_VIEW, "fixes") == []
+    assert problems(seen.fixes, models.FixesView, "fixes") == []
 
 
 def test_every_fix_template_has_its_words():
-    from app import research
+    from app.engine import research
     assert set(present_fixes.TEMPLATE_WORDS) == set(research.TEMPLATE_IDS) == {"ecdsa-range-check"}
 
 
@@ -1250,7 +1258,7 @@ def test_a_misbehaving_control_and_other_reasons_are_worded_from_the_review(flow
         if row["kind"] in ("bad_signatures", "certificate"):
             row["check"] = {**row["check"], "ok": False, "reason": "control_misbehaved"}
     detail = present_fixes.code_fix(state, **more)
-    assert problems(detail, FIXES_VIEW["fixes"][0], "detail") == []
+    assert problems(detail, models.FixDetail, "detail") == []
     sentence = "The control did not behave as expected in 2 tests: Certificate strength and Attacker tricks (our short list)."
     assert detail["proof"]["badge"] == {"label": "Proof did not pass", "tone": "fail"} and detail["proof"]["text"] == f"{sentence} The change is not offered."
     assert section(detail, "proof")["line"] == "Did not pass: the control did not behave as expected in 2 tests: Certificate strength and Attacker tricks (our short list)."
@@ -1324,7 +1332,7 @@ def test_the_failed_tests_the_change_is_for_are_named_when_the_proof_did_not_run
     assert section(detail, "proof")["line"] == "Did not pass: this proof did not run the failed tests the change is for."
     assert section(detail, "proof")["verdict"]["checks"][-1] == {"ok": False, "text": both}
     assert detail["what"]["label"] == "What it changes" and detail["what"]["server_line"] == SERVER_LINE_UNPROVEN
-    assert not PROVEN_WORDS.search(" ".join(texts(detail))) and problems(detail, FIXES_VIEW["fixes"][0], "detail") == []
+    assert not PROVEN_WORDS.search(" ".join(texts(detail))) and problems(detail, models.FixDetail, "detail") == []
     # one of the two was in the proof and passed
     review["answers"][1] = {**review["answers"][1], "ok": True, "reason": "passed"}
     one = "This proof did not run 1 of the 2 failed tests the change is for: Independent exam (Wycheproof). Add it back in Tests and run the proof again."
@@ -1408,7 +1416,7 @@ def test_the_server_suggestion_names_a_cipher_suite_only_when_the_run_recorded_a
     two = given["options"]["items"][1]
     assert two["steps"][0] == "Keep only strong cipher suites (the sets of algorithms a connection uses) for TLS 1.2. The exact settings are below."
     assert two["note"] == "This test checks TLS versions only. It will not show which cipher suites the server accepts."
-    assert problems(strong, FIXES_VIEW["fixes"][0], "detail") == []
+    assert problems(strong, models.FixDetail, "detail") == []
     # the run did not record a suite at all: the same
     unknown = section(words({"claimed": ["TLS 1.3"], "accepted": ["TLS 1.2"], "suites": {"TLS 1.2": None}}), "suggestion")["suggestion"]
     assert unknown["intro"] == given["intro"]
@@ -1427,7 +1435,7 @@ def test_the_server_suggestion_names_a_cipher_suite_only_when_the_run_recorded_a
                                 "text": "older clients and partner systems that can't use TLS 1.2 or TLS 1.3 will no longer be able to connect."}
     assert given["where"] is given["options"] is given["exact"] is None
     assert section(other, "suggestion")["line"] == "A warning first, then what to change"
-    assert problems(other, FIXES_VIEW["fixes"][0], "detail") == []
+    assert problems(other, models.FixDetail, "detail") == []
 
 
 # ---------------------------------------------------------------- where the words live, and two races
@@ -1641,7 +1649,7 @@ def test_evidence_lab_asks_again_while_a_proof_runs_even_when_no_row_shows_its_l
         lab.wait_until_idle(plan.id, 120)
     settled = lab.lab_view(plan.id)
     assert settled["busy"] is False and not says_running(settled) and settled["download"]["can_start"] is True
-    assert problems(view, LAB_VIEW, "lab") == [] and problems(settled, LAB_VIEW, "lab") == []
+    assert problems(view, models.LabView, "lab") == [] and problems(settled, models.LabView, "lab") == []
 
 
 def test_a_result_that_ends_while_evidence_lab_is_put_together_still_gets_its_line(lab):

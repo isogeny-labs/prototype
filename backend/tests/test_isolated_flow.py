@@ -4,7 +4,8 @@ import re
 
 import pytest
 
-from app import components, runner
+from app.run import components
+from app.run import runner
 from app.db import TestRunRow
 from conftest import demo_plan, make_lab, result_of
 

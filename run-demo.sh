@@ -18,22 +18,41 @@ if [ -x /usr/bin/python3.12 ]; then
   PY=/usr/bin/python3.12
 elif command -v python3.12 >/dev/null 2>&1; then
   PY="$(command -v python3.12)"
+elif command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; sys.exit(sys.version_info[:2] != (3, 12))'; then
+  PY="$(command -v python3)"
 else
   fail "Python 3.12 is not installed. Install Python 3.12, then run ./run-demo.sh again."
 fi
 
-# 2. Backend: private Python environment + packages (only when missing or the list changed)
+# 2. Large files. Since phase 4c+ new test-set files are kept in Git LFS (large-file storage). A copy made
+#    without Git LFS holds small pointer files in their place: fetch the real ones (demo/vectors only; the
+#    screenshots are not needed to run the app). Nothing happens when every file is already there.
+if grep -rlq "^version https://git-lfs.github.com/spec/v1" "$ROOT/demo/vectors" 2>/dev/null; then
+  if git -C "$ROOT" lfs version >/dev/null 2>&1; then
+    say "Fetching the test-set files from Git LFS (first run only)"
+    git -C "$ROOT" lfs pull --include="demo/vectors/**" \
+      || fail "The test-set files could not be fetched from Git LFS. Check the internet connection, then run ./run-demo.sh again."
+    if grep -rlq "^version https://git-lfs.github.com/spec/v1" "$ROOT/demo/vectors" 2>/dev/null; then
+      fail "Some test-set files in demo/vectors are still Git LFS pointers after fetching. Run: git lfs pull, then run ./run-demo.sh again."
+    fi
+  else
+    fail "Some test-set files in demo/vectors are Git LFS pointers and Git LFS is not installed. Install Git LFS, run: git lfs pull, then run ./run-demo.sh again."
+  fi
+fi
+
+# 3. Backend: private Python environment + packages, exact versions with their fingerprints from
+#    requirements.lock (only when missing or the lock changed)
 if [ ! -x "$VENV/bin/python" ]; then
   say "Setting up Python (first run only, about a minute)"
   "$PY" -m venv "$VENV"
 fi
-if [ ! -f "$VENV/.requirements-installed" ] || [ "$BACKEND/requirements.txt" -nt "$VENV/.requirements-installed" ]; then
+if [ ! -f "$VENV/.requirements-installed" ] || [ "$BACKEND/requirements.lock" -nt "$VENV/.requirements-installed" ]; then
   say "Installing the backend packages"
-  "$VENV/bin/python" -m pip install --quiet --disable-pip-version-check -r "$BACKEND/requirements.txt"
+  "$VENV/bin/python" -m pip install --quiet --disable-pip-version-check --require-hashes -r "$BACKEND/requirements.lock"
   touch "$VENV/.requirements-installed"
 fi
 
-# 3. Frontend: build the screens when they are missing or older than their source
+# 4. Frontend: build the screens when they are missing or older than their source
 needs_build=0
 if [ ! -f "$FRONTEND/dist/index.html" ]; then
   needs_build=1
@@ -50,7 +69,7 @@ if [ "$needs_build" = 1 ]; then
   (cd "$FRONTEND" && npm run build --silent)
 fi
 
-# 4. Isolated mode (optional). If Docker is running, prepare our test images once. This is the only place
+# 5. Isolated mode (optional). If Docker is running, prepare our test images once. This is the only place
 #    anything is downloaded or built for containers; the app itself never does. It can never stop the start:
 #    no Docker, no internet or a slow download just means the app runs in demo mode and says so.
 if command -v docker >/dev/null 2>&1; then
@@ -68,7 +87,7 @@ else
   echo "== Docker is not installed, so the app will run in demo mode (our demo software runs as normal local programs)."
 fi
 
-# 5. Is something already using the app's port?
+# 6. Is something already using the app's port?
 if ! "$VENV/bin/python" - <<'PYEOF'
 import socket, sys
 s = socket.socket()
@@ -83,7 +102,7 @@ then
   fail "Port 8000 is already in use. The app may already be running: try opening $URL. Otherwise close the other program and run ./run-demo.sh again."
 fi
 
-# 6. Start. The app also starts its own demo TLS server on localhost:8443.
+# 7. Start. The app also starts its own demo TLS server on localhost:8443.
 say "Isogeny Evidence Lab is starting"
 echo "   Open this in your browser:  $URL"
 echo "   The first time, it asks you to create a password."

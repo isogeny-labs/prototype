@@ -8,8 +8,8 @@ from sqlalchemy.exc import DBAPIError
 
 from app.canonical import canonical_bytes, loads_strict, sha256_hex
 from app.db import APPEND_ONLY_TABLES, TestRunRow, TestSpecRow
-from app.research import RuleEngine
-from app.testlab import read_spec
+from app.engine.research import RuleEngine
+from app.lab.testlab import read_spec
 from conftest import demo_plan, run_kind
 
 DEMO_CLAIMS = [

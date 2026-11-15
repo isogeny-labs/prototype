@@ -7,7 +7,7 @@ import stat
 
 from fastapi.testclient import TestClient
 
-from app import components
+from app.run import components
 from app.config import DEMO_CBOM, Settings
 from app.main import create_app
 from conftest import PASSWORD, csv_bytes, free_port, upload
@@ -201,7 +201,7 @@ def test_port_in_use_does_not_crash_or_move_ports_and_gives_couldnt_check(tmp_pa
 
 def test_something_else_on_the_demo_port_is_not_reported_as_the_demo_server(client, settings, tls_server, tmp_path):
     """If what answers on the demo address is not our demo certificate, say Couldn't check."""
-    from app.demo_server import TlsServer, ensure_demo_certificate, make_server_context
+    from app.servers.demo_server import TlsServer, ensure_demo_certificate, make_server_context
     lab = client.app.state.lab
     lab.demo.stop()
     cert, key = ensure_demo_certificate(tmp_path / "other")  # a different certificate

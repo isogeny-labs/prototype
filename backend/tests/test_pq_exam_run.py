@@ -1,9 +1,10 @@
 """How a post-quantum exam is run (execute/pqvectors.py), with a stand-in for the container runner: the library's own cases go
 to the library's image, and every control goes to the OpenSSL image, whatever library is examined. No Docker."""
-from types import SimpleNamespace
 
-from app import pq_vectors, research, runner
-from app.execute import RunContext, pqvectors, signing
+from app.engine import pq_vectors
+from app.engine import research
+from app.run import runner
+from app.run.execute import RunContext, pqvectors, signing
 
 from test_real_libraries import real_claims
 

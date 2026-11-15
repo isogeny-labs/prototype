@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from app import testlab
+from app.lab import testlab
 from app.db import ReviewRow, TestRunRow
 from app.jobs import JobRunner
 from conftest import demo_plan, result_of
@@ -33,6 +33,9 @@ def test_never_more_than_the_limit_and_the_statuses_in_order():
         assert runner.busy("plan") and not runner.busy("another plan")
         with pytest.raises(ValueError):
             runner.submit((0, "first"), work)  # no second live job for the same test
+        # A job is "running" just before its work starts: wait until both are inside it, so the peak can be seen.
+        while running[0] < 2 and time.monotonic() < deadline:
+            time.sleep(0.01)
         release.set()
         assert runner.wait_idle(5, group="plan")
         assert [j.status for j in jobs] == ["done"] * 5 and peak[0] == 2 and runner.most_at_once == 2
@@ -62,7 +65,7 @@ def test_run_all_really_overlaps_jobs(demo_flow):
     with demo_flow.lab.db() as db:
         first = [r for r in db.query(TestRunRow).all() if r.phase == "first"]
     spans = sorted((r.started_at, r.finished_at) for r in first)
-    assert any(a_end > b_start for (_, a_end), (b_start, _) in zip(spans, spans[1:])), "two tests were running at the same moment"
+    assert any(a_end > b_start for (_, a_end), (b_start, _) in zip(spans, spans[1:])), "two tests were running at the same moment"  # noqa: B905
 
 
 def test_max_jobs_setting_is_respected(tmp_path):

@@ -10,16 +10,17 @@ from types import SimpleNamespace
 
 import pytest
 
-from app import components, demo_repo
+from app.run import components
+from app import demo_repo
 from app.canonical import canonical_bytes, loads_strict
-from app.demo_server import KEY_FILE
-from app.evidence_export import PUBLIC_KEY_FILE, REPORT_LINKS, SIGNING_KEY_FILE, ensure_signing_key, render_report_html, sign_envelope
-from app.gitrepo import GitRepo
-from app.present import DISCLAIMER
-from app.reviewer import RuleReviewer
+from app.servers.demo_server import KEY_FILE
+from app.evidence.export import PUBLIC_KEY_FILE, REPORT_LINKS, SIGNING_KEY_FILE, ensure_signing_key, render_report_html, sign_envelope
+from app.fixes.gitrepo import GitRepo
+from app.present.results import DISCLAIMER
+from app.engine.reviewer import RuleReviewer
 from conftest import make_lab
 from evidence import FAILED, verify_bytes
-from fixes_shapes import fix as fix_of, plain, section
+from view_helpers import fix as fix_of, plain, section
 from test_changes import proved, small_plan, tamper
 from test_evidence import MARKUP, Shape, export, poisoned
 from test_evidence_cli import run_cli
@@ -202,7 +203,7 @@ def test_every_proof_is_in_the_file_with_its_record_fingerprint_review_and_runs(
             assert review["answers"] == [{"item_id": flow.plan.item["bad_signatures"], "kind": "bad_signatures", "ok": True, "reason": "passed"}]
             assert review["speed"] == {"ok": True, "reason": "no_slowdown"}
             exported = {t["item_id"]: t["runs"][0] for t in seen.evidence["tests"]}
-            for test, recorded, checked in zip(proof["tests"], record["tests"], again["tests"]):
+            for test, recorded, checked in zip(proof["tests"], record["tests"], again["tests"]):  # noqa: B905
                 assert sorted(test) == ["check", "first", "item_id", "kind", "run", "shown", "target", "title"]
                 # the first result it was compared with is the one Evidence Lab shows, by fingerprint
                 assert test["first"]["run_sha256"] == recorded["first"]["run_sha256"] == exported[test["item_id"]]["run_sha256"]
@@ -350,6 +351,7 @@ def test_the_checker_accepts_a_file_from_every_stage(flow, tmp_path):
     assert f"Fingerprint (SHA-256): {flow.retested.made['fingerprint']}" in done.stdout
 
 
+@pytest.mark.slow
 def test_the_checker_refuses_a_file_in_which_any_fixes_or_proof_field_was_changed(flow, tmp_path):
     envelope = loads_strict(flow.retested.raw)
     evidence = envelope["evidence"]
@@ -588,6 +590,7 @@ def test_a_proof_that_is_no_longer_believed_an_interrupted_one_and_code_that_is_
 
 
 
+@pytest.mark.slow
 def test_a_status_never_stands_without_its_reason_and_a_patch_is_never_handed_out_unoffered(flow):
     """Review findings 7 and 8. The proof passed; then the plan changed. The file says "Proof failed" with the
     reason the screen gives, next to the proof that passed, and it does not hold the patch. The same with a pull

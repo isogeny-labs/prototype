@@ -332,6 +332,8 @@ export const fixLines = {
 export const vectorsResult: LabResult = {
   run_id: 7,
   component: "acme-sign 1.4.2",
+  real: false,
+  advisories: null,
   mode: "demo",
   finished_at: "2026-11-11T01:42:16.000Z",
   duration_ms: 9400,
@@ -562,8 +564,8 @@ export const lab: LabView = {
     progress_text: null,
     menu_title: "Choose the version to retest",
     versions: [
-      { version: "1.4.3", label: "acme-sign 1.4.3", tag: "demo", note: "The corrected demo version." },
-      { version: "1.4.2", label: "acme-sign 1.4.2", tag: "demo", note: "The demo version these results are for." },
+      { version: "1.4.3", component: "acme-sign", label: "acme-sign 1.4.3", tag: "demo", note: "The corrected demo version." },
+      { version: "1.4.2", component: "acme-sign", label: "acme-sign 1.4.2", tag: "demo", note: "The demo version these results are for." },
     ],
     menu_note:
       "Choosing a version reruns the same five locked tests on it and shows before and after. Only our two demo versions can be chosen here.",

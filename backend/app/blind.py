@@ -22,9 +22,10 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import components, research
-from .config import COMPONENTS_DIR, DEMO_DIR, REPO_ROOT, VECTORS_DIR, load_settings
-from .real_libraries import REAL_DIR
+from app.run import components
+from app.engine import research
+from app.config import COMPONENTS_DIR, DEMO_DIR, REPO_ROOT, VECTORS_DIR, load_settings
+from app.real_libraries import REAL_DIR
 
 BLIND_DIR = DEMO_DIR / "blind"
 APP_DIR = Path(__file__).resolve().parent
@@ -90,7 +91,7 @@ def _claims(library: dict) -> list[dict]:
 def test_fingerprints(library: dict) -> dict[str, str]:
     """{kind of test: fingerprint of the test as it would be locked for this library}. Needs no registration: a test is
     designed from the claim alone."""
-    from .canonical import canonical_bytes
+    from app.canonical import canonical_bytes
     engine = research.RuleEngine()
     return {spec["kind"]: hashlib.sha256(canonical_bytes(spec)).hexdigest() for spec in engine.propose_tests(_claims(library))["tests"]}
 
@@ -148,7 +149,7 @@ def _read_seal(case: str, folder: Path) -> dict:
 
 
 def run(case: str, folder: Path = BLIND_DIR, say=print, settings=None) -> int:
-    from .lab import Lab
+    from app.lab.hub import Lab
     sealed = _read_seal(case, folder)
     library = sealed["library"]
     if frozen_fingerprint() != sealed["frozen_sha256"] or test_fingerprints(library) != sealed["tests"]:
@@ -199,7 +200,7 @@ def run(case: str, folder: Path = BLIND_DIR, say=print, settings=None) -> int:
 def _code(lab, shown: dict | None) -> str | None:
     """The reviewer's own verdict for a shown result (None when the shown result is no longer that verdict)."""
     from sqlalchemy import select
-    from .db import ReviewRow
+    from app.db import ReviewRow
     if not shown:
         return None
     with lab.db() as db:
@@ -209,7 +210,7 @@ def _code(lab, shown: dict | None) -> str | None:
 
 def _detail(lab, shown: dict | None) -> dict:
     from sqlalchemy import select
-    from .db import ReviewRow
+    from app.db import ReviewRow
     if not shown:
         return {}
     with lab.db() as db:

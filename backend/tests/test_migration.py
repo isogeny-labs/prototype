@@ -1,7 +1,6 @@
 """Phase 4a: the migration plan. The probe, the status rule, the fixed rules for recommendations and the roadmap,
 the CSV additions, and the whole flow on the migration demo file in demo mode (no Docker, no internet: every
 server is a test server on this computer, on a spare port)."""
-import dataclasses
 import json
 import socket
 import threading
@@ -9,15 +8,21 @@ from datetime import date
 
 import pytest
 
-from app import migration_rules as rules
-from app import migration_servers, pqprobe, pqtls, research
-from app.compare import COULDNT, FALSE, TRUE
+from app.migration import rules
+from app.servers import migration_servers
+from app.checks import pqprobe
+from app.checks import pqtls
+from app.engine import research
+from app.engine.compare import COULDNT, FALSE, TRUE
 from app.config import DEMO_DIR
 from app.errors import BadRequest, Conflict, NotFound
-from app.importers import ImportFileError, parse_file
-from app.reviewer import RuleReviewer, pq_status_of, signature_family
-from app.tlsprobe import ProbeSession
-from conftest import PASSWORD, csv_bytes, free_port, make_lab, play_back_speed, upload
+from app.importer.common import ImportFileError
+from app.importer.reader import parse_file
+from app.engine.reviewer import RuleReviewer, pq_status_of, signature_family
+from app.checks.tlsprobe import ProbeSession
+from app.web import models
+from conftest import csv_bytes, free_port, make_lab, play_back_speed, upload
+from view_helpers import problems
 
 ROLES = ("hybrid", "classical_internet", "classical_internal", "legacy_tls12", "pq_only")
 
@@ -120,7 +125,7 @@ def test_the_status_rule(raw, code):
 
 
 def test_the_sentence_names_the_proof_that_was_actually_seen():
-    from app import present_pq
+    from app.present import pq as present_pq
     probe = pq_status_of(_raw(h="offered", full="completed"))["detail"]
     assert probe["hybrid_proof"] == ["probe", "handshake"]
     assert present_pq.status_sentence("hybrid", probe).startswith("It asked for a hybrid key (X25519MLKEM768) when we offered only hybrid key exchanges")
@@ -271,7 +276,7 @@ def flow(tmp_path_factory):
         before = lab.migration_view_for_import(imp["id"])
         lab.measure_migration(plan["id"])
         lab.wait_until_measured(plan["id"], 300)
-        addr = dict(zip(ROLES, [f"localhost:{p}" for p in ports]))
+        addr = dict(zip(ROLES, [f"localhost:{p}" for p in ports]))  # noqa: B905
         yield type("Flow", (), dict(lab=lab, imp=imp, verify=verify, plan=plan, before=before, addr=addr, ports=ports))
     finally:
         lab.stop()
@@ -283,6 +288,15 @@ def _system(view, name):
 
 def _text(parts):
     return "".join(f"[{p['v']}]" if p["t"] == "tag" else p["v"] for p in parts)
+
+
+def test_the_views_have_exactly_the_shape_the_screens_receive(flow):
+    """Before and after measuring all five test servers and both programs (phase 4c+: the shapes in app/web/models.py)."""
+    plan_id = flow.plan["id"]
+    assert problems(flow.before, models.MigrationView, "before") == []
+    assert problems(flow.lab.migration_view(plan_id), models.MigrationView, "migration") == []
+    assert problems(flow.lab.fixes_view(plan_id), models.FixesView, "fixes") == []
+    assert problems(flow.lab.lab_view(plan_id), models.LabView, "lab") == []
 
 
 def test_importing_the_file_starts_its_servers_and_lists_its_settings(flow):
@@ -302,6 +316,7 @@ def test_no_other_file_starts_the_migration_servers(tmp_path):
         lab.stop()
 
 
+@pytest.mark.slow
 def test_a_file_that_only_makes_the_same_claims_never_starts_the_servers(tmp_path):
     """Our demo file without its settings rows (or with one changed) is somebody's own file: nothing starts for it,
     not on import and not later on Verify or Measure, and its addresses are checked like any other."""
@@ -569,7 +584,7 @@ def test_the_users_choice_is_recorded_followed_and_never_overwritten(flow):
         rows = db.query(MigrationChoiceRow).filter_by(system_key=key).order_by(MigrationChoiceRow.id).all()
         assert [(r.option, r.review_date) for r in rows] == [("keep", "2027-06-30"), ("hybrid", None)]
         assert rows[0].basis["recommended"] == "hybrid" and rows[0].basis["status"] == "classical"
-        with pytest.raises(Exception):     # the table itself refuses a change
+        with pytest.raises(Exception):     # the table itself refuses a change  # noqa: B017
             rows[0].reason = "edited"
             db.commit()
 
@@ -639,6 +654,7 @@ def test_an_unconfirmed_address_is_not_contacted_and_reads_couldnt_check(tmp_pat
         lab.stop()
 
 
+@pytest.mark.slow
 def test_without_the_post_quantum_engine_it_says_couldnt_check_and_never_crashes_or_guesses(tmp_path, monkeypatch):
     monkeypatch.setattr(pqtls, "available", lambda: (False, "this copy of the cryptography library has no ML-KEM"))
     ports = _ports()

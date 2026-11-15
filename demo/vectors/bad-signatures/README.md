@@ -8,7 +8,7 @@ It was built **once** by `backend/tools/build_bad_signature_cases.py` with the r
 library (pyca `cryptography`) from a throwaway test key. The private key was never stored,
 printed or logged, and no longer exists; only the public key is in the file. Do not rebuild
 the file: a rebuild uses a new key, and the app refuses a file whose SHA-256 differs from the
-value pinned in `backend/app/vectors.py`.
+value pinned in `backend/app/engine/vectors.py`.
 
 SHA-256 of `cases.json`: `d429e98c4618defad5761fad0129998a281943a3eec1092bfb9b7c7eac4dc216`
 

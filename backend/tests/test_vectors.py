@@ -6,7 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from app import reference, runner, vectors
+from app.run import reference
+from app.run import runner
+from app.engine import vectors
 from app.config import REPO_ROOT, VECTORS_DIR, Settings
 
 ECDSA_SHA = "182db4f3e230f6f9fa9f800d2a614dede30284b8e8438bbfe1171905402e9332"
@@ -142,6 +144,7 @@ def official_run(tmp_path_factory):
     return vector_set, result
 
 
+@pytest.mark.slow
 def test_acme_sign_1_4_2_is_wrong_on_exactly_168_171_364_of_484(official_run):
     vector_set, result = official_run
     assert result.ok and result.mode == "demo" and len(result.lines) == 3 * 484

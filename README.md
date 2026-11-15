@@ -29,7 +29,7 @@ Passing these tests doesn't prove a system secure. It shows these specific check
 
 What is real, what is demo and what is missing is listed honestly in [docs/LIMITS.md](docs/LIMITS.md).
 The full spec is [docs/SPEC.md](docs/SPEC.md). How tests, runs and reviews are recorded is in
-[docs/ENGINE.md](docs/ENGINE.md); how software under test is run is in [docs/ADAPTER.md](docs/ADAPTER.md).
+[docs/ENGINE.md](docs/ENGINE.md); where each file lives is in [docs/LAYOUT.md](docs/LAYOUT.md); how software under test is run is in [docs/ADAPTER.md](docs/ADAPTER.md).
 Screenshots are in [docs/screenshots/](docs/screenshots/).
 
 ## Run the demo (one command)
@@ -209,10 +209,12 @@ Things to know:
 Stop the app first (the end-to-end test needs port 8443 for its own demo server).
 
 ```
-# Backend tests and the accuracy check
+# Backend tests (the fast set, a few minutes) and the accuracy check
 cd backend
 .venv/bin/python -m pytest -q tests
 .venv/bin/python -m app.accuracy
+# Every backend test, the slow ones too (about 24 minutes with Docker ready)
+.venv/bin/python -m pytest -q tests --full
 
 # Frontend tests
 cd frontend
@@ -241,13 +243,16 @@ The accuracy command also runs the migration demo and compares it with `demo/exp
 `demo/expected-real-libraries.json` (`--only real` runs just those; they need isolated mode and the prepared
 images). The build never edits any answer key.
 
-The backend tests take about 15 minutes and the end-to-end test about 7. Tests that need real containers are
-skipped, with a message, when Docker is not running or the images are not prepared
-(`cd backend && .venv/bin/python -m app.prepare`).
+The fast backend set takes a few minutes and says how many slow tests it left out; `--full` runs everything
+and takes about 24 minutes with Docker ready. The end-to-end test takes about 20. Tests that need real containers
+are skipped, with a message, when Docker is not running or the images are not prepared
+(`cd backend && .venv/bin/python -m app.prepare`). Lint, type check and the GitHub checks are described in
+[docs/LAYOUT.md](docs/LAYOUT.md).
 
 ## Where things are
 
-- `backend/` – Python 3.12, FastAPI, SQLite. `app/` is the code, `tests/` the tests, `evidence/` the small
+- `backend/` – Python 3.12, FastAPI, SQLite. `app/` is the code (one folder per job, see
+  [docs/LAYOUT.md](docs/LAYOUT.md)), `tests/` the tests, `evidence/` the small
   command that checks a downloaded evidence file.
 - `frontend/` – React, TypeScript, Vite, Tailwind.
 - `e2e/` – the Playwright end-to-end test.
@@ -261,4 +266,5 @@ skipped, with a message, when Docker is not running or the images are not prepar
   - The code of acme-sign 1.4.2 no longer has comments pointing at its bug. The bug is still there on purpose.
   - The demo repository is made from the 1.4.2 file by `cd backend && .venv/bin/python -m app.demo_repo`. Run
     that again only if the 1.4.2 file ever changes; a test fails until you do.
-- `docs/` – the spec, the limits, the engine and adapter notes, screenshots.
+- `docs/` – the spec, the limits, the layout map, the engine and adapter notes, screenshots.
+- `.github/workflows/` – the GitHub checks (`checks.yml`, `slow.yml`).

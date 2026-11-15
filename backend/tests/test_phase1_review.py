@@ -6,11 +6,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from app import addresses, importers, tlsprobe
-from app.compare import COULDNT, FALSE, TRUE
+from app.checks import addresses
+from app.importer import cbom, common, reader
+from app.checks import tlsprobe
+from app.engine.compare import COULDNT, FALSE, TRUE
 from app.config import DEMO_CBOM, DEMO_DIR
-from app.tlsprobe import NOT_ABOUT_VERSION, ProbeSession
-from app.verify import AddressCheck, DemoContext
+from app.checks.tlsprobe import NOT_ABOUT_VERSION, ProbeSession
+from app.checks.verify import AddressCheck, DemoContext
 from conftest import csv_bytes, upload
 
 NO_DEMO = DemoContext(False, "localhost", 1, False, None, None)
@@ -202,9 +204,9 @@ def nested_cbom(levels: int) -> bytes:
 
 
 def test_components_nested_too_deeply_give_a_clear_error_naming_the_field(client):
-    assert len(importers.parse_cbom(nested_cbom(50))) == 3  # 50 levels is still read
-    with pytest.raises(importers.ImportFileError) as exc:
-        importers.parse_cbom(nested_cbom(51))
+    assert len(cbom.parse_cbom(nested_cbom(50))) == 3  # 50 levels is still read
+    with pytest.raises(common.ImportFileError) as exc:
+        cbom.parse_cbom(nested_cbom(51))
     assert exc.value.field.startswith("components[0].components[0]") and exc.value.field.endswith(".components")
     assert "more than 50 levels deep" in exc.value.message
     for levels in (51, 300, 450):
@@ -218,7 +220,7 @@ def test_components_nested_too_deeply_give_a_clear_error_naming_the_field(client
 def test_a_recursion_error_while_reading_a_file_is_a_422_not_a_crash(client, monkeypatch):
     def boom(data):
         raise RecursionError("maximum recursion depth exceeded")
-    monkeypatch.setattr(importers, "read_cbom", boom)
+    monkeypatch.setattr(reader, "read_cbom", boom)
     r = upload(client, "deep.json", DEMO_CBOM.read_bytes())
     assert r.status_code == 422 and r.json()["error"]["message"] == "This file is nested too deeply to read."
 

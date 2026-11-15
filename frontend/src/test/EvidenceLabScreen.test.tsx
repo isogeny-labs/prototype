@@ -257,7 +257,8 @@ describe("Evidence Lab, retest", () => {
     fireEvent.click(items[0]!);
     await screen.findByTestId("lab-columns");
     const call = fetchMock.mock.calls.find(([url]) => String(url) === "/api/plans/1/retest");
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ version: "1.4.3" });
+    // the backend names each version's library (phase 4c), and the screen sends it back
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ version: "1.4.3", component: "acme-sign" });
     expect(screen.queryByRole("menu")).toBeNull();
   });
 

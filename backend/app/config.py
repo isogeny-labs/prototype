@@ -61,7 +61,7 @@ def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int 
         try:
             demo_tls_port = int(raw)
         except ValueError:
-            raise SystemExit("EVIDENCE_LAB_DEMO_TLS_PORT must be a number between 1 and 65535")
+            raise SystemExit("EVIDENCE_LAB_DEMO_TLS_PORT must be a number between 1 and 65535")  # noqa: B904
     if not 1 <= demo_tls_port <= 65535:
         raise SystemExit("EVIDENCE_LAB_DEMO_TLS_PORT must be a number between 1 and 65535")
     force_mode = os.environ.get("EVIDENCE_LAB_MODE", "").strip().lower() or None

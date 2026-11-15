@@ -7,14 +7,14 @@ from html.parser import HTMLParser
 
 from sqlalchemy import select
 
-from app import evidence_export
+from app.evidence import export as evidence_export
 from app.canonical import canonical_bytes, loads_strict
-from app.db import AddressRow, ClaimRow, ImportRow, VerifyRunRow
-from app.evidence_export import (
+from app.db import AddressRow, ClaimRow, VerifyRunRow
+from app.evidence.export import (
     PUBLIC_KEY_FILE, REPORT_LINKS, SIGNING_KEY_FILE, ensure_signing_key, key_fingerprint, render_report_html,
 )
-from app.present import DISCLAIMER
-from conftest import demo_plan, make_lab, run_kind
+from app.present.results import DISCLAIMER
+from conftest import api_routes, demo_plan, make_lab, run_kind
 from test_plan_api import start, wait
 
 MARKUP = '<script>alert(1)</script>"onmouseover="x\'<img src=x onerror=y>&'
@@ -261,7 +261,7 @@ def test_routes_download_both_files_and_need_a_login(client, anon_client):
 
 
 def test_no_route_returns_the_signing_key(client):
-    paths = [getattr(r, "path", "") for r in client.app.routes]
+    paths = [getattr(r, "path", "") for r in api_routes(client.app)]
     assert not [p for p in paths if "key" in p.lower()]
     source = (evidence_export.__file__ and open(evidence_export.__file__, encoding="utf-8").read())
     assert "print(" not in source.replace("fingerprint(", "") and "logging" not in source

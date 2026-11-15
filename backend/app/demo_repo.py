@@ -18,9 +18,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import components
-from .config import DEMO_DIR
-from .gitrepo import GitRepo, GitRepoError, Person
+from app.run import components
+from app.config import DEMO_DIR
+from app.fixes.gitrepo import GitRepo, GitRepoError, Person
 
 REPOS_DIR = DEMO_DIR / "repos"
 NAME, VERSION = "acme-sign", "1.4.2"   # the registered demo component the repository starts from

@@ -20,9 +20,9 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from .config import DEMO_DIR, Settings, load_settings
-from .db import ReviewRow
-from .lab import Lab
+from app.config import DEMO_DIR, Settings, load_settings
+from app.db import ReviewRow
+from app.lab.hub import Lab
 
 EXPECTED_REAL_JSON = DEMO_DIR / "expected-real-libraries.json"   # the answer key: read-only, never written by the app
 REAL_FILE = DEMO_DIR / "real-libraries.csv"

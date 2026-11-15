@@ -9,7 +9,8 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app import components, demo_repo
+from app.run import components
+from app import demo_repo
 from app.canonical import sha256_hex
 from app.config import DEMO_CBOM
 from app.db import (
@@ -17,8 +18,8 @@ from app.db import (
     ReviewRow, RunCodeRow, TestRunRow,
 )
 from app.errors import BadRequest, Conflict, NotFound
-from app.gitrepo import GitRepo, GitRepoError
-from app.testlab import run_record
+from app.fixes.gitrepo import GitRepo, GitRepoError
+from app.lab.testlab import run_record
 from conftest import demo_plan, held, make_lab, play_back_speed, result_of
 from test_records import RUN_TABLES
 
@@ -134,6 +135,7 @@ def fix_flow(tmp_path_factory):
         lab.stop()
 
 
+@pytest.mark.slow
 def test_before_connecting_the_failed_signing_tests_share_one_code_fix(fix_flow):
     assert [(f["id"], f["kind"], f["status"]) for f in fix_flow.before] == [(FIX, "code", "not_connected"), ("fix-tls-versions", "text", "text_only")]
     code, server = fix_flow.before
@@ -406,6 +408,7 @@ def test_raw_sql_cannot_change_or_delete_the_records_of_a_fix(fix_flow, table):
 
 # ---------------------------------------------------------------- refusals
 
+@pytest.mark.slow
 def test_connect_is_refused_until_every_test_has_a_result_and_nothing_runs(lab):
     plan = small_plan(lab, without=())
     assert lab.fix_states(plan.id) == []
@@ -439,8 +442,8 @@ def test_each_step_is_refused_before_its_time(lab):
     lab.run_all(plan.id)
     lab.wait_until_idle(plan.id, 120)
     for fix_id in ("fix-nothing", "fix-certificate", "FIX", "../x", ""):
-        assert refusal(lambda: lab.open_pull_request(plan.id, fix_id, ["you"]), NotFound) == "That fix does not exist."
-        assert refusal(lambda: lab.patch_file(plan.id, fix_id), NotFound) == "That fix does not exist."
+        assert refusal(lambda: lab.open_pull_request(plan.id, fix_id, ["you"]), NotFound) == "That fix does not exist."  # noqa: B023
+        assert refusal(lambda: lab.patch_file(plan.id, fix_id), NotFound) == "That fix does not exist."  # noqa: B023
     for call in (lambda: lab.run_proof_again(plan.id, "fix-tls-versions"), lambda: lab.merge(plan.id, "fix-tls-versions"),
                  lambda: lab.approve(plan.id, "fix-tls-versions", "you"), lambda: lab.retest_now(plan.id, "fix-tls-versions")):
         assert refusal(call) == "This fix is a text-only suggestion: there is no code change to act on."
@@ -459,7 +462,7 @@ def test_each_step_is_refused_before_its_time(lab):
     assert refusal(lambda: lab.approve(plan.id, FIX, "you")) == refusal(lambda: lab.merge(plan.id, FIX)) == "Open a pull request first."
     assert refusal(lambda: lab.patch_file(plan.id, FIX)) == "The patch can be downloaded once a pull request is open."
     for reviewers in ([], ["you", "you"], ["you", "c"], ["everyone"], "you", None, [["you"]], [1]):
-        assert refusal(lambda: lab.open_pull_request(plan.id, FIX, reviewers), BadRequest) == "Pick one or more reviewers from the list, each of them once."
+        assert refusal(lambda: lab.open_pull_request(plan.id, FIX, reviewers), BadRequest) == "Pick one or more reviewers from the list, each of them once."  # noqa: B023
     with lab.db() as db:
         assert db.query(PullRequestRow).count() == 0
     assert code_fix(lab.open_pull_request(plan.id, FIX, ["a"]))["status"] == "waiting"
@@ -469,7 +472,7 @@ def test_each_step_is_refused_before_its_time(lab):
     # approvals: only someone who was picked, and only once
     assert refusal(lambda: lab.approve(plan.id, FIX, "you")) == refusal(lambda: lab.approve(plan.id, FIX, "b")) == "That reviewer was not picked for this pull request."
     for reviewer in ("c", "You", "", None, ["a"]):
-        assert refusal(lambda: lab.approve(plan.id, FIX, reviewer), BadRequest) == "That reviewer is not in the list."
+        assert refusal(lambda: lab.approve(plan.id, FIX, reviewer), BadRequest) == "That reviewer is not in the list."  # noqa: B023
     assert refusal(lambda: lab.merge(plan.id, FIX)) == "Every picked reviewer must approve before the merge."
     assert refusal(lambda: lab.retest_now(plan.id, FIX)) == "Retest now is available after the merge."
     assert code_fix(lab.approve(plan.id, FIX, "a"))["status"] == "ready_to_merge"
@@ -580,6 +583,7 @@ def test_an_interrupted_proof_counts_as_failed_and_can_be_run_again(lab, monkeyp
     assert code_fix(lab.fix_states(plan.id))["status"] == "ready"
 
 
+@pytest.mark.slow
 def test_a_plan_that_changed_after_the_proof_needs_a_new_proof(lab):
     plan = small_plan(lab)
     assert proved(lab, plan)["status"] == "ready"
@@ -599,6 +603,7 @@ def test_a_plan_that_changed_after_the_proof_needs_a_new_proof(lab):
     assert code["status"] == "ready" and code["proof"]["total"] == 5 and code["proof"]["covers_plan"] is True
 
 
+@pytest.mark.slow
 def test_an_open_pull_request_does_not_shield_a_proof_that_no_longer_covers_the_plan(lab):
     """Review finding 2. With a pull request open, a test is added to the plan: the proof never ran it. Nothing
     more may be approved, merged or downloaded until a proof of the plan as it now stands has passed; the
@@ -846,6 +851,7 @@ def test_only_a_newer_result_with_a_verdict_closes_a_finding(lab):
     assert result_of(lab.lab_view(plan.id), "speed_size", "after")["fix_line"]["fix_id"] == speed_fix
 
 
+@pytest.mark.slow
 def test_a_failing_test_added_after_the_code_was_connected_joins_the_same_code_fix(lab):
     """Third review, finding 3. "Independent exam (Wycheproof)" is not in the plan when the code is connected, so the change
     is made for "Attacker tricks (our short list)" alone. It is then added and fails for the same missing range check. The same

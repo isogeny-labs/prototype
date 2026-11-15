@@ -7,11 +7,14 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from app import components, evidence_export, real_libraries
+from app.run import components
+from app.evidence import export as evidence_export
+from app import real_libraries
 from app.config import DEMO_DIR
-from app.importers import ImportFileError, parse_csv
+from app.importer.common import ImportFileError
+from app.importer.csv_file import parse_csv
 from app.names import normalize_algorithm
-from app.research import CannotDesign, RuleEngine, programs
+from app.engine.research import CannotDesign, RuleEngine, programs
 from conftest import csv_bytes
 
 REAL_CSV = (DEMO_DIR / "real-libraries.csv").read_bytes()
@@ -290,7 +293,7 @@ def _keys(value, found=None):
 
 @pytest.mark.parametrize("kind, cases, parts, left_out", [("mlkem_vectors", 655, [125, 300, 230], 0), ("mldsa_vectors", 475, [25, 195, 255], 45)])
 def test_an_exam_spec_states_its_files_parts_and_what_it_leaves_out(kind, cases, parts, left_out):
-    from app import pq_vectors
+    from app.engine import pq_vectors
     spec = _exam_specs()[kind]
     inputs = spec["inputs"]
     assert inputs["cases"] == cases and sum(p["cases"] for p in inputs["parts"]) == cases

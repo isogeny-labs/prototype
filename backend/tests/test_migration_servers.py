@@ -7,8 +7,9 @@ import types
 
 import pytest
 
-from app import migration_servers, pqtls
-from app.migration_servers import DEFAULT_PORTS, MigrationServers
+from app.servers import migration_servers
+from app.checks import pqtls
+from app.servers.migration_servers import DEFAULT_PORTS, MigrationServers
 from conftest import free_port
 
 LOCAL = "127.0.0.1"
@@ -103,7 +104,7 @@ def test_five_servers_behave_as_specified(started):
     assert pqtls.handshake(LOCAL, legacy, None, "X25519MLKEM768:X25519:P-256").alert == 70
     old = pqtls.handshake(LOCAL, legacy, None, "X25519MLKEM768:X25519:P-256", min_version="TLS 1.2", max_version="TLS 1.2")
     assert (old.outcome, old.tls_version, old.group) == ("completed", "TLS 1.2", "P-256")
-    from app.tlsprobe import describe_certificate
+    from app.checks.tlsprobe import describe_certificate
     assert describe_certificate(old.certificate_der)["key_type"] == "RSA"
     assert describe_certificate(old.certificate_der)["key_size"] == 2048
 
@@ -210,8 +211,8 @@ def _fake_parse(filename, data):
 
 
 def test_claims_match(monkeypatch):
-    from app import importers
-    monkeypatch.setattr(importers, "parse_file", _fake_parse)
+    from app.importer import reader
+    monkeypatch.setattr(reader, "parse_file", _fake_parse)
     ports = spare_ports()
     claims = [(c.location, c.kind, c.claimed_value) for c in _fake_parse("x", migration_servers.file_for(ports)).claims]
     assert migration_servers.claims_match(claims, ports)
@@ -221,5 +222,5 @@ def test_claims_match(monkeypatch):
     def broken(filename, data):
         raise ValueError("can't read")
 
-    monkeypatch.setattr(importers, "parse_file", broken)
+    monkeypatch.setattr(reader, "parse_file", broken)
     assert not migration_servers.claims_match(claims, ports)

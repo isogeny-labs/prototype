@@ -9,10 +9,66 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.config import Settings  # noqa: E402
-from app.demo_server import TlsServer, ensure_demo_certificate, make_server_context  # noqa: E402
+from app.servers.demo_server import TlsServer, ensure_demo_certificate, make_server_context  # noqa: E402
 from app.main import create_app  # noqa: E402
 
 PASSWORD = "test-only-passphrase"  # a throwaway value for tests, not a real credential
+
+# Every JSON answer a test gets from the app is checked against the shape its route declares (tests/api_shapes.py).
+pytest_plugins = ("api_shapes",)
+
+
+# ---------------------------------------------------------------- the two sets: fast (everyday) and full
+
+def pytest_addoption(parser):
+    parser.addoption("--full", action="store_true", default=False,
+                     help="run every test, the slow ones too (Docker, real libraries, timing, long flows)")
+
+
+# Files whose tests read one long demo walk (run all, proof, retest, speed rounds ...) built once for the file. The
+# walk alone takes 10 to 80 seconds, so every test that reads it is in the slow set too (file name: the walk's fixture).
+SLOW_SHARED_WALKS = {
+    "test_accuracy.py": "migration_answers",
+    "test_vectors.py": "official_run",
+    "test_fixes_view.py": "flow",
+    "test_changes.py": "fix_flow",
+    "test_fixes_api.py": "app_client",
+    "test_multi_target.py": "flow",
+}
+
+
+def pytest_collection_modifyitems(config, items):
+    """A test that needs Docker, or reads one of the long demo walks above, is slow by itself; others are marked
+    @pytest.mark.slow by hand. The everyday run leaves the slow ones out; --full (or naming a marker with -m) runs them."""
+    for item in items:
+        fixtures = getattr(item, "fixturenames", ())
+        if "docker_ready" in fixtures or SLOW_SHARED_WALKS.get(item.path.name) in fixtures:
+            item.add_marker(pytest.mark.slow)
+    if config.getoption("--full") or config.getoption("markexpr"):
+        return
+    slow = [item for item in items if item.get_closest_marker("slow")]
+    if slow:
+        config.hook.pytest_deselected(items=slow)
+        items[:] = [item for item in items if not item.get_closest_marker("slow")]
+        config._slow_left_out = len(slow)
+
+
+def pytest_terminal_summary(terminalreporter, config):
+    left_out = getattr(config, "_slow_left_out", 0)
+    if left_out:
+        terminalreporter.write_line(f"{left_out} slow tests were left out (Docker, real libraries, timing, long "
+                                    "flows). Run them with: pytest -q tests --full")
+
+
+def api_routes(app) -> list:
+    """Every route of the app, in registration order, including those the step modules add with include_router."""
+    def flat(routes):
+        for r in routes:
+            if type(r).__name__ == "_IncludedRouter":
+                yield from flat(r.original_router.routes)
+            else:
+                yield r
+    return list(flat(app.routes))
 
 
 def free_port() -> int:
@@ -35,7 +91,7 @@ DOCKER_SKIP = ("Skipped: Docker is not running or the test images are not prepar
 @pytest.fixture(scope="session")
 def docker_ready(tmp_path_factory):
     """The isolated mode, for tests that need real containers. Skips with a clear message when it is not available."""
-    from app import runner
+    from app.run import runner
     mode = runner.detect_mode(Settings(data_dir=tmp_path_factory.mktemp("isolated-data"), demo_tls_port=1))
     if mode.name != "isolated" or not mode.components_image:
         pytest.skip(DOCKER_SKIP)
@@ -136,7 +192,7 @@ def result_of(view: dict, kind: str, which: str = "result") -> dict:
 
 def make_lab(tmp_path, **overrides):
     """A started Lab in demo mode with its own data folder and demo server. The caller stops it."""
-    from app.lab import Lab
+    from app.lab.hub import Lab
     values = dict(data_dir=tmp_path / "data", demo_tls_port=free_port(), force_mode="demo", speed_rounds=25, speed_repeats=4)
     values.update(overrides)
     lab = Lab(Settings(**values))
@@ -163,7 +219,7 @@ def play_back_speed(lab) -> None:
     time the real programs."""
     import random
 
-    from app import runner
+    from app.run import runner
 
     real = lab.component_runner.run_job
     if getattr(real, "plays_back_speed", False):

@@ -10,9 +10,10 @@ import pytest
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
 
-from app import components, gitrepo
-from app.compare import COULDNT, FALSE, TRUE
-from app.components import WITHHELD, lookup, run_component, verify_software_claim
+from app.run import components
+from app.fixes import gitrepo
+from app.engine.compare import COULDNT, FALSE, TRUE
+from app.run.components import WITHHELD, lookup, run_component, verify_software_claim
 from app.config import DEMO_DIR
 
 ACME = DEMO_DIR / "components" / "acme-sign-1.4.2" / "acme_sign.py"
@@ -201,7 +202,7 @@ def test_broken_or_silent_component_is_couldnt_check(tmp_path):
 def isolated_runner(tmp_path, available=True):
     """A runner whose mode is isolated. With available=True its jobs are carried out by the real harness (as a
     local process here, so the test needs no Docker); what matters is which path Verify takes."""
-    from app import runner
+    from app.run import runner
     from app.config import Settings
     inner = runner.ComponentRunner(runner.detect_mode(Settings(data_dir=tmp_path, demo_tls_port=1, force_mode="demo")))
     image = "evidence-lab-components:test" if available else None
@@ -246,7 +247,7 @@ def test_isolated_mode_checks_the_claim_through_the_runner_only(tmp_path, monkey
 
 
 def test_isolated_mode_that_is_not_available_is_couldnt_check_and_nothing_runs(tmp_path, monkeypatch):
-    from app import runner
+    from app.run import runner
     no_local_runs(monkeypatch)
     marker = tmp_path / "ran"
     stand_in = tmp_path / "driver.py"
@@ -258,7 +259,7 @@ def test_isolated_mode_that_is_not_available_is_couldnt_check_and_nothing_runs(t
 
 
 def test_demo_mode_runner_keeps_the_local_check_unchanged(tmp_path):
-    from app import runner
+    from app.run import runner
     from app.config import Settings
     demo = runner.ComponentRunner(runner.detect_mode(Settings(data_dir=tmp_path, demo_tls_port=1, force_mode="demo")))
     res = verify_software_claim(ACME, "acme-sign", "1.4.2", "ECDSA P-256", runner=demo)
@@ -426,6 +427,7 @@ def test_control_accept_all_says_yes_to_anything():
     assert cli([path], "explode")[0] == 2
 
 
+@pytest.mark.slow   # it times the programs, so it belongs with the speed tests
 def test_control_slow_adds_about_three_milliseconds_to_sign_and_verify():
     import statistics
     path = CONTROLS / "slow.py"

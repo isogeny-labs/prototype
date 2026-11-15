@@ -7,19 +7,20 @@ engine (the autoresearcher) is meant to plug in here later without any screen ch
 
 - **Both engines are plain rule-based code from the same build.** There is no AI model and no
   outside service. The engine that proposes tests is `isogeny.rule-engine/1`
-  (`backend/app/research.py`). The engine that reviews runs is `isogeny.rule-reviewer/1`
-  (`backend/app/reviewer.py`).
+  (`backend/app/engine/research.py`). The engine that reviews runs is `isogeny.rule-reviewer/1`
+  (`backend/app/engine/reviewer.py`).
 - They are two separate modules with two separate ids, and the reviewer imports nothing from the
   proposer (a test checks this). That keeps the *shape* right: the engine that proposed a test
   never reviews its own result. It is **not** an independent second opinion: the same people
-  wrote both, at the same time.
+  wrote both, at the same time. The reviewer imports only `engine/vectors.py`, `engine/pq_vectors.py`,
+  `canonical.py` and `checks/tls_names.py`; `tests/test_engine.py` checks this with the full module names.
 - **Dig deeper answers nothing.** It saves a request with status `waiting for research engine`.
   No engine picks it up in this version.
 
 ## The interface
 
 ```python
-class ResearchEngine(Protocol):          # backend/app/research.py
+class ResearchEngine(Protocol):          # backend/app/engine/research.py
     engine_id: str
     def propose_tests(self, claims: list[dict]) -> dict   # {"tests": [TestSpec, ...], "notes": [str], "not_suggested": [...]}
     def design_test(self, request: dict) -> dict          # {"catalog_id": str, "claims": [...], "target"?: str} -> TestSpec
@@ -37,8 +38,8 @@ class ResearchEngine(Protocol):          # backend/app/research.py
 | `propose_change` | **Connect demo code**; the Fixes list before the code is connected; and, once it is connected, every look at the fixes (the same question again, to see whether a failing test that joined the plan later is answered by the same change; the answer is never stored and nothing is run) | Applies the one fix template (below), or returns `None`. No AI model writes anything. `RuleReviewer.propose_change` always refuses. |
 
 `RuleReviewer` is the only module with pass/fail logic. The code that runs tests
-(`backend/app/execute/`) returns raw outcomes only, and the code that words results
-(`backend/app/present.py`) reads the verdict from the stored review.
+(`backend/app/run/execute/`) returns raw outcomes only, and the code that words results
+(`backend/app/present/results.py`) reads the verdict from the stored review.
 
 ### `propose_change`: a code change from a fix template
 
@@ -115,8 +116,8 @@ fingerprint of the proof), `offered`, and:
 - `speed`: `{"ok", "reason"}` with the reason `no_slowdown`, `did_not_pass`, or `not_in_proof` when the proof
   holds no speed test.
 
-Every one of these conditions is decided here, from the record. `changes.py` only passes stored facts, and
-`present_fixes.py` only words the answer (for example "This proof did not run the failed tests the change is
+Every one of these conditions is decided here, from the record. `fixes/changes.py` only passes stored facts, and
+`present/fixes.py` only words the answer (for example "This proof did not run the failed tests the change is
 for: Official test vectors and Bad signatures. Add them back in Tests and run the proof again.").
 
 The same read gate as for results applies: whenever a proof's answer is shown or used, the record is rebuilt
@@ -127,7 +128,7 @@ holds for a stored change that names a fix template this app does not have (`res
 ## The path every test takes
 
 The buttons, the tests of our own code and the accuracy command all use this one path
-(`backend/app/testlab.py`):
+(`backend/app/lab/testlab.py`):
 
 1. **Propose and lock.** The test is written down in full and stored under the SHA-256 of its
    exact bytes, before anything runs.
@@ -275,7 +276,7 @@ are what would show the change.
 
 Three layers, each with one job:
 
-1. **State** (`backend/app/changes.py`, `Lab.fix_states`): every fix of a plan as plain data, with
+1. **State** (`backend/app/fixes/changes.py`, `Lab.fix_states`): every fix of a plan as plain data, with
    no wording. Failed signing tests that the fix template answers share one code fix
    (`fix-ecdsa-range-check`), which stays listed once its change is on record. A failing test
    that joins the plan after the code was connected is answered by the same code fix when the
@@ -306,10 +307,10 @@ Three layers, each with one job:
    approvals already recorded stay, and count again once a new proof has passed. After the merge
    nothing changes: `merged` is a fact. Download patch is allowed only while the change is offered
    in this sense (after the merge: while the proof it was merged on is still believed).
-2. **Words** (`backend/app/present_fixes.py`): every sentence of the Fixes step and of the one line
+2. **Words** (`backend/app/present/fixes.py`): every sentence of the Fixes step and of the one line
    Evidence Lab shows about a fix. It is handed data and decides nothing. Until a proof has
    passed, nothing calls the change ready or says it fixes anything.
-3. **Views** (`backend/app/fixes.py`): `Lab.fixes_view(plan_id)` puts the two together for the
+3. **Views** (`backend/app/fixes/views.py`): `Lab.fixes_view(plan_id)` puts the two together for the
    screen, and `Lab.lab_view` gains the Evidence Lab additions. Both are asked about once a second
    while something runs. Each answer says so itself with `busy`, and what is running is read
    first, before the rest of the answer is put together. So if a test or a proof ends in
@@ -317,8 +318,8 @@ Three layers, each with one job:
    screen asks again and the next answer is the settled one. In Evidence Lab the lines about
    the fixes are worked out after the rows, so they cover every result a row shows.
 
-The Fixes view, in short (the frontend's types in `frontend/src/api.ts` are the exact shape, and
-`backend/tests/fixes_shapes.py` checks every view against them):
+The Fixes view, in short (the exact shape is `FixesView` in `backend/app/web/models.py` (the frontend's copy is `frontend/src/api.gen.ts`), and
+`backend/tests/api_shapes.py` checks every answer a test gets against that shape):
 
 ```python
 {"plan_id", "is_demo", "title", "subline", "disclaimer", "list_title", "empty_text", "busy",
@@ -342,7 +343,7 @@ signing component has a "Code" item in its run record, right after "Component"; 
 and after view has `code_line` and, in `columns`, `before_note`, `after_note`, `before_heading`
 and `after_heading`, which say which code each side ran on.
 
-The routes (`backend/app/main.py`). Every one needs a login. Each is one action by the person at
+The routes (`backend/app/web/`, one file per step; `main.py` only includes them). Every one needs a login. Each is one action by the person at
 the keyboard; the only thing that starts by itself is the proof, when the code is connected.
 Nothing here accepts a file or software.
 
@@ -362,6 +363,26 @@ has no fix for, answers 404 "That fix does not exist." A refused action answers 
 sentence (422 for a body that is not a pick from the fixed reviewer list) and changes nothing. The
 sentence is the one the Fixes view gives for the switched-off button; the patch route refuses in
 the same way while the change is not offered.
+
+## The shape of what each screen receives (phase 4c+)
+
+The shape of the data each screen gets is written once, in `backend/app/web/models.py` (pydantic). Nothing
+else describes it by hand.
+
+- **Routes name their shape.** Each route in `backend/app/web/` has `responses=shows(models.X)`
+  (`web/common.py`). This is documentation only. The route returns exactly the data it returned before;
+  nothing is converted or checked while the app runs.
+- **Tests check every answer.** While a backend test talks to the app through `TestClient`, every JSON answer is
+  checked strictly against its route's shape (`backend/tests/api_shapes.py`, switched on in `tests/conftest.py`).
+  A key too many or too few, or a wrong kind of value, fails that test. `tests/test_api_shapes_routes.py` calls the
+  routes no other test calls through the web. Small helpers for tests are in `tests/view_helpers.py`, including
+  `problems(value, models.X)`.
+- **Two generators write the frontend's types.** `cd backend && .venv/bin/python tools/api_schema.py` writes the
+  API description to `frontend/src/api-schema.json` (add `--check` to only compare). `cd frontend && npm run gen:api`
+  turns it into `frontend/src/api.gen.ts` (dev-only; add `-- --check` to only compare). `frontend/src/api.ts` keeps
+  the request functions and re-exports the generated types.
+- **To change a view:** change the backend, then the model, then run the two generators, then the frontend.
+  GitHub's "Checks" fail if either generated file is out of date.
 
 ## The evidence file
 
@@ -453,7 +474,7 @@ the signer could not be confirmed." and exits with code 2, which is not a pass.
 ## Plugging in a real engine later
 
 - Implement the five methods and give the engine its own `engine_id`. `Lab` (in
-  `backend/app/lab.py`) holds one proposer (`self.engine`) and one reviewer (`self.reviewer`).
+  `backend/app/lab/hub.py`) holds one proposer (`self.engine`) and one reviewer (`self.reviewer`).
 - A proposer must return tests in the locked-test shape above, with a machine-readable `rule` and
   `control.must` that the reviewer knows how to apply. A new kind of rule needs reviewer code too.
 - A real reviewer must keep working from the stored run record alone, and must stay a different
@@ -476,7 +497,7 @@ things mark it out:
   `pq_engine_unavailable`, `claim_not_confirmed` or one of the existing reasons. As for every test, a control
   that did not behave gives `couldnt_trust`.
 
-The raw outcome of `pq_status` (`execute/pqstatus.measure_server`):
+The raw outcome of `pq_status` (`run/execute/pqstatus.measure_server`):
 
 ```
 {"engine": {"available": true, "text": "..."},
@@ -497,7 +518,7 @@ phase 4a has rule type `pq_group_offered` and keeps its own executor, rule and w
 
 Not records: the recommendation, the blockers, the roadmap and the Fixes entries are worked out on every read
 from the newest reviewed measurement (through the read gate), the settings and the choices
-(`MigrationMixin._migration_states`, rules in `migration_rules.py`). What is stored, in tables that only accept
+(`MigrationMixin._migration_states`, rules in `migration/rules.py`). What is stored, in tables that only accept
 new rows: `system_settings` (import, system, field, value, source `file` or `user`) and `migration_choices`
 (plan, system, option, reason, review date, and the status, recommendation and settings on screen at the time).
 
@@ -512,7 +533,7 @@ with its reasons, the user's choice and earlier choices, the plan and its roadma
 ## Phase 4b: tracks, changes, tries, Apply and Roll back
 
 Same path as before: written down and locked, run, stored, reviewed by the separate reviewer. Words only in the
-`present_*` files.
+`present/` files.
 
 **The rule type `pq_status_tracks`** (`research.PQ_TRACKS_RULE_TEXT`; inputs `tracks: true`) is a new locked-spec
 fingerprint. A migration measured in phase 4a keeps its `pq_status` rule and words and must be measured again.
@@ -530,12 +551,12 @@ fingerprint. A migration measured in phase 4a keeps its `pq_status` rule and wor
 - the control: besides the old reading, the hybrid control server must pick hybrid and the classical one classical on the
   both-keys hello. If not, the control reads not as expected and the run can't be trusted.
 
-**A change** (`change_builder.py`) is pure: the same plan and settings give the same change and fingerprint. It is worked
+**A change** (`migration/change_builder.py`) is pure: the same plan and settings give the same change and fingerprint. It is worked
 out on every read and stored only when acted on. It carries the settings before and after, the lines for nginx, Apache and
 an application, and the **promise**: the facts a try, and the measurement after Apply, are held to (`kex`, `auth`,
 `classical_client`, or `tls` for the Acme Pay server protocol check).
 
-**Four pure outcome functions in `reviewer.py`** (the only place that decides these; `_facts_of` reads a reviewed
+**Four pure outcome functions in `engine/reviewer.py`** (the only place that decides these; `_facts_of` reads a reviewed
 measurement):
 
 - `meets_promise(promise, measured)`: (True/False/None, one check per promised fact). None when the measurement gave no
@@ -552,9 +573,9 @@ measurement):
   `differs` with the differences; `no_answer` when either side has no answer.
 
 **The copy measurement runs through the same executor** as the system's own measurement, with the address replaced by the
-copy's port. Real nginx (`lab_nginx.py`) is a second copy, run in a locked-down container from the pinned image.
+copy's port. Real nginx (`servers/lab_nginx.py`) is a second copy, run in a locked-down container from the pinned image.
 
-**Records and flow** (`system_changes.py`): add-only tables `change_tries`, `apply_requests`, `apply_approvals`, `applies`,
+**Records and flow** (`migration/system_changes.py`): add-only tables `change_tries`, `apply_requests`, `apply_approvals`, `applies`,
 `rollbacks`. Routes `POST /api/plans/{id}/changes/try`, `.../ask-approval`, `.../approve`, `.../apply`, `.../rollback` and
 `GET .../changes/download`. Apply is refused unless the latest try passed, every picked reviewer approved and the server is
 one of ours. The settings in force are worked out by replaying applies and roll backs. After Apply and after Roll back the
@@ -575,7 +596,7 @@ Roll back and its measurement) and the report gains part 6, "Changes: tried, app
 - **Every worded result** (`present.lab_result`) carries `plain`: one sentence on top, saying what was found and
   why that gives this result; and `also_noticed` (a list, often empty). `summary` and `short` stay as the
   technical text. The words are made from the stored review and run record only.
-- **Every Verify row** carries `summary` (one plain sentence, from `plain.py`) and `also_noticed`. A row stored
+- **Every Verify row** carries `summary` (one plain sentence, from `present/plain.py`) and `also_noticed`. A row stored
   before phase 3a-fixes gets a plain fallback when it is read.
 - **Also noticed** is words only: something a check saw that the file didn't ask about. The one case so far: a
   certificate check (in Verify, and the `certificate` test, whose raw record now also keeps the TLS versions
@@ -584,18 +605,18 @@ Roll back and its measurement) and the report gains part 6, "Changes: tried, app
 - **Text-only fixes** are one per failed test, so each server has its own. The id is `fix-<test>` while the
   plan holds one test of that kind, else `fix-<test>-<item id>`. In a file with several targets the list line
   names the server or program.
-- **The multi-target demo file's test servers** (`extra_servers.py`, ports 8444-8446, `Settings.extra_ports`)
+- **The multi-target demo file's test servers** (`servers/extra_servers.py`, ports 8444-8446, `Settings.extra_ports`)
   start only when that exact file is imported, or when that import is verified or tested after a restart.
 
 ## Phase 4c: real libraries and the two post-quantum exams
 
 Same path as before: written down and locked, run, stored, reviewed by the separate reviewer. Words only in the
-`present_*` files (the real-library words are in `present_real.py`). A real library (`real_libraries.py`) runs only
+`present/` files (the real-library words are in `present/real.py`). A real library (`real_libraries.py`, top of `backend/app/`) runs only
 in isolated mode, in its own image; in demo mode its tests come out as Couldn't run ("needs isolated mode"). A real
 library is a target like any other signing program: `target.component` and `target.claim` name it.
 
-**Two new test kinds**, designed in `research.py` (`_pq_exam`), run in `execute/pqvectors.py`, judged in
-`reviewer.py` (`_pq_exam`, `_pq_right`). The cases are in `pq_vectors.py` (`FILES` with their SHA-256 pins, `EXAMS`).
+**Two new test kinds**, designed in `engine/research.py` (`_pq_exam`), run in `run/execute/pqvectors.py`, judged in
+`engine/reviewer.py` (`_pq_exam`, `_pq_right`). The cases are in `engine/pq_vectors.py` (`FILES` with their SHA-256 pins, `EXAMS`).
 
 - `mlkem_vectors`, titled "Key exchange exam (ML-KEM-768)": parts `keygen` (125 cases), `encaps` (300), `decaps` (230).
 - `mldsa_vectors`, titled "Signature exam (ML-DSA-65)": parts `keygen` (25), `sign` (195), `verify` (255), and
@@ -664,7 +685,7 @@ of a run on our own demo components stay exactly what they were. It is shown und
 **`can_make_pq`**: the review of a `signing_status` measurement on a real library carries `detail.can_make_pq`
 (true, false or null) and `detail.pq_algorithm`. It is read from `raw.capability`: true when the check of that
 capability (the library making an ML-DSA-65 signature today) said True, false when it said False, null otherwise. It is written only when a capability was
-measured. `migration.py` reads it as the "post-quantum signatures" setting of that program.
+measured. `migration/state.py` reads it as the "post-quantum signatures" setting of that program.
 
 **Retest of one library.** `POST /api/plans/{plan_id}/retest` takes `{"version": "...", "component": "..." | null}`.
 `component` names which program of the file moves to the other version, when the file names more than one. It is

@@ -11,7 +11,7 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
-from .db import AuthRow, SessionRow, now_utc
+from app.db import AuthRow, SessionRow, now_utc
 
 MIN_PASSWORD_LENGTH = 8
 MAX_PASSWORD_LENGTH = 1024

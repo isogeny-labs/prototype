@@ -408,6 +408,8 @@ const codeFixBase: FixDetail = {
   merge_dialog: null,
   sections: [],
   sections_note: "The change, its proof and the technical details appear below once the code is connected.",
+  change_box: null,
+  advisories: null,
 };
 
 const provingFix: FixDetail = {
@@ -698,6 +700,8 @@ export const tlsFix: FixDetail = {
     },
   ],
   sections_note: null,
+  change_box: null,
+  advisories: null,
 };
 
 // ---- The whole view, one for each status of the code fix ----

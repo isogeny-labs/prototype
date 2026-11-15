@@ -6,8 +6,8 @@ import types
 
 import pytest
 
-from app import pqtls
-from app.tlsprobe import describe_certificate
+from app.checks import pqtls
+from app.checks.tlsprobe import describe_certificate
 from conftest import free_port
 
 LOCAL = "127.0.0.1"

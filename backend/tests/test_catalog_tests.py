@@ -5,10 +5,10 @@ from contextlib import contextmanager
 
 import pytest
 
-from app import research
+from app.engine import research
 from app.db import TestRunRow
-from app.execute import pq
-from app.tlsprobe import openssl_cli
+from app.run.execute import pq
+from app.checks.tlsprobe import openssl_cli
 from conftest import demo_plan, result_of
 
 OFFERED = """Connecting to 127.0.0.1
@@ -129,7 +129,7 @@ def test_no_checker_gives_exactly_the_answer_key_wording(lab, monkeypatch):
 
 
 def test_checker_choice(monkeypatch):
-    from app.runner import ModeInfo
+    from app.run.runner import ModeInfo
     assert pq.parse_version("OpenSSL 3.5.9 29 Sep 2026 (Library: OpenSSL 3.5.9 29 Sep 2026)") == (3, 5)
     assert pq.parse_version("OpenSSL 3.0.13 30 Jan 2024") == (3, 0) and pq.parse_version("LibreSSL 4.0") is None
     no_docker = ModeInfo("demo", "x", None, False, None, None)
@@ -178,6 +178,7 @@ def test_live_not_offered_by_the_new_measurement_with_both_controls_read_right(d
     assert "PRIVATE KEY" not in str(raw)
 
 
+@pytest.mark.slow   # starts the OpenSSL 3.5 checker container where Docker has the prepared image
 def test_the_old_checker_still_reads_a_live_server_when_there_is_one(lab, monkeypatch):
     """The path a test locked before phase 4a takes, against the real demo server, where an OpenSSL 3.5 checker exists."""
     if not _real_checker_available(lab):
@@ -220,7 +221,7 @@ def test_mldsa_comparison_is_measured_and_labelled(demo_flow):
 
 
 def test_mldsa_control_that_accepts_an_altered_signature_means_couldnt_trust(lab, monkeypatch):
-    from app.execute import speed
+    from app.run.execute import speed
     real = speed.measure_mldsa65
 
     def broken(repeats, message):

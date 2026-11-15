@@ -3,10 +3,12 @@ import random
 import threading
 import time
 
+import pytest
+
 from app.canonical import sha256_hex
 from app.jobs import ExclusiveGate
-from app.research import RuleEngine
-from app.reviewer import RuleReviewer, paired_comparison
+from app.engine.research import RuleEngine
+from app.engine.reviewer import RuleReviewer, paired_comparison
 from conftest import demo_plan, result_of
 from test_records import DEMO_CLAIMS
 
@@ -77,7 +79,7 @@ def test_a_tiny_real_change_under_the_floor_is_not_flagged():
 
 def retest_words(old_sign, new_sign, old_verify, new_verify):
     """The on-screen words for a retest with these exact timings (through the real reviewer and present)."""
-    from app import present
+    from app.present import results as present
     n = ROUNDS * REPEATS
     old = benches("old", "acme-sign-1.4.2", old_sign, old_verify)
     new = benches("new", "acme-sign-1.4.3", new_sign, new_verify)
@@ -161,6 +163,7 @@ def test_the_gate_gives_a_measurement_the_computer_to_itself():
     assert events == [0] * 10 and gate.shared_seen_during_exclusive == 0
 
 
+@pytest.mark.slow
 def test_real_retests_never_flag_the_fix_while_other_jobs_run(lab):
     """1.4.2 -> 1.4.3, three times over, each time with the other tests running in the same Run: never a
     slowdown, the slowed control flagged every time, and the measurement always alone on the gate."""

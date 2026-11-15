@@ -6,9 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from app import components, demo_repo, gitrepo
+from app.run import components
+from app import demo_repo
+from app.fixes import gitrepo
 from app.config import DEMO_DIR
-from app.gitrepo import GitRepo, GitRepoError, Person
+from app.fixes.gitrepo import GitRepo, GitRepoError, Person
 from test_gitrepo import fsck, listing, real_git, strip_hint
 
 BUNDLED = DEMO_DIR / "repos" / "acme-sign.git"

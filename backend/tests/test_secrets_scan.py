@@ -11,9 +11,10 @@ import stat
 
 from cryptography.hazmat.primitives import serialization
 
-from app import components, runner
-from app.demo_server import KEY_FILE
-from app.evidence_export import SIGNING_KEY_FILE
+from app.run import components
+from app.run import runner
+from app.servers.demo_server import KEY_FILE
+from app.evidence.export import SIGNING_KEY_FILE
 from conftest import demo_plan, make_lab, run_kind
 
 MARKERS = ("PRIVATE KEY", "BEGIN EC PRIVATE", "BEGIN OPENSSH", "BEGIN RSA PRIVATE")
@@ -122,7 +123,7 @@ def test_key_files_are_private_to_this_user(demo_flow):
 
 def test_the_scan_itself_notices_a_planted_key(tmp_path):
     """The scan is only worth something if it can fail."""
-    from app.evidence_export import ensure_signing_key
+    from app.evidence.export import ensure_signing_key
     ensure_signing_key(tmp_path)
     forms = key_forms(tmp_path / SIGNING_KEY_FILE)
     leaked = "log line: " + (tmp_path / SIGNING_KEY_FILE).read_text()

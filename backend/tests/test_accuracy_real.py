@@ -58,7 +58,7 @@ def good_answers():
                      ("elliptic 6.5.6", "bad_signatures"): result("Passed", component="elliptic 6.5.7"),
                      ("elliptic 6.5.6", "speed_size"): result("No slowdown beyond measured noise")},
     }
-    fix = lambda name: {"title": f"Update {name} to the fixed version (x)", "kind": "text", "status": "Text only", "pull_request": None,
+    fix = lambda name: {"title": f"Update {name} to the fixed version (x)", "kind": "text", "status": "Text only", "pull_request": None,  # noqa: E731
                         "buttons": [], "advisory_links": ["https://example.org/a"], "text": ""}
     blocked = {"status": "Classical", "today": "", "next": "sign with both, once its signing library can (the blocker).",
                "blockers": ["It signs with ECDSA P-256 only: it can't make post-quantum signatures measured."], "band": "Phase 2", "recommended": "x"}

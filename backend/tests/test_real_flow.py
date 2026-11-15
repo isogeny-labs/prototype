@@ -12,11 +12,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from app import runner
+from app.run import runner
 from app.accuracy_real import _fixes, _migration, _result, _rows
-from app.compare import COULDNT, TRUE
+from app.engine.compare import COULDNT, TRUE
 from app.config import DEMO_DIR
-from app.evidence_export import PUBLIC_KEY_FILE
+from app.evidence.export import PUBLIC_KEY_FILE
 from evidence import verify_bytes
 from conftest import csv_bytes, make_lab, result_of
 
@@ -124,6 +124,7 @@ def test_demo_mode_migration_couldnt_check_all_five_systems(demo_mode):
         assert system["status"] == "Couldn't check" and "isolated mode" in system["today"], (name, system)
 
 
+@pytest.mark.slow
 def test_a_real_library_beside_acme_sign_keeps_the_file_demo_data_but_still_cannot_run(tmp_path):
     lab = make_lab(tmp_path)
     try:

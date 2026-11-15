@@ -7,7 +7,8 @@ import urllib.request
 import pytest
 from pathlib import Path
 
-from app import prepare, real_libraries
+from app import prepare
+from app import real_libraries
 from app.config import NGINX_IMAGE, OPENSSL_IMAGE, PYTHON_BASE_IMAGE, REPO_ROOT
 
 APP = Path(prepare.__file__).parent
@@ -86,9 +87,9 @@ def test_only_prepare_can_build_or_pull():
                  if path.name != "prepare.py" and pattern.search(path.read_text())]
     assert offenders == []
     assert pattern.search((APP / "prepare.py").read_text())
-    run_flags = (APP / "runner.py").read_text()
+    run_flags = (APP / "run" / "runner.py").read_text()
     assert '"--pull", "never"' in run_flags  # a missing image is an error, never a download
-    assert '"--pull", "never"' in (APP / "lab_nginx.py").read_text()   # the lab nginx too (phase 4b)
+    assert '"--pull", "never"' in (APP / "servers" / "lab_nginx.py").read_text()   # the lab nginx too (phase 4b)
     assert NGINX_IMAGE.startswith("nginx@sha256:") and len(NGINX_IMAGE.split("@sha256:")[1]) == 64
 
 
