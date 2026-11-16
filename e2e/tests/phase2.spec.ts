@@ -7,7 +7,7 @@ import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_pr
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, DISCLAIMER, PYTHON, enterApp, importVerifyAndOpenTests, password, screenshotFolder, shotFixes } from "./shared";
+import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, screenshotFolder, shotFixes, stepLink, openFreshAssessment, evidenceRow, openResult, resultPanel, toggleResult } from "./shared";
 
 const SHOTS = screenshotFolder("phase2");
 const PQ_TOO_OLD = "Couldn't run (needs OpenSSL 3.5 or newer)";
@@ -29,7 +29,7 @@ function card(title: string): Locator {
 }
 
 function labRow(title: string): Locator {
-  return page.getByTestId("lab-row").filter({ has: page.getByRole("heading", { name: title, exact: true }) });
+  return evidenceRow(page, title);   // phase 5a: the table row; its details open in the detail panel
 }
 
 async function cardTitles(): Promise<string[]> {
@@ -89,6 +89,7 @@ test.afterAll(async () => {
 
 test("log in, Use demo file, Verify claims, Continue to tests: five tests are suggested", async () => {
   await enterApp(page);
+  await openFreshAssessment(page, "Phase 2 walk");
   await importVerifyAndOpenTests(page);
 
   const cards = page.getByTestId("test-card");
@@ -106,8 +107,8 @@ test("log in, Use demo file, Verify claims, Continue to tests: five tests are su
   await expect(page.getByTestId("mode-line")).toHaveText("Demo mode: running our own demo software, not isolated. Isolated mode is switched off for this run.");
   await expect(page.getByRole("button", { name: "Run all" })).toBeEnabled();
   // Evidence Lab opens only once there is a result, and so does Fixes (the fifth step, phase 3a).
-  await expect(page.getByRole("button", { name: "4. Evidence Lab" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "5. Fixes" })).toBeDisabled();
+  await expect(stepLink(page, "4. Evidence Lab")).toBeDisabled();
+  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
   await expectNoSoftwareUpload();
   await expectCarefulWording();
   await shot(page, "01-tests-before-running.png");
@@ -123,7 +124,7 @@ test("reorder two tests (keyboard, then drag); the order is kept after a refresh
   await page.reload();
   await expect(page.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
   await expect.poll(cardTitles).toEqual(swapped);
-  const stored = await (await page.request.get(page.url().replace(/\/?$/, "/") + "api/import/current")).json();
+  const stored = await (await page.request.get("/api/import/current")).json();
   const plan = await (await page.request.get(`/api/import/${stored.id}/plan`)).json();
   expect(plan.tests.map((t: any) => t.title)).toEqual(swapped);
 
@@ -213,9 +214,9 @@ test("Run all runs the tests in parallel and every card ends with a result", asy
 });
 
 test("Evidence Lab lists the six results; every control behaved as expected", async () => {
-  await page.getByRole("button", { name: "4. Evidence Lab" }).click();
-  await expect(page.getByRole("heading", { name: "Evidence Lab", level: 1 })).toBeVisible();
-  const rows = page.getByTestId("lab-row");
+  await stepLink(page, "4. Evidence Lab").click();
+  await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
+  const rows = page.getByTestId("evidence-row");
   await expect(rows).toHaveCount(6);
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   await expect(page.getByText("Demo data", { exact: true })).toBeVisible();
@@ -246,8 +247,8 @@ test("Evidence Lab lists the six results; every control behaved as expected", as
 
 test("Independent exam (Wycheproof): the three wrong cases, the locked test and its fingerprint", async () => {
   const row = labRow("Independent exam (Wycheproof)");
-  await row.getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
-  const detail = row.getByTestId("result-detail");
+  await toggleResult(page, "Independent exam (Wycheproof)");
+  const detail = resultPanel(page).getByTestId("result-detail");
   await expect(detail).toHaveCount(1);
   const wrong = detail.getByRole("table").first().locator("tbody tr");
   await expect(wrong).toHaveCount(3);
@@ -279,7 +280,7 @@ test("Independent exam (Wycheproof): the three wrong cases, the locked test and 
 });
 
 test("Dig deeper saves a queued research request with no answer; Mark reviewed records the user's decision", async () => {
-  const detail = labRow("Independent exam (Wycheproof)").getByTestId("result-detail");
+  const detail = resultPanel(page).getByTestId("result-detail");
   const before = await labRow("Independent exam (Wycheproof)").getByTestId("result-badge").locator("span:last-child").first().innerText();
 
   await detail.getByRole("button", { name: "Dig deeper" }).click();
@@ -299,9 +300,9 @@ test("Dig deeper saves a queued research request with no answer; Mark reviewed r
   await expect(labRow("Independent exam (Wycheproof)").getByTestId("result-badge").locator("span:last-child").first()).toHaveText(before);
   await shot(page, "06-lab-dig-deeper-queued.png");
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Evidence Lab", level: 1 })).toBeVisible();
-  await labRow("Independent exam (Wycheproof)").getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
-  const again = labRow("Independent exam (Wycheproof)").getByTestId("result-detail");
+  await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
+  await toggleResult(page, "Independent exam (Wycheproof)");
+  const again = resultPanel(page).getByTestId("result-detail");
   await expect(again.getByRole("button", { name: "Dig deeper: queued" })).toBeDisabled();
   await expect(again.getByRole("button", { name: "Reviewed", exact: true })).toBeDisabled();
   await expect(again.getByTestId("research-request")).toContainText("waiting for research engine");
@@ -309,13 +310,13 @@ test("Dig deeper saves a queued research request with no answer; Mark reviewed r
 
 test("Attacker tricks (our short list) failed on 1.4.2: the r=0, s=0 case is shown, with the one line that points to its fix", async () => {
   // Close the vectors row so the screenshot shows this one result.
-  await labRow("Independent exam (Wycheproof)").getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
+  await toggleResult(page, "Independent exam (Wycheproof)");
   await expect(page.getByTestId("result-detail")).toHaveCount(0);
 
   const row = labRow("Attacker tricks (our short list)");
   await expect(row.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed");
-  await row.getByRole("button", { name: "Attacker tricks (our short list)" }).click();
-  const detail = row.getByTestId("result-detail");
+  await toggleResult(page, "Attacker tricks (our short list)");
+  const detail = resultPanel(page).getByTestId("result-detail");
   const zeroCase = detail.getByRole("table").first().locator("tbody tr").filter({ hasText: /r\s?=\s?0.*s\s?=\s?0/ });
   await expect(zeroCase.first()).toBeVisible();
   await expect(zeroCase.first()).toContainText(/accepted/i);
@@ -326,7 +327,7 @@ test("Attacker tricks (our short list) failed on 1.4.2: the r=0, s=0 case is sho
   await expect(detail.getByRole("button", { name: "Dig deeper" })).toBeEnabled();
   await expectCarefulWording();
   await shot(page, "10-lab-bad-signatures-expanded.png");
-  await row.getByRole("button", { name: "Attacker tricks (our short list)" }).click();
+  await toggleResult(page, "Attacker tricks (our short list)");
 });
 
 test("Retest new version offers only our two demo versions; picking 1.4.3 starts it at once", async () => {
@@ -400,8 +401,8 @@ async function specFingerprints(): Promise<Record<string, string[]>> {
 
 test("before and after stays expandable: the bad-signature case now passes, and speed shows the measured noise", async () => {
   const bad = labRow("Attacker tricks (our short list)");
-  await bad.getByRole("button", { name: "Attacker tricks (our short list)" }).click();
-  const details = bad.getByTestId("result-detail");
+  await toggleResult(page, "Attacker tricks (our short list)");
+  const details = resultPanel(page).getByTestId("result-detail");
   await expect(details).toHaveCount(2);
   const after = details.nth(0);
   const before = details.nth(1);
@@ -417,11 +418,11 @@ test("before and after stays expandable: the bad-signature case now passes, and 
     await expect(d.getByRole("button", { name: /^Dig deeper/ })).toBeVisible();
   }
   await shot(page, "10a-lab-bad-signatures-after.png");
-  await bad.getByRole("button", { name: "Attacker tricks (our short list)" }).click();
+  await toggleResult(page, "Attacker tricks (our short list)");
 
   const speed = labRow("Speed and size");
-  await speed.getByRole("button", { name: "Speed and size" }).click();
-  const result = speed.getByTestId("result-detail").nth(0);
+  await toggleResult(page, "Speed and size");
+  const result = resultPanel(page).getByTestId("result-detail").nth(0);
   await expect(result.getByTestId("result-badge").locator("span:last-child")).toHaveText("No slowdown beyond measured noise");
   const table = result.getByRole("table").first();
   await expect(table.locator("thead")).toContainText("acme-sign 1.4.2");
@@ -438,15 +439,15 @@ test("before and after stays expandable: the bad-signature case now passes, and 
   await expect(result.getByTestId("control-outcome")).toHaveAttribute("data-outcome", "as_expected");
   await expectCarefulWording();
   await shot(page, "09-lab-speed-expanded.png");
-  await speed.getByRole("button", { name: "Speed and size" }).click();
+  await toggleResult(page, "Speed and size");
 
   // The earlier Mark reviewed and Dig deeper are still on the first run's result.
   const vectors = labRow("Independent exam (Wycheproof)");
-  await vectors.getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
-  const first = vectors.getByTestId("result-detail").nth(1);
+  await toggleResult(page, "Independent exam (Wycheproof)");
+  const first = resultPanel(page).getByTestId("result-detail").nth(1);
   await expect(first.getByRole("button", { name: "Reviewed", exact: true })).toBeDisabled();
   await expect(first.getByTestId("research-request")).toContainText("waiting for research engine");
-  await vectors.getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
+  await toggleResult(page, "Independent exam (Wycheproof)");
 });
 
 test("Download evidence gives a JSON file and an HTML report; the verify command passes on the file", async () => {
@@ -547,7 +548,7 @@ test("the HTML report is a static, readable copy that prints the same fingerprin
 
 test("nothing in the app takes outside software: no upload control on Tests or Evidence Lab, no such address", async () => {
   await expectNoSoftwareUpload();
-  await page.getByRole("button", { name: "3. Tests" }).click();
+  await stepLink(page, "3. Tests").click();
   await expect(page.getByTestId("test-card")).toHaveCount(6);
   await expectNoSoftwareUpload();
   await page.getByRole("button", { name: "+ Add test" }).click();
@@ -555,7 +556,7 @@ test("nothing in the app takes outside software: no upload control on Tests or E
   await expectNoSoftwareUpload();
   await page.keyboard.press("Escape");
   // The only file the app takes is the claims file on Import.
-  await page.getByRole("button", { name: "1. Import" }).click();
+  await stepLink(page, "1. Import").click();
   await expect(page.locator('input[type="file"]')).toHaveCount(1);
   await expect(page.getByLabel("Choose a file to import")).toHaveCount(1);
   for (const address of ["/api/components", "/api/software", "/api/upload", "/api/plans/1/software", "/api/plans/1/component"]) {
@@ -605,6 +606,7 @@ test("isolated mode: the mode line says so and a test really runs in a container
 
     const view = await second.newPage();
     await enterApp(view);
+    await openFreshAssessment(view, "Phase 2 walk");
     // (since phase 4c the line goes on to say which real libraries can run)
     await expect(view.getByTestId("mode-line")).toContainText("Isolated mode: our demo software runs in a locked-down container with no network.");
     await importVerifyAndOpenTests(view);
@@ -615,10 +617,8 @@ test("isolated mode: the mode line says so and a test really runs in a container
     await vectors.getByRole("button", { name: "Run Independent exam (Wycheproof)" }).click();
     await expect(vectors.getByTestId("result-badge").locator("span:last-child")).toHaveText("Failed", { timeout: 120_000 });
 
-    await view.getByRole("button", { name: "4. Evidence Lab" }).click();
-    const row = view.getByTestId("lab-row").filter({ hasText: "Attacker tricks (our short list)" });
-    await row.getByRole("button", { name: "Attacker tricks (our short list)" }).click();
-    const detail = row.getByTestId("result-detail");
+    await stepLink(view, "4. Evidence Lab").click();
+    const detail = (await openResult(view, "Attacker tricks (our short list)")).getByTestId("result-detail");
     await expect(detail).toContainText(/Mode: Isolated mode/);
     await expect(detail.getByTestId("control-outcome")).toHaveAttribute("data-outcome", "as_expected");
     await expect(view.getByText("Couldn't trust this run")).toHaveCount(0);

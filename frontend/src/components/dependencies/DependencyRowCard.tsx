@@ -1,7 +1,8 @@
 import type { DependencyCell, DependencyRow } from "../../api";
 import { ResultDetail } from "../lab/ResultDetail";
 import { ViewInFixes } from "../migration/parts";
-import { ResultBadge, SecondaryButton, SourceTag, StatusView, formatTime } from "../ui";
+import { withPlainName } from "../../plainNames";
+import { ProofChip, ResultBadge, SecondaryButton, SourceTag, StatusView, formatTime } from "../ui";
 
 /** One answer: the answer, its one label, the first version that can (on a no), the measurement state, agreement. */
 function Cell({ cell, title }: { cell: DependencyCell; title: string }) {
@@ -34,7 +35,7 @@ function Cell({ cell, title }: { cell: DependencyCell; title: string }) {
 
 interface Props {
   row: DependencyRow;
-  questions: { key: string; short: string }[];
+  questions: { key: string; title: string }[];
   busy: boolean;
   detailsOpen: boolean;
   onDetailsOpen: (open: boolean) => void;
@@ -42,15 +43,24 @@ interface Props {
   onViewFix: (fixId: string) => void;
 }
 
-/** One library of the list. Every word comes from the backend. */
-export function DependencyRowCard({ row, questions, busy, detailsOpen, onDetailsOpen, onMeasure, onViewFix }: Props) {
-  const titles = Object.fromEntries(questions.map((q) => [q.key, q.short]));
+/** The answers of one library as chips, one per question, each with its proof chip: the table's cells. */
+export function AnswerChip({ cell }: { cell: DependencyCell }) {
   return (
-    <li data-testid="dependency-row" data-row={row.id} className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+    <div data-testid="dependency-answer" data-question={cell.question} data-answer={cell.answer} data-state={cell.state} className="flex min-w-0 flex-col items-start gap-1.5">
+      <ResultBadge label={cell.answer_words} tone={cell.tone} />
+      {cell.label_words ? <ProofChip>{cell.label_words}</ProofChip> : null}
+    </div>
+  );
+}
+
+/** One library of the list, in the detail panel. Every word comes from the backend. */
+export function DependencyDetail({ row, questions, busy, detailsOpen, onDetailsOpen, onMeasure, onViewFix }: Props) {
+  const titles = Object.fromEntries(questions.map((q) => [q.key, withPlainName(q.title)]));
+  return (
+    <div data-testid="dependency-detail" data-row={row.id}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="break-all font-mono text-sm font-semibold text-slate-100">{row.label}</p>
-          <p className="mt-0.5 text-xs text-slate-400">
+          <p className="text-xs text-slate-400">
             {row.via_words}
             {row.library ? ` · ${row.library}` : ""}
           </p>
@@ -123,6 +133,6 @@ export function DependencyRowCard({ row, questions, busy, detailsOpen, onDetails
           </div>
         </details>
       ) : null}
-    </li>
+    </div>
   );
 }

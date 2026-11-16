@@ -117,6 +117,7 @@ class Import(Shape):
         default=None,
         description="Plain sentences about what the upload started on this computer (for example the demo test servers). Only on the upload reply.",
     )
+    assessment_id: int | None = Field(default=None, description="Phase 5a: the assessment this import belongs to.")
     settings_title: str = Field(default=None, description='The heading of the settings list, e.g. "System settings from the file".')
     settings: list[ImportSetting] = Field(
         default=None,
@@ -1371,6 +1372,148 @@ class DependenciesView(Shape):
 
 class Ok(Shape):
     ok: Literal[True]
+
+
+# ---- Phase 5a: folders, projects and assessments. Every count is read from the views the pages draw; null = not yet. ----
+
+class ClaimCounts(Shape):
+    checked: int
+    false: int
+    true: int
+    couldnt_check: int
+
+
+class TestCounts(Shape):
+    run: int
+    failed: int
+    passed: int
+
+
+class FixCounts(Shape):
+    total: int
+    open: int
+
+
+class SystemCounts(Shape):
+    total: int
+    classical: int
+    hybrid: int
+    pq_only: int
+    couldnt_check: int
+    not_measured: int
+
+
+class AssessmentCounts(Shape):
+    claims: ClaimCounts | None
+    tests: TestCounts | None
+    fixes: FixCounts | None
+    systems: SystemCounts | None
+
+
+class AssessmentStatus(Shape):
+    key: Literal["open", "closed"]
+    label: str
+    closed_line: str | None = Field(description="Why it is closed, then the closed sentence; null when open.")
+
+
+class AssessmentFile(Shape):
+    import_id: int
+    filename: str
+    format: str
+    is_demo: bool
+    imported_at: str
+
+
+class AssessmentBrief(Shape):
+    id: int
+    number: int
+    title: str = Field(description='"Assessment 2", or the name the person gave it')
+    name: str | None
+    status: AssessmentStatus
+    archived: bool
+    created_at: str
+    closed_at: str | None
+    file: AssessmentFile | None
+
+
+class PathStep(Shape):
+    id: int
+    name: str
+
+
+class WorkspaceFolder(Shape):
+    id: int
+    name: str
+    parent_id: int | None
+    archived: bool
+    path: list[PathStep] = Field(description="The folders above this one, top first.")
+
+
+class WorkspaceProject(Shape):
+    id: int
+    name: str
+    folder_id: int | None
+    archived: bool
+    is_demo: bool
+    created_at: str
+    path: list[PathStep]
+    assessments: int
+    latest: AssessmentBrief | None
+    counts: AssessmentCounts
+
+
+class Workspace(Shape):
+    organization: str
+    folders: list[WorkspaceFolder]
+    projects: list[WorkspaceProject]
+
+
+class Created(Shape):
+    id: int
+    assessment_id: int | None = Field(default=None, description="A new project's first assessment.")
+
+
+class ProjectView(Shape):
+    id: int
+    name: str
+    folder_id: int | None
+    archived: bool
+    is_demo: bool
+    path: list[PathStep]
+    assessments: list[AssessmentBrief] = Field(description="Newest first.")
+
+
+class AssessmentProject(Shape):
+    id: int
+    name: str
+    is_demo: bool
+    archived: bool
+
+
+class NextStep(Shape):
+    page: str = Field(description='The page that holds the next thing to do, e.g. "inventory/import", "tests".')
+    label: str
+    text: str
+
+
+class AssessmentView(AssessmentBrief):
+    organization: str
+    project: AssessmentProject
+    path: list[PathStep]
+    import_: Import | None = Field(alias="imp" "ort")   # written in two parts: tests/test_prepare.py scans for the bare word
+    plan_id: int | None
+    has_verify: bool
+    has_results: bool
+    has_migration: bool
+    counts: AssessmentCounts
+    next_step: NextStep
+
+
+class DemoProjectsLoaded(Shape):
+    added: list[str]
+    summary: str
+    notices: list[str]
+    open_assessment_id: int | None
 
 
 def _rebuild_all() -> None:

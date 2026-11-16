@@ -5,6 +5,7 @@ import { ChangeBox } from "../change/ChangeBox";
 import { AlsoNoticedList, RichTextView, SourceTag, StatusView } from "../ui";
 import { OptionCard, type SaveChoice } from "./OptionCard";
 import { StatusPill } from "./parts";
+import { CLOSED_SENTENCE, useReadOnly } from "../../readOnly";
 
 function Box({ children, testId, className = "border-slate-800" }: { children: ReactNode; testId: string; className?: string }) {
   return (
@@ -157,6 +158,7 @@ function Settings({
   onChange: (field: MigrationSettingField["field"], value: string) => void;
 }) {
   const settings = system.settings;
+  const closed = useReadOnly();   // phase 5a: a closed assessment is read-only
   return (
     <Box testId="migration-settings">
       <h3 className={H3}>{settings.title}</h3>
@@ -173,7 +175,8 @@ function Settings({
                 <select
                   id={id}
                   value={field.value}
-                  disabled={!field.enabled || busy}
+                  disabled={!field.enabled || busy || closed}
+                  title={closed ? CLOSED_SENTENCE : undefined}
                   aria-describedby={`${id}-help ${id}-source`}
                   onChange={(e) => onChange(field.field, e.target.value)}
                   className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-sm text-slate-100 disabled:cursor-not-allowed disabled:opacity-60"

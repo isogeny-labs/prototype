@@ -13,7 +13,7 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, PYTHON, REPO, enterApp, importVerifyAndOpenTests, screenshotFolder } from "./shared";
+import { BACKEND, enterApp, importVerifyAndOpenTests, PYTHON, REPO, screenshotFolder, stepLink, openFreshAssessment } from "./shared";
 
 const SHOTS = screenshotFolder("phase4d");
 fs.mkdirSync(SHOTS, { recursive: true });
@@ -70,7 +70,7 @@ async function stopCopy(copy: Copy | null): Promise<void> {
 }
 
 async function openDependencies(page: Page): Promise<void> {
-  await page.getByRole("navigation", { name: "Steps" }).getByRole("button", { name: "6. Migration" }).click();
+  await stepLink(page, "6. Migration").click();
   await expect(page.getByRole("heading", { name: "Migration", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Dependencies", exact: true }).click();
   await expect(page.getByTestId("dependencies-view")).toBeVisible();
@@ -84,6 +84,15 @@ async function addList(page: Page, file: string): Promise<number> {
 
 function row(page: Page, label: string) {
   return page.getByTestId("dependency-row").filter({ has: page.locator("p.font-mono", { hasText: new RegExp(`^${label.replace(/\./g, "\\.")}$`) }) });
+}
+
+/** Phase 5a: a library's row opens its details (answers, reasons, first version, blocks, sources, measurements) in the
+ * right-side detail panel; this opens it (or keeps it open) and hands back what the panel shows. */
+async function details(page: Page, label: string) {
+  const heading = page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: label, exact: true });
+  if ((await heading.count()) === 0) await row(page, label).click();
+  await expect(heading).toBeVisible();
+  return page.getByTestId("detail-panel").getByTestId("dependency-detail");
 }
 
 /** "Part of": acme-pay-server 1.0.0 is this copy's demo server. */
@@ -121,6 +130,7 @@ test("demo mode: add the list, the lookups and their sources, Part of, the block
     copy = await startCopy(browser, 3, "demo");
     const page = copy.page;
     await enterApp(page);
+    await openFreshAssessment(page, "Dependencies walk");
     await importVerifyAndOpenTests(page);
 
     // ---- the Dependencies view, before a list
@@ -136,8 +146,8 @@ test("demo mode: add the list, the lookups and their sources, Part of, the block
     await expect(page.getByTestId("tie-words").first()).toHaveText("Part of acme-sign 1.4.2, tied by name and version.");
     // every yes or no is "Release notes say"; measuring needs isolated mode and says so
     const openssl30 = row(page, "openssl 3.0.22");
-    await expect(openssl30.getByTestId("dependency-cell")).toHaveCount(3);
-    for (const cell of await openssl30.getByTestId("dependency-cell").all()) {
+    await expect((await details(page, "openssl 3.0.22")).getByTestId("dependency-cell")).toHaveCount(3);
+    for (const cell of await (await details(page, "openssl 3.0.22")).getByTestId("dependency-cell").all()) {
       await expect(cell).toContainText("No");
       await expect(cell).toContainText("Release notes say");
       await expect(cell.getByTestId("first-version")).toHaveText("3.5.0 or later can.");
@@ -145,18 +155,18 @@ test("demo mode: add the list, the lookups and their sources, Part of, the block
     }
     await expect(page.getByTestId("measure-all-blocked")).toHaveText("Measuring needs isolated mode (Docker). Lookups work as they are.");
     await expect(page.getByRole("button", { name: "Measure all" })).toBeDisabled();
-    await expect(row(page, "boringssl 4c8b1d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c").getByTestId("dependency-cell").first()).toContainText("Needs your environment");
-    await expect(row(page, "Go standard library devel").getByTestId("dependency-cell").first()).toContainText("Couldn't tell the version");
-    await expect(row(page, "wolfssl 5.7.2").getByTestId("dependency-cell").first()).toContainText("Not in our knowledge base yet");
+    await expect((await details(page, "boringssl 4c8b1d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c")).getByTestId("dependency-cell").first()).toContainText("Needs your environment");
+    await expect((await details(page, "Go standard library devel")).getByTestId("dependency-cell").first()).toContainText("Couldn't tell the version");
+    await expect((await details(page, "wolfssl 5.7.2")).getByTestId("dependency-cell").first()).toContainText("Not in our knowledge base yet");
     await expect(page.getByText("Measured in your environment")).toHaveCount(0);
     await shot(page, "02-dependencies-looked-up.png");
 
     // ---- Details and evidence: the official source, quoted, with the date it was checked
-    await openssl30.getByText("Details and evidence").click();
-    await expect(openssl30.getByTestId("lookup-source").first()).toContainText("OpenSSL 3.5 NEWS");
-    await expect(openssl30.getByTestId("lookup-source").first()).toContainText("Support for PQC algorithms (ML-KEM, ML-DSA and SLH-DSA)");
-    await expect(openssl30.getByRole("link", { name: /github\.com\/openssl\/openssl/ }).first()).toHaveAttribute("href", /^https:\/\//);
-    await openssl30.screenshot({ path: path.join(SHOTS, "03-openssl-3.0-sources.png"), animations: "disabled" });
+    await (await details(page, "openssl 3.0.22")).getByText("Details and evidence").click();
+    await expect((await details(page, "openssl 3.0.22")).getByTestId("lookup-source").first()).toContainText("OpenSSL 3.5 NEWS");
+    await expect((await details(page, "openssl 3.0.22")).getByTestId("lookup-source").first()).toContainText("Support for PQC algorithms (ML-KEM, ML-DSA and SLH-DSA)");
+    await expect((await details(page, "openssl 3.0.22")).getByRole("link", { name: /github\.com\/openssl\/openssl/ }).first()).toHaveAttribute("href", /^https:\/\//);
+    await (await details(page, "openssl 3.0.22")).screenshot({ path: path.join(SHOTS, "03-openssl-3.0-sources.png"), animations: "disabled" });
 
     // ---- Part of: acme-pay-server 1.0.0 is the demo server
     await tiePayServer(page, copy.server);
@@ -164,7 +174,7 @@ test("demo mode: add the list, the lookups and their sources, Part of, the block
     await expect(server.getByTestId("blocker-line")).toHaveCount(2);
     await expect(server.getByTestId("blocker-line").first()).toContainText("Blocks its key exchange track: openssl 3.0.22 (through python 3.12.3), release notes say. 3.5.0 or later can.");
     await expect(server).toContainText("1 of its libraries has no answer yet: a thing to check, not a blocker.");
-    await expect(openssl30.getByTestId("row-blocks")).toContainText("Blocks the key exchange track of");
+    await expect((await details(page, "openssl 3.0.22")).getByTestId("row-blocks")).toContainText("Blocks the key exchange track of");
     await shot(page, "04-dependencies-tied-blocker.png");
 
     // ---- the blocker on the roadmap, after Measure status
@@ -217,6 +227,7 @@ test("isolated mode: Measure all, answers measured on a public copy with their c
               "Skipped: Docker is not running or the test images are not prepared (run: cd backend && .venv/bin/python -m app.prepare).");
     const page = copy.page;
     await enterApp(page);
+    await openFreshAssessment(page, "Dependencies walk");
     await importVerifyAndOpenTests(page);
     await openDependencies(page);
     expect(await addList(page, LIST)).toBe(200);
@@ -226,24 +237,24 @@ test("isolated mode: Measure all, answers measured on a public copy with their c
     await expect(page.getByRole("button", { name: "Measure all" })).toBeEnabled();
     await page.getByRole("button", { name: "Measure all" }).click();
     const openssl30 = row(page, "openssl 3.0.22");
-    await expect(openssl30.getByTestId("measure-state").first()).toHaveText("Measured", { timeout: 10 * 60_000 });
+    await expect((await details(page, "openssl 3.0.22")).getByTestId("measure-state").first()).toHaveText("Measured", { timeout: 10 * 60_000 });
     for (const label of ["openssl 3.0.22", "python-ecdsa 0.13.2", "openjdk 17.0.2", "elliptic 6.5.6", "openssl 3.5.9"]) {
-      await expect(row(page, label).getByTestId("measure-state").first(), `${label} should be measured`).toHaveText("Measured", { timeout: 10 * 60_000 });
-      await expect(row(page, label).getByTestId("dependency-cell").first()).toContainText("Measured on a public copy");
+      await expect((await details(page, label)).getByTestId("measure-state").first(), `${label} should be measured`).toHaveText("Measured", { timeout: 10 * 60_000 });
+      await expect((await details(page, label)).getByTestId("dependency-cell").first()).toContainText("Measured on a public copy");
     }
-    await expect(row(page, "openssl 3.5.9").getByTestId("dependency-cell").first()).toContainText("Yes");
-    await expect(openssl30.getByTestId("agreement").first()).toHaveText("The release notes say the same.");
-    await expect(row(page, "openjdk 17.0.2").getByTestId("dependency-cell").first()).toContainText("The library itself said no");
+    await expect((await details(page, "openssl 3.5.9")).getByTestId("dependency-cell").first()).toContainText("Yes");
+    await expect((await details(page, "openssl 3.0.22")).getByTestId("agreement").first()).toHaveText("The release notes say the same.");
+    await expect((await details(page, "openjdk 17.0.2")).getByTestId("dependency-cell").first()).toContainText("The library itself said no");
     await expect(page.getByText("Measured in your environment")).toHaveCount(0);
     const server = page.getByTestId("dependency-system").filter({ hasText: "Server" });
     await expect(server.getByTestId("blocker-line").first()).toContainText("measured on a public copy");
     await shot(page, "08-isolated-measured.png");
 
     // ---- the measurement behind it: both controls, the locked test, the raw record and the review
-    await openssl30.getByText("Details and evidence").click();
-    await expect(openssl30.getByTestId("measurement")).toContainText("Both control copies answered as they must.");
-    await expect(openssl30.getByTestId("measurement")).toContainText("This copy is also the incapable control");
-    await openssl30.screenshot({ path: path.join(SHOTS, "09-openssl-3.0-measured-details.png"), animations: "disabled" });
+    await (await details(page, "openssl 3.0.22")).getByText("Details and evidence").click();
+    await expect((await details(page, "openssl 3.0.22")).getByTestId("measurement")).toContainText("Both control copies answered as they must.");
+    await expect((await details(page, "openssl 3.0.22")).getByTestId("measurement")).toContainText("This copy is also the incapable control");
+    await (await details(page, "openssl 3.0.22")).screenshot({ path: path.join(SHOTS, "09-openssl-3.0-measured-details.png"), animations: "disabled" });
 
     // ---- Measure status, then Download evidence: the measurements are in the signed file, with their runs
     await page.getByRole("button", { name: "Measure status" }).click();

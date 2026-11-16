@@ -9,12 +9,17 @@ function renderVerify(isDemo = true) {
   return onContinue;
 }
 
+/** The words of a result chip (its last child; the symbol comes first). */
+const chipWords = (el: HTMLElement) => el.lastElementChild?.textContent;
+/** The right-side panel that holds one opened claim's details. */
+const panel = () => within(screen.getByTestId("detail-panel"));
+
 describe("Verify screen", () => {
   it("shows one row per claim with the claim, a text badge and the plain sentence on top", () => {
     renderVerify();
     const rows = screen.getAllByTestId("result-row");
     expect(rows).toHaveLength(3);
-    expect(screen.getAllByTestId("result-badge").map((b) => b.textContent)).toEqual(["False", "True", "Couldn't check"]);
+    expect(screen.getAllByTestId("result-badge").map(chipWords)).toEqual(["False", "True", "Couldn't check"]);
     expect(screen.getAllByTestId("verify-summary").map((s) => s.textContent)).toEqual(run.results.map((r) => r.summary));
 
     const first = within(rows[0]!);
@@ -32,15 +37,16 @@ describe("Verify screen", () => {
     const toggle = row.getByTestId("verify-details-toggle");
     expect(toggle.textContent).toContain("Details and evidence");
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(row.queryByText("The claim doesn't match what we measured.")).toBeNull();
+    expect(screen.queryByTestId("detail-panel")).toBeNull();
 
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(row.getByText("What we found")).not.toBeNull();
-    expect(row.getByText(/Accepts TLS 1.3 and TLS 1.2/)).not.toBeNull();
-    expect(row.getAllByText("measured").length).toBeGreaterThan(0);
-    expect(row.getByText("The claim doesn't match what we measured.")).not.toBeNull();
-    expect(row.getByText("TLS 1.2 handshake")).not.toBeNull();
+    const details = panel();
+    expect(details.getByText("What we found")).not.toBeNull();
+    expect(details.getByText(/Accepts TLS 1.3 and TLS 1.2/)).not.toBeNull();
+    expect(details.getAllByText("measured").length).toBeGreaterThan(0);
+    expect(details.getByText("The claim doesn't match what we measured.")).not.toBeNull();
+    expect(details.getByText("TLS 1.2 handshake")).not.toBeNull();
   });
 
   it("shows an Also noticed note as a side note, not a result, and only where there is one", () => {
@@ -55,15 +61,15 @@ describe("Verify screen", () => {
     // Visible without opening the fold, never drawn as a badge or in a result colour.
     expect(notes[0]!.getAttribute("data-testid")).not.toBe("result-badge");
     expect(notes[0]!.className).not.toMatch(/amber|green|red|emerald/);
-    expect(within(rows[1]!).getAllByTestId("result-badge").map((b) => b.textContent)).toEqual(["True"]);
+    expect(within(rows[1]!).getAllByTestId("result-badge").map(chipWords)).toEqual(["True"]);
   });
 
   it("shows the reason for Couldn't check inside the fold", () => {
     renderVerify();
     const row = within(screen.getAllByTestId("result-row")[2]!);
-    expect(row.queryByText("The component did not start within the time limit.")).toBeNull();
+    expect(screen.queryByText("The component did not start within the time limit.")).toBeNull();
     fireEvent.click(row.getByTestId("verify-details-toggle"));
-    expect(row.getByText("The component did not start within the time limit.")).not.toBeNull();
+    expect(panel().getByText("The component did not start within the time limit.")).not.toBeNull();
   });
 
   it("carries the exact disclaimer line and the Demo data label", () => {
@@ -84,28 +90,29 @@ describe("Verify screen", () => {
     const row = within(screen.getAllByTestId("result-row")[0]!);
     const toggle = row.getByRole("button", { name: "Details and evidence" });
     expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(row.queryByText("TLS 1.2 handshake")).toBeNull();
+    expect(screen.queryByText("TLS 1.2 handshake")).toBeNull();
 
     fireEvent.click(toggle);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(row.getByText("TLS 1.2 handshake")).not.toBeNull();
-    expect(row.getByText("openssl s_client -connect localhost:8443 -tls1_2")).not.toBeNull();
-    const output = row.getByText(/Protocol : TLSv1\.2/);
+    const details = panel();
+    expect(details.getByText("TLS 1.2 handshake")).not.toBeNull();
+    expect(details.getByText("openssl s_client -connect localhost:8443 -tls1_2")).not.toBeNull();
+    const output = details.getByText(/Protocol : TLSv1\.2/);
     expect(output.tagName).toBe("PRE");
     expect(text(output)).toContain("ECDHE-ECDSA-AES128-SHA");
-    expect(row.getByText(/42 ms/)).not.toBeNull();
-    expect(row.getByText(/OpenSSL 3.0.13/)).not.toBeNull();
-    expect(row.getByText("Time:")).not.toBeNull();
+    expect(details.getByText(/42 ms/)).not.toBeNull();
+    expect(details.getByText(/OpenSSL 3.0.13/)).not.toBeNull();
+    expect(details.getByText("Time:")).not.toBeNull();
 
     fireEvent.click(toggle);
-    expect(row.queryByText("TLS 1.2 handshake")).toBeNull();
+    expect(screen.queryByText("TLS 1.2 handshake")).toBeNull();
   });
 
   it("says so when a row has no evidence", async () => {
     renderVerify();
     const row = within(screen.getAllByTestId("result-row")[2]!);
     fireEvent.click(row.getByRole("button", { name: "Details and evidence" }));
-    expect(row.getByText(/Nothing was run for this claim/)).not.toBeNull();
+    expect(panel().getByText(/Nothing was run for this claim/)).not.toBeNull();
   });
 
   it("only has the allowed buttons", () => {

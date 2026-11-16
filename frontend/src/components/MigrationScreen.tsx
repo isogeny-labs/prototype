@@ -14,11 +14,13 @@ import { Roadmap } from "./migration/Roadmap";
 import { SystemDetail } from "./migration/SystemDetail";
 import { StatusPill } from "./migration/parts";
 import type { SaveChoice } from "./migration/OptionCard";
+import { PageHeader, SearchInput, SummaryCards, Toolbar } from "./layout";
 import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton } from "./ui";
 
 const POLL_MS = 1000;
 
-type Tab = "systems" | "roadmap" | "dependencies";
+export type MigrationTab = "systems" | "roadmap" | "dependencies";
+type Tab = MigrationTab;
 
 interface Props {
   importId: number;
@@ -29,17 +31,34 @@ interface Props {
    * or a setting was saved): the app loads the plan again so the Fixes step opens without a page refresh.
    */
   onPlanChanged: () => void;
+  /** Phase 5a: the view the sidebar picked (Systems, Roadmap, Dependencies); the switches still work and tell the app. */
+  tab?: Tab;
+  onTab?: (tab: Tab) => void;
 }
 
 /** The Migration step. Every word, status, number and recommendation comes from the backend. */
-export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
+export function MigrationScreen({
+  importId,
+  onViewFix,
+  onPlanChanged,
+  tab: shownTab,
+  onTab,
+}: Props) {
   const [view, setView] = useState<MigrationView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
-  const [tab, setTab] = useState<Tab>("systems");
+  const [ownTab, setOwnTab] = useState<Tab>("systems");
+  const tab = shownTab ?? ownTab;
+  const setTab = (next: Tab) => (onTab ? onTab(next) : setOwnTab(next));
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(new Set());
-  const [choosing, setChoosing] = useState<{ system: string; option: MigrationOptionKey } | null>(null);
+  const [search, setSearch] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
+  const [choosing, setChoosing] = useState<{
+    system: string;
+    option: MigrationOptionKey;
+  } | null>(null);
   const [exported, setExported] = useState<EvidenceExport | null>(null);
   const [pollTick, setPollTick] = useState(0);
 
@@ -74,7 +93,10 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
   }, [view]);
 
   // While measuring, ask again every second. Not while a button's own call is on its way: its answer is newer.
-  const polling = view !== null && (view.busy || view.systems.some((s) => s.change?.busy === true)) && !acting;
+  const polling =
+    view !== null &&
+    (view.busy || view.systems.some((s) => s.change?.busy === true)) &&
+    !acting;
   useEffect(() => {
     if (!polling) return;
     let live = true;
@@ -101,11 +123,16 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
   if (!view) {
     return (
       <section aria-labelledby="migration-title" className="space-y-4">
-        <h1 id="migration-title" className="text-xl font-semibold text-slate-50">
+        <h1
+          id="migration-title"
+          className="text-2xl font-semibold tracking-tight text-slate-50"
+        >
           Migration
         </h1>
         {error ? (
-          <ErrorBox title="The migration plan couldn't be loaded">{error}</ErrorBox>
+          <ErrorBox title="The migration plan couldn't be loaded">
+            {error}
+          </ErrorBox>
         ) : (
           <p role="status" className="text-sm text-slate-400">
             Loading…
@@ -116,7 +143,8 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
   }
 
   const current = view;
-  const system = current.systems.find((s) => s.key === selectedKey) ?? current.systems[0];
+  const system =
+    current.systems.find((s) => s.key === selectedKey) ?? current.systems[0];
 
   async function act(call: () => Promise<MigrationView>, tellApp: boolean) {
     setActing(true);
@@ -149,22 +177,40 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
     planChanged.current();
   }
 
-  function setting(systemKey: string, field: MigrationSettingField["field"], value: string) {
-    void act(() => api.saveMigrationSetting(current.plan_id, systemKey, field, value), true);
+  function setting(
+    systemKey: string,
+    field: MigrationSettingField["field"],
+    value: string,
+  ) {
+    void act(
+      () => api.saveMigrationSetting(current.plan_id, systemKey, field, value),
+      true,
+    );
   }
 
-  function saveChoice(systemKey: string): (option: MigrationOptionKey) => SaveChoice {
+  function saveChoice(
+    systemKey: string,
+  ): (option: MigrationOptionKey) => SaveChoice {
     return (option) => async (reason, reviewDate) => {
       setActing(true);
       setError(null);
       try {
-        const next = await api.saveMigrationChoice(current.plan_id, systemKey, option, reason, reviewDate);
+        const next = await api.saveMigrationChoice(
+          current.plan_id,
+          systemKey,
+          option,
+          reason,
+          reviewDate,
+        );
         setView(next);
         setChoosing(null);
         planChanged.current();
         return null;
       } catch (e) {
-        return { message: errorMessage(e), field: e instanceof ApiError ? e.field : null };
+        return {
+          message: errorMessage(e),
+          field: e instanceof ApiError ? e.field : null,
+        };
       } finally {
         setActing(false);
       }
@@ -173,40 +219,85 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
 
   const measure = current.measure;
   const tabClass = (active: boolean) =>
-    `rounded-lg border px-3 py-1.5 text-sm font-medium ${
-      active ? "border-sky-400/70 bg-sky-400/10 text-slate-50" : "border-slate-800 text-slate-300 hover:border-slate-600"
+    `rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+      active
+        ? "bg-slate-800 text-slate-50 shadow-sm"
+        : "text-slate-400 hover:text-slate-100"
     }`;
 
+  // Summary cards: the systems, counted by the status the backend sent for each (never a score).
+  const byStatus = new Map<string, { label: string; count: number }>();
+  for (const s of current.systems) {
+    const found = byStatus.get(s.status.code);
+    if (found) found.count += 1;
+    else byStatus.set(s.status.code, { label: s.status.label, count: 1 });
+  }
+  const cards = [
+    {
+      key: "systems",
+      label: "Systems in the file",
+      value: current.systems.length,
+    },
+    ...Array.from(byStatus.entries())
+      .slice(0, 3)
+      .map(([code, v]) => ({
+        key: code,
+        label: v.label,
+        value: v.count,
+        sub: "systems with this status",
+      })),
+  ];
+  const needle = search.trim().toLowerCase();
+  const listed = needle
+    ? current.systems.filter(
+        (s) =>
+          s.key === system?.key ||
+          [s.name, s.kind_label, s.plan_line, s.status.label].some((t) =>
+            t.toLowerCase().includes(needle),
+          ),
+      )
+    : current.systems;
+
   return (
-    <section aria-labelledby="migration-title">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 id="migration-title" className="text-xl font-semibold text-slate-50">
-              {current.title}
-            </h1>
-            {current.is_demo ? <DemoDataLabel /> : null}
-          </div>
-          <p data-testid="migration-subline" className="mt-2 max-w-2xl text-sm text-slate-400">
+    <section aria-label={current.title}>
+      <PageHeader
+        eyebrow={current.is_demo ? <DemoDataLabel /> : undefined}
+        title={current.title}
+        description={
+          <span data-testid="migration-subline">
             <RichTextView parts={current.subline} />
-          </p>
-        </div>
-        <div className="flex max-w-xs flex-col items-end gap-1.5">
-          <SecondaryButton disabled={acting || !measure.enabled} onClick={() => void act(() => api.measureMigration(current.plan_id), false)}>
-            {measure.label}
-          </SecondaryButton>
-          {measure.progress_text ? (
-            <p role="status" data-testid="measure-progress" className="text-right text-xs text-slate-300">
-              {measure.progress_text}
-            </p>
-          ) : null}
-          {!measure.enabled && measure.blocked_reason ? (
-            <p data-testid="measure-blocked" className="text-right text-xs text-slate-400">
-              {measure.blocked_reason}
-            </p>
-          ) : null}
-        </div>
-      </div>
+          </span>
+        }
+        actions={
+          <div className="flex max-w-xs flex-col items-end gap-1.5">
+            <SecondaryButton
+              disabled={acting || !measure.enabled}
+              onClick={() =>
+                void act(() => api.measureMigration(current.plan_id), false)
+              }
+            >
+              {measure.label}
+            </SecondaryButton>
+            {measure.progress_text ? (
+              <p
+                role="status"
+                data-testid="measure-progress"
+                className="text-right text-xs text-slate-300"
+              >
+                {measure.progress_text}
+              </p>
+            ) : null}
+            {!measure.enabled && measure.blocked_reason ? (
+              <p
+                data-testid="measure-blocked"
+                className="text-right text-xs text-slate-400"
+              >
+                {measure.blocked_reason}
+              </p>
+            ) : null}
+          </div>
+        }
+      />
 
       {error ? (
         <div className="mt-4">
@@ -214,15 +305,32 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
         </div>
       ) : null}
 
-      <p data-testid="disclaimer" className="mt-4 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+      <p
+        data-testid="disclaimer"
+        className="mt-4 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300"
+      >
         {current.disclaimer}
       </p>
 
-      <div role="group" aria-label="Migration views" className="mt-5 flex gap-2">
-        <button type="button" aria-pressed={tab === "systems"} onClick={() => setTab("systems")} className={tabClass(tab === "systems")}>
+      <div
+        role="group"
+        aria-label="Migration views"
+        className="mt-5 inline-flex gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1"
+      >
+        <button
+          type="button"
+          aria-pressed={tab === "systems"}
+          onClick={() => setTab("systems")}
+          className={tabClass(tab === "systems")}
+        >
           {current.tabs.systems}
         </button>
-        <button type="button" aria-pressed={tab === "roadmap"} onClick={() => setTab("roadmap")} className={tabClass(tab === "roadmap")}>
+        <button
+          type="button"
+          aria-pressed={tab === "roadmap"}
+          onClick={() => setTab("roadmap")}
+          className={tabClass(tab === "roadmap")}
+        >
           {current.tabs.roadmap}
         </button>
         <button
@@ -238,7 +346,11 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
       <div className="mt-5">
         {tab === "dependencies" ? (
           // A list, a tie or a measurement can add or remove a named blocker: this screen's view again, then the app.
-          <DependenciesView importId={importId} onViewFix={onViewFix} onChanged={() => void reloadAfterChange()} />
+          <DependenciesView
+            importId={importId}
+            onViewFix={onViewFix}
+            onChanged={() => void reloadAfterChange()}
+          />
         ) : tab === "roadmap" ? (
           <Roadmap
             view={current}
@@ -248,69 +360,101 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
             onViewFix={onViewFix}
           />
         ) : system ? (
-          <div className="grid items-start gap-5 lg:grid-cols-[250px_1fr]">
-            <nav aria-labelledby="migration-list-title">
-              <h2 id="migration-list-title" className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
-                {current.list_title}
-              </h2>
-              <ul className="flex flex-col gap-2">
-                {current.systems.map((s) => {
-                  const selected = s.key === system.key;
-                  return (
-                    <li key={s.key}>
-                      <button
-                        type="button"
-                        data-testid="system-card"
-                        data-system={s.key}
-                        aria-current={selected ? "true" : undefined}
-                        onClick={() => setSelectedKey(s.key)}
-                        className={`w-full rounded-xl border p-3 text-left ${
-                          selected ? "border-sky-400/70 bg-sky-400/10" : "border-slate-800 bg-slate-900/40 hover:border-slate-600"
-                        }`}
-                      >
-                        <span className="block text-xs text-slate-400">{s.kind_label}</span>
-                        <span className="block text-sm font-semibold text-slate-100">{s.name}</span>
-                        {(s.tracks_brief ?? []).length > 0 ? (
-                          (s.tracks_brief ?? []).map((brief, i) => (
-                            <span key={i} data-testid="card-track" className="mt-1.5 flex items-center justify-between gap-2">
-                              <span className="text-[11px] text-slate-400">{brief.title}</span>
-                              <StatusPill status={brief.status} />
-                            </span>
-                          ))
-                        ) : (
-                          <span className="mt-1.5 block">
-                            <StatusPill status={s.status} />
+          <>
+            <SummaryCards label="Systems by status" cards={cards} />
+            <div className="grid items-start gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+              <nav aria-labelledby="migration-list-title" className="min-w-0">
+                <h2
+                  id="migration-list-title"
+                  className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500"
+                >
+                  {current.list_title}
+                </h2>
+                <Toolbar>
+                  <SearchInput
+                    value={search}
+                    onChange={setSearch}
+                    label="Search systems"
+                    placeholder="Search systems"
+                  />
+                </Toolbar>
+                <ul className="flex flex-col divide-y divide-slate-800/70 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/30">
+                  {listed.map((s) => {
+                    const selected = s.key === system.key;
+                    return (
+                      <li key={s.key} data-testid="system-row">
+                        <button
+                          type="button"
+                          data-testid="system-card"
+                          data-system={s.key}
+                          aria-current={selected ? "true" : undefined}
+                          onClick={() => setSelectedKey(s.key)}
+                          className={`w-full px-4 py-3 text-left transition-colors ${
+                            selected
+                              ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]"
+                              : "hover:bg-slate-800/40"
+                          }`}
+                        >
+                          <span className="block text-xs text-slate-400">
+                            {s.kind_label}
                           </span>
-                        )}
-                        <span className="mt-1.5 block text-xs text-slate-400">{s.plan_line}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
-            <SystemDetail
-              key={system.key}
-              system={system}
-              busy={acting}
-              detailsOpen={detailsOpen.has(system.key)}
-              onDetailsOpen={(open) =>
-                setDetailsOpen((prev) => {
-                  const next = new Set(prev);
-                  if (open) next.add(system.key);
-                  else next.delete(system.key);
-                  return next;
-                })
-              }
-              openOption={choosing?.system === system.key ? choosing.option : null}
-              onOpenOption={(option) => setChoosing(option ? { system: system.key, option } : null)}
-              onSetting={(field, value) => setting(system.key, field, value)}
-              onSaveChoice={saveChoice(system.key)}
-              onViewFix={onViewFix}
-              planId={current.plan_id}
-              onChanged={reloadAfterChange}
-            />
-          </div>
+                          <span className="block text-sm font-medium text-slate-100">
+                            {s.name}
+                          </span>
+                          {(s.tracks_brief ?? []).length > 0 ? (
+                            (s.tracks_brief ?? []).map((brief, i) => (
+                              <span
+                                key={i}
+                                data-testid="card-track"
+                                className="mt-1.5 flex items-center justify-between gap-2"
+                              >
+                                <span className="text-[11px] text-slate-400">
+                                  {brief.title}
+                                </span>
+                                <StatusPill status={brief.status} />
+                              </span>
+                            ))
+                          ) : (
+                            <span className="mt-1.5 block">
+                              <StatusPill status={s.status} />
+                            </span>
+                          )}
+                          <span className="mt-1.5 block text-xs text-slate-400">
+                            {s.plan_line}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </nav>
+              <SystemDetail
+                key={system.key}
+                system={system}
+                busy={acting}
+                detailsOpen={detailsOpen.has(system.key)}
+                onDetailsOpen={(open) =>
+                  setDetailsOpen((prev) => {
+                    const next = new Set(prev);
+                    if (open) next.add(system.key);
+                    else next.delete(system.key);
+                    return next;
+                  })
+                }
+                openOption={
+                  choosing?.system === system.key ? choosing.option : null
+                }
+                onOpenOption={(option) =>
+                  setChoosing(option ? { system: system.key, option } : null)
+                }
+                onSetting={(field, value) => setting(system.key, field, value)}
+                onSaveChoice={saveChoice(system.key)}
+                onViewFix={onViewFix}
+                planId={current.plan_id}
+                onChanged={reloadAfterChange}
+              />
+            </div>
+          </>
         ) : current.empty_text ? (
           <p data-testid="migration-empty" className="text-sm text-slate-400">
             {current.empty_text}

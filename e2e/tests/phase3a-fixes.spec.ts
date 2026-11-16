@@ -7,7 +7,7 @@ import { expect, test, type BrowserContext, type Locator, type Page } from "@pla
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DISCLAIMER, REPO, enterApp } from "./shared";
+import { DISCLAIMER, enterApp, REPO, stepLink, openFreshAssessment, resultPanel, toggleResult } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(REPO, "docs/screenshots/phase3a-fixes");
@@ -39,6 +39,7 @@ test.beforeAll(async ({ browser }) => {
   context = await browser.newContext();
   page = await context.newPage();
   await enterApp(page);
+  await openFreshAssessment(page, "Multi-target walk");
 });
 
 test.afterAll(async () => {
@@ -46,7 +47,7 @@ test.afterAll(async () => {
 });
 
 test("upload the multi-target demo file: its three test servers start, and the seven claims are listed", async () => {
-  await page.getByRole("button", { name: "1. Import" }).click();
+  await stepLink(page, "1. Import").click();
   const uploaded = page.waitForResponse((r) => r.url().includes("/api/import/file") && r.request().method() === "POST");
   await page.getByLabel("Choose a file to import").setInputFiles(FILE);
   expect((await uploaded).status()).toBe(200);
@@ -79,10 +80,11 @@ test("Verify: one plain sentence on top of every row, the Also noticed note, the
   await expect(noticed.getByTestId("also-noticed")).toContainText(NOTE);
   await expect(noticed.getByTestId("result-badge")).toHaveText("True");
   // The technical text is folded until asked for.
+  // (phase 5a: "Details and evidence" opens them in the right-side detail panel)
   const tls = verifyRow("localhost:8443 accepts TLS 1.3 only");
-  await expect(tls.getByText("Accepts TLS 1.3 and TLS 1.2", { exact: false })).toHaveCount(0);
+  await expect(page.getByText("Accepts TLS 1.3 and TLS 1.2", { exact: false })).toHaveCount(0);
   await tls.getByTestId("verify-details-toggle").click();
-  await expect(tls.getByText("Accepts TLS 1.3 and TLS 1.2", { exact: false })).toBeVisible();
+  await expect(page.getByTestId("detail-panel").getByText("Accepts TLS 1.3 and TLS 1.2", { exact: false })).toBeVisible();
   await expect(page.getByText(/\bsecure\b/i).filter({ hasNotText: DISCLAIMER })).toHaveCount(0);
   await shot("01-verify-multi-target.png");
 });
@@ -121,14 +123,14 @@ test("Run all tests every target, in parallel, within the job limit", async () =
 });
 
 test("Evidence Lab: grouped results, each with its plain line; 9.9 is only under Not tested; the note on 8445", async () => {
-  await page.getByRole("button", { name: "4. Evidence Lab" }).click();
-  await expect(page.getByRole("heading", { name: "Evidence Lab", level: 1 })).toBeVisible();
+  await stepLink(page, "4. Evidence Lab").click();
+  await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
   await expect(page.getByTestId("lab-group")).toHaveCount(5);
-  await expect(page.getByTestId("lab-row")).toHaveCount(8);
+  await expect(page.getByTestId("evidence-row")).toHaveCount(8);
   await expect(page.getByTestId("not-tested")).toContainText("acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.");
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   const g = (heading: string) => group("lab-group", heading);
-  await expect(g("Server: localhost:8443").getByTestId("lab-row").first()).toContainText(
+  await expect(g("Server: localhost:8443").getByTestId("evidence-row").first()).toContainText(
     "The server accepts TLS 1.2, so ‘TLS 1.3 only’ is not true.");
   await expect(g("Server: localhost:8444").getByTestId("result-badge").locator("span:last-child")).toHaveText(["Passed"]);
   await expect(g("Server: localhost:8445").getByTestId("also-noticed")).toContainText(NOTE);
@@ -138,15 +140,15 @@ test("Evidence Lab: grouped results, each with its plain line; 9.9 is only under
     .toHaveText(["Failed", "Failed", "Measured"]);
   await expect(page.getByRole("heading", { name: "Signing program: acme-sign 9.9", exact: true })).toHaveCount(0);
   // The technical text is inside the opened result.
-  const row = g("Signing program: acme-sign 1.4.2").getByTestId("lab-row").first();
-  await row.getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
-  await expect(row.getByTestId("technical-summary")).toContainText("3 of 484 official cases wrong");
-  await row.getByRole("button", { name: "Independent exam (Wycheproof)" }).click();
+  const program = g("Signing program: acme-sign 1.4.2");
+  await toggleResult(page, "Independent exam (Wycheproof)", program);
+  await expect(resultPanel(page).getByTestId("technical-summary")).toContainText("3 of 484 official cases wrong");
+  await toggleResult(page, "Independent exam (Wycheproof)", program);
   await shot("03-evidence-lab-multi-target.png");
 });
 
 test("Fixes: the code fix for our program, and one text suggestion for each failing server", async () => {
-  await page.getByRole("button", { name: "5. Fixes" }).click();
+  await stepLink(page, "5. Fixes").click();
   const list = page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByRole("button");
   await expect(list).toHaveCount(3);
   await expect(list.nth(1)).toContainText("Old TLS versions on localhost:8443");

@@ -1,8 +1,13 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
-import { api, errorMessage, MAX_DEPENDENCY_LIST_BYTES, type DependenciesView as View } from "../../api";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { api, errorMessage, MAX_DEPENDENCY_LIST_BYTES, type DependenciesView as View, type DependencyRow } from "../../api";
+import { withPlainName } from "../../plainNames";
+import { CLOSED_SENTENCE, useReadOnly } from "../../readOnly";
+import { DataTable, DetailPanel, FilterSelect, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "../layout";
 import { ViewInFixes } from "../migration/parts";
-import { ErrorBox, SecondaryButton, SourceTag } from "../ui";
-import { DependencyRowCard } from "./DependencyRowCard";
+import { ErrorBox, SecondaryButton, SourceTag, StatusView } from "../ui";
+import { AnswerChip, DependencyDetail } from "./DependencyRowCard";
+
+type RowFilter = "all" | "blocks" | "answered" | "unanswered";
 
 const POLL_MS = 1000;
 
@@ -19,6 +24,11 @@ export function DependenciesView({ importId, onViewFix, onChanged }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<RowFilter>("all");
+  const readOnly = useReadOnly();
+  const closePanel = useCallback(() => setOpenRow(null), []);
   const [pollTick, setPollTick] = useState(0);
   const fileInput = useRef<HTMLInputElement>(null);
   const changed = useRef(onChanged);
@@ -106,11 +116,140 @@ export function DependenciesView({ importId, onViewFix, onChanged }: Props) {
   }
 
   const measureAll = current.measure_all;
+
+  // Summary cards: counts from the view's own rows and answers, nothing else.
+  const allRows = current.groups.flatMap((g) => g.rows);
+  const isAnswered = (row: DependencyRow) => row.cells.some((c) => c.answer === "yes" || c.answer === "no");
+  const cards = [
+    { key: "libraries", label: "Libraries", value: allRows.length, sub: "in the dependency list" },
+    { key: "answered", label: "Answered", value: allRows.filter(isAnswered).length, sub: "libraries with a Yes or No" },
+    { key: "blockers", label: "Blockers", value: allRows.reduce((n, r) => n + r.blocks.length, 0), sub: "tracks a library blocks" },
+  ];
+  const needle = search.trim().toLowerCase();
+  const matches = (row: DependencyRow) => {
+    if (filter === "blocks" && row.blocks.length === 0) return false;
+    if (filter === "answered" && !isAnswered(row)) return false;
+    if (filter === "unanswered" && isAnswered(row)) return false;
+    return !needle || [row.label, row.library, row.via_words].some((t) => (t ?? "").toLowerCase().includes(needle));
+  };
+  const selected = allRows.find((r) => r.id === openRow) ?? null;
+
+  const columns: Column<DependencyRow>[] = [
+    {
+      key: "library",
+      header: "Library",
+      render: (row) => (
+        <div className="min-w-0">
+          <p className="break-all font-mono text-sm font-medium text-slate-100">{row.label}</p>
+          {row.library ? <p className="mt-0.5 text-xs text-slate-400">{row.library}</p> : null}
+          {row.job ? (
+            <div className="mt-1.5">
+              <StatusView status={row.job} />
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    { key: "part-of", header: "Part of", render: (row) => <span className="text-[13px] text-slate-300">{row.via_words}</span> },
+    ...current.questions.map(
+      (q, i): Column<DependencyRow> => ({
+        key: q.key,
+        header: withPlainName(q.title),
+        render: (row) => {
+          const cell = row.cells[i];
+          return cell ? <AnswerChip cell={cell} /> : null;
+        },
+      }),
+    ),
+  ];
+
+  const filterOptions: { value: RowFilter; label: string }[] = [
+    { value: "all", label: "All libraries" },
+    { value: "blocks", label: "Blocks a system" },
+    { value: "answered", label: "Has a Yes or No" },
+    { value: "unanswered", label: "No Yes or No yet" },
+  ];
+
+  const lists = (
+    <div className="space-y-6">
+      {current.groups.map((g) => {
+        const shown = g.rows.filter(matches);
+        return (
+          <section key={g.key} data-testid="dependency-group" aria-label={g.label} className="space-y-3">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="font-mono text-base font-semibold text-slate-50">{g.label}</h2>
+                <p data-testid="tie-words" className="text-xs text-slate-400">
+                  {g.tie_words}
+                </p>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-slate-300">
+                {g.picker.label}
+                <select
+                  aria-label={`${g.picker.label}: ${g.label}`}
+                  value={g.picker.selected}
+                  disabled={acting || readOnly}
+                  title={readOnly ? CLOSED_SENTENCE : undefined}
+                  onChange={(e) => void act(() => api.tieDependency(current.plan_id, g.key, e.target.value))}
+                  className="rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
+                >
+                  {g.picker.options.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      {o.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {g.empty_text ? (
+              <p className="text-sm text-slate-400">{g.empty_text}</p>
+            ) : (
+              <DataTable
+                label={`Libraries: ${g.label}`}
+                columns={columns}
+                rows={shown}
+                rowKey={(r) => r.id}
+                rowTestId="dependency-row"
+                selectedKey={selected?.id ?? null}
+                onRowClick={(r) => setOpenRow((cur) => (cur === r.id ? null : r.id))}
+                empty="No libraries match this search."
+              />
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+
+  const panel = (
+    <DetailPanel open={selected !== null} title={selected?.label ?? ""} subtitle={selected?.library ?? undefined} onClose={closePanel}>
+      {selected ? (
+        <DependencyDetail
+          row={selected}
+          questions={current.questions}
+          busy={acting}
+          detailsOpen={open.has(selected.id)}
+          onDetailsOpen={(isOpen) =>
+            setOpen((prev) => {
+              const next = new Set(prev);
+              if (isOpen) next.add(selected.id);
+              else next.delete(selected.id);
+              return next;
+            })
+          }
+          onMeasure={() => void act(() => api.measureDependencies(current.plan_id, selected.id))}
+          onViewFix={onViewFix}
+        />
+      ) : null}
+    </DetailPanel>
+  );
+
   return (
     <div data-testid="dependencies-view" className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="max-w-2xl">
-          <p data-testid="dependencies-subline" className="text-sm text-slate-300">
+      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="max-w-3xl">
+          <h2 className="text-lg font-semibold tracking-tight text-slate-50">Dependencies</h2>
+          <p data-testid="dependencies-subline" className="mt-1 text-sm text-slate-300">
             {current.subline}
           </p>
           {current.list_file?.not_libraries_text ? (
@@ -146,9 +285,11 @@ export function DependenciesView({ importId, onViewFix, onChanged }: Props) {
             </p>
           ) : null}
         </div>
-      </div>
+      </header>
 
       {error ? <ErrorBox>{error}</ErrorBox> : null}
+
+      {allRows.length > 0 ? <SummaryCards label="Dependencies summary" cards={cards} /> : null}
 
       <ul aria-label="What the labels mean" className="flex flex-wrap gap-3 text-xs text-slate-400">
         {current.legend.map((item) => (
@@ -193,59 +334,16 @@ export function DependenciesView({ importId, onViewFix, onChanged }: Props) {
         </div>
       ) : null}
 
-      {current.groups.map((g) => (
-        <section key={g.key} data-testid="dependency-group" aria-label={g.label} className="space-y-3">
-          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-800 pb-2">
-            <div>
-              <h2 className="font-mono text-base font-semibold text-slate-50">{g.label}</h2>
-              <p data-testid="tie-words" className="text-xs text-slate-400">
-                {g.tie_words}
-              </p>
-            </div>
-            <label className="flex items-center gap-2 text-sm text-slate-300">
-              {g.picker.label}
-              <select
-                aria-label={`${g.picker.label}: ${g.label}`}
-                value={g.picker.selected}
-                disabled={acting}
-                onChange={(e) => void act(() => api.tieDependency(current.plan_id, g.key, e.target.value))}
-                className="rounded-lg border border-slate-600 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
-              >
-                {g.picker.options.map((o) => (
-                  <option key={o.key} value={o.key}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {g.empty_text ? (
-            <p className="text-sm text-slate-400">{g.empty_text}</p>
-          ) : (
-            <ul className="space-y-3">
-              {g.rows.map((row) => (
-                <DependencyRowCard
-                  key={row.id}
-                  row={row}
-                  questions={current.questions}
-                  busy={acting}
-                  detailsOpen={open.has(row.id)}
-                  onDetailsOpen={(isOpen) =>
-                    setOpen((prev) => {
-                      const next = new Set(prev);
-                      if (isOpen) next.add(row.id);
-                      else next.delete(row.id);
-                      return next;
-                    })
-                  }
-                  onMeasure={() => void act(() => api.measureDependencies(current.plan_id, row.id))}
-                  onViewFix={onViewFix}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+
+      {current.groups.length > 0 ? (
+        <>
+          <Toolbar>
+            <SearchInput value={search} onChange={setSearch} label="Search libraries" placeholder="Search libraries" />
+            <FilterSelect label="Show" value={filter} options={filterOptions} onChange={setFilter} />
+          </Toolbar>
+          <TableWithPanel panelOpen={selected !== null} table={lists} panel={panel} />
+        </>
+      ) : null}
     </div>
   );
 }

@@ -79,10 +79,348 @@
         }
       }
     },
+    "/api/workspace": {
+      "get": {
+        "summary": "Workspace",
+        "operationId": "workspace_api_workspace_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/organization": {
+      "post": {
+        "summary": "Organization",
+        "operationId": "organization_api_organization_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Workspace"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/folders": {
+      "post": {
+        "summary": "Create Folder",
+        "operationId": "create_folder_api_folders_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Created"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/folders/{folder_id}": {
+      "post": {
+        "summary": "Change Folder",
+        "operationId": "change_folder_api_folders__folder_id__post",
+        "parameters": [
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderChangeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Created"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects": {
+      "post": {
+        "summary": "Create Project",
+        "operationId": "create_project_api_projects_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Created"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}": {
+      "get": {
+        "summary": "Project",
+        "operationId": "project_api_projects__project_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectView"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Change Project",
+        "operationId": "change_project_api_projects__project_id__post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectChangeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Created"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/assessments": {
+      "post": {
+        "summary": "New Assessment",
+        "operationId": "new_assessment_api_projects__project_id__assessments_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Created"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assessments/{assessment_id}": {
+      "get": {
+        "summary": "Assessment",
+        "operationId": "assessment_api_assessments__assessment_id__get",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentView"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Change Assessment",
+        "operationId": "change_assessment_api_assessments__assessment_id__post",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessmentChangeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssessmentView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/demo-projects": {
+      "post": {
+        "summary": "Demo Projects",
+        "operationId": "demo_projects_api_demo_projects_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoProjectsLoaded"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/import/demo": {
       "post": {
         "summary": "Import Demo",
         "operationId": "import_demo_api_import_demo_post",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Assessment Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -110,6 +448,22 @@
               "type": "string",
               "default": "",
               "title": "Filename"
+            }
+          },
+          {
+            "name": "assessment_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Assessment Id"
             }
           }
         ],
@@ -2015,6 +2369,414 @@
         ],
         "title": "AskApprovalBody"
       },
+      "AssessmentBrief": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Assessment 2\", or the name the person gave it"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssessmentStatus"
+          },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentFile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "title",
+          "name",
+          "status",
+          "archived",
+          "created_at",
+          "closed_at",
+          "file"
+        ],
+        "title": "AssessmentBrief"
+      },
+      "AssessmentChangeBody": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "project_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Id"
+          },
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived"
+          },
+          "close": {
+            "type": "boolean",
+            "title": "Close",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "AssessmentChangeBody"
+      },
+      "AssessmentCounts": {
+        "properties": {
+          "claims": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tests": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TestCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fixes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FixCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "systems": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SystemCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "claims",
+          "tests",
+          "fixes",
+          "systems"
+        ],
+        "title": "AssessmentCounts"
+      },
+      "AssessmentFile": {
+        "properties": {
+          "import_id": {
+            "type": "integer",
+            "title": "Import Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "imported_at": {
+            "type": "string",
+            "title": "Imported At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "import_id",
+          "filename",
+          "format",
+          "is_demo",
+          "imported_at"
+        ],
+        "title": "AssessmentFile"
+      },
+      "AssessmentProject": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "is_demo",
+          "archived"
+        ],
+        "title": "AssessmentProject"
+      },
+      "AssessmentStatus": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "closed_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed Line",
+            "description": "Why it is closed, then the closed sentence; null when open."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "closed_line"
+        ],
+        "title": "AssessmentStatus"
+      },
+      "AssessmentView": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Assessment 2\", or the name the person gave it"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssessmentStatus"
+          },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentFile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "organization": {
+            "type": "string",
+            "title": "Organization"
+          },
+          "project": {
+            "$ref": "#/components/schemas/AssessmentProject"
+          },
+          "path": {
+            "items": {
+              "$ref": "#/components/schemas/PathStep"
+            },
+            "type": "array",
+            "title": "Path"
+          },
+          "import": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Import"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "has_verify": {
+            "type": "boolean",
+            "title": "Has Verify"
+          },
+          "has_results": {
+            "type": "boolean",
+            "title": "Has Results"
+          },
+          "has_migration": {
+            "type": "boolean",
+            "title": "Has Migration"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/AssessmentCounts"
+          },
+          "next_step": {
+            "$ref": "#/components/schemas/NextStep"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "title",
+          "name",
+          "status",
+          "archived",
+          "created_at",
+          "closed_at",
+          "file",
+          "organization",
+          "project",
+          "path",
+          "import",
+          "plan_id",
+          "has_verify",
+          "has_results",
+          "has_migration",
+          "counts",
+          "next_step"
+        ],
+        "title": "AssessmentView"
+      },
       "Badge": {
         "properties": {
           "code": {
@@ -2598,6 +3360,35 @@
         ],
         "title": "Claim"
       },
+      "ClaimCounts": {
+        "properties": {
+          "checked": {
+            "type": "integer",
+            "title": "Checked"
+          },
+          "false": {
+            "type": "integer",
+            "title": "False"
+          },
+          "true": {
+            "type": "integer",
+            "title": "True"
+          },
+          "couldnt_check": {
+            "type": "integer",
+            "title": "Couldnt Check"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "checked",
+          "false",
+          "true",
+          "couldnt_check"
+        ],
+        "title": "ClaimCounts"
+      },
       "ConfirmBody": {
         "properties": {
           "address": {
@@ -2616,6 +3407,74 @@
           "confirmed"
         ],
         "title": "ConfirmBody"
+      },
+      "Created": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id",
+            "description": "A new project's first assessment."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "Created"
+      },
+      "DemoProjectsLoaded": {
+        "properties": {
+          "added": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Added"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "notices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notices"
+          },
+          "open_assessment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Assessment Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "added",
+          "summary",
+          "notices",
+          "open_assessment_id"
+        ],
+        "title": "DemoProjectsLoaded"
       },
       "DemoServer": {
         "properties": {
@@ -3994,6 +4853,25 @@
         ],
         "title": "FixButton"
       },
+      "FixCounts": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "open": {
+            "type": "integer",
+            "title": "Open"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total",
+          "open"
+        ],
+        "title": "FixCounts"
+      },
       "FixDetail": {
         "properties": {
           "id": {
@@ -4713,6 +5591,77 @@
         ],
         "title": "FixesView"
       },
+      "FolderBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "FolderBody"
+      },
+      "FolderChangeBody": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "move": {
+            "type": "boolean",
+            "title": "Move",
+            "default": false
+          },
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived"
+          }
+        },
+        "type": "object",
+        "title": "FolderChangeBody",
+        "description": "Rename, move or archive. Only the fields sent change (move to the top level with parent_id null)."
+      },
       "Import": {
         "properties": {
           "id": {
@@ -4764,6 +5713,18 @@
             "type": "array",
             "title": "Notices",
             "description": "Plain sentences about what the upload started on this computer (for example the demo test servers). Only on the upload reply."
+          },
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id",
+            "description": "Phase 5a: the assessment this import belongs to."
           },
           "settings_title": {
             "type": "string",
@@ -7007,6 +7968,45 @@
         ],
         "title": "MigrationView"
       },
+      "NameBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "NameBody"
+      },
+      "NextStep": {
+        "properties": {
+          "page": {
+            "type": "string",
+            "title": "Page",
+            "description": "The page that holds the next thing to do, e.g. \"inventory/import\", \"tests\"."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "page",
+          "label",
+          "text"
+        ],
+        "title": "NextStep"
+      },
       "NotTested": {
         "properties": {
           "title": {
@@ -7075,6 +8075,25 @@
           "password"
         ],
         "title": "PasswordBody"
+      },
+      "PathStep": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "PathStep"
       },
       "PlanGroup": {
         "properties": {
@@ -7259,6 +8278,134 @@
           "percent"
         ],
         "title": "Progress"
+      },
+      "ProjectBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProjectBody"
+      },
+      "ProjectChangeBody": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "move": {
+            "type": "boolean",
+            "title": "Move",
+            "default": false
+          },
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived"
+          }
+        },
+        "type": "object",
+        "title": "ProjectChangeBody"
+      },
+      "ProjectView": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "path": {
+            "items": {
+              "$ref": "#/components/schemas/PathStep"
+            },
+            "type": "array",
+            "title": "Path"
+          },
+          "assessments": {
+            "items": {
+              "$ref": "#/components/schemas/AssessmentBrief"
+            },
+            "type": "array",
+            "title": "Assessments",
+            "description": "Newest first."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "folder_id",
+          "archived",
+          "is_demo",
+          "path",
+          "assessments"
+        ],
+        "title": "ProjectView"
       },
       "ProofCell": {
         "properties": {
@@ -8093,6 +9240,45 @@
         "title": "StrongLabel",
         "description": "\"Before: \" + strong + rest, e.g. lead \"Before:\", strong \"acme-sign 1.4.2\", rest \", nothing removed here\"."
       },
+      "SystemCounts": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "classical": {
+            "type": "integer",
+            "title": "Classical"
+          },
+          "hybrid": {
+            "type": "integer",
+            "title": "Hybrid"
+          },
+          "pq_only": {
+            "type": "integer",
+            "title": "Pq Only"
+          },
+          "couldnt_check": {
+            "type": "integer",
+            "title": "Couldnt Check"
+          },
+          "not_measured": {
+            "type": "integer",
+            "title": "Not Measured"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total",
+          "classical",
+          "hybrid",
+          "pq_only",
+          "couldnt_check",
+          "not_measured"
+        ],
+        "title": "SystemCounts"
+      },
       "TableColumn": {
         "properties": {
           "label": {
@@ -8244,6 +9430,30 @@
           "group"
         ],
         "title": "TestCard"
+      },
+      "TestCounts": {
+        "properties": {
+          "run": {
+            "type": "integer",
+            "title": "Run"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "passed": {
+            "type": "integer",
+            "title": "Passed"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run",
+          "failed",
+          "passed"
+        ],
+        "title": "TestCounts"
       },
       "TextSuggestion": {
         "properties": {
@@ -8711,6 +9921,155 @@
           "results"
         ],
         "title": "VerifyRun"
+      },
+      "Workspace": {
+        "properties": {
+          "organization": {
+            "type": "string",
+            "title": "Organization"
+          },
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceFolder"
+            },
+            "type": "array",
+            "title": "Folders"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceProject"
+            },
+            "type": "array",
+            "title": "Projects"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "organization",
+          "folders",
+          "projects"
+        ],
+        "title": "Workspace"
+      },
+      "WorkspaceFolder": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived"
+          },
+          "path": {
+            "items": {
+              "$ref": "#/components/schemas/PathStep"
+            },
+            "type": "array",
+            "title": "Path",
+            "description": "The folders above this one, top first."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "parent_id",
+          "archived",
+          "path"
+        ],
+        "title": "WorkspaceFolder"
+      },
+      "WorkspaceProject": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "path": {
+            "items": {
+              "$ref": "#/components/schemas/PathStep"
+            },
+            "type": "array",
+            "title": "Path"
+          },
+          "assessments": {
+            "type": "integer",
+            "title": "Assessments"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counts": {
+            "$ref": "#/components/schemas/AssessmentCounts"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "folder_id",
+          "archived",
+          "is_demo",
+          "created_at",
+          "path",
+          "assessments",
+          "latest",
+          "counts"
+        ],
+        "title": "WorkspaceProject"
       },
       "ClaimKind": {
         "enum": [

@@ -34,21 +34,29 @@ const screenUnderTest = () => <EvidenceLabScreen planId={1} onViewFix={(fixId) =
 async function open(view: LabView = lab, routes: Routes = {}) {
   const fetchMock = mockApi({ "GET /api/plans/1/lab": { body: view }, ...routes });
   render(screenUnderTest());
-  await screen.findAllByTestId("lab-row");
+  await screen.findAllByTestId("evidence-row");
   return fetchMock;
 }
 
-const rows = () => screen.getAllByTestId("lab-row");
-const rowOf = (title: string) => rows().find((r) => within(r).queryByRole("heading", { name: title }))!;
+const rows = () => screen.getAllByTestId("evidence-row");
+const rowOf = (title: string) => rows().find((r) => within(r).queryAllByText(title).length > 0)!;
+/** The right-side panel that holds one opened result. */
+const panel = () => screen.getByTestId("detail-panel");
 const button = (name: string | RegExp) => screen.getByRole("button", { name }) as HTMLButtonElement;
-const expand = (title: string) => fireEvent.click(within(rowOf(title)).getByRole("button", { name: title }));
+const expand = (title: string) => fireEvent.click(rowOf(title));
+/** Make sure the panel shows this row (opens it unless it is already the one open) and return the panel. */
+const show = (title: string) => {
+  const open = screen.queryByTestId("detail-panel");
+  if (!open || within(open).queryByRole("heading", { level: 2, name: title }) === null) expand(title);
+  return panel();
+};
 const label = (el: HTMLElement) => el.lastElementChild?.textContent;
 
 describe("Evidence Lab, results view", () => {
   it("shows the heading, Demo data, subline, the disclaimer line and the two buttons", async () => {
     const fetchMock = await open();
     expect(calls(fetchMock)).toEqual(["GET /api/plans/1/lab"]);
-    expect(screen.getByRole("heading", { name: "Evidence Lab" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Evidence" })).not.toBeNull();
     expect(screen.getByText("Demo data")).not.toBeNull();
     expect(text(screen.getByTestId("lab-subline"))).toMatch(
       /^Results by test for server localhost:8443 and signing component acme-sign 1\.4\.2\. Run finished .+\.$/,
@@ -60,12 +68,13 @@ describe("Evidence Lab, results view", () => {
 
   it("uses the word 'secure' exactly once, has no score, no upload control and no mockup marker", async () => {
     await open();
-    for (const r of rows()) fireEvent.click(within(r).getAllByRole("button")[0]!);
+    for (const r of rows()) fireEvent.click(r);
     fireEvent.click(button("Retest new version"));
     const all = document.body.textContent ?? "";
     expect(all.match(/secure/gi)).toHaveLength(1);
     expect(all).not.toMatch(/score|time.to.hack|upload|mockup/i);
-    expect(document.querySelector("input, textarea, select, form")).toBeNull();
+    // The search box and the result filter are the only controls; nothing takes a file.
+    expect(document.querySelector("input[type=file], textarea, form")).toBeNull();
   });
 
   it("lists collapsed rows with the plain sentence, control line and a badge for every label", async () => {
@@ -100,19 +109,19 @@ describe("Evidence Lab, results view", () => {
     const badges = screen.getAllByTestId("result-badge");
     expect(label(badges[0]!)).toBe("Couldn't trust this run");
     expect(badges[0]!.className).toBe(badges[4]!.className);
-    fireEvent.click(within(rows()[0]!).getByRole("button"));
+    fireEvent.click(rows()[0]!);
     // No fix is suggested for a run that can't be trusted.
-    expect(within(rows()[0]!).queryByTestId("suggested-fix")).toBeNull();
+    expect(within(panel()).queryByTestId("suggested-fix")).toBeNull();
   });
 
   it("opens a result with every section in order, with tags, and closes it again", async () => {
     await open();
-    const toggle = within(rowOf("Official test vectors")).getByRole("button", { name: "Official test vectors" });
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    const toggle = rowOf("Official test vectors");
+    expect(toggle.getAttribute("aria-selected")).toBe("false");
     fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle.getAttribute("aria-selected")).toBe("true");
 
-    const detail = within(rowOf("Official test vectors")).getByTestId("result-detail");
+    const detail = within(panel()).getByTestId("result-detail");
     const d = within(detail);
     expect(text(d.getByTestId("technical-summary"))).toBe(
       "Technical summary 3 of 484 official cases wrong. Headline: case 168, a signature made of zeros (r=0 and s=0) was accepted.",
@@ -180,11 +189,14 @@ describe("Evidence Lab, results view", () => {
 
   it("puts Mark reviewed and Dig deeper on every opened result", async () => {
     await open();
-    for (const r of rows()) fireEvent.click(within(r).getAllByRole("button")[0]!);
-    expect(screen.getAllByTestId("result-detail")).toHaveLength(5);
-    expect(screen.getAllByRole("button", { name: "Mark reviewed" })).toHaveLength(5);
-    expect(screen.getAllByRole("button", { name: "Dig deeper" })).toHaveLength(5);
-    expect(screen.getAllByText("What this shows, and what it doesn't")).toHaveLength(5);
+    // One result opens at a time, in the panel; every one of the five has both buttons.
+    for (const r of rows()) {
+      fireEvent.click(r);
+      expect(screen.getAllByTestId("result-detail")).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: "Mark reviewed" })).toHaveLength(1);
+      expect(screen.getAllByRole("button", { name: "Dig deeper" })).toHaveLength(1);
+      expect(screen.getAllByText("What this shows, and what it doesn't")).toHaveLength(1);
+    }
   });
 
   it("Mark reviewed calls the API and then shows its recorded state", async () => {
@@ -280,8 +292,7 @@ describe("Evidence Lab, retest", () => {
 
   it("shows before and after side by side, with rows still expandable", async () => {
     await open(beforeAfter);
-    expect(Array.from(screen.getByTestId("lab-columns").children).map((c) => c.firstChild?.textContent ?? "")).toEqual([
-      "",
+    expect(Array.from(screen.getByTestId("lab-columns").children).map((c) => c.firstElementChild?.firstChild?.textContent ?? c.firstChild?.textContent ?? "")).toEqual([
       "Test",
       "Before: acme-sign 1.4.2",
       "After: acme-sign 1.4.3",
@@ -303,20 +314,20 @@ describe("Evidence Lab, retest", () => {
     expect(label(within(speed.getByTestId("lab-cell-after")).getByTestId("result-badge"))).toBe("No slowdown beyond measured noise");
 
     expand("Official test vectors");
-    const details = vectors.getAllByTestId("result-detail");
+    const details = within(panel()).getAllByTestId("result-detail");
     expect(details.map((d) => within(d).getByRole("heading", { level: 3 }).textContent)).toEqual([
       "After: acme-sign 1.4.3, the merged fix (commit c41f0d2)",
       "Before: acme-sign 1.4.2, the bundled demo version",
     ]);
     expect(details.map((d) => d.getAttribute("data-run-id"))).toEqual(["23", "7"]);
-    expect(vectors.getAllByRole("button", { name: "Mark reviewed" })).toHaveLength(2);
-    expect(vectors.getAllByRole("button", { name: "Dig deeper" })).toHaveLength(2);
+    expect(within(panel()).getAllByRole("button", { name: "Mark reviewed" })).toHaveLength(2);
+    expect(within(panel()).getAllByRole("button", { name: "Dig deeper" })).toHaveLength(2);
   });
 
   it("shows the speed table with both versions, the noise band and the for-scale-only note", async () => {
     await open(beforeAfter);
     expand("Speed and size");
-    const after = within(within(rowOf("Speed and size")).getAllByTestId("result-detail")[0]!);
+    const after = within(within(panel()).getAllByTestId("result-detail")[0]!);
     expect(after.getByText("Timings and sizes, before and after")).not.toBeNull();
     const headers = after.getAllByRole("columnheader");
     expect(headers.map((h) => text(h))).toEqual([
@@ -347,7 +358,7 @@ describe("Evidence Lab, retest", () => {
       },
     });
     render(screenUnderTest());
-    await screen.findAllByTestId("lab-row");
+    await screen.findAllByTestId("evidence-row");
     expect(screen.getByTestId("retest-progress").textContent).toBe("Retest running: 1 of 5 tests finished.");
     expect(button("Retest new version").disabled).toBe(true);
     expect(button("Download evidence").disabled).toBe(true);
@@ -367,7 +378,7 @@ describe("Evidence Lab, retest", () => {
 
 describe("Evidence Lab, the line that points to a fix", () => {
   const withLine = (line: FixLine) => withResult(lab, 13, { fix_line: line });
-  const lineOf = (title: string) => within(rowOf(title)).getByTestId("fix-line");
+  const lineOf = (title: string) => within(show(title)).getByTestId("fix-line");
   /** The words of a line, without the arrow and the button that follow them. */
   const words = (line: HTMLElement) => text(line.querySelector("p"));
 
@@ -379,8 +390,8 @@ describe("Evidence Lab, the line that points to a fix", () => {
     expect(words(lineOf("Old TLS versions"))).toBe("Text-only suggestion: a server setting");
     expect(text(lineOf("Old TLS versions"))).toBe("Text-only suggestion: a server setting→View in Fixes");
     for (const title of ["Official test vectors", "Old TLS versions"]) {
-      expect(within(rowOf(title)).queryByTestId("suggested-fix")).toBeNull();
-      expect(within(rowOf(title)).queryByText("Suggested fix")).toBeNull();
+      expect(within(show(title)).queryByTestId("suggested-fix")).toBeNull();
+      expect(within(show(title)).queryByText("Suggested fix")).toBeNull();
     }
 
     fireEvent.click(within(lineOf("Old TLS versions")).getByRole("button", { name: "View in Fixes" }));
@@ -418,13 +429,13 @@ describe("Evidence Lab, the line that points to a fix", () => {
     }
     await open(withLine(fixLines.failed));
     expand("Official test vectors");
-    expect(text(rowOf("Official test vectors"))).not.toMatch(/ready/i);
+    expect(text(panel())).not.toMatch(/ready/i);
   });
 
   it("keeps the Suggested fix box on a result that has no line", async () => {
     await open();
     expand("Certificate strength");
-    const row = within(rowOf("Certificate strength"));
+    const row = within(panel());
     expect(text(row.getByTestId("suggested-fix"))).toBe("Suggested fixNone needed.");
     expect(row.queryByTestId("fix-line")).toBeNull();
     expect(row.queryByRole("button", { name: "View in Fixes" })).toBeNull();
@@ -446,7 +457,7 @@ describe("Evidence Lab, the line that points to a fix", () => {
       },
     });
     render(screenUnderTest());
-    await screen.findAllByTestId("lab-row");
+    await screen.findAllByTestId("evidence-row");
     expand("Official test vectors");
     expect(words(lineOf("Official test vectors"))).toBe("Fix prepared: 3 lines added and 1 removed, proof running");
     expect(button("Retest new version").disabled).toBe(true);
@@ -485,7 +496,7 @@ describe("Evidence Lab, the line that points to a fix", () => {
       },
     });
     render(screenUnderTest());
-    await screen.findAllByTestId("lab-row");
+    await screen.findAllByTestId("evidence-row");
     expect(provingUnseen.rows.some((r) => r.result?.fix_line?.busy || r.after?.fix_line?.busy)).toBe(false);
     expect(button("Retest new version").disabled).toBe(true);
     expect(button("Download evidence").disabled).toBe(true);
@@ -504,7 +515,6 @@ describe("Evidence Lab, which code each result ran on", () => {
     await open(beforeAfter);
     const columns = Array.from(screen.getByTestId("lab-columns").children);
     expect(columns.map((c) => text(c))).toEqual([
-      "",
       "Test",
       "Before: acme-sign 1.4.2the bundled demo version",
       "After: acme-sign 1.4.3the merged fix, commit c41f0d2",
@@ -522,7 +532,7 @@ describe("Evidence Lab, which code each result ran on", () => {
     expect(screen.getByTestId("lab-subline").nextElementSibling).toBe(screen.getByTestId("lab-code-line"));
 
     expand("Official test vectors");
-    const details = within(rowOf("Official test vectors")).getAllByTestId("result-detail");
+    const details = within(panel()).getAllByTestId("result-detail");
     expect(details.map((d) => d.getAttribute("aria-label"))).toEqual([
       "After: acme-sign 1.4.3, the merged fix (commit c41f0d2)",
       "Before: acme-sign 1.4.2, the bundled demo version",
@@ -537,7 +547,7 @@ describe("Evidence Lab, which code each result ran on", () => {
   it("shows the Code item of the run record right after Component, with its source tag", async () => {
     await open();
     expand("Official test vectors");
-    const detail = within(rowOf("Official test vectors")).getByTestId("result-detail");
+    const detail = within(panel()).getByTestId("result-detail");
     const items = Array.from(detail.querySelectorAll("ul > li")).map((li) => text(li));
     expect(items.slice(2, 5)).toEqual([
       "Component: acme-sign 1.4.2 demo",
@@ -559,7 +569,6 @@ describe("Evidence Lab, which code each result ran on", () => {
     };
     await open(plain);
     expect(Array.from(screen.getByTestId("lab-columns").children).map((c) => text(c))).toEqual([
-      "",
       "Test",
       "Before: acme-sign 1.4.2",
       "After: acme-sign 1.4.3",
@@ -613,7 +622,7 @@ describe("Evidence Lab, grouped by target", () => {
       "A local test server started for this file (Demo data).",
     ]);
     expect(within(sections[1]!).getByTestId("lab-group-note")).not.toBeNull();
-    expect(sections.map((g) => within(g).getAllByTestId("lab-row").map((r) => r.getAttribute("data-kind")))).toEqual([
+    expect(sections.map((g) => Array.from(g.querySelectorAll("[data-kind]")).map((r) => r.getAttribute("data-kind")))).toEqual([
       ["tls_versions", "certificate"],
       ["tls_versions", "certificate"],
       ["official_vectors"],
@@ -637,7 +646,7 @@ describe("Evidence Lab, grouped by target", () => {
     await open(groupedLab);
     const notes = screen.getAllByTestId("also-noticed");
     expect(notes).toHaveLength(1);
-    const certRow = within(screen.getAllByTestId("lab-group")[1]!).getAllByTestId("lab-row")[1]!;
+    const certRow = within(screen.getAllByTestId("lab-group")[1]!).getAllByTestId("evidence-row")[1]!;
     expect(certRow.contains(notes[0]!)).toBe(true);
     expect(text(notes[0])).toBe("Also noticed: The handshakes for this check showed the server also accepts TLS 1.0 and TLS 1.1.");
     expect(within(certRow).getByTestId("lab-row-header").contains(notes[0]!)).toBe(false);
@@ -661,7 +670,7 @@ describe("Evidence Lab, grouped by target", () => {
     const sections = screen.getAllByTestId("lab-group");
     expect(sections).toHaveLength(3);
     expect(screen.getByTestId("lab-columns")).not.toBeNull();
-    const row = within(within(sections[1]!).getAllByTestId("lab-row")[0]!);
+    const row = within(within(sections[1]!).getAllByTestId("evidence-row")[0]!);
     expect(within(row.getByTestId("lab-cell-before")).getByText(/^localhost:8445 accepted TLS 1\.0/)).not.toBeNull();
     expect(within(row.getByTestId("lab-cell-after")).getByText(/^After: localhost:8445 accepted TLS 1\.0/)).not.toBeNull();
     // The newer result has no notes, so none is shown.
@@ -674,7 +683,7 @@ describe("Evidence Lab, published advisories", () => {
   const openVectors = async (change: Record<string, unknown> | null) => {
     await open(change ? withResult(lab, 13, change) : lab);
     expand("Official test vectors");
-    return within(within(rowOf("Official test vectors")).getByTestId("result-detail"));
+    return within(within(panel()).getByTestId("result-detail"));
   };
 
   it("draws the title, the tag, the id, the text, a safe link and the covered sentence", async () => {
@@ -703,5 +712,29 @@ describe("Evidence Lab, published advisories", () => {
     const box = within(detail.getByTestId("advisories"));
     expect(box.getByText(/OpenJDK advisory, 19 April 2022/)).not.toBeNull();
     expect(box.queryByRole("link")).toBeNull();
+  });
+});
+
+describe("Evidence Lab, table, panel, search and cards", () => {
+  it("opens a row in the panel from the keyboard, and Escape or the close button shuts it", async () => {
+    await open();
+    fireEvent.keyDown(rowOf("Official test vectors"), { key: "Enter" });
+    expect(within(panel()).getByTestId("result-detail")).not.toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("detail-panel")).toBeNull();
+    expand("Official test vectors");
+    fireEvent.click(within(panel()).getByRole("button", { name: "Close details" }));
+    expect(screen.queryByTestId("detail-panel")).toBeNull();
+  });
+
+  it("counts rows by their badge code in the summary cards, and filters by search and result", async () => {
+    await open();
+    const card = (key: string) => within(screen.getAllByTestId("summary-card").find((c) => c.getAttribute("data-card") === key)!).getAllByText(/^\d+$/)[0]!.textContent;
+    expect([card("with-result"), card("failed"), card("passed"), card("couldnt-run")]).toEqual(["5", "2", "1", "1"]);
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "speed" } });
+    expect(rows()).toHaveLength(1);
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Result"), { target: { value: "failed" } });
+    expect(rows()).toHaveLength(2);
   });
 });

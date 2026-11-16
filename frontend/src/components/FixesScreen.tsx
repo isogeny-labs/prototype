@@ -4,6 +4,7 @@ import { ChangeBox } from "./change/ChangeBox";
 import { FixList } from "./fixes/FixList";
 import { FixSections } from "./fixes/FixSections";
 import { FixSummary, type FixRequest } from "./fixes/FixSummary";
+import { PageHeader } from "./layout";
 import { DemoDataLabel, ErrorBox } from "./ui";
 
 const POLL_MS = 1000;
@@ -72,7 +73,7 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
   if (!view) {
     return (
       <section aria-labelledby="fixes-title" className="space-y-4">
-        <h1 id="fixes-title" className="text-xl font-semibold text-slate-50">
+        <h1 id="fixes-title" className="text-2xl font-semibold tracking-tight text-slate-50">
           Fixes
         </h1>
         {error ? (
@@ -142,16 +143,12 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
   const sectionKey = (fixId: string, section: FixSection) => `${fixId}/${section.key}`;
 
   return (
-    <section aria-labelledby="fixes-title">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 id="fixes-title" className="text-xl font-semibold text-slate-50">
-          {current.title}
-        </h1>
-        {current.is_demo ? <DemoDataLabel /> : null}
-      </div>
-      <p data-testid="fixes-subline" className="mt-2 text-sm text-slate-400">
-        {current.subline}
-      </p>
+    <section aria-label={current.title}>
+      <PageHeader
+        eyebrow={current.is_demo ? <DemoDataLabel /> : undefined}
+        title={current.title}
+        description={<span data-testid="fixes-subline">{current.subline}</span>}
+      />
 
       {error ? (
         <div className="mt-4">
@@ -159,12 +156,12 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
         </div>
       ) : null}
 
-      <p data-testid="disclaimer" className="mt-4 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+      <p data-testid="disclaimer" className="mb-2 mt-4 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
         {current.disclaimer}
       </p>
 
       {fix ? (
-        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[250px_1fr]">
+        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
           <FixList title={current.list_title} fixes={current.fixes} selectedId={fix.id} onSelect={onSelect} />
           <div className="flex min-w-0 flex-col gap-3">
             {/* The key gives each fix its own ticks and its own confirm box. */}

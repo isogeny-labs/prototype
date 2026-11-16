@@ -229,7 +229,8 @@ def test_a_recursion_error_while_reading_a_file_is_a_422_not_a_crash(client, mon
 
 def test_uploading_the_csv_template_is_labelled_demo_data(client):
     imp = upload(client, "claims-template.csv", (DEMO_DIR / "claims-template.csv").read_bytes()).json()
-    assert imp["is_demo"] is True and set(imp) == {"id", "filename", "format", "is_demo", "claims", "addresses", "skipped", "settings", "settings_title"}
+    assert imp["is_demo"] is True and set(imp) == {"id", "filename", "format", "is_demo", "claims", "addresses", "skipped", "settings", "settings_title",
+                                             "assessment_id"}
 
 
 def test_is_demo_follows_what_the_file_points_at(client, settings, listener):

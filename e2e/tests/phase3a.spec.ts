@@ -14,11 +14,10 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, DISCLAIMER, PYTHON, REPO, enterApp, importVerifyAndOpenTests, password, screenshotFolder } from "./shared";
+import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, REPO, screenshotFolder, SIDEBAR_PAGES, stepLink, stepName, stepNav, openFreshAssessment, closeResult, evidenceRow, openResult } from "./shared";
 
 const SHOTS = screenshotFolder("phase3a");
 const PQ_TOO_OLD = "Couldn't run (needs OpenSSL 3.5 or newer)";
-const STEPS = ["1. Import", "2. Verify", "3. Tests", "4. Evidence Lab", "5. Fixes", "6. Migration"];
 const SUGGESTED = ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)", "Attacker tricks (our short list)", "Speed and size"];
 const ALL_SIX = [...SUGGESTED, "Post-quantum readiness"];
 
@@ -65,7 +64,7 @@ function card(title: string | RegExp): Locator {
 }
 
 function labRow(title: string): Locator {
-  return page.getByTestId("lab-row").filter({ has: page.getByRole("heading", { name: title, exact: true }) });
+  return evidenceRow(page, title);   // phase 5a: the table row; its details open in the detail panel
 }
 
 /** The words of a result badge, without its symbol. */
@@ -108,23 +107,20 @@ function verifyEvidence(file: string): { code: number; output: string } {
 }
 
 async function goTo(step: string): Promise<void> {
-  await page.getByRole("navigation", { name: "Steps" }).getByRole("button", { name: step }).click();
-  await expect(page.getByRole("navigation", { name: "Steps" }).locator('[aria-current="step"]')).toHaveText(step);
+  await stepLink(page, step).click();
+  await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText(stepName(step));
 }
 
 /** Opens a result in Evidence Lab (if it is closed) and hands back its row. */
 async function openLabRow(title: string): Promise<Locator> {
-  const row = labRow(title);
-  const toggle = row.getByRole("button", { name: title, exact: true });
-  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  return row;
+  // Phase 5a: the result opens in the right-side detail panel; this hands back what the panel shows for it.
+  return openResult(page, title);
 }
 
 async function closeLabRow(title: string): Promise<void> {
-  const toggle = labRow(title).getByRole("button", { name: title, exact: true });
-  if ((await toggle.getAttribute("aria-expanded")) === "true") await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  const heading = page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: title, exact: true });
+  if ((await heading.count()) > 0) await closeResult(page);
+  await expect(heading).toHaveCount(0);
 }
 
 /** A failed result that has a fix shows one line with View in Fixes, and no "Suggested fix" box. */
@@ -296,6 +292,7 @@ test.afterAll(async () => {
 
 test("a fresh import: Verify, the five suggested tests plus Post-quantum readiness, Run all", async () => {
   await enterApp(page);
+  await openFreshAssessment(page, "Phase 3a walk");
   // Use demo file again. A new imported file gets its own plan and its own fresh copy of the demo repository.
   await importVerifyAndOpenTests(page);
   const cards = page.getByTestId("test-card");
@@ -304,10 +301,9 @@ test("a fresh import: Verify, the five suggested tests plus Post-quantum readine
   await expect(cards.getByTestId("test-status")).toHaveText(Array(5).fill("Not run yet"));
 
   // Five steps. Fixes, like Evidence Lab, opens once there is a result.
-  const steps = page.getByRole("navigation", { name: "Steps" });
-  await expect(steps.getByRole("button")).toHaveText(STEPS);
-  await expect(steps.getByRole("button", { name: "4. Evidence Lab" })).toBeDisabled();
-  await expect(steps.getByRole("button", { name: "5. Fixes" })).toBeDisabled();
+  await expect(stepNav(page).getByRole("link")).toHaveText(SIDEBAR_PAGES);
+  await expect(stepLink(page, "4. Evidence Lab")).toBeDisabled();
+  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
 
   await page.getByRole("button", { name: "+ Add test" }).click();
   await page.getByRole("menu").getByRole("menuitem").filter({ hasText: "Post-quantum readiness" }).click();
@@ -321,14 +317,14 @@ test("a fresh import: Verify, the five suggested tests plus Post-quantum readine
   await expect(badge(card("Attacker tricks (our short list)"))).toHaveText("Failed");
   await expect(badge(card("Speed and size"))).toHaveText("Measured");
   expect(["Not offered", PQ_TOO_OLD]).toContain((await badge(card("Post-quantum readiness")).innerText()).trim());
-  await expect(steps.getByRole("button", { name: "4. Evidence Lab" })).toBeEnabled();
-  await expect(steps.getByRole("button", { name: "5. Fixes" })).toBeEnabled();
+  await expect(stepLink(page, "4. Evidence Lab")).toBeEnabled();
+  await expect(stepLink(page, "5. Fixes")).toBeEnabled();
 });
 
 test("Evidence Lab: each failed result that has a fix shows one line with View in Fixes; the others keep their advice box", async () => {
   await goTo("4. Evidence Lab");
-  await expect(page.getByRole("heading", { name: "Evidence Lab", level: 1 })).toBeVisible();
-  await expect(page.getByTestId("lab-row")).toHaveCount(6);
+  await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
+  await expect(page.getByTestId("evidence-row")).toHaveCount(6);
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
 
   const lines: Record<string, [string, "plain" | "dashed"]> = {
@@ -342,13 +338,13 @@ test("Evidence Lab: each failed result that has a fix shows one line with View i
     await expect(detail).toHaveCount(1);
     const line = lines[title];
     if (line) {
-      await expect(badge(row).first()).toHaveText("Failed");
+      await expect(badge(labRow(title)).first()).toHaveText("Failed");
       await expectFixLine(detail, line[0], line[1]);
     } else {
       // Not a failure: no line. Its advice stays in Evidence Lab, in the box it always had.
       await expect(detail.getByTestId("fix-line")).toHaveCount(0);
       await expect(detail.getByRole("button", { name: "View in Fixes" })).toHaveCount(0);
-      const label = (await badge(row).first().innerText()).trim();
+      const label = (await badge(labRow(title)).first().innerText()).trim();
       if (!label.startsWith("Couldn't run")) {
         await expect(detail.getByTestId("suggested-fix")).toHaveCount(1);
         await expect(detail.getByTestId("suggested-fix").getByRole("heading")).toHaveText("Suggested fix");
@@ -378,9 +374,9 @@ test("Evidence Lab: each failed result that has a fix shows one line with View i
 
 test("View in Fixes opens the right fix; Fixes lists the two findings with their statuses", async () => {
   // From the signing failure: the code fix.
-  await labRow("Attacker tricks (our short list)").getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
+  await (await openLabRow("Attacker tricks (our short list)")).getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Steps" }).locator('[aria-current="step"]')).toHaveText("5. Fixes");
+  await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText("Fixes");
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
   await expect(summary().getByRole("heading", { level: 2 })).toHaveText(CODE_FIX_TITLE);
   await expect(page.getByTestId("fixes-subline")).toHaveText(
@@ -597,13 +593,13 @@ test("while the proof runs, Evidence Lab's line says so, and Retest new version 
   // A proof reruns the tests, but these results are not being replaced, so the page must not say tests are running.
   await expect(page.getByTestId("lab-subline")).not.toContainText("Tests are running");
   await expect(page.getByTestId("lab-subline")).toContainText("Run finished");
-  await expect(page.getByTestId("lab-row")).toHaveCount(6);
+  await expect(page.getByTestId("evidence-row")).toHaveCount(6);
   await shot("04-lab-fix-line-proof-running.png");
 });
 
 test("with nobody pressing anything, the status goes from Proving to Ready for review, with Proof passed", async () => {
   // Back to Fixes through the line's own button. From here nothing is pressed until the proof has ended.
-  await labRow("Attacker tricks (our short list)").getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
+  await (await openLabRow("Attacker tricks (our short list)")).getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
   const watched = await watchProof();
   test.info().annotations.push({ type: "proof", description: `statuses seen: ${watched.statuses.join(" -> ")}; progress: ${watched.progress.join(" | ")}` });
@@ -949,8 +945,8 @@ test("Download patch gives acme-sign-pull-request-1.patch: the two added lines a
 test("Retest now runs the retest and lands on Evidence Lab's before and after, which match the answer key R1 to R5", async () => {
   await summary().getByRole("button", { name: "Retest now" }).click();
   // Straight to Evidence Lab: before and after, running.
-  await expect(page.getByRole("heading", { name: "Evidence Lab", level: 1 })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Steps" }).locator('[aria-current="step"]')).toHaveText("4. Evidence Lab");
+  await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
+  await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText("Evidence");
   await expect(page.getByTestId("lab-columns")).toContainText("Before: acme-sign 1.4.2");
   await expect(page.getByTestId("lab-columns")).toContainText("After: acme-sign 1.4.3");
   await expect(page.getByTestId("retest-progress")).toContainText("Retest running");
@@ -958,7 +954,7 @@ test("Retest now runs the retest and lands on Evidence Lab's before and after, w
   await expect(page.getByTestId("retest-progress")).toHaveCount(0, { timeout: 200_000 });
   await expect(page.getByTestId("lab-subline")).toContainText("Retest finished");
 
-  const row = (kind: string) => page.locator(`[data-testid="lab-row"][data-kind="${kind}"]`);
+  const row = (kind: string) => page.getByTestId("evidence-row").filter({ has: page.locator(`[data-kind="${kind}"]`) });
   const before = async (kind: string) => (await badge(row(kind).getByTestId("lab-cell-before")).innerText()).trim();
   const after = async (kind: string) => (await badge(row(kind).getByTestId("lab-cell-after")).innerText()).trim();
   // The answer key, entry by entry: T1 to T5 before, R1 to R5 after.
@@ -979,7 +975,7 @@ test("Retest now runs the retest and lands on Evidence Lab's before and after, w
   await expect(row("bad_signatures").getByTestId("lab-cell-after")).toContainText("rejected all 14 forged signatures");
   await expect(row("tls_versions").getByTestId("lab-cell-after")).toContainText("The server still accepts TLS 1.2");
   await expect(page.getByText("Couldn't trust this run")).toHaveCount(0);
-  await expect(page.getByTestId("lab-row")).toHaveCount(6);
+  await expect(page.getByTestId("evidence-row")).toHaveCount(6);
 
   // Which code each side ran on: the bundled 1.4.2 before, the merged fix after, with the merge commit Fixes showed.
   expect(mergeCommit).toMatch(/^[0-9a-f]{7}$/);
@@ -1266,7 +1262,7 @@ test("a second import gets its own fresh copy of the code; with the address not 
   const cards = page.getByTestId("test-card");
   await expect(cards).toHaveCount(5);
   await expect(cards.getByTestId("test-status")).toHaveText(Array(5).fill("Not run yet"));
-  await expect(page.getByRole("button", { name: "5. Fixes" })).toBeDisabled();
+  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
   await runAllAndWait(5);
 
   // Untick "I own this system or am allowed to test it" on Import. The server tests then can't run during the proof.
@@ -1512,7 +1508,7 @@ test("an open pull request does not shield a proof that is out of date: nothing 
 
 test("a third import: Fixes says when no failed test has a fix, and Connect demo code stays off until every test has run", async () => {
   await importVerifyAndOpenTests(page);
-  await expect(page.getByRole("navigation", { name: "Steps" }).getByRole("button", { name: "5. Fixes" })).toBeDisabled();
+  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
 
   // Run one test that passes. There is a result now, so Fixes opens, and it has nothing to show.
   await card("Certificate strength").getByRole("button", { name: "Run Certificate strength" }).click();

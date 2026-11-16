@@ -1,26 +1,14 @@
-import { useState } from "react";
-import type { Evidence, Import, Result, ResultValue, VerifyRun } from "../api";
-import { AlsoNoticedList, DemoDataLabel, PrimaryButton, SourceTag } from "./ui";
+import { useCallback, useState } from "react";
+import type { Evidence, Import, Result, ResultValue, Tone, VerifyRun } from "../api";
+import { DataTable, DetailPanel, PageHeader, TableWithPanel, type Column } from "./layout";
+import { AlsoNoticedList, DemoDataLabel, PrimaryButton, ResultBadge, SourceTag } from "./ui";
 
-// "True" only means the claim matched what we measured, so it is styled as a
-// neutral match, not as "safe". Every badge carries its text and a symbol, so
-// nothing depends on colour alone.
-const BADGES: Record<ResultValue, { symbol: string; className: string; meaning: string }> = {
-  True: {
-    symbol: "=",
-    className: "border-sky-400/60 bg-sky-400/10 text-sky-100",
-    meaning: "The claim matches what we measured.",
-  },
-  False: {
-    symbol: "≠",
-    className: "border-amber-400/70 bg-amber-400/15 text-amber-100",
-    meaning: "The claim doesn't match what we measured.",
-  },
-  "Couldn't check": {
-    symbol: "?",
-    className: "border-slate-500 bg-slate-700/40 text-slate-100",
-    meaning: "We couldn't measure this, so there is no answer.",
-  },
+// "True" only means the claim matched what we measured, so it is drawn as a calm match, not as "safe". The chip
+// carries its words and a symbol, so nothing depends on colour alone.
+const BADGES: Record<ResultValue, { tone: Tone; meaning: string }> = {
+  True: { tone: "pass", meaning: "The claim matches what we measured." },
+  False: { tone: "fail", meaning: "The claim doesn't match what we measured." },
+  "Couldn't check": { tone: "warn", meaning: "We couldn't measure this, so there is no answer." },
 };
 
 function formatTime(iso: string): string {
@@ -72,80 +60,36 @@ function EvidenceItem({ item }: { item: Evidence }) {
   );
 }
 
-function ResultRow({ result }: { result: Result }) {
-  const [open, setOpen] = useState(false);
+/** What opens in the panel: what we found, what the result means, and the raw evidence. */
+function ResultDetails({ result }: { result: Result }) {
   const badge = BADGES[result.result];
-  const detailsId = `details-${result.claim_id}`;
-
   return (
-    <li data-testid="result-row" className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-      <div className="grid gap-4 md:grid-cols-[1fr_13rem]">
-        <div className="min-w-0">
-          <p className="text-xs uppercase tracking-wide text-slate-500">Claim</p>
-          <p className="mt-1 text-sm text-slate-300">
-            {result.claim.text} <SourceTag>from the file</SourceTag>
-          </p>
-          <p data-testid="verify-summary" className="mt-2.5 text-base text-slate-100">
-            {result.summary}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-slate-500">Result</p>
-          <p
-            className={`mt-1 inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm font-semibold ${badge.className}`}
-          >
-            <span aria-hidden="true" className="font-mono">
-              {badge.symbol}
-            </span>
-            <span data-testid="result-badge">{result.result}</span>
-          </p>
-        </div>
+    <div id={`details-${result.claim_id}`} className="space-y-4">
+      <div>
+        <p className="text-xs uppercase tracking-wide text-slate-500">Claim</p>
+        <p className="mt-1 text-sm text-slate-300">
+          {result.claim.text} <SourceTag>from the file</SourceTag>
+        </p>
       </div>
-
-      {result.also_noticed.length > 0 ? (
-        <div className="mt-3">
-          <AlsoNoticedList title="Also noticed" items={result.also_noticed} />
-        </div>
-      ) : null}
-
-      <div className="mt-3 border-t border-slate-800 pt-3">
-        <button
-          type="button"
-          data-testid="verify-details-toggle"
-          aria-expanded={open}
-          aria-controls={detailsId}
-          onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-2 rounded text-sm text-slate-300 hover:text-slate-100"
-        >
-          <span aria-hidden="true" className="font-mono text-xs">
-            {open ? "▾" : "▸"}
-          </span>
-          Details and evidence
-        </button>
-        {open ? (
-          <div id={detailsId} className="mt-3 space-y-3">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-slate-500">What we found</p>
-              <p className="mt-1 text-sm text-slate-200">
-                {result.found} <SourceTag>measured</SourceTag>
-              </p>
-              <p className="mt-1.5 text-xs text-slate-400">
-                {result.result === "Couldn't check" && result.reason ? result.reason : badge.meaning}
-              </p>
-            </div>
-            {result.evidence.length === 0 ? (
-              <p className="text-sm text-slate-400">Nothing was run for this claim, so there is no raw output.</p>
-            ) : (
-              <ul className="space-y-3">
-                {result.evidence.map((item, i) => (
-                  <EvidenceItem key={i} item={item} />
-                ))}
-              </ul>
-            )}
-          </div>
-        ) : null}
+      <div>
+        <p className="text-xs uppercase tracking-wide text-slate-500">What we found</p>
+        <p className="mt-1 text-sm text-slate-200">
+          {result.found} <SourceTag>measured</SourceTag>
+        </p>
+        <p className="mt-1.5 text-xs text-slate-400">
+          {result.result === "Couldn't check" && result.reason ? result.reason : badge.meaning}
+        </p>
       </div>
-    </li>
+      {result.evidence.length === 0 ? (
+        <p className="text-sm text-slate-400">Nothing was run for this claim, so there is no raw output.</p>
+      ) : (
+        <ul className="space-y-3">
+          {result.evidence.map((item, i) => (
+            <EvidenceItem key={i} item={item} />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -156,37 +100,111 @@ interface Props {
 }
 
 export function VerifyScreen({ imp, run, onContinue }: Props) {
-  return (
-    <section aria-labelledby="verify-title" className="space-y-6">
-      <div>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 id="verify-title" className="text-xl font-semibold text-slate-50">
-            Verify
-          </h1>
-          {imp.is_demo ? <DemoDataLabel /> : null}
-        </div>
-        <p className="mt-1 text-sm text-slate-400">
-          Each claim from {imp.filename}, checked against the real system. Checked{" "}
-          <time dateTime={run.finished_at}>{formatTime(run.finished_at)}</time>.
-        </p>
-      </div>
+  const [openId, setOpenId] = useState<number | null>(null);
+  const close = useCallback(() => setOpenId(null), []);
+  const toggle = (id: number) => setOpenId((cur) => (cur === id ? null : id));
+  const selected = run.results.find((r) => r.claim_id === openId) ?? null;
 
-      {run.results.length === 0 ? (
-        <p className="text-sm text-slate-400">There were no claims to check.</p>
-      ) : (
-        <ul className="space-y-3">
-          {run.results.map((result) => (
-            <ResultRow key={result.claim_id} result={result} />
-          ))}
-        </ul>
-      )}
+  const columns: Column<Result>[] = [
+    {
+      key: "claim",
+      header: "Claim",
+      render: (r) => (
+        <div className="min-w-0">
+          <p className="text-sm text-slate-300">
+            {r.claim.text} <SourceTag>from the file</SourceTag>
+          </p>
+          <p data-testid="verify-summary" className="mt-2 text-sm text-slate-100">
+            {r.summary}
+          </p>
+          {r.also_noticed.length > 0 ? (
+            <div className="mt-2">
+              <AlsoNoticedList title="Also noticed" items={r.also_noticed} />
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    { key: "result", header: "Result", className: "w-44", render: (r) => <ResultBadge label={r.result} tone={BADGES[r.result].tone} /> },
+    {
+      key: "details",
+      header: <span className="sr-only">Details</span>,
+      className: "w-52",
+      render: (r) => {
+        const open = r.claim_id === openId;
+        return (
+          <button
+            type="button"
+            data-testid="verify-details-toggle"
+            aria-expanded={open}
+            aria-controls={`details-${r.claim_id}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggle(r.claim_id);
+            }}
+            className="flex items-center gap-2 rounded text-sm text-slate-300 hover:text-slate-100"
+          >
+            <span aria-hidden="true" className="font-mono text-xs">
+              {open ? "▾" : "▸"}
+            </span>
+            Details and evidence
+          </button>
+        );
+      },
+    },
+  ];
+
+  const table =
+    run.results.length === 0 ? (
+      <p className="text-sm text-slate-400">There were no claims to check.</p>
+    ) : (
+      <DataTable
+        label="Claims and results"
+        columns={columns}
+        rows={run.results}
+        rowKey={(r) => String(r.claim_id)}
+        rowTestId="result-row"
+        selectedKey={selected ? String(selected.claim_id) : null}
+        onRowClick={(r) => toggle(r.claim_id)}
+      />
+    );
+
+  return (
+    <section aria-label="Verify" className="space-y-6">
+      <PageHeader
+        eyebrow={imp.is_demo ? <DemoDataLabel /> : undefined}
+        title="Verify"
+        description={
+          <>
+            Each claim from {imp.filename}, checked against the real system. Checked{" "}
+            <time dateTime={run.finished_at}>{formatTime(run.finished_at)}</time>.
+          </>
+        }
+      />
+
+      <TableWithPanel
+        panelOpen={selected !== null}
+        table={table}
+        panel={
+          <DetailPanel
+            open={selected !== null}
+            title={selected ? selected.claim.text : ""}
+            subtitle={selected ? <ResultBadge label={selected.result} tone={BADGES[selected.result].tone} /> : undefined}
+            onClose={close}
+          >
+            {selected ? <ResultDetails result={selected} /> : null}
+          </DetailPanel>
+        }
+      />
 
       <p className="rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
         Passing these tests doesn't prove a system secure. It shows these specific checks passed.
       </p>
 
       <div>
-        <PrimaryButton onClick={onContinue}>Continue to tests</PrimaryButton>
+        <PrimaryButton allowWhenClosed onClick={onContinue}>
+          Continue to tests
+        </PrimaryButton>
       </div>
     </section>
   );

@@ -4,7 +4,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DISCLAIMER, password, shotFixes } from "./shared";
+import { DISCLAIMER, openFreshAssessment, password, shotFixes, SIDEBAR_PAGES, stepLink, stepNav, shotBothThemes } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.resolve(here, "../../docs/screenshots/phase1");
@@ -20,6 +20,19 @@ async function shot(target: Page, name: string, fullPage = true): Promise<void> 
 
 function row(target: Page, claimText: string | RegExp) {
   return target.getByTestId("result-row").filter({ hasText: claimText });
+}
+
+// Phase 5a: a row's "Details and evidence" opens the right-side detail panel (today's details and raw evidence).
+async function openDetails(target: Page, claimText: string | RegExp) {
+  const toggle = row(target, claimText).getByTestId("verify-details-toggle");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  return target.getByTestId("detail-panel");
+}
+
+async function closeDetails(target: Page) {
+  await target.getByTestId("detail-panel").getByRole("button", { name: "Close details" }).click();
+  await expect(target.getByTestId("detail-panel")).toHaveCount(0);
 }
 
 test.describe.configure({ mode: "serial" });
@@ -43,9 +56,15 @@ test("first run: create your password, then you are in the app", async () => {
   await page.getByLabel("Repeat password").fill(password);
   await page.getByRole("button", { name: "Create password" }).click();
 
+  // Phase 5a: a first run lands on Projects, which explains projects and assessments; a new project opens on Import.
+  await expect(page.getByTestId("projects-page")).toBeVisible();
+  await expect(page.getByTestId("empty-state")).toContainText("assessment");
+  await expect(page.getByTestId("mode-badge")).toHaveText("Demo mode");
+  await expect(page.getByTestId("mode-line")).toContainText("Demo mode: running our own demo software, not isolated.");
+  await shotBothThemes(page, "00-projects-empty");
+  await openFreshAssessment(page, "Phase 1 walk");
   await expect(page.getByRole("heading", { name: "Import", level: 1 })).toBeVisible();
-  await expect(page.getByText("Demo mode: running our own demo software, not isolated.")).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Steps" })).toBeVisible();
+  await expect(page.getByTestId("sidebar").first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Use demo file" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Verify claims" })).toHaveCount(0);
   await shot(page, "03-import-empty.png");
@@ -69,7 +88,9 @@ test("a later visit shows Log in; a wrong password is refused, the right one wor
 
     await visit.getByLabel("Password", { exact: true }).fill(password);
     await visit.getByRole("button", { name: "Log in" }).click();
-    await expect(visit.getByRole("heading", { name: "Import", level: 1 })).toBeVisible();
+    // Phase 5a: in the app, on Projects (home); the walk's own project is listed there.
+    await expect(visit.getByRole("heading", { name: "Projects", level: 1 })).toBeVisible();
+    await expect(visit.getByTestId("project-row").filter({ hasText: "Phase 1 walk" })).toHaveCount(1);
   } finally {
     await later.close();
   }
@@ -113,21 +134,22 @@ test("without the tick, the server is not contacted: server claims are Couldn't 
   }
   expect(byKind["signature_algorithm"].result).toBe("True");
 
-  // The screen shows the same thing after a refresh.
+  // The screen shows the same thing after a refresh (phase 5a: a refresh keeps the page in the address; Verify is
+  // one click away in the sidebar, and it shows the run that was just made).
   await page.reload();
+  await stepLink(page, "2. Verify").click();
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
   const tls = row(page, "accepts TLS 1.3 only");
   await expect(tls.getByTestId("result-badge")).toHaveText("Couldn't check");
   // Phase 3a-fixes: the reason is in the plain sentence on top (mid-sentence, so lower case), and as written in the details.
   await expect(tls.getByTestId("verify-summary")).toContainText("you haven't confirmed you're allowed to test this address");
-  await tls.getByTestId("verify-details-toggle").click();
-  await expect(tls).toContainText(NOT_CONFIRMED);
-  await tls.getByTestId("verify-details-toggle").click();
+  await expect(await openDetails(page, "accepts TLS 1.3 only")).toContainText(NOT_CONFIRMED);
+  await closeDetails(page);
   await expect(row(page, "certificate is ECDSA P-256").getByTestId("result-badge")).toHaveText("Couldn't check");
 });
 
 test("tick the box and Verify claims: False, True, True, with evidence", async () => {
-  await page.getByRole("button", { name: "1. Import" }).click();
+  await stepLink(page, "1. Import").click();
   // The tick is saved by the app before the box shows as ticked, so click and then wait.
   await page.getByTestId("address-confirm").click();
   await expect(page.getByTestId("address-confirm")).toBeChecked();
@@ -150,12 +172,13 @@ test("tick the box and Verify claims: False, True, True, with evidence", async (
 
   await expect(page.getByText(DISCLAIMER)).toBeVisible();
   await expect(page.getByText("Demo data", { exact: true })).toBeVisible();
-  await expect(page.getByText("Demo mode: running our own demo software, not isolated.")).toBeVisible();
+  await expect(page.getByTestId("mode-badge")).toHaveText("Demo mode");
+  await expect(page.getByTestId("mode-line")).toContainText("Demo mode: running our own demo software, not isolated.");
   await expect(tls.getByText("from the file", { exact: true })).toBeVisible();
-  await tls.getByTestId("verify-details-toggle").click();
-  await expect(tls).toContainText(/Accepts TLS 1\.3 and TLS 1\.2/);
-  await expect(tls.getByText("measured", { exact: true }).first()).toBeVisible();
-  await tls.getByTestId("verify-details-toggle").click();
+  const details = await openDetails(page, "localhost:8443 accepts TLS 1.3 only");
+  await expect(details).toContainText(/Accepts TLS 1\.3 and TLS 1\.2/);
+  await expect(details.getByText("measured", { exact: true }).first()).toBeVisible();
+  await closeDetails(page);
 
   // The app never calls anything secure and never gives a score.
   const text = (await page.locator("body").innerText()).replace(DISCLAIMER, "");
@@ -165,11 +188,11 @@ test("tick the box and Verify claims: False, True, True, with evidence", async (
 });
 
 test("evidence opens and shows raw output, with no private key in it", async () => {
-  const tls = row(page, "localhost:8443 accepts TLS 1.3 only");
-  const toggle = tls.getByRole("button", { name: "Evidence" });
+  // Phase 5a: the evidence is folded away until the row's "Details and evidence" opens it in the detail panel.
+  const toggle = row(page, "localhost:8443 accepts TLS 1.3 only").getByTestId("verify-details-toggle");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByTestId("detail-panel")).toHaveCount(0);
+  const tls = await openDetails(page, "localhost:8443 accepts TLS 1.3 only");
   await expect(tls.getByText("Raw output").first()).toBeVisible();
   const raw = tls.locator("pre").first();
   await expect(raw).toBeVisible();
@@ -179,13 +202,15 @@ test("evidence opens and shows raw output, with no private key in it", async () 
   await expect(tls.getByText(/Tool:/).first()).toBeVisible();
   await shot(page, "06-verify-evidence-open.png");
 
+  // Every row's raw output is shown on screen at least once before the check below reads the whole page.
+  let onScreen = await page.locator("body").innerText();
   for (const claim of ["certificate is ECDSA P-256", "signing component is acme-sign"]) {
-    await row(page, claim).getByRole("button", { name: "Evidence" }).click();
-    await expect(row(page, claim).locator("pre").first()).toBeVisible();
+    const panel = await openDetails(page, claim);
+    await expect(panel.locator("pre").first()).toBeVisible();
+    onScreen += await page.locator("body").innerText();
   }
 
   // Check everything on screen and everything the app stored for this run.
-  const onScreen = await page.locator("body").innerText();
   const current = await (await page.request.get("/api/import/current")).json();
   const stored = JSON.stringify(await (await page.request.get(`/api/import/${current.id}/verify`)).json());
   const keyFile = path.join(process.env.E2E_DATA_DIR ?? "", "demo-tls-test-key.pem");
@@ -229,18 +254,17 @@ test("Continue to tests shows the five suggested tests", async () => {
   await expect(cards.getByTestId("test-status")).toHaveText(Array(5).fill("Not run yet"));
   await expect(page.getByTestId("result-badge")).toHaveCount(0);
   // The step bar highlights where you are: Tests, and only Tests. Evidence Lab opens once there are results.
-  const steps = page.getByRole("navigation", { name: "Steps" });
-  await expect(steps.getByRole("button", { name: /3\. Tests/ })).toHaveAttribute("aria-current", "step");
-  await expect(steps.locator('[aria-current="step"]')).toHaveCount(1);
-  await expect(steps.getByRole("button", { name: /4\. Evidence Lab/ })).toBeDisabled();
-  // Six steps since phase 4a (Fixes came in phase 3a, Migration in 4a). Fixes opens when Evidence Lab does: once there is a result.
-  await expect(steps.getByRole("button")).toHaveText(["1. Import", "2. Verify", "3. Tests", "4. Evidence Lab", "5. Fixes", "6. Migration"]);
-  await expect(steps.getByRole("button", { name: /5\. Fixes/ })).toBeDisabled();
+  await expect(stepLink(page, "3. Tests")).toHaveAttribute("aria-current", "page");
+  await expect(stepNav(page).locator('[aria-current="page"]')).toHaveCount(1);
+  await expect(stepLink(page, "4. Evidence Lab")).toBeDisabled();
+  // The six steps are the sidebar's pages since phase 5a. Fixes opens when Evidence does: once there is a result.
+  await expect(stepNav(page).getByRole("link")).toHaveText(SIDEBAR_PAGES);
+  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
   await shot(page, "09-tests.png");
 });
 
 test("a broken CSV upload gives an error that names the line, and the previous file's claims are gone", async () => {
-  await page.getByRole("button", { name: "1. Import" }).click();
+  await stepLink(page, "1. Import").click();
   // The demo import from earlier is on screen before the broken upload.
   await expect(page.getByTestId("claim-row")).toHaveCount(3);
   const broken = [

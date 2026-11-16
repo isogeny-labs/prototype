@@ -22,7 +22,7 @@ from app.checks.addresses import AddressError, is_loopback_ip, parse_address, re
 from app.fixes.changes import ChangesMixin
 from app.config import DEMO_CBOM, DEMO_CBOM_PORT, DEMO_HOSTNAME, Settings
 from app.db import (
-    AddressRow, ClaimRow, ImportClearedRow, ImportRow, SkippedRow, SystemSettingRow, VerifyRunRow, iso, make_session_factory, now_utc,
+    AddressRow, AssessmentRow, ClaimRow, ImportClearedRow, ImportRow, SkippedRow, SystemSettingRow, VerifyRunRow, iso, make_session_factory, now_utc,
 )
 from app.servers.demo_server import DemoServer
 from app.servers.extra_servers import ExtraServers, claims_match, is_multi_target_file
@@ -39,6 +39,7 @@ from app.names import clean_text
 from app.engine.research import RuleEngine
 from app.engine.reviewer import RuleReviewer
 from app.lab.testlab import TestLabMixin
+from app.projects.store import ProjectsMixin
 from app.checks.verify import DemoContext, verify_claims
 
 _swept = False  # containers left by an earlier crash are cleared once per process
@@ -70,7 +71,8 @@ def run_json(r: VerifyRunRow) -> dict:
             "results": results}
 
 
-class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin):
+class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin,
+          ProjectsMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -79,6 +81,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         except OSError:
             pass
         self.db = make_session_factory(db_path or settings.db_path)
+        self.adopt_unfiled_imports()   # phase 5a: imports from before projects existed get an assessment, so nothing disappears
         self.demo = DemoServer(settings.data_dir, settings.demo_tls_port)
         self.extra = ExtraServers(settings.extra_ports)  # the multi-target demo file's test servers, started on import only
         # The migration demo file's five test servers (phase 4a): also started only when that file is imported.
@@ -143,12 +146,14 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
 
     # ---------------------------------------------------------------- import
 
-    def import_demo(self) -> dict:
+    def import_demo(self, assessment_id: int | None = None) -> dict:
+        self.check_assessment_takes_a_file(assessment_id)
         data = DEMO_CBOM.read_bytes()
         if self.settings.demo_tls_port != DEMO_CBOM_PORT:
             # The demo server was moved with EVIDENCE_LAB_DEMO_TLS_PORT; point the demo file at the same port.
             data = data.replace(f"{DEMO_HOSTNAME}:{DEMO_CBOM_PORT}".encode(), self.settings.demo_address.encode())
-        return self._with_in_force_notices(self._store(DEMO_CBOM.name, parse_file(DEMO_CBOM.name, data), is_demo=True))
+        return self._with_in_force_notices(self._store(DEMO_CBOM.name, parse_file(DEMO_CBOM.name, data), is_demo=True,
+                                                       assessment_id=assessment_id))
 
     def _with_in_force_notices(self, stored: dict) -> dict:
         """Phase 4b: a change this app applied to one of our own servers stays in force until it is rolled back, also
@@ -198,10 +203,12 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
                 return True
         return False
 
-    def import_file(self, filename: str, data: bytes) -> dict:
+    def import_file(self, filename: str, data: bytes, assessment_id: int | None = None) -> dict:
+        self.check_assessment_takes_a_file(assessment_id)
         shown = clean_text(os.path.basename((filename or "").replace("\\", "/")), 120) or "uploaded file"
         parsed = parse_file(shown, data)
-        stored = self._store(shown, parsed, is_demo=self._targets_demo(parsed) or self._lab_nginx_data(data))
+        stored = self._store(shown, parsed, is_demo=self._targets_demo(parsed) or self._lab_nginx_data(data),
+                             assessment_id=assessment_id)
         if is_multi_target_file(data, self.settings.demo_tls_port, self.settings.extra_ports):
             # Only our own multi-target demo file starts the three test servers. A taken port is said, never fatal.
             problems = self.extra.start()
@@ -312,7 +319,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         return ({p: self.extra.fingerprints.get(p) if p in self.extra.running else None for p in self.settings.extra_ports},
                 dict(self.extra.problems))
 
-    def _store(self, filename: str, parsed: ParsedFile, is_demo: bool) -> dict:
+    def _store(self, filename: str, parsed: ParsedFile, is_demo: bool, assessment_id: int | None = None) -> dict:
         with self.db() as db:
             row = ImportRow(filename=filename, format=parsed.format, is_demo=is_demo)
             seen: dict[str, AddressRow] = {}
@@ -337,7 +344,16 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
                         else ["software:" + ref for ref in refs.get(setting.location, [])] or ["software:None"])
                 for key in keys:
                     db.add(SystemSettingRow(import_id=row.id, system_key=key, field=setting.field, value=setting.value, source="file"))
+            # Phase 5a: the import goes into its assessment (or, with none given, the "Imported without a project" project).
+            placed = self.attach_import(db, row.id, assessment_id)
             db.commit()
+            return {**import_json(row, self._file_settings(db, row)), "assessment_id": placed}
+
+    def import_json_for(self, import_id: int) -> dict:
+        with self.db() as db:
+            row = db.get(ImportRow, import_id)
+            if row is None:
+                raise NotFound("That import does not exist.")
             return import_json(row, self._file_settings(db, row))
 
     @staticmethod
@@ -383,7 +399,8 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             cleared = db.scalar(select(func.max(ImportClearedRow.after_import_id))) or 0
             if row is None or row.id <= cleared:
                 raise NotFound("Nothing is imported at the moment.")
-            return import_json(row, self._file_settings(db, row))
+            placed = db.scalars(select(AssessmentRow.id).where(AssessmentRow.import_id == row.id)).first()
+            return {**import_json(row, self._file_settings(db, row)), "assessment_id": placed}
 
     def confirm_address(self, import_id: int, address: str, confirmed: bool) -> dict:
         try:

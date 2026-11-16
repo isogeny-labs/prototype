@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { api, errorMessage, type PlanView, type TestCard } from "../api";
+import { CLOSED_SENTENCE, useReadOnly } from "../readOnly";
 import {
   DemoDataLabel,
   ErrorBox,
@@ -13,6 +14,7 @@ import {
   splitByGroup,
   useDismiss,
 } from "./ui";
+import { PageHeader } from "./layout";
 
 const POLL_MS = 1000;
 
@@ -60,6 +62,8 @@ function Card({
   headingLevel?: 2 | 3;
 }) {
   const Heading = headingLevel === 3 ? "h3" : "h2";
+  // A closed assessment is read-only: every control that changes the plan turns off and says why.
+  const closed = useReadOnly();
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
     if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -85,8 +89,9 @@ function Card({
         type="button"
         ref={handleRef}
         data-testid="drag-handle"
-        draggable
-        title="Drag to reorder"
+        draggable={!closed}
+        disabled={closed}
+        title={closed ? CLOSED_SENTENCE : "Drag to reorder"}
         aria-label={`Reorder ${card.title}, position ${position} of ${total}. Drag, or press the up or down arrow key.`}
         onKeyDown={onKeyDown}
         onDragStart={onDragStart}
@@ -123,7 +128,8 @@ function Card({
       <button
         type="button"
         aria-label={`Run ${card.title}`}
-        disabled={locked || !card.can_run}
+        disabled={closed || locked || !card.can_run}
+        title={closed ? CLOSED_SENTENCE : undefined}
         onClick={onRun}
         className="rounded-lg border border-slate-600 px-3.5 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:border-slate-400 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
       >
@@ -133,8 +139,8 @@ function Card({
       <button
         type="button"
         aria-label={`Remove ${card.title}`}
-        title="Remove from the plan"
-        disabled={locked || !card.can_remove}
+        title={closed ? CLOSED_SENTENCE : "Remove from the plan"}
+        disabled={closed || locked || !card.can_remove}
         onClick={onRemove}
         className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-slate-700 text-base text-slate-300 hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
       >
@@ -152,6 +158,7 @@ interface Props {
 }
 
 export function TestsScreen({ importId, plan, onPlan }: Props) {
+  const readOnly = useReadOnly();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -335,23 +342,19 @@ export function TestsScreen({ importId, plan, onPlan }: Props) {
   }
 
   return (
-    <section aria-labelledby="tests-title">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 id="tests-title" className="text-xl font-semibold text-slate-50">
-              Tests
-            </h1>
-            {current.is_demo ? <DemoDataLabel /> : null}
-          </div>
-          <p className="mt-1 text-sm text-slate-400">{current.intro}</p>
-        </div>
-        <PrimaryButton disabled={busy || !current.can_run_all} onClick={() => void act(() => api.runAll(current.id))}>
-          Run all
-        </PrimaryButton>
-      </div>
+    <section aria-label="Tests">
+      <PageHeader
+        eyebrow={current.is_demo ? <DemoDataLabel /> : undefined}
+        title="Tests"
+        description={current.intro}
+        actions={
+          <PrimaryButton disabled={busy || !current.can_run_all} onClick={() => void act(() => api.runAll(current.id))}>
+            Run all
+          </PrimaryButton>
+        }
+      />
 
-      <p data-testid="plan-subject" className="mt-3.5 text-sm text-slate-400">
+      <p data-testid="plan-subject" className="-mt-2 text-sm text-slate-400">
         <RichTextView parts={current.subject} />
       </p>
 
@@ -418,7 +421,8 @@ export function TestsScreen({ importId, plan, onPlan }: Props) {
                   key={item.catalog_id}
                   type="button"
                   role="menuitem"
-                  disabled={busy}
+                  disabled={busy || readOnly}
+                  title={readOnly ? CLOSED_SENTENCE : undefined}
                   onClick={() => {
                     setMenuOpen(false);
                     void act(() => api.addTest(current.id, item.catalog_id));

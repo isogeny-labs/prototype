@@ -7,7 +7,7 @@ import { expect, test, type BrowserContext, type Locator, type Page } from "@pla
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { enterApp, importVerifyAndOpenTests, screenshotFolder } from "./shared";
+import { enterApp, importVerifyAndOpenTests, screenshotFolder, stepLink, stepNav, openFreshAssessment, stepName, evidenceRow } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = screenshotFolder("phase4b");
@@ -56,8 +56,8 @@ function tryRow(label: string): Locator {
 }
 
 async function goTo(step: string): Promise<void> {
-  await page.getByRole("navigation", { name: "Steps" }).getByRole("button", { name: step }).click();
-  await expect(page.getByRole("navigation", { name: "Steps" }).locator('[aria-current="step"]')).toHaveText(step);
+  await stepLink(page, step).click();
+  await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText(stepName(step));
 }
 
 async function pickFix(title: string): Promise<void> {
@@ -75,6 +75,7 @@ test.beforeAll(async ({ browser }) => {
   context = await browser.newContext({ acceptDownloads: true });
   page = await context.newPage();
   await enterApp(page);
+  await openFreshAssessment(page, "Make it real walk");
 });
 
 test.afterAll(async () => {
@@ -84,7 +85,7 @@ test.afterAll(async () => {
 // ---------------------------------------------------------------- the migration demo file
 
 test("Two tracks: 8451 shows Key exchange and Authentication, each with its Next step and its Why", async () => {
-  await page.getByRole("button", { name: "1. Import" }).click();
+  await stepLink(page, "1. Import").click();
   const uploaded = page.waitForResponse((r) => r.url().includes("/api/import/file") && r.request().method() === "POST");
   await page.getByLabel("Choose a file to import").setInputFiles(FILE);
   expect((await uploaded).status()).toBe(200);
@@ -94,7 +95,7 @@ test("Two tracks: 8451 shows Key exchange and Authentication, each with its Next
   await page.getByRole("button", { name: "Verify claims" }).click();
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
 
-  await page.getByRole("button", { name: "6. Migration" }).click();
+  await stepLink(page, "6. Migration").click();
   await expect(page.getByRole("heading", { name: "Migration plan", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Measure status" }).click();
   await expect(page.getByRole("button", { name: "Measure again" })).toBeEnabled({ timeout: 120_000 });
@@ -257,7 +258,7 @@ async function verifyAgain(): Promise<Locator> {
 
 test("Acme Pay: after Apply Evidence Lab's Old TLS versions is Passed and Verify reads True; Roll back puts it back", async () => {
   await goTo("4. Evidence Lab");
-  const old = page.getByTestId("lab-row").filter({ has: page.getByRole("heading", { name: "Old TLS versions", exact: true }) });
+  const old = evidenceRow(page, "Old TLS versions");
   await expect(old.getByTestId("result-badge").locator("span:last-child").first()).toHaveText("Passed", { timeout: 60_000 });
 
   await expect(await verifyAgain()).toHaveText("True");

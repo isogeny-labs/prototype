@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -16,7 +16,7 @@ from app import auth
 from app.config import FRONTEND_DIST, Settings, load_settings
 from app.importer.common import ImportFileError
 from app.lab.hub import BadRequest, Conflict, Lab, NotFound
-from app.web import changes, dependencies, fixes, importing, migration, session
+from app.web import changes, dependencies, fixes, importing, migration, projects, session
 from app.web import lab as lab_routes
 from app.web import tests as test_routes
 from app.web.common import error_response
@@ -76,13 +76,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             max_age=int(auth.SESSION_LIFETIME.total_seconds()))
 
     app.include_router(session.routes(lab, set_cookie))
-    app.include_router(importing.routes(lab, require_login))
-    app.include_router(test_routes.routes(lab, require_login))
-    app.include_router(lab_routes.routes(lab, require_login))
-    app.include_router(migration.routes(lab, require_login))
-    app.include_router(dependencies.routes(lab, require_login))
-    app.include_router(changes.routes(lab, require_login))
-    app.include_router(fixes.routes(lab, require_login))
+    app.include_router(projects.routes(lab, require_login))
+    # Phase 5a: a changing request on a closed assessment is refused (see web/projects.py for the two exceptions).
+    guarded = [Depends(projects.closed_guard(lab, require_login))]
+    app.include_router(importing.routes(lab, require_login), dependencies=guarded)
+    app.include_router(test_routes.routes(lab, require_login), dependencies=guarded)
+    app.include_router(lab_routes.routes(lab, require_login), dependencies=guarded)
+    app.include_router(migration.routes(lab, require_login), dependencies=guarded)
+    app.include_router(dependencies.routes(lab, require_login), dependencies=guarded)
+    app.include_router(changes.routes(lab, require_login), dependencies=guarded)
+    app.include_router(fixes.routes(lab, require_login), dependencies=guarded)
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def no_such_api(rest: str):

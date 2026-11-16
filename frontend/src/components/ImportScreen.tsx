@@ -11,6 +11,8 @@ import {
   type Import,
   type VerifyRun,
 } from "../api";
+import { CLOSED_SENTENCE, useReadOnly } from "../readOnly";
+import { PageHeader } from "./layout";
 import { DemoDataLabel, ErrorBox, PrimaryButton, SecondaryButton, SourceTag } from "./ui";
 
 const KIND_LABELS: Record<ClaimKind, string> = {
@@ -42,10 +44,16 @@ interface Props {
   onImportFailed: () => void;
   onAddressChanged: (address: Address) => void;
   onVerified: (run: VerifyRun) => void;
+  /** Phase 5a: the assessment the next file goes into. The app starts a new assessment first when this one already
+   * has a file, so each file brought in gets its own assessment. */
+  target?: () => Promise<number | undefined>;
+  /** Phase 5a: one plain sentence above the drop zone (for example that another file starts a new assessment). */
+  targetNote?: string | null;
 }
 
-export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAddressChanged, onVerified }: Props) {
+export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAddressChanged, onVerified, target, targetNote }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const closed = useReadOnly();
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploadError, setUploadError] = useState<UploadError | null>(null);
@@ -54,13 +62,14 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
   const [addressBusy, setAddressBusy] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
 
-  async function load(action: () => Promise<Import>, isUpload = false) {
+  async function load(action: (assessmentId?: number) => Promise<Import>, isUpload = false) {
     setUploadError(null);
     setVerifyError(null);
     setAddressError(null);
     setLoading(true);
     try {
-      onImported(await action());
+      const assessmentId = target ? await target() : undefined;
+      onImported(await action(assessmentId));
     } catch (e) {
       if (isUpload) onImportFailed();
       setUploadError({
@@ -76,8 +85,11 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
   // A file refused here never reaches the server, so tell the server too (with an empty body it will
   // reject): otherwise a page refresh would bring the previous file's claims back.
   function refuseLocally(file: File) {
-    onImportFailed();
-    void api.importFile(new File([], file.name)).catch(() => undefined);
+    void (async () => {
+      const assessmentId = target ? await target().catch(() => undefined) : undefined;
+      onImportFailed();
+      void api.importFile(new File([], file.name), assessmentId).catch(() => undefined);
+    })();
   }
 
   function uploadFile(file: File) {
@@ -96,7 +108,7 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
       setUploadError({ message: `"${file.name}" is larger than 1 MB, which is the most this app reads.`, line: null, field: null });
       return;
     }
-    void load(() => api.importFile(file), true);
+    void load((assessmentId) => api.importFile(file, assessmentId), true);
   }
 
   function onFileChosen(e: ChangeEvent<HTMLInputElement>) {
@@ -153,16 +165,18 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
   const notices = imp?.notices ?? [];
 
   return (
-    <section aria-labelledby="import-title" className="space-y-6">
-      <div>
-        <h1 id="import-title" className="text-xl font-semibold text-slate-50">
-          Import
-        </h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Bring in the file from your scanning tool that lists where encryption is used and how. We read it as data only;
-          nothing in it is run.
+    <section aria-label="Import" className="space-y-6">
+      <PageHeader
+        eyebrow="Inventory"
+        title="Import"
+        description="Bring in the file from your scanning tool that lists where encryption is used and how. We read it as data only; nothing in it is run."
+      />
+
+      {targetNote ? (
+        <p data-testid="import-target-note" className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-sm text-slate-300">
+          {targetNote}
         </p>
-      </div>
+      ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
         <label
@@ -184,12 +198,12 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
             accept=".json,.csv,application/json,text/csv"
             aria-label="Choose a file to import"
             onChange={onFileChosen}
-            disabled={loading || verifying}
+            disabled={loading || verifying || closed}
             className="sr-only"
           />
         </label>
         <div className="flex items-center justify-center sm:px-2">
-          <SecondaryButton onClick={() => void load(api.importDemo)} disabled={loading || verifying}>
+          <SecondaryButton onClick={() => void load((assessmentId) => api.importDemo(assessmentId))} disabled={loading || verifying}>
             Use demo file
           </SecondaryButton>
         </div>
@@ -339,7 +353,8 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
                         type="checkbox"
                         data-testid="address-confirm"
                         checked={address.confirmed}
-                        disabled={addressBusy === address.address || verifying}
+                        disabled={addressBusy === address.address || verifying || closed}
+                        title={closed ? CLOSED_SENTENCE : undefined}
                         onChange={(e) => void toggleAddress(address, e.target.checked)}
                         className="mt-0.5 h-4 w-4 accent-sky-400"
                       />

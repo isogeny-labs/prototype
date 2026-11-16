@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import type { PlanView } from "../api";
+import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
 import { TestsScreen } from "../components/TestsScreen";
 import { calls, cards, groupedPlan, mockApi, plan, pqCard, runningPlan, text } from "./fixtures";
 
@@ -328,5 +329,22 @@ describe("Tests screen", () => {
       await waitFor(() => expect(calls(fetchMock)).toContain("POST /api/plans/1/order"));
       expect(body(fetchMock, "/api/plans/1/order")).toEqual({ order: [21, 22, 32, 31, 41, 42, 43] });
     });
+  });
+});
+
+describe("Tests screen, closed assessment", () => {
+  it("turns off Run, remove, reorder, Run all and the catalog, each with the reason", async () => {
+    mockApi({ "POST /api/import/7/plan": { body: plan } });
+    render(
+      <ReadOnlyProvider readOnly>
+        <Harness />
+      </ReadOnlyProvider>,
+    );
+    await shownCards();
+    for (const b of [...screen.getAllByRole("button", { name: /^Run / }), ...screen.getAllByRole("button", { name: /^Remove / }), ...screen.getAllByTestId("drag-handle")]) {
+      expect((b as HTMLButtonElement).disabled).toBe(true);
+      expect(b.getAttribute("title")).toBe(CLOSED_SENTENCE);
+    }
+    expect((screen.getByRole("button", { name: "+ Add test" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

@@ -104,6 +104,24 @@ export type {
   DependencyGroup,
   DependencySystem,
   DependenciesView,
+  ClaimCounts,
+  TestCounts,
+  FixCounts,
+  SystemCounts,
+  AssessmentCounts,
+  AssessmentStatus,
+  AssessmentFile,
+  AssessmentBrief,
+  PathStep,
+  WorkspaceFolder,
+  WorkspaceProject,
+  Workspace,
+  Created,
+  ProjectView,
+  AssessmentProject,
+  NextStep,
+  AssessmentView,
+  DemoProjectsLoaded,
 } from "./api.gen";
 import type {
   Session,
@@ -119,6 +137,11 @@ import type {
   MigrationSettingField,
   MigrationView,
   DependenciesView,
+  Workspace,
+  Created,
+  ProjectView,
+  AssessmentView,
+  DemoProjectsLoaded,
 } from "./api.gen";
 
 export class ApiError extends Error {
@@ -232,14 +255,34 @@ export const api = {
   login: (password: string) =>
     request<{ ok: true }>("/api/login", { method: "POST", json: { password }, quiet401: true }),
 
-  importDemo: () => request<Import>("/api/import/demo", { method: "POST" }),
+  /** Phase 5a: the screens always say which assessment the file goes into. */
+  importDemo: (assessmentId?: number) =>
+    request<Import>(`/api/import/demo${assessmentId ? `?assessment_id=${assessmentId}` : ""}`, { method: "POST" }),
 
   /** Sends the file's raw bytes. The server only reads it as data. */
-  importFile: (file: File) =>
-    request<Import>(`/api/import/file?filename=${encodeURIComponent(file.name)}`, {
-      method: "POST",
-      raw: file,
-    }),
+  importFile: (file: File, assessmentId?: number) =>
+    request<Import>(
+      `/api/import/file?filename=${encodeURIComponent(file.name)}${assessmentId ? `&assessment_id=${assessmentId}` : ""}`,
+      { method: "POST", raw: file },
+    ),
+
+  // Phase 5a: the organization, folders, projects and assessments.
+  getWorkspace: () => request<Workspace>("/api/workspace"),
+  setOrganization: (name: string) => request<Workspace>("/api/organization", { method: "POST", json: { name } }),
+  createFolder: (name: string, parentId: number | null) =>
+    request<Created>("/api/folders", { method: "POST", json: { name, parent_id: parentId } }),
+  changeFolder: (id: number, change: { name?: string; parent_id?: number | null; move?: boolean; archived?: boolean }) =>
+    request<Created>(`/api/folders/${id}`, { method: "POST", json: change }),
+  createProject: (name: string, folderId: number | null) =>
+    request<Created>("/api/projects", { method: "POST", json: { name, folder_id: folderId } }),
+  getProject: (id: number) => request<ProjectView>(`/api/projects/${id}`),
+  changeProject: (id: number, change: { name?: string; folder_id?: number | null; move?: boolean; archived?: boolean }) =>
+    request<Created>(`/api/projects/${id}`, { method: "POST", json: change }),
+  newAssessment: (projectId: number) => request<Created>(`/api/projects/${projectId}/assessments`, { method: "POST" }),
+  getAssessment: (id: number) => request<AssessmentView>(`/api/assessments/${id}`),
+  changeAssessment: (id: number, change: { name?: string; project_id?: number; archived?: boolean; close?: boolean }) =>
+    request<AssessmentView>(`/api/assessments/${id}`, { method: "POST", json: change }),
+  loadDemoProjects: () => request<DemoProjectsLoaded>("/api/demo-projects", { method: "POST" }),
 
   getCurrentImport: () => orNullOn404(request<Import>("/api/import/current")),
 

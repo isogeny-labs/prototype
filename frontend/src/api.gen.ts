@@ -162,6 +162,166 @@ export interface AskApprovalBody {
     | [string, string, string, string, string, string, string]
     | [string, string, string, string, string, string, string, string];
 }
+export interface AssessmentBrief {
+  id: number;
+  number: number;
+  /**
+   * "Assessment 2", or the name the person gave it
+   */
+  title: string;
+  name: string | null;
+  status: AssessmentStatus;
+  archived: boolean;
+  created_at: string;
+  closed_at: string | null;
+  file: AssessmentFile | null;
+}
+export interface AssessmentStatus {
+  key: "open" | "closed";
+  label: string;
+  /**
+   * Why it is closed, then the closed sentence; null when open.
+   */
+  closed_line: string | null;
+}
+export interface AssessmentFile {
+  import_id: number;
+  filename: string;
+  format: string;
+  is_demo: boolean;
+  imported_at: string;
+}
+export interface AssessmentChangeBody {
+  name?: string | null;
+  project_id?: number | null;
+  archived?: boolean | null;
+  close?: boolean;
+}
+export interface AssessmentCounts {
+  claims: ClaimCounts | null;
+  tests: TestCounts | null;
+  fixes: FixCounts | null;
+  systems: SystemCounts | null;
+}
+export interface ClaimCounts {
+  checked: number;
+  false: number;
+  true: number;
+  couldnt_check: number;
+}
+export interface TestCounts {
+  run: number;
+  failed: number;
+  passed: number;
+}
+export interface FixCounts {
+  total: number;
+  open: number;
+}
+export interface SystemCounts {
+  total: number;
+  classical: number;
+  hybrid: number;
+  pq_only: number;
+  couldnt_check: number;
+  not_measured: number;
+}
+export interface AssessmentProject {
+  id: number;
+  name: string;
+  is_demo: boolean;
+  archived: boolean;
+}
+export interface AssessmentView {
+  id: number;
+  number: number;
+  /**
+   * "Assessment 2", or the name the person gave it
+   */
+  title: string;
+  name: string | null;
+  status: AssessmentStatus;
+  archived: boolean;
+  created_at: string;
+  closed_at: string | null;
+  file: AssessmentFile | null;
+  organization: string;
+  project: AssessmentProject;
+  path: PathStep[];
+  import: Import | null;
+  plan_id: number | null;
+  has_verify: boolean;
+  has_results: boolean;
+  has_migration: boolean;
+  counts: AssessmentCounts;
+  next_step: NextStep;
+}
+export interface PathStep {
+  id: number;
+  name: string;
+}
+export interface Import {
+  id: number;
+  filename: string;
+  format: "cyclonedx-cbom" | "csv";
+  is_demo: boolean;
+  claims: Claim[];
+  addresses: Address[];
+  /**
+   * Always sent by the current backend; optional so an older reply doesn't break the screen.
+   */
+  skipped?: SkippedItem[];
+  /**
+   * Plain sentences about what the upload started on this computer (for example the demo test servers). Only on the upload reply.
+   */
+  notices?: string[];
+  /**
+   * Phase 5a: the assessment this import belongs to.
+   */
+  assessment_id?: number | null;
+  /**
+   * The heading of the settings list, e.g. "System settings from the file".
+   */
+  settings_title?: string;
+  /**
+   * Settings rows the file carries (not claims: nothing checks them). Optional: older stored answers may lack it.
+   */
+  settings?: ImportSetting[];
+}
+export interface Claim {
+  id: number;
+  ref: string;
+  location: string;
+  location_kind: "server" | "software" | "unknown";
+  kind: "protocol_versions" | "cipher_suites" | "key_exchange" | "certificate" | "signature_algorithm" | "post_quantum";
+  claimed_value: string;
+  text: string;
+  source: string;
+}
+/**
+ * Something in the file that this version doesn't check (for example a hash algorithm).
+ */
+export interface SkippedItem {
+  name: string;
+  what: string;
+  source: string;
+  reason: string;
+}
+/**
+ * One settings row from the file, e.g. location "localhost:8451", text "Exposure: internet-facing. Data lifespan: long-lived."
+ */
+export interface ImportSetting {
+  location: string;
+  text: string;
+}
+export interface NextStep {
+  /**
+   * The page that holds the next thing to do, e.g. "inventory/import", "tests".
+   */
+  page: string;
+  label: string;
+  text: string;
+}
 export interface Badge {
   code:
     | "passed"
@@ -461,19 +621,22 @@ export interface ResearchField {
   label: string;
   value: string;
 }
-export interface Claim {
-  id: number;
-  ref: string;
-  location: string;
-  location_kind: "server" | "software" | "unknown";
-  kind: "protocol_versions" | "cipher_suites" | "key_exchange" | "certificate" | "signature_algorithm" | "post_quantum";
-  claimed_value: string;
-  text: string;
-  source: string;
-}
 export interface ConfirmBody {
   address: string;
   confirmed: boolean;
+}
+export interface Created {
+  id: number;
+  /**
+   * A new project's first assessment.
+   */
+  assessment_id?: number | null;
+}
+export interface DemoProjectsLoaded {
+  added: string[];
+  summary: string;
+  notices: string[];
+  open_assessment_id: number | null;
 }
 export interface DemoServer {
   address: string;
@@ -1076,45 +1239,18 @@ export interface FixesView {
    */
   busy: boolean;
 }
-export interface Import {
-  id: number;
-  filename: string;
-  format: "cyclonedx-cbom" | "csv";
-  is_demo: boolean;
-  claims: Claim[];
-  addresses: Address[];
-  /**
-   * Always sent by the current backend; optional so an older reply doesn't break the screen.
-   */
-  skipped?: SkippedItem[];
-  /**
-   * Plain sentences about what the upload started on this computer (for example the demo test servers). Only on the upload reply.
-   */
-  notices?: string[];
-  /**
-   * The heading of the settings list, e.g. "System settings from the file".
-   */
-  settings_title?: string;
-  /**
-   * Settings rows the file carries (not claims: nothing checks them). Optional: older stored answers may lack it.
-   */
-  settings?: ImportSetting[];
-}
-/**
- * Something in the file that this version doesn't check (for example a hash algorithm).
- */
-export interface SkippedItem {
+export interface FolderBody {
   name: string;
-  what: string;
-  source: string;
-  reason: string;
+  parent_id?: number | null;
 }
 /**
- * One settings row from the file, e.g. location "localhost:8451", text "Exposure: internet-facing. Data lifespan: long-lived."
+ * Rename, move or archive. Only the fields sent change (move to the top level with parent_id null).
  */
-export interface ImportSetting {
-  location: string;
-  text: string;
+export interface FolderChangeBody {
+  name?: string | null;
+  parent_id?: number | null;
+  move?: boolean;
+  archived?: boolean | null;
 }
 export interface LabResult {
   code:
@@ -1541,6 +1677,9 @@ export interface MigrationView {
   systems: MigrationSystem[];
   roadmap: MigrationRoadmap;
 }
+export interface NameBody {
+  name: string;
+}
 export interface Ok {
   ok: true;
 }
@@ -1610,6 +1749,28 @@ export interface TestCard {
    */
   group: string | null;
 }
+export interface ProjectBody {
+  name: string;
+  folder_id?: number | null;
+}
+export interface ProjectChangeBody {
+  name?: string | null;
+  folder_id?: number | null;
+  move?: boolean;
+  archived?: boolean | null;
+}
+export interface ProjectView {
+  id: number;
+  name: string;
+  folder_id: number | null;
+  archived: boolean;
+  is_demo: boolean;
+  path: PathStep[];
+  /**
+   * Newest first.
+   */
+  assessments: AssessmentBrief[];
+}
 export interface ProofRowCheck1 {
   ok: boolean | null;
   text: string;
@@ -1665,4 +1826,31 @@ export interface VerifyRun {
   started_at: string;
   finished_at: string;
   results: Result[];
+}
+export interface Workspace {
+  organization: string;
+  folders: WorkspaceFolder[];
+  projects: WorkspaceProject[];
+}
+export interface WorkspaceFolder {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  archived: boolean;
+  /**
+   * The folders above this one, top first.
+   */
+  path: PathStep[];
+}
+export interface WorkspaceProject {
+  id: number;
+  name: string;
+  folder_id: number | null;
+  archived: boolean;
+  is_demo: boolean;
+  created_at: string;
+  path: PathStep[];
+  assessments: number;
+  latest: AssessmentBrief | null;
+  counts: AssessmentCounts;
 }

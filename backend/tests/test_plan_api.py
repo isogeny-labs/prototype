@@ -200,7 +200,11 @@ def test_there_is_no_route_that_accepts_software(client):
                       # Dependencies (phase 4d): "Part of" (a top entry of the list and a system of the file, both as keys the
                       # app made), and which library to measure (a row id, or none for every one on the pinned list)
                       "/api/plans/{plan_id}/dependencies/tie": "DependencyTieBody",
-                      "/api/plans/{plan_id}/dependencies/measure": "DependencyMeasureBody"}
+                      "/api/plans/{plan_id}/dependencies/measure": "DependencyMeasureBody",
+                      # Projects (phase 5a): names, a folder or project id to move to, the archived flag, close
+                      "/api/organization": "NameBody", "/api/folders": "FolderBody", "/api/folders/{folder_id}": "FolderChangeBody",
+                      "/api/projects": "ProjectBody", "/api/projects/{project_id}": "ProjectChangeBody",
+                      "/api/assessments/{assessment_id}": "AssessmentChangeBody"}
     assert {k: v for k, v in with_json_body.items() if k in allowed_bodies} == allowed_bodies
     extra = set(with_json_body) - set(allowed_bodies)
     assert all(p.startswith("/api/evidence") or p.endswith("/evidence") for p in extra), extra

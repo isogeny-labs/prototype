@@ -26,7 +26,17 @@ async function open(view: View, props: { onViewFix?: (id: string) => void; onCha
 
 const rows = () => screen.getAllByTestId("dependency-row");
 const row = (label: string) => rows().find((r) => r.querySelector("p.font-mono")?.textContent === label)!;
-const cells = (el: HTMLElement = document.body) => within(el).queryAllByTestId("dependency-cell");
+/** The answer chips of the table (one per question, with the proof chip). */
+const cells = (el: HTMLElement = document.body) => within(el).queryAllByTestId("dependency-answer");
+const panel = () => screen.getByTestId("detail-panel");
+/** Opens a library's row (unless it is already open) and gives back the detail panel's queries. */
+const detail = (label: string) => {
+  const r = row(label);
+  if (r.getAttribute("aria-selected") !== "true") fireEvent.click(r);
+  return within(panel());
+};
+/** The full answers in the panel: reason, first version, state, agreement. */
+const detailCells = (label: string) => detail(label).queryAllByTestId("dependency-cell");
 const allRows = (v: View) => v.groups.flatMap((g) => g.rows);
 const fixtureRow = (v: View, label: string) => allRows(v).find((r) => r.label === label)!;
 const button = (el: HTMLElement, name: string | RegExp) => within(el).getByRole("button", { name }) as HTMLButtonElement;
@@ -95,15 +105,15 @@ describe("Dependencies view: answers and labels", () => {
 
   it("shows the first version that can on a No", async () => {
     await open(DEPENDENCIES_DEMO);
-    const cell = cells(row("openssl 3.0.22"))[0]!;
+    const cell = detailCells("openssl 3.0.22")[0]!;
     expect(cell.getAttribute("data-answer")).toBe("no");
     expect(within(cell).getByTestId("first-version").textContent).toBe("3.5.0 or later can.");
-    expect(within(cells(row("openssl 3.5.9"))[0]!).queryByTestId("first-version")).toBeNull();
+    expect(within(detailCells("openssl 3.5.9")[0]!).queryByTestId("first-version")).toBeNull();
   });
 
   it("shows the measurement state words as sent", async () => {
     await open(DEPENDENCIES_ISOLATED);
-    const measured = cells(row("python-ecdsa 0.13.2"))[0]!;
+    const measured = detailCells("python-ecdsa 0.13.2")[0]!;
     const fixtureCell = fixtureRow(DEPENDENCIES_ISOLATED, "python-ecdsa 0.13.2").cells[0]!;
     expect(within(measured).getByTestId("measure-state").textContent).toBe(fixtureCell.state_words);
     expect(measured.textContent).toContain(fixtureCell.reason);
@@ -111,7 +121,20 @@ describe("Dependencies view: answers and labels", () => {
 
   it("shows an agreement note, and marks a disagreement", async () => {
     await open(DEPENDENCIES_DIFFERS);
-    const notes = screen.getAllByTestId("agreement");
+    // The notes sit in each library's panel: open every row in turn and gather them.
+    const notes: HTMLElement[] = [];
+    let owner = "";
+    let differsQuestion: string | null | undefined;
+    for (const r of rows()) {
+      fireEvent.click(r);
+      for (const n of within(panel()).queryAllByTestId("agreement")) {
+        notes.push(n);
+        if (n.getAttribute("data-agreement") === "differs") {
+          owner = r.querySelector("p.font-mono")?.textContent ?? "";
+          differsQuestion = n.closest("[data-testid=dependency-cell]")?.getAttribute("data-question");
+        }
+      }
+    }
     const differs = notes.filter((n) => n.getAttribute("data-agreement") === "differs");
     expect(differs).toHaveLength(1);
     expect(differs[0]!.textContent).toBe(DIFFERS_WORDS);
@@ -119,13 +142,16 @@ describe("Dependencies view: answers and labels", () => {
     expect(agrees.length).toBeGreaterThan(0);
     expect(agrees[0]!.textContent).toBe("The release notes say the same.");
     // The disagreement sits on the one cell that was changed.
-    expect(differs[0]!.closest("[data-testid=dependency-cell]")!.getAttribute("data-question")).toBe("ml_kem_768");
-    expect(row("openssl 3.5.9").contains(differs[0]!)).toBe(true);
+    expect(differsQuestion).toBe("ml_kem_768");
+    expect(owner).toBe("openssl 3.5.9");
   });
 
   it("shows no agreement note on a lookup-only cell", async () => {
     await open(DEPENDENCIES_DEMO);
-    expect(screen.queryAllByTestId("agreement")).toHaveLength(0);
+    for (const r of rows()) {
+      fireEvent.click(r);
+      expect(within(panel()).queryAllByTestId("agreement")).toHaveLength(0);
+    }
   });
 });
 
@@ -136,18 +162,18 @@ describe("Dependencies view: measure buttons", () => {
     expect(all.disabled).toBe(true);
     expect(screen.getByTestId("measure-all-blocked").textContent).toBe(DEPENDENCIES_DEMO.measure_all!.blocked_reason);
     for (const label of ["openssl 3.0.22", "python-ecdsa 0.13.2", "openjdk 17.0.2", "elliptic 6.5.6", "openssl 3.5.9"]) {
-      const r = row(label);
-      expect(button(r, "Measure on a public copy").disabled, label).toBe(true);
-      expect(within(r).getByTestId("row-measure-blocked").textContent, label).toBe("Measuring needs isolated mode (Docker).");
+      const r = detail(label);
+      expect(r.getByRole("button", { name: "Measure on a public copy" }).hasAttribute("disabled"), label).toBe(true);
+      expect(r.getByTestId("row-measure-blocked").textContent, label).toBe("Measuring needs isolated mode (Docker).");
     }
   });
 
   it("shows 'Not on the approved pinned list.' for a library that is not pinned", async () => {
     await open(DEPENDENCIES_DEMO);
     for (const label of ["wolfssl 5.7.2", "Go standard library 1.23.4", "python 3.12.3"]) {
-      const r = row(label);
-      expect(button(r, "Measure on a public copy").disabled).toBe(true);
-      expect(within(r).getByTestId("row-measure-blocked").textContent).toBe("Not on the approved pinned list.");
+      const r = detail(label);
+      expect(r.getByRole("button", { name: "Measure on a public copy" }).hasAttribute("disabled")).toBe(true);
+      expect(r.getByTestId("row-measure-blocked").textContent).toBe("Not on the approved pinned list.");
     }
   });
 
@@ -156,14 +182,15 @@ describe("Dependencies view: measure buttons", () => {
     const { onChanged } = await open(DEPENDENCIES_ISOLATED);
     expect((screen.getByRole("button", { name: "Measure all" }) as HTMLButtonElement).disabled).toBe(false);
     expect(screen.queryByTestId("measure-all-blocked")).toBeNull();
-    const r = row("openssl 3.5.9");
-    const b = button(r, fixtureRow(DEPENDENCIES_ISOLATED, "openssl 3.5.9").measure.label);
+    detail("openssl 3.5.9");
+    const b = button(panel(), fixtureRow(DEPENDENCIES_ISOLATED, "openssl 3.5.9").measure.label);
     expect(b.disabled).toBe(false);
     fireEvent.click(b);
     await waitFor(() => expect(measure).toHaveBeenCalledWith(DEPENDENCIES_ISOLATED.plan_id, "row-6"));
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
     // A library that is not pinned stays off even in isolated mode.
-    expect(button(row("wolfssl 5.7.2"), "Measure on a public copy").disabled).toBe(true);
+    detail("wolfssl 5.7.2");
+    expect(button(panel(), "Measure on a public copy").disabled).toBe(true);
   });
 
   it("isolated mode: 'Measure all' sends no row", async () => {
@@ -296,53 +323,51 @@ describe("Dependencies view: systems and blockers", () => {
 
   it("a row's block names the track and the system and has 'View in Fixes'", async () => {
     const { onViewFix } = await open(DEPENDENCIES_DEMO);
-    const r = row("openssl 3.0.22");
-    const blocks = within(within(r).getByTestId("row-blocks")).getAllByRole("listitem");
+    const blocks = within(detail("openssl 3.0.22").getByTestId("row-blocks")).getAllByRole("listitem");
     const fixture = fixtureRow(DEPENDENCIES_DEMO, "openssl 3.0.22").blocks;
     expect(blocks.map((b) => text(b))).toEqual(fixture.map((b) => `Blocks the ${b.track_words} track of ${b.system}. View in Fixes`));
     fireEvent.click(within(blocks[1]!).getByRole("button", { name: "View in Fixes" }));
     expect(onViewFix).toHaveBeenCalledWith(fixture[1]!.fix_id);
-    expect(within(row("openssl 3.5.9")).queryByTestId("row-blocks")).toBeNull();
+    expect(detail("openssl 3.5.9").queryByTestId("row-blocks")).toBeNull();
   });
 });
 
 describe("Dependencies view: details and evidence", () => {
   it("shows the lookup source, its quote and the label, once for a repeated source", async () => {
     await open(DEPENDENCIES_DEMO);
-    const r = row("openssl 3.0.22");
+    const r = detail("openssl 3.0.22");
     const fixture = fixtureRow(DEPENDENCIES_DEMO, "openssl 3.0.22").lookups;
-    const shown = within(r).getAllByTestId("lookup-source");
+    const shown = r.getAllByTestId("lookup-source");
     expect(shown).toHaveLength(fixture.filter((l) => !l.repeat).length);
     expect(shown[0]!.textContent).toContain(fixture[0]!.title);
     expect(shown[0]!.textContent).toContain(fixture[0]!.quote);
     expect(shown[0]!.textContent).toContain("Release notes say");
     expect(shown[0]!.textContent).toContain(`checked ${fixture[0]!.checked}`);
-    expect(within(r).getByText("Details and evidence")).not.toBeNull();
+    expect(r.getByText("Details and evidence")).not.toBeNull();
     // A row with no lookup and no measurement has no details.
-    expect(within(row("wolfssl 5.7.2")).queryByText("Details and evidence")).toBeNull();
+    expect(detail("wolfssl 5.7.2").queryByText("Details and evidence")).toBeNull();
   });
 
   it("an https source is a link", async () => {
     await open(DEPENDENCIES_DEMO);
     const fixture = fixtureRow(DEPENDENCIES_DEMO, "openssl 3.0.22").lookups[0]!;
     if (fixture.url.startsWith("https://")) {
-      const link = within(row("openssl 3.0.22")).getAllByRole("link")[0]!;
+      const link = detail("openssl 3.0.22").getAllByRole("link")[0]!;
       expect(link.getAttribute("href")).toBe(fixture.url);
     }
   });
 
   it("a measured row shows the copy label, 'Measured on a public copy', the controls words and the result", async () => {
     await open(DEPENDENCIES_ISOLATED);
-    const r = row("openssl 3.0.22");
     const fixture = fixtureRow(DEPENDENCIES_ISOLATED, "openssl 3.0.22");
-    const m = within(r).getByTestId("measurement");
+    const m = detail("openssl 3.0.22").getByTestId("measurement");
     expect(m.textContent).toContain(fixture.measurement!.copy_label);
     expect(m.textContent).toContain("Measured on a public copy");
     expect(m.textContent).toContain(fixture.measurement!.controls_words);
     expect(within(m).getByTestId("result-detail").getAttribute("data-run-id")).toBe(String(fixture.measurement!.result!.run_id));
     // The same-copy note comes from the backend and shows only where sent.
-    expect(within(row("openssl 3.5.9")).getByTestId("measurement").textContent).toContain(fixtureRow(DEPENDENCIES_ISOLATED, "openssl 3.5.9").same_copy_note!);
-    expect(within(row("python-ecdsa 0.13.2")).queryByText(/capable control/)).toBeNull();
+    expect(detail("openssl 3.5.9").getByTestId("measurement").textContent).toContain(fixtureRow(DEPENDENCIES_ISOLATED, "openssl 3.5.9").same_copy_note!);
+    expect(detail("python-ecdsa 0.13.2").queryByText(/capable control/)).toBeNull();
   });
 
   it("an unmeasured row has no measurement section", async () => {

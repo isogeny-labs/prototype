@@ -10,6 +10,7 @@ import {
   type RowStatus,
 } from "../api";
 import { DownloadStatus, downloadEvidence } from "./evidenceDownload";
+import { DataTable, DetailPanel, FilterSelect, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "./layout";
 import { ResultDetail } from "./lab/ResultDetail";
 import {
   AlsoNoticedList,
@@ -20,6 +21,7 @@ import {
   RichTextView,
   SecondaryButton,
   SourceTag,
+  StatusChip,
   StatusView,
   splitByGroup,
   useDismiss,
@@ -69,21 +71,17 @@ function Cell({
   result,
   status,
   testId,
-  label,
 }: {
   result: LabResult | null;
   status: RowStatus | null;
   testId: string;
-  /** The column heading, repeated on narrow screens where the heading row is hidden. */
-  label?: string;
 }) {
   return (
     <div data-testid={testId} className="min-w-0">
-      {label ? <p className="mb-1.5 text-xs uppercase tracking-wide text-slate-500 md:hidden">{label}</p> : null}
       {result ? (
         <>
           <ResultBadge label={result.label} tone={result.tone} />
-          <p className="mt-1.5 text-[13px] text-slate-300">{result.plain}</p>
+          <p className="mt-1.5 text-[13px] leading-snug text-slate-300">{result.plain}</p>
         </>
       ) : status ? (
         <StatusView status={status} />
@@ -92,146 +90,38 @@ function Cell({
   );
 }
 
-function Row({
-  row,
-  lab,
-  open,
-  busy,
-  headingLevel,
-  onToggle,
-  onMarkReviewed,
-  onDigDeeper,
-  onViewFix,
-}: {
-  row: LabRow;
-  lab: LabView;
-  open: boolean;
-  busy: boolean;
-  /** 2 in the flat list; 3 when the row sits under a group heading. */
-  headingLevel: 2 | 3;
-  onToggle: () => void;
-  onMarkReviewed: (runId: number) => void;
-  onDigDeeper: (runId: number) => void;
-  onViewFix: (fixId: string) => void;
-}) {
-  const beforeAfter = lab.view === "before_after";
-  const canOpen = row.result !== null || row.after !== null;
-  const detailId = `lab-detail-${row.item_id}`;
-  const shown = open && canOpen;
-  // The notes of the result the row leads with: the newest one in the before/after view.
-  const noticed = beforeAfter ? (row.after ?? row.result) : row.result;
-
-  const Heading = headingLevel === 3 ? "h3" : "h2";
-  const title = (
-    <Heading className="text-[15px] font-semibold text-slate-100">
-      {canOpen ? (
-        <button
-          type="button"
-          aria-expanded={shown}
-          aria-controls={detailId}
-          className="rounded text-left after:absolute after:inset-0 after:content-['']"
-        >
-          {row.title}
-        </button>
-      ) : (
-        row.title
-      )}
-    </Heading>
-  );
-
-  const caret = (
-    <span aria-hidden="true" className="pt-[3px] font-mono text-xs text-slate-300">
-      {canOpen ? (shown ? "▾" : "▸") : ""}
-    </span>
-  );
-
+/** The first column: the test's name, its control line, and any "Also noticed" side note. */
+function TestCell({ row, beforeAfter }: { row: LabRow; beforeAfter: boolean }) {
+  const noticed = leading(row, beforeAfter);
   return (
-    <li
-      data-testid="lab-row"
-      data-kind={row.kind}
-      className="rounded-xl border border-slate-800 bg-slate-900/40 p-4"
-    >
-      {/* The whole header opens the row; the title is the real button for keyboards. */}
-      <div
-        data-testid="lab-row-header"
-        onClick={canOpen ? onToggle : undefined}
-        className={`relative grid items-start gap-3 ${
-          beforeAfter ? "md:grid-cols-[16px_210px_1fr_1fr]" : "grid-cols-[16px_1fr_auto]"
-        } ${canOpen ? "cursor-pointer" : ""}`}
-      >
-        {caret}
-        {beforeAfter ? (
-          <>
-            <div className="min-w-0">
-              {title}
-              {row.control_line ? <p className="mt-1 text-xs text-slate-400">{row.control_line}</p> : null}
-            </div>
-            <Cell result={row.result} status={row.result_status} testId="lab-cell-before" label={lab.columns?.before} />
-            <Cell result={row.after} status={row.after_status} testId="lab-cell-after" label={lab.columns?.after} />
-          </>
-        ) : (
-          <>
-            <div className="min-w-0">
-              {title}
-              {row.result ? <p className="mt-0.5 text-sm text-slate-200">{row.result.plain}</p> : null}
-              {row.control_line ? <p className="mt-1 text-xs text-slate-400">{row.control_line}</p> : null}
-            </div>
-            <div className="max-w-[16rem]">
-              {row.result ? (
-                <ResultBadge label={row.result.label} tone={row.result.tone} />
-              ) : row.result_status ? (
-                <StatusView status={row.result_status} />
-              ) : null}
-            </div>
-          </>
-        )}
+    <div className="min-w-0" data-kind={row.kind}>
+      <div data-testid="lab-row-header">
+        <p className="text-[15px] font-medium text-slate-100">{row.title}</p>
+        {row.control_line ? <p className="mt-1 text-xs text-slate-400">{row.control_line}</p> : null}
       </div>
-
       {noticed && noticed.also_noticed.length > 0 ? (
-        <div className="mt-3 pl-7">
+        <div className="mt-2">
           <AlsoNoticedList title={noticed.also_noticed_title} items={noticed.also_noticed} />
         </div>
       ) : null}
-
-      {shown ? (
-        <div id={detailId}>
-          {beforeAfter ? (
-            <>
-              {row.after ? (
-                <ResultDetail
-                  result={row.after}
-                  heading={lab.columns?.after_heading}
-                  busy={busy}
-                  onMarkReviewed={onMarkReviewed}
-                  onDigDeeper={onDigDeeper}
-                  onViewFix={onViewFix}
-                />
-              ) : null}
-              {row.result ? (
-                <ResultDetail
-                  result={row.result}
-                  heading={lab.columns?.before_heading}
-                  busy={busy}
-                  onMarkReviewed={onMarkReviewed}
-                  onDigDeeper={onDigDeeper}
-                  onViewFix={onViewFix}
-                />
-              ) : null}
-            </>
-          ) : row.result ? (
-            <ResultDetail
-              result={row.result}
-              busy={busy}
-              onMarkReviewed={onMarkReviewed}
-              onDigDeeper={onDigDeeper}
-              onViewFix={onViewFix}
-            />
-          ) : null}
-        </div>
-      ) : null}
-    </li>
+    </div>
   );
 }
+
+/** The result a row leads with: the newest one in the before/after view. */
+function leading(row: LabRow, beforeAfter: boolean): LabResult | null {
+  return beforeAfter ? (row.after ?? row.result) : row.result;
+}
+
+type StatusFilter = "all" | "none" | LabResult["code"];
+
+const CODE_NAMES: Partial<Record<LabResult["code"], string>> = {
+  passed: "Passed",
+  failed: "Failed",
+  couldnt_run: "Couldn't run",
+  couldnt_trust: "Couldn't trust this run",
+  measured: "Measured",
+};
 
 interface Props {
   planId: number;
@@ -243,13 +133,16 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
   const [lab, setLab] = useState<LabView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [openRows, setOpenRows] = useState<ReadonlySet<number>>(new Set());
+  const [openRow, setOpenRow] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [menuOpen, setMenuOpen] = useState(false);
   const [exported, setExported] = useState<EvidenceExport | null>(null);
   const [pollTick, setPollTick] = useState(0);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   useDismiss(menuOpen, menuRef, closeMenu);
+  const closePanel = useCallback(() => setOpenRow(null), []);
 
   useEffect(() => {
     let live = true;
@@ -294,8 +187,8 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
   if (!lab) {
     return (
       <section aria-labelledby="lab-title" className="space-y-4">
-        <h1 id="lab-title" className="text-xl font-semibold text-slate-50">
-          Evidence Lab
+        <h1 id="lab-title" className="text-2xl font-semibold tracking-tight text-slate-50">
+          Evidence
         </h1>
         {error ? (
           <ErrorBox title="The results couldn't be loaded">{error}</ErrorBox>
@@ -334,33 +227,40 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
     }
   }
 
-  function toggle(itemId: number) {
-    setOpenRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(itemId)) next.delete(itemId);
-      else next.add(itemId);
-      return next;
-    });
-  }
-
+  const beforeAfter = current.view === "before_after";
   const headings = new Map(current.groups.map((g) => [g.key, g]));
 
-  function renderRows(rows: LabRow[], headingLevel: 2 | 3) {
-    return rows.map((row) => (
-      <Row
-        key={row.item_id}
-        row={row}
-        lab={current}
-        open={openRows.has(row.item_id)}
-        busy={busy}
-        headingLevel={headingLevel}
-        onToggle={() => toggle(row.item_id)}
-        onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
-        onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
-        onViewFix={onViewFix}
-      />
-    ));
-  }
+  // Summary cards: counts of rows by their badge code, nothing else.
+  const codes = current.rows.map((r) => leading(r, beforeAfter)?.code ?? null);
+  const count = (...which: LabResult["code"][]) => codes.filter((c) => c !== null && which.includes(c)).length;
+  const cards = [
+    { key: "with-result", label: "Tests with a result", value: codes.filter((c) => c !== null).length, sub: `of ${current.rows.length} in the plan` },
+    { key: "failed", label: "Failed", value: count("failed") },
+    { key: "passed", label: "Passed", value: count("passed") },
+    { key: "couldnt-run", label: "Couldn't run", value: count("couldnt_run", "couldnt_trust") },
+  ];
+
+  const present = Array.from(new Set(codes.filter((c): c is LabResult["code"] => c !== null)));
+  const labelOfCode = (code: LabResult["code"]) =>
+    CODE_NAMES[code] ??
+    current.rows.map((r) => leading(r, beforeAfter)).find((r) => r?.code === code)?.label ??
+    code;
+  const statusOptions: { value: StatusFilter; label: string }[] = [
+    { value: "all", label: "All results" },
+    ...present.map((code) => ({ value: code as StatusFilter, label: labelOfCode(code) })),
+    ...(codes.includes(null) ? [{ value: "none" as StatusFilter, label: "No result yet" }] : []),
+  ];
+
+  const needle = search.trim().toLowerCase();
+  const visible = current.rows.filter((row) => {
+    const result = leading(row, beforeAfter);
+    if (statusFilter === "none" ? result !== null : statusFilter !== "all" && result?.code !== statusFilter) return false;
+    if (!needle) return true;
+    const group = row.group !== null ? headings.get(row.group)?.heading : "";
+    return [row.title, row.control_line, result?.plain, group].some((t) => (t ?? "").toLowerCase().includes(needle));
+  });
+
+  const selected = current.rows.find((r) => r.item_id === openRow && (r.result !== null || r.after !== null)) ?? null;
 
   const retest = current.retest;
   const blocked = [
@@ -368,81 +268,214 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
     !current.download.can_start ? current.download.blocked_reason : null,
   ].filter((reason, i, all): reason is string => Boolean(reason) && all.indexOf(reason) === i);
 
-  return (
-    <section aria-labelledby="lab-title">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 id="lab-title" className="text-xl font-semibold text-slate-50">
-            Evidence Lab
-          </h1>
-          {current.is_demo ? <DemoDataLabel /> : null}
-        </div>
-        <div ref={menuRef} className="relative flex shrink-0 flex-wrap gap-2.5">
-          <SecondaryButton
-            expanded={menuOpen}
-            disabled={busy || !retest.can_start}
-            onClick={() => setMenuOpen((v) => !v)}
-          >
-            Retest new version
-          </SecondaryButton>
-          <SecondaryButton disabled={busy || !current.download.can_start} onClick={() => void download()}>
-            Download evidence
-          </SecondaryButton>
-          {menuOpen ? (
-            <div
-              role="menu"
-              aria-label={retest.menu_title}
-              className="absolute right-0 top-[46px] z-10 w-[420px] max-w-[calc(100vw-2rem)] rounded-[10px] border border-slate-600 bg-slate-900 p-1.5 shadow-2xl shadow-black/60"
-            >
-              <p className="px-2.5 pb-1.5 pt-2 text-xs text-slate-400">{retest.menu_title}</p>
-              {retest.versions.map((v) => (
-                <button
-                  key={`${v.component ?? ""}/${v.version}`}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setExported(null);
-                    void act(() => api.retest(current.plan_id, v.version, v.component));
-                  }}
-                  className="block w-full rounded-md p-2.5 text-left hover:bg-slate-800 focus-visible:bg-slate-800"
-                >
-                  <span className="text-sm font-semibold text-slate-100">{v.label}</span>
-                  {v.tag ? (
-                    <>
-                      {" "}
-                      <SourceTag>{v.tag}</SourceTag>
-                    </>
+  const columns: Column<LabRow>[] =
+    beforeAfter && current.columns
+      ? [
+          {
+            key: "test",
+            header: current.columns.test,
+            render: (row) => <TestCell row={row} beforeAfter />,
+          },
+          {
+            key: "before",
+            header: <ColumnHeading heading={current.columns.before} note={current.columns.before_note} />,
+            render: (row) => <Cell result={row.result} status={row.result_status} testId="lab-cell-before" />,
+          },
+          {
+            key: "after",
+            header: <ColumnHeading heading={current.columns.after} note={current.columns.after_note} />,
+            render: (row) => <Cell result={row.after} status={row.after_status} testId="lab-cell-after" />,
+          },
+        ]
+      : [
+          { key: "test", header: "Test", render: (row) => <TestCell row={row} beforeAfter={false} /> },
+          {
+            key: "result",
+            header: "Result",
+            render: (row) =>
+              row.result ? (
+                <div className="min-w-0">
+                  <ResultBadge label={row.result.label} tone={row.result.tone} />
+                  <p className="mt-1.5 text-[13px] leading-snug text-slate-300">{row.result.plain}</p>
+                </div>
+              ) : row.result_status ? (
+                <StatusView status={row.result_status} />
+              ) : null,
+          },
+        ];
+
+  const table = (rows: LabRow[], first: boolean, label: string) => (
+    <DataTable
+      label={label}
+      columns={columns}
+      rows={rows}
+      rowKey={(r) => String(r.item_id)}
+      rowTestId="evidence-row"
+      headTestId={first && beforeAfter ? "lab-columns" : undefined}
+      selectedKey={selected ? String(selected.item_id) : null}
+      onRowClick={(r) => {
+        if (r.result === null && r.after === null) return;
+        setOpenRow((cur) => (cur === r.item_id ? null : r.item_id));
+      }}
+    />
+  );
+
+  const listing =
+    current.rows.length === 0 ? (
+      <p className="text-sm text-slate-400">There are no results yet.</p>
+    ) : visible.length === 0 ? (
+      <p className="rounded-xl border border-slate-800 px-4 py-8 text-center text-sm text-slate-400">No results match this search.</p>
+    ) : current.grouped ? (
+      <div className="flex flex-col gap-6">
+        {splitByGroup(current.groups, visible, (r) => r.group).map((section, i) => {
+          const group = section.key !== null ? headings.get(section.key) : undefined;
+          return (
+            <section key={section.key ?? `rest-${i}`} data-testid="lab-group" data-group={section.key ?? ""}>
+              {group ? (
+                <>
+                  <h2 className="text-base font-semibold text-slate-100">{group.heading}</h2>
+                  {group.note ? (
+                    <p data-testid="lab-group-note" className="mt-0.5 text-[13px] text-slate-400">
+                      {group.note}
+                    </p>
                   ) : null}
-                  <span className="mt-0.5 block text-[13px] text-slate-400">{v.note}</span>
-                </button>
-              ))}
-              <p className="mt-1.5 border-t border-slate-800 px-2.5 pb-1 pt-2 text-xs text-slate-400">
-                {retest.menu_note}
-              </p>
-            </div>
+                </>
+              ) : null}
+              <div className="mt-3">{table(section.items, i === 0, group?.heading ?? "Results")}</div>
+            </section>
+          );
+        })}
+      </div>
+    ) : (
+      table(visible, true, "Results")
+    );
+
+  const panel = (
+    <DetailPanel
+      open={selected !== null}
+      title={selected?.title ?? ""}
+      subtitle={
+        selected ? (
+          <span className="flex flex-wrap items-center gap-2">
+            {leading(selected, beforeAfter) ? (
+              <StatusChip label={leading(selected, beforeAfter)!.label} tone={leading(selected, beforeAfter)!.tone} size="sm" />
+            ) : null}
+            {selected.control_line ? <span>{selected.control_line}</span> : null}
+          </span>
+        ) : null
+      }
+      onClose={closePanel}
+    >
+      {selected ? (
+        <div data-testid="lab-row" data-kind={selected.kind} id={`lab-detail-${selected.item_id}`}>
+          {beforeAfter ? (
+            <>
+              {selected.after ? (
+                <ResultDetail
+                  result={selected.after}
+                  heading={current.columns?.after_heading}
+                  busy={busy}
+                  onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
+                  onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
+                  onViewFix={onViewFix}
+                />
+              ) : null}
+              {selected.result ? (
+                <ResultDetail
+                  result={selected.result}
+                  heading={current.columns?.before_heading}
+                  busy={busy}
+                  onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
+                  onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
+                  onViewFix={onViewFix}
+                />
+              ) : null}
+            </>
+          ) : selected.result ? (
+            <ResultDetail
+              result={selected.result}
+              busy={busy}
+              onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
+              onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
+              onViewFix={onViewFix}
+            />
           ) : null}
         </div>
-      </div>
-
-      <p data-testid="lab-subline" className="mt-2 text-sm text-slate-400">
-        <RichTextView parts={current.subline} />
-      </p>
-
-      {current.code_line ? (
-        <p data-testid="lab-code-line" className="mt-1 text-sm text-slate-300">
-          <RichTextView parts={current.code_line} />
-        </p>
       ) : null}
+    </DetailPanel>
+  );
+
+  return (
+    <section aria-label="Evidence">
+      <PageHeader
+        eyebrow={current.is_demo ? <DemoDataLabel /> : undefined}
+        title="Evidence"
+        description={
+          <>
+            <p data-testid="lab-subline">
+              <RichTextView parts={current.subline} />
+            </p>
+            {current.code_line ? (
+              <p data-testid="lab-code-line" className="mt-1 text-slate-300">
+                <RichTextView parts={current.code_line} />
+              </p>
+            ) : null}
+          </>
+        }
+        actions={
+          <div ref={menuRef} className="relative flex shrink-0 flex-wrap gap-2.5">
+            <SecondaryButton expanded={menuOpen} disabled={busy || !retest.can_start} onClick={() => setMenuOpen((v) => !v)}>
+              Retest new version
+            </SecondaryButton>
+            <SecondaryButton allowWhenClosed disabled={busy || !current.download.can_start} onClick={() => void download()}>
+              Download evidence
+            </SecondaryButton>
+            {menuOpen ? (
+              <div
+                role="menu"
+                aria-label={retest.menu_title}
+                className="absolute right-0 top-[46px] z-20 w-[420px] max-w-[calc(100vw-2rem)] rounded-[10px] border border-slate-600 bg-slate-900 p-1.5 shadow-2xl shadow-black/60"
+              >
+                <p className="px-2.5 pb-1.5 pt-2 text-xs text-slate-400">{retest.menu_title}</p>
+                {retest.versions.map((v) => (
+                  <button
+                    key={`${v.component ?? ""}/${v.version}`}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setExported(null);
+                      void act(() => api.retest(current.plan_id, v.version, v.component));
+                    }}
+                    className="block w-full rounded-md p-2.5 text-left hover:bg-slate-800 focus-visible:bg-slate-800"
+                  >
+                    <span className="text-sm font-semibold text-slate-100">{v.label}</span>
+                    {v.tag ? (
+                      <>
+                        {" "}
+                        <SourceTag>{v.tag}</SourceTag>
+                      </>
+                    ) : null}
+                    <span className="mt-0.5 block text-[13px] text-slate-400">{v.note}</span>
+                  </button>
+                ))}
+                <p className="mt-1.5 border-t border-slate-800 px-2.5 pb-1 pt-2 text-xs text-slate-400">{retest.menu_note}</p>
+              </div>
+            ) : null}
+          </div>
+        }
+      />
+
+      <SummaryCards label="Evidence summary" cards={cards} />
 
       {retest.running && retest.progress_text ? (
-        <p role="status" data-testid="retest-progress" className="mt-2 text-sm text-slate-300">
+        <p role="status" data-testid="retest-progress" className="mb-3 text-sm text-slate-300">
           {retest.progress_text}
         </p>
       ) : null}
 
       {blocked.map((reason) => (
-        <p key={reason} data-testid="blocked-reason" className="mt-2 text-xs text-slate-400">
+        <p key={reason} data-testid="blocked-reason" className="mb-3 text-xs text-slate-400">
           {reason}
         </p>
       ))}
@@ -450,60 +483,27 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
       {exported ? <DownloadStatus exported={exported} /> : null}
 
       {current.not_tested ? (
-        <div className="mt-4">
+        <div className="mb-4">
           <NotTestedBox title={current.not_tested.title} items={current.not_tested.items} />
         </div>
       ) : null}
 
       {error ? (
-        <div className="mt-4">
+        <div className="mb-4">
           <ErrorBox>{error}</ErrorBox>
         </div>
       ) : null}
 
-      <p data-testid="disclaimer" className="mt-6 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+      <p data-testid="disclaimer" className="mb-6 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
         {current.disclaimer}
       </p>
 
-      <div className="mt-6">
-        {current.view === "before_after" && current.columns ? (
-          <div
-            data-testid="lab-columns"
-            className="hidden gap-3 px-[17px] pb-2 text-xs uppercase tracking-wide text-slate-500 md:grid md:grid-cols-[16px_210px_1fr_1fr]"
-          >
-            <span />
-            <span>{current.columns.test}</span>
-            <ColumnHeading heading={current.columns.before} note={current.columns.before_note} />
-            <ColumnHeading heading={current.columns.after} note={current.columns.after_note} />
-          </div>
-        ) : null}
-        {current.rows.length === 0 ? (
-          <p className="text-sm text-slate-400">There are no results yet.</p>
-        ) : current.grouped ? (
-          <div className="flex flex-col gap-6">
-            {splitByGroup(current.groups, current.rows, (r) => r.group).map((section, i) => {
-              const group = section.key !== null ? headings.get(section.key) : undefined;
-              return (
-                <section key={section.key ?? `rest-${i}`} data-testid="lab-group" data-group={section.key ?? ""}>
-                  {group ? (
-                    <>
-                      <h2 className="text-base font-semibold text-slate-100">{group.heading}</h2>
-                      {group.note ? (
-                        <p data-testid="lab-group-note" className="mt-0.5 text-[13px] text-slate-400">
-                          {group.note}
-                        </p>
-                      ) : null}
-                    </>
-                  ) : null}
-                  <ul className="mt-3 flex flex-col gap-3">{renderRows(section.items, group ? 3 : 2)}</ul>
-                </section>
-              );
-            })}
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-3">{renderRows(current.rows, 2)}</ul>
-        )}
-      </div>
+      <Toolbar>
+        <SearchInput value={search} onChange={setSearch} label="Search results" placeholder="Search tests and results" />
+        <FilterSelect label="Result" value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
+      </Toolbar>
+
+      <TableWithPanel panelOpen={selected !== null} table={listing} panel={panel} />
     </section>
   );
 }

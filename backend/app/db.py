@@ -480,6 +480,52 @@ class DependencyTieRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+# ---- Phase 5a: folders, projects and assessments. Names, places and the archived flag can change; nothing is ever
+# deleted (a trigger refuses it). An assessment holds at most one import: everything else of a pass is keyed by it. ----
+
+class FolderRow(Base):
+    __tablename__ = "folders"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(120))
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("folders.id"), nullable=True)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    system_key: Mapped[str | None] = mapped_column(String(40), nullable=True, unique=True)   # "demo", "unfiled": the app's own
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ProjectRow(Base):
+    __tablename__ = "projects"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(120))
+    folder_id: Mapped[int | None] = mapped_column(ForeignKey("folders.id"), nullable=True)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    demo_key: Mapped[str | None] = mapped_column(String(40), nullable=True, unique=True)     # Load demo projects adds each once
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class AssessmentRow(Base):
+    __tablename__ = "assessments"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"))
+    number: Mapped[int] = mapped_column(Integer)                  # 1, 2, 3... within its project (kept when moved)
+    name: Mapped[str | None] = mapped_column(String(120), nullable=True)   # set by the person; else "Assessment <number>"
+    import_id: Mapped[int | None] = mapped_column(ForeignKey("imports.id"), nullable=True, unique=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_why: Mapped[str | None] = mapped_column(String(20), nullable=True)   # "closed" (by the person) | "newer"
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class AppSettingRow(Base):
+    """Small settings of this installation, for example the organization's name."""
+    __tablename__ = "app_settings"
+    key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    value: Mapped[str] = mapped_column(String(200))
+
+
+NO_DELETE_TABLES = ("folders", "projects", "assessments")
+
+
 APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", "changes", "proofs", "proof_reviews",
                       "pull_requests", "approvals", "merges", "run_code", "system_settings", "migration_choices",
                       "change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks",
@@ -494,6 +540,9 @@ def create_append_only_triggers(engine) -> None:
                 conn.execute(text(
                     f"CREATE TRIGGER IF NOT EXISTS {table}_no_{verb.lower()} BEFORE {verb} ON {table} "
                     f"BEGIN SELECT RAISE(ABORT, '{table} is append-only'); END;"))
+        for table in NO_DELETE_TABLES:   # phase 5a: folders, projects and assessments can be renamed, moved, archived; never removed
+            conn.execute(text(f"CREATE TRIGGER IF NOT EXISTS {table}_no_delete BEFORE DELETE ON {table} "
+                              f"BEGIN SELECT RAISE(ABORT, '{table} are never deleted'); END;"))
 
 
 def make_session_factory(db_path: Path) -> sessionmaker:

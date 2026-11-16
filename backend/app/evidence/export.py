@@ -441,6 +441,8 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
                     "runner": RUNNER_ID, "note": "Both engines are rule-based code from the same build. No AI model is connected."},
             "mode_line": lab.mode.line,
             "disclaimer": DISCLAIMER,
+            # Phase 5a: where this pass belongs (organization, folders, project, assessment). Part of what is signed.
+            "assessment": lab.evidence_names(imp.id),
             IMPORT_PART: {"filename": imp.filename, "format": imp.format, "is_demo": bool(imp.is_demo), "imported_at": iso(imp.created_at),
                        "claims": [{"ref": c.ref, "location": c.location, "location_kind": c.location_kind, "kind": c.kind,
                                    "claimed_value": c.claimed_value, "text": c.text, "source": c.source} for c in imp.claims],
@@ -518,6 +520,16 @@ def el(tag: str, *children: _Safe, cls: str | None = None, href: str | None = No
 def _tag(value: object) -> _Safe:
     return el("span", t(value), cls="tag") if value else _Safe("")
 
+
+
+def _where_line(where: dict | None):
+    """Phase 5a: "Organization / Folder / Project / Assessment 2 (closed)" under the report's title."""
+    if not isinstance(where, dict):
+        return _Safe("")
+    parts = [str(where.get("organization") or "")] + [str(f) for f in where.get("folders") or []] + \
+        [str(where.get("project") or ""), str(where.get("assessment") or "")]
+    status = " (closed)" if where.get("status") == "closed" else ""
+    return el("p", el("strong", t("Assessment: ")), t(" / ".join(p for p in parts if p) + status))
 
 def _when(value: object) -> _Safe:
     return t(f"{value} (UTC)") if value else t("")
@@ -876,6 +888,7 @@ def render_report_html(envelope: dict) -> bytes:
     imp, verify, retest = e.get(IMPORT_PART) or {}, e.get("verify"), e.get("retest")
     body = [
         el("h1", t("Isogeny Evidence Lab: evidence report")),
+        _where_line(e.get("assessment")),
         el("p", el("span", t("Demo data"), cls="tag")) if imp.get("is_demo") else _Safe(""),
         el("div",
            el("p", el("strong", t(REPORT_LINE))),

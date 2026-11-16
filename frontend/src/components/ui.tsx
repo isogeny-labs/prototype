@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode, type RefObject } from "react";
 import type { RichText, RowStatus, Tone } from "../api";
+import { CLOSED_SENTENCE, useReadOnly } from "../readOnly";
 
 /** Small label saying where a value came from (rule: every number says its source). */
 export function SourceTag({ children }: { children: ReactNode }) {
@@ -33,20 +34,26 @@ export function PrimaryButton({
   busy,
   onClick,
   type = "button",
+  allowWhenClosed,
 }: {
   children: ReactNode;
   disabled?: boolean;
   busy?: boolean;
   onClick?: () => void;
   type?: "button" | "submit";
+  /** Phase 5a: a download or a way forward that stays on in a closed assessment. */
+  allowWhenClosed?: boolean;
 }) {
+  const closed = useReadOnly() && !allowWhenClosed;
   return (
     <button
       type={type}
       onClick={onClick}
-      disabled={disabled || busy}
+      disabled={disabled || busy || closed}
       aria-busy={busy || undefined}
-      className="rounded-lg bg-sky-500 px-5 py-2.5 text-sm font-semibold text-slate-950 transition-colors hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+      title={closed ? CLOSED_SENTENCE : undefined}
+      data-closed={closed || undefined}
+      className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm transition-colors hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none"
     >
       {children}
     </button>
@@ -59,6 +66,7 @@ export function SecondaryButton({
   onClick,
   expanded,
   pressed,
+  allowWhenClosed,
 }: {
   children: ReactNode;
   disabled?: boolean;
@@ -67,16 +75,21 @@ export function SecondaryButton({
   expanded?: boolean;
   /** For a button that records a choice. */
   pressed?: boolean;
+  /** Phase 5a: a download or a way forward that stays on in a closed assessment. */
+  allowWhenClosed?: boolean;
 }) {
+  const closed = useReadOnly() && !allowWhenClosed;
   return (
     <button
       type="button"
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || closed}
       aria-expanded={expanded}
       aria-haspopup={expanded === undefined ? undefined : "menu"}
       aria-pressed={pressed}
-      className="whitespace-nowrap aria-expanded:border-slate-400 aria-expanded:bg-slate-800 aria-pressed:border-slate-400 aria-pressed:bg-slate-800 rounded-lg border border-slate-600 px-4 py-2 text-sm font-medium text-slate-100 transition-colors hover:border-slate-400 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+      title={closed ? CLOSED_SENTENCE : undefined}
+      data-closed={closed || undefined}
+      className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-sm font-medium text-slate-100 shadow-sm transition-colors hover:border-slate-500 hover:bg-slate-800 aria-expanded:border-slate-500 aria-expanded:bg-slate-800 aria-pressed:border-slate-500 aria-pressed:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
@@ -85,8 +98,14 @@ export function SecondaryButton({
 
 export function Wordmark({ large }: { large?: boolean }) {
   return (
-    <span className={`font-semibold tracking-tight text-slate-50 ${large ? "text-2xl" : "text-lg"}`}>
-      Isogeny Labs
+    <span className={`inline-flex items-center gap-2 font-semibold tracking-tight text-slate-50 ${large ? "text-2xl" : "text-base"}`}>
+      <span
+        aria-hidden="true"
+        className={`grid place-items-center rounded-md bg-sky-500 font-bold text-slate-950 ${large ? "h-8 w-8 text-base" : "h-6 w-6 text-xs"}`}
+      >
+        IL
+      </span>
+      <span>Isogeny Labs</span>
     </span>
   );
 }
@@ -107,31 +126,48 @@ export function saveFile(url: string, filename: string) {
   link.remove();
 }
 
-// One look per tone, used for every result label on every screen. Each badge
-// carries its words and a symbol, so nothing depends on colour alone. "pass"
-// is styled as a calm match, never as "safe".
+// One look per tone, used for every status chip on every screen (phase 5a: one set everywhere). Each chip carries its
+// words and a symbol, so nothing depends on colour alone. "pass" is styled as a calm match, never as "safe".
 const TONES: Record<Tone, { symbol: string; className: string }> = {
-  pass: { symbol: "✓", className: "border-sky-400/60 bg-sky-400/10 text-sky-100" },
-  fail: { symbol: "✕", className: "border-amber-400/70 bg-amber-400/15 text-amber-100" },
-  neutral: { symbol: "•", className: "border-slate-500 bg-slate-700/40 text-slate-100" },
-  warn: { symbol: "?", className: "border-dashed border-slate-400 bg-slate-800 text-slate-100" },
+  pass: { symbol: "✓", className: "border-sky-400/50 bg-sky-400/10 text-sky-100" },
+  fail: { symbol: "✕", className: "border-amber-400/60 bg-amber-400/15 text-amber-100" },
+  neutral: { symbol: "•", className: "border-slate-600 bg-slate-800/60 text-slate-100" },
+  warn: { symbol: "?", className: "border-dashed border-slate-500 bg-slate-900 text-slate-100" },
 };
 
-/** A result label exactly as the backend worded it. */
-export function ResultBadge({ label, tone }: { label: string; tone: Tone }) {
+/** The chip shape and tone every status chip shares (phase 5a: one set everywhere). Screens with their own symbols
+ * (the migration status, the fix status) draw them inside this same chip. */
+export function chipClass(tone: Tone, size: "sm" | "md" = "md"): string {
+  const look = TONES[tone] ?? TONES.neutral;
+  const sizing = size === "sm" ? "gap-1 px-1.5 py-0.5 text-xs" : "gap-1.5 px-2 py-0.5 text-[13px]";
+  return `inline-flex items-center rounded-full border font-semibold whitespace-nowrap ${sizing} ${look.className}`;
+}
+
+/** The one status chip: True / False / Couldn't check, Passed / Failed / Couldn't run / Couldn't trust this run /
+ * Measured, Classical / Hybrid / Post-quantum only, Open / Closed. The words are always the backend's. */
+export function StatusChip({ label, tone, size = "md", testId }: { label: string; tone: Tone; size?: "sm" | "md"; testId?: string }) {
   const look = TONES[tone] ?? TONES.neutral;
   return (
-    <span
-      data-testid="result-badge"
-      data-tone={tone}
-      className={`inline-flex items-start gap-1.5 rounded-md border px-2.5 py-1 text-left text-sm font-semibold ${look.className}`}
-    >
-      <span aria-hidden="true" className="font-mono">
-        {look.symbol}
-      </span>
+    <span data-testid={testId} data-tone={tone} className={chipClass(tone, size)}>
+      {/* The symbol is drawn by CSS, so the chip's text is exactly the backend's word. */}
+      <span aria-hidden="true" data-symbol={look.symbol} className="font-mono text-[0.85em] before:content-[attr(data-symbol)]" />
       <span>{label}</span>
     </span>
   );
+}
+
+/** How a result was proven, as a quiet outlined chip: "Release notes say", "Measured on a public copy", "Measured". */
+export function ProofChip({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-slate-600 px-2 py-0.5 text-[11px] font-medium leading-none text-slate-300">
+      {children}
+    </span>
+  );
+}
+
+/** A result label exactly as the backend worded it. */
+export function ResultBadge({ label, tone }: { label: string; tone: Tone }) {
+  return <StatusChip label={label} tone={tone} testId="result-badge" />;
 }
 
 /** A sentence made of plain words, fixed-width names, source tags, times and the Demo data label. */

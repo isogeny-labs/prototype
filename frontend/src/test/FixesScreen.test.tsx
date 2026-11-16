@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FixStatusKey, FixesView } from "../api";
 import { FixesScreen } from "../components/FixesScreen";
 import { StatusChip } from "../components/fixes/parts";
+import { chipClass } from "../components/ui";
 import {
   CODE_FIX,
   ONE_LOGIN,
@@ -101,7 +102,7 @@ describe("Fixes, the page", () => {
     const all = document.body.textContent ?? "";
     expect(all.match(/secure/gi)).toHaveLength(1);
     expect(all).not.toMatch(/score|time.to.hack|upload|mockup/i);
-    expect(document.querySelector('input:not([type="checkbox"]), textarea, select, form')).toBeNull();
+    expect(document.querySelector('input:not([type="checkbox"]):not([type="search"]), textarea, select, form')).toBeNull();
   });
 
   it("opens on the fix it was asked for, and on the first one when that fix is not in the list", async () => {
@@ -366,21 +367,22 @@ describe("Fixes, the code fix in each status", () => {
     expect(all).toContain(SERVER_LINE_UNPROVEN);
   });
 
+  // Phase 5a: one set of status chips everywhere. Each status has its tone in the shared chip, always with its word.
   it.each([
-    ["not_connected", "border-slate-500 text-slate-200"],
-    ["proving", "border-slate-500 text-slate-100"],
-    ["ready", "border-sky-400/60 bg-sky-400/10 text-sky-100"],
-    ["failed", "border-amber-400/70 bg-amber-400/15 text-amber-100"],
-    ["waiting", "border-slate-400 bg-slate-700/40 text-slate-100"],
-    ["ready_to_merge", "border-sky-400/60 bg-sky-400/10 text-sky-100"],
-    ["merged", "border-slate-400 bg-slate-700/40 text-slate-100"],
-    ["text_only", "border-dashed border-slate-400 text-slate-200"],
-  ] as const)("gives the %s chip its own look, always with its word", (key, look) => {
+    ["not_connected", "neutral"],
+    ["proving", "neutral"],
+    ["ready", "pass"],
+    ["failed", "fail"],
+    ["waiting", "neutral"],
+    ["ready_to_merge", "pass"],
+    ["merged", "neutral"],
+    ["text_only", "warn"],
+  ] as const)("gives the %s chip its tone in the shared status chip, always with its word", (key, tone) => {
     const { unmount } = render(<StatusChip status={{ key, word: "The word", busy: false }} />);
     const chip = screen.getByTestId("fix-status");
     expect(chip.getAttribute("data-status")).toBe(key);
     expect(chip.textContent).toBe("The word");
-    expect(chip.className).toContain(look);
+    expect(chip.className).toBe(chipClass(tone, "sm"));
     expect(chip.querySelector(".animate-spin")).toBeNull();
     unmount();
 

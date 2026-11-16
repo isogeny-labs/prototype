@@ -5,7 +5,7 @@ import { expect, test, type BrowserContext, type Locator, type Page } from "@pla
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DISCLAIMER, REPO, enterApp } from "./shared";
+import { DISCLAIMER, enterApp, REPO, stepLink, openFreshAssessment } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(REPO, "docs/screenshots/phase4a");
@@ -70,6 +70,7 @@ test.beforeAll(async ({ browser }) => {
   context = await browser.newContext();
   page = await context.newPage();
   await enterApp(page);
+  await openFreshAssessment(page, "Migration walk");
 });
 
 test.afterAll(async () => {
@@ -77,7 +78,7 @@ test.afterAll(async () => {
 });
 
 test("Import: the file's claims, its five test servers start, and its system settings are listed", async () => {
-  await page.getByRole("button", { name: "1. Import" }).click();
+  await stepLink(page, "1. Import").click();
   const uploaded = page.waitForResponse((r) => r.url().includes("/api/import/file") && r.request().method() === "POST");
   await page.getByLabel("Choose a file to import").setInputFiles(FILE);
   expect((await uploaded).status()).toBe(200);
@@ -88,8 +89,8 @@ test("Import: the file's claims, its five test servers start, and its system set
   const settings = page.getByTestId("import-setting");
   await expect(settings).toHaveCount(6);
   await expect(settings.filter({ hasText: "localhost:8454" })).toContainText("Exposure: internal. Data lifespan: long-lived. Can it be changed: no.");
-  await expect(page.getByRole("button", { name: "6. Migration" })).toBeEnabled();
-  await expect(page.getByRole("button", { name: "5. Fixes" })).toBeDisabled();
+  await expect(stepLink(page, "6. Migration")).toBeEnabled();
+  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
   const ticks = page.getByTestId("address-confirm");
   await expect(ticks).toHaveCount(5);
   for (let i = 0; i < 5; i += 1) await ticks.nth(i).click();
@@ -122,7 +123,7 @@ test("Tests: a program that can't run has no cards, only its line under Not test
 });
 
 test("Migration: nothing is measured until the button is pressed", async () => {
-  await page.getByRole("button", { name: "6. Migration" }).click();
+  await stepLink(page, "6. Migration").click();
   await expect(page.getByRole("heading", { name: "Migration plan", level: 1 })).toBeVisible();
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   await expect(page.getByTestId("system-card")).toHaveCount(7);
@@ -147,7 +148,7 @@ test("Measure status: each system gets its measured status and its plan", async 
   await expect(card("acme-sign 1.4.2")).toContainText("Next: sign with both · Phase 2");
   await expect(card("acme-sign 9.9")).toContainText("No plan yet: couldn't check");
   await expect(page.getByText(/already there/i)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "5. Fixes" })).toBeEnabled();   // without a page refresh
+  await expect(stepLink(page, "5. Fixes")).toBeEnabled();   // without a page refresh
 });
 
 test("A classical server: today, measured; the cost with every number's source; the recommendation and its reasons", async () => {
@@ -289,7 +290,7 @@ test("Fixes: the change for Phase 1 has its change box (Ready to try); the block
 });
 
 test("Your own choice: a reason is needed when it differs, the review date is never forever, and the roadmap follows", async () => {
-  await page.getByRole("button", { name: "6. Migration" }).click();
+  await stepLink(page, "6. Migration").click();
   await page.getByRole("button", { name: /^Systems/ }).click();
   const detail = await open("localhost:8452");
   const keep = option("Keep classical for now");
