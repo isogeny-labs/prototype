@@ -299,7 +299,7 @@ def test_the_isolated_mode_line_says_which_real_libraries_can_run(monkeypatch, t
     """Phase 4c: real libraries run only in isolated mode, each family in its own image. The line names any that is missing."""
     first = "Isolated mode: our demo software runs in a locked-down container with no network."
     probe(monkeypatch, (True, "evidence-lab-components:abc", None))
-    every = {family: f"evidence-lab-real-{family}:abc" for family in ("openssl", "java", "python-ecdsa", "elliptic")}
+    every = {family: f"evidence-lab-real-{family}:abc" for family in ("openssl", "java", "python-ecdsa", "elliptic", "openssl-3.0")}
     monkeypatch.setattr(runner, "_probe_real", lambda running: dict(every))
     mode = runner.detect_mode(settings_for(tmp_path))
     assert mode.line == first + " Real libraries run the same way, each in its own container." and mode.real_images == every

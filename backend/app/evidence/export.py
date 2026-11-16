@@ -40,7 +40,7 @@ from app.errors import Conflict, NotFound
 from app.fixes.gitrepo import GitRepoError
 from app.engine.guidance import OWN_LINKS
 from app.present.results import DISCLAIMER, TITLES
-from app.lab.testlab import CODE_KEYS, RUNNER_ID, read_spec, review_dict, run_record
+from app.lab.testlab import CODE_KEYS, DEPENDENCY_ORIGIN, RUNNER_ID, read_spec, review_dict, run_record
 from app.engine.vectors import WYCHEPROOF_SOURCE_URL
 
 EVIDENCE_SCHEMA = "isogeny.evidence/1"
@@ -55,7 +55,20 @@ CSP = "default-src 'none'; style-src 'unsafe-inline'"
 IMPORT_PART = "imp" + "ort"
 # the only links a report may carry: our own config (since phase 4c also the official post-quantum test sets and the
 # advisories of the real libraries, all fixed in the app)
-REPORT_LINKS = tuple(OWN_LINKS) + (WYCHEPROOF_SOURCE_URL, pq_vectors.ACVP_URL, pq_vectors.WYCHEPROOF_PQ_URL) + tuple(real_libraries.ADVISORY_LINKS)
+# (since phase 4d also the official sources of the knowledge base, which is fixed in the app too: a dependency list
+# can never bring a link of its own into a report)
+
+
+def _knowledge_links() -> tuple[str, ...]:
+    from app.knowledge.base import KnowledgeError, knowledge_base
+    try:
+        return knowledge_base().source_urls()
+    except KnowledgeError:
+        return ()
+
+
+REPORT_LINKS = (tuple(OWN_LINKS) + (WYCHEPROOF_SOURCE_URL, pq_vectors.ACVP_URL, pq_vectors.WYCHEPROOF_PQ_URL)
+                + tuple(real_libraries.ADVISORY_LINKS) + _knowledge_links())
 
 
 class SigningKeyError(Exception):
@@ -339,6 +352,29 @@ def _migration_part(lab, db, plan) -> dict | None:
     return {**words, "measurements": measurements}
 
 
+def _dependencies_part(lab, db, plan) -> dict | None:
+    """Phase 4d: the dependency list in force (None when none was added), every library's answers with their one label
+    and the official source of every lookup, the ties and blockers, and under `measurements` the locked capability
+    check, its run record and its review for every copy measured, like any other result in this file."""
+    words = lab._dependencies_export(db, plan)
+    if words is None:
+        return None
+    measurements = []
+    for item in db.scalars(select(PlanItemRow).where(PlanItemRow.plan_id == plan.id, PlanItemRow.origin == DEPENDENCY_ORIGIN)
+                           .order_by(PlanItemRow.position)).all():
+        spec_row = db.get(TestSpecRow, item.spec_hash)
+        spec, spec_ok = read_spec(spec_row)
+        run = lab._latest_run(db, item.id, DEPENDENCY_ORIGIN, None)
+        result = lab._result(db, run) if run is not None else None
+        entry = _run_entry(lab, db, "dependencies", result) if result else None
+        target = (spec or {}).get("target") or {}
+        measurements.append({"copy": target.get("label"), "name": target.get("name"), "version": target.get("version"),
+                             "target_kind": target.get("target_kind"), "item_id": item.id, "spec_hash": item.spec_hash,
+                             "spec_hash_ok": bool(spec_ok), "locked_at": iso(spec_row.locked_at) if spec_row else None,
+                             "proposed_by": spec_row.proposed_by if spec_row else None, "spec": spec, "runs": [entry] if entry else []})
+    return {**words, "measurements": measurements}
+
+
 def _changes_part(lab, db, plan) -> list[dict]:
     """Every change of the plan as it stands now, and every round taken with it (every try, approval request, Apply and
     Roll back, with the runs in full), also of changes that are no longer the plan's (an option changed since)."""
@@ -439,6 +475,8 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
             # Phase 4b: every change of this plan and every step taken with it: tries (with their runs), approvals, Apply,
             # the measurement right after, Roll back.
             "changes": _changes_part(lab, db, plan),
+            # Phase 4d: the dependency list, each library's answers (lookups with their sources, measurements with their runs).
+            "dependencies": _dependencies_part(lab, db, plan),
             "signer_key_fingerprint": key_fingerprint(public),
         }
     return _clean(evidence)
@@ -779,6 +817,59 @@ def _migration_html(plan: dict | None) -> list[_Safe]:
     return parts
 
 
+def _dependencies_html(part: dict | None) -> list[_Safe]:
+    """The dependency list (phase 4d), in the words of the Dependencies view: one label on every yes or no."""
+    if not part:
+        return []
+    from app.present import dependencies as words
+    lst = part.get("list") or {}
+    parts = [el("h2", t("7. Dependencies")),
+             el("p", t(f"List: {lst.get('filename')} ({lst.get('format')}), SHA-256 "), el("code", t(lst.get("sha256"))),
+                t(f", added {lst.get('at')} (UTC)."), _Safe(" "), _tag("from the file")),
+             el("p", t("A lookup reads what the library's own release notes say about that version; a measurement asks a pinned public copy "
+                       "of that version in the sandbox, with two control copies. Neither is a measurement of your own systems."), cls="note")]
+    for s in part.get("systems") or []:
+        lines = [f"Blocks its {words.TRACK_WORDS.get(track, track)} track: {b.get('label')} "
+                 f"({words.LABEL_WORDS.get(b.get('answer_label') or '', '').lower()}), "
+                 + (words.first_version_words(b.get("question"), b.get("first_version"), b.get("library_label")) or "")
+                 for track, bs in (s.get("blockers") or {}).items() for b in bs or []]
+        parts.append(el("div", el("h3", t(s.get("name"))),
+                        *([el("p", t(line)) for line in lines] or [el("p", t("No library in the list blocks a track of this system."))]),
+                        el("p", t(f"Libraries without an answer yet: {s.get('without_answer')}. Things to check, not blockers."), cls="note"),
+                        el("p", t(words.ENVIRONMENT_LINE), cls="note"), cls="result"))
+    tops = {top.get("key"): top for top in part.get("tops") or []}
+    head = el("tr", el("th", t("Library"), cls="words"), el("th", t("Under")), el("th", t("How it got there")),
+              *[el("th", t(title)) for _, title, _ in words.QUESTIONS])
+
+    def cell(a: dict) -> _Safe:
+        said = words.ANSWER_WORDS.get(str(a.get("answer")), str(a.get("answer")))
+        label = words.LABEL_WORDS.get(a.get("label") or "")
+        first = words.first_version_words("", a.get("first_version"), None) if a.get("answer") == "no" else None
+        return el("td", t(said), *([_Safe(" "), _tag(label.lower())] if label else []), *([_Safe(" "), t(first)] if first else []))
+    body = [el("tr", el("td", t(f"{r.get('name')} {r.get('version') or ''}".strip()), cls="words"),
+                     el("td", t((tops.get(r.get("under")) or {}).get("label") or r.get("under"))),
+                     el("td", t("direct" if not r.get("via") else "through " + ", then ".join(str(v) for v in r["via"]))),
+                     *[cell((r.get("answers") or {}).get(q) or {}) for q, _, _ in words.QUESTIONS])
+            for r in part.get("rows") or []]
+    parts.append(el("table", el("thead", head), el("tbody", *body)))
+    seen, sources = set(), []
+    for r in part.get("rows") or []:
+        for a in (r.get("answers") or {}).values():
+            src = (a.get("lookup") or {}).get("source")
+            if src and (src.get("url"), src.get("quote")) not in seen:
+                seen.add((src.get("url"), src.get("quote")))
+                sources.append(src)
+    if sources:
+        parts.append(el("h3", t("Sources of the lookups")))
+        parts.append(el("ul", *[el("li", t(f"{src.get('title')}: \u201c{src.get('quote')}\u201d (checked {src.get('checked')}). "),
+                                   el("a", t(src.get("url")), href=src["url"]) if src.get("url") in REPORT_LINKS else t(src.get("url")))
+                                for src in sources]))
+    for m in part.get("measurements") or []:
+        for entry in m.get("runs") or []:
+            parts.append(_result_html(f"Measured on a public copy: {m.get('copy')}", entry))
+    return parts
+
+
 def render_report_html(envelope: dict) -> bytes:
     """A readable copy of the evidence. Static: no scripts, no remote resources, every value escaped."""
     e, fingerprint = envelope["evidence"], envelope["fingerprint"]
@@ -853,6 +944,7 @@ def render_report_html(envelope: dict) -> bytes:
     body += [_fix_html(fix) for fix in fixes]
     body += _migration_html(e.get("migration"))
     body += _changes_html(e.get("changes"))
+    body += _dependencies_html(e.get("dependencies"))
     body.append(el("p", t("End of report. " + REPORT_LINE), cls="note"))
     page = (f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{html.escape(CSP, quote=True)}">\n'

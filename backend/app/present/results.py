@@ -10,6 +10,7 @@ import json
 from app.present import plain as plain_words
 from app.engine import vectors
 from app.engine.guidance import OWN_LINKS
+from app.present import dependencies as present_deps
 from app.present import pq as present_pq
 from app.present import real as present_real
 from app.engine.research import TITLES, join_and
@@ -39,6 +40,7 @@ CONTROL_WHAT = {
     "mldsa_compare": ("a deliberately altered signature", "was rejected"),
     "pq_status": ("the same check on our hybrid and our classical test server", "read them as Hybrid and Classical"),
     "signing_status": ("an independent library", "confirmed the program's signature"),
+    "capability": ("the two control copies (one that can, one that can't)", "answered yes and no as they must"),
     "mlkem_vectors": ("each deliberately broken copy", "failed this test"),
     "mldsa_vectors": ("each deliberately broken copy", "failed this test"),
 }
@@ -654,7 +656,8 @@ def _mldsa_compare(w: _Words, spec, run, review, ctx) -> None:
 _WORDS = {"tls_versions": _tls_versions, "certificate": _certificate, "official_vectors": _official_vectors,
           "bad_signatures": _bad_signatures, "speed_size": _speed_size, "pq_readiness": _pq_readiness, "mldsa_compare": _mldsa_compare,
           "pq_status": present_pq.pq_status, "signing_status": present_pq.signing_status,
-          "mlkem_vectors": present_real.pq_exam, "mldsa_vectors": present_real.pq_exam}
+          "mlkem_vectors": present_real.pq_exam, "mldsa_vectors": present_real.pq_exam,
+          "capability": present_deps.capability_result}
 
 
 def _not_a_result(w: _Words, spec, run, review, ctx) -> None:

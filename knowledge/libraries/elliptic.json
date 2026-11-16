@@ -1,0 +1,20 @@
+{
+  "schema": "isogeny.knowledge/1",
+  "library": "elliptic",
+  "label": "elliptic",
+  "roles": [
+    "signatures",
+    "key_exchange"
+  ],
+  "packages": [
+    {
+      "ecosystem": "npm",
+      "purl": "pkg:npm/elliptic"
+    }
+  ],
+  "match_names": [
+    "elliptic"
+  ],
+  "claims": [],
+  "notes": "No official source says elliptic added ML-KEM or ML-DSA in any version, so there is no claim."
+}

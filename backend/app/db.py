@@ -454,9 +454,36 @@ class RollbackRow(Base):
     rolled_back_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class DependencyListRow(Base):
+    """Phase 4d. One dependency list (CycloneDX or SPDX) added to an import, as it was read: the libraries, what
+    depends on what, and the fingerprint of the exact file. The file is data: nothing in it is ever run. Rows are only
+    ever added; the newest list of an import is the one in force."""
+    __tablename__ = "dependency_lists"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    import_id: Mapped[int] = mapped_column(ForeignKey("imports.id"))
+    filename: Mapped[str] = mapped_column(String(255))
+    format: Mapped[str] = mapped_column(String(32))             # "CycloneDX 1.6", "SPDX 2.3", ...
+    sha256: Mapped[str] = mapped_column(String(64))
+    size: Mapped[int] = mapped_column(Integer)
+    parsed: Mapped[dict] = mapped_column(JSON)                  # {"described", "components": [...], "edges": {...}}
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class DependencyTieRow(Base):
+    """Phase 4d. A person's own answer to "Part of": which system of the imported file one top entry of a list belongs
+    to ("" = none of these). Rows are only ever added; the newest row for a top entry is the one in force."""
+    __tablename__ = "dependency_ties"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    list_id: Mapped[int] = mapped_column(ForeignKey("dependency_lists.id"))
+    top_key: Mapped[str] = mapped_column(String(300))
+    system_key: Mapped[str] = mapped_column(String(600))        # "server:<address>", "software:<claim ref>", or ""
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", "changes", "proofs", "proof_reviews",
                       "pull_requests", "approvals", "merges", "run_code", "system_settings", "migration_choices",
-                      "change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks")
+                      "change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks",
+                      "dependency_lists", "dependency_ties")
 
 
 def create_append_only_triggers(engine) -> None:

@@ -40,7 +40,7 @@ def test_without_docker_it_says_so_and_exits_0(monkeypatch):
 def test_check_builds_and_downloads_nothing(monkeypatch):
     code, text, pulled, built = run(monkeypatch, ["--check"])
     assert code == 0 and pulled == built == []
-    assert text.count(": missing  (") == 4 + 4 and "Real library, Java: missing" in text and "Isolated mode: not ready" in text and "nginx lab image is missing" in text
+    assert text.count(": missing  (") == 4 + 5 and "Real library, Java: missing" in text and "Isolated mode: not ready" in text and "nginx lab image is missing" in text
 
 
 def test_it_downloads_only_the_pinned_images_and_builds_our_image(monkeypatch):
@@ -110,7 +110,7 @@ def test_main_prepares_one_image_per_real_library_family_and_says_so(monkeypatch
 def test_check_only_prepares_no_real_library_and_says_which_are_missing(monkeypatch):
     code, text, _, _ = run(monkeypatch, ["--check"])
     assert code == 0 and run.real == {"pulled": [], "fetched": [], "built": []}
-    assert text.count("Real library, ") == 4 and "can't run until" not in text      # nothing built here, so the demo image is missing too
+    assert text.count("Real library, ") == 5 and "can't run until" not in text      # nothing built here, so the demo image is missing too
 
 
 def test_a_family_that_cannot_be_prepared_is_named_and_the_others_still_work(monkeypatch):

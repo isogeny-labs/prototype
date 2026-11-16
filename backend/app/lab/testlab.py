@@ -9,6 +9,7 @@ import hashlib
 import json
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
@@ -31,6 +32,8 @@ from app.checks.verify import AddressCheck, DemoContext
 
 RUNNER_ID = "isogeny.runner/1"
 MIGRATION_ORIGIN = "migration"   # a plan item that is a Migration measurement (phase 4a), and the phase of its runs
+DEPENDENCY_ORIGIN = "dependencies"   # a plan item that is a library's capability check (phase 4d), and the phase of its runs
+HIDDEN_ORIGINS = (MIGRATION_ORIGIN, DEPENDENCY_ORIGIN)   # measurements the Tests step never shows
 RUN_SCHEMA = "isogeny.run/1"
 SOFTWARE_KINDS = research.SOFTWARE_TEST_KINDS + ("signing_status",)
 NOT_DEMO_PROGRAM = "Its tests can't run: only our own demo components can run in this version."
@@ -85,6 +88,7 @@ class TestLabMixin:
     from ChangesMixin: _code_for_run (which code a run runs on) and _proof_run_finished; from FixesMixin:
     _fix_lines (the one line about a fix) and _column_code (the code one side of before and after ran on)."""
     __test__ = False  # not a pytest class
+    _dependency_blockers: Callable[..., dict[str, dict]]   # from DependenciesMixin (phase 4d); declared for the type check only
 
     def _init_testlab(self) -> None:
         self._plan_lock = threading.Lock()
@@ -156,7 +160,7 @@ class TestLabMixin:
         """The plan's tests, in order. The Migration step's own measurements (origin "migration", phase 4a) are kept
         as plan items too, so they are locked, run and reviewed the same way, but they are never among the tests:
         not in the plan, the results, a retest or a proof."""
-        rows = db.scalars(select(PlanItemRow).where(PlanItemRow.plan_id == plan_id, PlanItemRow.origin != MIGRATION_ORIGIN)
+        rows = db.scalars(select(PlanItemRow).where(PlanItemRow.plan_id == plan_id, PlanItemRow.origin.not_in(HIDDEN_ORIGINS))
                           .order_by(PlanItemRow.position, PlanItemRow.id)).all()
         return [r for r in rows if include_removed or not r.removed]
 
@@ -372,10 +376,12 @@ class TestLabMixin:
                 card["can_remove"] = not live and not any(j is not None and j.status != "done" for j in reruns)
                 tests.append(card)
             has_results = bool(db.scalar(select(func.count(ReviewRow.id)).join(TestRunRow, TestRunRow.id == ReviewRow.run_id)
-                                         .where(TestRunRow.plan_id == plan_id, TestRunRow.phase != MIGRATION_ORIGIN)))
+                                         .where(TestRunRow.plan_id == plan_id, TestRunRow.phase.not_in(HIDDEN_ORIGINS))))
             # Does the migration plan have something for the Fixes step (a how-to or a blocker)? Then Fixes can be opened.
             # (phase 4b: a system's change is an entry too)
             has_migration = any(state["fix_ids"] for state in self._with_changes(db, plan, self._migration_states(db, plan)))
+            # (phase 4d: a library of the dependency list that blocks a track has a Text only entry in Fixes too)
+            has_migration = has_migration or any(b for tracks in self._dependency_blockers(db, plan).values() for b in tracks.values())
             suggested = [i for i in items if i.origin == "suggested"]
             added = [i for i in items if i.origin == "added"]
             first_suggested = [i for i in every if i.origin == "suggested"]
@@ -509,7 +515,7 @@ class TestLabMixin:
         with self.db() as db:
             self._plan(db, plan_id)
             item = db.get(PlanItemRow, item_id)
-            if item is None or item.plan_id != plan_id or item.removed or item.origin == MIGRATION_ORIGIN:
+            if item is None or item.plan_id != plan_id or item.removed or item.origin in HIDDEN_ORIGINS:
                 raise NotFound("That test is not in this plan.")
             if any(j is not None and j.status != "done" for j in (self.jobs.get((item_id, phase)) for phase in ("first", "retest", "proof"))):
                 raise Conflict("This test is waiting or running. Remove it when it has finished.")
@@ -524,7 +530,7 @@ class TestLabMixin:
             with self.db() as db:
                 plan = self._plan(db, plan_id)
                 item = db.get(PlanItemRow, item_id)
-                if item is None or item.plan_id != plan_id or item.removed or item.origin == MIGRATION_ORIGIN:
+                if item is None or item.plan_id != plan_id or item.removed or item.origin in HIDDEN_ORIGINS:
                     raise NotFound("That test is not in this plan.")
                 running = self._running(plan_id)
                 if running:
@@ -577,7 +583,7 @@ class TestLabMixin:
         program = self._program_of(plan, claims, spec) if spec_row_kind in SOFTWARE_KINDS else None
         if spec_row_kind in SOFTWARE_KINDS and program is None and not spec and plan.component_name is not None:
             program = {"component": plan.component_name, "version": plan.component_version, "own": True}  # unreadable test: as before
-        own = bool(program and program["own"]) and phase != MIGRATION_ORIGIN   # a migration measurement runs the bundled program as it is
+        own = bool(program and program["own"]) and phase not in HIDDEN_ORIGINS   # a measurement runs the program as it is
         # Which program a rerun swaps to the version it names: the plan's own program, or (phase 4c) the program a
         # retest was started for. Every other program is run again on the version the file names.
         swap = bool(rerun and own)
@@ -591,7 +597,7 @@ class TestLabMixin:
                 "baseline_version": (rerun.baseline_version if other is not None else plan.component_version) if swap else None,
                 "own": own}  # the plan's own program: in a proof, only it runs the changed code
         try:
-            group = ("migration", plan.id) if phase == MIGRATION_ORIGIN else plan.id   # measuring doesn't make Tests "busy"
+            group = (phase, plan.id) if phase in HIDDEN_ORIGINS else plan.id   # measuring doesn't make Tests "busy"
             return self.jobs.submit((item.id, phase), lambda job: self._run_one(job, args), group=group)
         except ValueError as exc:
             raise Conflict("This test is already waiting or running.") from exc

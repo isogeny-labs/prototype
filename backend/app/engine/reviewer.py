@@ -745,6 +745,51 @@ class RuleReviewer:
             return "couldnt_run", "unknown_algorithm"
         return family, None
 
+    # ---------------------------------------------------------------- phase 4d: post-quantum capability of a library
+
+    @staticmethod
+    def _capability_answer(outcome: dict) -> str:
+        """One question for one copy: yes only when it did it and the reference library agreed; no only when the
+        library itself refused; anything else can't be told from this run."""
+        state = outcome.get("state")
+        if state == "made" and outcome.get("confirmed") is True:
+            return "yes"
+        if state == "refused":
+            return "no"
+        return "couldnt_check"
+
+    def _capability(self, spec, raw, run, review):
+        questions = list(spec["inputs"]["questions"])
+        target = spec["target"]
+        subject, capable, incapable = raw["subject"], raw["controls"]["capable"], raw["controls"]["incapable"]
+        cap = {q: self._capability_answer(capable["answers"][q]) for q in questions}
+        inc = {q: self._capability_answer(incapable["answers"][q]) for q in questions}
+        # the incapable copy's client must still complete a classical handshake: its "no" is about the group, not a broken client
+        inc_client = all((incapable["answers"][q].get("handshakes") or {}).get("classical", {}).get("completed") is True
+                         for q in questions if q == "x25519mlkem768")
+        missed = [f"{spec['control']['capable']}: {q}" for q in questions if cap[q] != "yes"]
+        missed += [f"{spec['control']['incapable']}: {q}" for q in questions if inc[q] != "no"]
+        if not inc_client:
+            missed.append(f"{spec['control']['incapable']}: its classical handshake did not complete")
+        review["control"] = ({"outcome": "as_expected", "reason": "the_capable_copy_did_it_and_the_incapable_copy_refused"} if not missed
+                             else {"outcome": "not_as_expected", "reason": "a_control_copy_did_not_answer_as_it_must"})
+        answers, why, notes = {}, {}, {}
+        for q in questions:
+            outcome = subject[q]
+            answers[q] = self._capability_answer(outcome)
+            if q == "x25519mlkem768" and answers[q] == "yes" and outcome.get("classical_completed") is False:
+                answers[q] = "couldnt_check"   # its own client could not make an ordinary handshake: the run says nothing
+            if answers[q] == "no":
+                notes[q] = str(outcome.get("note") or "")[:300]
+            elif answers[q] == "couldnt_check":
+                why[q] = str(outcome.get("why") or ("the reference library did not agree" if outcome.get("state") == "made" else "no clear answer"))[:300]
+        mine = (target.get("name"), target.get("version"))
+        same = next((role for role, copy in (("capable", capable.get("copy") or {}), ("incapable", incapable.get("copy") or {}))
+                     if (copy.get("name"), copy.get("version")) == mine), None)
+        review["detail"] = {"answers": answers, "library_says": notes, "why": why, "controls": {"capable": cap, "incapable": inc},
+                            "control_misses": missed, "same_copy_as_control": same, "questions": questions}
+        return "measured", None
+
     # ---------------------------------------------------------------- catalog: post-quantum readiness
 
     def _pq_readiness(self, spec, raw, run, review):

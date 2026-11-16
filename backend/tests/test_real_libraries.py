@@ -37,8 +37,11 @@ def test_exactly_four_libraries_with_their_versions():
     assert list(real_libraries.LIBRARIES) == ["openjdk", "python-ecdsa", "elliptic", "openssl"]
     assert {n: lib["versions"] for n, lib in real_libraries.LIBRARIES.items()} == {
         "openjdk": ["17.0.2", "17.0.3"], "python-ecdsa": ["0.13.2", "0.13.3"], "elliptic": ["6.5.6", "6.5.7"], "openssl": ["3.5.9"]}
-    assert set(real_libraries.FAMILIES) == {"openssl", "java", "python-ecdsa", "elliptic"}
-    assert {lib["family"] for lib in real_libraries.LIBRARIES.values()} == set(real_libraries.FAMILIES)
+    # phase 4d: one more image, OpenSSL 3.0 (Debian's build), used only as the copy that can't do post-quantum in the capability checks
+    assert set(real_libraries.FAMILIES) == {"openssl", "java", "python-ecdsa", "elliptic", "openssl-3.0"}
+    assert {lib["family"] for lib in real_libraries.LIBRARIES.values()} == set(real_libraries.FAMILIES) - {"openssl-3.0"}
+    copies = [c for versions in real_libraries.CAPABILITY_COPIES.values() for c in versions.values()]
+    assert [c["family"] for c in copies].count("openssl-3.0") == 1       # used only as the incapable control (phase 4d)
 
 
 def test_the_registry_answers_exactly_for_registered_names_and_versions():
@@ -118,7 +121,7 @@ def _images():
 
 def test_every_image_is_pinned_by_digest_never_by_a_bare_tag():
     found = _images()
-    assert {f for f, _, _ in found} == {"openssl", "java", "elliptic"}      # python-ecdsa copies pure Python files only
+    assert {f for f, _, _ in found} == {"openssl", "java", "elliptic", "openssl-3.0"}      # python-ecdsa copies pure Python files only
     for family, name, ref in found:
         assert re.search(r"@sha256:[0-9a-f]{64}$", ref), (family, name, ref)
         assert ":" not in ref.split("@")[0], ref                         # no tag next to the digest

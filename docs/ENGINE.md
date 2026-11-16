@@ -27,6 +27,7 @@ class ResearchEngine(Protocol):          # backend/app/engine/research.py
     def review(self, result: dict) -> dict                # {"spec", "spec_hash", "proposed_by", "run": RunRecord} -> Review
     def dig_deeper(self, finding: dict) -> dict           # {"run_id", "spec", "review", "view"} -> research request
     def propose_change(self, request: dict) -> dict | None  # failed results + the code as text -> a code change, or None
+    def design_capability(self, request: dict) -> dict    # phase 4d: one library version's capability check (a TestSpec)
 ```
 
 | Call | Used by | What the rule-based version does |
@@ -701,3 +702,32 @@ the publisher. They only appear on `official_vectors` and `bad_signatures` resul
 Couldn't trust, and they never set a result. `covered` says whether and how these tests look at the problem. A
 failed test on a real library gets a text-only fix ("Update <name> to the fixed version (<version>)", or "no fixed
 version is known"); it is only text.
+
+## Phase 4d: the capability check (dependency readiness)
+
+Same path as every test: written down and locked, run by the job runner, stored, reviewed by the separate reviewer,
+and read back through the read gate. It is a hidden plan item (origin `dependencies`, job group `("dependencies", plan_id)`),
+like the Migration measurements; the Tests step never shows it. Rules in SPEC 7e.
+
+- **Design:** `RuleEngine.design_capability({"name", "version", "label", "target_kind", "tls", "capable", "incapable"})`.
+  The spec's own fields: `target` `{"kind": "library", "target_kind": "public_copy", "name", "version", "label"}`;
+  `inputs.questions` (`ml_kem_768`, `x25519mlkem768` only when the copy has a TLS client, `ml_dsa_65`);
+  `control` `{"kind": "capability_copies", "capable": "OpenSSL 3.5.9 …", "incapable": "OpenSSL 3.0.22 (Debian's build)", "must": {...}}`;
+  `rule` `{"type": "capability"}`. The reviewer never reads `target_kind` (one test, swappable target).
+- **Run** (`run/execute/capability.py`, isolated mode only; `needs_isolated_mode` in demo mode): every question is asked of
+  the library and of both control copies. Per question and copy: `{"state": "made", "confirmed": bool}` (ML-KEM-768: a key
+  exchange, and the app's reference library decapsulates the library's message to it; ML-DSA-65: a signature the
+  reference library checks; hybrid: a handshake with the app's own server that accepts only X25519MLKEM768, plus one
+  classical handshake), `{"state": "refused", "note": "<the library's own words>"}`, or `{"state": "no_answer", "why": …}`.
+  No private key, secret or signature is kept.
+- **Review** (`RuleReviewer._capability`): yes only when made and confirmed; no only when refused; anything else
+  `couldnt_check` with its reason. The capable copy must say yes to every question and the incapable copy no to every
+  question (and still complete its classical handshake), or the run is Couldn't trust. The detail holds `answers`,
+  `library_says`, `why`, `controls`, `control_misses`, `same_copy_as_control` and `questions`; the code is `measured`.
+- **Records:** `dependency_lists` (the list as read: components, edges, format, file name, SHA-256 and size; never the
+  file itself) and `dependency_ties` (a top entry and a system key, `""` for none of these). Both add-only.
+- **Labels:** `release_notes` (a lookup), `public_copy` (a reviewed measurement), `your_environment` (defined for Level 3,
+  never produced; `dependencies/target.label_of`).
+- **Evidence:** the `dependencies` part: `list`, `described`, `tops` (with their tie), `rows` (each answer with its
+  label, first version, state, agreement and the lookup with its source), `systems` (blockers, libraries without an
+  answer), `not_libraries`, and `measurements` (each copy's locked spec and its run, like any other result).

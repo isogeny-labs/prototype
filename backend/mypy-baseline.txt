@@ -115,7 +115,6 @@
 2	app/fixes/views.py: "FixesMixin" has no attribute "_run_code"; maybe "_column_code"? [attr-defined]
 2	app/fixes/views.py: "FixesMixin" has no attribute "_tls_changes" [attr-defined]
 1	app/fixes/views.py: "FixesMixin" has no attribute "db" [attr-defined]
-1	app/fixes/views.py: "FixesMixin" has no attribute "jobs" [attr-defined]
 1	app/fixes/views.py: "FixesMixin" has no attribute "mode" [attr-defined]
 1	app/importer/cbom.py: Argument 1 to "_collect_assets" has incompatible type "object"; expected "dict[Any, Any]" [arg-type]
 1	app/importer/cbom.py: Argument 1 to "_dependencies" has incompatible type "object"; expected "dict[Any, Any]" [arg-type]

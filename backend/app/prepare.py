@@ -96,6 +96,8 @@ def build_real(family: str, tag: str, files: list[Path]) -> bool:
         context = Path(folder)
         _copy_tree(COMPONENTS_DIR, context / "components")
         _copy_tree(real_libraries.REAL_DIR / family, context / "real")
+        for shared in pins.get("shared_files", []):   # phase 4d: a wrapper file another family's folder holds
+            shutil.copy(real_libraries.REAL_DIR / shared, context / "real" / Path(shared).name)
         (context / "pkgs").mkdir()
         for path in files:
             shutil.copy(path, context / "pkgs" / path.name)

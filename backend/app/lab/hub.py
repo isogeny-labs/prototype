@@ -30,6 +30,7 @@ from app.errors import BadRequest, Conflict, NotFound
 from app.evidence.export import EvidenceMixin, SigningKeyError, ensure_signing_key
 from app.fixes.views import FixesMixin
 from app.migration.state import MigrationMixin
+from app.dependencies.state import DependenciesMixin
 from app.migration.system_changes import LAB_NGINX_SETTINGS, SystemChangesMixin
 from app.importer.common import ImportFileError, ParsedFile
 from app.importer.reader import parse_file
@@ -69,7 +70,7 @@ def run_json(r: VerifyRunRow) -> dict:
             "results": results}
 
 
-class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, EvidenceMixin):
+class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)

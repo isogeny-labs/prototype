@@ -8,6 +8,7 @@ import {
   type MigrationSettingField,
   type MigrationView,
 } from "../api";
+import { DependenciesView } from "./dependencies/DependenciesView";
 import { downloadEvidence } from "./evidenceDownload";
 import { Roadmap } from "./migration/Roadmap";
 import { SystemDetail } from "./migration/SystemDetail";
@@ -17,7 +18,7 @@ import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton } from "./ui";
 
 const POLL_MS = 1000;
 
-type Tab = "systems" | "roadmap";
+type Tab = "systems" | "roadmap" | "dependencies";
 
 interface Props {
   importId: number;
@@ -224,10 +225,21 @@ export function MigrationScreen({ importId, onViewFix, onPlanChanged }: Props) {
         <button type="button" aria-pressed={tab === "roadmap"} onClick={() => setTab("roadmap")} className={tabClass(tab === "roadmap")}>
           {current.tabs.roadmap}
         </button>
+        <button
+          type="button"
+          aria-pressed={tab === "dependencies"}
+          onClick={() => setTab("dependencies")}
+          className={tabClass(tab === "dependencies")}
+        >
+          {current.tabs.dependencies}
+        </button>
       </div>
 
       <div className="mt-5">
-        {tab === "roadmap" ? (
+        {tab === "dependencies" ? (
+          // A list, a tie or a measurement can add or remove a named blocker: this screen's view again, then the app.
+          <DependenciesView importId={importId} onViewFix={onViewFix} onChanged={() => void reloadAfterChange()} />
+        ) : tab === "roadmap" ? (
           <Roadmap
             view={current}
             busy={acting}

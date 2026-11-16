@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import hashlib
 import re
+from collections.abc import Callable
+from typing import Any
 
 from sqlalchemy import select
 
@@ -40,6 +42,10 @@ def _text_lines(data: bytes) -> list[str]:
 class FixesMixin:
     """Mixed into Lab. Needs: db, jobs, mode, and from the other mixins: _plan, _items, _result, _run_code, _fixes, _repo."""
 
+    # Declared for the type check only (nothing is assigned): from Lab, and from DependenciesMixin (phase 4d).
+    jobs: Any
+    _dependency_fix_view: Callable[..., dict]
+
     def fixes_view(self, plan_id: int) -> dict:
         """The Fixes step for one plan: every fix as the screen shows it, in list order."""
         with self.db() as db:
@@ -48,7 +54,8 @@ class FixesMixin:
             # Asked first, on purpose. If a job ends while the rest is put together, the screen is told to ask
             # again and the next answer is the settled one. Asked last, a proof that ended in between would be
             # shown as still running with nothing left to make the screen ask again.
-            busy = self.jobs.busy(plan.id) or self.jobs.busy(("changes", plan.id)) or self.jobs.busy(("migration", plan.id))
+            busy = (self.jobs.busy(plan.id) or self.jobs.busy(("changes", plan.id)) or self.jobs.busy(("migration", plan.id))
+                    or self.jobs.busy(("dependencies", plan.id)))
             shown = [detail for _, detail in self._fix_details(db, plan)]
             return present_fixes.view(plan.id, bool(imp.is_demo), shown, busy or any(d["status"]["busy"] for d in shown))
 
@@ -58,7 +65,7 @@ class FixesMixin:
         states = self._fixes(db, plan)
         is_demo = bool(db.get(ImportRow, plan.import_id).is_demo)
         answered = {fix["id"]: self._answered(db, fix) for fix in states
-                    if fix["kind"] == "text" and fix["source_kind"] not in ("migration", "applied_change")}
+                    if fix["kind"] == "text" and fix["source_kind"] not in ("migration", "applied_change", "dependency")}
         server_findings = sum(1 for _, address in answered.values() if address is not None)
         claims = self._claims(db.get(ImportRow, plan.import_id))
         several = len(research.servers(claims)) > 1 or len(research.programs(claims)) > 1
@@ -68,6 +75,8 @@ class FixesMixin:
             titles = list(dict.fromkeys(TITLES.get(a["kind"], str(a["kind"])) for a in fix["answers"]))
             if fix["source_kind"] == "migration":
                 shown = self._migration_fix_view(db, plan, fix, is_demo)   # phase 4a: the migration plan's how-to and blockers
+            elif fix["source_kind"] == "dependency":
+                shown = self._dependency_fix_view(db, plan, fix, is_demo)  # phase 4d: update a library that blocks a track
             elif fix["source_kind"] == "applied_change":
                 change = next(c for c in tls_changes if c["key"] == fix["change_key"])     # phase 4b: an Apply still in force
                 rec = self._change_records(db, plan, change)

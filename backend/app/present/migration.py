@@ -394,6 +394,13 @@ def _recommendation(state: dict) -> dict:
 
 def _blocker_line(state: dict, code: str, fix_id: str | None) -> dict:
     detail = state["detail"]
+    if code.startswith("dependency_"):   # phase 4d: a library of the dependency list, named, with its own Fixes entry
+        from app.present.dependencies import blocker_words
+        found = (state.get("dependency_blockers") or {}).get(code.removeprefix("dependency_")) or []
+        if found:
+            claim, label, first = blocker_words(found[0])
+            more = f" ({len(found) - 1} more in the Dependencies view)" if len(found) > 1 else ""
+            return _line(claim + more + " ", _tag(label), (". " + first).rstrip(), fix_id=found[0]["fix_id"])
     if code == "no_tls13":
         versions = join_and(list(detail.get("tls_versions") or [])) or "no TLS 1.3"
         return _line(f"It doesn't accept TLS 1.3, which post-quantum key exchange needs (it accepts {versions}) ", _tag(MEASURED), ".", fix_id=fix_id)
@@ -588,6 +595,9 @@ def roadmap_note(state: dict, track: str | None = None, band: str | None = None)
         still = " Classical-only clients still connect " if detail.get("classical_client") == "connects" else " "
         return _line(f"Offers {(detail.get('hybrid_groups') or ['hybrid'])[0]}. Next: post-quantum only, once every client supports it.{still}",
                      _tag(MEASURED), ".")
+    if track == "auth" and band == "phase2" and (state.get("dependency_blockers") or {}).get("auth"):
+        first = _blocker_line(state, "dependency_auth", None)   # phase 4d: named by the dependency list
+        return {"text": [_t("Blocker: " + first["text"][0]["v"][0].lower() + first["text"][0]["v"][1:])] + first["text"][1:], "fix_id": first["fix_id"]}
     if track == "auth" and band == "phase2":
         if option == "full_pq":
             return _line("Part of the Full post-quantum change (an ML-DSA certificate).", fix_id=state["fix_ids"].get("howto"))
@@ -722,7 +732,7 @@ def view(*, plan_id: int, import_id: int, is_demo: bool, filename: str, states: 
         "measure": {"label": "Measure again" if any_measured else "Measure status", "enabled": bool(n) and not busy,
                     "blocked_reason": "A measurement is running." if busy else None if n else "The file names nothing that can be measured.",
                     "progress_text": f"Measuring: {finished} of {n} systems finished." if busy else None},
-        "tabs": {"systems": f"Systems · {n}", "roadmap": "Roadmap"}, "list_title": f"Systems in the file ({n})",
+        "tabs": {"systems": f"Systems · {n}", "roadmap": "Roadmap", "dependencies": "Dependencies"}, "list_title": f"Systems in the file ({n})",
         "empty_text": None if n else "This file names no server and no signing program, so there is nothing to plan a migration for.",
         "systems": [system_view(s, today, busy) for s in states],
         "roadmap": _roadmap(states, download),

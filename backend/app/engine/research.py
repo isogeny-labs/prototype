@@ -70,6 +70,7 @@ TITLES = {
     "tls_versions": "Old TLS versions", "certificate": "Certificate strength", "official_vectors": "Independent exam (Wycheproof)",
     "bad_signatures": "Attacker tricks (our short list)", "speed_size": "Speed and size", "pq_readiness": "Post-quantum readiness",
     "mldsa_compare": "ML-DSA-65 comparison", "pq_status": "Post-quantum status", "signing_status": "Post-quantum status",
+    "capability": "Post-quantum capability",
     "mlkem_vectors": "Key exchange exam (ML-KEM-768)", "mldsa_vectors": "Signature exam (ML-DSA-65)",
 }
 SOFTWARE_TEST_KINDS = ("official_vectors", "bad_signatures", "speed_size", "mldsa_compare") + PQ_EXAM_KINDS
@@ -319,6 +320,40 @@ class RuleEngine:
             raise CannotDesign("That test is not in the catalog.")
         target = request.get("target")
         return self._design(kind, list(request.get("claims") or []), str(target) if target is not None else None)
+
+    def design_capability(self, request: dict) -> dict:
+        """Phase 4d: the post-quantum capability check of one library version, written down in full before it runs.
+        request: {"name", "version", "label", "target_kind" ("public_copy"), "tls": bool (the hybrid handshake is
+        measured on this target), "capable": label, "incapable": label}. Which questions run, and the two control copies,
+        are in the spec; where the library came from is only its target kind, which the reviewer never reads."""
+        name, version = str(request["name"]), str(request["version"])
+        questions = ["ml_kem_768"] + (["x25519mlkem768"] if request.get("tls") else []) + ["ml_dsa_65"]
+        target = {"kind": "library", "target_kind": str(request.get("target_kind", "public_copy")), "name": name, "version": version,
+                  "label": str(request.get("label") or f"{name} {version}")}
+        inputs = {"questions": questions,
+                  "algorithms": {"ml_kem_768": "ML-KEM-768", "x25519mlkem768": "X25519MLKEM768", "ml_dsa_65": "ML-DSA-65"},
+                  "lab_server": "the app's own test server on 127.0.0.1 that accepts only X25519MLKEM768, started for the run",
+                  "confirmed_by": "cryptography (pyca), the app's reference library"}
+        inputs_text = [f"The pinned public copy of {target['label']}, run in its own locked-down container.",
+                       "ML-KEM-768: make a key pair, encapsulate, decapsulate; the reference library decapsulates a second message from it.",
+                       "ML-DSA-65: make a key pair, sign, verify; the reference library checks the same signature."]
+        if request.get("tls"):
+            inputs_text.append("X25519MLKEM768: a TLS 1.3 handshake offering only that group, with the app's own test server on this computer; "
+                               "and one classical handshake by the same client.")
+        control = {"kind": "capability_copies", "capable": str(request["capable"]), "incapable": str(request["incapable"]),
+                   "text": f"Every question is also asked of {request['capable']}, which must be able to do it, and of "
+                           f"{request['incapable']}, which must refuse it in its own words (and still complete a classical handshake).",
+                   "must": {"capable": "yes on every question", "incapable": "refused by the library itself on every question"}}
+        rule = {"type": "capability", "yes": "every step worked and the reference library agreed",
+                "no": "the library itself refused the algorithm", "otherwise": "couldnt_check, with the reason"}
+        return self._spec("capability", "Can this library do post-quantum key exchange and signatures?",
+                          "A library that can't do them blocks the migration of every system that relies on it.",
+                          f"Can {target['label']} do ML-KEM-768 key exchange{', X25519MLKEM768 hybrid TLS' if request.get('tls') else ''} "
+                          "and ML-DSA-65 signatures today?",
+                          "Ask the library for each algorithm and, where it has it, run one round trip that the reference library confirms.",
+                          target, inputs, inputs_text, control, rule,
+                          "Yes only when every step worked and the reference library agreed; No only when the library itself refused; "
+                          "anything else is Couldn't check. If a control copy does not behave, the run can't be trusted.")
 
     def design_measurement(self, request: dict) -> dict:
         """One Migration measurement (phase 4a), written down in full like a test: request["kind"] is "pq_status"

@@ -176,8 +176,9 @@ def test_every_new_route_needs_a_login(anon_client, method, path):
 
 
 def test_there_is_no_route_that_accepts_software(client):
-    """The only route that takes a file is phase 1's claims import. Every other POST takes no body or one of
-    a few tiny JSON bodies. Nothing takes a component, an archive, a Dockerfile or a path."""
+    """The only routes that take a file are phase 1's claims import and, since phase 4d, the dependency list (read as
+    JSON data, never run). Every other POST takes no body or one of a few tiny JSON bodies. Nothing takes a component,
+    an archive, a Dockerfile or a path."""
     routes = [r for r in api_routes(client.app) if isinstance(r, APIRoute)]
     posts = sorted(r.path for r in routes if "POST" in r.methods and r.path != "/api/{rest:path}")
     with_json_body = {r.path: r.body_field.field_info.annotation.__name__ for r in routes if r.body_field is not None}
@@ -195,15 +196,18 @@ def test_there_is_no_route_that_accepts_software(client):
                       "/api/plans/{plan_id}/changes/try": "ChangeBody", "/api/plans/{plan_id}/changes/apply": "ChangeBody",
                       "/api/plans/{plan_id}/changes/rollback": "ChangeBody",
                       "/api/plans/{plan_id}/changes/ask-approval": "AskApprovalBody",
-                      "/api/plans/{plan_id}/changes/approve": "ApproveChangeBody"}
+                      "/api/plans/{plan_id}/changes/approve": "ApproveChangeBody",
+                      # Dependencies (phase 4d): "Part of" (a top entry of the list and a system of the file, both as keys the
+                      # app made), and which library to measure (a row id, or none for every one on the pinned list)
+                      "/api/plans/{plan_id}/dependencies/tie": "DependencyTieBody",
+                      "/api/plans/{plan_id}/dependencies/measure": "DependencyMeasureBody"}
     assert {k: v for k, v in with_json_body.items() if k in allowed_bodies} == allowed_bodies
     extra = set(with_json_body) - set(allowed_bodies)
     assert all(p.startswith("/api/evidence") or p.endswith("/evidence") for p in extra), extra
     for path in posts:
         assert not any(word in path for word in ("upload", "software", "component", "image", "docker", "file")) or path == "/api/import/file"
-    reads_raw_body = [r.path for r in routes if "request" in r.endpoint.__code__.co_varnames and "POST" in r.methods
-                      and r.endpoint.__name__ == "import_file"]
-    assert reads_raw_body == ["/api/import/file"]
+    reads_raw_body = sorted(r.path for r in routes if "request" in r.endpoint.__code__.co_varnames and "POST" in r.methods)
+    assert reads_raw_body == ["/api/import/file", "/api/plans/{plan_id}/dependencies"]
     for attempt in ("/api/upload", "/api/components", "/api/software", "/api/plans/1/component", "/api/import/software"):
         r = client.post(attempt, content=b"print('x')", headers={"Content-Type": "application/octet-stream"})
         assert r.status_code in (404, 405, 422) and "error" in r.json()

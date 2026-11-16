@@ -40,7 +40,16 @@ function cmdInfo() {
     library: `elliptic ${version} on Node ${process.version}` };
 }
 
-function cmdKeygen() {
+function cmdKeygen(req) {
+  const algorithm = (req && typeof req.algorithm === 'string') ? req.algorithm : 'ECDSA P-256';
+  if (algorithm !== 'ECDSA P-256') {
+    // Phase 4d: asked for another algorithm, answer from the library's own list of the curves it offers.
+    const offered = Object.keys(elliptic.curves).sort();
+    if (!offered.includes(algorithm)) {
+      return { refused: true, note: "not in the library's own list of curves: " + offered.join(', ') };
+    }
+    return { error: 'bad input: this wrapper only makes ECDSA P-256 keys' };
+  }
   const pair = ec.genKeyPair();
   return { private_key: pair.getPrivate('hex').padStart(64, '0'), public_key: pair.getPublic('hex') };
 }

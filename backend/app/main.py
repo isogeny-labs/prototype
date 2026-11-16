@@ -16,7 +16,7 @@ from app import auth
 from app.config import FRONTEND_DIST, Settings, load_settings
 from app.importer.common import ImportFileError
 from app.lab.hub import BadRequest, Conflict, Lab, NotFound
-from app.web import changes, fixes, importing, migration, session
+from app.web import changes, dependencies, fixes, importing, migration, session
 from app.web import lab as lab_routes
 from app.web import tests as test_routes
 from app.web.common import error_response
@@ -80,6 +80,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(test_routes.routes(lab, require_login))
     app.include_router(lab_routes.routes(lab, require_login))
     app.include_router(migration.routes(lab, require_login))
+    app.include_router(dependencies.routes(lab, require_login))
     app.include_router(changes.routes(lab, require_login))
     app.include_router(fixes.routes(lab, require_login))
 

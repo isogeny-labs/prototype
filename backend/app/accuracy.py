@@ -13,7 +13,8 @@ It only READS the answer keys; it never writes them. Any mismatch or missing ans
 exit with code 1.
 
 Then the migration demo against demo/expected-migration.json (47 answers), and since phase 4c the real libraries
-against demo/expected-real-libraries.json (accuracy_real.py). `--only acme|migration|real` runs one of the three.
+against demo/expected-real-libraries.json (accuracy_real.py), and since phase 4d the dependency lists against
+demo/expected-dependencies.json (accuracy_deps.py). `--only acme|migration|real|dependencies` runs one of the four.
 """
 from __future__ import annotations
 
@@ -796,10 +797,11 @@ def print_migration_report(settings: Settings | None, say=print) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.accuracy", description="Compare the app's demo answers with demo/expected.json.")
-    parser.add_argument("--only", choices=("acme", "migration", "real"), default=None,
+    parser.add_argument("--only", choices=("acme", "migration", "real", "dependencies"), default=None,
                         help="acme = only the Acme Pay demo (demo/expected.json); migration = only the migration demo "
                              "(demo/expected-migration.json); real = only the real libraries "
-                             "(demo/expected-real-libraries.json). Default: all three.")
+                             "(demo/expected-real-libraries.json); dependencies = only the dependency lists "
+                             "(demo/expected-dependencies.json). Default: all four.")
     parser.add_argument("--mode", choices=("auto", "demo", "isolated"), default=None,
                         help="demo = local processes; isolated = containers (needs Docker and the prepared images); "
                              "auto = isolated when it is available. Default: the EVIDENCE_LAB_MODE setting, else auto.")
@@ -815,6 +817,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.only in (None, "real"):
         from app.accuracy_real import print_real_report   # phase 4c: the real libraries (isolated mode; in demo mode only RD1 applies)
         codes.append(print_real_report(settings))
+    if args.only in (None, "dependencies"):
+        from app.accuracy_deps import print_dependencies_report   # phase 4d: the dependency lists (both modes)
+        codes.append(print_dependencies_report(settings))
     return max(codes)
 
 

@@ -140,6 +140,9 @@ def real_image_tag(family: str) -> str:
     digest = hashlib.sha256()
     _files_digest(digest, COMPONENTS_DIR)
     _files_digest(digest, real_libraries.REAL_DIR / family)
+    for shared in pins.get("shared_files", []):   # phase 4d: a wrapper file another family's folder holds
+        path = real_libraries.REAL_DIR / shared
+        digest.update(shared.encode() + b"\0" + hashlib.sha256(path.read_bytes()).hexdigest().encode() + b"\n")
     digest.update(json.dumps({"base": PYTHON_BASE_IMAGE, "images": pins["images"], "downloads": pins["downloads"]},
                              sort_keys=True).encode())
     return f"{real_libraries.IMAGE_REPOSITORY}-{family}:{digest.hexdigest()[:16]}"

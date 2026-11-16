@@ -47,6 +47,15 @@ class MigrationChoiceBody(BaseModel):
     review_date: StrictStr | None = Field(default=None, max_length=10)
 
 
+class DependencyTieBody(BaseModel):
+    top: StrictStr = Field(max_length=600)
+    system: StrictStr = Field(default="", max_length=600)    # "" is "None of these"
+
+
+class DependencyMeasureBody(BaseModel):
+    row: StrictStr | None = Field(default=None, max_length=20)   # one library, or every one that can be measured
+
+
 class ChangeBody(BaseModel):
     change: StrictStr = Field(max_length=700)
 

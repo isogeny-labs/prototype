@@ -16,6 +16,7 @@ import hashlib
 import shutil
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from sqlalchemy import func, select
@@ -183,6 +184,8 @@ class ChangesMixin:
     """Mixed into Lab. Needs: db, settings, jobs, engine, reviewer, _stopping, and from TestLabMixin: _plan_lock,
     _plan, _items, _latest_run, _result, _verdict, _compare_blocked, _submit, start_retest."""
 
+    _fixes_for_dependencies: Callable[..., list[dict]]   # from DependenciesMixin (phase 4d); declared for the type check only
+
     def _init_changes(self) -> None:
         self._proof_lock = threading.Lock()  # so that a proof is reviewed once when two of its jobs finish together
 
@@ -267,7 +270,8 @@ class ChangesMixin:
 
     def _fix_sources(self) -> list:
         """Where fixes come from, as an explicit list. Phase 3a has one source; phase 3c adds a developer's change."""
-        return [self._fixes_for_failed_tests, self._fixes_for_migration]   # phase 4a adds the migration plan's entries
+        # phase 4a adds the migration plan's entries; phase 4d one entry per library that blocks a track
+        return [self._fixes_for_failed_tests, self._fixes_for_migration, self._fixes_for_dependencies]
 
     def _fixes(self, db, plan: PlanRow) -> list[dict]:
         items = self._items(db, plan.id)

@@ -134,7 +134,18 @@ public class EcdsaAdapter {
             + "\"commands\": [\"keygen\", \"sign\", \"verify\", \"info\", \"bench\"], \"library\": \"OpenJDK "
             + System.getProperty("java.runtime.version") + " (" + System.getProperty("java.vendor") + ")\"}";
     }
-    static String keygen() throws GeneralSecurityException {
+    static String keygen(Map<String, String> req) throws GeneralSecurityException {
+        String algorithm = req.getOrDefault("algorithm", "ECDSA P-256");
+        if (!algorithm.equals("ECDSA P-256")) {
+            // Phase 4d: asked for another algorithm, ask the JDK itself whether it has it.
+            try {
+                KeyPairGenerator.getInstance(algorithm);
+            } catch (NoSuchAlgorithmException refused) {
+                String note = String.valueOf(refused.getMessage()).replaceAll("[^A-Za-z0-9 ._:()-]", "?");
+                return "{\"refused\": true, \"note\": \"" + note + "\"}";
+            }
+            return "{\"error\": \"bad input: this wrapper only makes ECDSA P-256 keys\"}";
+        }
         KeyPair pair = generate();
         return "{\"private_key\": \"" + padded(((ECPrivateKey) pair.getPrivate()).getS()) + "\", \"public_key\": \"" + publicHex(pair) + "\"}";
     }
@@ -203,7 +214,7 @@ public class EcdsaAdapter {
         try {
             Map<String, String> req = readJson(new String(System.in.readAllBytes(), "UTF-8"));
             switch (words.get(0)) {
-                case "keygen": out = keygen(); break;
+                case "keygen": out = keygen(req); break;
                 case "sign": out = sign(req); break;
                 case "verify": out = verify(req); break;
                 case "bench": out = bench(req); break;

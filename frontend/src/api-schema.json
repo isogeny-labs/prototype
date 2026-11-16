@@ -835,6 +835,152 @@
         }
       }
     },
+    "/api/import/{import_id}/dependencies": {
+      "get": {
+        "summary": "Dependencies View",
+        "operationId": "dependencies_view_api_import__import_id__dependencies_get",
+        "parameters": [
+          {
+            "name": "import_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Import Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependenciesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/dependencies": {
+      "post": {
+        "summary": "Add List",
+        "operationId": "add_list_api_plans__plan_id__dependencies_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "filename",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "Filename"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependenciesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/dependencies/tie": {
+      "post": {
+        "summary": "Tie",
+        "operationId": "tie_api_plans__plan_id__dependencies_tie_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DependencyTieBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependenciesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/dependencies/measure": {
+      "post": {
+        "summary": "Measure",
+        "operationId": "measure_api_plans__plan_id__dependencies_measure_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DependencyMeasureBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependenciesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/plans/{plan_id}/changes/try": {
       "post": {
         "summary": "Change Try",
@@ -2501,6 +2647,972 @@
           "error"
         ],
         "title": "DemoServer"
+      },
+      "DependenciesMeasureAll": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Measure all\""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "enabled",
+          "blocked_reason"
+        ],
+        "title": "DependenciesMeasureAll"
+      },
+      "DependenciesUpload": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Add dependency list\""
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "note"
+        ],
+        "title": "DependenciesUpload"
+      },
+      "DependenciesView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "import_id": {
+            "type": "integer",
+            "title": "Import Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "disclaimer": {
+            "type": "string",
+            "title": "Disclaimer"
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "True while a measurement runs: ask again every second."
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyQuestion"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "legend": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyLegendItem"
+            },
+            "type": "array",
+            "title": "Legend"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/DependenciesUpload"
+          },
+          "list_file": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DependencyListInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The list in force: the newest one added. Null before the first."
+          },
+          "measure_all": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DependenciesMeasureAll"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "systems": {
+            "items": {
+              "$ref": "#/components/schemas/DependencySystem"
+            },
+            "type": "array",
+            "title": "Systems"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text",
+            "description": "Set when no list has been added yet."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "import_id",
+          "is_demo",
+          "title",
+          "subline",
+          "disclaimer",
+          "busy",
+          "questions",
+          "legend",
+          "upload",
+          "list_file",
+          "measure_all",
+          "systems",
+          "groups",
+          "empty_text"
+        ],
+        "title": "DependenciesView"
+      },
+      "DependencyBlock": {
+        "properties": {
+          "system": {
+            "type": "string",
+            "title": "System"
+          },
+          "track": {
+            "type": "string",
+            "enum": [
+              "kex",
+              "auth",
+              "signatures"
+            ],
+            "title": "Track"
+          },
+          "track_words": {
+            "type": "string",
+            "title": "Track Words"
+          },
+          "fix_id": {
+            "type": "string",
+            "title": "Fix Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "system",
+          "track",
+          "track_words",
+          "fix_id"
+        ],
+        "title": "DependencyBlock"
+      },
+      "DependencyBlockerLine": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "fix_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix Id",
+            "description": "the Fixes entry it opens; null on the line that says nothing blocks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "fix_id"
+        ],
+        "title": "DependencyBlockerLine"
+      },
+      "DependencyCell": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "enum": [
+              "ml_kem_768",
+              "x25519mlkem768",
+              "ml_dsa_65"
+            ],
+            "title": "Question"
+          },
+          "answer": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "doesnt_apply",
+              "not_in_knowledge_base",
+              "couldnt_tell_version",
+              "needs_your_environment"
+            ],
+            "title": "Answer"
+          },
+          "answer_words": {
+            "type": "string",
+            "title": "Answer Words"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "release_notes",
+                  "public_copy"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "exactly one label on a yes or a no; null on every other answer"
+          },
+          "label_words": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Words"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "first_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Version",
+            "description": "on a no: the first version that can, or \"none_known\""
+          },
+          "first_version_words": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Version Words"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "measured",
+              "not_measured",
+              "couldnt_check",
+              "couldnt_trust",
+              "not_offered"
+            ],
+            "title": "State"
+          },
+          "state_words": {
+            "type": "string",
+            "title": "State Words"
+          },
+          "agreement": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "agrees",
+                  "differs"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement"
+          },
+          "agreement_words": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement Words"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question",
+          "answer",
+          "answer_words",
+          "tone",
+          "label",
+          "label_words",
+          "reason",
+          "first_version",
+          "first_version_words",
+          "state",
+          "state_words",
+          "agreement",
+          "agreement_words"
+        ],
+        "title": "DependencyCell"
+      },
+      "DependencyGroup": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tie_words": {
+            "type": "string",
+            "title": "Tie Words"
+          },
+          "system": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System"
+          },
+          "tie_source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "name_version"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tie Source"
+          },
+          "picker": {
+            "$ref": "#/components/schemas/DependencyPicker"
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text",
+            "description": "Set when the file lists no libraries under this entry."
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "tie_words",
+          "system",
+          "tie_source",
+          "picker",
+          "empty_text",
+          "rows"
+        ],
+        "title": "DependencyGroup"
+      },
+      "DependencyLegendItem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "release_notes",
+              "public_copy"
+            ],
+            "title": "Key"
+          },
+          "words": {
+            "type": "string",
+            "title": "Words",
+            "description": "\"Release notes say\" | \"Measured on a public copy\""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "words"
+        ],
+        "title": "DependencyLegendItem"
+      },
+      "DependencyListInfo": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format",
+            "description": "\"CycloneDX 1.6\" | \"SPDX 2.3\""
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "not_libraries_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Not Libraries Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "filename",
+          "format",
+          "at",
+          "sha256",
+          "not_libraries_text"
+        ],
+        "title": "DependencyListInfo"
+      },
+      "DependencyLookup": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "enum": [
+              "ml_kem_768",
+              "x25519mlkem768",
+              "ml_dsa_65"
+            ],
+            "title": "Question"
+          },
+          "question_words": {
+            "type": "string",
+            "title": "Question Words"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote"
+          },
+          "checked": {
+            "type": "string",
+            "title": "Checked"
+          },
+          "repeat": {
+            "type": "boolean",
+            "title": "Repeat",
+            "description": "the same source and quote as an earlier question of this row"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question",
+          "question_words",
+          "title",
+          "url",
+          "quote",
+          "checked",
+          "repeat"
+        ],
+        "title": "DependencyLookup"
+      },
+      "DependencyMeasure": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "enabled",
+          "blocked_reason",
+          "busy"
+        ],
+        "title": "DependencyMeasure"
+      },
+      "DependencyMeasureBody": {
+        "properties": {
+          "row": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row"
+          }
+        },
+        "type": "object",
+        "title": "DependencyMeasureBody"
+      },
+      "DependencyMeasurement": {
+        "properties": {
+          "copy_label": {
+            "type": "string",
+            "title": "Copy Label",
+            "description": "the pinned public copy that was measured"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "couldnt_run",
+              "couldnt_trust",
+              "measured",
+              "no_slowdown",
+              "slowdown",
+              "offered",
+              "not_offered"
+            ],
+            "title": "Code"
+          },
+          "run_id": {
+            "type": "integer",
+            "title": "Run Id"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasurementResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The reviewed run, worded: its locked test, raw record and review."
+          },
+          "controls": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Controls"
+          },
+          "controls_words": {
+            "type": "string",
+            "title": "Controls Words"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "copy_label",
+          "code",
+          "run_id",
+          "finished_at",
+          "result",
+          "controls",
+          "controls_words"
+        ],
+        "title": "DependencyMeasurement"
+      },
+      "DependencyPicker": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Part of\""
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyPickerOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "selected": {
+            "type": "string",
+            "title": "Selected"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "options",
+          "selected"
+        ],
+        "title": "DependencyPicker"
+      },
+      "DependencyPickerOption": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "\"\" is \"None of these\""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "name"
+        ],
+        "title": "DependencyPickerOption"
+      },
+      "DependencyQuestion": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "ml_kem_768",
+              "x25519mlkem768",
+              "ml_dsa_65"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"ML-KEM-768 key exchange\""
+          },
+          "short": {
+            "type": "string",
+            "title": "Short",
+            "description": "\"Key exchange\": the column heading"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "short"
+        ],
+        "title": "DependencyQuestion"
+      },
+      "DependencyRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "via_words": {
+            "type": "string",
+            "title": "Via Words",
+            "description": "\"direct\" | \"through python 3.12.3\""
+          },
+          "library": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Library",
+            "description": "the knowledge base's name for it; null when it is not in the knowledge base"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyCell"
+            },
+            "type": "array",
+            "title": "Cells",
+            "description": "one per question, in the order of questions"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyBlock"
+            },
+            "type": "array",
+            "title": "Blocks"
+          },
+          "measure": {
+            "$ref": "#/components/schemas/DependencyMeasure"
+          },
+          "same_copy_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Same Copy Note"
+          },
+          "lookups": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyLookup"
+            },
+            "type": "array",
+            "title": "Lookups"
+          },
+          "measurement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DependencyMeasurement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RowStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "via_words",
+          "library",
+          "cells",
+          "blocks",
+          "measure",
+          "same_copy_note",
+          "lookups",
+          "measurement",
+          "job"
+        ],
+        "title": "DependencyRow"
+      },
+      "DependencySystem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind_label": {
+            "type": "string",
+            "title": "Kind Label"
+          },
+          "tied_from": {
+            "type": "string",
+            "title": "Tied From",
+            "description": "the top entries of the list tied to it"
+          },
+          "blocker_lines": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyBlockerLine"
+            },
+            "type": "array",
+            "title": "Blocker Lines"
+          },
+          "without_answer": {
+            "type": "integer",
+            "title": "Without Answer"
+          },
+          "without_answer_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Without Answer Text"
+          },
+          "environment_line": {
+            "type": "string",
+            "title": "Environment Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "kind_label",
+          "tied_from",
+          "blocker_lines",
+          "without_answer",
+          "without_answer_text",
+          "environment_line"
+        ],
+        "title": "DependencySystem"
+      },
+      "DependencyTieBody": {
+        "properties": {
+          "top": {
+            "type": "string",
+            "maxLength": 600,
+            "title": "Top"
+          },
+          "system": {
+            "type": "string",
+            "maxLength": 600,
+            "title": "System",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "top"
+        ],
+        "title": "DependencyTieBody"
       },
       "DetailFact": {
         "properties": {
@@ -5703,13 +6815,19 @@
           "roadmap": {
             "type": "string",
             "title": "Roadmap"
+          },
+          "dependencies": {
+            "type": "string",
+            "title": "Dependencies",
+            "description": "Phase 4d: the third view, the dependency list."
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "systems",
-          "roadmap"
+          "roadmap",
+          "dependencies"
         ],
         "title": "MigrationTabs"
       },
@@ -7832,6 +8950,55 @@
           }
         ],
         "title": "ChangeSection"
+      },
+      "DependencyQuestionKey": {
+        "enum": [
+          "ml_kem_768",
+          "x25519mlkem768",
+          "ml_dsa_65"
+        ],
+        "type": "string",
+        "title": "DependencyQuestionKey"
+      },
+      "DependencyAnswer": {
+        "enum": [
+          "yes",
+          "no",
+          "doesnt_apply",
+          "not_in_knowledge_base",
+          "couldnt_tell_version",
+          "needs_your_environment"
+        ],
+        "type": "string",
+        "title": "DependencyAnswer"
+      },
+      "DependencyLabel": {
+        "enum": [
+          "release_notes",
+          "public_copy"
+        ],
+        "type": "string",
+        "title": "DependencyLabel"
+      },
+      "DependencyState": {
+        "enum": [
+          "measured",
+          "not_measured",
+          "couldnt_check",
+          "couldnt_trust",
+          "not_offered"
+        ],
+        "type": "string",
+        "title": "DependencyState"
+      },
+      "DependencyTrack": {
+        "enum": [
+          "kex",
+          "auth",
+          "signatures"
+        ],
+        "type": "string",
+        "title": "DependencyTrack"
       }
     }
   }

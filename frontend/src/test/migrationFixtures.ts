@@ -417,7 +417,7 @@ export const migrationView: MigrationView = {
   disclaimer: DISCLAIMER,
   busy: false,
   measure: { label: "Measure again", enabled: true, blocked_reason: null, progress_text: null },
-  tabs: { systems: "Systems · 7", roadmap: "Roadmap" },
+  tabs: { systems: "Systems · 7", roadmap: "Roadmap", dependencies: "Dependencies" },
   list_title: "Systems in the file (7)",
   empty_text: null,
   systems: migrationSystems,

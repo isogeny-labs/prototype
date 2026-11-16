@@ -92,6 +92,18 @@ export type {
   MigrationRoadmapRow,
   MigrationRoadmapBand,
   MigrationView,
+  DependencyQuestionKey,
+  DependencyAnswer,
+  DependencyLabel,
+  DependencyState,
+  DependencyCell,
+  DependencyBlock,
+  DependencyLookup,
+  DependencyMeasurement,
+  DependencyRow,
+  DependencyGroup,
+  DependencySystem,
+  DependenciesView,
 } from "./api.gen";
 import type {
   Session,
@@ -106,6 +118,7 @@ import type {
   MigrationOptionKey,
   MigrationSettingField,
   MigrationView,
+  DependenciesView,
 } from "./api.gen";
 
 export class ApiError extends Error {
@@ -203,6 +216,8 @@ async function orNullOn404<T>(promise: Promise<T>): Promise<T | null> {
 }
 
 export const MAX_UPLOAD_BYTES = 1024 * 1024;
+/** Dependency lists (phase 4d) can be larger than a claims file: up to 16 MB. */
+export const MAX_DEPENDENCY_LIST_BYTES = 16 * 1024 * 1024;
 
 function fixPath(planId: number, fixId: string): string {
   return `/api/plans/${planId}/fixes/${encodeURIComponent(fixId)}`;
@@ -296,6 +311,24 @@ export const api = {
   /** The same retest as "Retest new version", on the merged version. Answers with the Evidence Lab view. */
   retestNow: (planId: number, fixId: string) =>
     request<LabView>(`${fixPath(planId, fixId)}/retest`, { method: "POST" }),
+
+  // The Dependencies view of the Migration step (phase 4d). Every call answers with the whole view as it now stands.
+  getDependencies: (importId: number) => request<DependenciesView>(`/api/import/${importId}/dependencies`),
+
+  /** Sends the list's raw bytes. The server only reads it as data; nothing in it is run. */
+  addDependencyList: (planId: number, file: File) =>
+    request<DependenciesView>(`/api/plans/${planId}/dependencies?filename=${encodeURIComponent(file.name)}`, {
+      method: "POST",
+      raw: file,
+    }),
+
+  /** "Part of": the system of the file a top entry of the list belongs to; "" is "None of these". */
+  tieDependency: (planId: number, top: string, system: string) =>
+    request<DependenciesView>(`/api/plans/${planId}/dependencies/tie`, { method: "POST", json: { top, system } }),
+
+  /** One library (row id), or every library that can be measured (null). Isolated mode only. */
+  measureDependencies: (planId: number, row: string | null) =>
+    request<DependenciesView>(`/api/plans/${planId}/dependencies/measure`, { method: "POST", json: row ? { row } : {} }),
 
   // The Migration step. Every call answers with the whole view as it now stands. The GET makes the test plan if there is none.
   getMigration: (importId: number) => request<MigrationView>(`/api/import/${importId}/migration`),

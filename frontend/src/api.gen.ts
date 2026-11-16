@@ -38,6 +38,12 @@ export type MigrationOptionKey = "keep" | "hybrid" | "full_pq" | "wrap";
 export type TrackKey = "kex" | "auth" | "signatures";
 export type ChangeAction = "try" | "ask_approval" | "approve" | "apply" | "rollback" | "download";
 export type ChangeSection = ChangeSectionTable | ChangeSectionLines | ChangeSectionText;
+export type DependencyQuestionKey = "ml_kem_768" | "x25519mlkem768" | "ml_dsa_65";
+export type DependencyAnswer =
+  "yes" | "no" | "doesnt_apply" | "not_in_knowledge_base" | "couldnt_tell_version" | "needs_your_environment";
+export type DependencyLabel = "release_notes" | "public_copy";
+export type DependencyState = "measured" | "not_measured" | "couldnt_check" | "couldnt_trust" | "not_offered";
+export type DependencyTrack = "kex" | "auth" | "signatures";
 
 export interface AddTestBody {
   catalog_id: string;
@@ -473,6 +479,221 @@ export interface DemoServer {
   address: string;
   running: boolean;
   error: string | null;
+}
+export interface DependenciesMeasureAll {
+  /**
+   * "Measure all"
+   */
+  label: string;
+  enabled: boolean;
+  blocked_reason: string | null;
+}
+export interface DependenciesUpload {
+  /**
+   * "Add dependency list"
+   */
+  label: string;
+  note: string;
+}
+export interface DependenciesView {
+  plan_id: number;
+  import_id: number;
+  is_demo: boolean;
+  title: string;
+  subline: string;
+  disclaimer: string;
+  /**
+   * True while a measurement runs: ask again every second.
+   */
+  busy: boolean;
+  questions: DependencyQuestion[];
+  legend: DependencyLegendItem[];
+  upload: DependenciesUpload;
+  /**
+   * The list in force: the newest one added. Null before the first.
+   */
+  list_file: DependencyListInfo | null;
+  measure_all: DependenciesMeasureAll | null;
+  systems: DependencySystem[];
+  groups: DependencyGroup[];
+  /**
+   * Set when no list has been added yet.
+   */
+  empty_text: string | null;
+}
+export interface DependencyQuestion {
+  key: "ml_kem_768" | "x25519mlkem768" | "ml_dsa_65";
+  /**
+   * "ML-KEM-768 key exchange"
+   */
+  title: string;
+  /**
+   * "Key exchange": the column heading
+   */
+  short: string;
+}
+export interface DependencyLegendItem {
+  key: "release_notes" | "public_copy";
+  /**
+   * "Release notes say" | "Measured on a public copy"
+   */
+  words: string;
+}
+export interface DependencyListInfo {
+  filename: string;
+  /**
+   * "CycloneDX 1.6" | "SPDX 2.3"
+   */
+  format: string;
+  at: string;
+  sha256: string;
+  not_libraries_text: string | null;
+}
+export interface DependencySystem {
+  key: string;
+  name: string;
+  kind_label: string;
+  /**
+   * the top entries of the list tied to it
+   */
+  tied_from: string;
+  blocker_lines: DependencyBlockerLine[];
+  without_answer: number;
+  without_answer_text: string | null;
+  environment_line: string;
+}
+export interface DependencyBlockerLine {
+  text: string;
+  /**
+   * the Fixes entry it opens; null on the line that says nothing blocks
+   */
+  fix_id: string | null;
+}
+export interface DependencyGroup {
+  key: string;
+  label: string;
+  tie_words: string;
+  system: string | null;
+  tie_source: ("user" | "name_version") | null;
+  picker: DependencyPicker;
+  /**
+   * Set when the file lists no libraries under this entry.
+   */
+  empty_text: string | null;
+  rows: DependencyRow[];
+}
+export interface DependencyPicker {
+  /**
+   * "Part of"
+   */
+  label: string;
+  options: DependencyPickerOption[];
+  selected: string;
+}
+export interface DependencyPickerOption {
+  /**
+   * "" is "None of these"
+   */
+  key: string;
+  name: string;
+}
+export interface DependencyRow {
+  id: string;
+  label: string;
+  /**
+   * "direct" | "through python 3.12.3"
+   */
+  via_words: string;
+  /**
+   * the knowledge base's name for it; null when it is not in the knowledge base
+   */
+  library: string | null;
+  /**
+   * one per question, in the order of questions
+   */
+  cells: DependencyCell[];
+  blocks: DependencyBlock[];
+  measure: DependencyMeasure;
+  same_copy_note: string | null;
+  lookups: DependencyLookup[];
+  measurement: DependencyMeasurement | null;
+  job: RowStatus | null;
+}
+export interface DependencyCell {
+  question: "ml_kem_768" | "x25519mlkem768" | "ml_dsa_65";
+  answer: "yes" | "no" | "doesnt_apply" | "not_in_knowledge_base" | "couldnt_tell_version" | "needs_your_environment";
+  answer_words: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  /**
+   * exactly one label on a yes or a no; null on every other answer
+   */
+  label: ("release_notes" | "public_copy") | null;
+  label_words: string | null;
+  reason: string;
+  /**
+   * on a no: the first version that can, or "none_known"
+   */
+  first_version: string | null;
+  first_version_words: string | null;
+  state: "measured" | "not_measured" | "couldnt_check" | "couldnt_trust" | "not_offered";
+  state_words: string;
+  agreement: ("agrees" | "differs") | null;
+  agreement_words: string | null;
+}
+export interface DependencyBlock {
+  system: string;
+  track: "kex" | "auth" | "signatures";
+  track_words: string;
+  fix_id: string;
+}
+export interface DependencyMeasure {
+  label: string;
+  enabled: boolean;
+  blocked_reason: string | null;
+  busy: boolean;
+}
+export interface DependencyLookup {
+  question: "ml_kem_768" | "x25519mlkem768" | "ml_dsa_65";
+  question_words: string;
+  title: string;
+  url: string;
+  quote: string;
+  checked: string;
+  /**
+   * the same source and quote as an earlier question of this row
+   */
+  repeat: boolean;
+}
+export interface DependencyMeasurement {
+  /**
+   * the pinned public copy that was measured
+   */
+  copy_label: string;
+  code:
+    | "passed"
+    | "failed"
+    | "couldnt_run"
+    | "couldnt_trust"
+    | "measured"
+    | "no_slowdown"
+    | "slowdown"
+    | "offered"
+    | "not_offered";
+  run_id: number;
+  finished_at: string | null;
+  /**
+   * The reviewed run, worded: its locked test, raw record and review.
+   */
+  result: MeasurementResult | null;
+  controls: string | null;
+  controls_words: string;
+}
+export interface DependencyMeasureBody {
+  row?: string | null;
+}
+export interface DependencyTieBody {
+  top: string;
+  system?: string;
 }
 export interface DetailFact {
   label: string;
@@ -1294,6 +1515,10 @@ export interface MigrationTrackBrief {
 export interface MigrationTabs {
   systems: string;
   roadmap: string;
+  /**
+   * Phase 4d: the third view, the dependency list.
+   */
+  dependencies: string;
 }
 export interface MigrationView {
   plan_id: number;

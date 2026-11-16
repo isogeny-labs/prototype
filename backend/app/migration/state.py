@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+from collections.abc import Callable
 from datetime import date, datetime, timezone
 
 from sqlalchemy import select
@@ -48,6 +49,8 @@ def _fix_id(item_id: int, what: str) -> str:
 class MigrationMixin:
     """Mixed into Lab. Needs: db, jobs, engine, and from TestLabMixin: _plan, _claims, _lock_spec, _submit, _latest_run,
     _result, _result_cache, _plan_lock, ensure_plan, lab_view."""
+
+    _dependency_blockers: Callable[..., dict[str, dict]]   # from DependenciesMixin (phase 4d); declared for the type check only
 
     # ---------------------------------------------------------------- the systems and their measurements
 
@@ -91,6 +94,7 @@ class MigrationMixin:
         for row in db.scalars(select(SystemSettingRow).where(SystemSettingRow.import_id == imp.id).order_by(SystemSettingRow.id)).all():
             given[(row.system_key, row.field)] = row   # the newest row of a field is the one in force
         verify = db.scalars(select(VerifyRunRow).where(VerifyRunRow.import_id == imp.id).order_by(VerifyRunRow.id.desc()).limit(1)).first()
+        named = self._dependency_blockers(db, plan)   # phase 4d: {} when the import has no dependency list
         verified = {r.get("claim_id"): r.get("result") for r in (verify.results or []) if isinstance(r, dict)} if verify else {}
         today = _today()
         states = []
@@ -140,6 +144,12 @@ class MigrationMixin:
             state["offered"] = rules.offered(kind, status)
             state["recommendation"] = rules.recommend(kind, status, values)
             state["blockers"] = {o: rules.blockers(kind, o, facts) for o in rules.OPTIONS}
+            # Phase 4d: a library of the dependency list that can't do what a track needs is a named blocker on that track.
+            # (Only an import with a list has any, so every walk without one stays exactly as before.)
+            state["dependency_blockers"] = {t: list(b) for t, b in named.get(system["key"], {}).items() if b}
+            for track in state["dependency_blockers"]:
+                for option in rules.DEPENDENCY_BLOCKS[track]:
+                    state["blockers"][option] = state["blockers"][option] + ["dependency_" + track]
             measured_on = self._date_of(state["measured_at"]) or today
             state["default_review_date"] = rules.default_review_date(measured_on).isoformat() if status else None
             # the user's own choices: the newest one in force, the older ones kept

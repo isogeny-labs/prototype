@@ -1,0 +1,130 @@
+{
+  "schema": "isogeny.knowledge/1",
+  "library": "openjdk",
+  "label": "OpenJDK (the JDK)",
+  "roles": [
+    "tls",
+    "key_exchange",
+    "signatures"
+  ],
+  "packages": [
+    {
+      "ecosystem": "generic",
+      "purl": "pkg:generic/openjdk"
+    },
+    {
+      "ecosystem": "generic",
+      "purl": "pkg:generic/java/openjdk"
+    },
+    {
+      "ecosystem": "deb",
+      "purl": "pkg:deb/debian/openjdk-17-jre-headless"
+    },
+    {
+      "ecosystem": "deb",
+      "purl": "pkg:deb/debian/openjdk-17-jdk-headless"
+    },
+    {
+      "ecosystem": "deb",
+      "purl": "pkg:deb/debian/openjdk-21-jre-headless"
+    },
+    {
+      "ecosystem": "apk",
+      "purl": "pkg:apk/alpine/openjdk17"
+    },
+    {
+      "ecosystem": "apk",
+      "purl": "pkg:apk/alpine/openjdk21"
+    }
+  ],
+  "match_names": [
+    "openjdk"
+  ],
+  "claims": [
+    {
+      "capability": "ml_kem_768",
+      "versions": {
+        "from": "24"
+      },
+      "answer": "yes",
+      "source": {
+        "title": "JEP 496: Quantum-Resistant Module-Lattice-Based Key Encapsulation Mechanism",
+        "url": "https://openjdk.org/jeps/496",
+        "quote": "Provide ML-KEM implementations of the KeyPairGenerator, KEM, and KeyFactory APIs, with support for the parameter sets ML-KEM-512, ML-KEM-768, and ML-KEM-1024 standardized in FIPS 203.",
+        "kind": "official_docs",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "ml_kem_768",
+      "versions": {
+        "before": "24"
+      },
+      "answer": "no",
+      "source": {
+        "title": "JEP 496: Quantum-Resistant Module-Lattice-Based Key Encapsulation Mechanism",
+        "url": "https://openjdk.org/jeps/496",
+        "quote": "Provide ML-KEM implementations of the KeyPairGenerator, KEM, and KeyFactory APIs, with support for the parameter sets ML-KEM-512, ML-KEM-768, and ML-KEM-1024 standardized in FIPS 203.",
+        "kind": "official_docs",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "x25519mlkem768",
+      "versions": {
+        "from": "27"
+      },
+      "answer": "yes",
+      "source": {
+        "title": "JEP 527: Post-Quantum Hybrid Key Exchange for TLS 1.3",
+        "url": "https://openjdk.org/jeps/527",
+        "quote": "By default, the JDK’s TLS 1.3 implementation will place the X25519MLKEM768 hybrid scheme at the front of that list, making it the most preferred.",
+        "kind": "official_docs",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "x25519mlkem768",
+      "versions": {
+        "before": "27"
+      },
+      "answer": "no",
+      "source": {
+        "title": "JEP 527: Post-Quantum Hybrid Key Exchange for TLS 1.3",
+        "url": "https://openjdk.org/jeps/527",
+        "quote": "By default, the JDK’s TLS 1.3 implementation will place the X25519MLKEM768 hybrid scheme at the front of that list, making it the most preferred.",
+        "kind": "official_docs",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "ml_dsa_65",
+      "versions": {
+        "from": "24"
+      },
+      "answer": "yes",
+      "source": {
+        "title": "JEP 497: Quantum-Resistant Module-Lattice-Based Digital Signature Algorithm",
+        "url": "https://openjdk.org/jeps/497",
+        "quote": "Provide ML-DSA implementations of the KeyPairGenerator, Signature, and KeyFactory APIs, with support for the parameter sets ML-DSA-44, ML-DSA-65, and ML-DSA-87 standardized in FIPS 204.",
+        "kind": "official_docs",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "ml_dsa_65",
+      "versions": {
+        "before": "24"
+      },
+      "answer": "no",
+      "source": {
+        "title": "JEP 497: Quantum-Resistant Module-Lattice-Based Digital Signature Algorithm",
+        "url": "https://openjdk.org/jeps/497",
+        "quote": "Provide ML-DSA implementations of the KeyPairGenerator, Signature, and KeyFactory APIs, with support for the parameter sets ML-DSA-44, ML-DSA-65, and ML-DSA-87 standardized in FIPS 204.",
+        "kind": "official_docs",
+        "checked": "2026-11-16"
+      }
+    }
+  ],
+  "notes": "Versions are JDK feature numbers. Each JEP page's Release field was read: JEP 496 and JEP 497 say Release 24, JEP 527 says Release 27 (Status Closed / Delivered)."
+}

@@ -1174,6 +1174,7 @@ class MigrationMeasure(Shape):
 class MigrationTabs(Shape):
     systems: str
     roadmap: str
+    dependencies: str = Field(description="Phase 4d: the third view, the dependency list.")
 
 
 class MigrationRoadmapDownload(Shape):
@@ -1202,6 +1203,167 @@ class MigrationView(Shape):
     empty_text: str | None = Field(description="Set when the file names no server and no signing program.")
     systems: list[MigrationSystem]
     roadmap: MigrationRoadmap
+
+
+# ---- Phase 4d: the Dependencies view (a third tab of the Migration step). Every word comes from the backend; the screen
+# decides no answer, label, tie or blocker. ----
+
+DependencyQuestionKey = Literal["ml_kem_768", "x25519mlkem768", "ml_dsa_65"]
+DependencyAnswer = Literal["yes", "no", "doesnt_apply", "not_in_knowledge_base", "couldnt_tell_version", "needs_your_environment"]
+# "your_environment" is in the legend's vocabulary for later (Level 3) and is never sent in this version.
+DependencyLabel = Literal["release_notes", "public_copy"]
+DependencyState = Literal["measured", "not_measured", "couldnt_check", "couldnt_trust", "not_offered"]
+DependencyTrack = Literal["kex", "auth", "signatures"]
+
+
+class DependencyQuestion(Shape):
+    key: DependencyQuestionKey
+    title: str = Field(description='"ML-KEM-768 key exchange"')
+    short: str = Field(description='"Key exchange": the column heading')
+
+
+class DependencyLegendItem(Shape):
+    key: DependencyLabel
+    words: str = Field(description='"Release notes say" | "Measured on a public copy"')
+
+
+class DependenciesUpload(Shape):
+    label: str = Field(description='"Add dependency list"')
+    note: str
+
+
+class DependencyListInfo(Shape):
+    filename: str
+    format: str = Field(description='"CycloneDX 1.6" | "SPDX 2.3"')
+    at: str
+    sha256: str
+    not_libraries_text: str | None
+
+
+class DependenciesMeasureAll(Shape):
+    label: str = Field(description='"Measure all"')
+    enabled: bool
+    blocked_reason: str | None
+
+
+class DependencyBlockerLine(Shape):
+    text: str
+    fix_id: str | None = Field(description="the Fixes entry it opens; null on the line that says nothing blocks")
+
+
+class DependencySystem(Shape):
+    key: str
+    name: str
+    kind_label: str
+    tied_from: str = Field(description="the top entries of the list tied to it")
+    blocker_lines: list[DependencyBlockerLine]
+    without_answer: int
+    without_answer_text: str | None
+    environment_line: str
+
+
+class DependencyPickerOption(Shape):
+    key: str = Field(description='"" is "None of these"')
+    name: str
+
+
+class DependencyPicker(Shape):
+    label: str = Field(description='"Part of"')
+    options: list[DependencyPickerOption]
+    selected: str
+
+
+class DependencyCell(Shape):
+    question: DependencyQuestionKey
+    answer: DependencyAnswer
+    answer_words: str
+    tone: Tone
+    label: DependencyLabel | None = Field(description="exactly one label on a yes or a no; null on every other answer")
+    label_words: str | None
+    reason: str
+    first_version: str | None = Field(description='on a no: the first version that can, or "none_known"')
+    first_version_words: str | None
+    state: DependencyState
+    state_words: str
+    agreement: Literal["agrees", "differs"] | None
+    agreement_words: str | None
+
+
+class DependencyBlock(Shape):
+    system: str
+    track: DependencyTrack
+    track_words: str
+    fix_id: str
+
+
+class DependencyMeasure(Shape):
+    label: str
+    enabled: bool
+    blocked_reason: str | None
+    busy: bool
+
+
+class DependencyLookup(Shape):
+    question: DependencyQuestionKey
+    question_words: str
+    title: str
+    url: str
+    quote: str
+    checked: str
+    repeat: bool = Field(description="the same source and quote as an earlier question of this row")
+
+
+class DependencyMeasurement(Shape):
+    copy_label: str = Field(description="the pinned public copy that was measured")
+    code: ResultCode
+    run_id: int
+    finished_at: str | None
+    result: MeasurementResult | None = Field(description="The reviewed run, worded: its locked test, raw record and review.")
+    controls: str | None
+    controls_words: str
+
+
+class DependencyRow(Shape):
+    id: str
+    label: str
+    via_words: str = Field(description='"direct" | "through python 3.12.3"')
+    library: str | None = Field(description="the knowledge base's name for it; null when it is not in the knowledge base")
+    cells: list[DependencyCell] = Field(description="one per question, in the order of questions")
+    blocks: list[DependencyBlock]
+    measure: DependencyMeasure
+    same_copy_note: str | None
+    lookups: list[DependencyLookup]
+    measurement: DependencyMeasurement | None
+    job: RowStatus | None
+
+
+class DependencyGroup(Shape):
+    key: str
+    label: str
+    tie_words: str
+    system: str | None
+    tie_source: Literal["user", "name_version"] | None
+    picker: DependencyPicker
+    empty_text: str | None = Field(description="Set when the file lists no libraries under this entry.")
+    rows: list[DependencyRow]
+
+
+class DependenciesView(Shape):
+    plan_id: int
+    import_id: int
+    is_demo: bool
+    title: str
+    subline: str
+    disclaimer: str
+    busy: bool = Field(description="True while a measurement runs: ask again every second.")
+    questions: list[DependencyQuestion]
+    legend: list[DependencyLegendItem]
+    upload: DependenciesUpload
+    list_file: DependencyListInfo | None = Field(description="The list in force: the newest one added. Null before the first.")
+    measure_all: DependenciesMeasureAll | None
+    systems: list[DependencySystem]
+    groups: list[DependencyGroup]
+    empty_text: str | None = Field(description="Set when no list has been added yet.")
 
 
 # ---- Not in api.ts as a named type: the `{ ok: true }` answer of the POST routes that return nothing else. ----

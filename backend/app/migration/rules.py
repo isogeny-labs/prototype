@@ -15,7 +15,10 @@ LATEST_REVIEW = date(2030, 12, 31)                   # NIST IR 8547: today's pub
 REVIEW_MONTHS = 12                                   # the default review date of "Keep classical for now"
 # A blocker is only something that must be fixed BEFORE the change: TLS 1.3 off, a certificate below the minimum, a
 # library too old to make post-quantum signatures. Making the change itself (turning hybrid on) is not one.
-FIXABLE_BLOCKERS = ("no_tls13", "weak_certificate", "no_pq_signature")
+FIXABLE_BLOCKERS = ("no_tls13", "weak_certificate", "no_pq_signature", "dependency_kex", "dependency_auth", "dependency_signatures")
+# Phase 4d: the options a library of the dependency list stops, by the track it blocks. Key exchange stops Hybrid and Full
+# post-quantum; authentication (an ML-DSA certificate) stops Full post-quantum; a program's signatures stop both.
+DEPENDENCY_BLOCKS = {"kex": ("hybrid", "full_pq"), "auth": ("full_pq",), "signatures": ("hybrid", "full_pq")}
 
 
 def default_settings(kind: str, public_address: bool = False) -> dict:

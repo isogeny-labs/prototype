@@ -45,7 +45,14 @@ def cmd_info(_req):
             "commands": list(COMMANDS), "library": f"python-ecdsa {ecdsa.__version__} on Python {python}"}
 
 
-def cmd_keygen(_req):
+def cmd_keygen(req):
+    algorithm = req.get("algorithm", "ECDSA P-256")
+    if algorithm != "ECDSA P-256":
+        # Phase 4d: asked for another algorithm, answer from the library's own list of the curves it offers.
+        offered = sorted(c.name for c in ecdsa.curves.curves)
+        if algorithm not in offered:
+            return {"refused": True, "note": "not in the library's own list of curves: " + ", ".join(offered)}
+        return {"error": "bad input: this wrapper only makes ECDSA P-256 keys"}
     key, public = make_keys()
     return {"private_key": key.to_string().hex(), "public_key": public_hex(public)}
 

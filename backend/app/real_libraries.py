@@ -23,6 +23,9 @@ IMAGE_REPOSITORY = "evidence-lab-real"
 JDK_AFFECTED_IMAGE = "eclipse-temurin@sha256:1db19705a14622cc0bcdd19bf4c9c3b3224aad3ffb37867029d3330c92c02c68"   # 17.0.2_8-jdk-alpine
 JDK_FIXED_IMAGE = "eclipse-temurin@sha256:85c33b8a96bf36a5335adf754b45575df7df7935a84db560aa8ec16fd40dbf36"      # 17.0.3_7-jdk-alpine
 NODE_IMAGE = "node@sha256:1314fb30ec37592d5845e5a160d522c0e680972aa534549940b8d73bde88481a"                       # 22-alpine (Node 22.23.5)
+# Phase 4d: the known-incapable copy for capability checks only: Debian 12's own build of OpenSSL 3.0.22
+# (package 3.0.22-1~deb12u2), the library and its command-line program, in a Docker Official Image.
+OPENSSL_30_IMAGE = "python@sha256:935c3c5b12357a7e10caa9c1e6ca5692344d97cf229832ef584be2cec9fc03df"   # python:3.12-slim-bookworm
 _PYPI = "https://files.pythonhosted.org/packages"
 _NPM = "https://registry.npmjs.org"
 
@@ -35,6 +38,9 @@ def _npm(name: str, version: str, integrity: str) -> dict:
 # arguments), and the pinned files the prepare step downloads into the build (checked before they are used).
 FAMILIES: dict[str, dict] = {
     "openssl": {"label": "OpenSSL", "images": {"LIBRARY_IMAGE": OPENSSL_IMAGE}, "downloads": []},
+    # Phase 4d: capability checks only (never a test subject, never in Retest). It reuses the OpenSSL wrapper file.
+    "openssl-3.0": {"label": "OpenSSL 3.0 (Debian's build, capability checks only)", "images": {"LIBRARY_IMAGE": OPENSSL_30_IMAGE},
+                    "downloads": [], "shared_files": ["openssl/openssl_adapter.py"]},
     "java": {"label": "Java", "images": {"JDK_AFFECTED": JDK_AFFECTED_IMAGE, "JDK_FIXED": JDK_FIXED_IMAGE}, "downloads": []},
     "python-ecdsa": {"label": "python-ecdsa", "images": {}, "downloads": [
         {"file": "ecdsa-0.13.2-py2.py3-none-any.whl",
@@ -101,6 +107,27 @@ LIBRARIES: dict[str, dict] = {
 PQ_SIGNATURE = "ML-DSA-65"
 PQ_KEY_EXCHANGE = "ML-KEM-768"
 
+# ---------------------------------------------------------------- phase 4d: copies for the capability check
+# Every library version a dependency list may have measured on a public copy: the registered libraries above, and
+# copies kept only for this check. Nothing in an uploaded file can add to this list. `tls_client` is the pinned
+# image whose own `openssl` program makes the hybrid handshake (OpenSSL only); None means the question is a lookup.
+CAPABILITY_COPIES: dict[str, dict[str, dict]] = {
+    "openssl": {"3.5.9": {"family": "openssl", "label": "OpenSSL 3.5.9 (the pinned alpine/openssl build)", "tls_client": OPENSSL_IMAGE},
+                "3.0.22": {"family": "openssl-3.0", "label": "OpenSSL 3.0.22 (Debian's build)", "tls_client": "family"}},
+    "openjdk": {v: {"family": "java", "label": f"Java (OpenJDK {v}, Temurin build)", "tls_client": None} for v in ("17.0.2", "17.0.3")},
+    "python-ecdsa": {v: {"family": "python-ecdsa", "label": f"python-ecdsa {v}", "tls_client": None} for v in ("0.13.2", "0.13.3")},
+    "elliptic": {v: {"family": "elliptic", "label": f"elliptic {v} (npm)", "tls_client": None} for v in ("6.5.6", "6.5.7")},
+}
+CAPABLE_CONTROL = ("openssl", "3.5.9")       # must answer yes to all three questions
+INCAPABLE_CONTROL = ("openssl", "3.0.22")    # must answer no to all three, for the library's own stated reason
+
+
+def capability_copy(name: object, version: object) -> dict | None:
+    """The pinned copy of exactly this library version, if one may be measured; None otherwise. Exact match only."""
+    if not isinstance(name, str) or not isinstance(version, str):
+        return None
+    return CAPABILITY_COPIES.get(name, {}).get(version)
+
 
 def library(name: object, version: object) -> dict | None:
     """Exact match on name and version only, as for the demo components."""
@@ -127,6 +154,10 @@ def family_of_subject(key: str) -> str | None:
     for name, lib in LIBRARIES.items():
         if any(bare == f"{name}-{v}" for v in lib["versions"]):
             return lib["family"]
+    for name, copies in CAPABILITY_COPIES.items():
+        for v, copy in copies.items():
+            if bare == f"{name}-{v}":
+                return copy["family"]
     return None
 
 

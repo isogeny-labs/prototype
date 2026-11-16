@@ -210,6 +210,12 @@ def track_views(state: dict) -> list[dict]:
             sentence = str((state.get("result") or {}).get("plain") or "") if state["status"] else _couldnt_check(state)
             facts = ([{"label": "It signs with", "value": _parts(f"{detail.get('algorithm')} ", _tag(MEASURED))}] if state["status"] else [])
         nxt, why = _next_and_why(state, track, status)
+        named = (state.get("dependency_blockers") or {}).get(track) or []
+        if named:   # phase 4d: a library of the dependency list stops this track
+            from app.present.dependencies import blocker_words
+            claim, label, first = blocker_words(named[0])
+            nxt = list(nxt) + [{"t": "text", "v": " Blocker: " + claim[0].lower() + claim[1:] + " "}, _tag(label),
+                               {"t": "text", "v": (". " + first).rstrip()}]
         code = _code(state, status)
         out.append({"key": track, "title": title, "short_title": short, "status": {"code": code, "label": TRACK_LABELS[code]},
                     "sentence": sentence, "facts": facts, "next": nxt, "why": why, "next_label": "Next:", "why_label": "Why:"})

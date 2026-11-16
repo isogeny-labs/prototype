@@ -386,10 +386,12 @@ MIGRATION_TABLES = ("system_settings", "migration_choices")
 # The five tables of a change that is tried, approved, applied and rolled back (phase 4b) have theirs too, on a plan
 # that has such rows: test_phase4b.py::test_the_records_only_accept_new_rows.
 SYSTEM_CHANGE_TABLES = ("change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks")
+# The dependency lists and the person's ties (phase 4d): tests/dependencies/test_deps_rules.py::test_raw_sql_cannot_change_or_delete.
+DEPENDENCY_TABLES = ("dependency_lists", "dependency_ties")
 
 
 def test_every_append_only_table_is_covered_by_a_test():
-    groups = (set(RUN_TABLES), set(FIX_TABLES), set(MIGRATION_TABLES), set(SYSTEM_CHANGE_TABLES))
+    groups = (set(RUN_TABLES), set(FIX_TABLES), set(MIGRATION_TABLES), set(SYSTEM_CHANGE_TABLES), set(DEPENDENCY_TABLES))
     assert set().union(*groups) == set(APPEND_ONLY_TABLES)
     assert sum(len(g) for g in groups) == len(set().union(*groups))     # no table is counted twice
 

@@ -1,0 +1,185 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-11-16T09:00:00Z",
+    "component": {
+      "type": "application",
+      "bom-ref": "acme-pay",
+      "name": "Acme Pay token-signing service (demo data)",
+      "version": "1.0.0"
+    },
+    "properties": [
+      {
+        "name": "isogeny:demo",
+        "value": "Demo data: a made-up dependency list for the Acme Pay demo"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "application",
+      "bom-ref": "acme-sign",
+      "name": "acme-sign",
+      "version": "1.4.2"
+    },
+    {
+      "type": "application",
+      "bom-ref": "acme-pay-server",
+      "name": "acme-pay-server",
+      "version": "1.0.0"
+    },
+    {
+      "type": "application",
+      "bom-ref": "acme-ledger",
+      "name": "acme-ledger",
+      "version": "5.1.0"
+    },
+    {
+      "type": "library",
+      "bom-ref": "python-ecdsa-0.13.2",
+      "name": "python-ecdsa",
+      "version": "0.13.2",
+      "purl": "pkg:pypi/ecdsa@0.13.2"
+    },
+    {
+      "type": "library",
+      "bom-ref": "python-3.12.3",
+      "name": "python",
+      "version": "3.12.3",
+      "purl": "pkg:generic/python@3.12.3"
+    },
+    {
+      "type": "library",
+      "bom-ref": "openssl-3.0.22",
+      "name": "openssl",
+      "version": "3.0.22",
+      "purl": "pkg:generic/openssl@3.0.22"
+    },
+    {
+      "type": "library",
+      "bom-ref": "openjdk-17.0.2",
+      "name": "openjdk",
+      "version": "17.0.2",
+      "purl": "pkg:generic/openjdk@17.0.2"
+    },
+    {
+      "type": "library",
+      "bom-ref": "elliptic-6.5.6",
+      "name": "elliptic",
+      "version": "6.5.6",
+      "purl": "pkg:npm/elliptic@6.5.6"
+    },
+    {
+      "type": "library",
+      "bom-ref": "openssl-3.5.9",
+      "name": "openssl",
+      "version": "3.5.9",
+      "purl": "pkg:generic/openssl@3.5.9"
+    },
+    {
+      "type": "library",
+      "bom-ref": "wolfssl-5.7.2",
+      "name": "wolfssl",
+      "version": "5.7.2",
+      "purl": "pkg:generic/wolfssl@5.7.2"
+    },
+    {
+      "type": "library",
+      "bom-ref": "go-stdlib-devel",
+      "name": "Go standard library",
+      "version": "devel",
+      "purl": "pkg:golang/stdlib@devel"
+    },
+    {
+      "type": "library",
+      "bom-ref": "boringssl-4c8b1d5e",
+      "name": "boringssl",
+      "version": "4c8b1d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c",
+      "purl": "pkg:generic/boringssl@4c8b1d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c"
+    },
+    {
+      "type": "library",
+      "bom-ref": "go-stdlib-1.23.4",
+      "name": "Go standard library",
+      "version": "1.23.4",
+      "purl": "pkg:golang/stdlib@1.23.4"
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "acme-pay",
+      "dependsOn": [
+        "acme-sign",
+        "acme-pay-server",
+        "acme-ledger"
+      ]
+    },
+    {
+      "ref": "acme-sign",
+      "dependsOn": []
+    },
+    {
+      "ref": "acme-pay-server",
+      "dependsOn": [
+        "python-3.12.3"
+      ]
+    },
+    {
+      "ref": "python-3.12.3",
+      "dependsOn": [
+        "openssl-3.0.22"
+      ]
+    },
+    {
+      "ref": "acme-ledger",
+      "dependsOn": [
+        "python-ecdsa-0.13.2",
+        "openjdk-17.0.2",
+        "elliptic-6.5.6",
+        "openssl-3.5.9",
+        "wolfssl-5.7.2",
+        "go-stdlib-devel",
+        "boringssl-4c8b1d5e",
+        "go-stdlib-1.23.4"
+      ]
+    },
+    {
+      "ref": "python-ecdsa-0.13.2",
+      "dependsOn": []
+    },
+    {
+      "ref": "openssl-3.0.22",
+      "dependsOn": []
+    },
+    {
+      "ref": "openjdk-17.0.2",
+      "dependsOn": []
+    },
+    {
+      "ref": "elliptic-6.5.6",
+      "dependsOn": []
+    },
+    {
+      "ref": "openssl-3.5.9",
+      "dependsOn": []
+    },
+    {
+      "ref": "wolfssl-5.7.2",
+      "dependsOn": []
+    },
+    {
+      "ref": "go-stdlib-devel",
+      "dependsOn": []
+    },
+    {
+      "ref": "boringssl-4c8b1d5e",
+      "dependsOn": []
+    },
+    {
+      "ref": "go-stdlib-1.23.4",
+      "dependsOn": []
+    }
+  ]
+}
