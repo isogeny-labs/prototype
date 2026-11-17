@@ -11,6 +11,9 @@ before the app starts; the app itself never builds or downloads anything.
   images and files the library itself comes from, checks every file's fingerprint, and builds that family's
   image with no network. A family that can't be prepared is named; the others still work.
 
+- Otto (phase 5c): fetches the one pinned commit of Adam's Otto harness named in backend/otto.lock.json into
+  backend/.otto/ and checks its fingerprint. It needs read access to that repository once, and no Docker.
+
 It always exits with code 0, so it can never stop the app from starting. `--check` only reports.
 """
 from __future__ import annotations
@@ -25,6 +28,7 @@ import urllib.request
 from pathlib import Path
 
 from app import real_libraries
+from app.otto import harness as otto_harness
 from app.config import COMPONENTS_DIR, NGINX_IMAGE, OPENSSL_IMAGE, PYTHON_BASE_IMAGE, REPO_ROOT
 from app.run.runner import _docker_env, components_image_tag, docker_running, image_present, real_image_tag
 
@@ -138,8 +142,32 @@ def prepare_real(family: str, check_only: bool, say, base_ready: bool) -> bool:
     return built
 
 
+def prepare_otto(check_only: bool, say) -> bool:
+    """Phase 5c: Adam's Otto harness at its pinned commit. Fetched once, checked against the pinned fingerprint, and
+    never built: it is standard-library Python. Without it the app works as before and says Otto is not installed."""
+    try:
+        lock = otto_harness.read_lock()
+    except otto_harness.OttoNotInstalled as exc:
+        say(f"Otto: not installed ({exc}).")
+        return False
+    ready = otto_harness.status().installed
+    if not ready and not check_only:
+        say("Fetching Adam's Otto harness at its pinned commit (once, needs read access to its repository) ...")
+        try:
+            ready = otto_harness.fetch(lock, say)
+        except OSError:
+            ready = False
+    found = otto_harness.status()
+    say(f"Otto harness: {'ready' if ready and found.installed else 'missing'}  ({lock.repository} at {lock.commit[:12]}, "
+        f"version {lock.version})")
+    if not (ready and found.installed):
+        say("Otto: advisory checks are off until it is installed. Everything else works as before.")
+    return bool(ready and found.installed)
+
+
 def main(argv: list[str] | None = None, say=print) -> int:
     check_only = "--check" in (sys.argv[1:] if argv is None else argv)
+    prepare_otto(check_only, say)
     if not docker_running():
         say("Isolated mode: not available (Docker is not running). The app will run in demo mode.")
         return 0

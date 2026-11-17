@@ -40,21 +40,32 @@ SLOW_SHARED_WALKS = {
 
 def pytest_collection_modifyitems(config, items):
     """A test that needs Docker, or reads one of the long demo walks above, is slow by itself; others are marked
-    @pytest.mark.slow by hand. The everyday run leaves the slow ones out; --full (or naming a marker with -m) runs them."""
+    @pytest.mark.slow by hand. The everyday run leaves the slow ones out; --full (or naming a marker with -m) runs them.
+    Phase 5c: a test marked needs_otto is skipped, and counted, where Adam's Otto harness is not installed (GitHub's
+    checks can't fetch a private repository without a secret). Never a silent pass."""
     for item in items:
         fixtures = getattr(item, "fixturenames", ())
         if "docker_ready" in fixtures or SLOW_SHARED_WALKS.get(item.path.name) in fixtures:
             item.add_marker(pytest.mark.slow)
-    if config.getoption("--full") or config.getoption("markexpr"):
-        return
-    slow = [item for item in items if item.get_closest_marker("slow")]
-    if slow:
-        config.hook.pytest_deselected(items=slow)
-        items[:] = [item for item in items if not item.get_closest_marker("slow")]
-        config._slow_left_out = len(slow)
+    if not (config.getoption("--full") or config.getoption("markexpr")):
+        slow = [item for item in items if item.get_closest_marker("slow")]
+        if slow:
+            config.hook.pytest_deselected(items=slow)
+            items[:] = [item for item in items if not item.get_closest_marker("slow")]
+            config._slow_left_out = len(slow)
+    from app.otto import harness
+    otto = harness.status()
+    if not otto.installed:
+        needing = [item for item in items if item.get_closest_marker("needs_otto")]
+        for item in needing:
+            item.add_marker(pytest.mark.skip(reason=f"Otto is not installed here ({otto.reason})"))
+        config._otto_skipped = (len(needing), otto.reason)
 
 
 def pytest_terminal_summary(terminalreporter, config):
+    skipped, reason = getattr(config, "_otto_skipped", (0, None))
+    if skipped:
+        terminalreporter.write_line(f"Otto is not installed here ({reason}): {skipped} tests skipped.")
     left_out = getattr(config, "_slow_left_out", 0)
     if left_out:
         terminalreporter.write_line(f"{left_out} slow tests were left out (Docker, real libraries, timing, long "
