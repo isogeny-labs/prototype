@@ -7,8 +7,9 @@ it takes exactly the path of a fix-template change (a copy on a branch, the byte
 reruns every locked test, the separate reviewer, a person's approval and merge).
 
 Looking at a page never asks Claude and never writes anything: a view uses the answer already stored for this
-assessment, or the recorded answer for exactly this prompt. A live call is made only by a person's click (Connect
-demo code), only with Live Otto on and a key present, and within the spending limit of that one request.
+assessment, or, while Live Otto is off, the recorded answer for exactly this prompt. With Live Otto on and a key
+present the answer comes from Claude: a live call is made only by a person's click (Connect demo code), once, and
+within the spending limit of that one request. The answer is then stored and never asked for again.
 """
 from __future__ import annotations
 
@@ -98,16 +99,17 @@ class OttoEngine:
             about.update(model=stored["model"], at=stored["at"], ledger_entry=stored["claim_id"])
         else:
             client = lab.otto_model(live=connect)
-            step = client.recorded("write_fix", prompt)
-            if step is None:
+            if lab.otto_live_ready():
+                # Live Otto is on and a key is present: the answer comes from Claude, not from the recorded answers,
+                # and only a person's click asks for it. Looking at the page lists the fix as not written yet.
                 if not connect:
-                    if lab.otto_live_ready():   # a person's click will ask Claude; looking at the page does not
-                        return self._pending(request, failed, advisory, key), None
-                    return None, "No recorded answer: this needs Live Otto."
-                if not client.live_ready:
-                    return None, "No recorded answer: this needs Live Otto."
+                    return self._pending(request, failed, advisory, key), None
                 step = client.ask("write_fix", prompt)          # the live call; ModelError says why there is no answer
                 asked_now = True
+            else:
+                step = client.recorded("write_fix", prompt)
+                if step is None:
+                    return None, "No recorded answer: this needs Live Otto."
             answer, source, how, step_id = step.answer, step.source, step.how, None
             about.update(model=step.model, at=step.at, ledger_entry=None)
             if connect:

@@ -164,6 +164,19 @@ def test_live_otto_asks_only_at_the_click():
     assert lab.asked == 1 and len(lab.kept) == 1                      # the stored answer is used from then on
 
 
+def test_with_live_otto_on_the_recorded_answer_is_not_used():
+    """Live means live: with the switch on and a key present, the answer comes from Claude at the person's click, even
+    where an answer was recorded for exactly this prompt."""
+    engine, lab = _engine(recorded=_other_way(), live=GOOD, live_ready=True)
+    assert engine.propose_change(_request("view"))["otto"]["pending"] is True and lab.asked == 0
+    connected = engine.propose_change(_request("connect"))
+    assert lab.asked == 1 and connected["otto"]["source"] == "live" and connected["written_by"] == "otto"
+    assert connected["files"]["acme_sign.py"] == components.lookup("acme-sign", "1.4.3").read_text(encoding="utf-8")
+    # with the switch off again, an assessment that has no stored step works on the recorded answer
+    engine, lab = _engine(recorded=_other_way(), live=GOOD, live_ready=False)
+    assert _is_template(engine.propose_change(_request("connect"))) and lab.asked == 0 and lab.kept[0]["source"] == "recorded"
+
+
 def test_a_live_answer_that_cannot_be_used_is_refused_at_the_click_and_then_the_template_is_offered():
     engine, lab = _engine(live=_other_way(), live_ready=True)
     assert engine.propose_change(_request("view"))["otto"]["pending"] is True
