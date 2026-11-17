@@ -174,8 +174,8 @@ def _fix_block(advisory: dict, fix_view: dict | None, own_program: bool) -> dict
         link = {"label": "View in Fixes", "link": {"page": "fixes", "item": fix_view["id"]},
                 "line": f"In this assessment: {fix_view['title']} ({fix_view['status']['word']})."}
     elif own_program and advisory["test"]["state"] == "ready":
-        lines.append("For your own code, Otto writes the change in Fixes once this advisory's check has failed here; it is offered only "
-                     "after every locked test passes on the changed code.")
+        lines.append("For your own code: if this advisory's check fails here, Fixes offers a change. A change Otto wrote is offered only "
+                     "when it can be proven on this computer; otherwise the fix template takes its place.")
     return {"title": "Fix", "label": label, "state": fix["state"], "lines": lines, "quote": quote, "here": link}
 
 

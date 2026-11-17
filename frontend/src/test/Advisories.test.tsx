@@ -730,9 +730,12 @@ describe("Advisories, Add new checks", () => {
     const view = advisoriesOttoMissing;
     const fetchMock = await open(view);
     expect(addButton().disabled).toBe(true);
-    expect(screen.getByTestId("add-new-checks-reason").textContent).toBe(NOT_INSTALLED_LINE);
+    // the button's reason is short; why Otto is missing is said once, in the Otto line
+    expect(screen.getByTestId("add-new-checks-reason").textContent).toBe(view.add.blocked_reason);
+    expect(view.add.blocked_reason).not.toBe(view.otto.line);
     const notice = screen.getByTestId("advisories-otto-line");
     expect(notice.textContent).toBe(view.otto.line);
+    expect(view.otto.line).toBe(NOT_INSTALLED_LINE);
     expect(notice.getAttribute("data-installed")).toBe("false");
     // A calm notice, not an error: no alert, and not the error box's look.
     expect(screen.queryByRole("alert")).toBeNull();

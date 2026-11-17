@@ -302,6 +302,10 @@ def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 if "From Otto" in (fix.get("labels") or []):
                     answers[f"real.fix.{fix['title']}"] = fix["labels"]
             answers["real.fixes_from_otto"] = sorted(f["title"] for f in lab.fixes_view(pid)["fixes"] if "From Otto" in (f.get("labels") or []))
+            # a failed advisory check on a program the advisory is not about: the pack holds no fix for it
+            answers["real.failed_checks_with_no_fix_from_otto"] = sorted(
+                str(f.get("list_source")) for f in lab.fixes_view(pid)["fixes"]
+                if str(f.get("title", "")).startswith("Advisory check:") and "From Otto" not in (f.get("labels") or []))
             for name, version in RETESTS:
                 progress(f"  ... Real libraries: Retest new version: {name} {version}")
                 lab.start_retest(pid, version, name)

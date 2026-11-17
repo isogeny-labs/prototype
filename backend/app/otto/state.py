@@ -245,7 +245,9 @@ class OttoMixin:
                     here.append({"program": program["label"], "item_id": item.id if item is not None and not item.removed else None,
                                  "result": shown, "ledger": ledger})
                 item_ids = {h["item_id"] for h in here if h["item_id"] is not None}
-                fix = next((f for f in fixes if any(a.get("item_id") in item_ids for a in (states.get(f["id"]) or {}).get("answers") or [])), None)
+                answering = [f for f in fixes if any(a.get("item_id") in item_ids for a in (states.get(f["id"]) or {}).get("answers") or [])]
+                # where several programs failed this check, the link goes to a fix that Otto proposes, if there is one
+                fix = next((f for f in answering if f.get("labels")), answering[0] if answering else None)
                 rows.append({"pack": pack, "advisory": advisory, "design": pack.design(design_sha) if design_sha else None, "here": here, "fix": fix})
             a = self.assessment_for(plan_id=plan_id)
             answers = self._answers_line(db, installed)
@@ -324,10 +326,11 @@ class OttoMixin:
     def _pack_advisory(self, db, advisory_id: str) -> tuple[packs.Pack, dict] | None:
         return next(((pack, a) for pack, a in self._pack_advisories(db) if a["id"] == advisory_id), None)
 
-    def _otto_pack_fix(self, db, item_id: int) -> dict | None:
+    def _otto_pack_fix(self, db, item_id: int, program: str | None = None) -> dict | None:
         """For a failed advisory check: the fix its test pack proposes for the advisory (the publisher's fixed version
         with its quoted source, and how the update did on public copies), as Fixes shows it. None when the check did
-        not come from an installed pack."""
+        not come from an installed pack. `program` is the program the check failed on: a fix for one library is never
+        proposed for another program that fails the same check."""
         item = db.get(PlanItemRow, item_id)
         spec, _ = read_spec(db.get(TestSpecRow, item.spec_hash)) if item is not None else ({}, False)
         advisory_id = ((spec.get("inputs") or {}).get("advisory") or {}).get("id")
@@ -336,12 +339,18 @@ class OttoMixin:
             return None
         pack, advisory = found
         fix = advisory["fix"]
+        about = {"advisory": advisory["id"], "plain_name": (advisory["reading"] or {}).get("plain_name"), "pack": pack.version}
+        if fix["kind"] == "update" and program is not None and fix["library"] != program:
+            # The advisory is about another library. Its publisher's fix is for that library and says nothing about this one.
+            return {**about, "state": "none", "kind": "none", "library": fix["library"], "version": fix["version"], "summary": None,
+                    "quote": None,
+                    "reason": (f"The advisory is about {fix['library']}, and the fixed version its publisher names is a version of "
+                               f"{fix['library']}. This check failed on {program}, and the test pack holds no fix for {program}.")}
         quote = None
         if fix["quote"] is not None:
             quote = present_otto._quoted(advisory, fix["quote"])
-        return {"advisory": advisory["id"], "plain_name": (advisory["reading"] or {}).get("plain_name"), "pack": pack.version,
-                "state": fix["state"], "kind": fix["kind"], "library": fix["library"], "version": fix["version"], "summary": fix["summary"],
-                "reason": fix["reason"], "quote": quote}
+        return {**about, "state": fix["state"], "kind": fix["kind"], "library": fix["library"], "version": fix["version"],
+                "summary": fix["summary"], "reason": fix["reason"], "quote": quote}
 
     def otto_result_fix(self, db, spec: dict, name: str | None, version: str | None) -> dict | None:
         """What the Suggested fix line of an advisory check's result may say: Otto's fix for this program, when the

@@ -149,6 +149,7 @@ the retests are openjdk 17.0.3, python-ecdsa 0.13.3 and elliptic 6.5.7):
 | `real.first.<program>.<advisory>.wrong_cases` | The case numbers it got wrong | a list of case numbers as text |
 | `real.fixes_from_otto` | The titles of the fixes labelled "From Otto", in alphabetical order | a list of titles |
 | `real.fix.<title>` | The labels of each such fix | a list of labels |
+| `real.failed_checks_with_no_fix_from_otto` | The failed advisory checks for which the pack holds no fix, because the program is not the library the advisory is about; each as Fixes lists it | a list, in alphabetical order |
 | `real.retest.<library version>.<advisory>.result` | The check's result after Retest new version | a result label |
 | `real.retest.<library version>.<advisory>.wrong_cases` | The case numbers it got wrong then | a list |
 
@@ -174,10 +175,16 @@ must-reject case wrong; a run whose control does not is not trusted.
 
 ## Where the expected answers can come from
 
+Work the key out from sources that do not depend on this build's own results for phase 5c:
+
 - Which version a publisher names as affected and as fixed: the publishers' own pages. The snapshot the packs were
   built from is in `research/snapshot/2026-11-17/`, with each source's address and the date it was read.
 - What a program does with one of the cases above: the full exam (Independent exam) already runs every case of the
-  same file, and `docs/LIMITS.md` and `docs/SPEC.md` section 8 list what it measured for each program and version.
-  An advisory check reruns a part of that exam, so its wrong cases are the exam's wrong cases that fall inside its
-  list.
-- What the verify command must say about a changed file: the rules in `docs/SPEC.md`.
+  same file. What it measured for each program and version in phase 4c is in `docs/LIMITS.md` (the phase 4c
+  section) and `docs/SPEC.md` section 8 (the real libraries). An advisory check reruns a part of that exam, so its
+  wrong cases are the exam's wrong cases that fall inside its list.
+- What the verify command must say about a changed file: the rules in `docs/SPEC.md` (section 7f, point 11).
+
+`docs/SPEC.md`, `docs/LIMITS.md` and `docs/HANDOFF.md` also describe what this build measured for phase 5c (the
+packs' trial figures, the results on the Acme Pay demo). Those passages repeat the app's own answers: a key copied
+from them would grade the app against itself. Use them to check your key afterwards, not to write it.

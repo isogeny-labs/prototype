@@ -99,15 +99,15 @@ const JUDGED_SUPPORTED: string = "Otto's harness judged the trial against thresh
 const RESEARCH_LEDGER: AdvisoryLedger = {
   title: "Otto ledger entries",
   count: 1,
-  entries: [{ seq: 0, kind: "question", id: "111111111111", at: "2026-11-17T12:00:00+00:00", what: "Question asked: a test" }],
-  note: "From Otto's research ledger, a hash chain kept with Adam's harness: the test was registered, tried and judged before the pack was signed.",
+  entries: [{ seq: 0, kind: "Asked", id: "111111111111", at: "2026-11-17T12:00:00+00:00", what: "Question asked: a test" }],
+  note: "From Otto's research ledger, a hash chain kept with the Otto harness: the test was registered, tried and judged before the pack was signed.",
 };
 
 const RESEARCH_LEDGER_NO_TEST: AdvisoryLedger = {
   title: "Otto ledger entries",
   count: 1,
-  entries: [{ seq: 0, kind: "question", id: "111111111111", at: "2026-11-17T12:00:00+00:00", what: "Question asked: a test" }],
-  note: "From Otto's research ledger, a hash chain kept with Adam's harness.",
+  entries: [{ seq: 0, kind: "Asked", id: "111111111111", at: "2026-11-17T12:00:00+00:00", what: "Question asked: a test" }],
+  note: "From Otto's research ledger, a hash chain kept with the Otto harness.",
 };
 
 const READ_STEP: AdvisoryStep = {
@@ -179,13 +179,13 @@ const CHECK_LEDGER: AdvisoryLedger = {
   entries: [
     {
       seq: 0,
-      kind: "objective",
+      kind: "Opened",
       id: "028b395512ec",
       at: "2026-11-17T19:57:06+00:00",
       what: "Lock entry: the test's fingerprint, its design and its pack, written before any run",
     },
-    { seq: 1, kind: "claim", id: "ea9d697236fb", at: "2026-11-17T19:57:17+00:00", what: "Run 6 (first run) bound to the locked test" },
-    { seq: 2, kind: "verdict", id: "1b7d76ad81af", at: "2026-11-17T19:57:17+00:00", what: "The pinned checker: bound and consistent" },
+    { seq: 1, kind: "Recorded", id: "ea9d697236fb", at: "2026-11-17T19:57:17+00:00", what: "Run 6 (first run) bound to the locked test" },
+    { seq: 2, kind: "Record checked", id: "1b7d76ad81af", at: "2026-11-17T19:57:17+00:00", what: "The pinned checker: bound and consistent" },
   ],
   note: "The ledger shows that each run belongs to the test locked before it. It holds no result.",
 };
@@ -264,7 +264,7 @@ export const blankNotRun: AdvisoryRow = {
             entries: [
               {
                 seq: 0,
-                kind: "objective",
+                kind: "Opened",
                 id: "028b395512ec",
                 at: "2026-11-17T19:57:06+00:00",
                 what: "Lock entry: the test's fingerprint, its design and its pack, written before any run",
@@ -281,7 +281,7 @@ export const blankNotRun: AdvisoryRow = {
         "Otto proposes: update acme-sign to 1.4.3 or later.",
         "Update acme-sign to 1.4.3, which checks that both numbers of a signature are in range.",
         "Proven on public copies: this advisory's check passed and all 3 pass-or-fail tests read Passed.",
-        "For your own code, Otto writes the change in Fixes once this advisory's check has failed here; it is offered only after every locked test passes on the changed code.",
+        "For your own code: if this advisory's check fails here, Fixes offers a change. A change Otto wrote is offered only when it can be proven on this computer; otherwise the fix template takes its place.",
       ],
     },
   },
@@ -551,7 +551,7 @@ export const advisoriesClosed: AdvisoriesView = {
 export const advisoriesOttoMissing: AdvisoriesView = {
   ...advisoriesTwoPacks,
   otto: OTTO_MISSING,
-  add: { button: "Add new checks (1)", count: 1, can: false, blocked_reason: NOT_INSTALLED_LINE, note: ADD_NOTE },
+  add: { button: "Add new checks (1)", count: 1, can: false, blocked_reason: "Otto is not installed on this computer, so nothing can be added.", note: ADD_NOTE },
   rows: [blankFailedNoLedger, stopsNoTest, zeroNotAdded, looseNotOffered],
 };
 

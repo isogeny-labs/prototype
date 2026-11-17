@@ -836,7 +836,8 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         "id": fix["id"], "kind": "text", "title": words["title"],
         "list_source": _list_source(titles) + (f" on {address if on_server else result['component']}" if name_target else ""), "source": source,
         "status": {"key": "text_only", "word": STATUS_WORDS["text_only"], "busy": False},
-        "labels": [OTTO_FIX_LABEL] if fix.get("otto_fix") else [], "is_demo": is_demo,
+        # "From Otto" is on a fix Otto proposes; where Otto has none to propose, there is nothing of Otto's to label.
+        "labels": [OTTO_FIX_LABEL] if (fix.get("otto_fix") or {}).get("kind") == "update" else [], "is_demo": is_demo,
         "what": {"label": "What it suggests", "paragraphs": [[_t(words["what"])]], "server_line": None},
         "proof": {"state": "none", "badge": None, "muted": None,
                   "text": "None. This suggestion is text only: the app has not applied it or tested it."},

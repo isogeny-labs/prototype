@@ -352,7 +352,8 @@ class ChangesMixin:
                               "template_id": None, "rerun_blocked": None, "connection": None, "change": None, "proofs": 0,
                               "proof": None, "pull_request": None, "merge": None, "actions": {}, "real_library": real,
                               # Phase 5c: for a failed advisory check, the fix the test pack carries for its advisory.
-                              "otto_fix": self._otto_pack_fix(db, last["item_id"]) if kind == research.ADVISORY_KIND else None})
+                              "otto_fix": (self._otto_pack_fix(db, last["item_id"], last.get("component"))
+                                           if kind == research.ADVISORY_KIND else None)})
         return fixes
 
     def _code_fix(self, db, plan: PlanRow, items: list, shown: list[dict], failed: list[dict]) -> dict | None:

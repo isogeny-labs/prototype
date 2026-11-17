@@ -163,6 +163,22 @@ def test_every_retest_and_proof_run_of_the_check_gets_its_own_entry(otto_lab):
     assert book.audit() == []
 
 
+def test_a_librarys_fix_is_never_proposed_for_another_program_that_fails_the_same_check(otto_lab):
+    """An advisory is about one library, and its publisher's fixed version is a version of that library. Another
+    program can fail the same check (Java fails the check made for an elliptic advisory): the pack holds no fix
+    for it, and Fixes says so. It never proposes updating a library the program does not use."""
+    lab = _installed(otto_lab)
+    lab.add_new_checks(lab.plan.id)
+    with lab.db() as db:
+        item_id = db.scalars(select(OttoCheckRow.plan_item_id)).one()
+        own = lab._otto_pack_fix(db, item_id, "acme-sign")               # the test pack's advisory is about acme-sign
+        other = lab._otto_pack_fix(db, item_id, "openjdk")
+        unnamed = lab._otto_pack_fix(db, item_id)
+    assert own["kind"] == "update" and own["library"] == "acme-sign" and own["state"] == "proven" and own == unnamed
+    assert other["kind"] == "none" and other["state"] == "none" and other["summary"] is None and other["quote"] is None
+    assert "The advisory is about acme-sign" in other["reason"] and "holds no fix for openjdk" in other["reason"]
+
+
 OTTO_TABLES = {"otto_packs": "version", "otto_checks": "advisory_id", "otto_steps": "answer"}
 
 
