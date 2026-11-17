@@ -1,0 +1,19 @@
+// Codespaces only. Evidence Lab's Otto (phase 5c) uses the research harness in the private repository
+// isogeny-labs/otto, at the one commit pinned in backend/otto.lock.json. This asks GitHub to let a NEW codespace
+// of this repository read that repository, so ./run-demo.sh can fetch the pinned copy. Nothing else changes:
+// no image is named, so the codespace is built from GitHub's default image as before.
+// GitHub shows a page, "This codespace is requesting additional permissions", when the codespace is created:
+// choose "Authorize and continue". It applies only to codespaces created after this file is on the branch.
+{
+  "customizations": {
+    "codespaces": {
+      "repositories": {
+        "isogeny-labs/otto": {
+          "permissions": {
+            "contents": "read"
+          }
+        }
+      }
+    }
+  }
+}

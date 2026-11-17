@@ -19,7 +19,7 @@ from app.present import changes as present_changes
 from app.present import fixes as present_fixes
 from app.ledger.fixes import group_fixes
 from app.engine import research
-from app.db import ImportRow, PlanRow, ReviewRow, TestRunRow, TestSpecRow
+from app.db import ImportRow, PlanItemRow, PlanRow, ReviewRow, TestRunRow, TestSpecRow
 from app.fixes.gitrepo import GitRepoError
 from app.present.results import TITLES
 from app.lab.testlab import read_spec
@@ -72,6 +72,16 @@ class FixesMixin:
                           for r in (deps or {}).get("rows") or []}
             return group_fixes(view, pairs, systems, listed)
 
+    @staticmethod
+    def _answer_title(db, answer: dict) -> str:
+        """The title of a test a fix answers. An advisory check carries its own (it names its advisory)."""
+        kind = answer["kind"]
+        if kind == research.ADVISORY_KIND:
+            item = db.get(PlanItemRow, answer["item_id"])
+            spec, _ = read_spec(db.get(TestSpecRow, item.spec_hash)) if item is not None else ({}, False)
+            return research.title_of(kind, spec)
+        return TITLES.get(kind, str(kind))
+
     def _fix_details(self, db, plan: PlanRow) -> list[tuple[dict, dict]]:
         """Every fix of the plan as (where it stands, what the Fixes step shows for it). The download uses the
         same pairs, so the words in it are the words on the screen."""
@@ -85,7 +95,7 @@ class FixesMixin:
         tls_changes = self._tls_changes(db, plan)
         out = []
         for fix in states:
-            titles = list(dict.fromkeys(TITLES.get(a["kind"], str(a["kind"])) for a in fix["answers"]))
+            titles = list(dict.fromkeys(self._answer_title(db, a) for a in fix["answers"]))
             if fix["source_kind"] == "migration":
                 shown = self._migration_fix_view(db, plan, fix, is_demo)   # phase 4a: the migration plan's how-to and blockers
             elif fix["source_kind"] == "dependency":

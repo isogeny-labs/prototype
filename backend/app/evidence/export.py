@@ -39,6 +39,7 @@ from app.db import (
 from app.errors import Conflict, NotFound
 from app.fixes.gitrepo import GitRepoError
 from app.engine.guidance import OWN_LINKS
+from app.present import advisory as present_advisory
 from app.present.results import DISCLAIMER, TITLES
 from app.lab.testlab import CODE_KEYS, DEPENDENCY_ORIGIN, RUNNER_ID, read_spec, review_dict, run_record
 from app.engine.vectors import WYCHEPROOF_SOURCE_URL
@@ -69,6 +70,11 @@ def _knowledge_links() -> tuple[str, ...]:
 
 REPORT_LINKS = (tuple(OWN_LINKS) + (WYCHEPROOF_SOURCE_URL, pq_vectors.ACVP_URL, pq_vectors.WYCHEPROOF_PQ_URL)
                 + tuple(real_libraries.ADVISORY_LINKS) + _knowledge_links())
+
+
+OTTO_APP_NOTE = ("The engines that propose and review tests are rule-based code from the same build. Advisory checks come from signed "
+                 "test packs made by Otto, which uses Claude to read advisories, design tests and propose fixes; every Claude step "
+                 "taken for this assessment is in the Otto part of this file. Claude sets no result: the reviewer does.")
 
 
 class SigningKeyError(Exception):
@@ -208,7 +214,12 @@ def _result_view(r: dict) -> dict:
 
 
 def _review(row: ReviewRow) -> dict:
-    r = review_dict(row)
+    return review_part(review_dict(row))
+
+
+def review_part(r: dict) -> dict:
+    """One stored review as the evidence file holds it. (Phase 5c: an assessment's Otto ledger binds each run of an
+    advisory check to the SHA-256 of this part without its time, so anyone can recompute it from the file.)"""
     return {"schema": r["schema"], "reviewer": r["reviewer"], "proposed_by": r["proposed_by"], "spec_hash": r["spec_hash"],
             "spec_hash_ok": r["spec_hash_ok"], "run_sha256": r["run_sha256"], "control": _pick(r["control"], ("outcome", "reason")),
             "reference_ok": r["reference_ok"],
@@ -457,6 +468,7 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
     view = lab.lab_view(plan_id)  # the read gate: every result here has a review that still matches its record
     public = ensure_signing_key(lab.settings.data_dir)
     checks = _checks_part(lab, plan_id)
+    otto = lab.otto_evidence(plan_id)   # phase 5c: None unless this assessment has an advisory check or a Claude step
     with lab.db() as db:
         plan = db.get(PlanRow, plan_id)
         imp = db.get(ImportRow, plan.import_id)
@@ -482,7 +494,9 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
             "schema": EVIDENCE_SCHEMA,
             "generated_at": generated_at or iso(datetime.now(timezone.utc)),
             "app": {"name": "Isogeny Evidence Lab", "proposed_by": lab.engine.engine_id, "reviewed_by": lab.reviewer.engine_id,
-                    "runner": RUNNER_ID, "note": "Both engines are rule-based code from the same build. No AI model is connected."},
+                    "runner": RUNNER_ID,
+                    # Phase 5c: said differently only where this assessment holds something of Otto's (see the "otto" part).
+                    "note": (OTTO_APP_NOTE if otto else "Both engines are rule-based code from the same build. No AI model is connected.")},
             "mode_line": lab.mode.line,
             "disclaimer": DISCLAIMER,
             # Phase 5a: where this pass belongs (organization, folders, project, assessment). Part of what is signed.
@@ -521,6 +535,11 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
             "dependencies": _dependencies_part(lab, db, plan),
             "signer_key_fingerprint": key_fingerprint(public),
         }
+        if otto:
+            # Phase 5c: Otto's part, inside what is signed: the pinned harness, the signed packs this assessment's
+            # advisory checks came from, the assessment's Otto ledger with the hash of its latest entry, each check's
+            # lock entry, every bound run, and every Claude step taken in the app.
+            evidence["otto"] = otto
     return _clean(evidence)
 
 
@@ -624,7 +643,10 @@ def _advisories_html(block: dict | None) -> list:
         return []
     return [el("p", el("strong", t(f"{block.get('title')} [{block.get('tag')}]")), cls="note"),
             el("ul", *[el("li", el("strong", t(a.get("id"))), _Safe(" "), t(a.get("text")), _Safe(" "),
-                          el("a", t(a.get("link")), href=a["href"]) if a.get("href") in REPORT_LINKS else t(a.get("link")),
+                          # a link is drawn only for our own fixed list, or (phase 5c) for a known publisher's https address
+                          el("a", t(a.get("link")), href=a["href"])
+                          if a.get("href") in REPORT_LINKS or (a.get("href") and present_advisory.safe_href(a.get("href")) == a.get("href"))
+                          else t(a.get("link")),
                           _Safe(". "), t(a.get("covered"))) for a in block["items"]], cls="meta")]
 
 
@@ -1031,6 +1053,7 @@ def render_report_html(envelope: dict) -> bytes:
     body += _migration_html(e.get("migration"))
     body += _changes_html(e.get("changes"))
     body += _dependencies_html(e.get("dependencies"))
+    body += _otto_html(e.get("otto"))
     body.append(el("p", t("End of report. " + REPORT_LINE), cls="note"))
     page = (f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{html.escape(CSP, quote=True)}">\n'
@@ -1038,6 +1061,40 @@ def render_report_html(envelope: dict) -> bytes:
             f"<title>Isogeny Evidence Lab: evidence report</title>\n<style>{_STYLE}</style>\n</head>\n"
             f"<body>\n<main>\n{_join(body)}\n</main>\n</body>\n</html>\n")
     return page.encode("utf-8")
+
+
+def _otto_html(otto: dict | None) -> list:
+    """Phase 5c: Otto's part of the report: the packs, each advisory check's lock entry, the ledger and the Claude steps.
+    It lists records; it words no result."""
+    if not otto:
+        return []
+    harness, ledger = otto.get("harness") or {}, otto.get("ledger") or {}
+    parts = [el("h2", t("8. Otto: test packs, the ledger and Claude's steps")), el("p", t(otto.get("note")), cls="note"),
+             el("p", t(f"Otto harness: {harness.get('repository')}, version {harness.get('version')}, commit {harness.get('commit')} (pinned)."))]
+    for envelope in otto.get("packs") or []:
+        pack = envelope.get("pack") or {}
+        parts.append(el("p", t(f"Test pack {pack.get('version')}, built {pack.get('built_at')}. Signed by: {pack.get('signer')}. "
+                               f"Fingerprint (SHA-256): "), el("code", t(envelope.get("fingerprint"))),
+                        t(f". {(pack.get('research') or {}).get('answers_note')}.")))
+    checks = otto.get("checks") or []
+    if checks:
+        parts.append(el("h3", t("Advisory checks added from a test pack")))
+        parts.append(el("ul", *[el("li", el("strong", t(c.get("title"))),
+                                   t(f": from pack {c.get('pack')}; locked test "), el("code", t(c.get("spec_hash"))),
+                                   t("; lock entry in the ledger "), el("code", t(c.get("lock_entry"))), t(f", added {c.get('added_at')}."))
+                                for c in checks], cls="meta"))
+    parts.append(el("p", t(f"The assessment's Otto ledger: {ledger.get('height')} entries; latest entry "), el("code", t(ledger.get("head"))),
+                    t(f". {len(otto.get('runs') or [])} runs are bound to a test locked before them.")))
+    steps = otto.get("steps") or []
+    if steps:
+        parts.append(el("h3", t("Claude steps taken in this assessment")))
+        parts.append(el("ul", *[el("li", t(f"{s.get('step')} for {s.get('advisory')}: {s.get('how')}, {s.get('at')}; answer "
+                                             f"{'used' if s.get('outcome') == 'used' else 'not used (' + str(s.get('refusal')) + ')'}. Prompt SHA-256 "),
+                                   el("code", t(s.get("prompt_sha256"))), t(", answer SHA-256 "), el("code", t(s.get("answer_sha256"))), t("."))
+                                for s in steps], cls="meta"))
+        parts.append(el("p", t("Each prompt and answer is in the JSON file in full."), cls="note"))
+    parts.append(el("p", t("To check the packs' signatures and the ledger together with the file's own signature: " + VERIFY_COMMAND), cls="note"))
+    return parts
 
 
 # ------------------------------------------------------------------ the Lab actions

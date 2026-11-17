@@ -29,6 +29,9 @@ KINDS = ("accepts_bad_signature", "rejects_good_signature", "stops_with_error", 
 AREAS = ("ecdsa_signature_check", "eddsa_signature_check", "other")
 NEVER_SAID = ("secure", "score", "severity", "critical")      # words this app never uses about a system
 MAX_QUOTE = 300
+MAX_WEAKNESS = 800      # "one or two plain sentences"
+MAX_VERSIONS = 500      # "the affected versions, in the publisher's terms"
+MAX_NOTES = 2000        # what a reader must know to avoid a wrong conclusion: shown folded in the panel
 _VERSION = re.compile(r"^[0-9A-Za-z][0-9A-Za-z.+_-]{0,39}$")
 
 
@@ -106,7 +109,7 @@ def design_test_prompt(advisory: dict, reading: dict) -> str:
 
 The lab's reading of the advisory (already checked against the publisher's text):
 
-{json.dumps(reading, indent=2, ensure_ascii=False)}
+{json.dumps(reading, indent=2, ensure_ascii=False, sort_keys=True)}
 
 The one building block: "{designs.BLOCK}" ({block['title']})
 - What it does: {block['what']}
@@ -117,7 +120,7 @@ The one building block: "{designs.BLOCK}" ({block['title']})
 
 The published cases it can run come from Project Wycheproof, file {index['file']} ({index['cases']} cases). The file groups its cases by kind (a "flag"). For each kind: how many cases, how many must be rejected or accepted, and the file's own published note.
 
-{json.dumps(kinds, indent=2, ensure_ascii=False)}
+{json.dumps(kinds, indent=2, ensure_ascii=False, sort_keys=True)}
 
 Every case, one per line, as: id | right answer | kinds | the file's description
 
@@ -157,7 +160,7 @@ def propose_fix_prompt(advisory: dict, reading: dict) -> str:
 
 The lab's reading of the advisory (already checked against the publisher's text):
 
-{json.dumps(reading, indent=2, ensure_ascii=False)}
+{json.dumps(reading, indent=2, ensure_ascii=False, sort_keys=True)}
 
 Sources. Each excerpt is an exact piece of the published page or file.
 
@@ -236,11 +239,11 @@ def check_reading(answer: str, advisory: dict) -> dict:
                 or not _VERSION.match(fixed["version"]):
             raise Refused("The answer's fixed version is not in the shape that was asked for.")
         fixed = {"version": fixed["version"], "quote": _quote(fixed["quote"], advisory, "the fixed version")}
-    return {"plain_name": name, "weakness": _plain(data["weakness"], "description of the weakness", 400),
+    return {"plain_name": name, "weakness": _plain(data["weakness"], "description of the weakness", MAX_WEAKNESS),
             "weakness_quote": _quote(data["weakness_quote"], advisory, "the weakness"), "kind": data["kind"], "area": data["area"],
-            "affected": {"versions": _plain(affected["versions"], "affected versions", 160),
+            "affected": {"versions": _plain(affected["versions"], "affected versions", MAX_VERSIONS),
                          "quote": _quote(affected["quote"], advisory, "the affected versions")},
-            "fixed": fixed, "notes": _plain(data["notes"], "notes", 500, allow_empty=True)}
+            "fixed": fixed, "notes": _plain(data["notes"], "notes", MAX_NOTES, allow_empty=True)}
 
 
 def check_design_note(answer: str, advisory: dict, reading: dict, step: dict) -> dict:
@@ -252,13 +255,13 @@ def check_design_note(answer: str, advisory: dict, reading: dict, step: dict) ->
         if reason is not None:
             if set(data) != {"decision", "reason"}:
                 raise Refused("The answer says no test fits, and then says more than its reason.")
-            return {"decision": "no_test", "reason": _plain(reason, "reason for no test", 300)}
+            return {"decision": "no_test", "reason": _plain(reason, "reason for no test", designs.MAX_REASON)}
         design = designs.compile_note(data, advisory["id"], reading["plain_name"], step)
     except designs.DesignError as exc:
         raise Refused(str(exc)) from None
     for part in ("question", "why"):
         _plain(design[part], part, designs.MAX_TEXT)
-    expect = _plain(data.get("expect"), "expectation", 500)
+    expect = _plain(data.get("expect"), "expectation", 1500)
     return {"decision": "test", "design": design, "expect": expect}
 
 
@@ -268,10 +271,10 @@ def check_fix(answer: str, advisory: dict) -> dict:
     if data.get("fix") == "none":
         if set(data) != {"fix", "reason"}:
             raise Refused("The answer says no fix is known, and then says more than its reason.")
-        return {"fix": "none", "reason": _plain(data["reason"], "reason", 300)}
+        return {"fix": "none", "reason": _plain(data["reason"], "reason", designs.MAX_REASON)}
     if data.get("fix") != "update" or set(data) != {"fix", "version", "quote", "summary"}:
         raise Refused("The answer proposes something other than an update to a published version.")
     if not isinstance(data["version"], str) or not _VERSION.match(data["version"]):
         raise Refused("The answer's fixed version is not a plain version number.")
     return {"fix": "update", "version": data["version"], "quote": _quote(data["quote"], advisory, "the fixed version"),
-            "summary": _plain(data["summary"], "summary", 300)}
+            "summary": _plain(data["summary"], "summary", designs.MAX_REASON)}

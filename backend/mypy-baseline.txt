@@ -150,7 +150,6 @@
 2	app/lab/testlab.py: "TestLabMixin" has no attribute "settings" [attr-defined]
 1	app/lab/testlab.py: Argument 1 to "_real_note" of "TestLabMixin" has incompatible type "str"; expected "dict[Any, Any]" [arg-type]
 1	app/lab/testlab.py: Argument 1 to "both_control_line" has incompatible type "str | Any | None"; expected "str" [arg-type]
-2	app/lab/testlab.py: Argument 1 to "get" of "dict" has incompatible type "str | Any | None"; expected "str" [arg-type]
 1	app/lab/testlab.py: Incompatible types in assignment (expression has type "str | None", variable has type "str") [assignment]
 2	app/lab/testlab.py: Invalid index type "str | None" for "dict[str, str]"; expected type "str" [index]
 1	app/lab/testlab.py: Invalid index type "str" for "str"; expected type "SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]" [index]

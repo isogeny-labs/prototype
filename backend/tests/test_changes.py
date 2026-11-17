@@ -389,11 +389,13 @@ SYSTEM_CHANGE_TABLES = ("change_tries", "apply_requests", "apply_approvals", "ap
 # The dependency lists and the person's ties (phase 4d): tests/dependencies/test_deps_rules.py::test_raw_sql_cannot_change_or_delete.
 DEPENDENCY_TABLES = ("dependency_lists", "dependency_ties")
 ASSESSMENT_TABLES = ("assessment_details", "assessment_signoffs", "import_files")   # phase 5b, tests/projects/test_rerun.py
+# Otto's records (phase 5c): tests/otto/test_customer.py::test_raw_sql_cannot_change_or_delete_ottos_records.
+OTTO_TABLES = ("otto_packs", "otto_checks", "otto_steps")
 
 
 def test_every_append_only_table_is_covered_by_a_test():
     groups = (set(RUN_TABLES), set(FIX_TABLES), set(MIGRATION_TABLES), set(SYSTEM_CHANGE_TABLES), set(DEPENDENCY_TABLES),
-              set(ASSESSMENT_TABLES))
+              set(ASSESSMENT_TABLES), set(OTTO_TABLES))
     assert set().union(*groups) == set(APPEND_ONLY_TABLES)
     assert sum(len(g) for g in groups) == len(set().union(*groups))     # no table is counted twice
 
@@ -562,7 +564,15 @@ def test_nothing_runs_when_the_changed_code_is_not_a_registered_component(lab, m
     # whether a failing test that joined the plan later is answered by the same change). The question is the same
     # every time, and nothing it answers later is written anywhere or run.
     request = seen[0]
-    assert len(seen) > 1 and all(later == request for later in seen[1:])
+
+    def question(asked):
+        return {k: v for k, v in asked.items() if k != "asking"}
+    assert len(seen) > 1 and all(question(later) == question(request) for later in seen[1:])
+    # Phase 5c: beside the question, the request says who is asking. A person's click comes first; every later time is
+    # only a look at the page, and a change that came from the fix template is asked about the fix template only.
+    assert request["asking"] == {"plan_id": plan.id, "mode": "connect", "template_only": False}
+    assert all(later["asking"] == {"plan_id": plan.id, "mode": "view", "template_only": True} for later in seen[1:])
+    assert set(request) == {"component", "failed", "files", "asking"}
     assert request["component"] == {"name": "acme-sign", "version": "1.4.2"} and request["files"] == {"acme_sign.py": OLD_FILE.decode()}
     assert [(r["kind"], r["reason_code"]) for r in request["failed"]] == [("tls_versions", None), ("bad_signatures", None)]
     assert request["failed"][0]["detail"]["accepted_outside_claim"] == ["TLS 1.2"]

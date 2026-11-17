@@ -664,6 +664,9 @@ def _not_a_result(w: _Words, spec, run, review, ctx) -> None:
         if review.get("reason_code") == "needs_isolated_mode":
             w.plain = ("This test couldn't run: this is real software from outside, which runs only in isolated mode (Docker), and this "
                        "run is in demo mode. So there is no result either way.")
+        if review.get("reason_code") == "otto_not_installed":
+            w.plain = ("This check couldn't run: Otto is not installed on this computer, so its run could not be recorded "
+                       "(./run-demo.sh fetches it). So there is no result either way.")
         if review.get("reason_code") == "real_image_missing":
             w.plain = ("This test couldn't run: this library's container image is not prepared on this computer "
                        "(./run-demo.sh prepares it, with internet, once). So there is no result either way.")

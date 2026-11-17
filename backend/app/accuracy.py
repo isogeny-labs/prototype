@@ -797,11 +797,13 @@ def print_migration_report(settings: Settings | None, say=print) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.accuracy", description="Compare the app's demo answers with demo/expected.json.")
-    parser.add_argument("--only", choices=("acme", "migration", "real", "dependencies"), default=None,
+    parser.add_argument("--only", choices=("acme", "migration", "real", "dependencies", "otto"), default=None,
                         help="acme = only the Acme Pay demo (demo/expected.json); migration = only the migration demo "
                              "(demo/expected-migration.json); real = only the real libraries "
                              "(demo/expected-real-libraries.json); dependencies = only the dependency lists "
-                             "(demo/expected-dependencies.json). Default: all four.")
+                             "(demo/expected-dependencies.json); otto = only Otto's loop (demo/expected-otto.json, phase 5c: it "
+                             "needs the pinned Otto harness, and prints its answers without grading while that key is not "
+                             "there). Default: the four keys, and Otto's when its key is there.")
     parser.add_argument("--mode", choices=("auto", "demo", "isolated"), default=None,
                         help="demo = local processes; isolated = containers (needs Docker and the prepared images); "
                              "auto = isolated when it is available. Default: the EVIDENCE_LAB_MODE setting, else auto.")
@@ -820,6 +822,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.only in (None, "dependencies"):
         from app.accuracy_deps import print_dependencies_report   # phase 4d: the dependency lists (both modes)
         codes.append(print_dependencies_report(settings))
+    if args.only == "otto":
+        from app.accuracy_otto import print_otto_report   # phase 5c: Otto's loop (the fifth key)
+        codes.append(print_otto_report(settings, required=True))
+    elif args.only is None:
+        from app.accuracy_otto import EXPECTED_OTTO_JSON, print_otto_report
+        if EXPECTED_OTTO_JSON.exists():
+            codes.append(print_otto_report(settings))
+        else:
+            print("\nOtto accuracy: not graded here. The fifth answer key (demo/expected-otto.json) is written independently of the "
+                  "build and is not in this copy yet. `--only otto` walks Otto's loop and shows its answers.")
     return max(codes)
 
 

@@ -89,6 +89,9 @@ class TestLabMixin:
     _fix_lines (the one line about a fix) and _column_code (the code one side of before and after ran on)."""
     __test__ = False  # not a pytest class
     _dependency_blockers: Callable[..., dict[str, dict]]   # from DependenciesMixin (phase 4d); declared for the type check only
+    _otto_cannot_run: Callable[..., str | None]            # from OttoMixin (phase 5c), as the two below; declared for the type check only
+    _otto_after_review: Callable[..., None]
+    otto_result_fix: Callable[..., dict | None]
 
     def _init_testlab(self) -> None:
         self._plan_lock = threading.Lock()
@@ -644,12 +647,16 @@ class TestLabMixin:
             spec_row = db.get(TestSpecRow, a["spec_hash"])
             spec, spec_ok = read_spec(spec_row)
             proposed_by = spec_row.proposed_by if spec_row else "unknown"
+            # Phase 5c: an advisory check that a person added from a test pack runs only when its run can be recorded.
+            no_otto = self._otto_cannot_run(db, a["item_id"])
         component = (a["component_name"], a["component_version"]) if a["component_name"] else None
         code = self._code_for_run(a)  # which code this run is about to run on (None when no component of ours runs)
         if not spec_ok:
             raw = problem("spec_changed", "The stored test no longer matches the fingerprint it was locked with, so it was not run.")
         elif a.get("copy_problem"):   # phase 4b: the test copy for a try could not be started
             raw = problem("copy_unavailable", a["copy_problem"])
+        elif no_otto is not None:
+            raw = problem("otto_not_installed", f"{no_otto} The run of an advisory check must be recorded in Otto's ledger, so it was not run.")
         else:
             # Phase 4b: a run "on a test copy" connects to the copy this app started for it, never to the real address.
             check_for = ((lambda address: self._copy_check(a["copy"], address)) if a.get("copy")
@@ -705,6 +712,11 @@ class TestLabMixin:
                              reason_code=review["verdict"]["reason_code"], reason=review["verdict"]["reason"],
                              detail=review["detail"]))
             db.commit()
+        try:
+            # Phase 5c: a reviewed run of an advisory check is bound to its locked test in the assessment's Otto ledger.
+            self._otto_after_review(run_id)
+        except Exception as exc:  # the run and its review are already stored: a ledger problem never loses them
+            job.log(f"the Otto ledger entry for this run could not be written ({exc.__class__.__name__})")
         job.run_id = run_id
         if a["phase"] == "proof":
             self._proof_run_finished(a["retest_id"])  # the proof itself is reviewed when its last run has been
@@ -731,8 +743,11 @@ class TestLabMixin:
         record = run_record(run)
         stored = review_dict(review_row)
         code = self._run_code(db, run.id)
+        # Phase 5c: for an advisory check, the fix the installed test packs carry (words only; it changes no result).
+        advisory_fix = (self.otto_result_fix(db, spec, run.component_name, run.component_version)
+                        if spec_row is not None and spec_row.kind == research.ADVISORY_KIND else None)
         key = (sha256_hex(record), sha256_hex({k: v for k, v in stored.items() if k != "created_at"}), spec_ok, spec_row.hash if spec_row else None,
-               sha256_hex(code))
+               sha256_hex(code), sha256_hex(advisory_fix))
         cached = self._result_cache.get(run.id)
         if cached is not None and cached[0] == key:
             base = cached[1]
@@ -754,7 +769,7 @@ class TestLabMixin:
             base = present.lab_result(spec=spec, spec_hash=run.spec_hash, locked_at=iso(spec_row.locked_at) if spec_row else "",
                                       run_id=run.id, run=record, review=stored, trusted=bool(trusted),
                                       mark=None, research=None, fix_version=self._fix_version(run.component_name, run.component_version),
-                                      code=code)
+                                      code=code, advisory_fix=advisory_fix)
             self._result_cache[run.id] = (key, base, bool(trusted))
         result = dict(base)
         if result.get("also_noticed") and (spec_row.kind if spec_row else None) == "certificate":

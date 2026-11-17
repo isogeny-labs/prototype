@@ -555,6 +555,62 @@ class AppSettingRow(Base):
     value: Mapped[str] = mapped_column(String(200))
 
 
+class OttoPackRow(Base):
+    """Phase 5c: a signed test pack installed on this installation. Packs install in order and are never removed.
+    `envelope` is the pack file exactly as it was read (canonical JSON): data, never run."""
+    __tablename__ = "otto_packs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    version: Mapped[str] = mapped_column(String(20), unique=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), unique=True)
+    public_key: Mapped[str] = mapped_column(String(64))
+    signer: Mapped[str] = mapped_column(String(200))
+    made_here: Mapped[bool] = mapped_column(Boolean, default=False)
+    built_at: Mapped[str] = mapped_column(String(30))
+    envelope: Mapped[str] = mapped_column(Text)
+    installed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class OttoCheckRow(Base):
+    """Phase 5c: an advisory check a person added to an assessment from a test pack (Add new checks). It ties the
+    plan item to the pack and the design it came from, and to its lock entry in the assessment's Otto ledger."""
+    __tablename__ = "otto_checks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    plan_item_id: Mapped[int] = mapped_column(ForeignKey("plan_items.id"), unique=True)
+    spec_hash: Mapped[str] = mapped_column(String(64))
+    advisory_id: Mapped[str] = mapped_column(String(40))
+    design_sha256: Mapped[str] = mapped_column(String(64))
+    pack_version: Mapped[str] = mapped_column(String(20))
+    pack_fingerprint: Mapped[str] = mapped_column(String(64))
+    objective_id: Mapped[str] = mapped_column(String(80))     # the lock entry: an Otto record id (sha256:...)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class OttoStepRow(Base):
+    """Phase 5c: one Claude step taken in the app (writing a change for the customer's own code): the full prompt, the
+    full answer, where the answer came from, the model, the tokens and the cost. The API key is never in here."""
+    __tablename__ = "otto_steps"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    step: Mapped[str] = mapped_column(String(30))
+    advisory_id: Mapped[str] = mapped_column(String(40))
+    source: Mapped[str] = mapped_column(String(10))               # "recorded" | "live"
+    model: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    prompt: Mapped[str] = mapped_column(Text)
+    answer: Mapped[str] = mapped_column(Text)
+    prompt_sha256: Mapped[str] = mapped_column(String(64))
+    answer_sha256: Mapped[str] = mapped_column(String(64))
+    input_tokens: Mapped[int] = mapped_column(Integer)
+    output_tokens: Mapped[int] = mapped_column(Integer)
+    cost_nano_usd: Mapped[int] = mapped_column(Integer)
+    at: Mapped[str] = mapped_column(String(40))
+    how: Mapped[str] = mapped_column(String(300))
+    outcome: Mapped[str] = mapped_column(String(10))              # "used" | "refused"
+    refusal: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    claim_id: Mapped[str | None] = mapped_column(String(80), nullable=True)   # its record in the assessment's Otto ledger
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 NO_DELETE_TABLES = ("folders", "projects", "assessments")
 
 
@@ -562,7 +618,8 @@ APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", 
                       "pull_requests", "approvals", "merges", "run_code", "system_settings", "migration_choices",
                       "change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks",
                       "dependency_lists", "dependency_ties",
-                      "assessment_details", "assessment_signoffs", "import_files")   # phase 5b
+                      "assessment_details", "assessment_signoffs", "import_files",   # phase 5b
+                      "otto_packs", "otto_checks", "otto_steps")                      # phase 5c
 
 
 def create_append_only_triggers(engine) -> None:

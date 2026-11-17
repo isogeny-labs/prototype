@@ -60,6 +60,7 @@ COULDNT_RUN_REASONS = {
     # phase 4c: real libraries
     "needs_isolated_mode": "needs isolated mode",
     "real_image_missing": "this library's container image is not prepared",
+    "otto_not_installed": "Otto is not installed on this computer",   # phase 5c: the run could not be recorded
 }
 # Phase 4a. The key-exchange groups by family, and the signature algorithms by family (spelled as in the app).
 HYBRID_GROUPS = ("X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024")

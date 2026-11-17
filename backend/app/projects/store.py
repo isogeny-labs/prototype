@@ -242,11 +242,13 @@ class ProjectsMixin:
                 "has_verify": counts["claims"] is not None,
                 "has_results": bool(summary and summary.get("has_results")),
                 "has_migration": bool(summary and summary.get("has_migration")),
-                "counts": counts, "next_step": self._next_step(brief, counts, summary)}
+                "counts": counts,
+                "next_step": self._next_step(brief, counts, summary, self.otto_new_checks(plan_id))}   # type: ignore[attr-defined]
 
     @staticmethod
-    def _next_step(brief: dict, counts: dict, summary: dict | None) -> dict:
-        """The page that holds the next thing to do, with one plain sentence. It opens the page; it runs nothing."""
+    def _next_step(brief: dict, counts: dict, summary: dict | None, new_checks: int = 0) -> dict:
+        """The page that holds the next thing to do, with one plain sentence. It opens the page; it runs nothing.
+        `new_checks`: how many tests of the installed test packs fit this assessment and are not in its plan (phase 5c)."""
         if brief["status"]["key"] == "closed":
             return {"page": "overview", "label": "New assessment",
                     "text": "This assessment is closed and kept as it was. Start a new one in this project to continue."}
@@ -259,6 +261,10 @@ class ProjectsMixin:
         if counts["tests"] is None:
             return {"page": "checks", "label": "Open checks",
                     "text": "Run the suggested tests on what the file names. The test plan is on Checks."}
+        if new_checks:
+            return {"page": "advisories", "label": "Open advisories",
+                    "text": (f"{new_checks} new advisory {'check is' if new_checks == 1 else 'checks are'} ready to add from the installed "
+                             "test packs. Adding them runs nothing.")}
         if counts["fixes"] and counts["fixes"]["open"]:
             return {"page": "fixes", "label": "Open fixes",
                     "text": "Some failed tests or migration steps have a suggested fix waiting."}

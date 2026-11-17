@@ -27,11 +27,12 @@ RULE = "all_cases_match"
 PROPOSED_BY = "isogeny.otto-pack/1"       # who proposed an advisory check: the pack, never the rule engine or the reviewer
 MAX_CASES = 484
 MAX_TEXT = 400
+MAX_REASON = 700        # "one or two plain sentences": why no test fits, or what a fix does
 _ADVISORY_ID = re.compile(r"^[A-Z0-9][A-Z0-9-]{3,39}$")
 _CASE_ID = re.compile(r"^[0-9]{1,5}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
-BLOCKS = {
+BLOCKS: dict[str, dict] = {
     BLOCK: {
         "title": "Published signature cases",
         "what": ("Hands the program published ECDSA P-256 signatures (Project Wycheproof, pinned by SHA-256), one at a time, and "
@@ -231,5 +232,5 @@ def compile_note(note: object, advisory_id: str, plain_name: str, step: dict) ->
 def no_test_reason(note: object) -> str | None:
     """The plain reason a design note gives for designing no test, or None when it does describe one."""
     if isinstance(note, dict) and note.get("decision") == "no_test":
-        return _text(note.get("reason"), "reason for no test", 300)
+        return _text(note.get("reason"), "reason for no test", MAX_REASON)
     return None

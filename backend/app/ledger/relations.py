@@ -16,7 +16,8 @@ from app.errors import NotFound
 from app.lab.testlab import HIDDEN_ORIGINS, MIGRATION_ORIGIN, read_spec
 from app.ledger.checks import TEST_CLAIM_KINDS
 
-LINES = (("claim", "Claim"), ("test", "Checks"), ("fix", "Fix"), ("system", "System and track"), ("library", "Library"))
+LINES = (("claim", "Claim"), ("test", "Checks"), ("fix", "Fix"), ("system", "System and track"), ("library", "Library"),
+         ("advisory", "Advisory"))   # phase 5c: the sixth line, on an advisory check, its result and its fix
 
 
 def migration_view_if_written(lab: Any, plan_id: int) -> dict | None:
@@ -129,6 +130,14 @@ class RelationsMixin:
                     link(f"library:{r['id']}", f"system:{b['system']}")
                     link(f"library:{r['id']}", f"fix:{b['fix_id']}")
 
+        # Phase 5c: the advisories of the installed test packs, each linked to its checks in this plan (a recorded link:
+        # the locked test names its advisory). Through a check, its fix relates to the advisory too.
+        for a in self.otto_relations(plan_id):   # type: ignore[attr-defined]
+            nodes[f"advisory:{a['id']}"] = {"kind": "advisory", "label": f"{a['name']} ({a['id']})", "sub": a["sub"],
+                                            "link": {"page": "advisories", "item": a["id"]}}
+            for item_id in a["items"]:
+                link(f"advisory:{a['id']}", f"test:{item_id}")
+
         # claims <-> tests <-> systems
         for item in items:
             spec = specs.get(item.id) or {}
@@ -159,7 +168,7 @@ class RelationsMixin:
                 tkey = f"test:{item_id}"
                 link(fkey, tkey)
                 for n in list(edges.get(tkey, ())):
-                    if n.startswith(("claim:", "system:")):
+                    if n.startswith(("claim:", "system:", "advisory:")):
                         link(fkey, n)
             if f.get("change_key"):
                 alias.setdefault(f"change:{f['change_key']}", fkey)

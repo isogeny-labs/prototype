@@ -236,3 +236,11 @@ def test_an_answer_must_be_one_json_object():
 def test_amounts_read_as_dollars():
     assert model.dollars(2 * model.NANO) == "$2.00" and model.dollars(0) == "$0.00"
     assert model.dollars(400_000_000) == "$0.40" and model.dollars(1_500_000) == "$0.002"
+
+
+def test_a_client_without_a_stand_in_cannot_reach_the_network_in_a_test(tmp_path):
+    """The suite replaces the real transport for every test (conftest): a live call with no stand-in fails loudly."""
+    otto = model.OttoModel(recorded_dirs=(tmp_path,), live=True, environ={model.KEY_ENV: FAKE_KEY}, sleep=lambda seconds: None)
+    with pytest.raises(AssertionError) as stopped:
+        otto.ask("read_advisory", PROMPT)
+    assert "a test tried to reach the Claude API" in str(stopped.value)

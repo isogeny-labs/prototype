@@ -56,6 +56,16 @@ def kind_of(name: object, version: object) -> str | None:
     return "real" if real_libraries.library(name, version) is not None else None
 
 
+def registered_version(name: str | None, files: dict[str, bytes]) -> str | None:
+    """The byte-for-byte check. Which registered version of our demo component is exactly this code (the same
+    one file with the same bytes), or None. Nothing is run to find out."""
+    for version in VERSIONS.get(name or "", []):
+        path = lookup(name, version)
+        if path is not None and files == {path.name: path.read_bytes()}:
+            return version
+    return None
+
+
 def versions_of(name: object) -> list[str]:
     """The versions a retest can choose between for this program, oldest first. Nothing outside can add to it."""
     if isinstance(name, str) and name in VERSIONS:

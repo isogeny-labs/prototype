@@ -166,8 +166,11 @@ def prepare_otto(check_only: bool, say) -> bool:
 
 
 def main(argv: list[str] | None = None, say=print) -> int:
-    check_only = "--check" in (sys.argv[1:] if argv is None else argv)
+    args = sys.argv[1:] if argv is None else argv
+    check_only = "--check" in args
     prepare_otto(check_only, say)
+    if "--otto" in args:      # only the Otto harness: it needs no Docker, so ./run-demo.sh asks for it on every computer
+        return 0
     if not docker_running():
         say("Isolated mode: not available (Docker is not running). The app will run in demo mode.")
         return 0

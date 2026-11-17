@@ -43,6 +43,8 @@ from app.names import clean_text
 from app.engine.research import RuleEngine
 from app.engine.reviewer import RuleReviewer
 from app.lab.testlab import TestLabMixin
+from app.otto.engine import OttoEngine
+from app.otto.state import OttoMixin
 from app.projects.store import ProjectsMixin
 from app.checks.verify import DemoContext, verify_claims
 
@@ -76,7 +78,7 @@ def run_json(r: VerifyRunRow) -> dict:
 
 
 class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin,
-          ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin):
+          ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin, OttoMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -102,10 +104,13 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         self.mode = runner.detect_mode(settings)
         self.component_runner = runner.ComponentRunner(self.mode)
         self.jobs = JobRunner(settings.max_jobs)
-        self.engine = RuleEngine(settings.speed_rounds, settings.speed_repeats)   # proposes and designs tests
+        # Proposes and designs tests. Since phase 5c the rule engine sits behind Otto's engine, which passes everything
+        # to it unchanged and is asked first only for a code change after an advisory check failed.
+        self.engine = OttoEngine(RuleEngine(settings.speed_rounds, settings.speed_repeats), self)
         self.reviewer = RuleReviewer()                                             # the separate review step
         self._init_testlab()
         self._init_changes()
+        self._init_otto()
         try:
             # The evidence signing key: made once, on first start, kept in the data folder (mode 0600).
             ensure_signing_key(settings.data_dir)

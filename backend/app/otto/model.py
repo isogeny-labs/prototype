@@ -256,7 +256,9 @@ class OttoModel:
     recorded_dirs: tuple[Path, ...] = ()
     live: bool = False
     budget: Budget = field(default_factory=Budget)
-    transport: Transport = field(default=_http_transport, repr=False)
+    # The function that makes the HTTPS request. None means this module's _http_transport, looked up at the moment of
+    # the call (so the test suite can put a stand-in there once, for every client: no test ever reaches the network).
+    transport: Transport | None = field(default=None, repr=False)
     # For tests; None means the real environment, read at call time. Never part of the object's printed form.
     environ: dict | None = field(default=None, repr=False)
     sleep: Callable[[float], None] = field(default=time.sleep, repr=False)
@@ -309,7 +311,7 @@ class OttoModel:
             send = dict(body, fallbacks="default") if fallback else body
             send_headers = dict(headers, **({"anthropic-beta": FALLBACK_BETA} if fallback else {}))
             try:
-                status, raw = self.transport(json.dumps(send).encode("utf-8"), send_headers, REQUEST_TIMEOUT_SECONDS)
+                status, raw = (self.transport or _http_transport)(json.dumps(send).encode("utf-8"), send_headers, REQUEST_TIMEOUT_SECONDS)
             except OSError as exc:
                 if waits:
                     self.sleep(waits.pop(0))
