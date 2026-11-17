@@ -14,6 +14,15 @@ from app.config import NGINX_IMAGE, OPENSSL_IMAGE, PYTHON_BASE_IMAGE, REPO_ROOT
 APP = Path(prepare.__file__).parent
 
 
+@pytest.fixture(autouse=True)
+def no_otto_step(monkeypatch):
+    """The Otto step of prepare (phase 5c) has its own tests (tests/otto/test_harness.py). Here it is a stand-in, so
+    these tests say the same on a computer with Otto and on one without, and never try to fetch it."""
+    asked = []
+    monkeypatch.setattr(prepare, "prepare_otto", lambda check_only, say: asked.append(check_only) or False)
+    return asked
+
+
 def run(monkeypatch, argv, *, docker=True, present=()):
     """Nothing here downloads or builds: pull, fetch and both builds are stand-ins. `pulled` and `built` hold only what
     the older steps (the three base images and our components image) asked for; the real-library steps go to `real`."""
@@ -32,9 +41,10 @@ def run(monkeypatch, argv, *, docker=True, present=()):
     return code, "\n".join(said), pulled, built
 
 
-def test_without_docker_it_says_so_and_exits_0(monkeypatch):
+def test_without_docker_it_says_so_and_exits_0(monkeypatch, no_otto_step):
     code, text, pulled, built = run(monkeypatch, [], docker=False)
     assert code == 0 and "Docker is not running" in text and "demo mode" in text and pulled == built == []
+    assert no_otto_step == [False]          # the Otto step is asked first, with or without Docker (it needs none)
 
 
 def test_check_builds_and_downloads_nothing(monkeypatch):
