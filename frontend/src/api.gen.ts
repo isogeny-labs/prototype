@@ -656,6 +656,13 @@ export interface CameFrom {
    */
   label: string;
 }
+/**
+ * On an advisory check's card: "From advisory CVE-...", with the link to it on the Advisories page.
+ */
+export interface CardAdvisory {
+  label: string;
+  link: ItemLink;
+}
 export interface CatalogItem {
   catalog_id:
     | "tls_versions"
@@ -2480,6 +2487,10 @@ export interface TestCard {
    * The key of the group this card is under, when the plan is grouped.
    */
   group: string | null;
+  /**
+   * Phase 5c, an advisory check only: the advisory it came from.
+   */
+  advisory?: CardAdvisory | null;
 }
 export interface ProjectBody {
   name: string;

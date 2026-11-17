@@ -243,6 +243,10 @@ test("demo mode: a test pack is installed, its checks are added and run, the fix
     await stepLink(page, "Checks").click();
     await expect(page.getByTestId("test-card")).toHaveCount(8);
     await expect(card(page, RANGE_CHECK)).toHaveAttribute("data-status", "not_run");
+    // the card says which advisory it came from, with the way to it
+    await expect(card(page, RANGE_CHECK).getByTestId("card-advisory")).toHaveText("From advisory CVE-2022-21449");
+    await expect(card(page, RANGE_CHECK).getByTestId("card-advisory")).toHaveAttribute("href", /#\/a\/\d+\/advisories\?item=CVE-2022-21449$/);
+    await expect(page.getByTestId("card-advisory")).toHaveCount(3);
     expect((await cardStatuses(page)).filter((s) => s === "done")).toEqual([]);
     await shots(page, "08-checks-advisory-checks-added");
 

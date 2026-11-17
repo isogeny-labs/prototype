@@ -191,6 +191,12 @@ def test_the_shipped_packs_install_and_their_tests_fit_the_demo(tmp_path):
         tests = lab.plan_view(plan.id)["tests"]
         assert len(tests) == before + 4 and added["add"]["count"] == 0 and not lab.jobs.busy(plan.id)
         assert all(t["status"] != "done" for t in tests if t["kind"] == "advisory_cases")          # added, not run
+        # each new card says which advisory it came from, with the way to it; no other card does
+        for card in tests:
+            came_from = card["title"].rsplit("(", 1)[-1].rstrip(")") if card["kind"] == "advisory_cases" else None
+            assert card.get("advisory") == ({"label": f"From advisory {came_from}", "link": {"page": "advisories", "item": came_from}}
+                                            if came_from else None)
+            assert ("advisory" in card) == (came_from is not None)          # every other card is exactly as it was
     finally:
         lab.stop()
 

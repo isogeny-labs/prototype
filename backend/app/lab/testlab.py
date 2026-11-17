@@ -365,6 +365,11 @@ class TestLabMixin:
                         "tag": research.MLDSA_LABEL if kind == "mldsa_compare" else None,
                         "description": (spec.get("card") or {}).get("description", ""), "why": (spec.get("card") or {}).get("why", ""),
                         "group": key_of.get(item.id)}
+                # Phase 5c: an advisory check says which advisory it came from, with the way to it (as its locked test names
+                # it). Every other card is exactly as it was.
+                came_from = ((spec.get("inputs") or {}).get("advisory") or {}).get("id") if kind == research.ADVISORY_KIND else None
+                if came_from:
+                    card["advisory"] = {"label": f"From advisory {came_from}", "link": {"page": "advisories", "item": str(came_from)}}
                 live = job is not None and job.status != "done"
                 if live:
                     state = present.status_view(job.status, job.progress_text, job.progress_percent, self.jobs.max_parallel)

@@ -4370,6 +4370,25 @@
         ],
         "title": "CameFrom"
       },
+      "CardAdvisory": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "link"
+        ],
+        "title": "CardAdvisory",
+        "description": "On an advisory check's card: \"From advisory CVE-...\", with the link to it on the Advisories page."
+      },
       "CatalogItem": {
         "properties": {
           "catalog_id": {
@@ -13023,6 +13042,17 @@
             ],
             "title": "Group",
             "description": "The key of the group this card is under, when the plan is grouped."
+          },
+          "advisory": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardAdvisory"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c, an advisory check only: the advisory it came from."
           }
         },
         "additionalProperties": false,

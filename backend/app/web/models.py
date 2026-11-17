@@ -237,6 +237,14 @@ class TestCard(Shape):
     can_run: bool
     can_remove: bool
     group: str | None = Field(description="The key of the group this card is under, when the plan is grouped.")
+    advisory: CardAdvisory | None = Field(default=None, description="Phase 5c, an advisory check only: the advisory it came from.")
+
+
+class CardAdvisory(Shape):
+    """On an advisory check's card: "From advisory CVE-...", with the link to it on the Advisories page."""
+
+    label: str
+    link: ItemLink
 
 
 class PlanGroup(Shape):

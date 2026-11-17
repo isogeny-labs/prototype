@@ -157,6 +157,15 @@ function Card({
     dropTarget ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]" : ""
   } ${dragging ? "opacity-50" : ""}`;
 
+  // Phase 5c: an advisory check says which advisory it came from, with the way to it. The words are the backend's.
+  const advisory = card.advisory ? (
+    <p className="mt-1 text-xs">
+      <ItemLinkView link={card.advisory.link} testId="card-advisory" className="text-sky-300 hover:underline">
+        {card.advisory.label}
+      </ItemLinkView>
+    </p>
+  ) : null;
+
   if (compact) {
     // Phase 5b: beside an open panel, a row stacks: the handle and the name, then its status, Run and the ×.
     return (
@@ -166,6 +175,7 @@ function Card({
             {handle}
             <div className="min-w-0 flex-1">
               {title}
+              {advisory}
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <span data-testid="test-status">{status}</span>
                 <span className="ml-auto flex items-center gap-2">
@@ -187,6 +197,7 @@ function Card({
         {title}
         <p className="mt-1 text-sm text-slate-300">{card.description}</p>
         <p className="mt-1 text-[13px] text-slate-400">{card.why}</p>
+        {advisory}
       </td>
       <td data-testid="test-status" className="w-56 px-4 py-3 align-top">
         {status}
