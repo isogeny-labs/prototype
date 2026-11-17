@@ -101,12 +101,13 @@ class TestLabMixin:
         return [{"ref": c.ref, "location": c.location, "location_kind": c.location_kind, "kind": c.kind,
                  "claimed_value": c.claimed_value, "detail": dict(c.detail or {})} for c in imp.claims]
 
-    def _lock_spec(self, db, spec: dict) -> str:
-        """Write the test down and lock it. The same test proposed again is the same row (same fingerprint)."""
+    def _lock_spec(self, db, spec: dict, proposed_by: str | None = None) -> str:
+        """Write the test down and lock it. The same test proposed again is the same row (same fingerprint).
+        `proposed_by` names who proposed it when that is not the rule engine (phase 5c: a test from a test pack)."""
         text = canonical_bytes(spec).decode("utf-8")
         key = hashlib.sha256(text.encode("utf-8")).hexdigest()
         if db.get(TestSpecRow, key) is None:
-            db.add(TestSpecRow(hash=key, kind=spec["kind"], canonical=text, proposed_by=self.engine.engine_id))
+            db.add(TestSpecRow(hash=key, kind=spec["kind"], canonical=text, proposed_by=proposed_by or self.engine.engine_id))
             db.flush()
         return key
 
@@ -357,7 +358,7 @@ class TestLabMixin:
                 kind = row.kind if row else spec.get("kind")
                 job = self.jobs.get((item.id, "first"))
                 reruns = (self.jobs.get((item.id, "retest")), self.jobs.get((item.id, "proof")))
-                card = {"id": item.id, "kind": kind, "title": present.TITLES.get(kind, str(kind)), "origin": item.origin,
+                card = {"id": item.id, "kind": kind, "title": research.title_of(kind, spec), "origin": item.origin,
                         "tag": research.MLDSA_LABEL if kind == "mldsa_compare" else None,
                         "description": (spec.get("card") or {}).get("description", ""), "why": (spec.get("card") or {}).get("why", ""),
                         "group": key_of.get(item.id)}
@@ -838,7 +839,7 @@ class TestLabMixin:
                 first_job = self.jobs.get((item.id, "first"))
                 first_live = first_job is not None and first_job.status != "done"
                 result = None if first_live else self._latest_result(db, item, "first", None, plan)
-                row = {"item_id": item.id, "kind": kind, "title": present.TITLES.get(kind, str(kind)), "control_line": "",
+                row = {"item_id": item.id, "kind": kind, "title": research.title_of(kind, spec), "control_line": "",
                        "result": result, "result_status": None if result else self._row_status(item.id, "first"),
                        "after": None, "after_status": None, "group": key_of.get(item.id)}
                 if result is None:

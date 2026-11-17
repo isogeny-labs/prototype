@@ -20,6 +20,20 @@ def quoted(text: str) -> str:
     return f"‘{text}’"
 
 
+def case_words(comment: str) -> str:
+    """One official signature case, in plain words (the file's own comment, with the best-known ones spelled out)."""
+    text = comment.replace("Signature with special case values ", "")
+    if text == "Legacy: ASN encoding of s misses leading 0":
+        return "a number written without its leading zero (a missing leading zero)"
+    if text == "r=0 and s=0":
+        return "r=0 and s=0 (a signature made of zeros)"
+    if text == "r=0 and s=n":
+        return "r=0 and s=n (zero, written a second way)"
+    if text == "s is larger than n":
+        return "s larger than n (a value outside the allowed range)"
+    return text
+
+
 def lower_first(text: str) -> str:
     """Lower the first letter, unless the first word is an abbreviation such as TLS or RSA."""
     text = (text or "").strip()

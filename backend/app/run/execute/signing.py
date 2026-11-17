@@ -136,3 +136,24 @@ def run_bad_signatures(spec: dict, ctx: RunContext) -> dict:
         return problem("vector_file_changed", "The bad-signature list is not the one this test was locked with.")
     return _run(spec, ctx, cases, files, lambda n, total: f"checking {n} of {total} signatures",
                 {"bad_signatures": ("bad_signatures", cases.cases)})
+
+
+def run_advisory_cases(spec: dict, ctx: RunContext) -> dict:
+    """Phase 5c: an advisory check. The cases its locked test names, taken from the pinned official file, run on the
+    program and on the accept-everything control; the reference library answers the same cases."""
+    if component_key(spec, ctx) is None:
+        return problem("not_a_demo_component", NOT_DEMO)
+    try:
+        ecdsa = vectors.load_wycheproof("ecdsa_p256")
+    except vectors.VectorFileChanged as exc:
+        return problem("vector_file_changed", str(exc))
+    pins = {f["file"]: f["sha256"] for f in spec["inputs"]["files"]}
+    files = {ecdsa.path.name: ecdsa.sha256}  # the hash the loader checked just now
+    if files != pins:
+        return problem("vector_file_changed", "The official test file is not the one this test was locked with.")
+    wanted = spec["inputs"]["cases"]
+    by_id = {c.id: c for c in ecdsa.cases}
+    if not isinstance(wanted, list) or not wanted or len(set(wanted)) != len(wanted) or any(i not in by_id for i in wanted):
+        return problem("vector_file_changed", "The locked test names cases that are not in the pinned official file.")
+    chosen = vectors.VectorSet(ecdsa.name, ecdsa.path, ecdsa.sha256, ecdsa.source, tuple(c for c in ecdsa.cases if c.id in set(wanted)))
+    return _run(spec, ctx, chosen, files, lambda n, total: f"{n} of {total} cases", {"ecdsa_p256": ("ecdsa_p256", chosen.cases)})
