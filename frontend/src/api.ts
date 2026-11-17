@@ -154,6 +154,40 @@ export type {
   CompareList,
   CompareItem,
   SharedSystem,
+  // Phase 5c
+  OttoSettingsView,
+  OttoPacksSection,
+  OttoPackCard,
+  OttoRefusedPack,
+  OttoUpdate,
+  OttoUpdateDialog,
+  OttoHarnessLine,
+  OttoAnswersLine,
+  OttoLiveSection,
+  OttoLiveSwitch,
+  OttoLiveLimit,
+  AdvisoriesView,
+  AdvisoryAdd,
+  AdvisoryFilterOption,
+  AdvisoryRow,
+  AdvisoryTestCell,
+  AdvisoryResultCell,
+  AdvisoryPanel,
+  AdvisoryQuote,
+  AdvisorySource,
+  AdvisoryAffected,
+  AdvisoryTestBlock,
+  AdvisoryTrial,
+  AdvisoryLedger,
+  AdvisoryLedgerEntry,
+  AdvisoryNoTest,
+  AdvisoryHere,
+  AdvisoryHereRow,
+  AdvisoryHereResult,
+  AdvisoryFix,
+  AdvisoryFixHere,
+  AdvisoryClaude,
+  AdvisoryStep,
 } from "./api.gen";
 import type {
   Session,
@@ -178,6 +212,8 @@ import type {
   CheckDetail,
   RelatedView,
   ProjectOverview,
+  OttoSettingsView,
+  AdvisoriesView,
 } from "./api.gen";
 
 export class ApiError extends Error {
@@ -347,6 +383,19 @@ export const api = {
   getCheck: (planId: number, checkId: string) => request<CheckDetail>(`/api/plans/${planId}/checks/${encodeURIComponent(checkId)}`),
   getRelated: (planId: number, key: string) => request<RelatedView>(`/api/plans/${planId}/related?key=${encodeURIComponent(key)}`),
   loadDemoProjects: () => request<DemoProjectsLoaded>("/api/demo-projects", { method: "POST" }),
+
+  // Phase 5c: Otto. Settings (Test packs, Live Otto) belong to the installation; Advisories and Add new checks to one
+  // assessment. Every call answers with the whole view as it now stands. No key is ever sent or shown.
+  getOtto: () => request<OttoSettingsView>("/api/otto"),
+  /** Looks in the updates folder on this computer; nothing is downloaded. */
+  checkPackUpdates: () => request<OttoSettingsView>("/api/otto/packs/check", { method: "POST" }),
+  /** Only the Install button of the Install update box calls this. */
+  installPack: (version: string) => request<OttoSettingsView>("/api/otto/packs/install", { method: "POST", json: { version } }),
+  /** Use live Claude on or off, and/or the spending limit per run (US dollars, as typed). */
+  setLiveOtto: (change: { on?: boolean; limit?: string }) => request<OttoSettingsView>("/api/otto/live", { method: "POST", json: change }),
+  getAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories`),
+  /** Add new checks: adds every pack test that fits this assessment to its test plan. It runs nothing. */
+  addNewChecks: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories/add`, { method: "POST" }),
 
   getCurrentImport: () => orNullOn404(request<Import>("/api/import/current")),
 

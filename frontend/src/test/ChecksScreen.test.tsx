@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
-import type { ChecksView, PlanView } from "../api";
+import type { CheckDetail, CheckRow, ChecksView, PlanView } from "../api";
 import { ChecksScreen } from "../components/ChecksScreen";
 import { LinkProvider } from "../components/related";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
 import { CHECKS_SUBLINE, checkGroups, checksView, planRows, retestDetail, retestRow, verifyRows } from "./checksFixtures";
 import { calls, mockApi, plan, runningPlan, text } from "./fixtures";
+import { advisoryCheckRow, blankFailed, relatedOfAdvisoryCheck } from "./ottoFixtures";
 
 const CHECKS = "GET /api/plans/1/checks";
 
@@ -163,6 +164,43 @@ describe("Checks, a check's panel", () => {
     await waitFor(() => expect(asked).toBe(3), { timeout: 4000 });
     await new Promise((r) => setTimeout(r, 1200));
     expect(calls(fetchMock).filter((c) => c === CHECKS)).toHaveLength(3);
+  });
+});
+
+describe("Checks, an advisory check (phase 5c)", () => {
+  // The check as the plan lists it: the Advisories page links to it by this id ("Open in Checks").
+  const link = blankFailed.panel.here.rows[0]!.checks_link!;
+  const check: CheckRow = {
+    ...planRows[0]!,
+    id: link.item!,
+    name: advisoryCheckRow.title,
+    link: { page: "checks", item: link.item },
+    evidence_link: { page: "evidence", item: link.item },
+    plain: advisoryCheckRow.result!.plain,
+  };
+  const view: ChecksView = { ...checksView, groups: checkGroups({ encryption: [...planRows, check, retestRow] }) };
+  const detail: CheckDetail = { ...retestDetail, check, runs: [], related: relatedOfAdvisoryCheck.related };
+
+  it("opens from the address the Advisories page links to, and its Related names the advisory with the way back", async () => {
+    expect(link).toEqual({ page: "checks", item: "test-6" });
+    const fetchMock = await open(view, { [`GET /api/plans/1/checks/${check.id}`]: { body: detail } }, { item: check.id });
+    const panel = within(await screen.findByTestId("check-panel"));
+    expect(screen.getByTestId("check-panel").getAttribute("data-check")).toBe(check.id);
+    expect(within(screen.getByTestId("detail-panel")).getByRole("heading", { level: 2, name: advisoryCheckRow.title })).not.toBeNull();
+    expect(text(screen.getByTestId("check-panel"))).toContain(advisoryCheckRow.result!.plain);
+    // The sixth Related line: the advisory, under the backend's title, opening it on Advisories.
+    const related = within(await panel.findByTestId("related"));
+    const lines = related.getAllByTestId("related-line");
+    expect(lines.map((l) => l.getAttribute("data-kind"))).toEqual(relatedOfAdvisoryCheck.related.map((l) => l.kind));
+    const advisory = relatedOfAdvisoryCheck.related.at(-1)!;
+    expect(advisory.kind).toBe("advisory");
+    expect(within(lines.at(-1)!).getByText(advisory.title)).not.toBeNull();
+    const back = within(lines.at(-1)!).getByTestId("related-link");
+    expect(back.textContent).toBe(advisory.items[0]!.label);
+    expect(back.getAttribute("href")).toBe(`#/a/101/advisories?item=${blankFailed.id}`);
+    // It is a test of the plan like any other: shown once, as its card, and opening its panel starts nothing.
+    expect(rowsIn("encryption").map((r) => r.getAttribute("data-check"))).toEqual([retestRow.id]);
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
   });
 });
 

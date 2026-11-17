@@ -6,7 +6,7 @@ export type ClaimKind =
 export type LocationKind = "server" | "software" | "unknown";
 export type ResultValue = "True" | "False" | "Couldn't check";
 export type Mode = "demo" | "isolated";
-export type TestKind =
+export type CatalogKind =
   | "tls_versions"
   | "certificate"
   | "official_vectors"
@@ -14,6 +14,15 @@ export type TestKind =
   | "speed_size"
   | "pq_readiness"
   | "mldsa_compare";
+export type TestKind =
+  | "tls_versions"
+  | "certificate"
+  | "official_vectors"
+  | "bad_signatures"
+  | "speed_size"
+  | "pq_readiness"
+  | "mldsa_compare"
+  | "advisory_cases";
 export type ResultCode =
   | "passed"
   | "failed"
@@ -73,6 +82,235 @@ export interface AdvisoriesItem {
   link: string;
   href: string;
   covered: string;
+}
+/**
+ * The Advisories page of an assessment (phase 5c). It words no result and decides none.
+ */
+export interface AdvisoriesView {
+  title: string;
+  subline: string;
+  standing_line: string;
+  packs_line: string;
+  packs_link: ItemLink;
+  answers_line: string;
+  otto: OttoHarnessLine;
+  add: AdvisoryAdd;
+  filters: AdvisoryFilters;
+  columns: string[];
+  rows: AdvisoryRow[];
+  empty: string | null;
+  assessment_id: number | null;
+}
+export interface ItemLink {
+  /**
+   * The page that holds the item, e.g. "evidence", "fixes", "migration/systems".
+   */
+  page: string;
+  /**
+   * The item to open there (a check, claim, fix, system or library id); null for the page.
+   */
+  item: string | null;
+  section?: string | null;
+  /**
+   * The work group to filter the page to.
+   */
+  group?: string | null;
+  /**
+   * Another assessment (the Project overview links into each).
+   */
+  assessment_id?: number | null;
+}
+export interface OttoHarnessLine {
+  installed: boolean;
+  line: string;
+}
+export interface AdvisoryAdd {
+  /**
+   * "Add new checks (2)"
+   */
+  button: string;
+  count: number;
+  can: boolean;
+  blocked_reason: string | null;
+  note: string;
+}
+export interface AdvisoryFilters {
+  test: AdvisoryFilterOption[];
+  result: AdvisoryFilterOption[];
+}
+export interface AdvisoryFilterOption {
+  key: string;
+  label: string;
+}
+export interface AdvisoryRow {
+  id: string;
+  name: string;
+  published: string;
+  published_text: string;
+  package: string;
+  pack: string;
+  fits: string[];
+  fits_text: string;
+  test: AdvisoryTestCell;
+  result: AdvisoryResultCell;
+  search: string;
+  panel: AdvisoryPanel;
+}
+export interface AdvisoryTestCell {
+  key: "ready" | "not_offered" | "none";
+  /**
+   * "Test ready", "Not offered" or "No test yet"
+   */
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  reason: string;
+}
+export interface AdvisoryResultCell {
+  /**
+   * "pass", "fail", "warn", "neutral", "not_run", "not_added" or "none" (for the Result filter)
+   */
+  key: string;
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  text: string | null;
+}
+export interface AdvisoryPanel {
+  sentence: string;
+  publisher: AdvisoryQuote | null;
+  affected: AdvisoryAffected | null;
+  notes: string | null;
+  also_known_as: string[];
+  sources: AdvisorySource[];
+  test: AdvisoryTestBlock | null;
+  no_test: AdvisoryNoTest | null;
+  here: AdvisoryHere;
+  fix: AdvisoryFix;
+  claude: AdvisoryClaude;
+  related_key: string;
+}
+/**
+ * A line of the publisher's own text, word for word. Information from the advisory, never a result.
+ */
+export interface AdvisoryQuote {
+  text: string;
+  source: string;
+  publisher: string;
+  /**
+   * An https link to a known publisher, or "" (then the source is shown as text).
+   */
+  href: string;
+  read_on: string;
+  tag: string;
+}
+export interface AdvisoryAffected {
+  line: string;
+  quote: AdvisoryQuote;
+}
+export interface AdvisorySource {
+  label: string;
+  title: string;
+  publisher: string;
+  href: string;
+  read_on: string;
+}
+export interface AdvisoryTestBlock {
+  title: string;
+  question: string;
+  cases_line: string;
+  control: string;
+  rule: string;
+  design_fingerprint: string;
+  trial: AdvisoryTrial;
+  ledger: AdvisoryLedger;
+}
+export interface AdvisoryTrial {
+  title: string;
+  lines: string[];
+}
+export interface AdvisoryLedger {
+  title: string;
+  count: number;
+  entries: AdvisoryLedgerEntry[];
+  note: string;
+}
+export interface AdvisoryLedgerEntry {
+  seq: number;
+  kind: string;
+  id: string;
+  at: string;
+  what: string;
+}
+export interface AdvisoryNoTest {
+  /**
+   * "No test yet" or "Not offered"
+   */
+  label: string;
+  reason: string;
+  trial: AdvisoryTrial | null;
+  ledger: AdvisoryLedger | null;
+}
+export interface AdvisoryHere {
+  title: string;
+  rows: AdvisoryHereRow[];
+  empty: string | null;
+}
+export interface AdvisoryHereRow {
+  program: string;
+  /**
+   * "Not added yet" or "Not run yet"; null once there is a result.
+   */
+  status: string | null;
+  result: AdvisoryHereResult | null;
+  /**
+   * Open in Checks.
+   */
+  checks_link: ItemLink | null;
+  /**
+   * See the evidence.
+   */
+  evidence_link: ItemLink | null;
+  ledger: AdvisoryLedger | null;
+}
+/**
+ * The reviewer's result for this advisory's check in this assessment, as Evidence Lab words it.
+ */
+export interface AdvisoryHereResult {
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  plain: string;
+  component: string | null;
+  finished_at: string | null;
+}
+export interface AdvisoryFix {
+  title: string;
+  /**
+   * "From Otto" when the pack proposes a fix.
+   */
+  label: string | null;
+  state: "proven" | "not_proven" | "none";
+  lines: string[];
+  quote: AdvisoryQuote | null;
+  here: AdvisoryFixHere | null;
+}
+export interface AdvisoryFixHere {
+  /**
+   * "View in Fixes"
+   */
+  label: string;
+  link: ItemLink;
+  line: string;
+}
+export interface AdvisoryClaude {
+  title: string;
+  steps: AdvisoryStep[];
+  note: string;
+}
+export interface AdvisoryStep {
+  step: string;
+  source: "recorded" | "live";
+  line: string;
+  prompt_sha256: string;
+  answer_sha256: string;
 }
 export interface AlgorithmName {
   technical: string;
@@ -388,25 +626,6 @@ export interface OverviewFact {
   label: string;
   value: number;
   link: ItemLink;
-}
-export interface ItemLink {
-  /**
-   * The page that holds the item, e.g. "evidence", "fixes", "migration/systems".
-   */
-  page: string;
-  /**
-   * The item to open there (a check, claim, fix, system or library id); null for the page.
-   */
-  item: string | null;
-  section?: string | null;
-  /**
-   * The work group to filter the page to.
-   */
-  group?: string | null;
-  /**
-   * Another assessment (the Project overview links into each).
-   */
-  assessment_id?: number | null;
 }
 export interface OverviewEvidence {
   runs: number;
@@ -915,9 +1134,9 @@ export interface CheckRun {
   fingerprint: string | null;
 }
 export interface RelatedLine {
-  kind: "claim" | "test" | "fix" | "system" | "library";
+  kind: "claim" | "test" | "fix" | "system" | "library" | "advisory";
   /**
-   * "Claim", "Checks", "Fix", "System and track", "Library"
+   * "Claim", "Checks", "Fix", "System and track", "Library", "Advisory" (phase 5c)
    */
   title: string;
   items: RelatedItem[];
@@ -1475,7 +1694,8 @@ export interface ProofRow {
     | "bad_signatures"
     | "speed_size"
     | "pq_readiness"
-    | "mldsa_compare";
+    | "mldsa_compare"
+    | "advisory_cases";
   title: string;
   /**
    * the first result this is compared with
@@ -1694,7 +1914,8 @@ export interface LabRow {
     | "bad_signatures"
     | "speed_size"
     | "pq_readiness"
-    | "mldsa_compare";
+    | "mldsa_compare"
+    | "advisory_cases";
   title: string;
   control_line: string;
   result: LabResult | null;
@@ -1785,6 +2006,10 @@ export interface LabViewDownload {
 export interface LabeledRichValue {
   label: string;
   value: RichPart[];
+}
+export interface LiveOttoBody {
+  on?: boolean | null;
+  limit?: string | null;
 }
 export interface MigrationChoiceBody {
   system: string;
@@ -2077,6 +2302,124 @@ export interface OrderBody {
    */
   order: number[];
 }
+export interface OttoAnswersLine {
+  /**
+   * "Answers recorded during the build, 17 November 2026" or "Live: Claude, through your key"
+   */
+  line: string;
+  live: boolean;
+}
+export interface OttoCheckButton {
+  /**
+   * "Check for updates"
+   */
+  button: string;
+  note: string;
+}
+export interface OttoLiveLimit {
+  label: string;
+  /**
+   * US dollars, e.g. "2.00"
+   */
+  value: string;
+  save: string;
+  note: string;
+}
+export interface OttoLiveSection {
+  title: string;
+  /**
+   * Whether a key is set. The key itself is never sent to the screen.
+   */
+  key_present: boolean;
+  key_line: string;
+  switch: OttoLiveSwitch;
+  limit: OttoLiveLimit;
+  sent_line: string;
+  status_line: string;
+  price_line: string;
+}
+export interface OttoLiveSwitch {
+  /**
+   * "Use live Claude"
+   */
+  label: string;
+  on: boolean;
+  /**
+   * Only when an API key is present on this computer.
+   */
+  can_turn_on: boolean;
+  blocked_reason: string | null;
+}
+export interface OttoPackCard {
+  version: string;
+  built_at: string;
+  /**
+   * "17 November 2026"
+   */
+  built: string;
+  signer: string;
+  /**
+   * Signed with a key made on this computer (a live research run).
+   */
+  made_here: boolean;
+  advisories: number;
+  tests: number;
+  line: string;
+  fingerprint: string;
+  installed_at: string | null;
+}
+export interface OttoPacksSection {
+  title: string;
+  intro: string;
+  /**
+   * Oldest first. Packs are never removed.
+   */
+  installed: OttoPackCard[];
+  installed_line: string;
+  counts_line: string | null;
+  check: OttoCheckButton;
+  /**
+   * Set after Check for updates: what was found in the updates folder.
+   */
+  checked_line: string | null;
+  refused: OttoRefusedPack[];
+  /**
+   * The pack that can be installed next, after Check for updates found one.
+   */
+  update: OttoUpdate | null;
+  order_note: string;
+}
+export interface OttoRefusedPack {
+  file: string;
+  reason: string;
+}
+export interface OttoUpdate {
+  version: string;
+  /**
+   * "Install update"
+   */
+  button: string;
+  line: string;
+  dialog: OttoUpdateDialog;
+}
+export interface OttoUpdateDialog {
+  title: string;
+  lines: string[];
+  confirm: string;
+  cancel: string;
+}
+/**
+ * Settings: the Test packs section, the two status lines and the Live Otto section (phase 5c).
+ */
+export interface OttoSettingsView {
+  packs: OttoPacksSection;
+  harness: OttoHarnessLine;
+  answers: OttoAnswersLine;
+  live: OttoLiveSection;
+}
+export interface PackInstallBody {
+  version: string;
+}
 export interface PasswordBody {
   password: string;
 }
@@ -2120,7 +2463,8 @@ export interface TestCard {
     | "bad_signatures"
     | "speed_size"
     | "pq_readiness"
-    | "mldsa_compare";
+    | "mldsa_compare"
+    | "advisory_cases";
   title: string;
   origin: "suggested" | "added";
   tag: string | null;

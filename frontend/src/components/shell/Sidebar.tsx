@@ -15,7 +15,7 @@ interface Item {
 }
 
 // The pages of an open assessment, in today's order. Inventory holds today's Import and Verify, Evidence today's
-// Evidence Lab; Migration keeps its three views as sub-items.
+// Evidence Lab; Migration keeps its three views as sub-items. Phase 5c: Advisories sits between Inventory and Checks.
 export const ASSESSMENT_ITEMS: Item[] = [
   { page: "overview", label: "Overview", icon: "overview" },
   {
@@ -27,6 +27,7 @@ export const ASSESSMENT_ITEMS: Item[] = [
       { page: "inventory/verify", label: "Verify", icon: "verify" },
     ],
   },
+  { page: "advisories", label: "Advisories", icon: "advisories" },
   { page: "checks", label: "Checks", icon: "tests" },
   { page: "evidence", label: "Evidence", icon: "evidence" },
   { page: "fixes", label: "Fixes", icon: "fixes" },

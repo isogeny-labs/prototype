@@ -202,9 +202,22 @@ export function ActionsMenu({ label, items }: { label: string; items: { label: s
   );
 }
 
-export function Section({ title, children, actions }: { title: string; children: ReactNode; actions?: ReactNode }) {
+export function Section({
+  title,
+  children,
+  actions,
+  id,
+  testId,
+}: {
+  title: string;
+  children: ReactNode;
+  actions?: ReactNode;
+  /** Phase 5c: a section a link can open on (Settings, "test-packs"). */
+  id?: string;
+  testId?: string;
+}) {
   return (
-    <section aria-label={title} className="mb-6">
+    <section id={id} data-testid={testId} aria-label={title} className="mb-6 scroll-mt-20">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-slate-200">{title}</h2>
         {actions}

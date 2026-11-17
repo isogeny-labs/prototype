@@ -140,7 +140,9 @@ def test_the_lock_entry_is_in_the_ledger_before_the_first_run(otto_lab):
     here = row["panel"]["here"]["rows"][0]
     assert here["result"]["label"] == "Failed" and here["result"]["plain"].startswith("acme-sign 1.4.2 got 2 of the 64")
     assert here["evidence_link"] == {"page": "evidence", "item": f"test-{check.plan_item_id}"}
-    assert [e["kind"] for e in here["ledger"]["entries"]] == ["objective", "claim", "verdict"]
+    # each entry is named in plain words; Otto's own record names (one is "verdict") never reach the page
+    assert [e["kind"] for e in here["ledger"]["entries"]] == ["Opened", "Recorded", "Record checked"]
+    assert "verdict" not in json.dumps(row["panel"]).lower()
     assert row["panel"]["fix"]["here"]["label"] == "View in Fixes"
 
 
@@ -193,7 +195,8 @@ def test_without_otto_a_check_cannot_be_added_and_an_added_one_cannot_run(otto_l
     monkeypatch.setattr(harness, "status", lambda *a, **k: missing)
     view = lab.advisories_view(plan_id)
     assert view["otto"]["installed"] is False and "Otto is not installed on this computer" in view["otto"]["line"]
-    assert view["add"]["can"] is False and "could not be recorded" in view["add"]["blocked_reason"]
+    assert "could not be recorded" in view["otto"]["line"]          # the reason, once, in the Otto line
+    assert view["add"]["can"] is False and view["add"]["blocked_reason"] == "Otto is not installed on this computer, so nothing can be added."
     with pytest.raises(Conflict) as refused:
         lab.add_new_checks(plan_id)
     assert "Otto is not installed on this computer" in str(refused.value)

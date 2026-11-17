@@ -165,6 +165,16 @@ class VerifyRun(Shape):
 
 # ---- Phase 2: test plan and Evidence Lab. All wording comes from the backend. ----
 
+CatalogKind = Literal[
+    "tls_versions",
+    "certificate",
+    "official_vectors",
+    "bad_signatures",
+    "speed_size",
+    "pq_readiness",
+    "mldsa_compare",
+]
+# Phase 5c: a test in a plan can also be an advisory check. It comes from a test pack and is never in the catalog.
 TestKind = Literal[
     "tls_versions",
     "certificate",
@@ -173,6 +183,7 @@ TestKind = Literal[
     "speed_size",
     "pq_readiness",
     "mldsa_compare",
+    "advisory_cases",
 ]
 
 ResultCode = Literal[
@@ -245,7 +256,7 @@ class NotTested(Shape):
 
 
 class CatalogItem(Shape):
-    catalog_id: TestKind
+    catalog_id: CatalogKind
     title: str
     tag: str | None
     description: str

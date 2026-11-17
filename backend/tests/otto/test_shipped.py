@@ -226,7 +226,8 @@ def test_the_evidence_report_links_a_shipped_advisory_to_its_publisher_and_the_f
 
 def test_the_report_never_draws_a_link_that_is_not_ours_or_a_known_publishers():
     from app.evidence import export
-    assert "github.com" in export.el("a", export.t("the source"), href="https://github.com/openjdk/jdk17u", publisher=True)
+    drawn = export.el("a", export.t("the source"), href="https://github.com/openjdk/jdk17u", publisher=True)
+    assert drawn == '<a href="https://github.com/openjdk/jdk17u" rel="noreferrer noopener">the source</a>'
     for href in ("https://example.com/x", "http://github.com/openjdk/jdk17u", "https://user@github.com/x", "https://github.com:8443/x",
                  "javascript:alert(1)", "", None):
         with pytest.raises(ValueError):

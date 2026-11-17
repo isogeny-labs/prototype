@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import App from "../App";
+import { ItemLinkView } from "../components/related";
+import { linkRoute, parseRoute, routeHref } from "../router";
 import { mockApi, notFound, session, text } from "./fixtures";
+import { advisoriesTwoPacks, ottoEmpty } from "./ottoFixtures";
 import { ORG, acmeRoutes, closedAssessment, emptyAssessment, workspace } from "./shellFixtures";
 
 function go(hash: string) {
@@ -13,7 +16,8 @@ beforeEach(() => {
   go("#/projects");
 });
 
-const baseRoutes = { "GET /api/session": { body: session }, ...acmeRoutes };
+// Settings asks for Otto's sections when it opens (phase 5c).
+const baseRoutes = { "GET /api/session": { body: session }, ...acmeRoutes, "GET /api/otto": { body: ottoEmpty } };
 
 async function openAcme(page = "overview", extra: Record<string, never | object> = {}) {
   go(`#/a/101/${page}`);
@@ -30,7 +34,21 @@ const labels = (nav: ReturnType<typeof within>) => nav.getAllByRole("link").map(
 describe("sidebar", () => {
   it("lists the assessment's pages in order, with Migration's three views, and Projects and Settings at the bottom", async () => {
     await openAcme();
-    expect(labels(assessmentNav())).toEqual(["Overview", "Inventory", "Import", "Verify", "Checks", "Evidence", "Fixes", "Migration", "Systems", "Roadmap", "Dependencies"]);
+    // Phase 5c: Advisories sits between Inventory and Checks.
+    expect(labels(assessmentNav())).toEqual([
+      "Overview",
+      "Inventory",
+      "Import",
+      "Verify",
+      "Advisories",
+      "Checks",
+      "Evidence",
+      "Fixes",
+      "Migration",
+      "Systems",
+      "Roadmap",
+      "Dependencies",
+    ]);
     expect(labels(workspaceNav())).toEqual(["Projects", "Settings"]);
     expect(screen.getByTestId("organization-name").textContent).toBe(ORG);
     expect(screen.getAllByText("Isogeny Labs").length).toBeGreaterThan(0);
@@ -51,7 +69,7 @@ describe("sidebar", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "Assessment 1" });
     const nav = assessmentNav();
-    for (const name of ["Verify", "Checks", "Evidence", "Fixes", "Migration"]) {
+    for (const name of ["Verify", "Advisories", "Checks", "Evidence", "Fixes", "Migration"]) {
       const link = nav.getByRole("link", { name });
       expect(link.getAttribute("aria-disabled"), name).toBe("true");
       expect(link.getAttribute("href"), name).toBeNull();
@@ -77,7 +95,7 @@ describe("sidebar", () => {
     expect(screen.getByTestId("sidebar").getAttribute("data-collapsed")).toBe("true");
     expect(screen.getByRole("button", { name: "Expand sidebar" }).getAttribute("aria-pressed")).toBe("true");
     // Names stay available to screen readers; the long organization line is gone.
-    for (const name of ["Overview", "Inventory", "Checks", "Evidence", "Fixes", "Migration"]) {
+    for (const name of ["Overview", "Inventory", "Advisories", "Checks", "Evidence", "Fixes", "Migration"]) {
       expect(assessmentNav().getByRole("link", { name }), name).not.toBeNull();
     }
     expect(workspaceNav().getByRole("link", { name: "Projects" })).not.toBeNull();
@@ -130,6 +148,14 @@ describe("top bar", () => {
   it("adds the section for pages inside Inventory and Migration", async () => {
     await openAcme("inventory/verify");
     expect(crumbs().getAllByRole("listitem").map((li) => text(li).replace(/^\/\s*/, "")).slice(-3)).toEqual(["Assessment 2", "Inventory", "Verify"]);
+  });
+
+  it("names Advisories as a page of its own, with no section before it (phase 5c)", async () => {
+    await openAcme("advisories", { "GET /api/plans/1/advisories": { body: advisoriesTwoPacks } });
+    expect(crumbs().getAllByRole("listitem").map((li) => text(li).replace(/^\/\s*/, "")).slice(-2)).toEqual(["Assessment 2", "Advisories"]);
+    expect(assessmentNav().getByRole("link", { name: "Advisories" }).getAttribute("aria-current")).toBe("page");
+    expect(assessmentNav().getAllByRole("link").filter((a) => a.getAttribute("aria-current") === "page")).toHaveLength(1);
+    expect(assessmentNav().getByRole("link", { name: "Advisories" }).getAttribute("href")).toBe("#/a/101/advisories");
   });
 
   it("names the screen on Projects and Settings", async () => {
@@ -279,6 +305,35 @@ describe("shell routes", () => {
     mockApi({ "GET /api/session": { body: session }, "GET /api/workspace": { body: workspace }, "GET /api/assessments/999": notFound });
     render(<App />);
     expect(text(await screen.findByRole("alert"))).toContain("Not found");
+  });
+});
+
+describe("addresses, phase 5c", () => {
+  it("reads and writes the Advisories page of an assessment, with the advisory to open", () => {
+    expect(parseRoute("#/a/101/advisories")).toMatchObject({ kind: "assessment", id: 101, page: "advisories", item: null });
+    expect(parseRoute("#/a/101/advisories?item=CVE-2022-21449")).toMatchObject({ kind: "assessment", id: 101, page: "advisories", item: "CVE-2022-21449" });
+    // A link the backend sends to an advisory opens it in the open assessment.
+    expect(routeHref(linkRoute({ page: "advisories", item: "CVE-2022-21449" }, 101))).toBe("#/a/101/advisories?item=CVE-2022-21449");
+  });
+
+  it("reads and writes Settings with and without a section, and sends a backend link to Settings there", () => {
+    expect(parseRoute("#/settings")).toEqual({ kind: "settings" });
+    expect(parseRoute("#/settings?section=test-packs")).toEqual({ kind: "settings", section: "test-packs" });
+    expect(routeHref({ kind: "settings" })).toBe("#/settings");
+    expect(routeHref({ kind: "settings", section: "test-packs" })).toBe("#/settings?section=test-packs");
+    expect(linkRoute({ page: "settings", item: null, section: "test-packs" }, 101)).toEqual({ kind: "settings", section: "test-packs" });
+    expect(linkRoute({ page: "settings", item: null }, 101)).toEqual({ kind: "settings" });
+  });
+
+  it("a link to Settings works where no assessment is open; any other link needs one", () => {
+    render(
+      <>
+        <ItemLinkView link={{ page: "settings", item: null, section: "test-packs" }}>Test packs</ItemLinkView>
+        <ItemLinkView link={{ page: "checks", item: "test-6" }}>A check</ItemLinkView>
+      </>,
+    );
+    expect(screen.getByRole("link", { name: "Test packs" }).getAttribute("href")).toBe("#/settings?section=test-packs");
+    expect(screen.getByRole("link", { name: "A check" }).getAttribute("href")).toBe("#");
   });
 });
 

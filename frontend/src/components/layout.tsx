@@ -52,7 +52,19 @@ export function SummaryCards({ cards, label }: { cards: SummaryCard[]; label: st
   );
 }
 
-export function SearchInput({ value, onChange, label, placeholder }: { value: string; onChange: (v: string) => void; label: string; placeholder?: string }) {
+export function SearchInput({
+  value,
+  onChange,
+  label,
+  placeholder,
+  testId,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  placeholder?: string;
+  testId?: string;
+}) {
   return (
     <label className="relative block min-w-[12rem] flex-1 sm:max-w-xs">
       <span className="sr-only">{label}</span>
@@ -61,6 +73,7 @@ export function SearchInput({ value, onChange, label, placeholder }: { value: st
       </span>
       <input
         type="search"
+        data-testid={testId}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? label}
@@ -75,16 +88,19 @@ export function FilterSelect<V extends string>({
   value,
   options,
   onChange,
+  testId,
 }: {
   label: string;
   value: V;
   options: { value: V; label: string }[];
   onChange: (v: V) => void;
+  testId?: string;
 }) {
   return (
     <label className="flex items-center gap-2 text-sm text-slate-400">
       <span>{label}</span>
       <select
+        data-testid={testId}
         value={value}
         onChange={(e) => onChange(e.target.value as V)}
         className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"

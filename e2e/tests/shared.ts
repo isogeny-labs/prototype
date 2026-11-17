@@ -20,7 +20,7 @@ export const password: string = process.env.E2E_PASSWORD ?? "";
 if (!password) throw new Error("E2E_PASSWORD is not set; run the tests with `npm test` from the e2e folder.");
 
 export function screenshotFolder(
-  phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes" | "phase4a" | "phase4b" | "phase4c" | "phase4d" | "phase5a" | "phase5b",
+  phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes" | "phase4a" | "phase4b" | "phase4c" | "phase4d" | "phase5a" | "phase5b" | "phase5c",
 ): string {
   return path.join(REPO, "docs/screenshots", phase);
 }
@@ -56,7 +56,9 @@ const STEP_PAGES: Record<string, string> = {
 };
 
 /** The sidebar's assessment pages, in order, once a file is in (Migration's three views open with it). */
-export const SIDEBAR_PAGES = ["Overview", "Inventory", "Import", "Verify", "Checks", "Evidence", "Fixes", "Migration", "Systems", "Roadmap", "Dependencies"];
+// Phase 5c: Advisories sits between Inventory and Checks.
+export const SIDEBAR_PAGES = ["Overview", "Inventory", "Import", "Verify", "Advisories", "Checks", "Evidence", "Fixes", "Migration", "Systems", "Roadmap",
+                              "Dependencies"];
 
 /** The page an old step lands on, as the sidebar marks it current ("4. Evidence Lab" -> "Evidence"; "6. Migration"
  * opens Migration's first view, "Systems"). */
@@ -228,4 +230,39 @@ export async function stopCopy(copy: Copy | null): Promise<void> {
   await copy.context.close();
   copy.app.kill("SIGINT");
   await new Promise((done) => setTimeout(done, 1500));
+}
+
+// ---- Layout at 1440 pixels wide (phase 5b; shared since phase 5c) ----
+
+/** What is wrong with the page's layout right now: sideways scrolling, and words in table cells broken between
+ * letters. Empty when all is well. */
+export async function layoutProblems(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const problems: string[] = [];
+    const doc = document.documentElement;
+    if (doc.scrollWidth > doc.clientWidth + 1) problems.push(`the page scrolls sideways (${doc.scrollWidth} > ${doc.clientWidth})`);
+    for (const t of Array.from(document.querySelectorAll<HTMLElement>('[data-testid="data-table"]'))) {
+      if (t.offsetParent === null) continue;
+      if (t.scrollWidth > t.clientWidth + 1) {
+        const label = t.querySelector("table")?.getAttribute("aria-label") ?? "a table";
+        problems.push(`"${label}" scrolls sideways (${t.scrollWidth} > ${t.clientWidth})`);
+      }
+    }
+    // A run of letters and digits must sit on one line (a break is allowed only at a space or punctuation).
+    const cells = Array.from(document.querySelectorAll<HTMLElement>("main td, main th, aside[role='complementary'] h2"));
+    for (const cell of cells) {
+      const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const text = node.textContent ?? "";
+        for (const m of text.matchAll(/[A-Za-z0-9]{2,}/g)) {
+          const range = document.createRange();
+          range.setStart(node, m.index ?? 0);
+          range.setEnd(node, (m.index ?? 0) + m[0].length);
+          const tops = new Set(Array.from(range.getClientRects()).filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+          if (tops.size > 1) problems.push(`"${m[0]}" is broken between letters in "${text.trim().slice(0, 60)}"`);
+        }
+      }
+    }
+    return problems;
+  });
 }

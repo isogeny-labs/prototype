@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it } from "vitest";
 import App from "../App";
 import { calls, mockApi, plan, session, text } from "./fixtures";
+import { advisoriesNotAdded, nextStepAdvisories, nextStepVerify } from "./ottoFixtures";
 import { ONE_LOGIN_LINE, OVERVIEW_BLOCKS, acmeRoutes, assessmentView, closedAssessment, emptyAssessment, emptyWorkspace, openAssessment } from "./shellFixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
@@ -132,6 +133,30 @@ describe("Overview next step", () => {
     await show({ "GET /api/assessments/101": { body: assessmentView({ next_step: { page: "inventory/import", label: "Import a file", text: "Bring in a scanner file." } }) } });
     fireEvent.click(within(screen.getByTestId("next-step")).getByRole("button", { name: "Import a file" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/101/inventory/import"));
+  });
+
+  it("goes to Advisories when checks of an installed test pack are ready to add (phase 5c), and adds nothing by itself", async () => {
+    const fetchMock = await show({
+      "GET /api/assessments/101": { body: assessmentView({ next_step: nextStepAdvisories }) },
+      "GET /api/plans/1/advisories": { body: advisoriesNotAdded },
+    });
+    const next = screen.getByTestId("next-step");
+    expect(text(next)).toContain(nextStepAdvisories.text);
+    fireEvent.click(within(next).getByRole("button", { name: nextStepAdvisories.label }));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/advisories"));
+    // The Advisories page opens with its button waiting: the next step only opened the page.
+    await screen.findByTestId("advisories-standing");
+    expect(screen.getByRole("heading", { level: 1, name: advisoriesNotAdded.title })).not.toBeNull();
+    expect((screen.getByTestId("add-new-checks") as HTMLButtonElement).disabled).toBe(false);
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("shows the next step exactly as the backend sends it (the sample taken before the claims were verified)", async () => {
+    await show({ "GET /api/assessments/101": { body: assessmentView({ next_step: nextStepVerify }) } });
+    const next = screen.getByTestId("next-step");
+    expect(text(next)).toContain(nextStepVerify.text);
+    fireEvent.click(within(next).getByRole("button", { name: nextStepVerify.label }));
+    await waitFor(() => expect(window.location.hash).toBe(`#/a/101/${nextStepVerify.page}`));
   });
 
   it("on a closed assessment the next step is a new assessment", async () => {

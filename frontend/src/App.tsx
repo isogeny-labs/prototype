@@ -14,6 +14,7 @@ import {
   type Workspace,
   type WorkspaceProject,
 } from "./api";
+import { AdvisoriesScreen } from "./components/AdvisoriesScreen";
 import { ChecksScreen } from "./components/ChecksScreen";
 import { CloseBox, NewAssessmentBox } from "./components/pages/AssessmentBoxes";
 import { ProjectOverviewPage } from "./components/pages/ProjectOverviewPage";
@@ -228,13 +229,15 @@ export default function App() {
   const closed = current?.status.key === "closed";
 
   // Which pages of the assessment can open now, and why not. Phase 5b: before a file is in, only Overview and Import;
-  // once a file is in, every page opens, and a page with nothing yet says what fills it.
+  // once a file is in, every page opens, and a page with nothing yet says what fills it. Phase 5c: Advisories opens by
+  // the same rule as Checks.
   const noFile = "Bring in a scanner file first (Inventory, Import).";
   const withFile = { open: imp !== null, reason: noFile };
   const access: PageAccess = {
     overview: { open: true },
     "inventory/import": { open: true },
     "inventory/verify": withFile,
+    advisories: withFile,
     checks: withFile,
     evidence: withFile,
     fixes: withFile,
@@ -440,6 +443,7 @@ export default function App() {
         onLoadDemo={() => void loadDemo()}
         loadingDemo={loadingDemo}
         demoResult={demoResult}
+        section={route.section ?? null}
       />
     );
   } else if (!current) {
@@ -496,6 +500,9 @@ export default function App() {
     );
   } else if (page === "inventory/verify" && imp) {
     content = <VerifyScreen imp={imp} run={run} onContinue={() => go("checks")} openItem={routeItem} />;
+  } else if (page === "advisories" && plan) {
+    // Phase 5c: Add new checks puts tests in the plan, so the app's copy of the plan is read again after it.
+    content = <AdvisoriesScreen planId={plan.id} openItem={routeItem} onPlanChanged={() => void reloadPlan()} />;
   } else if (page === "checks" && imp) {
     content = <ChecksScreen importId={imp.id} plan={plan} onPlan={setPlan} openItem={routeItem} group={route.kind === "assessment" ? (route.group ?? null) : null} />;
   } else if (page === "evidence" && plan) {

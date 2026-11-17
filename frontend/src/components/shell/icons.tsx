@@ -4,6 +4,7 @@ const PATHS: Record<string, string> = {
   inventory: "M5 6h14M5 12h14M5 18h9",
   import: "M12 4v11m0 0-4-4m4 4 4-4M5 20h14",
   verify: "M5 12.5 9.5 17 19 7",
+  advisories: "M4 10v4h3l6 4V6l-6 4zM16.5 9.5a3.5 3.5 0 0 1 0 5M19 7a7 7 0 0 1 0 10",
   tests: "M9 3h6M10 3v6l-5 9a1.5 1.5 0 0 0 1.3 2.2h11.4A1.5 1.5 0 0 0 19 18l-5-9V3",
   evidence: "M7 3h7l5 5v13H7zM14 3v5h5M10 14l2 2 4-4",
   fixes: "M14.5 5.5a4 4 0 0 0-5.3 5.3L4 16l4 4 5.2-5.2a4 4 0 0 0 5.3-5.3l-2.6 2.6-2.4-.6-.6-2.4z",

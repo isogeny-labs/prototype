@@ -18,6 +18,15 @@ TEST_LABELS = {"ready": ("Test ready", "pass"), "not_offered": ("Not offered", "
 FIX_LABEL = "From Otto"
 PUBLISHER_TAG = "from the advisory, not a result"
 NOT_INSTALLED_TAIL = " Advisory checks can't be added or run, because their runs could not be recorded. Everything else works as before."
+# What kind of entry a ledger line is, in plain words. Otto's own record names stay in the ledger: one of them is
+# "verdict", which is a check of a record and must never read as the result of a test.
+LEDGER_WORDS = {"question": "Asked", "objective": "Opened", "claim": "Recorded", "verdict": "Record checked", "hypothesis": "Registered",
+                "run": "Trial run", "decision": "Judged", "audit": "Replayed", "fact": "Noted", "correction": "Note"}
+
+
+def _entries(ledger: list[dict]) -> list[dict]:
+    return [{"seq": e["seq"], "kind": LEDGER_WORDS.get(str(e["kind"]), "Entry"), "id": e["id"][7:19], "at": e["at"], "what": e["what"]}
+            for e in ledger]
 STEP_WORDS = {"read_advisory": "Read the advisory", "design_test": "Design a test", "propose_fix": "Propose the fix",
               "write_fix": "Write a change for your own code"}
 SENT_LINE = ("What is sent to Claude when this is on: the advisory text and, for a fix to your own code, the source file of the failing "
@@ -211,16 +220,16 @@ def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list
                          "checks_link": {"page": "checks", "item": f"test-{entry['item_id']}"} if entry["item_id"] is not None else None,
                          "evidence_link": {"page": "evidence", "item": f"test-{entry['item_id']}"} if result else None,
                          "ledger": {"title": "Otto ledger entries for this check", "count": len(entry["ledger"]),
-                                    "entries": [{"seq": e["seq"], "kind": e["kind"], "id": e["id"][7:19], "at": e["at"], "what": e["what"]}
-                                                for e in entry["ledger"]],
+                                    "entries": _entries(entry["ledger"]),
                                     "note": ("The ledger shows that each run belongs to the test locked before it. It holds no result.")}
                          if entry["ledger"] else None})
         results = [h["result"] for h in here if h["result"]]
         # The latest result of its check here, in the reviewer's words. With more than one program, the one that says most.
-        shown = next((r for r in results if r["tone"] == "fail"), None) or next((r for r in results if r["tone"] == "warn"), None) \
+        shown = next((r for r in results if r["tone"] == "fail"), None) or next((r for r in results if r["tone"] != "pass"), None) \
             or (results[0] if results else None)
         if shown is not None:
-            result_cell = {"key": shown["tone"], "label": shown["label"], "tone": shown["tone"],
+            # for the Result filter: Failed, Passed, or the one option for every result that is neither
+            result_cell = {"key": shown["tone"] if shown["tone"] in ("pass", "fail") else "warn", "label": shown["label"], "tone": shown["tone"],
                            "text": (f"{sum(1 for r in results if r['label'] == shown['label'])} of {len(here)} programs" if len(here) > 1 else None)}
         elif state != "ready":
             result_cell = {"key": "none", "label": "No check", "tone": "neutral", "text": None}
@@ -245,18 +254,16 @@ def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list
                 "design_fingerprint": advisory["test"]["design_sha256"],
                 "trial": {"title": "How it did when tried on public copies", "lines": _trial_lines(advisory)},
                 "ledger": {"title": "Otto ledger entries", "count": len(advisory["ledger"]),
-                           "entries": [{"seq": e["seq"], "kind": e["kind"], "id": e["id"][7:19], "at": e["at"], "what": e["what"]}
-                                       for e in advisory["ledger"]],
-                           "note": ("From Otto's research ledger, a hash chain kept with Adam's harness: the test was registered, tried and "
+                           "entries": _entries(advisory["ledger"]),
+                           "note": ("From Otto's research ledger, a hash chain kept with the Otto harness: the test was registered, tried and "
                                     "judged before the pack was signed.")}}
         else:
             no_test = {"label": label, "reason": advisory["test"]["reason"],
                        "trial": ({"title": "How its design did when tried on public copies", "lines": _trial_lines(advisory)}
                                  if advisory["test"]["trial"] else None),
                        "ledger": ({"title": "Otto ledger entries", "count": len(advisory["ledger"]),
-                                   "entries": [{"seq": e["seq"], "kind": e["kind"], "id": e["id"][7:19], "at": e["at"], "what": e["what"]}
-                                               for e in advisory["ledger"]],
-                                   "note": "From Otto's research ledger, a hash chain kept with Adam's harness."} if advisory["ledger"] else None)}
+                                   "entries": _entries(advisory["ledger"]),
+                                   "note": "From Otto's research ledger, a hash chain kept with the Otto harness."} if advisory["ledger"] else None)}
         own = any(items.get(entry["item_id"]) is not None for entry in row["here"])
         out.append({
             "id": advisory["id"], "name": name, "published": advisory["published"], "published_text": day(advisory["published"]),
@@ -291,7 +298,7 @@ def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list
     if closed:
         blocked = "This assessment is closed, so nothing can be added to it."
     elif not installed:
-        blocked = harness_status["sentence"] + NOT_INSTALLED_TAIL
+        blocked = "Otto is not installed on this computer, so nothing can be added."      # the reason is in the Otto line
     elif not packs:
         blocked = "No test pack is installed. Install one in Settings, under Test packs."
     elif to_add == 0:

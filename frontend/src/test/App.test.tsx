@@ -121,10 +121,11 @@ describe("app shell", () => {
     expect(screen.getAllByText("Isogeny Labs").length).toBeGreaterThan(0);
     expect(screen.getByTestId("mode-line").textContent).toBe("Demo mode: running our own demo software, not isolated.");
 
-    expect(nav().getAllByRole("link").map((a) => text(a))).toEqual(["Overview", "Inventory", "Import", "Verify", "Checks", "Evidence", "Fixes", "Migration"]);
+    // Phase 5c: Advisories sits between Inventory and Checks.
+    expect(nav().getAllByRole("link").map((a) => text(a))).toEqual(["Overview", "Inventory", "Import", "Verify", "Advisories", "Checks", "Evidence", "Fixes", "Migration"]);
     expect(currentPages()).toEqual(["Import"]);
     // With no file yet, only Overview and Import open; the rest say why not.
-    for (const name of ["Verify", "Checks", "Evidence", "Fixes", "Migration"]) expect(isOff(name), name).toBe(true);
+    for (const name of ["Verify", "Advisories", "Checks", "Evidence", "Fixes", "Migration"]) expect(isOff(name), name).toBe(true);
     expect(isOff("Overview")).toBe(false);
     expect(isOff("Import")).toBe(false);
     expect(screen.getByTestId("copilot-panel")).not.toBeNull();

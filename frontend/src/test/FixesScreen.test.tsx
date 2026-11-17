@@ -20,6 +20,7 @@ import {
   withCodeFix,
 } from "./fixesFixtures";
 import { DISCLAIMER, advisories, calls, lab, mockApi, text } from "./fixtures";
+import { advisoryCheckRow, fixesWithTemplate } from "./ottoFixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
 
@@ -904,6 +905,58 @@ describe("Fixes, the folded sections", () => {
       ["Bundled acme-sign 1.4.3 (SHA-256)", "d49e46ed3121ab0f2220a8b0a7a50f18b684b310e465d5e755062f69be40a378 demo"],
     ]);
     expect(ranOn.getByText(/^This version of Evidence Lab only ever runs our own demo software\./)).not.toBeNull();
+  });
+});
+
+describe("Fixes, where a change came from (phase 5c)", () => {
+  const withLabels = (labels: string[]): FixesView => ({
+    ...fixesWithTemplate,
+    fixes: fixesWithTemplate.fixes.map((fix) => (fix.id === CODE_FIX ? { ...fix, labels } : fix)),
+  });
+  /** The chips beside the status of the open fix: its status word, the backend's labels, and Demo data. */
+  const chips = () => Array.from(status().parentElement!.children).map((chip) => chip.textContent);
+
+  it.each([["Written by Otto"], ["From Otto"], ["From a fix template"]])("shows the label the backend gives a fix beside its status: %s", async (label) => {
+    await open(withLabels([label]));
+    expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
+    expect(chips()).toEqual([fixesWithTemplate.fixes[0]!.status.word, label, "Demo data"]);
+  });
+
+  it("shows every label when a fix has more than one, and none of its own when it has none", async () => {
+    const word = fixesWithTemplate.fixes[0]!.status.word;
+    await open(withLabels(["Written by Otto", "From Otto"]));
+    expect(chips()).toEqual([word, "Written by Otto", "From Otto", "Demo data"]);
+    cleanup();
+    await open(withLabels([]));
+    expect(chips()).toEqual([word, "Demo data"]);
+  });
+
+  it("shows the fix an advisory check led to as the backend words it: the check among its sources, and why Otto's own change is not offered", async () => {
+    const fetchMock = await open(fixesWithTemplate);
+    const fix = fixesWithTemplate.fixes[0]!;
+    expect(summary().getAttribute("data-fix-id")).toBe(fix.id);
+    expect(chips()).toEqual([fix.status.word, ...fix.labels, "Demo data"]);
+    // Its source sentence is the backend's, and it names the advisory check by the title Evidence gives it.
+    const source = text(inSummary().getByTestId("fix-source"));
+    expect(source).toBe(fix.source.map((part) => part.v).join(""));
+    expect(source).toContain(advisoryCheckRow.title);
+    // Every paragraph of what it changes is shown, the last being the backend's reason for offering the template.
+    const what = text(inSummary().getByTestId("fix-what"));
+    const paragraphs = fix.what.paragraphs.map((parts) => parts.map((part) => part.v).join(""));
+    expect(paragraphs).toHaveLength(2);
+    for (const paragraph of paragraphs) expect(what).toContain(paragraph);
+    expect(paragraphs[1]).toMatch(/^Otto's own change is not offered here/);
+    expect(inSummary().getByTestId("server-line").textContent).toBe(fix.what.server_line);
+    // Nothing is offered before its proof: the only button is the one the view sends (it connects the code).
+    expect(summaryButtons().map((b) => b.textContent)).toEqual(fix.actions.buttons.map((b) => b.label));
+    expect(fix.actions.buttons.map((b) => b.action)).toEqual(["connect"]);
+    expect(calls(fetchMock)).toEqual([`GET ${FIXES}`]);
+
+    // In the list, the advisory check is one of the places the fix came from.
+    fireEvent.click(screen.getByRole("button", { name: "Close details" }));
+    const row = within(rows()[0]!);
+    expect(row.getAllByTestId("came-from-link").map((a) => a.textContent)).toEqual(fix.came_from_links!.map((c) => c.label));
+    expect(fix.came_from_links!.at(-1)!.link).toEqual({ page: "evidence", item: `test-${advisoryCheckRow.item_id}` });
   });
 });
 
