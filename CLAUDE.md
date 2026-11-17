@@ -1,5 +1,15 @@
 # Isogeny Evidence Lab (crypto MVP)
 
+**Goal and first step** (AGENTS.md, "Goal: what to work on next" and "First
+step of every task"): the SessionStart hook prints `tools/goal_brief.py` (the
+pinned goal and items in `docs/ACTIVE.md`, then the newest session-log open
+threads); with no other instruction, take the first unchecked item and start.
+`/goal` re-reads the brief; `/goal <text>` pins a new goal. Before any other
+work on a task, add its line to `docs/ACTIVE.md`, commit that alone, push and
+open a **draft** PR; when the work is finished and checked, tick the line and
+mark the PR ready for review.
+
+
 Full spec: @docs/SPEC.md. Read it before any work. Build only the phase you're asked for.
 
 How Kevin works with you: he's not a developer and doesn't use git. Explain in plain language, handle all git yourself, and tell him exactly what to click or type when you need him.
