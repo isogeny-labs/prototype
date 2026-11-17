@@ -161,6 +161,7 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             imp = lab.import_demo()
             for address in imp["addresses"]:
                 lab.confirm_address(imp["id"], address["address"], True)
+            lab.verify(imp["id"])
             pid = lab.ensure_plan(imp["id"])["id"]
             if len(found) > 1:
                 try:
@@ -172,7 +173,6 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             update = lab.check_pack_updates()["packs"]["update"]
             answers["acme.update_found"] = update["version"] if update else None
             lab.install_pack(found[0].version)
-            answers["acme.next_step_after_install"] = lab.assessment_view(_assessment_id(lab, pid))["next_step"]["page"]
             view = lab.add_new_checks(pid)
             answers["acme.checks_added_from_first_pack"] = sum(1 for r in view["rows"] if r["result"]["key"] == "not_run")
             lab.run_all(pid)
@@ -219,6 +219,9 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             if len(found) > 1:
                 progress("  ... Acme Pay: the second pack")
                 lab.install_pack(found[1].version)
+                # every earlier step has a result by now, so the Overview's next step is the new pack's checks
+                answers["acme.second_pack.next_step_page"] = lab.assessment_view(_assessment_id(lab, pid))["next_step"]["page"]
+                answers["acme.second_pack.checks_ready_to_add"] = lab.otto_new_checks(pid)
                 before = set(_advisory_rows(lab, pid))
                 lab.add_new_checks(pid)
                 added = [key for key in _advisory_rows(lab, pid) if key not in before]

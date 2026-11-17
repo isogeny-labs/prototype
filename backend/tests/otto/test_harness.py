@@ -89,6 +89,26 @@ def test_prepare_reports_otto_and_never_stops_the_start(monkeypatch):
     assert said and said[0].startswith("Otto: not installed")
 
 
+def test_prepare_with_otto_alone_looks_at_the_harness_only_and_never_at_docker(monkeypatch):
+    """`python -m app.prepare --otto` is what ./run-demo.sh runs on every computer: the harness and nothing else. It
+    asks Docker nothing and its exit code is 0 whether Otto could be fetched or not, so it can't stop the start."""
+    said, asked = [], []
+    monkeypatch.setattr(prepare, "docker_running", lambda *a, **k: asked.append("docker") or True)
+    monkeypatch.setattr(prepare, "prepare_otto", lambda check_only, say: asked.append(("otto", check_only)) or False)
+    assert prepare.main(["--otto"], say=said.append) == 0
+    assert prepare.main(["--otto", "--check"], say=said.append) == 0
+    assert asked == [("otto", False), ("otto", True)] and not any("Isolated mode" in line for line in said)
+    # a fetch that goes wrong is said in a plain line and is not an error
+    lock = harness.read_lock()
+    monkeypatch.undo()
+    monkeypatch.setattr(harness, "status", lambda *a, **k: harness.OttoStatus(False, harness.NOT_FETCHED, lock.repository, lock.commit, lock.version, None))
+    monkeypatch.setattr(harness, "fetch", lambda *a, **k: (_ for _ in ()).throw(OSError("no network")))
+    monkeypatch.setattr(prepare, "docker_running", lambda *a, **k: asked.append("docker") or True)
+    assert prepare.main(["--otto"], say=said.append) == 0
+    assert any(line.startswith("Otto harness: missing") for line in said) and any("advisory checks are off" in line for line in said)
+    assert "docker" not in asked
+
+
 @pytest.mark.needs_otto
 def test_the_pinned_copy_is_the_one_the_lock_names():
     found = harness.status()

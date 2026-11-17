@@ -196,6 +196,46 @@ def test_the_shipped_packs_install_and_their_tests_fit_the_demo(tmp_path):
 
 
 @pytest.mark.needs_otto
+def test_the_evidence_report_links_a_shipped_advisory_to_its_publisher_and_the_file_verifies(tmp_path):
+    """A shipped advisory names its source at a known publisher (here: the fixed JDK source). The readable report
+    draws that link, and only such a link: the address in a pack is checked again where the report is made."""
+    lab = make_lab(tmp_path)
+    try:
+        plan = demo_plan(lab)
+        lab.check_pack_updates()
+        lab.install_pack("2026.11.1")
+        lab.add_new_checks(plan.id)
+        item = next(t["id"] for t in lab.plan_view(plan.id)["tests"] if "CVE-2022-21449" in t["title"])
+        lab.run_test(plan.id, item)
+        lab.wait_until_idle(plan.id, 240)
+        result = next(r for r in lab.lab_view(plan.id)["rows"] if r["item_id"] == item)["result"]
+        source = result["advisories"]["items"][0]["href"]
+        assert result["label"] == "Failed" and source.startswith("https://github.com/openjdk/")
+        made = lab.export_evidence(plan.id)
+        report = lab.evidence_file(made["id"], "html")[1].decode("utf-8")
+        assert f'<a href="{source.replace("&", "&amp;")}" rel="noreferrer noopener">' in report
+        raw = lab.evidence_file(made["id"], "json")[1]
+        path = tmp_path / "evidence.json"
+        path.write_bytes(raw)
+        done = subprocess.run([sys.executable, "-m", "evidence", "verify", str(path), "--data-dir", str(lab.settings.data_dir)], cwd=BACKEND,
+                              capture_output=True, text=True, timeout=300)
+        assert done.returncode == 0 and done.stdout.startswith("Evidence verified"), done.stdout + done.stderr
+    finally:
+        lab.stop()
+
+
+def test_the_report_never_draws_a_link_that_is_not_ours_or_a_known_publishers():
+    from app.evidence import export
+    assert "github.com" in export.el("a", export.t("the source"), href="https://github.com/openjdk/jdk17u", publisher=True)
+    for href in ("https://example.com/x", "http://github.com/openjdk/jdk17u", "https://user@github.com/x", "https://github.com:8443/x",
+                 "javascript:alert(1)", "", None):
+        with pytest.raises(ValueError):
+            export.el("a", export.t("a link"), href=href, publisher=True)
+    with pytest.raises(ValueError):                    # a publisher's address is drawn only where an advisory's source is
+        export.el("a", export.t("the source"), href="https://github.com/openjdk/jdk17u")
+
+
+@pytest.mark.needs_otto
 def test_the_research_ledger_passes_ottos_own_audit(tmp_path):
     """Otto's harness checks its own ledger: the chain, every decision derived again from its runs, every pinned
     checker run again. On a copy, so the shipped folder is never written to."""

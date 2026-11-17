@@ -565,12 +565,18 @@ _TAGS = frozenset("h1 h2 h3 h4 p div span section table thead tbody tr th td pre
 _CLASS = re.compile(r"^[a-z][a-z0-9 -]*$")
 
 
-def el(tag: str, *children: _Safe, cls: str | None = None, href: str | None = None) -> _Safe:
+def _publisher_link(href: object) -> bool:
+    """Phase 5c: the https address of a known publisher, as an advisory in a signed test pack names its source."""
+    return isinstance(href, str) and bool(href) and present_advisory.safe_href(href) == href
+
+
+def el(tag: str, *children: _Safe, cls: str | None = None, href: str | None = None, publisher: bool = False) -> _Safe:
+    """`publisher`: this link is an advisory's source. It is drawn only if it is a known publisher's https address."""
     if tag not in _TAGS or (cls is not None and not _CLASS.match(cls)):
         raise ValueError("not an allowed element")
     attrs = f' class="{cls}"' if cls else ""
     if tag == "a":
-        if href not in REPORT_LINKS:
+        if href not in REPORT_LINKS and not (publisher and _publisher_link(href)):
             raise ValueError("not one of our own links")
         attrs += f' href="{html.escape(href, quote=True)}" rel="noreferrer noopener"'
     return _Safe(f"<{tag}{attrs}>{_join(children)}</{tag}>")
@@ -644,9 +650,8 @@ def _advisories_html(block: dict | None) -> list:
     return [el("p", el("strong", t(f"{block.get('title')} [{block.get('tag')}]")), cls="note"),
             el("ul", *[el("li", el("strong", t(a.get("id"))), _Safe(" "), t(a.get("text")), _Safe(" "),
                           # a link is drawn only for our own fixed list, or (phase 5c) for a known publisher's https address
-                          el("a", t(a.get("link")), href=a["href"])
-                          if a.get("href") in REPORT_LINKS or (a.get("href") and present_advisory.safe_href(a.get("href")) == a.get("href"))
-                          else t(a.get("link")),
+                          el("a", t(a.get("link")), href=a["href"], publisher=True)
+                          if a.get("href") in REPORT_LINKS or _publisher_link(a.get("href")) else t(a.get("link")),
                           _Safe(". "), t(a.get("covered"))) for a in block["items"]], cls="meta")]
 
 
