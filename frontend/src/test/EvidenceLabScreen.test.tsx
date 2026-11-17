@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FixLine, LabView } from "../api";
+import type { FixLine, LabView, LibraryEvidenceRow } from "../api";
+import { checksView, retestDetail } from "./checksFixtures";
 import { EvidenceLabScreen } from "../components/EvidenceLabScreen";
 import {
   DISCLAIMER,
@@ -52,10 +53,14 @@ const show = (title: string) => {
 };
 const label = (el: HTMLElement) => el.lastElementChild?.textContent;
 
+/** The calls of the Evidence page itself. Since phase 5b it also asks for the checks (the other groups) once the lab's
+ * answer is in and whenever it changes; those are counted by their own test. */
+const labCalls = (fetchMock: Parameters<typeof calls>[0]) => calls(fetchMock).filter((c) => !c.startsWith("GET /api/plans/1/checks"));
+
 describe("Evidence Lab, results view", () => {
   it("shows the heading, Demo data, subline, the disclaimer line and the two buttons", async () => {
     const fetchMock = await open();
-    expect(calls(fetchMock)).toEqual(["GET /api/plans/1/lab"]);
+    expect(labCalls(fetchMock)).toEqual(["GET /api/plans/1/lab"]);
     expect(screen.getByRole("heading", { name: "Evidence" })).not.toBeNull();
     expect(screen.getByText("Demo data")).not.toBeNull();
     expect(text(screen.getByTestId("lab-subline"))).toMatch(
@@ -264,7 +269,7 @@ describe("Evidence Lab, retest", () => {
     ]);
     expect(menu.getByText(/Only our two demo versions can be chosen here\.$/)).not.toBeNull();
     expect(menu.queryByRole("button", { name: /confirm|start|ok/i })).toBeNull();
-    expect(calls(fetchMock)).toEqual(["GET /api/plans/1/lab"]);
+    expect(labCalls(fetchMock)).toEqual(["GET /api/plans/1/lab"]);
 
     fireEvent.click(items[0]!);
     await screen.findByTestId("lab-columns");
@@ -372,7 +377,7 @@ describe("Evidence Lab, retest", () => {
     await waitFor(() => expect(screen.queryByTestId("retest-progress")).toBeNull(), { timeout: 5000 });
     expect(button("Retest new version").disabled).toBe(false);
     await new Promise((r) => setTimeout(r, 1300));
-    expect(calls(fetchMock)).toHaveLength(3);
+    expect(labCalls(fetchMock)).toHaveLength(3);
   }, 12000);
 });
 
@@ -398,7 +403,7 @@ describe("Evidence Lab, the line that points to a fix", () => {
     fireEvent.click(within(lineOf("Official test vectors")).getByRole("button", { name: "View in Fixes" }));
     expect(viewed).toEqual(["fix-tls-versions", "fix-ecdsa-range-check"]);
     // The line only links: it calls nothing itself.
-    expect(calls(fetchMock)).toEqual(["GET /api/plans/1/lab"]);
+    expect(labCalls(fetchMock)).toEqual(["GET /api/plans/1/lab"]);
   });
 
   it.each([
@@ -474,7 +479,7 @@ describe("Evidence Lab, the line that points to a fix", () => {
     expect(button("Download evidence").disabled).toBe(false);
     expect(screen.queryByTestId("blocked-reason")).toBeNull();
     await new Promise((r) => setTimeout(r, 1300));
-    expect(calls(fetchMock)).toHaveLength(3);
+    expect(labCalls(fetchMock)).toHaveLength(3);
   }, 12000);
 
   it("keeps asking while the answer says busy, also when no row shows the proof's line", async () => {
@@ -506,7 +511,7 @@ describe("Evidence Lab, the line that points to a fix", () => {
     expect(button("Download evidence").disabled).toBe(false);
     expect(screen.queryByTestId("blocked-reason")).toBeNull();
     await new Promise((r) => setTimeout(r, 1300));
-    expect(calls(fetchMock)).toHaveLength(3);
+    expect(labCalls(fetchMock)).toHaveLength(3);
   }, 12000);
 });
 
@@ -587,7 +592,7 @@ describe("Evidence Lab, download", () => {
     const fetchMock = await open(lab, { "POST /api/plans/1/evidence": { body: evidenceExport } });
     fireEvent.click(button("Download evidence"));
     const status = within(await screen.findByTestId("download-status", undefined, { timeout: 3000 }));
-    expect(calls(fetchMock)).toEqual(["GET /api/plans/1/lab", "POST /api/plans/1/evidence"]);
+    expect(labCalls(fetchMock)).toEqual(["GET /api/plans/1/lab", "POST /api/plans/1/evidence"]);
     expect(saved).toEqual([
       "/api/evidence/3/json -> evidence-lab-evidence-20261111-015810.json",
       "/api/evidence/3/html -> evidence-lab-report-20261111-015810.html",
@@ -736,5 +741,135 @@ describe("Evidence Lab, table, panel, search and cards", () => {
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "" } });
     fireEvent.change(screen.getByLabelText("Result"), { target: { value: "failed" } });
     expect(rows()).toHaveLength(2);
+  });
+});
+
+// ---- Phase 5b: Evidence in the four work groups ----
+
+const opensslRow: LibraryEvidenceRow = {
+  id: "library-row-openssl",
+  row_id: "row-openssl",
+  name: "OpenSSL 3.0.22",
+  via_words: "Used by nginx 1.24 (localhost:8461)",
+  answers_short: "No to all three",
+  blocks: [
+    {
+      system: "localhost:8461",
+      track: "kex",
+      track_words: "key exchange",
+      fix_id: "dependency-openssl",
+      system_key: "server:localhost:8461",
+      words: "Blocks key exchange on localhost:8461",
+    },
+  ],
+  measured: false,
+  state: "done",
+  lookups: [
+    {
+      question: "ml_kem_768",
+      question_words: "ML-KEM-768",
+      title: "OpenSSL 3.5 release notes",
+      url: "https://openssl-library.org/news/openssl-3.5-notes/",
+      quote: "Added ML-KEM.",
+      checked: "2026-10-01",
+      repeat: false,
+    },
+  ],
+  cells: [
+    {
+      question: "ml_kem_768",
+      answer: "no",
+      answer_words: "No",
+      tone: "fail",
+      label: "release_notes",
+      label_words: "Release notes say",
+      reason: "OpenSSL added ML-KEM in 3.5.0.",
+      first_version: "3.5.0",
+      first_version_words: "First version that can: 3.5.0",
+      state: "not_measured",
+      state_words: "Not measured",
+      agreement: null,
+      agreement_words: null,
+      no_reason: "OpenSSL added this in 3.5.0; you have 3.0.22.",
+    },
+  ],
+};
+
+const groupedChecks = { ...checksView, libraries: [opensslRow] };
+const withGroups = (extra: Routes = {}) => ({ "GET /api/plans/1/checks": { body: groupedChecks }, ...extra });
+const groupOf = (key: string) => screen.getAllByTestId("group-section").find((g) => g.getAttribute("data-group") === key)!;
+
+describe("Evidence, the four work groups", () => {
+  it("puts today's results under Encryption tests and every other kind of check in its own group", async () => {
+    await open(lab, withGroups());
+    await screen.findAllByTestId("group-section");
+    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual([
+      "verification",
+      "encryption",
+      "migration",
+      "dependencies",
+    ]);
+    // Encryption tests holds the results table as it was.
+    expect(within(groupOf("encryption")).getAllByTestId("evidence-row")).toHaveLength(rows().length);
+    // Verification: one row per claim checked, with Verify's own word.
+    expect(within(groupOf("verification")).getAllByTestId("check-row").map((r) => r.getAttribute("data-check"))).toEqual([
+      "claim-1",
+      "claim-2",
+      "claim-3",
+    ]);
+    // Dependencies: one row per library with its answers as Dependencies words them, and its Blocks marker.
+    const lib = within(groupOf("dependencies")).getByTestId("library-row");
+    expect(text(lib)).toContain("OpenSSL 3.0.22");
+    expect(text(lib)).toContain("No to all three");
+    expect(within(lib).getByTestId("blocks-marker").textContent).toBe("Blocks key exchange on localhost:8461");
+    // An empty group says why.
+    expect(within(groupOf("migration")).getByTestId("group-empty").textContent).toBe("Nothing measured yet. Measure status is on Migration.");
+  });
+
+  it("filters to one group, and folds a group from its heading", async () => {
+    await open(lab, withGroups());
+    await screen.findAllByTestId("group-section");
+    fireEvent.change(screen.getByRole("combobox", { name: "Group" }), { target: { value: "dependencies" } });
+    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual(["dependencies"]);
+    expect(screen.queryAllByTestId("evidence-row")).toHaveLength(0);
+    fireEvent.change(screen.getByRole("combobox", { name: "Group" }), { target: { value: "all" } });
+    fireEvent.click(within(groupOf("encryption")).getByRole("button", { name: "Encryption tests" }));
+    expect(screen.queryAllByTestId("evidence-row")).toHaveLength(0);
+  });
+
+  it("a claim's panel links to where it started, with its every run; the test panel is unchanged", async () => {
+    const detail = { ...retestDetail, check: groupedChecks.groups[0]!.rows[0]!, runs: [retestDetail.runs[1]!] };
+    await open(lab, withGroups({ "GET /api/plans/1/checks/claim-1": { body: detail } }));
+    await screen.findAllByTestId("group-section");
+    fireEvent.click(within(groupOf("verification")).getAllByTestId("check-row")[0]!);
+    const checkPanel = within(await screen.findByTestId("check-panel"));
+    expect((await checkPanel.findByTestId("open-in")).textContent).toBe("Open where it started");
+    expect(checkPanel.getByTestId("earlier-runs")).not.toBeNull();
+    // Opening a result row of Encryption tests closes the other panel and shows the test panel as before.
+    fireEvent.click(rows()[0]!);
+    expect(screen.queryByTestId("check-panel")).toBeNull();
+    expect(within(panel()).getByRole("button", { name: "Mark reviewed" })).not.toBeNull();
+  });
+
+  it("a library's panel shows each answer with its label and reason, its source, and Open in Dependencies", async () => {
+    await open(lab, withGroups());
+    await screen.findAllByTestId("group-section");
+    fireEvent.click(within(groupOf("dependencies")).getByTestId("library-row"));
+    const lib = within(await screen.findByTestId("library-panel"));
+    expect(lib.getByText("OpenSSL added this in 3.5.0; you have 3.0.22.")).not.toBeNull();
+    expect(lib.getAllByText("Release notes say").length).toBeGreaterThan(0);
+    expect(lib.getByRole("link", { name: "https://openssl-library.org/news/openssl-3.5-notes/" })).not.toBeNull();
+    expect(lib.getByTestId("open-in").textContent).toBe("Open in Dependencies");
+  });
+});
+
+describe("Evidence, the compact row (phase 5b)", () => {
+  it("beside the open panel, a row keeps its test's name and its whole fix line, never half of it", async () => {
+    await open(withResult(lab, 13, { fix_line: fixLines.not_connected }));
+    fireEvent.click(rows()[1]!);
+    expect(screen.getAllByTestId("data-table")[0]!.getAttribute("data-compact")).toBe("true");
+    const lines = screen.getAllByTestId("compact-fix-line").map((l) => l.textContent);
+    expect(lines).toContain("Fix available, code not connected");
+    expect(lines.every((l) => !/[,:]$/.test((l ?? "").trim()))).toBe(true);
   });
 });

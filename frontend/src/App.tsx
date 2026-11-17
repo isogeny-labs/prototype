@@ -8,11 +8,16 @@ import {
   type DemoProjectsLoaded,
   type Import,
   type PlanView,
+  type ProjectView,
   type Session,
   type VerifyRun,
   type Workspace,
   type WorkspaceProject,
 } from "./api";
+import { ChecksScreen } from "./components/ChecksScreen";
+import { CloseBox, NewAssessmentBox } from "./components/pages/AssessmentBoxes";
+import { ProjectOverviewPage } from "./components/pages/ProjectOverviewPage";
+import { LinkProvider } from "./components/related";
 import { LoginScreen, SetupScreen } from "./components/AuthScreens";
 import { CopilotPanel } from "./components/CopilotPanel";
 import { EvidenceLabScreen } from "./components/EvidenceLabScreen";
@@ -25,15 +30,21 @@ import { SettingsPage } from "./components/pages/SettingsPage";
 import { GuidedBar } from "./components/shell/GuidedBar";
 import { Sidebar, type PageAccess } from "./components/shell/Sidebar";
 import { TopBar } from "./components/shell/TopBar";
-import { TestsScreen } from "./components/TestsScreen";
-import { ErrorBox, SecondaryButton } from "./components/ui";
+import { ErrorBox, formatTime, SecondaryButton } from "./components/ui";
 import { VerifyScreen } from "./components/VerifyScreen";
+import { setAlgorithmNames } from "./plainNames";
 import { applyTheme, prefs, type Theme } from "./prefs";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "./readOnly";
 import { useRoute, type Page } from "./router";
 
 const ANOTHER_FILE =
-  "This assessment already has a file. Bringing in another file starts a new assessment in this project; this one is then closed and kept, read-only.";
+  "This assessment already has a file. Bringing in another file starts a new assessment in this project; this one stays open, as it is.";
+
+/** Phase 5b: which box is open (New assessment, Rerun as new assessment, Close assessment). */
+type BoxState =
+  | { kind: "new"; projectId: number; then: Page }
+  | { kind: "rerun"; assessment: AssessmentView }
+  | { kind: "close"; assessment: AssessmentView };
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -53,6 +64,11 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [loadingDemo, setLoadingDemo] = useState(false);
   const [demoResult, setDemoResult] = useState<DemoProjectsLoaded | null>(null);
+  // Phase 5b: the open project's assessments (for the assessment picker and the boxes), and the box on screen.
+  const [projectView, setProjectView] = useState<ProjectView | null>(null);
+  const [box, setBox] = useState<BoxState | null>(null);
+  const [boxBusy, setBoxBusy] = useState(false);
+  const [boxError, setBoxError] = useState<string | null>(null);
   // The assessment a file upload started (so a failed upload still lands on it, empty, with its error).
   const pendingTarget = useRef<number | null>(null);
 
@@ -60,7 +76,9 @@ export default function App() {
 
   const loadWorkspace = useCallback(async () => {
     try {
-      setWorkspace(await api.getWorkspace());
+      const next = await api.getWorkspace();
+      setAlgorithmNames(next.algorithm_names ?? []);
+      setWorkspace(next);
     } catch (e) {
       setLoadError(errorMessage(e));
     }
@@ -71,7 +89,10 @@ export default function App() {
     const view = await api.getAssessment(id);
     const current = view.import ?? null;
     const latest = current ? await api.getLatestVerify(current.id) : null;
-    const existingPlan = current ? await api.getPlan(current.id) : null;
+    let existingPlan = current ? await api.getPlan(current.id) : null;
+    // Phase 5b: once a file is in, every page opens, so the plan is made at once (opening Tests always made it; it
+    // decides nothing, and it is allowed in a closed assessment).
+    if (current && !existingPlan) existingPlan = await api.ensurePlan(current.id);
     return { view, imp: current, run: latest, plan: existingPlan };
   }, []);
 
@@ -129,6 +150,42 @@ export default function App() {
     void loadAssessment(routeId);
   }, [loggedIn, routeId, assessment?.id, loadAssessment]);
 
+  const projectId = route.kind === "project" ? route.id : route.kind === "assessment" && assessment?.id === route.id ? assessment.project.id : null;
+  const loadProject = useCallback(async (id: number) => {
+    try {
+      setProjectView(await api.getProject(id));
+    } catch {
+      setProjectView(null);
+    }
+  }, []);
+  useEffect(() => {
+    if (!loggedIn || projectId === null) return;
+    void loadProject(projectId);
+  }, [loggedIn, projectId, assessment?.status.key, assessment?.title, loadProject]);
+
+  // Phase 5b: a link that names a fix opens it in Fixes.
+  const routeItem = route.kind === "assessment" ? (route.item ?? null) : null;
+  const routePage = route.kind === "assessment" ? route.page : null;
+  // The Overview repeats what every page says now (tests run, systems measured, a list added since it was loaded), so
+  // it asks for the assessment again each time it opens. It only reads.
+  const loadedId = assessment?.id ?? null;
+  useEffect(() => {
+    if (!loggedIn || routePage !== "overview" || routeId === null || loadedId !== routeId) return;
+    let live = true;
+    api
+      .getAssessment(routeId)
+      .then((next) => {
+        if (live) setAssessment(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [loggedIn, routePage, routeId, loadedId]);
+  useEffect(() => {
+    if (routePage === "fixes" && routeItem) setFixId(routeItem);
+  }, [routePage, routeItem]);
+
   const importId = imp?.id ?? null;
   const reloadPlan = useCallback(async () => {
     if (importId === null) return null;
@@ -146,7 +203,8 @@ export default function App() {
   const reloadAssessment = useCallback(async () => {
     if (assessment) await loadAssessment(assessment.id);
     await loadWorkspace();
-  }, [assessment, loadAssessment, loadWorkspace]);
+    if (assessment) await loadProject(assessment.project.id);
+  }, [assessment, loadAssessment, loadWorkspace, loadProject]);
 
   if (!session) {
     return (
@@ -169,27 +227,27 @@ export default function App() {
   const current = route.kind === "assessment" && assessment?.id === route.id ? assessment : null;
   const closed = current?.status.key === "closed";
 
-  // Which pages of the assessment can open now (today's rules), and why not.
-  const hasResults = plan?.has_results === true;
-  const fixesOpen = hasResults || plan?.has_migration === true;
+  // Which pages of the assessment can open now, and why not. Phase 5b: before a file is in, only Overview and Import;
+  // once a file is in, every page opens, and a page with nothing yet says what fills it.
   const noFile = "Bring in a scanner file first (Inventory, Import).";
+  const withFile = { open: imp !== null, reason: noFile };
   const access: PageAccess = {
     overview: { open: true },
     "inventory/import": { open: true },
-    "inventory/verify": { open: run !== null, reason: "Verify the claims first (Inventory, Import)." },
-    tests: { open: imp !== null, reason: noFile },
-    evidence: { open: hasResults, reason: "Evidence opens once a test has a result." },
-    fixes: { open: fixesOpen, reason: "Fixes opens once a test has a result or the migration plan has something for it." },
-    "migration/systems": { open: imp !== null, reason: noFile },
-    "migration/roadmap": { open: imp !== null, reason: noFile },
-    "migration/dependencies": { open: imp !== null, reason: noFile },
+    "inventory/verify": withFile,
+    checks: withFile,
+    evidence: withFile,
+    fixes: withFile,
+    "migration/systems": withFile,
+    "migration/roadmap": withFile,
+    "migration/dependencies": withFile,
   };
   // A page whose data is not there (yet) falls back to Import, as the step bar did.
   const page: Page | null = current && route.kind === "assessment" ? (access[route.page].open ? route.page : "inventory/import") : null;
 
-  function go(next: Page) {
+  function go(next: Page, item?: string | null) {
     if (!current) return;
-    navigate({ kind: "assessment", id: current.id, page: next });
+    navigate({ kind: "assessment", id: current.id, page: next, item: item ?? null });
   }
 
   function openAssessment(id: number, next: Page = "overview") {
@@ -197,12 +255,51 @@ export default function App() {
   }
 
   function pickProject(p: WorkspaceProject) {
-    if (p.latest) openAssessment(p.latest.id);
+    // Phase 5b: picking a project opens its Project overview (several assessments can be open).
+    navigate({ kind: "project", id: p.id });
   }
 
   function viewFix(id: string) {
     setFixId(id);
-    go("fixes");
+    go("fixes", id);
+  }
+
+  /** `then`: the page the new assessment opens on (the closed banner's button opens it on Import, as in phase 5a). */
+  function openNewBox(projectIdForBox: number, then: Page = "overview") {
+    setBoxError(null);
+    setBox({ kind: "new", projectId: projectIdForBox, then });
+  }
+
+  async function startFromBox(fields: { name: string; purpose: string; reference: string }) {
+    if (!box) return;
+    setBoxBusy(true);
+    setBoxError(null);
+    try {
+      const made =
+        box.kind === "rerun" ? await api.rerunAssessment(box.assessment.id, fields) : box.kind === "new" ? await api.newAssessment(box.projectId, fields) : null;
+      setBox(null);
+      await loadWorkspace();
+      if (made) openAssessment(made.id, box.kind === "rerun" ? "inventory/import" : box.kind === "new" ? box.then : "overview");
+    } catch (e) {
+      setBoxError(errorMessage(e));
+    } finally {
+      setBoxBusy(false);
+    }
+  }
+
+  async function closeFromBox(fields: { signed_off_by: string; note: string }) {
+    if (!box || box.kind !== "close") return;
+    setBoxBusy(true);
+    setBoxError(null);
+    try {
+      await api.changeAssessment(box.assessment.id, { close: true, signed_off_by: fields.signed_off_by, note: fields.note });
+      setBox(null);
+      await reloadAssessment();
+    } catch (e) {
+      setBoxError(errorMessage(e));
+    } finally {
+      setBoxBusy(false);
+    }
   }
 
   async function loadDemo() {
@@ -292,6 +389,12 @@ export default function App() {
         pickProject(p);
       }}
       onNavigate={() => setMenuOpen(false)}
+      projectId={projectId}
+      assessments={projectView?.id === projectId ? projectView.assessments : []}
+      onNewAssessment={() => {
+        setMenuOpen(false);
+        if (projectId !== null) openNewBox(projectId);
+      }}
     />
   );
 
@@ -302,6 +405,7 @@ export default function App() {
         workspace={workspace}
         onChanged={loadWorkspace}
         onOpenAssessment={(id, next) => openAssessment(id, next ?? "overview")}
+        onOpenProject={(id) => navigate({ kind: "project", id })}
         onLoadDemo={() => void loadDemo()}
         loadingDemo={loadingDemo}
       />
@@ -309,6 +413,18 @@ export default function App() {
       <p role="status" className="text-sm text-slate-400">
         Loading…
       </p>
+    );
+  } else if (route.kind === "project") {
+    content = (
+      <ProjectOverviewPage
+        projectId={route.id}
+        workspace={workspace}
+        onNewAssessment={() => openNewBox(route.id)}
+        onChanged={async () => {
+          await loadWorkspace();
+          await loadProject(route.id);
+        }}
+      />
     );
   } else if (route.kind === "settings") {
     content = (
@@ -348,6 +464,15 @@ export default function App() {
           openAssessment(id);
         }}
         onChanged={reloadAssessment}
+        onNewAssessment={() => openNewBox(current.project.id)}
+        onRerun={() => {
+          setBoxError(null);
+          setBox({ kind: "rerun", assessment: current });
+        }}
+        onClose={() => {
+          setBoxError(null);
+          setBox({ kind: "close", assessment: current });
+        }}
       />
     );
   } else if (page === "inventory/import") {
@@ -360,6 +485,7 @@ export default function App() {
         onImported={(next) => void onImported(next)}
         onImportFailed={onImportFailed}
         onAddressChanged={onAddressChanged}
+        openItem={routeItem}
         onVerified={(next) => {
           setRun(next);
           void loadWorkspace();
@@ -368,15 +494,24 @@ export default function App() {
         }}
       />
     );
-  } else if (page === "inventory/verify" && imp && run) {
-    content = <VerifyScreen imp={imp} run={run} onContinue={() => go("tests")} />;
-  } else if (page === "tests" && imp) {
-    content = <TestsScreen importId={imp.id} plan={plan} onPlan={setPlan} />;
+  } else if (page === "inventory/verify" && imp) {
+    content = <VerifyScreen imp={imp} run={run} onContinue={() => go("checks")} openItem={routeItem} />;
+  } else if (page === "checks" && imp) {
+    content = <ChecksScreen importId={imp.id} plan={plan} onPlan={setPlan} openItem={routeItem} group={route.kind === "assessment" ? (route.group ?? null) : null} />;
   } else if (page === "evidence" && plan) {
-    content = <EvidenceLabScreen planId={plan.id} onViewFix={viewFix} />;
+    content = (
+      <EvidenceLabScreen planId={plan.id} onViewFix={viewFix} openItem={routeItem} group={route.kind === "assessment" ? (route.group ?? null) : null} />
+    );
   } else if (page === "fixes" && plan) {
     content = (
-      <FixesScreen planId={plan.id} selectedId={fixId} onSelect={setFixId} onRetestStarted={() => go("evidence")} onPlanChanged={() => void reloadPlan()} />
+      <FixesScreen
+        planId={plan.id}
+        selectedId={fixId}
+        onSelect={setFixId}
+        onRetestStarted={(item) => go("evidence", item ?? null)}
+        onPlanChanged={() => void reloadPlan()}
+        group={route.kind === "assessment" ? (route.group ?? null) : null}
+      />
     );
   } else if (migrationTab && imp) {
     content = (
@@ -384,6 +519,7 @@ export default function App() {
         key={imp.id}
         importId={imp.id}
         tab={migrationTab}
+        openItem={routeItem}
         onTab={(t) => go(`migration/${t}` as Page)}
         onPlanChanged={() => void reloadPlan()}
         onViewFix={(id) => {
@@ -426,6 +562,7 @@ export default function App() {
             });
           }}
           onOpenMenu={() => setMenuOpen(true)}
+          projectName={projectView?.name ?? null}
         />
         <div className="flex flex-1 flex-col xl:flex-row">
           <main className="min-w-0 flex-1 px-4 py-6 sm:px-8 sm:py-8">
@@ -443,22 +580,26 @@ export default function App() {
                 >
                   <span>
                     <strong className="font-semibold">{CLOSED_SENTENCE}</strong>{" "}
-                    <span className="text-slate-400">{current.status.closed_line?.replace(CLOSED_SENTENCE, "").trim()}</span>
+                    <span className="text-slate-400">
+                      {current.status.closed_line?.replace(CLOSED_SENTENCE, "").trim()}
+                      {current.status.signoff ? ` ${formatTime(current.status.signoff.at)}.` : ""}
+                      {current.status.signoff?.note ? ` Note: ${current.status.signoff.note}` : ""}
+                    </span>
                   </span>
-                  <SecondaryButton
-                    allowWhenClosed
-                    onClick={() =>
-                      void api.newAssessment(current.project.id).then((made) => {
-                        void loadWorkspace();
-                        openAssessment(made.id, "inventory/import");
-                      })
-                    }
-                  >
+                  <SecondaryButton allowWhenClosed onClick={() => openNewBox(current.project.id, "inventory/import")}>
                     New assessment
                   </SecondaryButton>
                 </div>
               ) : null}
-              <ReadOnlyProvider readOnly={closed}>{content}</ReadOnlyProvider>
+              <ReadOnlyProvider readOnly={closed}>
+                {current ? (
+                  <LinkProvider assessmentId={current.id} planId={plan?.id ?? null}>
+                    {content}
+                  </LinkProvider>
+                ) : (
+                  content
+                )}
+              </ReadOnlyProvider>
               {guided && current && page && page !== "overview" ? <GuidedBar page={page} access={access} onGo={go} /> : null}
             </div>
           </main>
@@ -466,6 +607,35 @@ export default function App() {
           {copilotShown && current ? <CopilotPanel /> : null}
         </div>
       </div>
+      {box && box.kind !== "close" ? (
+        <NewAssessmentBox
+          title={box.kind === "rerun" ? "Rerun as new assessment" : "New assessment"}
+          defaultName={
+            box.kind === "rerun" ? `${box.assessment.title} (again)` : projectView?.id === box.projectId ? projectView.next_name : ""
+          }
+          defaultPurpose={box.kind === "rerun" ? (box.assessment.purpose?.key ?? "full_review") : "full_review"}
+          defaultReference={box.kind === "rerun" ? (box.assessment.reference ?? "") : ""}
+          purposes={workspace?.purposes ?? []}
+          note={
+            box.kind === "rerun"
+              ? `Brings ${box.assessment.file?.filename ?? "the same file"} in again in a new assessment of this project: the file only, no results or choices. Each address must be confirmed again.`
+              : "Starts a fresh, empty assessment in this project. Every other assessment stays as it is."
+          }
+          busy={boxBusy}
+          error={boxError}
+          onStart={(fields) => void startFromBox(fields)}
+          onCancel={() => setBox(null)}
+        />
+      ) : null}
+      {box?.kind === "close" ? (
+        <CloseBox
+          oneLoginLine={workspace?.one_login_line ?? ""}
+          busy={boxBusy}
+          error={boxError}
+          onClose={(fields) => void closeFromBox(fields)}
+          onCancel={() => setBox(null)}
+        />
+      ) : null}
     </div>
   );
 }

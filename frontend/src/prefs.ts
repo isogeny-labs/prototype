@@ -30,6 +30,12 @@ export const prefs = {
   setCopilotShown: (v: boolean) => write("evidence-lab-copilot", v ? "shown" : "hidden"),
   guidedDemo: () => read("evidence-lab-guided") === "on",
   setGuidedDemo: (v: boolean) => write("evidence-lab-guided", v ? "on" : "off"),
+  // Phase 5b: the detail panel's width, one for every page.
+  panelWidth: (): number => {
+    const v = Number(read("evidence-lab-panel-width"));
+    return Number.isFinite(v) && v > 0 ? v : 440;
+  },
+  setPanelWidth: (v: number) => write("evidence-lab-panel-width", String(Math.round(v))),
 };
 
 /** Puts the chosen look on the page: dark, light, or whatever this computer prefers. */

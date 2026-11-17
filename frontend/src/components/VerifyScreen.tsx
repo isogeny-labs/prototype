@@ -1,6 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Evidence, Import, Result, ResultValue, Tone, VerifyRun } from "../api";
 import { DataTable, DetailPanel, PageHeader, TableWithPanel, type Column } from "./layout";
+import { ItemLinkView, RelatedFor } from "./related";
 import { AlsoNoticedList, DemoDataLabel, PrimaryButton, ResultBadge, SourceTag } from "./ui";
 
 // "True" only means the claim matched what we measured, so it is drawn as a calm match, not as "safe". The chip
@@ -60,8 +61,9 @@ function EvidenceItem({ item }: { item: Evidence }) {
   );
 }
 
-/** What opens in the panel: what we found, what the result means, and the raw evidence. */
-function ResultDetails({ result }: { result: Result }) {
+/** What opens in the panel: what we found, what the result means, and the raw evidence. Evidence shows the same
+ * for a claim (phase 5b). */
+export function VerifyResultDetails({ result }: { result: Result }) {
   const badge = BADGES[result.result];
   return (
     <div id={`details-${result.claim_id}`} className="space-y-4">
@@ -95,14 +97,30 @@ function ResultDetails({ result }: { result: Result }) {
 
 interface Props {
   imp: Import;
-  run: VerifyRun;
+  /** Phase 5b: the page opens once a file is in; before Verify has run it says what fills it. */
+  run: VerifyRun | null;
   onContinue: () => void;
+  /** A claim to open (from a link: #/a/<id>/inventory/verify?item=claim-<id>). */
+  openItem?: string | null;
 }
 
-export function VerifyScreen({ imp, run, onContinue }: Props) {
-  const [openId, setOpenId] = useState<number | null>(null);
+export function VerifyScreen({ imp, run, onContinue, openItem = null }: Props) {
+  const fromLink = openItem && openItem.startsWith("claim-") ? Number(openItem.slice(6)) : null;
+  const [openId, setOpenId] = useState<number | null>(fromLink);
+  useEffect(() => setOpenId(fromLink), [fromLink]);
   const close = useCallback(() => setOpenId(null), []);
   const toggle = (id: number) => setOpenId((cur) => (cur === id ? null : id));
+  if (run === null) {
+    return (
+      <section aria-label="Verify" className="space-y-6">
+        <PageHeader eyebrow={imp.is_demo ? <DemoDataLabel /> : undefined} title="Verify" description={`Each claim from ${imp.filename}, checked against the real system.`} />
+        <p data-testid="verify-empty" className="text-sm text-slate-400">
+          Nothing verified yet.{" "}
+          <ItemLinkView link={{ page: "inventory/import", item: null }}>Verify claims is on Import.</ItemLinkView>
+        </p>
+      </section>
+    );
+  }
   const selected = run.results.find((r) => r.claim_id === openId) ?? null;
 
   const columns: Column<Result>[] = [
@@ -125,11 +143,11 @@ export function VerifyScreen({ imp, run, onContinue }: Props) {
         </div>
       ),
     },
-    { key: "result", header: "Result", className: "w-44", render: (r) => <ResultBadge label={r.result} tone={BADGES[r.result].tone} /> },
+    { key: "result", header: "Result", minWidth: 130, render: (r) => <ResultBadge label={r.result} tone={BADGES[r.result].tone} /> },
     {
       key: "details",
       header: <span className="sr-only">Details</span>,
-      className: "w-52",
+      minWidth: 170,
       render: (r) => {
         const open = r.claim_id === openId;
         return (
@@ -154,6 +172,22 @@ export function VerifyScreen({ imp, run, onContinue }: Props) {
     },
   ];
 
+  // Phase 5b: beside the open panel, a row is the claim, its result, and its Also noticed marker.
+  const compactColumns: Column<Result>[] = [
+    {
+      key: "claim",
+      header: "Claim",
+      minWidth: 160,
+      render: (r) => (
+        <>
+          <span className="block text-sm text-slate-100">{r.claim.text}</span>
+          {r.also_noticed.length > 0 ? <span className="block text-xs text-amber-200/90">Also noticed</span> : null}
+        </>
+      ),
+    },
+    { key: "result", header: "Result", minWidth: 110, render: (r) => <ResultBadge label={r.result} tone={BADGES[r.result].tone} /> },
+  ];
+
   const table =
     run.results.length === 0 ? (
       <p className="text-sm text-slate-400">There were no claims to check.</p>
@@ -164,6 +198,7 @@ export function VerifyScreen({ imp, run, onContinue }: Props) {
         rows={run.results}
         rowKey={(r) => String(r.claim_id)}
         rowTestId="result-row"
+        compactColumns={compactColumns}
         selectedKey={selected ? String(selected.claim_id) : null}
         onRowClick={(r) => toggle(r.claim_id)}
       />
@@ -192,7 +227,12 @@ export function VerifyScreen({ imp, run, onContinue }: Props) {
             subtitle={selected ? <ResultBadge label={selected.result} tone={BADGES[selected.result].tone} /> : undefined}
             onClose={close}
           >
-            {selected ? <ResultDetails result={selected} /> : null}
+            {selected ? (
+              <>
+                <VerifyResultDetails result={selected} />
+                <RelatedFor itemKey={`claim:${selected.claim_id}`} />
+              </>
+            ) : null}
           </DetailPanel>
         }
       />
@@ -203,7 +243,7 @@ export function VerifyScreen({ imp, run, onContinue }: Props) {
 
       <div>
         <PrimaryButton allowWhenClosed onClick={onContinue}>
-          Continue to tests
+          Continue to checks
         </PrimaryButton>
       </div>
     </section>

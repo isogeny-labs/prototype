@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import App from "../App";
-import { CODE_FIX, TLS_FIX, fixesViews } from "./fixesFixtures";
+import { checksView } from "./checksFixtures";
+import { CODE_FIX, TLS_FIX, fixesViews, withCodeFix } from "./fixesFixtures";
 import { address, beforeAfter, calls, demoImport, lab, mockApi, notFound, plan, run, session, text } from "./fixtures";
 import { HYBRID_FIX, measuringView, migrationView } from "./migrationFixtures";
 import { assessmentView, emptyAssessment, workspace } from "./shellFixtures";
@@ -98,6 +99,7 @@ const withResults = (extra: Record<string, unknown> = {}): Routes =>
     "GET /api/import/7/plan": { body: { ...plan, has_results: true } },
     "POST /api/import/7/plan": { body: { ...plan, has_results: true } },
     "GET /api/plans/1/lab": { body: lab },
+    "GET /api/plans/1/checks": { body: checksView },
     ...extra,
   }) as Routes;
 
@@ -119,10 +121,10 @@ describe("app shell", () => {
     expect(screen.getAllByText("Isogeny Labs").length).toBeGreaterThan(0);
     expect(screen.getByTestId("mode-line").textContent).toBe("Demo mode: running our own demo software, not isolated.");
 
-    expect(nav().getAllByRole("link").map((a) => text(a))).toEqual(["Overview", "Inventory", "Import", "Verify", "Tests", "Evidence", "Fixes", "Migration"]);
+    expect(nav().getAllByRole("link").map((a) => text(a))).toEqual(["Overview", "Inventory", "Import", "Verify", "Checks", "Evidence", "Fixes", "Migration"]);
     expect(currentPages()).toEqual(["Import"]);
     // With no file yet, only Overview and Import open; the rest say why not.
-    for (const name of ["Verify", "Tests", "Evidence", "Fixes", "Migration"]) expect(isOff(name), name).toBe(true);
+    for (const name of ["Verify", "Checks", "Evidence", "Fixes", "Migration"]) expect(isOff(name), name).toBe(true);
     expect(isOff("Overview")).toBe(false);
     expect(isOff("Import")).toBe(false);
     expect(screen.getByTestId("copilot-panel")).not.toBeNull();
@@ -201,16 +203,15 @@ describe("full flow", () => {
       "POST /api/import/7/confirm-address": { body: { ...address, confirmed: true } },
       "POST /api/import/7/verify": { body: run },
       "POST /api/import/7/plan": { body: plan },
+      "GET /api/plans/1/checks": { body: checksView },
     });
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Use demo file" }));
     expect(await screen.findAllByTestId("claim-row")).toHaveLength(3);
 
-    // Tests opens once there is an import; Evidence and Fixes wait for results.
-    await waitFor(() => expect(isOff("Tests")).toBe(false));
-    expect(isOff("Evidence")).toBe(true);
-    expect(isOff("Fixes")).toBe(true);
-    expect(isOff("Verify")).toBe(true);
+    // Phase 5b: once a file is in, every page opens (a page with nothing yet says what fills it).
+    await waitFor(() => expect(isOff("Checks")).toBe(false));
+    for (const name of ["Verify", "Evidence", "Fixes", "Migration"]) expect(isOff(name), name).toBe(false);
 
     const verify = screen.getByRole("button", { name: "Verify claims" });
     expect((verify as HTMLButtonElement).disabled).toBe(true);
@@ -220,24 +221,24 @@ describe("full flow", () => {
 
     expect(await screen.findByRole("heading", { name: "Verify" })).not.toBeNull();
     expect(screen.getAllByTestId("result-row")).toHaveLength(3);
+    // The test plan is made as soon as the file is in (it proposes and locks tests; it decides nothing).
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([
       "POST /api/import/demo?assessment_id=111",
+      "POST /api/import/7/plan",
       "POST /api/import/7/confirm-address",
       "POST /api/import/7/verify",
     ]);
     const confirmCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/confirm-address"));
     expect(JSON.parse(String(confirmCall?.[1]?.body))).toEqual({ address: "localhost:8443", confirmed: true });
 
-    fireEvent.click(screen.getByRole("button", { name: "Continue to tests" }));
-    expect(await screen.findByRole("heading", { name: "Tests" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue to checks" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Checks" })).not.toBeNull();
     expect(await screen.findAllByTestId("test-card")).toHaveLength(5);
-    expect(calls(fetchMock).at(-1)).toBe("POST /api/import/7/plan");
+    expect(calls(fetchMock).filter((c) => c === "POST /api/import/7/plan")).toHaveLength(1);
 
-    expect(currentPages()).toEqual(["Tests"]);
-    expect(isOff("Evidence")).toBe(true);
+    expect(currentPages()).toEqual(["Checks"]);
     expect(sideLink("Evidence").getAttribute("aria-current")).toBeNull();
-    expect(isOff("Fixes")).toBe(true);
-    // No "continue" button on Tests: the sidebar is the way forward.
+    // No "continue" button on Checks: the sidebar is the way forward.
     expect(screen.queryByRole("button", { name: /continue/i })).toBeNull();
   });
 
@@ -252,7 +253,7 @@ describe("full flow", () => {
     expect(currentPages()).toEqual(["Evidence"]);
     expect(screen.getByTestId("copilot-panel")).not.toBeNull();
 
-    goTo("Tests");
+    goTo("Checks");
     expect(await screen.findAllByTestId("test-card")).toHaveLength(5);
   });
 
@@ -306,8 +307,8 @@ describe("full flow", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Server accepts TLS 1.2" })).not.toBeNull();
     const selected = () =>
       within(screen.getByRole("navigation", { name: /^Open findings with a fix/ }))
-        .getAllByRole("button")
-        .map((b) => b.getAttribute("aria-current"));
+        .getAllByTestId("fix-row")
+        .map((row) => within(row).getAllByRole("button")[0]!.getAttribute("aria-current"));
     expect(selected()).toEqual([null, "true"]);
 
     // And the signing finding's line opens its own fix.
@@ -356,10 +357,7 @@ describe("full flow", () => {
     goTo("Import");
     fireEvent.click(await screen.findByRole("button", { name: "Use demo file" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/102/inventory/import"));
-    // The new file's plan is not known yet, so Fixes is closed until its tests have been opened.
-    await waitFor(() => expect(isOff("Fixes")).toBe(true));
-    goTo("Tests");
-    await screen.findAllByTestId("test-card");
+    // The new file's plan is made as soon as it is in, so Fixes opens at once, on the new plan's first fix.
     await waitFor(() => expect(isOff("Fixes")).toBe(false));
     goTo("Fixes");
     expect((await openFirstFix()).getAttribute("data-fix-id")).toBe(CODE_FIX);
@@ -371,7 +369,10 @@ describe("full flow", () => {
     at("fixes");
     const fetchMock = mockApi(
       withResults({
-        "GET /api/plans/1/fixes": { body: fixesViews.merged },
+        // The code fix came from the official vectors' result (Evidence row test-3).
+        "GET /api/plans/1/fixes": {
+          body: withCodeFix(fixesViews.merged, { came_from_links: [{ label: "Official test vectors", link: { page: "evidence", item: "test-3" } }] }),
+        },
         "GET /api/plans/1/lab": () => ({ body: retested ? beforeAfter : lab }),
         [retest]: () => {
           retested = true;
@@ -385,8 +386,14 @@ describe("full flow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Retest now" }));
     expect(await screen.findByTestId("lab-columns")).not.toBeNull();
     expect(currentPages()).toEqual(["Evidence"]);
+    // It lands on the result it retests, its before and after, not only on the page.
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/evidence?item=test-3"));
     expect(screen.queryByTestId("fix-summary")).toBeNull();
-    expect(calls(fetchMock).slice(-3)).toEqual(["GET /api/plans/1/fixes", retest, "GET /api/plans/1/lab"]);
+    // (Evidence also asks for the checks once its own answer is in; that call is not part of the retest.)
+    // (The Related block of the open fix, and Evidence's own list of checks, are asked for on their own; they are not
+    // part of the retest.)
+    const own = calls(fetchMock).filter((c) => /^(GET \/api\/plans\/1\/(fixes|lab)|POST )/.test(c));
+    expect(own.slice(-3)).toEqual(["GET /api/plans/1/fixes", retest, "GET /api/plans/1/lab"]);
     expect(calls(fetchMock).filter((c) => c === retest)).toHaveLength(1);
   });
 
@@ -422,9 +429,23 @@ describe("full flow", () => {
     expect(currentPages()).toEqual(["Fixes"]);
   });
 
-  it("falls back to Import after a refresh when the plan has no results any more", async () => {
+  it("stays on Fixes after a refresh once a file is in, even when the plan has no results", async () => {
     at("fixes");
     mockApi({ ...withFixes(), "GET /api/import/7/plan": { body: plan } } as Routes);
+    render(<App />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Fixes" })).not.toBeNull();
+    expect(isOff("Fixes")).toBe(false);
+    expect(currentPages()).toEqual(["Fixes"]);
+  });
+
+  it("falls back to Import after a refresh when the assessment has no file", async () => {
+    at("fixes", 111);
+    mockApi({
+      "GET /api/session": { body: session },
+      ...withWorkspace,
+      "GET /api/assessments/111": { body: emptyAssessment },
+      "GET /api/projects/11": { body: { id: 11, name: "Ledger", folder_id: null, archived: false, is_demo: false, path: [], assessments: [], next_name: "Assessment 2" } },
+    } as Routes);
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Import" })).not.toBeNull();
     expect(isOff("Fixes")).toBe(true);
@@ -449,7 +470,7 @@ describe("full flow", () => {
     mockApi(withFixes());
     render(<App />);
     await screen.findByRole("heading", { name: "Verify" });
-    for (const [name, testId] of [["Tests", "test-card"], ["Evidence", "evidence-row"], ["Fixes", "fix-summary"]] as const) {
+    for (const [name, testId] of [["Checks", "test-card"], ["Evidence", "evidence-row"], ["Fixes", "fix-summary"]] as const) {
       goTo(name);
       await screen.findAllByTestId(testId);
       expect(document.querySelector('input[type="file"]')).toBeNull();
@@ -492,7 +513,15 @@ describe("full flow", () => {
     render(<App />);
     expect(await screen.findAllByTestId("claim-row")).toHaveLength(3);
     expect((screen.getByTestId("address-confirm") as HTMLInputElement).checked).toBe(true);
-    expect(calls(fetchMock)).toEqual(["GET /api/session", "GET /api/workspace", "GET /api/assessments/101", "GET /api/import/7/verify", "GET /api/import/7/plan"]);
+    // With no plan yet, the app makes it (it proposes and locks tests; it decides nothing).
+    expect(calls(fetchMock).slice(0, 6)).toEqual([
+      "GET /api/session",
+      "GET /api/workspace",
+      "GET /api/assessments/101",
+      "GET /api/import/7/verify",
+      "GET /api/import/7/plan",
+      "POST /api/import/7/plan",
+    ]);
 
     expect(isOff("Verify")).toBe(false);
     goTo("Verify");
@@ -520,6 +549,7 @@ describe("Migration pages", () => {
       ...withWorkspace,
       "GET /api/assessments/101": { body: assessmentView({ has_results: false }) },
       "GET /api/import/7/verify": notFound,
+      "POST /api/import/7/plan": { body: plan },
       ...extra,
     }) as Routes;
 
@@ -528,32 +558,30 @@ describe("Migration pages", () => {
     const fetchMock = mockApi(base({ "GET /api/import/7/plan": notFound, "GET /api/import/7/migration": { body: migrationView } }));
     render(<App />);
     await screen.findByRole("heading", { name: "Import" });
-    expect(isOff("Migration")).toBe(false);
-    expect(isOff("Evidence")).toBe(true);
-    expect(isOff("Fixes")).toBe(true);
+    for (const name of ["Migration", "Evidence", "Fixes"]) expect(isOff(name), name).toBe(false);
     goTo("Migration");
     expect(await screen.findByRole("heading", { level: 1, name: "Migration plan" })).not.toBeNull();
     expect(currentPages()).toEqual(["Systems"]);
-    // The GET made the plan, so the app asks for the plan summary again.
+    // The page tells the app the plan may have changed, so the app asks for the plan summary again.
     await waitFor(() => expect(calls(fetchMock).filter((c) => c === "GET /api/import/7/plan")).toHaveLength(2));
   });
 
-  it("opens Fixes once the plan has a migration measurement, even with no test results", async () => {
+  it("opens Fixes as soon as a file is in, even with no test results", async () => {
     at("inventory/import");
     mockApi(base({ "GET /api/import/7/plan": { body: { ...plan, has_migration: true } }, "GET /api/plans/1/fixes": { body: fixesViews.ready } }));
     render(<App />);
     await screen.findByRole("heading", { name: "Import" });
     await waitFor(() => expect(isOff("Fixes")).toBe(false));
-    expect(isOff("Evidence")).toBe(true);
+    expect(isOff("Evidence")).toBe(false);
     goTo("Fixes");
     expect(await screen.findByTestId("fix-summary")).not.toBeNull();
   });
 
-  it("opens Fixes without a page refresh when a measurement finishes", async () => {
+  it("asks for the plan summary again, without a page refresh, when a measurement finishes", async () => {
     let measured = false;
     let polls = 0;
     at("inventory/import");
-    mockApi(
+    const fetchMock = mockApi(
       base({
         "GET /api/import/7/plan": () => ({ body: { ...plan, has_migration: measured } }),
         "GET /api/import/7/migration": () => {
@@ -567,8 +595,11 @@ describe("Migration pages", () => {
     await screen.findByRole("heading", { name: "Import" });
     goTo("Migration");
     await screen.findByRole("heading", { level: 1, name: "Migration plan" });
-    expect(isOff("Fixes")).toBe(true);
-    await waitFor(() => expect(isOff("Fixes")).toBe(false), { timeout: 4000 });
+    expect(isOff("Fixes")).toBe(false);
+    const asked = () => calls(fetchMock).filter((c) => c === "GET /api/import/7/plan").length;
+    const before = asked();
+    await waitFor(() => expect(measured).toBe(true), { timeout: 4000 });
+    await waitFor(() => expect(asked()).toBeGreaterThan(before), { timeout: 4000 });
   });
 
   it("View in Fixes opens the Fixes page with that fix selected", async () => {

@@ -187,6 +187,42 @@ Limits to know:
   Docker. A test of that kind locked before phase 4a keeps its old checker and rule, and its stored results read
   as before.
 
+## Limits of phase 5b (one connected assessment; 17 November 2026)
+
+- **The sign-off name is typed, not checked.** This app has one login, so whoever is at the keyboard records the name
+  in Close assessment. It is kept with the time, in the assessment and in its evidence, and can't be changed or undone.
+- **Rerun as new assessment brings in the scanner file only:** no dependency list, no results, no choices; each address
+  must be confirmed again. A file brought in before phase 5b was not kept, so Rerun says so and asks for the file again.
+- **The new pages only read.** The Overview, the Project overview, Checks and the Related block never write anything
+  down by being looked at: before Migration is opened, its systems are named from the file, "Not measured yet", and
+  no measurement of them is locked.
+- **Related shows recorded links only:** the claim a test targets, the results a fix came from, a system's address or
+  program, a migration system's fixes, a library's tie and blockers. A link the app never recorded is not guessed, so
+  a line can be missing (for example a library that is not tied to a system has no System line).
+- **Counts, never a score.** The Overview, the Project overview and every group heading count what the pages say (Open,
+  In progress, Done); there is no trend line and no rating. The status word "Applied · matches the try", which the
+  plan did not name, counts as In progress (applied, and not yet the last word). The Dependencies group counts the
+  list's libraries on every page: done once answered (from release notes or a measurement), in progress while one is
+  measured, open otherwise. "Open" fixes on the Projects table and the Project overview mean the same as on the group
+  headings (not started on yet); a fix in review or being tried is in progress there too.
+- **One measurement in more than one place is kept, and marked.** Verify's post-quantum claim on a server, that
+  server's Post-quantum readiness test and Measure status use the same probe and rule; a signing program's Verify claim
+  and its Measure status run the same `info` and round trip. Each keeps its own run and its own result (each answer key
+  grades its own); Checks marks them "the same measurement as" each other, and Migration links the two from other
+  groups from its foot. Running it once and reusing the answer is left for a later phase.
+- **What changed** compares two assessments of one project by what each item is (a claim by where it is, its kind and
+  its claimed value; a test by its kind, target and title; a track by its system's name; a blocker by library, system
+  and track). An item that changed any of these between the two reads as one gone and one new.
+- **The layout is measured at 1440 pixels wide** with the sidebar and the assistant showing and the panel at its
+  default width. A panel made much wider leaves less room, and a table beside it can then scroll sideways. A name with
+  one very long unbroken part (a 40-character commit id) is cut short with "…" in a table cell; the full name is on
+  hover and in the panel. Inside the panel, at its default width (440 pixels), a wide evidence table (for example a
+  library's answers by copy and control) scrolls sideways in its own box; Wider shows it whole.
+- **Verify has no locked test and no separate review**, unlike every other check (see Next in the phase 5b report).
+  Its results are what Verify measured, as before; Checks and Evidence only repeat them.
+- **Earlier runs in the evidence file** cover a test's first results and retests. A fix's proof runs are in the `fixes`
+  part, as before; a try's and a measurement's runs are listed in `checks`.
+
 ## Limits of phase 4b (make it real)
 
 The new rule: the app changes a system only when a person presses Apply, after a passing try on a test copy and every

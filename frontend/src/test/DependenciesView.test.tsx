@@ -415,3 +415,88 @@ describe("Migration screen: Dependencies tab", () => {
     expect(screen.getByRole("button", { name: "Systems · 7" }).getAttribute("aria-pressed")).toBe("false");
   });
 });
+
+// ---- Phase 5b: the library row ----
+
+/** The demo list, with the 5b words the backend now sends on the openssl 3.0.22 row. */
+function with5b(): View {
+  const reasons = ["OpenSSL added this in 3.5.0; you have 3.0.22.", "OpenSSL added this in 3.5.0; you have 3.0.22.", "OpenSSL added this in 3.5.0; you have 3.0.22."];
+  return {
+    ...DEPENDENCIES_DEMO,
+    groups: DEPENDENCIES_DEMO.groups.map((g) => ({
+      ...g,
+      rows: g.rows.map((r) =>
+        r.label === "openssl 3.0.22"
+          ? {
+              ...r,
+              answers_short: "No to all three",
+              cells: r.cells.map((c, i) => ({ ...c, no_reason: reasons[i] })),
+              blocks: r.blocks.map((b) => ({ ...b, words: `Blocks ${b.track_words} on ${b.system}` })),
+            }
+          : { ...r, answers_short: r.answers_short ?? "Not in our knowledge base yet" },
+      ),
+    })),
+  };
+}
+
+describe("Dependencies view: the library row (phase 5b)", () => {
+  const headers = () => within(screen.getAllByTestId("data-table")[0]!).getAllByRole("columnheader").map((h) => text(h));
+
+  it("names each library once, with 'direct' or 'through …' under it, and has no Part of column", async () => {
+    await open(with5b());
+    expect(headers()[0]).toBe("Library");
+    expect(headers()).not.toContain("Part of");
+    expect(headers()).toHaveLength(1 + DEPENDENCIES_DEMO.questions.length);
+    const openssl = row("openssl 3.0.22");
+    expect(within(openssl).getByTestId("via-words").textContent).toContain(fixtureRow(DEPENDENCIES_DEMO, "openssl 3.0.22").via_words);
+    // The name breaks only where it has a space or a dot, never between letters.
+    expect(openssl.querySelector("p.font-mono")!.className).not.toContain("break-all");
+  });
+
+  it("cuts a name with a very long unbroken part short in the table, keeping the whole name in the page and on hover", async () => {
+    await open(with5b());
+    const name = "boringssl 4c8b1d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c";
+    const cell = row(name).querySelector("p.font-mono span")!;
+    expect(cell.textContent).toBe(name);
+    expect(cell.getAttribute("title")).toBe(name);
+    expect(cell.className).toContain("truncate");
+    // An ordinary name is not cut and has no hover text.
+    expect(row("openssl 3.0.22").querySelector("p.font-mono span")!.getAttribute("title")).toBeNull();
+  });
+
+  it("heads each question with its plain name and the technical name under it", async () => {
+    await open(with5b());
+    const algo = within(screen.getAllByTestId("data-table")[0]!).getAllByTestId("algo-name").map((a) => Array.from(a.children).map((c) => c.textContent));
+    expect(algo).toEqual([
+      ["Quantum-safe key exchange", "ML-KEM-768"],
+      ["Hybrid connection", "X25519MLKEM768"],
+      ["Quantum-safe signatures", "ML-DSA-65"],
+    ]);
+  });
+
+  it("says why under every No, in one line", async () => {
+    await open(with5b());
+    expect(within(row("openssl 3.0.22")).getAllByTestId("no-reason").map((p) => p.textContent)).toEqual([
+      "OpenSSL added this in 3.5.0; you have 3.0.22.",
+      "OpenSSL added this in 3.5.0; you have 3.0.22.",
+      "OpenSSL added this in 3.5.0; you have 3.0.22.",
+    ]);
+    // A Yes or an unknown answer has no such line.
+    expect(within(row("python 3.12.3")).queryAllByTestId("no-reason")).toHaveLength(0);
+  });
+
+  it("marks a library that blocks a track, under its name", async () => {
+    await open(with5b());
+    const marks = within(row("openssl 3.0.22")).getAllByTestId("blocks-marker").map((m) => m.textContent);
+    expect(marks).toEqual(fixtureRow(DEPENDENCIES_DEMO, "openssl 3.0.22").blocks.map((b) => `Blocks ${b.track_words} on ${b.system}`));
+    expect(within(row("python 3.12.3")).queryAllByTestId("blocks-marker")).toHaveLength(0);
+  });
+
+  it("beside the open panel, a row is the library, its answers in short and the marker", async () => {
+    await open(with5b());
+    detail("openssl 3.0.22");
+    expect(headers()).toEqual(["Library", "Answers"]);
+    expect(text(row("openssl 3.0.22"))).toContain("No to all three");
+    expect(within(row("openssl 3.0.22")).getAllByTestId("blocks-marker").length).toBeGreaterThan(0);
+  });
+});

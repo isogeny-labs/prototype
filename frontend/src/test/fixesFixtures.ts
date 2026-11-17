@@ -3,6 +3,7 @@
 import type {
   ApprovalRowView,
   FixButton,
+  FixGroup,
   FixDetail,
   FixSection,
   FixesView,
@@ -706,6 +707,57 @@ export const tlsFix: FixDetail = {
 
 // ---- The whole view, one for each status of the code fix ----
 
+/** The four work groups as the backend sends them: every fix here came from a failed test (Encryption tests). The
+ * counts sort each status word as the backend does (app/ledger/groups.py). */
+const IN_PROGRESS_WORDS = ["Proving", "Ready for review", "Waiting for approval", "Ready to merge"];
+export function fixGroups(fixes: FixDetail[]): FixGroup[] {
+  const state = (f: FixDetail) => (f.status.word === "Merged" ? "done" : IN_PROGRESS_WORDS.includes(f.status.word) ? "in_progress" : "open");
+  const count = (list: FixDetail[]) => ({
+    open: list.filter((f) => state(f) === "open").length,
+    in_progress: list.filter((f) => state(f) === "in_progress").length,
+    done: list.filter((f) => state(f) === "done").length,
+  });
+  const none = { open: 0, in_progress: 0, done: 0 };
+  return [
+    {
+      key: "verification",
+      label: "Verification",
+      question: "Is the scanner file true?",
+      counts: none,
+      fix_ids: [],
+      empty_text: "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Encryption tests.",
+      also: [],
+    },
+    {
+      key: "encryption",
+      label: "Encryption tests",
+      question: "Is the encryption built right?",
+      counts: count(fixes),
+      fix_ids: fixes.map((f) => f.id),
+      empty_text: fixes.length === 0 ? "No failed test has a fix." : null,
+      also: [],
+    },
+    {
+      key: "migration",
+      label: "Migration",
+      question: "Where does each system stand on the move to post-quantum, and what must change?",
+      counts: none,
+      fix_ids: [],
+      empty_text: "No system's plan needs a change yet.",
+      also: [],
+    },
+    {
+      key: "dependencies",
+      label: "Dependencies",
+      question: "What can your libraries do?",
+      counts: none,
+      fix_ids: [],
+      empty_text: "No library blocks a track.",
+      also: [],
+    },
+  ];
+}
+
 function view(codeFix: FixDetail): FixesView {
   return {
     plan_id: 1,
@@ -717,6 +769,7 @@ function view(codeFix: FixDetail): FixesView {
     empty_text: null,
     fixes: [codeFix, tlsFix],
     busy: codeFix.status.busy,
+    groups: fixGroups([codeFix, tlsFix]),
   };
 }
 
@@ -739,9 +792,11 @@ export const noFixes: FixesView = {
   list_title: "Open findings with a fix (0)",
   empty_text: "No failed test has a fix. Fixes for failed tests show here.",
   fixes: [],
+  groups: fixGroups([]),
 };
 
 /** Swaps the code fix of a view. */
 export function withCodeFix(base: FixesView, change: Partial<FixDetail>): FixesView {
-  return { ...base, fixes: base.fixes.map((fix) => (fix.id === CODE_FIX ? { ...fix, ...change } : fix)) };
+  const fixes = base.fixes.map((fix) => (fix.id === CODE_FIX ? { ...fix, ...change } : fix));
+  return { ...base, fixes, groups: fixGroups(fixes) };
 }

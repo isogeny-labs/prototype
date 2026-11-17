@@ -13,6 +13,7 @@ import {
   SERVER_LINE,
   SERVER_LINE_UNPROVEN,
   TLS_FIX,
+  fixGroups,
   fixesViews,
   noFixes,
   tlsSuggestion,
@@ -58,7 +59,12 @@ const summary = () => screen.getByTestId("fix-summary");
 const inSummary = () => within(summary());
 const button = (name: string | RegExp) => screen.getByRole("button", { name }) as HTMLButtonElement;
 const summaryButtons = () => inSummary().queryAllByRole("button") as HTMLButtonElement[];
-const listItems = () => within(screen.getByRole("navigation", { name: /^Open findings with a fix/ })).getAllByRole("button");
+// The fix titles in the list (each row's first button); the group headings' folds are not fixes.
+const listItems = () =>
+  within(screen.getByRole("navigation", { name: /^Open findings with a fix/ }))
+    .getAllByTestId("fix-row")
+    .map((row) => within(row).getAllByRole("button")[0]!);
+const groupSection = (label: string) => screen.getByRole("region", { name: new RegExp(`^${label}`) });
 const rows = () => screen.getAllByTestId("fix-row");
 const selectedTitles = () => listItems().filter((b) => b.getAttribute("aria-current") === "true").map((b) => b.textContent);
 const sections = () => screen.queryAllByTestId("fix-section");
@@ -80,11 +86,20 @@ describe("Fixes, the page", () => {
     expect(screen.getByTestId("disclaimer").textContent).toBe(DISCLAIMER);
 
     expect(screen.getByRole("navigation", { name: "Open findings with a fix (2)" })).not.toBeNull();
+    // Beside the open panel, a row is the fix and its status.
     expect(rows().map((row) => Array.from(row.children).map((cell) => cell.textContent))).toEqual([
-      ["acme-sign accepts out-of-range signatures", "Came from 2 failed tests: Official test vectors, Bad signatures", "Ready for review"],
-      ["Server accepts TLS 1.2", "Came from 1 failed test: Old TLS versions", "Text only"],
+      ["acme-sign accepts out-of-range signatures", "Ready for review"],
+      ["Server accepts TLS 1.2", "Text only"],
     ]);
     expect(listItems().map((b) => b.getAttribute("aria-current"))).toEqual(["true", null]);
+    // Both came from failed tests, so both sit in Encryption tests; the other groups say why they are empty.
+    expect(within(groupSection("Encryption tests")).getAllByTestId("fix-row")).toHaveLength(2);
+    expect(within(groupSection("Verification")).queryAllByTestId("fix-row")).toHaveLength(0);
+    expect(groupSection("Verification").textContent).toContain(
+      "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Encryption tests.",
+    );
+    expect(groupSection("Migration").textContent).toContain("No system's plan needs a change yet.");
+    expect(groupSection("Dependencies").textContent).toContain("No library blocks a track.");
     expect(screen.getByTestId("detail-panel")).not.toBeNull();
 
     expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
@@ -108,8 +123,11 @@ describe("Fixes, the page", () => {
     expect(all.match(/secure/gi)).toHaveLength(1);
     expect(all).not.toMatch(/score|time.to.hack|upload|mockup/i);
     expect(document.querySelector('input:not([type="checkbox"]):not([type="search"]), textarea, form')).toBeNull();
-    // The only choice list is the status filter of the table.
-    expect(Array.from(document.querySelectorAll("select")).map((s) => s.closest("label")?.textContent?.startsWith("Status"))).toEqual([true]);
+    // The only choice lists are the group and status filters of the table.
+    expect(Array.from(document.querySelectorAll("select")).map((s) => s.closest("label")?.textContent?.match(/^(Group|Status)/)?.[0])).toEqual([
+      "Group",
+      "Status",
+    ]);
   });
 
   it("opens on the fix it was asked for, and on the first one when that fix is not in the list", async () => {
@@ -141,11 +159,24 @@ describe("Fixes, the page", () => {
   it("shows one plain sentence, and no list or buttons, when no failed test has a fix", async () => {
     mockApi({ [`GET ${FIXES}`]: { body: noFixes } });
     render(<Harness start={null} />);
-    expect((await screen.findByTestId("fixes-empty")).textContent).toBe("No failed test has a fix. Fixes for failed tests show here.");
+    // Every group stays, and each says why it is empty; there is no fix to open and nothing to act on.
+    await screen.findByTestId("fix-list");
+    expect(screen.getAllByTestId("group-empty").map((p) => p.textContent)).toEqual([
+      "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Encryption tests.",
+      "No failed test has a fix.",
+      "No system's plan needs a change yet.",
+      "No library blocks a track.",
+    ]);
     expect(screen.getByTestId("disclaimer").textContent).toBe(DISCLAIMER);
-    expect(screen.queryByRole("navigation")).toBeNull();
+    expect(screen.queryAllByTestId("fix-row")).toHaveLength(0);
     expect(screen.queryByTestId("fix-summary")).toBeNull();
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    // The only buttons are the four group headings, which fold their group.
+    expect(screen.queryAllByRole("button").map((b) => b.textContent?.replace(/^[▾▸]/, ""))).toEqual([
+      "Verification",
+      "Encryption tests",
+      "Migration",
+      "Dependencies",
+    ]);
   });
 
   it("says so when the fixes can't be loaded", async () => {
@@ -903,8 +934,20 @@ describe("Fixes, a text-only suggestion", () => {
     expect(summaryButtons()).toHaveLength(0);
     expect(inSummary().queryByTestId("fix-actions")).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
-    // The only buttons left are the two findings, the fold of the suggestion and the panel's close button.
-    expect(screen.getAllByRole("button")).toHaveLength(4);
+    // The only buttons left are the four group folds, the two findings, the fold of the suggestion and the panel's
+    // close button (and its width handle).
+    expect(screen.getAllByRole("button").map((b) => b.textContent?.replace(/^[▾▸]/, ""))).toEqual([
+      "Verification",
+      "Encryption tests",
+      "acme-sign accepts out-of-range signatures",
+      "Server accepts TLS 1.2",
+      "Migration",
+      "Dependencies",
+      "Wider",
+      "Narrower",
+      "×",
+      "The suggestionA warning first, where the setting lives, and two ways to fix it",
+    ]);
     expect(calls(fetchMock)).toEqual([`GET ${FIXES}`]);
   });
 
@@ -1101,6 +1144,57 @@ describe("Fixes, while something runs", () => {
   });
 });
 
+describe("Fixes, the four work groups", () => {
+  it("shows each group with its three counts, folds a group from its heading, and filters to one group", async () => {
+    mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
+    render(<Harness start={null} />);
+    await screen.findAllByTestId("fix-row");
+    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual([
+      "verification",
+      "encryption",
+      "migration",
+      "dependencies",
+    ]);
+    // The counts are the backend's, word for word: the code fix is in review, the text-only one is open.
+    expect(within(groupSection("Encryption tests")).getByTestId("group-counts").textContent).toBe("Open 1 · In progress 1 · Done 0");
+    expect(within(groupSection("Migration")).getByTestId("group-counts").textContent).toBe("Open 0 · In progress 0 · Done 0");
+
+    // The heading folds its rows and opens them again.
+    const heading = within(groupSection("Encryption tests")).getByRole("button", { name: "Encryption tests" });
+    fireEvent.click(heading);
+    expect(heading.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryAllByTestId("fix-row")).toHaveLength(0);
+    fireEvent.click(heading);
+    expect(rows()).toHaveLength(2);
+
+    // The group filter shows one group only; the others are not drawn.
+    fireEvent.change(screen.getByRole("combobox", { name: "Group" }), { target: { value: "migration" } });
+    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual(["migration"]);
+    fireEvent.change(screen.getByRole("combobox", { name: "Group" }), { target: { value: "all" } });
+    expect(screen.getAllByTestId("group-section")).toHaveLength(4);
+  });
+
+  it("with the panel closed shows where each fix came from, and names a fix of another group in a foot line, not twice", async () => {
+    const groups = fixGroups(fixesViews.ready.fixes).map((g) =>
+      g.key === "migration" ? { ...g, also: [{ fix_id: TLS_FIX, title: "Server accepts TLS 1.2", group_label: "Encryption tests" }] } : g,
+    );
+    mockApi({ [`GET ${FIXES}`]: { body: { ...fixesViews.ready, groups } } });
+    render(<Harness start={null} />);
+    await screen.findAllByTestId("fix-row");
+    fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
+    expect(rows().map((row) => Array.from(row.children).map((cell) => cell.textContent))).toEqual([
+      ["acme-sign accepts out-of-range signatures", "Came from 2 failed tests: Official test vectors, Bad signatures", "Ready for review"],
+      ["Server accepts TLS 1.2", "Came from 1 failed test: Old TLS versions", "Text only"],
+    ]);
+    // The fix shows once, in its own group; Migration only links to it.
+    expect(within(groupSection("Migration")).queryAllByTestId("fix-row")).toHaveLength(0);
+    const also = within(groupSection("Migration")).getByTestId("group-also");
+    expect(also.textContent).toBe("Also relates to this group: Server accepts TLS 1.2 (in Encryption tests)");
+    fireEvent.click(within(also).getByRole("button", { name: "Server accepts TLS 1.2" }));
+    expect(summary().getAttribute("data-fix-id")).toBe(TLS_FIX);
+  });
+});
+
 describe("Fixes, the table and its detail panel", () => {
   it("shows the table with summary cards counted from the statuses, opens on the first fix, and stays closed once closed", async () => {
     mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
@@ -1134,7 +1228,8 @@ describe("Fixes, the table and its detail panel", () => {
     render(<Harness start={null} />);
     await screen.findAllByTestId("fix-row");
     // The open fix (the first one) stays listed whatever the filter, as before the panel.
-    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), { target: { value: "text_only" } });
+    // The filter goes by the status word the backend sent.
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), { target: { value: "Text only" } });
     expect(rows().map((r) => r.textContent)).toEqual([
       expect.stringContaining("acme-sign accepts out-of-range signatures"),
       expect.stringContaining("Server accepts TLS 1.2"),
@@ -1186,5 +1281,30 @@ describe("Fixes, the table and its detail panel", () => {
     expect(merge.disabled).toBe(true);
     expect(merge.getAttribute("title")).toBe(CLOSED_SENTENCE);
     expect((panel.getByRole("button", { name: "Close details" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+describe("Fixes, the summary counts each status word", () => {
+  it("counts by the word the backend sent, so statuses that share a key are not added up under one word", async () => {
+    // Two fixes whose statuses share a key but carry different words (as a change box's statuses do).
+    const base = fixesViews.ready;
+    const fixes = [
+      { ...base.fixes[0]!, id: "fix-a", status: { ...base.fixes[1]!.status, word: "Ready to try" } },
+      { ...base.fixes[1]!, id: "fix-b", status: { ...base.fixes[1]!.status, word: "Ready to download" } },
+    ];
+    mockApi({ [`GET ${FIXES}`]: { body: { ...base, fixes, groups: fixGroups(fixes) } } });
+    render(<Harness start={null} />);
+    await screen.findAllByTestId("fix-row");
+    const cards = screen.getAllByTestId("summary-card").map((c) => [c.querySelector("p")?.textContent, c.querySelector("p:nth-of-type(2)")?.textContent]);
+    expect(cards).toEqual([
+      ["Fixes", "2"],
+      ["Ready to try", "1"],
+      ["Ready to download", "1"],
+    ]);
+    expect(Array.from((screen.getByRole("combobox", { name: "Status" }) as HTMLSelectElement).options).map((o) => o.textContent)).toEqual([
+      "All statuses",
+      "Ready to try",
+      "Ready to download",
+    ]);
   });
 });

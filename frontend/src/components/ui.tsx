@@ -137,18 +137,32 @@ const TONES: Record<Tone, { symbol: string; className: string }> = {
 
 /** The chip shape and tone every status chip shares (phase 5a: one set everywhere). Screens with their own symbols
  * (the migration status, the fix status) draw them inside this same chip. */
-export function chipClass(tone: Tone, size: "sm" | "md" = "md"): string {
+export function chipClass(tone: Tone, size: "sm" | "md" = "md", wrap = false): string {
   const look = TONES[tone] ?? TONES.neutral;
   const sizing = size === "sm" ? "gap-1 px-1.5 py-0.5 text-xs" : "gap-1.5 px-2 py-0.5 text-[13px]";
-  return `inline-flex items-center rounded-full border font-semibold whitespace-nowrap ${sizing} ${look.className}`;
+  // Phase 5b: a long chip in a narrow table cell ("Not in our knowledge base yet") may wrap between words.
+  const lines = wrap ? "rounded-xl text-left leading-snug" : "rounded-full whitespace-nowrap";
+  return `inline-flex items-center border font-semibold ${lines} ${sizing} ${look.className}`;
 }
 
 /** The one status chip: True / False / Couldn't check, Passed / Failed / Couldn't run / Couldn't trust this run /
  * Measured, Classical / Hybrid / Post-quantum only, Open / Closed. The words are always the backend's. */
-export function StatusChip({ label, tone, size = "md", testId }: { label: string; tone: Tone; size?: "sm" | "md"; testId?: string }) {
+export function StatusChip({
+  label,
+  tone,
+  size = "md",
+  testId,
+  wrap = false,
+}: {
+  label: string;
+  tone: Tone;
+  size?: "sm" | "md";
+  testId?: string;
+  wrap?: boolean;
+}) {
   const look = TONES[tone] ?? TONES.neutral;
   return (
-    <span data-testid={testId} data-tone={tone} className={chipClass(tone, size)}>
+    <span data-testid={testId} data-tone={tone} className={chipClass(tone, size, wrap)}>
       {/* The symbol is drawn by CSS, so the chip's text is exactly the backend's word. */}
       <span aria-hidden="true" data-symbol={look.symbol} className="font-mono text-[0.85em] before:content-[attr(data-symbol)]" />
       <span>{label}</span>
@@ -166,8 +180,8 @@ export function ProofChip({ children }: { children: ReactNode }) {
 }
 
 /** A result label exactly as the backend worded it. */
-export function ResultBadge({ label, tone }: { label: string; tone: Tone }) {
-  return <StatusChip label={label} tone={tone} testId="result-badge" />;
+export function ResultBadge({ label, tone, wrap = false }: { label: string; tone: Tone; wrap?: boolean }) {
+  return <StatusChip label={label} tone={tone} testId="result-badge" wrap={wrap} />;
 }
 
 /** A sentence made of plain words, fixed-width names, source tags, times and the Demo data label. */
@@ -335,4 +349,16 @@ export function splitByGroup<T>(
     bucket.items.push(item);
   }
   return out.filter((g) => g.items.length > 0);
+}
+
+/** Phase 5b: a name in a table cell. A name breaks only at a space or a dot, never between letters; a name with one
+ * very long unbroken part (a 40-character commit id) is cut short with "…" in the cell instead, its full text kept in
+ * the page and shown on hover, and in full in the detail panel. */
+export function NameText({ text, className = "" }: { text: string; className?: string }) {
+  const long = text.split(/\s+/).some((part) => part.length > 24);
+  return (
+    <span title={long ? text : undefined} className={`${long ? "block max-w-[10rem] truncate" : "[overflow-wrap:normal]"} ${className}`}>
+      {text}
+    </span>
+  );
 }

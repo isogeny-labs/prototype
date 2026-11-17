@@ -58,8 +58,8 @@ async function verifyClaims(target: Page): Promise<void> {
 }
 
 async function openTests(target: Page): Promise<void> {
-  await target.getByRole("button", { name: "Continue to tests" }).click();
-  await expect(target.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
+  await target.getByRole("button", { name: "Continue to checks" }).click();
+  await expect(target.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
 }
 
 function group(target: Page, heading: string): Locator {

@@ -1,6 +1,9 @@
 // Things the test files share: the throwaway password, the one fixed line every result screen carries,
 // and "get me into the app" (create the password on a brand-new data folder, or log in).
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, type Browser, type BrowserContext, type Locator, type Page } from "@playwright/test";
+import { spawn, type ChildProcess } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,7 +20,7 @@ export const password: string = process.env.E2E_PASSWORD ?? "";
 if (!password) throw new Error("E2E_PASSWORD is not set; run the tests with `npm test` from the e2e folder.");
 
 export function screenshotFolder(
-  phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes" | "phase4a" | "phase4b" | "phase4c" | "phase4d" | "phase5a",
+  phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes" | "phase4a" | "phase4b" | "phase4c" | "phase4d" | "phase5a" | "phase5b",
 ): string {
   return path.join(REPO, "docs/screenshots", phase);
 }
@@ -41,18 +44,19 @@ export async function enterApp(page: Page): Promise<void> {
   await expect(steps).toBeVisible();
 }
 
-// Phase 5a: the six steps of the old step bar are now pages of the open assessment, in the sidebar.
+// Phase 5a: the six steps of the old step bar are now pages of the open assessment, in the sidebar. Phase 5b: Tests is
+// now Checks (every check of the assessment; the test plan is in it, under Encryption tests).
 const STEP_PAGES: Record<string, string> = {
   "1. Import": "Import",
   "2. Verify": "Verify",
-  "3. Tests": "Tests",
+  "3. Tests": "Checks",
   "4. Evidence Lab": "Evidence",
   "5. Fixes": "Fixes",
   "6. Migration": "Migration",
 };
 
 /** The sidebar's assessment pages, in order, once a file is in (Migration's three views open with it). */
-export const SIDEBAR_PAGES = ["Overview", "Inventory", "Import", "Verify", "Tests", "Evidence", "Fixes", "Migration", "Systems", "Roadmap", "Dependencies"];
+export const SIDEBAR_PAGES = ["Overview", "Inventory", "Import", "Verify", "Checks", "Evidence", "Fixes", "Migration", "Systems", "Roadmap", "Dependencies"];
 
 /** The page an old step lands on, as the sidebar marks it current ("4. Evidence Lab" -> "Evidence"; "6. Migration"
  * opens Migration's first view, "Systems"). */
@@ -83,7 +87,7 @@ export async function openFreshAssessment(page: Page, name: string): Promise<voi
   await expect(stepLink(page, "Import")).toHaveAttribute("aria-current", "page");
 }
 
-/** Use demo file, tick "I own this system", Verify claims, Continue to tests. Main-screen buttons only. */
+/** Use demo file, tick "I own this system", Verify claims, Continue to checks. Main-screen buttons only. */
 export async function importVerifyAndOpenTests(page: Page): Promise<void> {
   await stepLink(page, "1. Import").click();
   // Wait for the import itself to be answered: until then the screen may still show an earlier import
@@ -102,8 +106,20 @@ export async function importVerifyAndOpenTests(page: Page): Promise<void> {
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
   const badges = page.getByTestId("result-row").getByTestId("result-badge");
   await expect(badges).toHaveText(["False", "True", "True"]);
-  await page.getByRole("button", { name: "Continue to tests" }).click();
-  await expect(page.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
+  await continueToChecks(page);
+}
+
+/** Verify's Continue to checks (was Continue to tests): opens Checks, where the test plan's cards are. */
+export async function continueToChecks(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Continue to checks" }).click();
+  await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
+  await expect(page.getByTestId("test-card").first()).toBeVisible();
+}
+
+/** Phase 5b: once a file is in, every page of the assessment opens (a page with nothing yet says what fills it). */
+export async function expectPageOpen(page: Page, step: string): Promise<void> {
+  await expect(stepLink(page, step)).not.toHaveAttribute("aria-disabled", "true");
+  await expect(stepLink(page, step)).toHaveAttribute("href", /#\/a\/\d+\//);
 }
 
 /** Phase 3a-fixes: a picture of a demo screen this work changed, taken where the earlier runs already show it. */
@@ -164,4 +180,52 @@ export async function toggleResult(page: Page, title: string, within?: Locator):
   const heading = page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: title, exact: true });
   if ((await heading.count()) > 0) await closeResult(page);
   else await openResult(page, title, within);
+}
+
+// ---- A copy of the app of its own (phase 4d; shared since phase 5b) ----
+// A walk that needs a fresh app (its own data folder and ports) starts one, so the main app the phase walks share is
+// never touched, and the order the files run in does not matter.
+
+export interface Copy {
+  app: ChildProcess;
+  context: BrowserContext;
+  page: Page;
+  dataDir: string;
+  mode: string;
+  /** The demo TLS server of this copy: the server the demo file's claims name. */
+  server: string;
+}
+
+/** A copy of the app on its own ports and data folder. mode "demo" forces demo mode; "auto" lets it choose. */
+export async function startCopy(browser: Browser, offset: number, mode: "demo" | "auto"): Promise<Copy> {
+  const port = Number(process.env.E2E_APP_PORT ?? "8010") + offset;
+  const tlsPort = Number(process.env.E2E_DEMO_TLS_PORT ?? "8443") + offset;
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-copy-"));
+  const env: Record<string, string> = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", EVIDENCE_LAB_DATA_DIR: dataDir,
+                                         EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort) };
+  if (mode === "demo") env.EVIDENCE_LAB_MODE = "demo";
+  for (const key of ["DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONTEXT", "XDG_RUNTIME_DIR"]) if (process.env[key]) env[key] = process.env[key] as string;
+  const app = spawn(PYTHON, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", "warning"],
+                    { cwd: BACKEND, stdio: "ignore", env });
+  const context = await browser.newContext({ baseURL: `http://127.0.0.1:${port}` });
+  let session: { mode: string } | null = null;
+  await expect
+    .poll(async () => {
+      try {
+        session = await (await context.request.get("/api/session")).json();
+        return true;
+      } catch {
+        return false;
+      }
+    }, { timeout: 30_000 })
+    .toBe(true);
+  const page = await context.newPage();
+  return { app, context, page, dataDir, mode: (session as { mode: string } | null)?.mode ?? "demo", server: `localhost:${tlsPort}` };
+}
+
+export async function stopCopy(copy: Copy | null): Promise<void> {
+  if (!copy) return;
+  await copy.context.close();
+  copy.app.kill("SIGINT");
+  await new Promise((done) => setTimeout(done, 1500));
 }

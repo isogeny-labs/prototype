@@ -35,6 +35,6 @@ def test_counts_are_the_pages_own_numbers(client):
                                         "couldnt_check": words.count("Couldn't check")}
     assert view["counts"]["claims"]["false"] == 1                                       # TLS 1.3 only is false (expected.json)
     assert view["counts"]["tests"] is None and view["counts"]["fixes"] is None and view["counts"]["systems"] is None
-    assert view["next_step"]["page"] == "tests"
+    assert view["next_step"]["page"] == "checks" and view["next_step"]["label"] == "Open checks"
     row = next(p for p in client.get("/api/workspace").json()["projects"] if p["id"] == a["id"])
     assert row["counts"] == view["counts"]

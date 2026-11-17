@@ -34,6 +34,7 @@ SLOW_SHARED_WALKS = {
     "test_changes.py": "fix_flow",
     "test_fixes_api.py": "app_client",
     "test_multi_target.py": "flow",
+    "test_ledger.py": "measured",     # phase 5b: the Acme Pay demo verified and measured for Migration, built for that file
 }
 
 

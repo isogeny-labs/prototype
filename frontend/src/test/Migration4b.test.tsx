@@ -54,6 +54,9 @@ async function openWith(change: ChangeView | null, routes: Parameters<typeof moc
 describe("Migration 4b, two tracks", () => {
   it("draws one line per track on the list card, then the plan line", async () => {
     await open(migrationView4b);
+    // Beside the open panel the row is compact: its name, its plan line and each track's name with its pill.
+    expect(text(card("localhost:8451"))).toBe("localhost:8451Next: authentication · Phase 2Key exchange◑Hybrid (interim)Authentication○Classical");
+    fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
     const first = card("localhost:8451");
     expect(within(first).getAllByTestId("card-track").map((r) => text(r))).toEqual(["Key exchange◑Hybrid (interim)", "Authentication○Classical"]);
     expect(text(first)).toBe("Serverlocalhost:8451Key exchange◑Hybrid (interim)Authentication○ClassicalNext: authentication · Phase 2");

@@ -14,7 +14,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, REPO, screenshotFolder, SIDEBAR_PAGES, stepLink, stepName, stepNav, openFreshAssessment, closeResult, evidenceRow, openResult } from "./shared";
+import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, REPO, screenshotFolder, SIDEBAR_PAGES, stepLink, stepName, stepNav, openFreshAssessment, closeResult, evidenceRow, openResult, expectPageOpen } from "./shared";
 
 const SHOTS = screenshotFolder("phase3a");
 const PQ_TOO_OLD = "Couldn't run (needs OpenSSL 3.5 or newer)";
@@ -142,7 +142,8 @@ function fixList(): Locator {
 
 /** The entry of one fix in the list on the left. */
 function listed(title: string): Locator {
-  return fixList().getByRole("button").filter({ hasText: title });
+  // Phase 5b: the list is in the four work groups, whose headings are buttons too: a fix is its row's title button.
+  return fixList().getByTestId("fix-row").filter({ hasText: title }).getByRole("button").first();
 }
 /** Phase 5a follow-up: a fix's row in the table (its status chip and where it came from sit beside the title button). */
 function listedRow(title: string): Locator {
@@ -308,10 +309,10 @@ test("a fresh import: Verify, the five suggested tests plus Post-quantum readine
   expect(await cardTitles()).toEqual(SUGGESTED);
   await expect(cards.getByTestId("test-status")).toHaveText(Array(5).fill("Not run yet"));
 
-  // Five steps. Fixes, like Evidence Lab, opens once there is a result.
+  // Phase 5b: once a file is in, every page opens, Evidence and Fixes included.
   await expect(stepNav(page).getByRole("link")).toHaveText(SIDEBAR_PAGES);
-  await expect(stepLink(page, "4. Evidence Lab")).toBeDisabled();
-  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
+  await expectPageOpen(page, "4. Evidence Lab");
+  await expectPageOpen(page, "5. Fixes");
 
   await page.getByRole("button", { name: "+ Add test" }).click();
   await page.getByRole("menu").getByRole("menuitem").filter({ hasText: "Post-quantum readiness" }).click();
@@ -393,20 +394,22 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   await expect(page.getByText("Demo data", { exact: true }).first()).toBeVisible();
 
-  await expect(fixList().getByRole("heading")).toHaveText("Open findings with a fix (2)");
+  await expect(fixList().getByRole("heading", { name: /^Open findings with a fix/ })).toHaveText("Open findings with a fix (2)");
   // Phase 5a follow-up: the list is a table; each row's title is the button that opens the fix in the detail panel.
-  const items = fixList().getByRole("button");
   const rows = fixList().getByTestId("fix-row");
+  const items = rows.locator("td:first-child button");
   await expect(items).toHaveCount(2);
   await expect(rows).toHaveCount(2);
   await expect(items.nth(0)).toContainText(CODE_FIX_TITLE);
   await expect(rows.nth(0).getByTestId("fix-status")).toHaveText("Code not connected");
-  await expect(rows.nth(0)).toContainText("Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)");
   await expect(items.nth(0)).toHaveAttribute("aria-current", "true");
   await expect(items.nth(1)).toContainText(TLS_FIX_TITLE);
   await expect(rows.nth(1).getByTestId("fix-status")).toHaveText("Ready to try");
-  await expect(rows.nth(1)).toContainText("Came from 1 failed test: Old TLS versions");
   await expect(items.nth(1)).not.toHaveAttribute("aria-current", "true");
+  // Phase 5b: where a fix came from is in the full row, so with the panel closed (beside it a row is the fix and its status).
+  await page.getByTestId("detail-panel").getByRole("button", { name: "Close details" }).click();
+  await expect(rows.nth(0)).toContainText("Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)");
+  await expect(rows.nth(1)).toContainText("Came from 1 failed test: Old TLS versions");
 
   // From the other failed signing test: the same fix (one fix answers both).
   await goTo("4. Evidence Lab");
@@ -958,6 +961,12 @@ test("Retest now runs the retest and lands on Evidence Lab's before and after, w
   // Straight to Evidence Lab: before and after, running.
   await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText("Evidence");
+  // Phase 5b: it lands on the retested result itself (its panel holds its before and after); the whole table's
+  // before and after columns are read with the panel closed.
+  await expect(page).toHaveURL(/\/evidence\?item=test-\d+$/);
+  const landed = page.getByTestId("detail-panel");
+  await expect(landed.getByTestId("lab-row")).toBeVisible();
+  await landed.getByRole("button", { name: "Close details" }).click();
   await expect(page.getByTestId("lab-columns")).toContainText("Before: acme-sign 1.4.2");
   await expect(page.getByTestId("lab-columns")).toContainText("After: acme-sign 1.4.3");
   await expect(page.getByTestId("retest-progress")).toContainText("Retest running");
@@ -1044,7 +1053,7 @@ test("the opened row after the retest: the code each side ran on, the Code item,
   await again.getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
   await expectStatus("merged", "Merged");
-  await expect(fixList().getByRole("button")).toHaveCount(2);
+  await expect(fixList().getByTestId("fix-row")).toHaveCount(2);
   await expect(listedRow(TLS_FIX_TITLE).getByTestId("fix-status")).toHaveText("Ready to try");
   await expect(summary().getByRole("button")).toHaveText(["Retest now", "Download patch"]);
   await expectNoSoftwareUpload();
@@ -1273,7 +1282,7 @@ test("a second import gets its own fresh copy of the code; with the address not 
   const cards = page.getByTestId("test-card");
   await expect(cards).toHaveCount(5);
   await expect(cards.getByTestId("test-status")).toHaveText(Array(5).fill("Not run yet"));
-  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
+  await expectPageOpen(page, "5. Fixes");
   await runAllAndWait(5);
 
   // Untick "I own this system or am allowed to test it" on Import. The server tests then can't run during the proof.
@@ -1286,7 +1295,7 @@ test("a second import gets its own fresh copy of the code; with the address not 
   // A new file starts from its own first fix. And the first import's merge has not followed us here: this
   // file's own copy of the code is not connected yet.
   await goTo("5. Fixes");
-  await expect(fixList().getByRole("button")).toHaveCount(2);
+  await expect(fixList().getByTestId("fix-row")).toHaveCount(2);
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
   await expect(listed(CODE_FIX_TITLE)).toHaveAttribute("aria-current", "true");
   const plan = await planId();
@@ -1519,13 +1528,20 @@ test("an open pull request does not shield a proof that is out of date: nothing 
 
 test("a third import: Fixes says when no failed test has a fix, and Connect demo code stays off until every test has run", async () => {
   await importVerifyAndOpenTests(page);
-  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
+  await expectPageOpen(page, "5. Fixes");
 
-  // Run one test that passes. There is a result now, so Fixes opens, and it has nothing to show.
+  // Run one test that passes. Fixes has nothing to show.
   await card("Certificate strength").getByRole("button", { name: "Run Certificate strength" }).click();
   await expect(badge(card("Certificate strength"))).toHaveText("Passed", { timeout: 120_000 });
   await goTo("5. Fixes");
-  await expect(page.getByTestId("fixes-empty")).toHaveText("No failed test has a fix. Fixes for failed tests show here.");
+  // Phase 5b: each of the four work groups stays and says why it is empty (Encryption tests: no failed test has a fix).
+  await expect(page.getByTestId("group-empty")).toHaveText([
+    "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Encryption tests.",
+    "No failed test has a fix.",
+    "No system's plan needs a change yet.",
+    "No library blocks a track.",
+  ]);
+  await expect(page.getByTestId("fix-row")).toHaveCount(0);
   await expect(page.getByTestId("fix-summary")).toHaveCount(0);
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   await expectNoSoftwareUpload();
@@ -1538,10 +1554,11 @@ test("a third import: Fixes says when no failed test has a fix, and Connect demo
   await card("Attacker tricks (our short list)").getByRole("button", { name: "Run Attacker tricks (our short list)" }).click();
   await expect(badge(card("Attacker tricks (our short list)"))).toHaveText("Failed", { timeout: 120_000 });
   await goTo("5. Fixes");
-  await expect(fixList().getByRole("heading")).toHaveText("Open findings with a fix (1)");
+  await expect(fixList().getByRole("heading", { name: /^Open findings with a fix/ })).toHaveText("Open findings with a fix (1)");
   await expectStatus("not_connected", "Code not connected");
   const s = summary();
-  await expect(listedRow(CODE_FIX_TITLE)).toContainText("Came from 1 failed test: Attacker tricks (our short list)");
+  // (beside the open panel a row is the fix and its status; where it came from is checked below, with the panel closed)
+  await expect(listedRow(CODE_FIX_TITLE)).toContainText(CODE_FIX_TITLE);
   await expect(s.getByRole("button")).toHaveText(["Connect demo code"]);
   await expect(s.getByRole("button", { name: "Connect demo code" })).toBeDisabled();
   await expect(s.getByTestId("fix-actions")).toContainText("Run every test in the plan first, so there is a result to compare with.");
@@ -1555,4 +1572,6 @@ test("a third import: Fixes says when no failed test has a fix, and Connect demo
   await expectNoSoftwareUpload();
   await expectCarefulWording();
   await shot("24-fixes-connect-switched-off.png");
+  await page.getByTestId("detail-panel").getByRole("button", { name: "Close details" }).click();
+  await expect(listedRow(CODE_FIX_TITLE)).toContainText("Came from 1 failed test: Attacker tricks (our short list)");
 });

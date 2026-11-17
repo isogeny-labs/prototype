@@ -67,6 +67,10 @@ describe("closed assessment banner", () => {
     const fresh = banner.getByRole("button", { name: "New assessment" }) as HTMLButtonElement;
     expect(fresh.disabled).toBe(false);
     fireEvent.click(fresh);
+    // The New assessment box opens (its buttons stay on too); Start makes the new one and opens it on Import.
+    const box = within(await screen.findByTestId("new-assessment-box"));
+    expect((box.getByLabelText("Name") as HTMLInputElement).value).toBe("Assessment 3");
+    fireEvent.click(box.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/102/inventory/import"));
     expect(calls(fetchMock)).toContain("POST /api/projects/10/assessments");
   });
@@ -81,8 +85,8 @@ describe("closed assessment is read-only", () => {
     }
   });
 
-  it("turns off Run all and Add test on Tests", async () => {
-    await openClosed("tests");
+  it("turns off Run all and Add test on Checks", async () => {
+    await openClosed("checks");
     await screen.findByRole("button", { name: "Run all" });
     for (const name of ["Run all", "+ Add test"]) {
       expect(button(name).disabled, name).toBe(true);
@@ -109,11 +113,11 @@ describe("closed assessment is read-only", () => {
   it("keeps the navigation on: every open page can still be looked at", async () => {
     await openClosed("overview");
     const nav = within(screen.getByRole("navigation", { name: "Assessment" }));
-    for (const name of ["Overview", "Import", "Tests", "Evidence"]) {
+    for (const name of ["Overview", "Import", "Checks", "Evidence"]) {
       expect(nav.getByRole("link", { name }).getAttribute("aria-disabled"), name).toBeNull();
     }
-    fireEvent.click(nav.getByRole("link", { name: "Tests" }));
-    await waitFor(() => expect(window.location.hash).toBe("#/a/100/tests"));
+    fireEvent.click(nav.getByRole("link", { name: "Checks" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/100/checks"));
     expect(main().queryByText(CLOSED)).not.toBeNull();
   });
 

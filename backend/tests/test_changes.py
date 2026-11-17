@@ -388,10 +388,12 @@ MIGRATION_TABLES = ("system_settings", "migration_choices")
 SYSTEM_CHANGE_TABLES = ("change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks")
 # The dependency lists and the person's ties (phase 4d): tests/dependencies/test_deps_rules.py::test_raw_sql_cannot_change_or_delete.
 DEPENDENCY_TABLES = ("dependency_lists", "dependency_ties")
+ASSESSMENT_TABLES = ("assessment_details", "assessment_signoffs", "import_files")   # phase 5b, tests/projects/test_rerun.py
 
 
 def test_every_append_only_table_is_covered_by_a_test():
-    groups = (set(RUN_TABLES), set(FIX_TABLES), set(MIGRATION_TABLES), set(SYSTEM_CHANGE_TABLES), set(DEPENDENCY_TABLES))
+    groups = (set(RUN_TABLES), set(FIX_TABLES), set(MIGRATION_TABLES), set(SYSTEM_CHANGE_TABLES), set(DEPENDENCY_TABLES),
+              set(ASSESSMENT_TABLES))
     assert set().union(*groups) == set(APPEND_ONLY_TABLES)
     assert sum(len(g) for g in groups) == len(set().union(*groups))     # no table is counted twice
 
@@ -760,6 +762,7 @@ def test_a_finding_is_open_only_while_the_newest_result_of_its_test_fails(lab):
     assert result_of(view, "tls_versions")["fix_line"]["fix_id"] == result_of(view, "tls_versions", "after")["fix_line"]["fix_id"] == "fix-tls-versions"
 
 
+@pytest.mark.slow  # over 5 s on a slow machine (17 November 2026); runs with --full
 def test_only_a_newer_result_with_a_verdict_closes_a_finding(lab):
     """Second review, finding 2. (A) A retest in which the server test could not run shows nothing either way, so
     the finding stays open. (B) "Newest" is by when a result was run, whichever column shows it: a first result
@@ -1007,6 +1010,7 @@ def run_codes(lab, phase):
         return [(code.source, code.component_version, code.branch, code.commit, code.change_id, code.pull_request_number) for code, _ in rows]
 
 
+@pytest.mark.slow  # over 5 s on a slow machine (17 November 2026); runs with --full
 def test_first_runs_and_retests_say_which_code_they_ran_on(lab):
     plan = small_plan(lab)
     ready = proved(lab, plan)
@@ -1120,3 +1124,24 @@ def test_connect_needs_a_registered_demo_component_that_the_demo_repository_hold
     with lab.db() as db:
         assert db.query(CodeConnectionRow).count() == 0
     assert list((lab.settings.data_dir / "repos").iterdir()) == []  # the copy that was started is gone again
+
+
+# ---------------------------------------------------------------- phase 5b: the proof in the list of checks
+
+def test_the_proof_runs_are_checks_in_encryption_tests_that_open_their_fix(fix_flow):
+    lab, plan = fix_flow.lab, fix_flow.plan
+    view = lab.checks_view(plan.id)
+    encryption = next(g for g in view["groups"] if g["key"] == "encryption")
+    proofs = [r for r in encryption["rows"] if r["id"].startswith("proof-")]
+    assert len(proofs) == len(plan.item)                              # every test of the plan ran in the proof
+    assert all(r["came_from"]["label"] == "Fix proof" and r["link"] == {"page": "fixes", "item": FIX, "section": "proof"}
+               for r in proofs)
+    signing = [r for r in proofs if r["kind"] in ("official_vectors", "bad_signatures", "speed_size")]
+    assert signing and all(r["ran_on"].endswith("(the changed code)") for r in signing)
+    # Retest now after the merge is a retest, in the same group.
+    assert any(r["came_from"]["key"] == "retest" for r in encryption["rows"])
+    # The code fix is one fix in Encryption tests; merged counts as done.
+    fixes = lab.fixes_view(plan.id)
+    code = next(f for f in fixes["fixes"] if f["id"] == FIX)
+    assert code["group"] == "encryption" and code["status"]["word"] == "Merged" and code["fix_state"] == "done"
+    assert {link["link"]["page"] for link in code["came_from_links"]} == {"evidence"}

@@ -100,14 +100,15 @@ def code_entry(seen) -> dict:
 
 # ---------------------------------------------------------------- what the file holds
 
+@pytest.mark.slow  # over 5 s on a slow machine (17 November 2026); runs with --full
 def test_the_file_lists_every_fix_as_the_fixes_step_showed_it(flow):
     words = {"not_connected": "Code not connected", "failed": "Proof failed", "ready": "Ready for review", "opened": "Waiting for approval",
              "merged": "Merged", "retested": "Merged"}
     for name in STAGES:
         seen = getattr(flow, name)
         e = seen.evidence
-        assert sorted(e) == ["app", "assessment", "changes", "code", "component", "dependencies", "disclaimer", "fixes", "generated_at", "import", "migration", "mode_line", "retest",
-                             "schema", "signer_key_fingerprint", "tests", "verify"]
+        assert sorted(e) == ["app", "assessment", "changes", "checks", "code", "component", "dependencies", "disclaimer", "fixes", "generated_at", "import", "migration", "mode_line", "retest",
+                             "schema", "signer_key_fingerprint", "tests", "verify", "verify_runs"]
         # phase 4b: the demo server's TLS fix has a change box, and its status is the box's
         assert [(f["id"], f["kind"], f["status"]) for f in e["fixes"]] == [(FIX, "code", words[name]), (TLS, "text", "Ready to try")]
         for entry in e["fixes"]:

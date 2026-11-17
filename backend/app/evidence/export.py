@@ -412,15 +412,56 @@ def _changes_part(lab, db, plan) -> list[dict]:
     return out
 
 
+def _verify_part(run: VerifyRunRow) -> dict:
+    return {"started_at": iso(run.started_at), "finished_at": iso(run.finished_at),
+            "results": [{"claim": (r.get("claim") or {}).get("text"), "claim_ref": (r.get("claim") or {}).get("ref"),
+                         "result": r.get("result"),
+                         "summary": r.get("summary") or plain.verify_fallback(r.get("result", ""), r.get("found", "")),
+                         "also_noticed": [str(x) for x in r.get("also_noticed") or []],
+                         "found": r.get("found"), "reason": r.get("reason"),
+                         "evidence": [_pick(e, ("title", "command", "output", "started_at", "duration_ms", "tool", "tool_version"))
+                                      for e in r.get("evidence") or [] if isinstance(e, dict)]}
+                        for r in run.results or [] if isinstance(r, dict)]}
+
+
+def _checks_part(lab, plan_id: int) -> list[dict]:
+    """Phase 5b: every check of every kind and every run of it, as the Checks page lists them: what ran, on what, where it
+    came from, when, its result as its page words it, and the run's fingerprint (a Verify run has no locked test)."""
+    out = []
+    for row in lab.ledger(plan_id)["rows"]:
+        out.append({"check": row["id"], "group": row["group"], "name": row["name"], "ran_on": row["ran_on"],
+                    "came_from": row["came_from"]["label"],
+                    "runs": [{"run_id": h.get("run_id"), "verify_run_id": h.get("verify_run_id"), "at": h.get("at"),
+                              "came_from": h.get("came_from"), "result": h.get("label"), "run_sha256": h.get("fingerprint")}
+                             for h in row.get("history") or []]})
+    return out
+
+
+def _earlier_runs(lab, db, item_id: int, shown: set) -> list[dict]:
+    """Phase 5b: the earlier reviewed runs of one test (first results and retests no longer shown), in full."""
+    runs = db.scalars(select(TestRunRow).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
+                      .where(TestRunRow.plan_item_id == item_id, TestRunRow.phase.in_(("first", "retest")))
+                      .order_by(TestRunRow.id)).all()
+    out = []
+    for run in runs:
+        if run.id in shown:
+            continue
+        entry = _run_entry(lab, db, run.phase, lab._result(db, run))
+        if entry is not None:
+            out.append(entry)
+    return out
+
+
 def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
     """The evidence for one plan, from the same reviewed results Evidence Lab shows."""
     view = lab.lab_view(plan_id)  # the read gate: every result here has a review that still matches its record
     public = ensure_signing_key(lab.settings.data_dir)
+    checks = _checks_part(lab, plan_id)
     with lab.db() as db:
         plan = db.get(PlanRow, plan_id)
         imp = db.get(ImportRow, plan.import_id)
-        verify = db.scalars(select(VerifyRunRow).where(VerifyRunRow.import_id == imp.id)
-                            .order_by(VerifyRunRow.id.desc()).limit(1)).first()
+        verify_runs = db.scalars(select(VerifyRunRow).where(VerifyRunRow.import_id == imp.id).order_by(VerifyRunRow.id.desc())).all()
+        verify = verify_runs[0] if verify_runs else None
         retest = db.scalars(select(RetestRow).where(RetestRow.plan_id == plan_id).order_by(RetestRow.id.desc()).limit(1)).first()
         connection = db.scalars(select(CodeConnectionRow).where(CodeConnectionRow.plan_id == plan_id)).first()
         tests = []
@@ -429,11 +470,14 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
             spec_row = db.get(TestSpecRow, item.spec_hash)
             spec, spec_ok = read_spec(spec_row)
             runs = [_run_entry(lab, db, phase, row[key]) for phase, key in (("first", "result"), ("retest", "after")) if row.get(key)]
+            shown_ids = {r["run_id"] for r in runs if r is not None}
             tests.append({"item_id": item.id, "kind": row["kind"], "title": row["title"], "origin": item.origin,
                           "spec_hash": item.spec_hash, "spec_hash_ok": bool(spec_ok),
                           "locked_at": iso(spec_row.locked_at) if spec_row else None,
                           "proposed_by": spec_row.proposed_by if spec_row else None, "spec": spec,
-                          "control_line": row.get("control_line"), "runs": [r for r in runs if r is not None]})
+                          "control_line": row.get("control_line"), "runs": [r for r in runs if r is not None],
+                          # phase 5b: the earlier runs of this test, in full
+                          "earlier_runs": _earlier_runs(lab, db, item.id, shown_ids)})
         evidence = {
             "schema": EVIDENCE_SCHEMA,
             "generated_at": generated_at or iso(datetime.now(timezone.utc)),
@@ -448,15 +492,11 @@ def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
                                    "claimed_value": c.claimed_value, "text": c.text, "source": c.source} for c in imp.claims],
                        "addresses": [{"address": a.address, "resolved_ip": a.resolved_ip, "is_loopback": bool(a.is_loopback),
                                       "confirmed": bool(a.confirmed)} for a in imp.addresses]},
-            "verify": ({"started_at": iso(verify.started_at), "finished_at": iso(verify.finished_at),
-                        "results": [{"claim": (r.get("claim") or {}).get("text"), "claim_ref": (r.get("claim") or {}).get("ref"),
-                                     "result": r.get("result"),
-                                     "summary": r.get("summary") or plain.verify_fallback(r.get("result", ""), r.get("found", "")),
-                                     "also_noticed": [str(x) for x in r.get("also_noticed") or []],
-                                     "found": r.get("found"), "reason": r.get("reason"),
-                                     "evidence": [_pick(e, ("title", "command", "output", "started_at", "duration_ms", "tool", "tool_version"))
-                                                  for e in r.get("evidence") or [] if isinstance(e, dict)]}
-                                    for r in verify.results or [] if isinstance(r, dict)]} if verify else None),
+            "verify": _verify_part(verify) if verify else None,
+            # Phase 5b: every Verify run, newest first (the first one is "verify" above).
+            "verify_runs": [_verify_part(r) for r in verify_runs],
+            # Phase 5b: every check of every kind, wherever it was started, with every run of it.
+            "checks": checks,
             "component": ({"name": plan.component_name, "version": plan.component_version} if plan.component_name else None),
             "tests": tests,
             "retest": ({"baseline_version": retest.baseline_version, "version": retest.version, "started_at": iso(retest.created_at),
@@ -529,7 +569,17 @@ def _where_line(where: dict | None):
     parts = [str(where.get("organization") or "")] + [str(f) for f in where.get("folders") or []] + \
         [str(where.get("project") or ""), str(where.get("assessment") or "")]
     status = " (closed)" if where.get("status") == "closed" else ""
-    return el("p", el("strong", t("Assessment: ")), t(" / ".join(p for p in parts if p) + status))
+    line = el("p", el("strong", t("Assessment: ")), t(" / ".join(p for p in parts if p) + status))
+    # Phase 5b: what it is for, and who signed it off.
+    extra = []
+    if where.get("purpose"):
+        extra.append(el("p", el("strong", t("Purpose: ")),
+                        t(str(where["purpose"]) + (f" ({where['reference']})" if where.get("reference") else ""))))
+    if where.get("signed_off_by"):
+        extra.append(el("p", el("strong", t("Signed off by: ")), t(str(where["signed_off_by"])), t(" on "),
+                        _when(where.get("signed_off_at")),
+                        t(f". Note: {where['signoff_note']}" if where.get("signoff_note") else "")))
+    return _join([line, *extra])
 
 def _when(value: object) -> _Safe:
     return t(f"{value} (UTC)") if value else t("")
@@ -882,6 +932,28 @@ def _dependencies_html(part: dict | None) -> list[_Safe]:
     return parts
 
 
+GROUP_WORDS = {"verification": "Verification", "encryption": "Encryption tests", "migration": "Migration",
+               "dependencies": "Dependencies"}
+
+
+def _every_check_html(checks) -> list:
+    """Phase 5b: "Every check", near the top: each check, where it came from, its newest result and how many runs."""
+    if not checks:
+        return []
+    rows = []
+    for c in checks:
+        runs = c.get("runs") or []
+        newest = runs[0] if runs else {}
+        rows.append(el("tr", el("td", t(GROUP_WORDS.get(c.get("group"), c.get("group")))), el("td", t(c.get("name"))),
+                       el("td", t(c.get("ran_on")), cls="mono"), el("td", t(c.get("came_from"))),
+                       el("td", t(newest.get("result") or "Not run yet")), el("td", t(len(runs)))))
+    return [el("h2", t("Every check")),
+            el("p", t("Every check in this assessment, wherever it was started. Each result reads as it does on its own page."), cls="note"),
+            el("table", el("thead", el("tr", el("th", t("Group")), el("th", t("Check")), el("th", t("Ran on")),
+                                       el("th", t("Came from")), el("th", t("Newest result")), el("th", t("Runs")))),
+               el("tbody", *rows))]
+
+
 def render_report_html(envelope: dict) -> bytes:
     """A readable copy of the evidence. Static: no scripts, no remote resources, every value escaped."""
     e, fingerprint = envelope["evidence"], envelope["fingerprint"]
@@ -900,6 +972,7 @@ def render_report_html(envelope: dict) -> bytes:
         el("p", t("Generated: "), _when(e.get("generated_at"))),
         el("p", t(e.get("mode_line"))),
         el("p", el("strong", t(e.get("disclaimer")))),
+        *_every_check_html(e.get("checks")),
         el("h2", t("1. What the file claims")),
         el("p", t(f"File: {imp.get('filename')} ({imp.get('format')}) "), _tag("from the file")),
         el("table", el("thead", el("tr", el("th", t("Where")), el("th", t("Claim")), el("th", t("Source in the file")))),

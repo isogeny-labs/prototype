@@ -154,6 +154,7 @@ def test_raw_sql_cannot_change_or_delete(lab, table, column):
         assert db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar() == before
 
 
+@pytest.mark.slow  # over 5 s on a slow machine (17 November 2026); runs with --full
 def test_an_import_with_no_list_is_exactly_as_before(lab, monkeypatch):
     """With no list, the Migration and Fixes views must be what they were before phase 4d: the same as when the
     dependency part is switched off altogether."""
