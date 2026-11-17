@@ -3,12 +3,12 @@ import type { PageAccess } from "./Sidebar";
 import { PAGE_TITLES } from "./TopBar";
 
 // Today's step-by-step order, for investor demos.
-export const GUIDED_ORDER: Page[] = ["inventory/import", "inventory/verify", "tests", "evidence", "fixes", "migration/systems"];
+export const GUIDED_ORDER: Page[] = ["inventory/import", "inventory/verify", "checks", "evidence", "fixes", "migration/systems"];
 
 const STEP_WORDS: Record<string, string> = {
   "inventory/import": "Import",
   "inventory/verify": "Verify",
-  tests: "Tests",
+  checks: "Checks",
   evidence: "Evidence",
   fixes: "Fixes",
   "migration/systems": "Migration",

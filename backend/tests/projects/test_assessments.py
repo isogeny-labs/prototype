@@ -1,6 +1,6 @@
-"""Phase 5a: assessments. One file each; New assessment closes the one before and keeps it; a closed assessment is
-read-only (every changing request refused with one sentence, downloads still work); imports with no assessment go to
-"Imported without a project" and are never closed automatically."""
+"""Phase 5a and 5b: assessments. One file each; New assessment closes nothing (phase 5b: any number open); closing is a
+sign-off with a name and a time that can't be undone; a closed assessment is read-only (every changing request refused
+with one sentence, downloads still work); imports with no assessment go to "Imported without a project"."""
 import re
 
 from fastapi.routing import APIRoute
@@ -36,29 +36,64 @@ def test_a_new_project_opens_an_empty_assessment_that_takes_one_file(client):
     assert again.status_code == 409 and "already has a file" in again.json()["error"]["message"]
 
 
-def test_new_assessment_closes_the_one_before_and_keeps_it_whole(client):
+def test_new_assessment_closes_nothing_and_keeps_the_one_before_whole(client):
     pid, first = _project(client)
     imp = _import_demo(client, first)
     client.post(f"/api/import/{imp['id']}/verify")
     before = client.get(f"/api/import/{imp['id']}/verify").json()
     second = client.post(f"/api/projects/{pid}/assessments").json()["id"]
     old = client.get(f"/api/assessments/{first}").json()
-    assert old["status"]["key"] == "closed" and "A newer assessment was started" in old["status"]["closed_line"]
-    assert old["status"]["closed_line"].endswith(CLOSED)
+    assert old["status"]["key"] == "open" and old["status"]["closed_line"] is None          # phase 5b: both stay open
     assert client.get(f"/api/import/{imp['id']}/verify").json() == before          # kept exactly as it was
+    # The first one still takes changes: it is open.
+    assert client.post(f"/api/import/{imp['id']}/verify").status_code == 200
     new = client.get(f"/api/assessments/{second}").json()
     assert new["number"] == 2 and new["title"] == "Assessment 2" and new["status"]["key"] == "open" and new["file"] is None
     p = client.get(f"/api/projects/{pid}").json()
     assert [a["number"] for a in p["assessments"]] == [2, 1]                          # newest first, nothing gone
+    assert [a["status"]["key"] for a in p["assessments"]] == ["open", "open"] and p["next_name"] == "Assessment 3"
+    work = client.get("/api/workspace").json()
+    row = next(r for r in work["projects"] if r["id"] == pid)
+    assert row["open_count"] == 2 and row["closed_count"] == 0
+
+
+def test_the_new_assessment_box_name_purpose_and_reference(client):
+    pid, _ = _project(client)
+    work = client.get("/api/workspace").json()
+    assert [p["label"] for p in work["purposes"]] == ["Full review", "Compliance review", "Migration wave", "Release check",
+                                                     "Advisory response", "Other"]
+    made = client.post(f"/api/projects/{pid}/assessments",
+                       json={"name": "PCI review", "purpose": "compliance_review", "reference": "PCI DSS 12.3.3"}).json()
+    view = client.get(f"/api/assessments/{made['id']}").json()
+    assert view["title"] == "PCI review" and view["purpose"] == {"key": "compliance_review", "label": "Compliance review"}
+    assert view["reference"] == "PCI DSS 12.3.3"
+    # The purpose is a label only; it can be changed while the assessment is open, and the change is kept as a new record.
+    view = client.post(f"/api/assessments/{made['id']}", json={"purpose": "release_check"}).json()
+    assert view["purpose"]["label"] == "Release check" and view["reference"] == "PCI DSS 12.3.3"
+    bad = client.post(f"/api/projects/{pid}/assessments", json={"purpose": "audit"})
+    assert bad.status_code == 422 and bad.json()["error"]["message"] == "Pick a purpose from the list."
+    # A name left as the default is the plain "Assessment N".
+    plain = client.post(f"/api/projects/{pid}/assessments", json={"name": "Assessment 3"}).json()
+    assert client.get(f"/api/assessments/{plain['id']}").json()["name"] is None
 
 
 def test_close_rename_move_and_archive_an_assessment(client):
     pid, aid = _project(client)
     other, _ = _project(client, "Other")
     client.post(f"/api/assessments/{aid}", json={"name": "Before the audit"})
-    view = client.post(f"/api/assessments/{aid}", json={"close": True}).json()
+    # Phase 5b: closing is a sign-off. Without a name it is refused and nothing changes.
+    refused = client.post(f"/api/assessments/{aid}", json={"close": True})
+    assert refused.status_code == 422 and "name" in refused.json()["error"]["message"]
+    assert client.get(f"/api/assessments/{aid}").json()["status"]["key"] == "open"
+    view = client.post(f"/api/assessments/{aid}", json={"close": True, "signed_off_by": "Sam Lee", "note": "Q4 sign-off"}).json()
     assert view["title"] == "Before the audit" and view["status"]["key"] == "closed"
-    assert view["status"]["closed_line"] == f"Closed by you. {CLOSED}"
+    assert view["status"]["closed_line"] == f"Closed and signed off by Sam Lee. {CLOSED}"
+    assert view["status"]["signoff"]["by"] == "Sam Lee" and view["status"]["signoff"]["note"] == "Q4 sign-off"
+    assert view["status"]["signoff"]["at"] == view["closed_at"]
+    # It can't be reopened or signed off again, and its purpose can't change.
+    again = client.post(f"/api/assessments/{aid}", json={"close": True, "signed_off_by": "Someone else"})
+    assert again.status_code == 409 and client.get(f"/api/assessments/{aid}").json()["status"]["signoff"]["by"] == "Sam Lee"
+    assert client.post(f"/api/assessments/{aid}", json={"purpose": "other"}).json()["error"]["message"] == CLOSED
     moved = client.post(f"/api/assessments/{aid}", json={"project_id": other}).json()
     assert moved["project"]["id"] == other and moved["number"] == 2                  # takes the next number there
     assert client.post(f"/api/assessments/{aid}", json={"archived": True}).json()["archived"] is True
@@ -80,7 +115,7 @@ def _closed_with_everything(client):
         if not lab["busy"] and any(r["result"] for r in lab["rows"]):
             break
     run_id = next(r["result"]["run_id"] for r in lab["rows"] if r["result"])
-    client.post(f"/api/projects/{pid}/assessments")       # closes it
+    client.post(f"/api/assessments/{aid}", json={"close": True, "signed_off_by": "Sam Lee"})
     return imp["id"], plan["id"], run_id
 
 

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import {
   api,
   ApiError,
@@ -13,6 +13,8 @@ import {
 } from "../api";
 import { CLOSED_SENTENCE, useReadOnly } from "../readOnly";
 import { DataTable, DetailPanel, PageHeader, TableWithPanel, type Column } from "./layout";
+import { AlgoName } from "./plainName";
+import { ItemLinkView, RelatedFor } from "./related";
 import { DemoDataLabel, ErrorBox, PrimaryButton, SecondaryButton, SourceTag } from "./ui";
 
 const KIND_LABELS: Record<ClaimKind, string> = {
@@ -57,11 +59,38 @@ const claimColumns: Column<Claim>[] = [
     render: (claim) => (
       <>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-slate-100">{claim.claimed_value}</span>
+          <span className="font-medium text-slate-100">
+            <AlgoName text={claim.claimed_value} />
+          </span>
           <SourceTag>from the file</SourceTag>
         </div>
         <div className="mt-0.5 text-xs text-slate-500">{claim.source}</div>
       </>
+    ),
+  },
+];
+
+// Phase 5b: beside the open panel, a row is where and what, and the claimed value.
+const compactClaimColumns: Column<Claim>[] = [
+  {
+    key: "where",
+    header: "Where and what",
+    minWidth: 160,
+    render: (claim) => (
+      <>
+        <div className="font-mono text-slate-100">{claim.location}</div>
+        <div className="mt-0.5 text-xs text-slate-400">{KIND_LABELS[claim.kind]}</div>
+      </>
+    ),
+  },
+  {
+    key: "value",
+    header: "Claimed value",
+    minWidth: 110,
+    render: (claim) => (
+      <span className="font-medium text-slate-100">
+        <AlgoName text={claim.claimed_value} />
+      </span>
     ),
   },
 ];
@@ -114,9 +143,11 @@ interface Props {
   target?: () => Promise<number | undefined>;
   /** Phase 5a: one plain sentence above the drop zone (for example that another file starts a new assessment). */
   targetNote?: string | null;
+  /** Phase 5b: a claim to open (from a link: #/a/<id>/inventory/import?item=claim-<id>). */
+  openItem?: string | null;
 }
 
-export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAddressChanged, onVerified, target, targetNote }: Props) {
+export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAddressChanged, onVerified, target, targetNote, openItem = null }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const closed = useReadOnly();
   const [dragging, setDragging] = useState(false);
@@ -128,6 +159,10 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
   const [addressError, setAddressError] = useState<string | null>(null);
   // The claim whose panel is open, for the file it belongs to (a new file starts with none open).
   const [opened, setOpened] = useState<{ file: number; claim: number } | null>(null);
+  const linked = openItem && openItem.startsWith("claim-") ? Number(openItem.slice(6)) : null;
+  useEffect(() => {
+    if (linked !== null && imp) setOpened({ file: imp.id, claim: linked });
+  }, [linked, imp]);
   const openClaim = imp && opened?.file === imp.id ? (imp.claims.find((c) => c.id === opened.claim) ?? null) : null;
   const closeClaim = useCallback(() => setOpened(null), []);
 
@@ -320,6 +355,7 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
                   <DataTable
                     label="What the file claims"
                     columns={claimColumns}
+                    compactColumns={compactClaimColumns}
                     rows={imp.claims}
                     rowKey={(claim) => String(claim.id)}
                     rowTestId="claim-row"
@@ -335,7 +371,19 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
                     onClose={closeClaim}
                     testId="claim-panel"
                   >
-                    {openClaim ? <ClaimDetails claim={openClaim} /> : null}
+                    {openClaim ? (
+                      <p className="mb-3 text-sm">
+                        <ItemLinkView link={{ page: "inventory/verify", item: `claim-${openClaim.id}` }} testId="claim-to-verify">
+                          Its Verify result
+                        </ItemLinkView>
+                      </p>
+                    ) : null}
+                    {openClaim ? (
+                      <>
+                        <ClaimDetails claim={openClaim} />
+                        <RelatedFor itemKey={`claim:${openClaim.id}`} />
+                      </>
+                    ) : null}
                   </DetailPanel>
                 }
               />

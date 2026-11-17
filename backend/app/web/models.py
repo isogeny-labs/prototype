@@ -817,6 +817,10 @@ class FixDetail(Shape):
     sections_note: str | None = Field(description="shown instead of sections before the code is connected")
     change_box: ChangeView | None = Field(description="Phase 4b: the change box, drawn first in the fix's detail.")
     advisories: Advisories | None = Field(description="Phase 4c: advisories for a text-only fix on a real library.")
+    group: str = Field(default="encryption", description="Phase 5b: the work group it came from.")
+    group_label: str = ""
+    came_from_links: list["FixCameFrom"] = Field(default_factory=list, description="Phase 5b: where it came from, as links.")
+    fix_state: Literal["open", "in_progress", "done"] = "open"
 
 
 class FixesView(Shape):
@@ -829,6 +833,7 @@ class FixesView(Shape):
     empty_text: str | None = Field(description="when no failed test has a fix: one plain sentence, and fixes is []")
     fixes: list[FixDetail] = Field(description="in list order; the list on the left is drawn from these too")
     busy: bool = Field(description="something is running: ask again in a second")
+    groups: list["FixGroup"] = Field(default_factory=list, description="Phase 5b: the four work groups, in order.")
 
 
 # ---- Phase 4a: the Migration step. The screen draws only what is sent; it decides no status, recommendation or wording. ----
@@ -1288,6 +1293,7 @@ class DependencyCell(Shape):
     state_words: str
     agreement: Literal["agrees", "differs"] | None
     agreement_words: str | None
+    no_reason: str | None = Field(default=None, description='Phase 5b: under a No, the reason in one line ("OpenSSL added this in 3.5.0; you have 3.0.22.").')
 
 
 class DependencyBlock(Shape):
@@ -1295,6 +1301,8 @@ class DependencyBlock(Shape):
     track: DependencyTrack
     track_words: str
     fix_id: str
+    system_key: str | None = Field(default=None, description="Phase 5b: the system the Blocks marker opens.")
+    words: str = Field(default="", description='Phase 5b: "Blocks localhost:8443 · key exchange".')
 
 
 class DependencyMeasure(Shape):
@@ -1330,6 +1338,7 @@ class DependencyRow(Shape):
     via_words: str = Field(description='"direct" | "through python 3.12.3"')
     library: str | None = Field(description="the knowledge base's name for it; null when it is not in the knowledge base")
     cells: list[DependencyCell] = Field(description="one per question, in the order of questions")
+    answers_short: str = Field(default="", description='Phase 5b: the answers in a few words, for the compact table ("No to all three").')
     blocks: list[DependencyBlock]
     measure: DependencyMeasure
     same_copy_note: str | None
@@ -1410,10 +1419,22 @@ class AssessmentCounts(Shape):
     systems: SystemCounts | None
 
 
+class Signoff(Shape):
+    by: str = Field(description="The name typed when it was closed (the app has one login).")
+    note: str | None
+    at: str
+
+
 class AssessmentStatus(Shape):
     key: Literal["open", "closed"]
     label: str
     closed_line: str | None = Field(description="Why it is closed, then the closed sentence; null when open.")
+    signoff: Signoff | None = Field(description="Phase 5b: who signed it off and when; null when open or closed by the earlier rule.")
+
+
+class Purpose(Shape):
+    key: str
+    label: str
 
 
 class AssessmentFile(Shape):
@@ -1429,6 +1450,8 @@ class AssessmentBrief(Shape):
     number: int
     title: str = Field(description='"Assessment 2", or the name the person gave it')
     name: str | None
+    purpose: Purpose | None = Field(description="Phase 5b: what it is for (a label only); null for one made before phase 5b.")
+    reference: str | None
     status: AssessmentStatus
     archived: bool
     created_at: str
@@ -1458,7 +1481,9 @@ class WorkspaceProject(Shape):
     created_at: str
     path: list[PathStep]
     assessments: int
-    latest: AssessmentBrief | None
+    open_count: int = Field(description="Phase 5b: open assessments (archived ones left out).")
+    closed_count: int
+    latest: AssessmentBrief | None = Field(description="Phase 5b: the assessment worked on last.")
     counts: AssessmentCounts
 
 
@@ -1466,11 +1491,20 @@ class Workspace(Shape):
     organization: str
     folders: list[WorkspaceFolder]
     projects: list[WorkspaceProject]
+    purposes: list[Purpose] = Field(description="Phase 5b: the purposes an assessment can have, in order.")
+    one_login_line: str = Field(description="Phase 5b: said in the Close box: who records the sign-off name.")
+    algorithm_names: list["AlgorithmName"] = Field(default_factory=list, description="Phase 5b: plain name first, technical under it.")
+
+
+class AlgorithmName(Shape):
+    technical: str
+    plain: str
 
 
 class Created(Shape):
     id: int
     assessment_id: int | None = Field(default=None, description="A new project's first assessment.")
+    notices: list[str] | None = Field(default=None, description="Phase 5b: Rerun as new assessment, the import's notices.")
 
 
 class ProjectView(Shape):
@@ -1481,6 +1515,7 @@ class ProjectView(Shape):
     is_demo: bool
     path: list[PathStep]
     assessments: list[AssessmentBrief] = Field(description="Newest first.")
+    next_name: str = Field(description='Phase 5b: the name the New assessment box starts with ("Assessment 3").')
 
 
 class AssessmentProject(Shape):
@@ -1507,6 +1542,245 @@ class AssessmentView(AssessmentBrief):
     has_migration: bool
     counts: AssessmentCounts
     next_step: NextStep
+    blocks: "OverviewBlocks | None" = Field(default=None, description="Phase 5b: the Overview's blocks (null before a file).")
+
+
+# ---- Phase 5b: one connected assessment. Every word comes from the page each item lives on. ----
+
+GroupKey = Literal["verification", "encryption", "migration", "dependencies"]
+ItemState = Literal["open", "in_progress", "done"]
+
+
+class ItemLink(Shape):
+    page: str = Field(description='The page that holds the item, e.g. "evidence", "fixes", "migration/systems".')
+    item: str | None = Field(description="The item to open there (a check, claim, fix, system or library id); null for the page.")
+    section: str | None = None
+    group: str | None = Field(default=None, description="The work group to filter the page to.")
+    assessment_id: int | None = Field(default=None, description="Another assessment (the Project overview links into each).")
+
+
+class OverviewFact(Shape):
+    label: str
+    value: int
+    link: ItemLink
+
+
+class OverviewGroup(Shape):
+    key: GroupKey
+    label: str
+    question: str
+    checks: StateCounts | None
+    fixes: StateCounts | None
+    facts: list[OverviewFact]
+    empty_text: str | None
+
+
+class LastDownload(Shape):
+    at: str
+    fingerprint: str
+
+
+class OverviewEvidence(Shape):
+    runs: int
+    last_download: LastDownload | None
+
+
+class OverviewBlocks(Shape):
+    groups: list[OverviewGroup]
+    findings: list[OverviewFact] = Field(description="False claims, failed tests, dependency blockers: each its own count.")
+    evidence: OverviewEvidence
+
+
+class Headline(AssessmentCounts):
+    blockers: int | None
+
+
+class ProjectOverviewRow(AssessmentBrief):
+    headline: Headline
+    has_results: bool
+
+
+class CompareItem(Shape):
+    label: str
+    sub: str
+    link: ItemLink
+
+
+class CompareList(Shape):
+    key: Literal["new", "gone", "moved", "single"]
+    title: str
+    items: list[CompareItem]
+
+
+class Compare(Shape):
+    from_id: int
+    to_id: int
+    lists: list[CompareList]
+
+
+class SharedAssessment(Shape):
+    id: int
+    title: str
+
+
+class SharedSystem(Shape):
+    name: str
+    kind: Literal["server", "software"]
+    assessments: list[SharedAssessment]
+    note: str | None
+
+
+class ProjectOverview(Shape):
+    id: int
+    rows: list[ProjectOverviewRow] = Field(description="Open assessments first, newest first.")
+    compare: Compare | None
+    shared: list[SharedSystem]
+    choices: list[SharedAssessment]
+
+
+class StateCounts(Shape):
+    open: int
+    in_progress: int
+    done: int
+
+
+class CameFrom(Shape):
+    key: str
+    label: str = Field(description='"Verify", "Test plan", "Retest", "Fix proof", "Try on a test copy", "After Apply", ...')
+
+
+class CheckResult(Shape):
+    label: str
+    tone: Tone
+    code: str
+
+
+class SameMeasurement(Shape):
+    id: str
+    name: str
+    ran_on: str
+    group_label: str
+    link: ItemLink = Field(description="The other check on Checks.")
+    evidence_link: ItemLink
+
+
+class CheckRow(Shape):
+    id: str = Field(description='"claim-3", "test-12", "retest-12", "proof-12", "try-<change>-try", "system-<key>", "library-<row>"')
+    group: GroupKey
+    kind: str
+    name: str
+    ran_on: str
+    came_from: CameFrom
+    link: ItemLink = Field(description="Open where it started.")
+    evidence_link: ItemLink
+    state: ItemState
+    status: RowStatus | None = Field(description="Set while it waits or runs.")
+    result: CheckResult | None = Field(description="Its newest result, in the words of the page it came from.")
+    plain: str | None
+    last_run_at: str | None
+    runs: int
+    same_as: list[SameMeasurement] = Field(default_factory=list,
+                                           description="Phase 5b: the same measurement made elsewhere (decisions 3 and 4); each keeps its own run.")
+
+
+class StartedOn(Shape):
+    label: str
+    page: str
+
+
+class CheckGroup(Shape):
+    key: GroupKey
+    label: str
+    question: str
+    counts: StateCounts
+    empty_text: str | None = Field(description="Set when the group has no rows: why it is empty.")
+    note: str | None
+    started_on: StartedOn
+    rows: list[CheckRow]
+    also: list[SameMeasurement] = Field(default_factory=list,
+                                        description="Checks of another group linked from this group's foot (\"Also relates to this group\").")
+
+
+class LibraryEvidenceRow(Shape):
+    id: str
+    row_id: str
+    name: str
+    via_words: str
+    answers_short: str
+    blocks: list[DependencyBlock]
+    measured: bool
+    state: ItemState
+    lookups: list[DependencyLookup] = Field(default_factory=list, description="Each lookup's source, quoted line and date checked.")
+    cells: list[DependencyCell] = Field(default_factory=list, description="Its answers as Dependencies words them.")
+
+
+class ChecksView(Shape):
+    plan_id: int
+    title: str
+    subline: str
+    groups: list[CheckGroup] = Field(description="Always the four groups, in order.")
+    busy: bool
+    came_from_options: list[CameFrom]
+    libraries: list[LibraryEvidenceRow] = Field(description="For Evidence's Dependencies group: one row per library.")
+    evidence_counts: dict[str, StateCounts]
+
+
+class CheckRun(Shape):
+    run_id: int | None
+    verify_run_id: int | None
+    at: str | None
+    came_from: str
+    label: str | None
+    tone: Tone
+    fingerprint: str | None = Field(description="The run record's SHA-256 (a Verify run has none).")
+
+
+class RelatedItem(Shape):
+    key: str
+    label: str
+    sub: str
+    link: ItemLink
+    also: ItemLink | None
+
+
+class RelatedLine(Shape):
+    kind: Literal["claim", "test", "fix", "system", "library"]
+    title: str = Field(description='"Claim", "Checks", "Fix", "System and track", "Library"')
+    items: list[RelatedItem]
+
+
+class CheckDetail(Shape):
+    check: CheckRow
+    result: LabResult | None = Field(description="The newest run, worded as its page words it (null for a claim).")
+    verify: Result | None = Field(description="For a claim: its newest Verify result.")
+    runs: list[CheckRun] = Field(description="Newest first.")
+    related: list[RelatedLine]
+
+
+class RelatedView(Shape):
+    key: str
+    related: list[RelatedLine]
+
+
+class FixCameFrom(Shape):
+    label: str
+    link: ItemLink
+
+
+class FixGroupAlso(Shape):
+    fix_id: str
+    title: str
+    group_label: str
+
+
+class FixGroup(Shape):
+    key: GroupKey
+    label: str
+    question: str
+    counts: StateCounts
+    fix_ids: list[str]
+    empty_text: str | None
+    also: list[FixGroupAlso] = Field(description='"Also relates to this group": fixes listed in another group.')
 
 
 class DemoProjectsLoaded(Shape):

@@ -22,7 +22,8 @@ import {
   splitByGroup,
   useDismiss,
 } from "./ui";
-import { PageHeader } from "./layout";
+import { PageHeader, usePanelOpen } from "./layout";
+import { ItemLinkView } from "./related";
 
 const POLL_MS = 1000;
 
@@ -52,6 +53,7 @@ function Card({
   onDragEnd,
   handleRef,
   headingLevel = 2,
+  compact = false,
 }: {
   card: TestCard;
   position: number;
@@ -69,6 +71,8 @@ function Card({
   handleRef: (el: HTMLButtonElement | null) => void;
   /** 2 in the flat list; 3 when the card sits under a group heading. */
   headingLevel?: 2 | 3;
+  /** Phase 5b: beside an open detail panel, the row stacks instead of squeezing its columns. */
+  compact?: boolean;
 }) {
   const Heading = headingLevel === 3 ? "h3" : "h2";
   // A closed assessment is read-only: every control that changes the plan turns off and says why.
@@ -83,90 +87,112 @@ function Card({
     }
   }
 
-  return (
-    <tr
-      data-testid="test-card"
-      data-kind={card.kind}
-      data-status={card.status}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-      className={`border-b border-slate-800/70 last:border-b-0 ${
-        dropTarget
-          ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]"
-          : ""
-      } ${dragging ? "opacity-50" : ""}`}
+  const handle = (
+    <button
+      type="button"
+      ref={handleRef}
+      data-testid="drag-handle"
+      draggable={!closed}
+      disabled={closed}
+      title={closed ? CLOSED_SENTENCE : "Drag to reorder"}
+      aria-label={`Reorder ${card.title}, position ${position} of ${total}. Drag, or press the up or down arrow key.`}
+      onKeyDown={onKeyDown}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      className="grid w-7 shrink-0 cursor-grab grid-cols-[4px_4px] justify-center gap-1 rounded-md border border-slate-700 py-2 hover:border-slate-500 active:cursor-grabbing"
     >
-      <td className="w-12 px-4 py-3 align-top">
-        <button
-          type="button"
-          ref={handleRef}
-          data-testid="drag-handle"
-          draggable={!closed}
-          disabled={closed}
-          title={closed ? CLOSED_SENTENCE : "Drag to reorder"}
-          aria-label={`Reorder ${card.title}, position ${position} of ${total}. Drag, or press the up or down arrow key.`}
-          onKeyDown={onKeyDown}
-          onDragStart={onDragStart}
-          onDragEnd={onDragEnd}
-          className="grid w-7 cursor-grab grid-cols-[4px_4px] justify-center gap-1 rounded-md border border-slate-700 py-2 hover:border-slate-500 active:cursor-grabbing"
-        >
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <span
-              key={i}
-              aria-hidden="true"
-              className="h-1 w-1 rounded-full bg-slate-400"
-            />
-          ))}
-        </button>
-      </td>
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <span key={i} aria-hidden="true" className="h-1 w-1 rounded-full bg-slate-400" />
+      ))}
+    </button>
+  );
+  const title = (
+    <Heading className="text-[15px] font-semibold text-slate-100">
+      {card.title}
+      {card.tag ? (
+        <>
+          {" "}
+          <SourceTag>{card.tag}</SourceTag>
+        </>
+      ) : null}
+    </Heading>
+  );
+  const status =
+    card.status === "done" && card.result ? (
+      <span className="flex flex-col items-start gap-1">
+        <ResultBadge label={card.result.label} tone={card.result.tone} />
+        {/* Phase 5b: a finished test opens its result on Evidence (its record, every run, Related). */}
+        <ItemLinkView link={{ page: "evidence", item: `test-${card.id}` }} testId="see-the-evidence" className="text-xs text-sky-300 hover:underline">
+          See the evidence
+        </ItemLinkView>
+      </span>
+    ) : (
+      <StatusView status={card} />
+    );
+  const run = (
+    <button
+      type="button"
+      aria-label={`Run ${card.title}`}
+      disabled={closed || locked || !card.can_run}
+      title={closed ? CLOSED_SENTENCE : undefined}
+      onClick={onRun}
+      className="rounded-lg border border-slate-600 px-3.5 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:border-slate-400 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      Run
+    </button>
+  );
+  const remove = (
+    <button
+      type="button"
+      aria-label={`Remove ${card.title}`}
+      title={closed ? CLOSED_SENTENCE : "Remove from the plan"}
+      disabled={closed || locked || !card.can_remove}
+      onClick={onRemove}
+      className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-slate-700 text-base text-slate-300 hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <span aria-hidden="true">×</span>
+    </button>
+  );
+  const rowClass = `border-b border-slate-800/70 last:border-b-0 ${
+    dropTarget ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]" : ""
+  } ${dragging ? "opacity-50" : ""}`;
 
+  if (compact) {
+    // Phase 5b: beside an open panel, a row stacks: the handle and the name, then its status, Run and the ×.
+    return (
+      <tr data-testid="test-card" data-kind={card.kind} data-status={card.status} onDragOver={onDragOver} onDrop={onDrop} className={rowClass}>
+        <td colSpan={5} className="px-3 py-2.5 align-top">
+          <div className="flex items-start gap-2">
+            {handle}
+            <div className="min-w-0 flex-1">
+              {title}
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                <span data-testid="test-status">{status}</span>
+                <span className="ml-auto flex items-center gap-2">
+                  {run}
+                  {remove}
+                </span>
+              </div>
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr data-testid="test-card" data-kind={card.kind} data-status={card.status} onDragOver={onDragOver} onDrop={onDrop} className={rowClass}>
+      <td className="w-12 px-4 py-3 align-top">{handle}</td>
       <td className="min-w-0 px-4 py-3 align-top">
-        <Heading className="text-[15px] font-semibold text-slate-100">
-          {card.title}
-          {card.tag ? (
-            <>
-              {" "}
-              <SourceTag>{card.tag}</SourceTag>
-            </>
-          ) : null}
-        </Heading>
+        {title}
         <p className="mt-1 text-sm text-slate-300">{card.description}</p>
         <p className="mt-1 text-[13px] text-slate-400">{card.why}</p>
       </td>
-
       <td data-testid="test-status" className="w-56 px-4 py-3 align-top">
-        {card.status === "done" && card.result ? (
-          <ResultBadge label={card.result.label} tone={card.result.tone} />
-        ) : (
-          <StatusView status={card} />
-        )}
+        {status}
       </td>
-
-      <td className="w-px whitespace-nowrap px-4 py-3 align-top">
-        <button
-          type="button"
-          aria-label={`Run ${card.title}`}
-          disabled={closed || locked || !card.can_run}
-          title={closed ? CLOSED_SENTENCE : undefined}
-          onClick={onRun}
-          className="rounded-lg border border-slate-600 px-3.5 py-1.5 text-sm font-medium text-slate-100 transition-colors hover:border-slate-400 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Run
-        </button>
-      </td>
-
-      <td className="w-px px-4 py-3 align-top">
-        <button
-          type="button"
-          aria-label={`Remove ${card.title}`}
-          title={closed ? CLOSED_SENTENCE : "Remove from the plan"}
-          disabled={closed || locked || !card.can_remove}
-          onClick={onRemove}
-          className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-slate-700 text-base text-slate-300 hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <span aria-hidden="true">×</span>
-        </button>
-      </td>
+      <td className="w-px whitespace-nowrap px-4 py-3 align-top">{run}</td>
+      <td className="w-px px-4 py-3 align-top">{remove}</td>
     </tr>
   );
 }
@@ -176,9 +202,13 @@ interface Props {
   /** The plan as last seen, so coming back to this step doesn't flash empty. */
   plan: PlanView | null;
   onPlan: (plan: PlanView) => void;
+  /** Phase 5b: drawn inside Checks, under Encryption tests, as "Test plan" (every button and rule as before). */
+  embedded?: boolean;
 }
 
-export function TestsScreen({ importId, plan, onPlan }: Props) {
+export function TestsScreen({ importId, plan, onPlan, embedded = false }: Props) {
+  // Phase 5b: inside Checks, a check's panel can be open beside the plan; then each row stacks.
+  const compact = usePanelOpen();
   const readOnly = useReadOnly();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -193,14 +223,15 @@ export function TestsScreen({ importId, plan, onPlan }: Props) {
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   useDismiss(menuOpen, menuRef, closeMenu);
 
-  // Opening the step asks for the plan. The first time this proposes and locks
-  // the suggested tests; afterwards it answers with the same plan.
+  // Opening the step asks for the plan, so its buttons and statuses are as they are now (a proof running, a test
+  // running). The first time this proposes and locks the suggested tests; afterwards it answers with the same plan.
+  // Phase 5b: inside Checks the app has already made it (when the file came in), so it is only read again.
+  const known = embedded && plan !== null && plan.import_id === importId;
   useEffect(() => {
     let live = true;
-    api
-      .ensurePlan(importId)
+    (known ? api.getPlan(importId) : api.ensurePlan(importId))
       .then((next) => {
-        if (live) onPlan(next);
+        if (live && next) onPlan(next);
       })
       .catch((e: unknown) => {
         if (live) setError(errorMessage(e));
@@ -328,6 +359,7 @@ export function TestsScreen({ importId, plan, onPlan }: Props) {
         position={index + 1}
         total={items.length}
         headingLevel={headingLevel}
+        compact={compact}
         locked={busy}
         dragging={dragId === card.id}
         dropTarget={
@@ -384,6 +416,13 @@ export function TestsScreen({ importId, plan, onPlan }: Props) {
         className="w-full border-collapse text-left text-sm"
       >
         <thead>
+          {compact ? (
+            <tr className="border-b border-slate-800 text-xs font-medium uppercase tracking-wider text-slate-500">
+              <th scope="col" colSpan={5} className="px-3 py-2.5 font-medium">
+                Test
+              </th>
+            </tr>
+          ) : (
           <tr className="border-b border-slate-800 text-xs font-medium uppercase tracking-wider text-slate-500">
             <th scope="col" className="px-4 py-2.5 font-medium">
               <span className="sr-only">Reorder</span>
@@ -401,6 +440,7 @@ export function TestsScreen({ importId, plan, onPlan }: Props) {
               <span className="sr-only">Remove</span>
             </th>
           </tr>
+          )}
         </thead>
         <tbody>{rowsOfCards}</tbody>
       </table>
@@ -408,20 +448,33 @@ export function TestsScreen({ importId, plan, onPlan }: Props) {
   );
 
   return (
-    <section aria-label="Tests">
-      <PageHeader
-        eyebrow={current.is_demo ? <DemoDataLabel /> : undefined}
-        title="Tests"
-        description={current.intro}
-        actions={
-          <PrimaryButton
-            disabled={busy || !current.can_run_all}
-            onClick={() => void act(() => api.runAll(current.id))}
-          >
+    <section aria-label={embedded ? "Test plan" : "Tests"} data-testid="test-plan">
+      {embedded ? (
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0 max-w-3xl">
+            {current.is_demo ? <DemoDataLabel /> : null}
+            <h3 className="mt-1 text-base font-semibold text-slate-100">Test plan</h3>
+            <p className="mt-1 text-sm leading-relaxed text-slate-400">{current.intro}</p>
+          </div>
+          <PrimaryButton disabled={busy || !current.can_run_all} onClick={() => void act(() => api.runAll(current.id))}>
             Run all
           </PrimaryButton>
-        }
-      />
+        </div>
+      ) : (
+        <PageHeader
+          eyebrow={current.is_demo ? <DemoDataLabel /> : undefined}
+          title="Tests"
+          description={current.intro}
+          actions={
+            <PrimaryButton
+              disabled={busy || !current.can_run_all}
+              onClick={() => void act(() => api.runAll(current.id))}
+            >
+              Run all
+            </PrimaryButton>
+          }
+        />
+      )}
 
       <p data-testid="plan-subject" className="-mt-2 text-sm text-slate-400">
         <RichTextView parts={current.subject} />

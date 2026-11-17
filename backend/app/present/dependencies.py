@@ -5,6 +5,8 @@ Wording rules (tested): every answer carries one label and its reason; a lookup 
 no "secure", no score."""
 from __future__ import annotations
 
+from app.knowledge.versions import read_version
+
 QUESTIONS = (
     ("ml_kem_768", "ML-KEM-768 key exchange", "Key exchange"),
     ("x25519mlkem768", "X25519MLKEM768 hybrid TLS", "Hybrid TLS"),
@@ -66,6 +68,50 @@ def _cell(row: dict, q: str) -> dict:
             "agreement": a["agreement"], "agreement_words": agreement}
 
 
+SHORT_QUESTIONS = {"ml_kem_768": "Key exchange", "x25519mlkem768": "Hybrid", "ml_dsa_65": "Signatures"}
+NUMBER_WORDS = {2: "both", 3: "all three"}
+
+
+def version_words(version: str | None) -> str | None:
+    """The version as the lookup reads it (a distribution's package as its upstream version: "3.0.22-1~deb12u2" is 3.0.22)."""
+    read = read_version(version)
+    if read is None:
+        return version
+    numbers, letter = read
+    return ".".join(str(n) for n in numbers) + letter
+
+
+def no_reason(row: dict, cell: dict) -> str | None:
+    """Phase 5b: under every No, the reason in one line, from the first version the knowledge base names and the version in
+    the file ("OpenSSL added this in 3.5.0; you have 3.0.22."), or the library's own words when it was measured."""
+    if cell["answer"] != "no":
+        return None
+    if cell["state"] == "measured":
+        return cell["reason"]
+    library = row.get("library_label") or row.get("name") or "This library"
+    first = cell.get("first_version")
+    have = version_words(row.get("version"))
+    if first == "none_known":
+        return f"No version of {library} is known to do this; you have {have}." if have else f"No version of {library} is known to do this."
+    if first and have:
+        return f"{library} added this in {first}; you have {have}."
+    return cell["reason"]
+
+
+def answers_short(cells: list[dict]) -> str:
+    """Phase 5b: a row's answers in a few words, for the compact table ("No to all three", "Key exchange: No · Signatures:
+    Yes"). Only the answers already worded for the row are used."""
+    asked = [c for c in cells if c["answer"] != "doesnt_apply"]
+    if not asked:
+        return "Doesn't apply"
+    words = {c["answer_words"] for c in asked}
+    if len(words) == 1 and len(asked) > 1:
+        return f"{asked[0]['answer_words']} to {NUMBER_WORDS.get(len(asked), f'all {len(asked)}')}"
+    if len(asked) == 1:
+        return asked[0]["answer_words"]
+    return " · ".join(f"{SHORT_QUESTIONS.get(c['question'], c['question'])}: {c['answer_words']}" for c in asked)
+
+
 def _without_answer_words(n: int) -> str | None:
     if not n:
         return None
@@ -103,7 +149,9 @@ def _row(row: dict, state: dict, busy: bool, isolated: bool) -> dict:
         for track, blockers in system["blockers"].items():
             if any(b["row"] == row["id"] for b in blockers):
                 blocks.append({"system": system["name"], "track": track, "track_words": TRACK_WORDS[track],
-                               "fix_id": next(b["fix_id"] for b in blockers if b["row"] == row["id"])})
+                               "fix_id": next(b["fix_id"] for b in blockers if b["row"] == row["id"]),
+                               # phase 5b: the Blocks marker on the row, and which system it opens
+                               "system_key": system.get("key"), "words": f"Blocks {system['name']} · {TRACK_WORDS[track]}"})
     m = row["measurement"]
     running = bool(m and m.get("job"))
     if not row["measurable"]:
@@ -121,8 +169,11 @@ def _row(row: dict, state: dict, busy: bool, isolated: bool) -> dict:
         measurement = {"copy_label": row["copy_label"], "code": m["code"], "run_id": m["run_id"], "finished_at": m.get("finished_at"),
                        "result": m.get("result"), "controls": m.get("control"), "controls_words": ("Both control copies answered as they must." if m.get("control") == "as_expected"
                                                                         else "A control copy did not answer as it must, so this run can't be trusted.")}
+    cells = [_cell(row, q) for q, _, _ in QUESTIONS]
+    for c in cells:
+        c["no_reason"] = no_reason(row, c)
     return {"id": row["id"], "label": row["label"], "via_words": _via_words(row), "library": row["library_label"],
-            "cells": [_cell(row, q) for q, _, _ in QUESTIONS], "blocks": blocks, "measure": measure,
+            "cells": cells, "answers_short": answers_short(cells), "blocks": blocks, "measure": measure,
             "same_copy_note": note, "lookups": _lookup_evidence(row), "measurement": measurement,
             "job": (m or {}).get("job") if running else None}
 

@@ -357,7 +357,7 @@ class DependenciesMixin:
                                   "source_kind": "dependency", "answers": [], "component": None, "template_id": None,
                                   "rerun_blocked": None, "connection": None, "change": None, "proofs": 0, "proof": None,
                                   "pull_request": None, "merge": None, "actions": {},
-                                  "dependency": {"system": system["key"], "row_key": b["row_key"]}})
+                                  "dependency": {"system": system["key"], "row_key": b["row_key"], "row": b["row"]}})
         return fixes
 
     def _dependency_fix_view(self, db, plan: PlanRow, fix: dict, is_demo: bool) -> dict:

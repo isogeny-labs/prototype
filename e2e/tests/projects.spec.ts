@@ -1,6 +1,8 @@
 // Phase 5a end to end: projects and assessments, and the new app shell. Load demo projects, open Acme Pay, run it,
 // switch to Migration demo, switch back and see Acme Pay exactly as left, start a new assessment, and see the old one
 // read-only. Main-screen buttons only. Screenshots of every page, dark and light, go to docs/screenshots/phase5a/.
+// Phase 5b: picking a project opens its Project overview; New assessment opens a box and closes nothing (both stay
+// open); Close assessment is a sign-off with a name, and only then is the old one read-only.
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
@@ -35,11 +37,15 @@ function projectRow(name: string) {
   return page.getByTestId("project-row").filter({ has: page.locator("p").getByText(name, { exact: true }) });
 }
 
+/** Phase 5b: the switcher opens the project's overview; its newest assessment's row opens that assessment. */
 async function switchTo(project: string): Promise<void> {
   await page.getByRole("button", { name: /^Switch project/ }).click();
   const switcher = page.getByTestId("project-switcher");
   await switcher.getByRole("searchbox", { name: "Search projects" }).fill(project);
   await switcher.getByRole("option", { name: project, exact: true }).click();
+  await expect(page.getByTestId("project-overview")).toBeVisible();
+  await expect(page.getByRole("heading", { name: project, level: 1 })).toBeVisible();
+  await page.getByTestId("assessment-row").first().click();
   await expect(page.getByTestId("overview-page")).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText(project);
 }
@@ -80,7 +86,11 @@ test("Load demo projects: a Demo folder with one project per demo file, each wit
 });
 
 test("open Acme Pay from Projects: Overview with its file and the next step", async () => {
+  // Phase 5b: the row opens the Project overview; the assessment's row opens its Overview.
   await projectRow("Acme Pay").click();
+  await expect(page.getByTestId("project-overview")).toBeVisible();
+  await expect(page.getByTestId("assessment-row")).toHaveCount(1);
+  await page.getByTestId("assessment-row").first().click();
   await expect(page.getByTestId("overview-page")).toBeVisible();
   acmePay = page.url().replace(/\/overview$/, "");
   const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
@@ -116,8 +126,8 @@ test("run Acme Pay: Verify claims, then every suggested test", async () => {
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
   await expect(page.getByTestId("result-row").getByTestId("result-badge")).toHaveText(["False", "True", "True"]);
   await shots("04-inventory-verify");
-  await page.getByRole("button", { name: "Continue to tests" }).click();
-  await expect(page.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Continue to checks" }).click();
+  await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Run all" }).click();
   await expect(page.getByTestId("test-card").getByTestId("result-badge")).toHaveCount(5, { timeout: 180_000 });
   await shots("05-tests");
@@ -185,8 +195,9 @@ test("switch to Migration demo, then back: Acme Pay is exactly as it was left", 
   await switchTo("Acme Pay");
   expect(page.url()).toContain(acmePay);
   // The Overview's counts are Acme Pay's own: 3 claims checked, 1 false (expected.json), tests run.
-  await expect(page.getByTestId("summary-card").filter({ hasText: "Claims checked" })).toContainText("3");
-  await expect(page.getByTestId("summary-card").filter({ hasText: "Claims checked" })).toContainText("1 false");
+  const verification = page.getByTestId("overview-group").filter({ has: page.getByRole("heading", { name: "Verification" }) });
+  await expect(verification.getByTestId("overview-fact")).toHaveText(["True 2", "False 1", "Couldn't check 0"]);
+  await expect(page.getByTestId("finding-count").filter({ hasText: "False claims" })).toHaveText("False claims 1");
   await shots("02-overview-after");
   await stepLink(page, "Evidence").click();
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
@@ -208,27 +219,45 @@ test("the project switcher (search and folder tree), the collapsed sidebar and t
   await page.getByRole("button", { name: "Open menu" }).click();
   await expect(page.getByRole("dialog", { name: "Menu" })).toBeVisible();
   await shots("15-narrow-menu", { fullPage: false });
-  await page.getByRole("dialog", { name: "Menu" }).getByRole("link", { name: "Overview" }).click();
+  await page.getByRole("dialog", { name: "Menu" }).getByRole("link", { name: "Overview", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Menu" })).toHaveCount(0);
   await page.setViewportSize({ width: 1440, height: 900 });
 });
 
-test("New assessment: a fresh pass in Acme Pay; the old one is closed, kept and read-only", async () => {
+test("New assessment: a fresh pass in Acme Pay; the old one stays open until it is signed off, then it is kept read-only", async () => {
   await stepLink(page, "Overview").click();
   await page.getByRole("button", { name: "New assessment" }).first().click();
+  // Phase 5b: a box with the name filled in, a purpose and a reference; Start makes it and closes nothing.
+  const box = page.getByTestId("new-assessment-box");
+  await expect(box.getByLabel("Name")).toHaveValue("Assessment 2");
+  await box.getByLabel("Purpose").selectOption({ label: "Release check" });
+  await box.getByLabel("Reference (optional)").fill("Release 2.1");
+  await box.getByRole("button", { name: "Start" }).click();
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Assessment 2");
   await expect(page.getByTestId("assessment-status")).toHaveText(/Open/);
+  await expect(page.getByTestId("assessment-purpose")).toHaveText("Release check");
   await expect(page.getByTestId("next-step")).toContainText("Bring in a scanner file");
-  // The history lists both; the old one is closed.
-  const history = page.getByTestId("history-row");
-  await expect(history).toHaveCount(2);
-  await expect(history.filter({ hasText: "Assessment 1" })).toContainText("Closed");
-  await history.filter({ hasText: "Assessment 1" }).click();
+  // The Project overview lists both; both are open.
+  await page.getByTestId("to-project-overview").click();
+  const rows = page.getByTestId("assessment-row");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: "Assessment 1" })).toContainText("Open");
+  await expect(rows.filter({ hasText: "Assessment 2" })).toContainText("Open");
+  await rows.filter({ hasText: "Assessment 1" }).click();
+  await expect(page.getByTestId("overview-page")).toBeVisible();
+  // Close assessment is a sign-off: a name is needed, and it can't be undone.
+  await page.getByRole("button", { name: "Close assessment" }).click();
+  const close = page.getByTestId("close-box");
+  await expect(close.getByRole("button", { name: "Close and sign off" })).toBeDisabled();
+  await close.getByLabel("Signed off by").fill("Demo reviewer");
+  await close.getByRole("button", { name: "Close and sign off" }).click();
   await expect(page.getByTestId("closed-banner")).toContainText(CLOSED);
   await expect(page.getByTestId("assessment-status")).toHaveText(/Closed/);
+  await expect(page.getByTestId("signoff-line")).toContainText("Signed off by Demo reviewer");
+  await expect(page.getByRole("button", { name: "Close assessment" })).toHaveCount(0);
   await shots("16-closed-assessment");
   // Every action button is off, with the reason; downloads stay on.
-  await stepLink(page, "Tests").click();
+  await stepLink(page, "Checks").click();
   const runAll = page.getByRole("button", { name: "Run all" });
   await expect(runAll).toBeDisabled();
   await expect(runAll).toHaveAttribute("title", CLOSED);

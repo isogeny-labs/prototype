@@ -1,21 +1,61 @@
-import { useEffect, useState } from "react";
-import { api, errorMessage, type AssessmentView, type ProjectView, type Workspace } from "../../api";
+import { useState } from "react";
+import { api, errorMessage, type AssessmentView, type OverviewFact, type OverviewGroup, type Workspace } from "../../api";
 import type { Page } from "../../router";
-import { DataTable, PageHeader, SummaryCards, type Column } from "../layout";
+import { PageHeader } from "../layout";
+import { ItemLinkView } from "../related";
 import { DemoDataLabel, ErrorBox, PrimaryButton, SecondaryButton, StatusChip, formatTime } from "../ui";
-import { ActionsMenu, InlineForm, SYSTEM_STATUS_WORDS, Section } from "./parts";
+import { ActionsMenu, InlineForm, Section } from "./parts";
 
-type AssessmentRowData = ProjectView["assessments"][number];
+function Facts({ facts }: { facts: OverviewFact[] }) {
+  return (
+    <ul className="space-y-1">
+      {facts.map((f) => (
+        <li key={f.label}>
+          <ItemLinkView link={f.link} testId="overview-fact" className="text-sky-300 hover:underline">
+            {f.label} <span className="tabular-nums">{f.value}</span>
+          </ItemLinkView>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
-/** The Overview of one assessment: its real counts, what was imported and when, the next step, its history. */
+function Counts({ label, counts, link }: { label: string; counts: { open: number; in_progress: number; done: number }; link: { page: string; group: string } }) {
+  return (
+    <p className="text-xs text-slate-400">
+      <ItemLinkView link={{ page: link.page, item: null, group: link.group }} className="hover:text-slate-200 hover:underline">
+        {label}: Open {counts.open} · In progress {counts.in_progress} · Done {counts.done}
+      </ItemLinkView>
+    </p>
+  );
+}
+
+/** One work group of the assessment on the Overview: its checks and fixes counts and its facts, each a link. */
+function GroupBlock({ group }: { group: OverviewGroup }) {
+  return (
+    <section data-testid="overview-group" data-group={group.key} aria-label={group.label} className="rounded-xl border border-slate-800 bg-slate-900/40">
+      <h2 className="rounded-t-xl border-b border-slate-800 bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100">{group.label}</h2>
+      <div className="space-y-2 px-4 py-3 text-sm">
+        {group.checks ? <Counts label="Checks" counts={group.checks} link={{ page: "checks", group: group.key }} /> : null}
+        {group.facts.length > 0 ? <Facts facts={group.facts} /> : null}
+        {group.fixes ? <Counts label="Fixes" counts={group.fixes} link={{ page: "fixes", group: group.key }} /> : null}
+        {group.empty_text ? <p className="text-slate-400">{group.empty_text}</p> : null}
+      </div>
+    </section>
+  );
+}
+
+/** Phase 5b: the whole assessment on one page. Every number is read from the page it links to; no score. */
 export function OverviewPage({
   assessment,
   workspace,
   guided,
   onGuided,
   onGo,
-  onOpenAssessment,
   onChanged,
+  onNewAssessment,
+  onRerun,
+  onClose,
 }: {
   assessment: AssessmentView;
   workspace: Workspace | null;
@@ -24,32 +64,22 @@ export function OverviewPage({
   onGo: (page: Page) => void;
   onOpenAssessment: (id: number) => void;
   onChanged: () => Promise<void> | void;
+  onNewAssessment: () => void;
+  onRerun: () => void;
+  onClose: () => void;
 }) {
-  const [project, setProject] = useState<ProjectView | null>(null);
-  const [form, setForm] = useState<"rename" | "move" | null>(null);
+  const [form, setForm] = useState<"rename" | "move" | "purpose" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const closed = assessment.status.key === "closed";
 
-  useEffect(() => {
-    let live = true;
-    api
-      .getProject(assessment.project.id)
-      .then((p) => live && setProject(p))
-      .catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [assessment.project.id, assessment.id, assessment.status.key, assessment.title]);
-
-  async function act(call: () => Promise<unknown>, after?: (r: unknown) => void) {
+  async function act(call: () => Promise<unknown>) {
     setBusy(true);
     setError(null);
     try {
-      const r = await call();
+      await call();
       setForm(null);
       await onChanged();
-      after?.(r);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -57,57 +87,12 @@ export function OverviewPage({
     }
   }
 
-  const c = assessment.counts;
-  const cards = [
-    {
-      key: "claims",
-      label: "Claims checked",
-      value: c.claims ? c.claims.checked : "—",
-      sub: c.claims ? `${c.claims.false} false · ${c.claims.true} true · ${c.claims.couldnt_check} couldn't check` : "Not verified yet",
-    },
-    {
-      key: "tests",
-      label: "Tests failed",
-      value: c.tests ? c.tests.failed : "—",
-      sub: c.tests ? `of ${c.tests.run} run · ${c.tests.passed} passed` : "No test has run yet",
-    },
-    {
-      key: "fixes",
-      label: "Open fixes",
-      value: c.fixes ? c.fixes.open : "—",
-      sub: c.fixes ? `of ${c.fixes.total} in Fixes` : "Nothing in Fixes yet",
-    },
-    {
-      key: "systems",
-      label: "Systems measured",
-      value: c.systems ? c.systems.total - c.systems.not_measured : "—",
-      sub: c.systems
-        ? SYSTEM_STATUS_WORDS.filter((w) => c.systems && c.systems[w.key] > 0)
-            .map((w) => `${c.systems?.[w.key]} ${w.label.toLowerCase()}`)
-            .join(" · ")
-        : "Migration has not measured yet",
-    },
-  ];
-
-  const history: Column<AssessmentRowData>[] = [
-    {
-      key: "title",
-      header: "Assessment",
-      render: (a) => (
-        <span className="flex items-center gap-2 font-medium text-slate-100">
-          {a.title}
-          {a.id === assessment.id ? <span className="text-xs font-normal text-slate-500">(this one)</span> : null}
-        </span>
-      ),
-    },
-    { key: "file", header: "File", render: (a) => <span className="text-slate-300">{a.file ? a.file.filename : "No file yet"}</span> },
-    { key: "status", header: "Status", render: (a) => <StatusChip size="sm" label={a.status.label} tone={a.status.key === "open" ? "pass" : "neutral"} /> },
-    { key: "opened", header: "Started", render: (a) => <span className="text-slate-400">{formatTime(a.created_at)}</span> },
-  ];
-
   const projectOptions = (workspace?.projects ?? [])
     .filter((p) => !p.archived)
     .map((p) => ({ value: String(p.id), label: [...p.path.map((s) => s.name), p.name].join(" / ") }));
+  const purposeOptions = (workspace?.purposes ?? []).map((p) => ({ value: p.key, label: p.label }));
+  const blocks = assessment.blocks ?? null;
+  const signoff = assessment.status.signoff;
 
   return (
     <div data-testid="overview-page">
@@ -115,32 +100,46 @@ export function OverviewPage({
         eyebrow={assessment.project.name}
         title={assessment.title}
         description={
-          assessment.file ? (
+          <span className="flex flex-col gap-1.5">
             <span className="flex flex-wrap items-center gap-2">
-              <span>
-                <span className="font-mono text-slate-300">{assessment.file.filename}</span>, imported {formatTime(assessment.file.imported_at)}
-              </span>
-              {assessment.file.is_demo ? <DemoDataLabel /> : null}
+              {assessment.purpose ? <StatusChip size="sm" label={assessment.purpose.label} tone="neutral" testId="assessment-purpose" /> : null}
+              {assessment.reference ? <span className="text-slate-300">{assessment.reference}</span> : null}
+              <StatusChip size="sm" label={assessment.status.label} tone={closed ? "neutral" : "pass"} />
+              <span>Started {formatTime(assessment.created_at)}</span>
+              {signoff ? (
+                <span data-testid="signoff-line">
+                  · Signed off by {signoff.by}, {formatTime(signoff.at)}
+                </span>
+              ) : null}
             </span>
-          ) : (
-            "No scanner file in this assessment yet."
-          )
+            {assessment.file ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <span>
+                  <span className="font-mono text-slate-300">{assessment.file.filename}</span>, imported {formatTime(assessment.file.imported_at)}
+                </span>
+                {assessment.file.is_demo ? <DemoDataLabel /> : null}
+              </span>
+            ) : (
+              <span>No scanner file in this assessment yet.</span>
+            )}
+          </span>
         }
         actions={
           <>
-            <SecondaryButton
-              allowWhenClosed
-              onClick={() => void act(() => api.newAssessment(assessment.project.id), (r) => onOpenAssessment((r as { id: number }).id))}
-            >
+            <SecondaryButton allowWhenClosed onClick={onNewAssessment}>
               New assessment
             </SecondaryButton>
-            {!closed ? (
-              <SecondaryButton onClick={() => void act(() => api.changeAssessment(assessment.id, { close: true }))}>Close assessment</SecondaryButton>
+            {!closed ? <SecondaryButton onClick={onClose}>Close assessment</SecondaryButton> : null}
+            {assessment.file ? (
+              <SecondaryButton allowWhenClosed onClick={onRerun}>
+                Rerun as new assessment
+              </SecondaryButton>
             ) : null}
             <ActionsMenu
               label="More actions for this assessment"
               items={[
                 { label: "Rename", onClick: () => setForm("rename") },
+                ...(!closed ? [{ label: "Change purpose", onClick: () => setForm("purpose") }] : []),
                 { label: "Move to another project", onClick: () => setForm("move") },
                 assessment.archived
                   ? { label: "Unarchive", onClick: () => void act(() => api.changeAssessment(assessment.id, { archived: false })) }
@@ -165,6 +164,18 @@ export function OverviewPage({
           onCancel={() => setForm(null)}
           onSubmit={(name) => void act(() => api.changeAssessment(assessment.id, { name }))}
         />
+      ) : form === "purpose" ? (
+        <InlineForm
+          title="Change purpose"
+          submitLabel="Save purpose"
+          nameLabel="Reference (optional)"
+          initialName={assessment.reference ?? ""}
+          destination={{ label: "Purpose", options: purposeOptions, initial: assessment.purpose?.key ?? "full_review" }}
+          busy={busy}
+          error={error}
+          onCancel={() => setForm(null)}
+          onSubmit={(reference, purpose) => void act(() => api.changeAssessment(assessment.id, { purpose, reference }))}
+        />
       ) : form === "move" ? (
         <InlineForm
           title="Move this assessment to another project"
@@ -178,18 +189,13 @@ export function OverviewPage({
         />
       ) : null}
 
-      <SummaryCards label="This assessment in numbers" cards={cards} />
-
-      <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <section aria-label="Next step" data-testid="next-step" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Next step</p>
           <p className="mt-1.5 text-sm text-slate-300">{assessment.next_step.text}</p>
           <div className="mt-4">
             {assessment.next_step.page === "overview" ? (
-              <PrimaryButton
-                allowWhenClosed
-                onClick={() => void act(() => api.newAssessment(assessment.project.id), (r) => onOpenAssessment((r as { id: number }).id))}
-              >
+              <PrimaryButton allowWhenClosed onClick={onNewAssessment}>
                 {assessment.next_step.label}
               </PrimaryButton>
             ) : (
@@ -199,63 +205,99 @@ export function OverviewPage({
             )}
           </div>
         </section>
-        <section aria-label="Guided demo" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
-          <label className="flex items-start justify-between gap-4">
-            <span>
-              <span className="block text-sm font-medium text-slate-100">Guided demo</span>
-              <span className="mt-1 block text-xs leading-relaxed text-slate-400">
-                Walks the pages in today's order, with Back and Next at the bottom of each: Import, Verify, Tests, Evidence, Fixes,
-                Migration.
-              </span>
-            </span>
-            <input
-              type="checkbox"
-              role="switch"
-              aria-checked={guided}
-              checked={guided}
-              onChange={(e) => onGuided(e.target.checked)}
-              className="mt-1 h-4 w-4 accent-sky-500"
-            />
-          </label>
+        <section aria-label="Brought in" data-testid="brought-in" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 text-sm">
+          <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Brought in</p>
+          {assessment.import ? (
+            <div className="mt-1.5 space-y-1 text-slate-300">
+              <p>
+                <ItemLinkView link={{ page: "inventory/import", item: null }}>
+                  <span className="font-mono">{assessment.import.filename}</span>
+                </ItemLinkView>
+                : {assessment.import.claims.length} {assessment.import.claims.length === 1 ? "claim" : "claims"},{" "}
+                {assessment.import.addresses.length} {assessment.import.addresses.length === 1 ? "server" : "servers"} named
+              </p>
+              <p className="text-slate-400">
+                <ItemLinkView link={{ page: "migration/dependencies", item: null }}>Dependency list</ItemLinkView>:{" "}
+                {blocks?.groups.find((g) => g.key === "dependencies")?.facts.length ? "added" : "none yet"}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-1.5 text-slate-400">Nothing yet. Bring in the file your scanner made, or use the demo file.</p>
+          )}
         </section>
       </div>
 
-      {assessment.import ? (
-        <Section title="What was imported">
-          <dl className="grid gap-x-6 gap-y-2 rounded-xl border border-slate-800 bg-slate-900/30 p-4 text-sm sm:grid-cols-3">
-            <div>
-              <dt className="text-xs text-slate-500">File</dt>
-              <dd className="font-mono text-slate-200">{assessment.import.filename}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-slate-500">Claims in the file</dt>
-              <dd className="text-slate-200">{assessment.import.claims.length}</dd>
-            </div>
-            <div>
-              <dt className="text-xs text-slate-500">Servers named</dt>
-              <dd className="text-slate-200">{assessment.import.addresses.length}</dd>
-            </div>
-          </dl>
-        </Section>
+      {blocks ? (
+        <>
+          <div data-testid="overview-groups" className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {blocks.groups.map((g) => (
+              <GroupBlock key={g.key} group={g} />
+            ))}
+          </div>
+          <div className="mb-6 grid gap-4 lg:grid-cols-2">
+            <section aria-label="Open findings" data-testid="open-findings" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 text-sm">
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Open findings</p>
+              <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+                {blocks.findings.map((f) => (
+                  <li key={f.label}>
+                    <ItemLinkView link={f.link} testId="finding-count">
+                      {f.label} <span className="tabular-nums">{f.value}</span>
+                    </ItemLinkView>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <section aria-label="Evidence" data-testid="overview-evidence" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 text-sm">
+              <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Evidence</p>
+              <p className="mt-2 text-slate-300">
+                <ItemLinkView link={{ page: "evidence", item: null }}>
+                  {blocks.evidence.runs} {blocks.evidence.runs === 1 ? "run" : "runs"} recorded
+                </ItemLinkView>
+                .{" "}
+                {blocks.evidence.last_download ? (
+                  <span>
+                    Last download {formatTime(blocks.evidence.last_download.at)}, fingerprint{" "}
+                    <span className="font-mono" title={blocks.evidence.last_download.fingerprint}>
+                      {blocks.evidence.last_download.fingerprint.slice(0, 12)}
+                    </span>
+                    .
+                  </span>
+                ) : (
+                  "Not downloaded yet."
+                )}
+              </p>
+            </section>
+          </div>
+        </>
       ) : null}
 
-      <Section title="History of this project">
-        {project ? (
-          <DataTable
-            label="Assessments in this project"
-            columns={history}
-            rows={project.assessments.filter((a) => !a.archived || a.id === assessment.id)}
-            rowKey={(a) => String(a.id)}
-            rowTestId="history-row"
-            selectedKey={String(assessment.id)}
-            onRowClick={(a) => a.id !== assessment.id && onOpenAssessment(a.id)}
+      <Section title="Guided demo">
+        <label className="flex items-start justify-between gap-4 rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+          <span>
+            <span className="block text-sm font-medium text-slate-100">Guided demo</span>
+            <span className="mt-1 block text-xs leading-relaxed text-slate-400">
+              Walks the pages in today&apos;s order, with Back and Next at the bottom of each: Import, Verify, Checks, Evidence, Fixes, Migration.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            role="switch"
+            aria-checked={guided}
+            aria-label="Guided demo"
+            checked={guided}
+            onChange={(e) => onGuided(e.target.checked)}
+            className="mt-1 h-4 w-4 accent-sky-500"
           />
-        ) : (
-          <p role="status" className="text-sm text-slate-400">
-            Loading…
-          </p>
-        )}
+        </label>
       </Section>
+
+      <p className="text-sm text-slate-400">
+        Every assessment of this project, side by side:{" "}
+        <a href={`#/p/${assessment.project.id}`} data-testid="to-project-overview" className="text-sky-300 hover:underline">
+          Project overview
+        </a>
+        .
+      </p>
     </div>
   );
 }

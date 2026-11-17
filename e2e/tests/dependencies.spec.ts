@@ -8,12 +8,12 @@
 //     on a public copy with their controls, the blocker now measured, Download evidence.
 //
 // Main-screen buttons only. Screenshots go to docs/screenshots/phase4d/.
-import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
-import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import { expect, test, type Page } from "@playwright/test";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, enterApp, importVerifyAndOpenTests, PYTHON, REPO, screenshotFolder, stepLink, openFreshAssessment } from "./shared";
+import { BACKEND, enterApp, importVerifyAndOpenTests, PYTHON, REPO, screenshotFolder, startCopy, stepLink, stopCopy, openFreshAssessment, type Copy } from "./shared";
 
 const SHOTS = screenshotFolder("phase4d");
 fs.mkdirSync(SHOTS, { recursive: true });
@@ -23,50 +23,6 @@ const READ = "Evidence Lab reads dependency lists in CycloneDX JSON (1.5 or 1.6)
 
 async function shot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: path.join(SHOTS, name), fullPage: true, animations: "disabled" });
-}
-
-interface Copy {
-  app: ChildProcess;
-  context: BrowserContext;
-  page: Page;
-  dataDir: string;
-  mode: string;
-  /** The demo TLS server of this copy: the server the demo file's claims name. */
-  server: string;
-}
-
-/** A copy of the app on its own ports and data folder. mode "demo" forces demo mode; "auto" lets it choose. */
-async function startCopy(browser: Browser, offset: number, mode: "demo" | "auto"): Promise<Copy> {
-  const port = Number(process.env.E2E_APP_PORT ?? "8010") + offset;
-  const tlsPort = Number(process.env.E2E_DEMO_TLS_PORT ?? "8443") + offset;
-  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-deps-"));
-  const env: Record<string, string> = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", EVIDENCE_LAB_DATA_DIR: dataDir,
-                                         EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort) };
-  if (mode === "demo") env.EVIDENCE_LAB_MODE = "demo";
-  for (const key of ["DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONTEXT", "XDG_RUNTIME_DIR"]) if (process.env[key]) env[key] = process.env[key] as string;
-  const app = spawn(PYTHON, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", "warning"],
-                    { cwd: BACKEND, stdio: "ignore", env });
-  const context = await browser.newContext({ baseURL: `http://127.0.0.1:${port}` });
-  let session: { mode: string } | null = null;
-  await expect
-    .poll(async () => {
-      try {
-        session = await (await context.request.get("/api/session")).json();
-        return true;
-      } catch {
-        return false;
-      }
-    }, { timeout: 30_000 })
-    .toBe(true);
-  const page = await context.newPage();
-  return { app, context, page, dataDir, mode: (session as { mode: string } | null)?.mode ?? "demo", server: `localhost:${tlsPort}` };
-}
-
-async function stopCopy(copy: Copy | null): Promise<void> {
-  if (!copy) return;
-  await copy.context.close();
-  copy.app.kill("SIGINT");
-  await new Promise((done) => setTimeout(done, 1500));
 }
 
 async function openDependencies(page: Page): Promise<void> {
@@ -90,7 +46,8 @@ function row(page: Page, label: string) {
  * right-side detail panel; this opens it (or keeps it open) and hands back what the panel shows. */
 async function details(page: Page, label: string) {
   const heading = page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: label, exact: true });
-  if ((await heading.count()) === 0) await row(page, label).click();
+  // Phase 5b: a row holds a link too (its "Blocks ..." marker opens the Roadmap), so open the row by its name.
+  if ((await heading.count()) === 0) await row(page, label).locator("p.font-mono").click();
   await expect(heading).toBeVisible();
   return page.getByTestId("detail-panel").getByTestId("dependency-detail");
 }
@@ -249,12 +206,22 @@ test("isolated mode: Measure all, answers measured on a public copy with their c
     const server = page.getByTestId("dependency-system").filter({ hasText: "Server" });
     await expect(server.getByTestId("blocker-line").first()).toContainText("measured on a public copy");
     await shot(page, "08-isolated-measured.png");
+    // Phase 5b (Kevin's note: a red dot beside the acme-sign 1.4.2 heading): that system's box, close up.
+    const signing = page.getByTestId("dependency-system").filter({ hasText: "acme-sign 1.4.2" });
+    await signing.scrollIntoViewIfNeeded();
+    await signing.screenshot({ path: path.join(screenshotFolder("phase5b"), "red-dot-check-acme-sign-heading.png"), animations: "disabled" });
 
     // ---- the measurement behind it: both controls, the locked test, the raw record and the review
     await (await details(page, "openssl 3.0.22")).getByText("Details and evidence").click();
     await expect((await details(page, "openssl 3.0.22")).getByTestId("measurement")).toContainText("Both control copies answered as they must.");
     await expect((await details(page, "openssl 3.0.22")).getByTestId("measurement")).toContainText("This copy is also the incapable control");
     await (await details(page, "openssl 3.0.22")).screenshot({ path: path.join(SHOTS, "09-openssl-3.0-measured-details.png"), animations: "disabled" });
+    // Phase 5b (Kevin's note: a red dot at the left edge of this line): the measurement, scrolled into view, close up.
+    // The panel scrolls inside itself, so the picture is the panel as the screen shows it, the line scrolled into view.
+    const controlLine = (await details(page, "openssl 3.0.22")).getByTestId("measurement").getByText("Both control copies answered as they must.");
+    await controlLine.evaluate((el) => el.scrollIntoView({ block: "center" }));
+    const box = await page.getByTestId("detail-panel").boundingBox();
+    if (box) await page.screenshot({ path: path.join(screenshotFolder("phase5b"), "red-dot-check-control-line.png"), clip: box, animations: "disabled" });
 
     // ---- Measure status, then Download evidence: the measurements are in the signed file, with their runs
     await page.getByRole("button", { name: "Measure status" }).click();

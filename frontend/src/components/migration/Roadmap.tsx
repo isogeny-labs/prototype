@@ -1,5 +1,6 @@
 import type { EvidenceExport, MigrationRoadmapBand, MigrationView } from "../../api";
 import { DownloadStatus } from "../evidenceDownload";
+import { usePanelOpen } from "../layout";
 import { SecondaryButton, SourceTag } from "../ui";
 import { LineView } from "./parts";
 
@@ -24,8 +25,11 @@ interface Props {
 export function Roadmap({ view, busy, exported, onDownload, onViewFix, selectedKey, onOpenSystem }: Props) {
   const roadmap = view.roadmap;
   const download = roadmap.download;
+  // Phase 5b: beside the open panel, a row is the system with its track, the plan, and the note only where it points to
+  // a fix (a blocker); the full row comes back when the panel closes.
+  const compact = usePanelOpen();
   return (
-    <div data-testid="migration-roadmap">
+    <div data-testid="migration-roadmap" data-compact={compact || undefined}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p data-testid="roadmap-intro" className="max-w-2xl text-sm text-slate-300">
           {roadmap.intro}
@@ -65,7 +69,9 @@ export function Roadmap({ view, busy, exported, onDownload, onViewFix, selectedK
                   data-testid="roadmap-row"
                   data-system={row.system_key}
                   onClick={() => onOpenSystem(row.system_key)}
-                  className={`grid cursor-pointer gap-x-4 gap-y-1 border-t border-slate-800 px-2 py-2 first:border-t-0 hover:bg-slate-800/40 @2xl:grid-cols-[minmax(0,200px)_minmax(0,130px)_minmax(0,230px)_minmax(0,1fr)] ${
+                  className={`grid cursor-pointer gap-x-4 gap-y-1 border-t border-slate-800 px-2 py-2 first:border-t-0 hover:bg-slate-800/40 ${
+                    compact ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "@2xl:grid-cols-[minmax(0,200px)_minmax(0,130px)_minmax(0,230px)_minmax(0,1fr)]"
+                  } ${
                     row.system_key === selectedKey ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]" : ""
                   }`}
                 >
@@ -78,24 +84,41 @@ export function Roadmap({ view, busy, exported, onDownload, onViewFix, selectedK
                     }}
                     className="block self-start text-left"
                   >
-                    <span className="block text-xs text-slate-400">{row.kind_label}</span>
+                    {compact ? null : <span className="block text-xs text-slate-400">{row.kind_label}</span>}
                     <span className="block text-sm font-semibold text-slate-100">{row.name}</span>
+                    {compact && row.track ? (
+                      <span data-testid="roadmap-track" className="block text-xs text-slate-400">
+                        {row.track}
+                      </span>
+                    ) : null}
                   </button>
-                  <span data-testid="roadmap-track" className="text-[13px] text-slate-300">
-                    {row.track ?? ""}
-                  </span>
-                  <span className="text-sm text-slate-200">
+                  {compact ? null : (
+                    <span data-testid="roadmap-track" className="text-[13px] text-slate-300">
+                      {row.track ?? ""}
+                    </span>
+                  )}
+                  <span className="min-w-0 text-sm text-slate-200">
                     {row.option}
                     {row.plan_tag ? (
-                      <>
-                        {" "}
-                        <SourceTag>{row.plan_tag}</SourceTag>
-                      </>
+                      compact ? (
+                        <span className="mt-1 block text-xs text-slate-400">{row.plan_tag}</span>
+                      ) : (
+                        <>
+                          {" "}
+                          <SourceTag>{row.plan_tag}</SourceTag>
+                        </>
+                      )
                     ) : null}
                   </span>
-                  <span data-testid="roadmap-note" className="text-[13px] text-slate-300" onClick={(e) => e.stopPropagation()}>
-                    <LineView line={row.note} onViewFix={onViewFix} />
-                  </span>
+                  {!compact || row.note.fix_id ? (
+                    <span
+                      data-testid="roadmap-note"
+                      className={`text-[13px] text-slate-300 ${compact ? "col-span-2" : ""}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <LineView line={row.note} onViewFix={onViewFix} />
+                    </span>
+                  ) : null}
                 </li>
               ))}
             </ul>

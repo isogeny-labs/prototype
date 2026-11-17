@@ -290,6 +290,7 @@ def _text(parts):
     return "".join(f"[{p['v']}]" if p["t"] == "tag" else p["v"] for p in parts)
 
 
+@pytest.mark.slow  # over 5 s on a slow machine (17 November 2026); runs with --full
 def test_the_views_have_exactly_the_shape_the_screens_receive(flow):
     """Before and after measuring all five test servers and both programs (phase 4c+: the shapes in app/web/models.py)."""
     plan_id = flow.plan["id"]
@@ -556,6 +557,7 @@ def _program_ref(flow, label):
     return next(c["ref"] for c in flow.imp["claims"] if c["location"] == label)
 
 
+@pytest.mark.slow  # over 5 s on a slow machine (17 November 2026); runs with --full
 def test_the_users_choice_is_recorded_followed_and_never_overwritten(flow):
     lab, plan_id, address = flow.lab, flow.plan["id"], flow.addr["classical_internet"]
     key = "server:" + address
@@ -604,6 +606,7 @@ def test_raw_sql_cannot_change_or_delete_a_setting_or_a_choice(flow, table, colu
         assert db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar() == before
 
 
+@pytest.mark.slow  # reads the choice test_the_users_choice_is_recorded_followed_and_never_overwritten records (slow); runs with --full
 def test_the_plan_goes_into_the_evidence_file_and_the_report(flow, tmp_path):
     from evidence import trusted_key_from_data_dir, verify_bytes
     lab = flow.lab

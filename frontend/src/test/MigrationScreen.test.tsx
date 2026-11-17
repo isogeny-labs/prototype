@@ -54,12 +54,16 @@ describe("Migration, header and Systems view", () => {
     // Each pill has a symbol as well as its words, so it doesn't rely on colour.
     expect(text(within(card("localhost:8451")).getByTestId("migration-status"))).toBe("◑Hybrid");
     expect(text(within(card("acme-sign 9.9")).getByTestId("migration-status"))).toBe("?Couldn't check");
-    expect(text(card("localhost:8452"))).toBe("Serverlocalhost:8452○ClassicalPlan: Hybrid · Phase 1");
+    // Beside the open panel, a row is the system with its plan line, then its status.
+    expect(text(card("localhost:8452"))).toBe("localhost:8452Plan: Hybrid · Phase 1○Classical");
     // As before the panel, Systems opens on the first system; the panel shows it.
     expect(cards().map((c) => c.getAttribute("aria-current"))).toEqual(["true", null, null, null, null, null, null]);
     expect(screen.getByRole("heading", { level: 2, name: "localhost:8451" })).not.toBeNull();
     expect(within(screen.getByTestId("detail-panel")).getByTestId("migration-system").getAttribute("data-system")).toBe("server:localhost:8451");
     expect(document.body.textContent).not.toMatch(/score/i);
+    // With the panel closed, the full row comes back.
+    fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
+    expect(text(card("localhost:8452"))).toBe("Serverlocalhost:8452○ClassicalPlan: Hybrid · Phase 1");
   });
 
   it("selecting a system draws its Today box, settings, cost table, recommendation and four options", async () => {
@@ -362,6 +366,27 @@ describe("Migration, Roadmap view", () => {
     expect(screen.queryByTestId("detail-panel")).toBeNull();
     fireEvent.click(within(roadmap).getByRole("button", { name: /acme-sign 1\.4\.2/ }));
     expect(within(screen.getByTestId("detail-panel")).getByTestId("migration-system").getAttribute("data-system")).toBe("software:acme-sign-1.4.2");
+  });
+
+  it("beside an open panel, a row is the system with its track, the plan, and only a note that points to a fix", async () => {
+    await open();
+    fireEvent.click(button("Roadmap"));
+    const roadmap = screen.getByTestId("migration-roadmap");
+    expect(roadmap.getAttribute("data-compact")).toBeNull();
+    fireEvent.click(within(roadmap).getByRole("button", { name: /localhost:8452/ }));
+    expect(roadmap.getAttribute("data-compact")).toBe("true");
+    const bands = within(roadmap).getAllByTestId("roadmap-band");
+    // The note with a fix stays (it is the step to take); a note without one waits for the full row. The plan's tag
+    // sits under the option.
+    expect(text(within(bands[1]!).getByTestId("roadmap-row"))).toBe(
+      "localhost:8452Hybridrecommended, not yet chosen by youTo do: turn on hybrid key exchange. View in Fixes",
+    );
+    expect(text(within(bands[5]!).getByTestId("roadmap-row"))).toBe("acme-sign 9.9No option yet");
+    fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
+    expect(roadmap.getAttribute("data-compact")).toBeNull();
+    expect(text(within(bands[5]!).getByTestId("roadmap-row"))).toBe(
+      "Signing programacme-sign 9.9No option yetCouldn't check: only our own demo components can run in this version.",
+    );
   });
 
   it("downloads the same evidence as Evidence Lab and shows its fingerprint", async () => {

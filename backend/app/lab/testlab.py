@@ -23,7 +23,7 @@ from app.canonical import canonical_bytes, sha256_hex
 from app.config import DEMO_HOSTNAME
 from app.db import (
     AddressRow, ImportRow, PlanItemRow, PlanRow, ProofRow, ResearchRequestRow, RetestProgramRow, RetestRow, ReviewMarkRow,
-    ReviewRow, RunCodeRow, TestRunRow, TestSpecRow, iso,
+    ReviewRow, RunCodeRow, TestRunRow, TestSpecRow, VerifyRunRow, iso,
 )
 from app.errors import BadRequest, Conflict, NotFound
 from app.run.execute import RunContext, execute, problem
@@ -888,9 +888,13 @@ class TestLabMixin:
                                          f"Choosing a version reruns {tests_word} with that library moved to it, and shows before and after. "
                                          "Every other program is tested again as it is. Only the versions listed here can be chosen.")}
             any_result = len(items) > missing or self._has_migration(db, plan_id)   # a migration measurement counts too
+            # Phase 5b: evidence starts at the first Verify result, and any reviewed check of any kind counts.
+            any_result = any_result or db.scalar(select(func.count(VerifyRunRow.id)).where(VerifyRunRow.import_id == plan.import_id)) > 0
+            any_result = any_result or db.scalar(select(func.count(ReviewRow.id)).join(TestRunRow, TestRunRow.id == ReviewRow.run_id)
+                                                 .where(TestRunRow.plan_id == plan_id)) > 0
             download = {"can_start": any_result and not busy,
                         "blocked_reason": None if any_result and not busy else
-                        (BUSY[running] if busy else "Run a test first, so there is something to download.")}
+                        (BUSY[running] if busy else "Verify the claims first, so there is something to download.")}
             if grouped:
                 address = component = None
             if retest is None:

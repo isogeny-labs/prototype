@@ -1,6 +1,7 @@
 """The application's actions (import, confirm an address, verify), used by the web API and the accuracy command."""
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import os
 import threading
@@ -22,12 +23,15 @@ from app.checks.addresses import AddressError, is_loopback_ip, parse_address, re
 from app.fixes.changes import ChangesMixin
 from app.config import DEMO_CBOM, DEMO_CBOM_PORT, DEMO_HOSTNAME, Settings
 from app.db import (
-    AddressRow, AssessmentRow, ClaimRow, ImportClearedRow, ImportRow, SkippedRow, SystemSettingRow, VerifyRunRow, iso, make_session_factory, now_utc,
+    AddressRow, AssessmentRow, ClaimRow, ImportClearedRow, ImportFileRow, ImportRow, SkippedRow, SystemSettingRow, VerifyRunRow, iso, make_session_factory, now_utc,
 )
 from app.servers.demo_server import DemoServer
 from app.servers.extra_servers import ExtraServers, claims_match, is_multi_target_file
 from app.errors import BadRequest, Conflict, NotFound
 from app.evidence.export import EvidenceMixin, SigningKeyError, ensure_signing_key
+from app.ledger.checks import LedgerMixin
+from app.ledger.relations import RelationsMixin
+from app.projects.overview import OverviewMixin
 from app.fixes.views import FixesMixin
 from app.migration.state import MigrationMixin
 from app.dependencies.state import DependenciesMixin
@@ -72,7 +76,7 @@ def run_json(r: VerifyRunRow) -> dict:
 
 
 class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin,
-          ProjectsMixin):
+          ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -153,7 +157,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             # The demo server was moved with EVIDENCE_LAB_DEMO_TLS_PORT; point the demo file at the same port.
             data = data.replace(f"{DEMO_HOSTNAME}:{DEMO_CBOM_PORT}".encode(), self.settings.demo_address.encode())
         return self._with_in_force_notices(self._store(DEMO_CBOM.name, parse_file(DEMO_CBOM.name, data), is_demo=True,
-                                                       assessment_id=assessment_id))
+                                                       assessment_id=assessment_id, data=data))
 
     def _with_in_force_notices(self, stored: dict) -> dict:
         """Phase 4b: a change this app applied to one of our own servers stays in force until it is rolled back, also
@@ -208,7 +212,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         shown = clean_text(os.path.basename((filename or "").replace("\\", "/")), 120) or "uploaded file"
         parsed = parse_file(shown, data)
         stored = self._store(shown, parsed, is_demo=self._targets_demo(parsed) or self._lab_nginx_data(data),
-                             assessment_id=assessment_id)
+                             assessment_id=assessment_id, data=data)
         if is_multi_target_file(data, self.settings.demo_tls_port, self.settings.extra_ports):
             # Only our own multi-target demo file starts the three test servers. A taken port is said, never fatal.
             problems = self.extra.start()
@@ -319,7 +323,8 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         return ({p: self.extra.fingerprints.get(p) if p in self.extra.running else None for p in self.settings.extra_ports},
                 dict(self.extra.problems))
 
-    def _store(self, filename: str, parsed: ParsedFile, is_demo: bool, assessment_id: int | None = None) -> dict:
+    def _store(self, filename: str, parsed: ParsedFile, is_demo: bool, assessment_id: int | None = None,
+               data: bytes | None = None) -> dict:
         with self.db() as db:
             row = ImportRow(filename=filename, format=parsed.format, is_demo=is_demo)
             seen: dict[str, AddressRow] = {}
@@ -344,6 +349,9 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
                         else ["software:" + ref for ref in refs.get(setting.location, [])] or ["software:None"])
                 for key in keys:
                     db.add(SystemSettingRow(import_id=row.id, system_key=key, field=setting.field, value=setting.value, source="file"))
+            if data is not None:
+                # Phase 5b: keep the file itself (data, at most 1 MB, never run), so Rerun as new assessment can read it again.
+                db.add(ImportFileRow(import_id=row.id, filename=filename, data=bytes(data), sha256=hashlib.sha256(data).hexdigest()))
             # Phase 5a: the import goes into its assessment (or, with none given, the "Imported without a project" project).
             placed = self.attach_import(db, row.id, assessment_id)
             db.commit()

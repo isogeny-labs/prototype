@@ -17,12 +17,15 @@ export function ProjectsPage({
   workspace,
   onChanged,
   onOpenAssessment,
+  onOpenProject,
   onLoadDemo,
   loadingDemo,
 }: {
   workspace: Workspace;
   onChanged: () => Promise<void> | void;
   onOpenAssessment: (assessmentId: number, page?: "overview" | "inventory/import") => void;
+  /** Phase 5b: a row opens the project's overview. */
+  onOpenProject: (projectId: number) => void;
   onLoadDemo: () => void;
   loadingDemo: boolean;
 }) {
@@ -89,12 +92,15 @@ export function ProjectsPage({
             <span>{p.path.length ? p.path.map((s) => s.name).join(" / ") : "Top level"}</span>
             {p.latest?.file?.is_demo ? <DemoDataLabel /> : null}
           </p>
+          <p data-testid="project-assessment-counts" className="mt-0.5 text-xs text-slate-400">
+            {p.open_count ?? 0} open · {p.closed_count ?? 0} closed
+          </p>
         </div>
       ),
     },
     {
       key: "latest",
-      header: "Latest assessment",
+      header: "Worked on last",
       render: (p) =>
         p.latest ? (
           <div className="min-w-[11rem]">
@@ -282,12 +288,12 @@ export function ProjectsPage({
             rows={rows}
             rowKey={(p) => String(p.id)}
             rowTestId="project-row"
-            onRowClick={(p) => p.latest && onOpenAssessment(p.latest.id)}
+            onRowClick={(p) => onOpenProject(p.id)}
             empty="No project matches."
           />
           <p className="mt-3 text-xs text-slate-500">
-            Counts come from each project's latest assessment, exactly as its pages show them. "Not yet" means that step has not
-            happened in that assessment.
+            Counts come from the assessment of each project worked on last, exactly as its pages show them. "Not yet" means that
+            step has not happened in that assessment. A row opens the project's overview, with every assessment side by side.
           </p>
         </>
       )}

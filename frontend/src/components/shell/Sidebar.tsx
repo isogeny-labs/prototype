@@ -1,6 +1,7 @@
-import type { AssessmentView, Workspace, WorkspaceProject } from "../../api";
+import { useRef, useState } from "react";
+import type { AssessmentBrief, AssessmentView, Workspace, WorkspaceProject } from "../../api";
 import { pageHref, type Page, type Route } from "../../router";
-import { Wordmark } from "../ui";
+import { StatusChip, useDismiss, Wordmark } from "../ui";
 import { Icon } from "./icons";
 import { ProjectSwitcher } from "./ProjectSwitcher";
 
@@ -26,7 +27,7 @@ export const ASSESSMENT_ITEMS: Item[] = [
       { page: "inventory/verify", label: "Verify", icon: "verify" },
     ],
   },
-  { page: "tests", label: "Tests", icon: "tests" },
+  { page: "checks", label: "Checks", icon: "tests" },
   { page: "evidence", label: "Evidence", icon: "evidence" },
   { page: "fixes", label: "Fixes", icon: "fixes" },
   {
@@ -87,8 +88,74 @@ function NavLink({
   );
 }
 
-/** The left sidebar: organization and project switcher on top, the open assessment's pages, Projects and Settings at
- * the bottom. Collapses to icons; on a narrow screen it is shown as a menu by the top bar's Menu button. */
+/** Phase 5b: the open assessment's name with its Open or Closed chip. It lists the project's assessments (each opens)
+ * and holds New assessment. */
+function AssessmentPicker({
+  assessment,
+  assessments,
+  onNewAssessment,
+  onNavigate,
+}: {
+  assessment: AssessmentView;
+  assessments: AssessmentBrief[];
+  onNewAssessment: () => void;
+  onNavigate?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(open, ref, () => setOpen(false));
+  return (
+    <div ref={ref} className="relative mb-2">
+      <button
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={`Assessment: ${assessment.title}, ${assessment.status.label}`}
+        data-testid="assessment-picker"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-2.5 py-1.5 text-left text-sm text-slate-100 hover:border-slate-600"
+      >
+        <span className="truncate">{assessment.title}</span>
+        <StatusChip label={assessment.status.label} tone={assessment.status.key === "open" ? "pass" : "neutral"} size="sm" />
+      </button>
+      {open ? (
+        <div role="menu" aria-label="Assessments" className="absolute left-0 right-0 top-10 z-30 rounded-lg border border-slate-700 bg-slate-900 p-1 shadow-xl">
+          {assessments.map((a) => (
+            <a
+              key={a.id}
+              role="menuitem"
+              href={pageHref(a.id, "overview")}
+              onClick={() => {
+                setOpen(false);
+                onNavigate?.();
+              }}
+              aria-current={a.id === assessment.id ? "true" : undefined}
+              className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
+            >
+              <span className="truncate">{a.title}</span>
+              <span className="text-xs text-slate-500">{a.status.label}</span>
+            </a>
+          ))}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              onNewAssessment();
+            }}
+            className="mt-1 block w-full rounded-md border-t border-slate-800 px-2 py-1.5 text-left text-sm font-medium text-sky-300 hover:bg-slate-800"
+          >
+            New assessment
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** The left sidebar: organization and project switcher on top, the project's overview and the assessment picker, the
+ * open assessment's pages, Projects and Settings at the bottom. Collapses to icons; on a narrow screen it is shown as a
+ * menu by the top bar's Menu button. */
 export function Sidebar({
   workspace,
   assessment,
@@ -98,6 +165,9 @@ export function Sidebar({
   onToggleCollapsed,
   onPickProject,
   onNavigate,
+  projectId,
+  assessments,
+  onNewAssessment,
 }: {
   workspace: Workspace | null;
   assessment: AssessmentView | null;
@@ -106,6 +176,10 @@ export function Sidebar({
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onPickProject: (p: WorkspaceProject) => void;
+  /** Phase 5b: the open project (an assessment's, or the Project overview's), its assessments, and New assessment. */
+  projectId: number | null;
+  assessments: AssessmentBrief[];
+  onNewAssessment: () => void;
   /** Called after a link is followed (the narrow-screen menu closes itself). */
   onNavigate?: () => void;
 }) {
@@ -128,16 +202,26 @@ export function Sidebar({
             {workspace?.organization ?? ""}
           </p>
         )}
-        <ProjectSwitcher workspace={workspace} currentProjectId={assessment?.project.id ?? null} collapsed={collapsed} onPick={onPickProject} />
+        <ProjectSwitcher workspace={workspace} currentProjectId={projectId} collapsed={collapsed} onPick={onPickProject} />
+        {projectId !== null ? (
+          <div className="mt-2">
+            <NavLink
+              href={`#/p/${projectId}`}
+              label="Project overview"
+              icon="projects"
+              current={route.kind === "project"}
+              collapsed={collapsed}
+              onNavigate={onNavigate}
+            />
+          </div>
+        ) : null}
       </div>
 
       <nav aria-label="Assessment" className="quiet-scroll min-h-0 flex-1 overflow-y-auto">
         {assessment && id !== null ? (
           <>
             {collapsed ? null : (
-              <p className="mb-1 truncate px-2.5 text-xs font-medium text-slate-500" title={assessment.title}>
-                {assessment.title}
-              </p>
+              <AssessmentPicker assessment={assessment} assessments={assessments} onNewAssessment={onNewAssessment} onNavigate={onNavigate} />
             )}
             <ul className="space-y-0.5">
               {ASSESSMENT_ITEMS.map((item) => {
@@ -179,7 +263,9 @@ export function Sidebar({
             </ul>
           </>
         ) : collapsed ? null : (
-          <p className="px-2.5 text-xs leading-relaxed text-slate-500">Open a project to see its assessment here.</p>
+          <p className="px-2.5 text-xs leading-relaxed text-slate-500">
+            {projectId !== null ? "Open an assessment to see its pages here." : "Open a project to see its assessment here."}
+          </p>
         )}
       </nav>
 

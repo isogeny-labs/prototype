@@ -23,6 +23,11 @@ DEMO_PROJECTS: tuple[tuple[str, str, str], ...] = (
 )
 
 
+def demo_file_bytes(lab: Any, filename: str) -> bytes:
+    """The bundled demo file as this app imports it (also used by Rerun for a demo file brought in before phase 5b)."""
+    return _file(lab, filename)
+
+
 def _file(lab: Any, filename: str) -> bytes:
     """The demo file with this app's own ports written in (the same files the e2e walks and the buttons use)."""
     s = lab.settings

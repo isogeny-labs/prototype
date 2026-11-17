@@ -5,7 +5,7 @@ import { expect, test, type BrowserContext, type Locator, type Page } from "@pla
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DISCLAIMER, enterApp, REPO, stepLink, openFreshAssessment } from "./shared";
+import { DISCLAIMER, enterApp, REPO, stepLink, openFreshAssessment, expectPageOpen } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(REPO, "docs/screenshots/phase4a");
@@ -90,7 +90,7 @@ test("Import: the file's claims, its five test servers start, and its system set
   await expect(settings).toHaveCount(6);
   await expect(settings.filter({ hasText: "localhost:8454" })).toContainText("Exposure: internal. Data lifespan: long-lived. Can it be changed: no.");
   await expect(stepLink(page, "6. Migration")).toBeEnabled();
-  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
+  await expectPageOpen(page, "5. Fixes");
   const ticks = page.getByTestId("address-confirm");
   await expect(ticks).toHaveCount(5);
   for (let i = 0; i < 5; i += 1) await ticks.nth(i).click();
@@ -111,8 +111,8 @@ test("Verify: the post-quantum claims are checked, and the planted false one is 
 });
 
 test("Tests: a program that can't run has no cards, only its line under Not tested", async () => {
-  await page.getByRole("button", { name: "Continue to tests" }).click();
-  await expect(page.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Continue to checks" }).click();
+  await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
   // Phase 4b: eight suggested tests: Post-quantum readiness for each of the five servers, and the three signing tests.
   await expect(page.getByTestId("test-card")).toHaveCount(8);
   await expect(page.getByTestId("test-card").filter({ hasText: "Post-quantum readiness" })).toHaveCount(5);
@@ -240,6 +240,10 @@ test("The other statuses: Hybrid and Post-quantum only in place, a signing progr
 
 test("The roadmap: built from the recommendations, each system in its phase", async () => {
   await page.getByRole("button", { name: "Roadmap", exact: true }).click();
+  // Phase 5b: with a system's panel open the plan shows its compact form; this step reads the full rows.
+  const open = page.getByTestId("detail-panel");
+  if ((await open.count()) > 0) await open.getByRole("button", { name: "Close details" }).click();
+  await expect(page.getByTestId("migration-roadmap")).not.toHaveAttribute("data-compact", "true");
   await expect(page.getByTestId("roadmap-intro")).toContainText("0 of 7 chosen, so the rest use the recommendation");
   // Phase 4b: every track has its own row, so a server can sit in two bands.
   await expect(page.getByTestId("roadmap-band").getByRole("heading", { level: 2 })).toHaveText(
@@ -263,7 +267,8 @@ test("The roadmap: built from the recommendations, each system in its phase", as
 test("Fixes: the change for Phase 1 has its change box (Ready to try); the blocker for Phase 2 stays text only", async () => {
   await band("Phase 1").getByRole("button", { name: "View in Fixes" }).click();
   await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
-  const list = page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByRole("button");
+  // (phase 5b: the list is in the four work groups, whose headings are buttons too: count the fixes' rows)
+  const list = page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByTestId("fix-row");
   await expect(list).toHaveCount(2);
   const fix = page.getByTestId("fix-summary");
   // (phase 5a follow-up: the open fix's title is the detail panel's heading)

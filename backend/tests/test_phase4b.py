@@ -202,6 +202,7 @@ def _system(flow, name):
     return next(s for s in flow.lab.migration_view(flow.pid)["systems"] if s["name"] == name)
 
 
+@pytest.mark.slow  # over 5 s on a slow machine (17 November 2026); runs with --full
 def test_two_tracks_with_a_next_step_and_why_on_every_track(flow):
     view = flow.lab.migration_view(flow.pid)
     for system in view["systems"]:

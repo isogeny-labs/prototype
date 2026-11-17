@@ -6,15 +6,17 @@ Names, places and the archived flag can change. Nothing is ever deleted (the dat
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from sqlalchemy import func, select
 
 from app.db import (
-    AppSettingRow, AssessmentRow, FolderRow, ImportRow, PlanRow, ProjectRow, TestRunRow, iso, now_utc,
+    AppSettingRow, AssessmentDetailRow, AssessmentRow, AssessmentSignoffRow, FolderRow, ImportFileRow, ImportRow, PlanRow,
+    ProjectRow, TestRunRow, VerifyRunRow, iso, now_utc,
 )
 from app.errors import BadRequest, Conflict, NotFound
-from app.names import clean_text
+from app.names import ALGORITHM_NAMES, clean_text
 from app.projects.counts import assessment_counts
 
 CLOSED_SENTENCE = "This assessment is closed. Start a new one to continue."
@@ -22,6 +24,21 @@ IMPORT_KEY = "imp" + "ort"   # spelled in two parts, as in evidence/export.py: t
 DEFAULT_ORGANIZATION = "My organization"
 UNFILED_PROJECT = "Imported without a project"
 NAME_MAX = 120
+# Phase 5b: what an assessment is for. A label only: it changes nothing else.
+PURPOSES: tuple[tuple[str, str], ...] = (
+    ("full_review", "Full review"), ("compliance_review", "Compliance review"), ("migration_wave", "Migration wave"),
+    ("release_check", "Release check"), ("advisory_response", "Advisory response"), ("other", "Other"),
+)
+PURPOSE_LABELS = dict(PURPOSES)
+DEFAULT_PURPOSE = "full_review"
+REFERENCE_MAX = 200
+NOTE_MAX = 500
+ONE_LOGIN_LINE = ("This app has one login, so whoever is at the keyboard records the name. It is kept with the time, "
+                  "in the assessment and in its evidence.")
+NEWER_LINE = "Closed when a newer assessment was started."
+DEMO_CBOM_NAME = "acme-pay-cbom.json"
+RERUN_MISSING = ("This assessment's file was brought in before the app kept a copy of each file. Bring the file in again "
+                 "in a new assessment.")
 
 
 def _name(value: Any, what: str) -> str:
@@ -33,6 +50,18 @@ def _name(value: Any, what: str) -> str:
 
 def assessment_title(a: AssessmentRow) -> str:
     return a.name or f"Assessment {a.number}"
+
+
+def _purpose(value: Any) -> str:
+    key = str(value or "")
+    if key not in PURPOSE_LABELS:
+        raise BadRequest("Pick a purpose from the list.", field="purpose")
+    return key
+
+
+def _optional_text(value: Any, limit: int) -> str | None:
+    text = clean_text(str(value or ""), limit).strip()
+    return text or None
 
 
 class ProjectsMixin:
@@ -79,20 +108,73 @@ class ProjectsMixin:
         return path
 
     @staticmethod
-    def _assessment_status(a: AssessmentRow) -> dict:
+    def _signoff(db, a: AssessmentRow) -> dict | None:
+        row = db.scalars(select(AssessmentSignoffRow).where(AssessmentSignoffRow.assessment_id == a.id)).first()
+        return {"by": row.signed_off_by, "note": row.note, "at": iso(row.signed_at)} if row is not None else None
+
+    @staticmethod
+    def _details(db, a: AssessmentRow) -> tuple[dict | None, str | None]:
+        """The purpose ({key, label}, or None for an assessment made before phase 5b) and the reference."""
+        row = db.scalars(select(AssessmentDetailRow).where(AssessmentDetailRow.assessment_id == a.id)
+                         .order_by(AssessmentDetailRow.id.desc()).limit(1)).first()
+        if row is None:
+            return None, None
+        return {"key": row.purpose, "label": PURPOSE_LABELS.get(row.purpose, row.purpose)}, row.reference
+
+    @classmethod
+    def _assessment_status(cls, a: AssessmentRow, signoff: dict | None = None) -> dict:
         if a.closed_at is None:
-            return {"key": "open", "label": "Open", "closed_line": None}
-        why = ("A newer assessment was started in this project." if a.closed_why == "newer"
-               else "Closed by you.")
-        return {"key": "closed", "label": "Closed", "closed_line": f"{why} {CLOSED_SENTENCE}"}
+            return {"key": "open", "label": "Open", "closed_line": None, "signoff": None}
+        if a.closed_why == "newer":
+            why = NEWER_LINE
+        elif signoff is not None:
+            why = f"Closed and signed off by {signoff['by']}."
+        else:
+            why = "Closed by you."
+        return {"key": "closed", "label": "Closed", "closed_line": f"{why} {CLOSED_SENTENCE}", "signoff": signoff}
 
     def _assessment_brief(self, db, a: AssessmentRow) -> dict:
         imp = db.get(ImportRow, a.import_id) if a.import_id else None
+        purpose, reference = self._details(db, a)
         return {"id": a.id, "number": a.number, "title": assessment_title(a), "name": a.name,
-                "status": self._assessment_status(a), "archived": bool(a.archived),
+                "purpose": purpose, "reference": reference,
+                "status": self._assessment_status(a, self._signoff(db, a)), "archived": bool(a.archived),
                 "created_at": iso(a.created_at), "closed_at": iso(a.closed_at) if a.closed_at else None,
                 "file": ({"import_id": imp.id, "filename": imp.filename, "format": imp.format, "is_demo": bool(imp.is_demo),
                           "imported_at": iso(imp.created_at)} if imp is not None else None)}
+
+    @staticmethod
+    def _last_activity(db, a: AssessmentRow) -> datetime:
+        """When this assessment was last worked on: started, its file brought in, verified, a check run, signed off."""
+        def as_dt(value: Any) -> datetime | None:
+            if value is None:
+                return None
+            if isinstance(value, datetime):
+                return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+            try:
+                parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            except ValueError:
+                return None
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        times = [as_dt(a.created_at), as_dt(a.closed_at)]
+        if a.import_id is not None:
+            imp = db.get(ImportRow, a.import_id)
+            times.append(as_dt(imp.created_at) if imp is not None else None)
+            verify = db.scalars(select(VerifyRunRow).where(VerifyRunRow.import_id == a.import_id)
+                                .order_by(VerifyRunRow.id.desc()).limit(1)).first()
+            times.append(as_dt(verify.finished_at) if verify is not None else None)
+            plan = db.scalars(select(PlanRow).where(PlanRow.import_id == a.import_id)).first()
+            if plan is not None:
+                run = db.scalars(select(TestRunRow).where(TestRunRow.plan_id == plan.id).order_by(TestRunRow.id.desc()).limit(1)).first()
+                times.append(as_dt(run.finished_at or run.started_at) if run is not None else None)
+        return max(t for t in times if t is not None)
+
+    def _worked_on_last(self, db, project_id: int, include_archived: bool = False) -> AssessmentRow | None:
+        q = select(AssessmentRow).where(AssessmentRow.project_id == project_id)
+        if not include_archived:
+            q = q.where(AssessmentRow.archived.is_(False))
+        every = db.scalars(q).all()
+        return max(every, key=lambda a: (self._last_activity(db, a), a.id)) if every else None
 
     @staticmethod
     def _latest(db, project_id: int, include_archived: bool = False) -> AssessmentRow | None:
@@ -109,18 +191,23 @@ class ProjectsMixin:
             projects = db.scalars(select(ProjectRow).order_by(ProjectRow.name, ProjectRow.id)).all()
             rows = []
             for p in projects:
-                latest = self._latest(db, p.id) or self._latest(db, p.id, include_archived=True)
-                count = db.scalar(select(func.count()).select_from(AssessmentRow).where(AssessmentRow.project_id == p.id)) or 0
+                latest = self._worked_on_last(db, p.id) or self._worked_on_last(db, p.id, include_archived=True)
+                every = db.scalars(select(AssessmentRow).where(AssessmentRow.project_id == p.id)).all()
+                shown = [a for a in every if not a.archived]
                 rows.append({"id": p.id, "name": p.name, "folder_id": p.folder_id, "archived": bool(p.archived),
                              "is_demo": p.demo_key not in (None, "unfiled"), "created_at": iso(p.created_at),
-                             "path": self._folder_path(db, p.folder_id), "assessments": int(count),
+                             "path": self._folder_path(db, p.folder_id), "assessments": len(every),
+                             "open_count": sum(1 for a in shown if a.closed_at is None),
+                             "closed_count": sum(1 for a in shown if a.closed_at is not None),
                              "latest": self._assessment_brief(db, latest) if latest is not None else None,
                              "_import": latest.import_id if latest is not None else None})
             folder_rows = [{"id": f.id, "name": f.name, "parent_id": f.parent_id, "archived": bool(f.archived),
                             "path": self._folder_path(db, f.parent_id)} for f in folders]
         for r in rows:
             r["counts"] = assessment_counts(self, r.pop("_import"))
-        return {"organization": self.organization_name(), "folders": folder_rows, "projects": rows}
+        return {"organization": self.organization_name(), "folders": folder_rows, "projects": rows,
+                "purposes": [{"key": k, "label": v} for k, v in PURPOSES], "one_login_line": ONE_LOGIN_LINE,
+                "algorithm_names": [{"technical": tech, "plain": plain} for tech, plain in ALGORITHM_NAMES]}
 
     def project_view(self, project_id: int) -> dict:
         with self.db() as db:
@@ -131,7 +218,8 @@ class ProjectsMixin:
                                      .order_by(AssessmentRow.id.desc())).all()
             return {"id": p.id, "name": p.name, "folder_id": p.folder_id, "archived": bool(p.archived),
                     "is_demo": p.demo_key not in (None, "unfiled"), "path": self._folder_path(db, p.folder_id),
-                    "assessments": [self._assessment_brief(db, a) for a in assessments]}
+                    "assessments": [self._assessment_brief(db, a) for a in assessments],
+                    "next_name": f"Assessment {max((a.number for a in assessments), default=0) + 1}"}
 
     def assessment_view(self, assessment_id: int) -> dict:
         with self.db() as db:
@@ -150,6 +238,7 @@ class ProjectsMixin:
         counts = assessment_counts(self, import_id)
         return {**brief, "organization": self.organization_name(), "project": project, "path": path,
                 IMPORT_KEY: imp, "plan_id": plan_id,
+                "blocks": self.assessment_blocks(import_id, plan_id),   # type: ignore[attr-defined]   # phase 5b
                 "has_verify": counts["claims"] is not None,
                 "has_results": bool(summary and summary.get("has_results")),
                 "has_migration": bool(summary and summary.get("has_migration")),
@@ -168,8 +257,8 @@ class ProjectsMixin:
             return {"page": "inventory/import", "label": "Verify claims",
                     "text": "Check each claim in the file against the real system."}
         if counts["tests"] is None:
-            return {"page": "tests", "label": "Open tests",
-                    "text": "Run the suggested tests on what the file names."}
+            return {"page": "checks", "label": "Open checks",
+                    "text": "Run the suggested tests on what the file names. The test plan is on Checks."}
         if counts["fixes"] and counts["fixes"]["open"]:
             return {"page": "fixes", "label": "Open fixes",
                     "text": "Some failed tests or migration steps have a suggested fix waiting."}
@@ -222,6 +311,8 @@ class ProjectsMixin:
             db.flush()
             a = AssessmentRow(project_id=p.id, number=1)
             db.add(a)
+            db.flush()
+            db.add(AssessmentDetailRow(assessment_id=a.id, purpose=DEFAULT_PURPOSE, reference=None))
             db.commit()
             return {"id": p.id, "assessment_id": a.id}
 
@@ -244,20 +335,62 @@ class ProjectsMixin:
 
     # ---------------------------------------------------------------- assessments
 
-    def new_assessment(self, project_id: int) -> dict:
-        """Start over in this project: a fresh, empty assessment. The open ones before it close and are kept."""
+    def new_assessment(self, project_id: int, name: str | None = None, purpose: str | None = None,
+                       reference: str | None = None) -> dict:
+        """A fresh, empty assessment in this project. Since phase 5b it closes nothing: any number can be open."""
+        purpose_key = _purpose(purpose or DEFAULT_PURPOSE)
+        ref = _optional_text(reference, REFERENCE_MAX)
+        given = _optional_text(name, NAME_MAX)
         with self.db() as db:
             p = db.get(ProjectRow, project_id)
             if p is None:
                 raise NotFound("That project does not exist.")
-            for a in db.scalars(select(AssessmentRow).where(AssessmentRow.project_id == p.id,
-                                                            AssessmentRow.closed_at.is_(None))).all():
-                a.closed_at, a.closed_why = now_utc(), "newer"
             number = (db.scalar(select(func.max(AssessmentRow.number)).where(AssessmentRow.project_id == p.id)) or 0) + 1
-            a = AssessmentRow(project_id=p.id, number=number)
+            a = AssessmentRow(project_id=p.id, number=number, name=given if given and given != f"Assessment {number}" else None)
             db.add(a)
+            db.flush()
+            db.add(AssessmentDetailRow(assessment_id=a.id, purpose=purpose_key, reference=ref))
             db.commit()
             return {"id": a.id}
+
+    def next_assessment_name(self, project_id: int) -> str:
+        with self.db() as db:
+            number = (db.scalar(select(func.max(AssessmentRow.number)).where(AssessmentRow.project_id == project_id)) or 0) + 1
+        return f"Assessment {number}"
+
+    def rerun_assessment(self, assessment_id: int, name: str | None = None, purpose: str | None = None,
+                         reference: str | None = None) -> dict:
+        """Rerun as new assessment (phase 5b): a new assessment in the same project, and the same scanner file brought
+        in again the normal way. The file only: no results, no choices; the address ticks are given again. Allowed on a
+        closed assessment (it changes nothing in it)."""
+        with self.db() as db:
+            a = db.get(AssessmentRow, assessment_id)
+            if a is None:
+                raise NotFound("That assessment does not exist.")
+            if a.import_id is None:
+                raise Conflict("This assessment has no file yet, so there is nothing to run again.")
+            project_id = a.project_id
+            imp = db.get(ImportRow, a.import_id)
+            demo_cbom = imp.filename == DEMO_CBOM_NAME and bool(imp.is_demo)
+            copy = db.scalars(select(ImportFileRow).where(ImportFileRow.import_id == a.import_id)).first()
+            filename, data = (copy.filename, bytes(copy.data)) if copy is not None else (imp.filename, None)
+        if not demo_cbom and data is None:
+            data = self._bundled_demo_file(filename)
+            if data is None:
+                raise Conflict(RERUN_MISSING)
+        made = self.new_assessment(project_id, name, purpose, reference)
+        if demo_cbom:   # the demo file, exactly as Use demo file brings it in
+            imported = self.import_demo(assessment_id=made["id"])   # type: ignore[attr-defined]
+        else:
+            imported = self.import_file(filename, data, assessment_id=made["id"])   # type: ignore[attr-defined]
+        return {"id": made["id"], "notices": list(imported.get("notices") or [])}
+
+    def _bundled_demo_file(self, filename: str) -> bytes | None:
+        """For a file brought in before phase 5b: the bundled demo files can be made again; anything else can't."""
+        from app.projects.demo import DEMO_PROJECTS, demo_file_bytes
+        if filename not in {f for _, _, f in DEMO_PROJECTS} or filename == DEMO_CBOM_NAME:
+            return None
+        return demo_file_bytes(self, filename)
 
     def update_assessment(self, assessment_id: int, changes: dict) -> dict:
         with self.db() as db:
@@ -274,8 +407,23 @@ class ProjectsMixin:
                 a.number = (db.scalar(select(func.max(AssessmentRow.number)).where(AssessmentRow.project_id == target.id)) or 0) + 1
             if "archived" in changes:
                 a.archived = bool(changes["archived"])
-            if changes.get("close") and a.closed_at is None:
-                a.closed_at, a.closed_why = now_utc(), "closed"
+            if "purpose" in changes or "reference" in changes:
+                if a.closed_at is not None:
+                    raise Conflict(CLOSED_SENTENCE)
+                current, current_ref = self._details(db, a)
+                key = _purpose(changes["purpose"]) if "purpose" in changes else (current["key"] if current else DEFAULT_PURPOSE)
+                ref = _optional_text(changes["reference"], REFERENCE_MAX) if "reference" in changes else current_ref
+                db.add(AssessmentDetailRow(assessment_id=a.id, purpose=key, reference=ref))
+            if changes.get("close"):
+                if a.closed_at is not None:
+                    raise Conflict("This assessment is already closed. It can't be reopened.")
+                by = _optional_text(changes.get("signed_off_by"), NAME_MAX)
+                if not by:
+                    raise BadRequest("Type the name of the person who signs this assessment off.", field="signed_off_by")
+                now = now_utc()
+                a.closed_at, a.closed_why = now, "closed"
+                db.add(AssessmentSignoffRow(assessment_id=a.id, signed_off_by=by, note=_optional_text(changes.get("note"), NOTE_MAX),
+                                            signed_at=now))
             db.commit()
             return {"id": a.id}
 
@@ -361,9 +509,14 @@ class ProjectsMixin:
             if a is None:
                 return None
             p = db.get(ProjectRow, a.project_id)
+            purpose, reference = self._details(db, a)
+            signoff = self._signoff(db, a)
             return {"organization": self.organization_name(),
                     "folders": [f["name"] for f in self._folder_path(db, p.folder_id)],
                     "project": p.name, "assessment": assessment_title(a), "assessment_number": a.number,
                     "opened_at": iso(a.created_at), "closed_at": iso(a.closed_at) if a.closed_at else None,
-                    "status": "closed" if a.closed_at else "open"}
+                    "status": "closed" if a.closed_at else "open",
+                    "purpose": purpose["label"] if purpose else None, "reference": reference,
+                    "signed_off_by": signoff["by"] if signoff else None, "signed_off_at": signoff["at"] if signoff else None,
+                    "signoff_note": signoff["note"] if signoff else None}
 
