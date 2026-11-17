@@ -254,8 +254,9 @@ test("demo mode: a test pack is installed, its checks are added and run, the fix
     await expect(result.getByTestId("advisories")).toContainText("CVE-2022-21449");
     await expect(result.getByTestId("advisories")).toContainText("from the advisory, not a result");
     await expect(result.getByTestId("advisories").getByRole("link").first()).toHaveAttribute("href", /^https:\/\/github\.com\/openjdk\//);
-    await expect(result).toContainText("accepted 3 signatures that must be rejected");
-    await expect(page.getByTestId("detail-panel")).toContainText(DISCLAIMER);
+    await expect(result).toContainText("3 of 77 advisory cases wrong");
+    await expect(result).toContainText("control (broken signer): wrong on 77 of 77");
+    await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
     await shots(page, "09-evidence-advisory-check-failed");
     for (const title of ["Advisory check: Badly encoded signature accepted (CVE-2019-14859)",
                          "Advisory check: Malformed signature raises unexpected error (CVE-2019-14853)"]) {
@@ -290,6 +291,9 @@ test("demo mode: a test pack is installed, its checks are added and run, the fix
     // ---- Connect demo code: the proof reruns every locked test, the three advisory checks among them
     await fix.getByRole("button", { name: "Connect demo code" }).click();
     await expect(fix.getByTestId("fix-status")).toHaveAttribute("data-status", "ready", { timeout: 300_000 });
+    // (the Proof section is folded until it is opened)
+    const proof = page.locator('[data-testid="fix-section"][data-section="proof"]');
+    if ((await proof.getByRole("button").first().getAttribute("aria-expanded")) !== "true") await proof.getByRole("button").first().click();
     await expect(page.locator('[data-testid="proof-row"][data-kind="advisory_cases"]')).toHaveCount(3);
     for (const row of await page.locator('[data-testid="proof-row"][data-kind="advisory_cases"]').all()) {
       await expect(row.getByTestId("proof-check")).toHaveAttribute("data-ok", "true");
@@ -373,10 +377,12 @@ test("isolated mode: an advisory check fails on a real library, and its fix is t
     const uploaded = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/import/file" && r.request().method() === "POST");
     await page.getByLabel("Choose a file to import").setInputFiles(REAL_FILE);
     expect((await uploaded).status(), "expected the upload of demo/real-libraries.csv to be accepted").toBe(200);
+    await expect(page.getByTestId("claim-row")).toHaveCount(6);
+    // Verify runs each library in its own container, so it takes a while before the Verify page opens
     await page.getByRole("button", { name: "Verify claims" }).click();
-    await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue to checks" })).toBeEnabled({ timeout: 300_000 });
+    await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible({ timeout: 300_000 });
     await page.getByRole("button", { name: "Continue to checks" }).click();
+    await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
     await expect(page.getByTestId("test-card").first()).toBeVisible();
     const assessment = assessmentOf(page);
     const before = await page.getByTestId("test-card").count();
