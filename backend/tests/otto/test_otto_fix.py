@@ -264,7 +264,10 @@ def test_live_otto_asks_claude_only_when_a_person_connects_the_code(failed, monk
     fix = next(f for f in lab.fix_states(lab.plan.id) if f["kind"] == "code")
     assert fix["id"] == "fix-otto-cve-2022-21449" and fix["otto"]["pending"] is True and calls == []       # looking asked nothing
     shown = next(f for f in lab.fixes_view(lab.plan.id)["fixes"] if f["kind"] == "code")
-    assert shown["labels"] == ["Written by Otto"] and "sends this program's source file" in json.dumps(shown) and calls == []
+    # nothing is written yet, so nothing is labelled as Otto's; the card says what the click sends and when an answer is refused
+    said = json.dumps(shown)
+    assert shown["labels"] == ["Not written yet"] and "Written by Otto" not in said and calls == []
+    assert "sends this program's source file" in said and "Otherwise it is refused and nothing is connected" in said
     lab.connect_code(lab.plan.id)
     assert len(calls) == 1 and 'VERSION = \\"1.4.2\\"' in json.dumps(calls[0]["messages"])
     with lab.db() as db:
@@ -276,6 +279,45 @@ def test_live_otto_asks_claude_only_when_a_person_connects_the_code(failed, monk
     assert len(calls) == 1                                           # the stored answer is used from then on
     fix = next(f for f in lab.fix_states(lab.plan.id) if f["kind"] == "code")
     assert fix["change"]["written_by"] == "otto" and fix["change"]["built"]["matches"] == {"name": "acme-sign", "version": "1.4.3"}
+
+
+def test_after_a_live_step_the_key_is_nowhere(failed, monkeypatch, caplog, capsys):
+    """The (made-up) key is in the environment for one live step, and Claude's answer even repeats it. Afterwards
+    it is in no file of the data folder (the database and the assessment's Otto ledger among them), not in the
+    evidence file or its report, and in nothing that was logged or printed."""
+    import logging
+    lab = failed
+    key = "made-up-key-for-tests-0123456789"
+    echoing = json.loads(json.dumps(GOOD))
+    echoing["summary"] = f"The verify command now refuses a signature whose two numbers are out of range. ({key})"
+
+    def transport(body, headers, timeout):
+        assert headers["x-api-key"] == key                      # the one place the key goes: the request's own header
+        data = {"model": "claude-opus-5-5", "stop_reason": "end_turn", "content": [{"type": "text", "text": json.dumps(echoing)}],
+                "usage": {"input_tokens": 9000, "output_tokens": 700}}
+        return 200, json.dumps(data).encode()
+    monkeypatch.setattr(model, "_http_transport", transport)
+    monkeypatch.setenv(model.KEY_ENV, key)
+    with caplog.at_level(logging.DEBUG):
+        lab.set_live_otto(on=True)
+        lab.connect_code(lab.plan.id)
+        lab.wait_until_idle(lab.plan.id, 300)
+        lab.jobs.wait_idle(300, group=("changes", lab.plan.id))
+        lab.fixes_view(lab.plan.id)
+        lab.advisories_view(lab.plan.id)
+        lab.otto_view()
+        made = lab.export_evidence(lab.plan.id)
+        files = {which: lab.evidence_file(made["id"], which)[1] for which in ("json", "html")}
+    with lab.db() as db:
+        step = db.scalars(select(OttoStepRow)).one()
+        assert step.source == "live" and "[API key removed]" in step.answer          # what Claude repeated was taken out
+    needle = key.encode("utf-8")
+    assert b"[API key removed]" in files["json"] and all(needle not in data for data in files.values())
+    holding = [str(path) for path in lab.settings.data_dir.rglob("*") if path.is_file() and needle in path.read_bytes()]
+    assert holding == []
+    printed = capsys.readouterr()
+    assert key not in caplog.text and key not in printed.out and key not in printed.err
+    assert key not in json.dumps([lab.fixes_view(lab.plan.id), lab.advisories_view(lab.plan.id), lab.otto_view()])
 
 
 def test_live_otto_that_fails_says_so_and_connects_nothing(failed, monkeypatch):

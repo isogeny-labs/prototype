@@ -1,7 +1,0 @@
-elliptic 6.5.7: official_vectors: passed
-elliptic 6.5.7: bad_signatures: passed
-elliptic 6.5.7: advisory check CVE-2022-21449: passed
-elliptic 6.5.7: advisory check CVE-2019-14859: passed
-elliptic 6.5.7: advisory check CVE-2019-14853: passed
-elliptic 6.5.7: advisory check CVE-2024-42460: passed
-{"failing": 0, "tests": 6}

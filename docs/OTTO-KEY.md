@@ -2,8 +2,15 @@
 
 This note is for whoever writes `demo/expected-otto.json`, the answer key for Otto's loop. It lists the questions
 the accuracy check asks, the values an answer can take, and the exact test cases each shipped advisory check uses.
-It holds **no results**: the key must be worked out independently, from the publishers' advisories and from the
-published right answers of the test cases, not from what the app prints.
+It holds **no measured result**: nothing here says what any program or library answered. The key must be worked
+out independently, from the publishers' advisories and from the published right answers of the test cases, not
+from what the app prints.
+
+One part of this note is the app's own output all the same: the table of cases near the end. Which cases a check
+uses is Otto's design, and the table therefore also shows which advisories have a test at all, which is what the
+questions `pack.<pack>.<advisory>.test` ask. Write your answers to those questions first, from the advisories and
+from what the one building block can show (it hands a program a published ECDSA P-256 signature and reads accept or
+reject), and read the table after that.
 
 The build never writes or edits this key. Until the file is in the repository, the check below shows the app's
 answers and grades nothing.
@@ -155,8 +162,9 @@ the retests are openjdk 17.0.3, python-ecdsa 0.13.3 and elliptic 6.5.7):
 
 ## The cases each shipped advisory check uses
 
-Every advisory check hands the program published test cases and compares its accept or reject with the published
-right answer. The cases are from Project Wycheproof, file `ecdsa_secp256r1_sha256_test.json`, at commit
+This table is Otto's design, not a result of any run (see the note at the top: answer the `pack.*.test` questions
+before reading it). Every advisory check hands the program published test cases and compares its accept or reject
+with the published right answer. The cases are from Project Wycheproof, file `ecdsa_secp256r1_sha256_test.json`, at commit
 `dab4ea2ed021eb633874959ca601004f3457d911` (SHA-256 of the file
 `182db4f3e230f6f9fa9f800d2a614dede30284b8e8438bbfe1171905402e9332`). The numbers below are the `tcId` values in that
 file. A check passes only if every answer is right.
@@ -165,7 +173,7 @@ file. A check passes only if every answer is right.
 | --- | --- | --- | --- |
 | CVE-2022-21449 | 2026.11.1 | 77 cases: every case flagged `InvalidSignature` or `RangeCheck`, and cases 109, 151, 351, 363, 364, 376 and 477. In full: 109, 151 to 154, 160 to 162, 168 to 231, 351, 363, 364, 376, 477 | all must be rejected |
 | CVE-2019-14859 | 2026.11.1 | 9 cases: every case flagged `BerEncodedSignature`, and cases 84 and 128. In full: 8, 9, 48, 67, 68, 84, 114, 115, 128 | all must be rejected |
-| CVE-2019-14853 | 2026.11.1 | The same 9 cases as CVE-2019-14859 | all must be rejected |
+| CVE-2019-14853 | 2026.11.1 | No test in this pack | |
 | CVE-2024-42460 | 2026.11.2 | 1 case: the case flagged `MissingZero`, case 6 | must be rejected |
 | CVE-2024-42461 | 2026.11.2 | No test in this pack | |
 | CVE-2024-42459 | 2026.11.2 | No test in this pack | |

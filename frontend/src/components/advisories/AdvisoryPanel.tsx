@@ -68,7 +68,18 @@ export function AdvisoryPanel({ planId, row, onClose }: { planId: number; row: A
     // This wrapper has no box of its own: it names the whole panel (its heading and close button too) for a link or
     // a test to find, and the panel lays itself out beside the table as on every other page.
     <div data-testid="advisory-panel" data-advisory={row.id} className="contents">
-      <DetailPanel open title={row.name} subtitle={<span className="font-mono">{row.id}</span>} onClose={onClose}>
+      <DetailPanel
+        open
+        title={row.name}
+        subtitle={
+          // The table drops its Published column while the panel is open, so the day is said here too.
+          <span className="flex flex-wrap gap-x-2">
+            <span className="font-mono">{row.id}</span>
+            {row.published_text ? <span data-testid="advisory-published">Published {row.published_text}</span> : null}
+          </span>
+        }
+        onClose={onClose}
+      >
         <div className="space-y-4 text-sm">
           <p data-testid="advisory-sentence" className="break-words text-slate-200">
             {panel.sentence}
@@ -89,9 +100,19 @@ export function AdvisoryPanel({ planId, row, onClose }: { planId: number; row: A
           ) : null}
 
           {panel.notes ? (
-            <p data-testid="advisory-notes" className="break-words text-slate-300">
-              {panel.notes}
-            </p>
+            // Claude's own words from reading the advisory: long, and not a result, so they stay folded under their name.
+            <details data-testid="advisory-notes" className="min-w-0 text-[13px] text-slate-300">
+              <summary className="cursor-pointer text-xs font-medium text-slate-300 hover:text-slate-100">{panel.notes.title}</summary>
+              <p data-testid="advisory-notes-kind" className="mt-1.5 break-words">
+                {panel.notes.kind_line}
+              </p>
+              {panel.notes.text ? (
+                <p data-testid="advisory-notes-text" className="mt-1.5 break-words">
+                  {panel.notes.text}
+                </p>
+              ) : null}
+              <p className="mt-1.5 break-words text-xs text-slate-400">{panel.notes.caption}</p>
+            </details>
           ) : null}
 
           {panel.also_known_as.length > 0 ? (

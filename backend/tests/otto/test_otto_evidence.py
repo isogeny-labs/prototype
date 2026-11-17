@@ -16,7 +16,7 @@ from app.otto import harness
 from conftest import demo_plan, play_back_speed
 from evidence import otto as evidence_otto
 
-pytestmark = [pytest.mark.needs_otto]
+pytestmark: list = []   # marks are on the tests that need the harness
 BACKEND = Path(__file__).resolve().parents[2]
 
 
@@ -72,6 +72,7 @@ def test_an_assessment_with_nothing_of_ottos_has_no_otto_part(lab):
     assert evidence["app"]["note"] == "Both engines are rule-based code from the same build. No AI model is connected."
 
 
+@pytest.mark.needs_otto
 def test_the_otto_part_is_inside_what_is_signed(ran):
     raw, evidence = _download(ran, ran.plan.id)
     otto = evidence["otto"]
@@ -97,6 +98,7 @@ def test_the_otto_part_is_inside_what_is_signed(ran):
     assert "<script" not in page.lower()
 
 
+@pytest.mark.needs_otto
 def test_the_command_checks_the_file_the_pack_and_the_ledger_together(ran, tmp_path):
     raw, _ = _download(ran, ran.plan.id)
     path = tmp_path / "evidence.json"
@@ -129,6 +131,7 @@ def _resigned(lab, evidence: dict) -> bytes:
     return sign_envelope(evidence, lab.settings.data_dir)
 
 
+@pytest.mark.needs_otto
 @pytest.mark.parametrize("name", ["a ledger line changed", "a ledger line removed", "the last ledger lines cut off", "the pack swapped",
                                   "the pack edited", "a run record changed", "a review changed", "the design swapped", "a lock entry for another test",
                                   "a run listed that the ledger does not bind"])
@@ -168,6 +171,7 @@ def test_a_change_inside_the_otto_part_is_caught_even_when_the_file_is_signed_ag
     assert done.returncode == 1 and done.stdout.startswith("Evidence NOT verified: the Otto part: "), done.stdout
 
 
+@pytest.mark.needs_otto
 @pytest.mark.slow
 def test_previous_shows_that_nothing_was_dropped_between_two_downloads(ran_alone, tmp_path):
     ran = ran_alone
@@ -197,6 +201,7 @@ def test_previous_shows_that_nothing_was_dropped_between_two_downloads(ran_alone
     assert evidence_otto.check_otto(newer, {ran.pack_key}, {"schema": "isogeny.evidence/1"}).code == evidence_otto.FAILED
 
 
+@pytest.mark.needs_otto
 def test_without_otto_the_command_says_the_audit_was_not_run_and_that_is_not_a_pass(ran, monkeypatch):
     _, evidence = _download(ran, ran.plan.id)
     missing = harness.OttoStatus(False, harness.NOT_FETCHED, "isogeny-labs/otto", "a" * 40, "0.1.0", None)

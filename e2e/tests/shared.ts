@@ -198,13 +198,14 @@ export interface Copy {
   server: string;
 }
 
-/** A copy of the app on its own ports and data folder. mode "demo" forces demo mode; "auto" lets it choose. */
-export async function startCopy(browser: Browser, offset: number, mode: "demo" | "auto"): Promise<Copy> {
+/** A copy of the app on its own ports and data folder. mode "demo" forces demo mode; "auto" lets it choose. `more`
+ * adds settings of the copy's own (never a key: a copy is started with a short, fixed environment). */
+export async function startCopy(browser: Browser, offset: number, mode: "demo" | "auto", more: Record<string, string> = {}): Promise<Copy> {
   const port = Number(process.env.E2E_APP_PORT ?? "8010") + offset;
   const tlsPort = Number(process.env.E2E_DEMO_TLS_PORT ?? "8443") + offset;
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-copy-"));
   const env: Record<string, string> = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", EVIDENCE_LAB_DATA_DIR: dataDir,
-                                         EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort) };
+                                         EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort), ...more };
   if (mode === "demo") env.EVIDENCE_LAB_MODE = "demo";
   for (const key of ["DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONTEXT", "XDG_RUNTIME_DIR"]) if (process.env[key]) env[key] = process.env[key] as string;
   const app = spawn(PYTHON, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", "warning"],

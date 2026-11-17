@@ -9,6 +9,7 @@ import pytest
 
 import otto_fuzz
 from app.otto import model
+from conftest import ReachedClaude
 
 FAKE_KEY = "made-up-key-for-tests-0123456789"     # not a real key: nothing in a test ever reaches the API
 PROMPT = "Read this advisory and answer with one JSON object."
@@ -145,14 +146,35 @@ def test_a_live_answer_is_used_even_when_a_recorded_one_exists(tmp_path):
 def test_the_spending_limit_stops_the_next_call_before_it_is_sent(tmp_path):
     calls = []
     otto = _live(tmp_path, transport=_api(calls=calls, usage={"input_tokens": 20_000, "output_tokens": 12_000}),
-                 budget=model.Budget(limit_nano=model.NANO))        # 1 US dollar for this run
+                 budget=model.Budget(limit_nano=model.NANO * 3 // 2))        # 1.50 US dollars for this run
+    # Before a request is sent, the most it could cost is counted: a declined attempt and its retry on another model
+    # can both be billed, so that is two full-length answers at the dearest price, about $0.80.
+    assert 800_000_000 < otto.budget.worst_case("claude-opus-5-5", PROMPT, attempts=2) < 810_000_000
     otto.ask("design_test", PROMPT)                                 # costs 20000*5000 + 12000*25000 nano = $0.40
     assert otto.budget.spent_nano == 400_000_000 and model.dollars(otto.budget.spent_nano) == "$0.40"
     otto.ask("design_test", PROMPT)                                 # $0.80 spent
-    with pytest.raises(model.SpendingLimitReached) as stopped:      # the next one could cost about $0.40 more
+    with pytest.raises(model.SpendingLimitReached) as stopped:      # the next one could cost about $0.80 more
         otto.ask("design_test", PROMPT)
-    assert len(calls) == 2 and "$1.00" in str(stopped.value) and "$0.80" in str(stopped.value) and "was not sent" in str(stopped.value)
-    assert otto.budget.calls == 2
+    assert len(calls) == 2 and "$1.50" in str(stopped.value) and "$0.80 is spent" in str(stopped.value) and "was not sent" in str(stopped.value)
+    assert otto.budget.calls == 2 and otto.budget.unanswered_nano == 0
+
+
+def test_a_request_that_got_no_answer_counts_against_the_limit(tmp_path):
+    """A time-out or a broken connection: nobody can say whether the request was billed. The most it could have cost
+    counts against the limit from then on, so sending it again can't pass the limit unseen."""
+    calls, waits = [], []
+    otto = _live(tmp_path, transport=_api(calls=calls, fail_first=[(OSError, ""), (OSError, "")]), sleep=waits.append,
+                 budget=model.Budget(limit_nano=2 * model.NANO))    # the default: 2 US dollars
+    with pytest.raises(model.SpendingLimitReached) as stopped:
+        otto.ask("write_fix", PROMPT)
+    # the first request and one more were sent; the third could have passed the limit, so it was not
+    assert len(calls) == 2 and otto.budget.spent_nano == 0 and otto.budget.unanswered_nano > 1_600_000_000
+    text = str(stopped.value)
+    assert "$0.00 is spent" in text and "may have been billed for a request that got no answer" in text and "was not sent" in text
+    # with room for it, the request is sent again and its answer is used; what is certain to be spent is the answer's own cost
+    roomy = _live(tmp_path, transport=_api(fail_first=[(OSError, "")]), budget=model.Budget(limit_nano=10 * model.NANO))
+    assert roomy.ask("write_fix", PROMPT).answer == ANSWER
+    assert roomy.budget.spent_nano == 1000 * 5_000 + 200 * 25_000 and roomy.budget.unanswered_nano > 0
     tiny = _live(tmp_path, transport=_api(calls=calls), budget=model.Budget(limit_nano=1000))
     with pytest.raises(model.SpendingLimitReached):
         tiny.ask("read_advisory", PROMPT)
@@ -201,10 +223,58 @@ def test_an_account_that_does_not_take_the_fallback_option_is_asked_once_more_wi
     ([(OSError, ""), (OSError, ""), (OSError, "")], "could not be reached"),
 ])
 def test_a_failed_call_says_so_plainly_and_never_shows_the_key(tmp_path, fail_first, words):
-    otto = _live(tmp_path, transport=_api(fail_first=fail_first))
+    otto = _live(tmp_path, transport=_api(fail_first=fail_first), budget=model.Budget(limit_nano=10 * model.NANO))
     with pytest.raises(model.LiveCallFailed) as failed:
         otto.ask("read_advisory", PROMPT)
     assert words in str(failed.value) and FAKE_KEY not in str(failed.value) and "Nothing was changed" in str(failed.value)
+
+
+def test_a_line_break_after_the_key_is_trimmed_before_it_is_sent(tmp_path):
+    calls = []
+    step = _live(tmp_path, transport=_api(calls=calls), environ={model.KEY_ENV: FAKE_KEY + "\r\n"}).ask("read_advisory", PROMPT)
+    assert step.answer == ANSWER and calls[0]["headers"]["x-api-key"] == FAKE_KEY
+
+
+@pytest.mark.parametrize("key", [FAKE_KEY + "\nX-Other: 1", "made up key with spaces", FAKE_KEY[:10] + "\r\n" + FAKE_KEY[10:],
+                                 "tab\tinside-" + FAKE_KEY, "caf\u00e9-" + FAKE_KEY, "short", "x" * 600])
+def test_a_value_that_is_not_in_the_form_of_a_key_is_never_sent_and_never_shown(tmp_path, key):
+    """An HTTP library names a bad header value, whole, in its own error. So such a value never reaches a header."""
+    calls = []
+    otto = _live(tmp_path, transport=_api(calls=calls), environ={model.KEY_ENV: key})
+    with pytest.raises(model.LiveCallFailed) as failed:
+        otto.ask("write_fix", PROMPT)
+    text = str(failed.value)
+    assert calls == [] and "not in the form of an API key" in text and "no request was sent" in text
+    assert key.strip() not in text and FAKE_KEY not in text and otto.budget.spent_nano == 0
+
+
+def test_an_error_that_names_a_header_never_reaches_a_message(tmp_path):
+    """Whatever goes wrong while the request is made, the message holds the kind of error and never its own words."""
+    def transport(body, headers, timeout):
+        raise ValueError(f"Invalid header value b'{headers['x-api-key']}'")
+    otto = _live(tmp_path, transport=transport)
+    with pytest.raises(model.LiveCallFailed) as failed:
+        otto.ask("write_fix", PROMPT)
+    assert str(failed.value) == "The request to Claude could not be made (ValueError). Nothing was changed."
+    assert FAKE_KEY not in str(failed.value) and FAKE_KEY not in repr(failed.value)
+    assert failed.value.__cause__ is None and failed.value.__suppress_context__ is True        # nothing of the first error travels on
+
+
+def test_where_a_model_declined_part_way_only_the_answer_after_the_switch_is_used(tmp_path):
+    def transport(body, headers, timeout):
+        data = {"model": "claude-opus-4-8", "stop_reason": "end_turn",
+                "content": [{"type": "text", "text": '{"plain_name": "a partial ans'},
+                            {"type": "fallback", "from": {"model": "claude-opus-5-5"}, "to": {"model": "claude-opus-4-8"}},
+                            {"type": "thinking", "thinking": "..."}, {"type": "text", "text": ANSWER}],
+                "usage": {"input_tokens": 2000, "output_tokens": 300,
+                          "iterations": [{"type": "message", "input_tokens": 1000, "output_tokens": 100},
+                                         {"type": "fallback_message", "input_tokens": 1000, "output_tokens": 200}]}}
+        return 200, json.dumps(data).encode()
+    step = _live(tmp_path, transport=transport).ask("read_advisory", PROMPT)
+    assert step.answer == ANSWER and step.model == "claude-opus-4-8"
+    assert step.how == ("Live: Claude (claude-opus-4-8), through the API key on this computer; claude-opus-5-5 declined the request and it "
+                        "was answered by claude-opus-4-8")
+    assert (step.input_tokens, step.output_tokens) == (2000, 300)
 
 
 def test_a_declined_or_cut_off_or_empty_answer_is_not_used(tmp_path):
@@ -241,6 +311,6 @@ def test_amounts_read_as_dollars():
 def test_a_client_without_a_stand_in_cannot_reach_the_network_in_a_test(tmp_path):
     """The suite replaces the real transport for every test (conftest): a live call with no stand-in fails loudly."""
     otto = model.OttoModel(recorded_dirs=(tmp_path,), live=True, environ={model.KEY_ENV: FAKE_KEY}, sleep=lambda seconds: None)
-    with pytest.raises(AssertionError) as stopped:
+    with pytest.raises(ReachedClaude) as stopped:              # not an ordinary error: the client could not turn it into a sentence
         otto.ask("read_advisory", PROMPT)
-    assert "a test tried to reach the Claude API" in str(stopped.value)
+    assert "a test tried to reach the Claude API" in str(stopped.value) and not isinstance(stopped.value, Exception)

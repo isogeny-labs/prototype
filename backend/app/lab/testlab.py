@@ -749,7 +749,7 @@ class TestLabMixin:
         stored = review_dict(review_row)
         code = self._run_code(db, run.id)
         # Phase 5c: for an advisory check, the fix the installed test packs carry (words only; it changes no result).
-        advisory_fix = (self.otto_result_fix(db, spec, run.component_name, run.component_version)
+        advisory_fix = (self.otto_result_fix(db, spec, run.component_name, run.component_version, run.plan_id)
                         if spec_row is not None and spec_row.kind == research.ADVISORY_KIND else None)
         key = (sha256_hex(record), sha256_hex({k: v for k, v in stored.items() if k != "created_at"}), spec_ok, spec_row.hash if spec_row else None,
                sha256_hex(code), sha256_hex(advisory_fix))

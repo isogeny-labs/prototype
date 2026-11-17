@@ -14,7 +14,7 @@ import otto_research_fixtures as fixtures
 from app.otto import harness, packs
 from ottolab import build, research, snapshot
 
-pytestmark = [pytest.mark.needs_otto]
+pytestmark: list = []   # marks are on the tests that need the harness
 
 
 @pytest.fixture(scope="module")
@@ -48,6 +48,7 @@ def _advisory(built, number: int) -> dict:
     return built["pack"].advisory(f"TEST-2026-000{number}")
 
 
+@pytest.mark.needs_otto
 @pytest.mark.slow
 def test_a_design_that_catches_the_affected_version_ships_with_its_trial(built):
     entry = _advisory(built, 1)
@@ -62,6 +63,7 @@ def test_a_design_that_catches_the_affected_version_ships_with_its_trial(built):
     assert [t["design_sha256"] for t in built["pack"].pack["tests"]] == [entry["test"]["design_sha256"]]   # the only test in the pack
 
 
+@pytest.mark.needs_otto
 @pytest.mark.slow
 def test_a_useless_design_comes_out_refuted_and_stays_out_of_the_pack(built):
     entry = _advisory(built, 2)
@@ -74,6 +76,7 @@ def test_a_useless_design_comes_out_refuted_and_stays_out_of_the_pack(built):
     assert len(dead) == 1 and dead[0]["kind"] == "dead_end" and "not-offered" in dead[0]["tags"]
 
 
+@pytest.mark.needs_otto
 @pytest.mark.slow
 def test_no_test_and_a_refused_reading_are_said_plainly(built):
     none = _advisory(built, 3)
@@ -85,6 +88,7 @@ def test_no_test_and_a_refused_reading_are_said_plainly(built):
     assert [s["step"] for s in refused["steps"]] == ["read_advisory"]     # nothing more was asked after a refused reading
 
 
+@pytest.mark.needs_otto
 @pytest.mark.slow
 def test_the_fix_is_proven_only_by_its_own_trial(built):
     fix = _advisory(built, 1)["fix"]
@@ -97,6 +101,7 @@ def test_the_fix_is_proven_only_by_its_own_trial(built):
     assert fix["trial"]["outcome"] == "supported" and fix["trial"]["replayed"] is True and "Speed was not part" in fix["reason"]
 
 
+@pytest.mark.needs_otto
 @pytest.mark.slow
 def test_every_claude_step_is_in_the_ledger_whole_and_checked(built):
     st = built["lab"].state()
@@ -115,6 +120,7 @@ def test_every_claude_step_is_in_the_ledger_whole_and_checked(built):
     assert design["model_step"] == {"prompt_sha256": in_pack[1]["prompt_sha256"], "answer_sha256": in_pack[1]["answer_sha256"]}
 
 
+@pytest.mark.needs_otto
 @pytest.mark.slow
 def test_the_harness_judged_and_a_second_author_replayed(built):
     st = built["lab"].state()
@@ -130,6 +136,7 @@ def test_the_harness_judged_and_a_second_author_replayed(built):
     assert built["pack"].pack["otto"]["commit"] == harness.read_lock().commit
 
 
+@pytest.mark.needs_otto
 @pytest.mark.slow
 def test_the_pack_file_is_signed_and_reads_back(built):
     path = built["folder"] / "packs" / "2026.11.1.json"
@@ -152,6 +159,7 @@ def test_the_pack_file_is_signed_and_reads_back(built):
         assert "secure" not in text.lower() and "score" not in text.lower()
 
 
+@pytest.mark.needs_otto
 @pytest.mark.slow
 def test_the_ledger_file_was_written_only_by_the_harness(built):
     """The ledger is a hash chain: Otto's own command line audits it from the pinned copy."""

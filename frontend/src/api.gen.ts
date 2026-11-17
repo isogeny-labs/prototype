@@ -178,7 +178,7 @@ export interface AdvisoryPanel {
   sentence: string;
   publisher: AdvisoryQuote | null;
   affected: AdvisoryAffected | null;
-  notes: string | null;
+  notes: AdvisoryNotes | null;
   also_known_as: string[];
   sources: AdvisorySource[];
   test: AdvisoryTestBlock | null;
@@ -205,6 +205,15 @@ export interface AdvisoryQuote {
 export interface AdvisoryAffected {
   line: string;
   quote: AdvisoryQuote;
+}
+/**
+ * What Claude noted when it read the advisory. Information, never a result.
+ */
+export interface AdvisoryNotes {
+  title: string;
+  kind_line: string;
+  text: string | null;
+  caption: string;
 }
 export interface AdvisorySource {
   label: string;

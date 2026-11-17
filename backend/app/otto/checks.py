@@ -27,7 +27,8 @@ def advisory_info(advisory: dict) -> dict:
     quote = reading["weakness_quote"]
     source = next((s for s in advisory["sources"] if s["label"] == quote["source"]), advisory["sources"][0])
     return {"plain_name": reading["plain_name"], "quote": quote["text"],
-            "source": {"title": source["title"], "url": source["url"], "published": advisory["published"], "checked": source["fetched"]}}
+            # the link is the address the quoted text was read from (for a file in a repository: the file at its pinned commit)
+            "source": {"title": source["title"], "url": source["read_from"], "published": advisory["published"], "checked": source["fetched"]}}
 
 
 def existing_item(lab, db, plan_id: int, design_sha256: str, program_ref: str) -> PlanItemRow | None:

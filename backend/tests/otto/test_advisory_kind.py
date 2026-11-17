@@ -129,7 +129,7 @@ def test_the_check_fails_on_the_affected_demo_version(lab):
     assert first["suggested_fix"] is None and first["fix_line"]["lead"]
     assert first["locked_test"]["fingerprint"] and "must get every invalid case wrong" in first["locked_test"]["fields"][3]["lines"][0]
     box = first["advisories"]
-    assert box["items"][0]["id"] == "CVE-2022-21449" and box["tag"] == "from the advisory, not a result"
+    assert box["items"][0]["id"] == "CVE-2022-21449" and box["tag"] == "quoted from the named source, not a result"
     assert box["items"][0]["href"] == "https://openjdk.org/groups/vulnerability/advisories/2022-04-19"
     assert not any(word in t.lower() for t in _texts(first) for word in BANNED)
     with lab.db() as db:

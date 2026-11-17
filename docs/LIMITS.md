@@ -200,8 +200,8 @@ Limits to know:
 - **Every shipped test and fix was tried before it shipped.** Each trial ran on public copies of the affected and
   the fixed version, in isolated mode, through the app's own runner and reviewer, as an experiment registered in
   Otto's harness before its first run. The harness judged the numbers against thresholds frozen in that
-  registration. The research ledger (`research/lab/`, 124 entries) holds all of it and passes Otto's own audit; a
-  test of our own code runs that audit.
+  registration. The research ledger (`research/lab/`, 103 entries: six registered trials, three of tests and three
+  of fixes) holds all of it and passes Otto's own audit; a test of our own code runs that audit.
 - **The packs are really signed** (Ed25519). A pack with one byte changed, a pack signed by an unknown key and a pack
   out of order are refused, each with one plain sentence.
 - **Results still come only from the runner and the reviewer.** An advisory check is an ordinary locked test with a
@@ -219,17 +219,20 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 
 - **CVE-2022-21449** ("Missing ECDSA signature range check", Java): 77 cases. `openjdk` 17.0.2 got 10 wrong, 17.0.3
   none, and the accept-everything control all 77.
-- **CVE-2019-14859** ("Badly encoded signature accepted") and **CVE-2019-14853** ("Malformed signature raises
-  unexpected error"), both python-ecdsa: 9 cases each, the same nine. 0.13.2 got 8 wrong, 0.13.3 none.
+- **CVE-2019-14859** ("Badly encoded signature accepted", python-ecdsa): 9 cases. 0.13.2 got 8 wrong, 0.13.3 none.
+- **CVE-2019-14853** ("Malformed signature raises unexpected error", python-ecdsa) reads **No test yet.** Its
+  recorded design picked exactly the nine cases of the check for CVE-2019-14859, so it was refused before any trial
+  as the same check under a second name (see the limits below).
 - **CVE-2024-42460** ("Wrongly encoded signature accepted", elliptic): 1 case, case 6. 6.5.6 got it wrong, 6.5.7 right.
 - **CVE-2024-42461** and **CVE-2024-42459** (elliptic) read **No test yet.** Claude's design step answered that no
   test fits the building blocks of this version, and gave its reason: the first needs a longer signature from a
   larger curve, the second is in EdDSA.
-- **The fixes.** "Update python-ecdsa to 0.13.3" (for both of its advisories) and "update elliptic to 6.5.7" are
-  **proven**: on the fixed version the advisory check passed and every other pass-or-fail test passed too. "Update
-  Java to 17.0.3" is **not proven** (see the limits below).
-- **On the Acme Pay demo** the four ready tests all fit `acme-sign` 1.4.2. The check for CVE-2022-21449 fails on it
-  (3 of 77 cases wrong: 168, 171 and 364, the planted bug). The other three pass.
+- **The fixes.** "Update python-ecdsa to 0.13.3" (for CVE-2019-14859; all 4 pass-or-fail tests passed on 0.13.3, 3
+  failed on 0.13.2) and "update elliptic to 6.5.7" (all 5 passed on 6.5.7, 2 failed on 6.5.6) are **proven**: on
+  the fixed version the advisory check passed and every other pass-or-fail test passed too. "Update Java to 17.0.3"
+  is **not proven** (see the limits below).
+- **On the Acme Pay demo** the three ready tests all fit `acme-sign` 1.4.2. The check for CVE-2022-21449 fails on
+  it (3 of 77 cases wrong: 168, 171 and 364, the planted bug). The other two pass.
 
 ### Limits
 
@@ -242,17 +245,27 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   rejection. An advisory that needs any of those reads "No test yet", with the reason.
 - **Signing programs and libraries only.** An advisory about a server can't become a test yet. That needs a
   handshake building block (phase 5d).
-- **The two python-ecdsa checks rerun the same nine cases,** so they pass or fail together. The check for
-  CVE-2019-14853 shows the half of that advisory this building block can show: badly formed signatures that are
-  accepted. It does not show the unexpected error the advisory is named for, because by the owner's rule an error
-  raised by the library counts as "not accepted" (phase 4c). The design note says so.
+- **CVE-2019-14853 has no test, because its design was a copy of another advisory's check.** The advisory is about
+  the kind of error python-ecdsa raises for a malformed signature. The one building block can't show that: by the
+  owner's rule an error raised by the library counts as "not accepted" (phase 4c). The recorded design therefore
+  picked the nine badly encoded signatures that the check for CVE-2019-14859 already uses. Such a check would pass
+  or fail together with that one and could not tell the two weaknesses apart, yet its name would say it measured
+  this advisory. So a design that selects exactly the cases of another advisory's check is refused before any
+  trial, the advisory reads "No test yet" with that reason, and no fix is offered for it.
+- **The packs in the repository are the second build.** The first build, earlier on 17 November 2026, shipped that
+  duplicate check as "Test ready" (four tests in all). The independent review of the phase found it; the rule
+  above was added and the research was run again from an empty ledger with the same recorded answers. The three
+  test trials that are in both builds gave the same numbers. The first build's ledger and packs are kept in this
+  branch's git history (commit `370a380`), not in the working files. Nothing had shipped: from the merge of this
+  phase on, a pack that is in the repository is never rebuilt.
 - **No shipped advisory reads "Not offered".** The plan expected one design to be tried and refuted. In the real
-  build no design was refuted: for CVE-2024-42461 the design step answered "no test fits" instead. The refuted path
-  is real and tested on a made-up snapshot, where a design that can't catch the affected version comes out refuted
-  and stays out of the pack (`backend/tests/otto/test_research.py`).
+  build no design was refuted: for CVE-2024-42461 the design step answered "no test fits" instead, and for
+  CVE-2019-14853 the design was refused before it could be tried. The refuted path is real and tested on a made-up
+  snapshot, where a design that can't catch the affected version comes out refuted and stays out of the pack
+  (`backend/tests/otto/test_research.py`).
 - **"Update Java to 17.0.3" reads "not proven", by the strict reading of "every other locked test still passes".**
   On 17.0.3 the check for CVE-2022-21449 passes, but the Independent exam still fails (the three cases listed under
-  phase 4c), so 1 of the 5 pass-or-fail tests did not pass. The screen says what was measured and nothing about how
+  phase 4c), so 1 of the 4 pass-or-fail tests did not pass. The screen says what was measured and nothing about how
   serious it is. Counting only the tests that failed before the fix would call this fix proven. Which reading to
   keep is the owner's decision.
 - **A check can fail on a library its advisory does not name.** Case 6 (a number written without its leading zero)
@@ -272,9 +285,11 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   demo no fix carries the label "Written by Otto". Tests of our own code show that label and the normal proof path
   with an answer written for the test, whose program is byte for byte 1.4.3.
 - **Running code that Claude wrote is not in this version.** A live answer will usually not be one of our registered
-  programs. With Live Otto on, such an answer is refused at the click, nothing is connected, and the fix template
-  is offered afterwards. Proving a change that is not a registered program would mean running code Claude wrote.
-  That needs the owner's decision and a sandbox design first.
+  programs. With Live Otto on, such an answer is refused at the click and nothing is connected, although the
+  request was made on the key and is paid for; the fix template is offered afterwards where it answers the
+  failure. Until the click, Fixes lists that fix as "Not written yet" (never as written by Otto) and its card says
+  all of this before anyone presses the button. Proving a change that is not a registered program would mean
+  running code Claude wrote. That needs the owner's decision and a sandbox design first.
 - **The recorded answers were not made through the API.** No API key exists in the build environment. Every answer
   shipped in `research/recorded/` was made during the build by giving the exact prompt to Claude in a fresh helper
   session with nothing else, and was stored word for word. Each is labelled "Recorded during the build, not through
@@ -285,7 +300,9 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   and a fix's summary are Claude's words, from the recorded answers. So is the title of an advisory check, which
   carries the plain name. They are checked for their shape and for words this app never says about a system, and
   every line quoted from a publisher must stand in the publisher's text, character for character. Nothing else
-  checks that such a sentence is right, which is why the publisher's own line is shown beside it. No result is
+  checks that such a sentence is right, which is why the publisher's own line is shown beside it. The notes are
+  folded in the panel under "Otto's notes on reading it" and labelled as Claude's words; they can be long, and they
+  name sources by their short labels (S1, S2), which the Sources list above them spells out. No result is
   worded by Claude: the sentences of a check's result are fixed templates.
 - **A recorded answer belongs to one exact prompt.** If one word of a research prompt changes, its recorded answer
   no longer fits: new answers must be recorded and new packs built, and a test of our own code fails until then. If
@@ -296,9 +313,12 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Live Otto sends source code out.** For a fix to your own code, the source file of the failing program and the
   cases it got wrong go to Claude through your key, with the advisory text. Live Otto is off by default, also when a
   key is present, and the setting says what is sent.
-- **Cost.** The spending limit (2 US dollars per run until changed) stops a run before the call that could pass it.
-  It counts the worst case of that call, so a run can stop early. The price list is a config value and can
-  go out of date; Settings shows its source and date. One model answers every step.
+- **Cost.** The spending limit (2 US dollars per run until changed) stops a run before the request that could pass
+  it, also a request that is sent again. It counts the worst case of that request (a full-length answer at the
+  dearest price that could apply, twice where a declined request may be answered by another model), so a run can
+  stop early. A request that got no answer at all may still have been billed, so the most it could have cost counts
+  against the limit too. The price list is a config value and can go out of date; Settings shows its source and
+  date. One model answers every step.
 - **The live call is made with Python's standard library,** not with Anthropic's official package. Adding that
   package would be a new dependency and needs the owner's OK.
 - **Otto is private, so not every computer can run the Otto checks.** GitHub's checks can't fetch it (they use no
@@ -321,7 +341,8 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   is signed with a key made here (kept in the data folder, readable by this user only) and is trusted by this
   installation only.
 - **Authors in Otto's ledgers are plain names.** Otto signs nothing. The "second author" who replays a trial is a
-  second role of the same build on the same computer, not a second person or a second machine. The evidence
+  second role of the same build on the same computer, not a second person or a second machine, and the Advisories
+  panel words the replay that way ("run again as a separate replay step of the same build, on the same computer"). The evidence
   signature covers the assessment's ledger. The research ledger is named by the pack (its latest entry) and stays
   in the repository.
 - **The assessment's Otto ledger confirms binding, not results.** It shows that a run belongs to a test locked
@@ -339,11 +360,22 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   Retest measures speed on yours.
 - **Evidence files grow.** The pack files (whole), the assessment's ledger, every bound run and every Claude step
   with its full prompt and answer travel inside the file.
-- **The source links on github.com were not opened by the build.** The quoted text was downloaded from the files
-  themselves (the advisory database's records and the libraries' source files, at pinned commits); the page
-  addresses shown beside it were written from the record's id or from the repository, the tag and the path, and
-  were not opened. The web pages of github.com, nvd.nist.gov and cve.org could not be reached from the build
-  machine (the snapshot's `README.md` has the full list).
+- **A source's link opens what was read, which is not always a web page.** The quoted text was downloaded from the
+  files themselves (the advisory database's records and the libraries' source files, at pinned commits), and the
+  link beside a quote opens that address, so "Read on 17 November 2026" is true of what it opens. For a file in a
+  repository that is the raw file at its pinned commit, not the repository's web page. A pack also keeps a page
+  address for each source, written from the record's id or from the repository, the tag and the path; those pages
+  were not opened by the build and are not what the links open. The web pages of github.com, nvd.nist.gov and
+  cve.org could not be reached from the build machine (the snapshot's `README.md` has the full list).
+- **A quoted line is not always from the advisory page.** Oracle's and OpenJDK's pages for CVE-2022-21449 do not
+  put the weakness into words, so its quoted line is the range check in the fixed JDK source. Some quotes are a
+  raw field of an advisory record (`"fixed": "0.13.3"`). Each quote names its source and publisher, and its tag
+  reads "quoted from the named source, not a result".
+- **The verify command runs nothing that a file names.** A ledger inside an evidence file is data. Before Otto's own
+  audit is given it, every entry must be of a kind this app writes and name only our own pinned checker; a file
+  whose ledger names any other checker fails the check and nothing is run. The independent review of the phase
+  found that an earlier state of the build would have started what such a file named. It was fixed before the
+  phase shipped, and tests plant such files to show that nothing runs (`backend/tests/otto/test_verify_reads_data.py`).
 - **The fifth answer key is not written yet.** `demo/expected-otto.json` is written independently of the build.
   Until it is in the repository, `python -m app.accuracy --only otto` shows the app's answers and grades nothing
   (exit code 2, which is not a pass; 3 when Otto is not installed). `docs/OTTO-KEY.md` lists its questions.

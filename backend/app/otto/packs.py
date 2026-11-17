@@ -227,13 +227,15 @@ def check_pack(pack: object) -> dict:
         if not isinstance(sources, list) or not 1 <= len(sources) <= 20:
             _fail(f"{what.capitalize()} names no source.")
         for source in sources:
-            s = _keys(source, {"label", "title", "publisher", "url", "fetched"}, f"source of {what}")
+            s = _keys(source, {"label", "title", "publisher", "url", "read_from", "fetched"}, f"source of {what}")
             _text(s["label"], f"source of {what}", 8)
             _text(s["title"], f"source of {what}", 300)
             _text(s["publisher"], f"source of {what}", 200)
-            if not isinstance(s["url"], str) or not s["url"].startswith("https://") or len(s["url"]) > 400 \
-                    or not isinstance(s["fetched"], str) or not _DATE.match(s["fetched"]):
-                _fail(f"A source of {what} has no https link, or no date it was read.")
+            for link in (s["url"], s["read_from"]):          # the page a person would open, and the address the text was read from
+                if not isinstance(link, str) or not link.startswith("https://") or len(link) > 400:
+                    _fail(f"A source of {what} has no https link.")
+            if not isinstance(s["fetched"], str) or not _DATE.match(s["fetched"]):
+                _fail(f"A source of {what} has no date it was read.")
         reading = a["reading"]
         if reading is None:
             _text(a["reading_refused"], f"reason the reading of {what} was refused", 300)

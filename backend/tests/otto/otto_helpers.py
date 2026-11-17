@@ -111,7 +111,8 @@ def pack_advisory(advisory_id: str = "CVE-2022-21449", name: str = "Blank signat
                                   "affected-again": {"version": versions[0], "failing": 3, "tests": 3}}}}
     entry = {"id": advisory_id, "aliases": [], "package": {"name": package, "ecosystem": "demo"}, "published": "2026-11-01",
              "sources": [{"label": "S1", "title": "A made-up advisory for a test", "publisher": "The test suite",
-                          "url": "https://openjdk.org/groups/vulnerability/advisories/2022-04-19", "fetched": "2026-11-17"}],
+                          "url": "https://openjdk.org/groups/vulnerability/advisories/2022-04-19",
+                          "read_from": "https://openjdk.org/groups/vulnerability/advisories/2022-04-19", "fetched": "2026-11-17"}],
              "reading": reading, "reading_refused": None, "test": test, "fix": fix,
              "steps": [_step("read_advisory"), _step("design_test")] + ([_step("propose_fix")] if fix["kind"] else []),
              "ledger": [{"seq": 0, "kind": "question", "id": RID, "at": "2026-11-17T12:00:00+00:00", "what": "Question asked: a test"}]}
@@ -129,11 +130,19 @@ def make_pack(version: str, previous: str | None, entries: list[tuple[dict, dict
                      "ledger": {"height": 1, "head": RID, "root": RID}, "scripts": {"trial.py": "0" * 64}},
             "advisories": [entry for entry, _ in entries],
             "tests": [{"design": made, "design_sha256": designs.design_sha256(made)} for _, made in entries if made is not None]}
+    return sign_pack(pack, key), public_hex(key)
+
+
+def public_hex(key: Ed25519PrivateKey) -> str:
+    return key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex()
+
+
+def sign_pack(pack: object, key: Ed25519PrivateKey) -> bytes:
+    """Sign this content exactly as it is, whatever it holds (for tests of what a signed pack may hold)."""
     fingerprint = sha256_hex(pack)
-    public = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex()
-    envelope = {"pack": pack, "fingerprint": fingerprint, "public_key": public,
+    envelope = {"pack": pack, "fingerprint": fingerprint, "public_key": public_hex(key),
                 "signature": key.sign(packs.SIGNING_CONTEXT + fingerprint.encode("ascii")).hex()}
-    return canonical_bytes(envelope), public
+    return canonical_bytes(envelope)
 
 
 def trust(monkeypatch, tmp_path, public_keys: list[str]) -> None:

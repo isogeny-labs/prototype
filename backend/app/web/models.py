@@ -2021,11 +2021,20 @@ class AdvisorySource(Shape):
     read_on: str
 
 
+class AdvisoryNotes(Shape):
+    """What Claude noted when it read the advisory. Information, never a result."""
+
+    title: str
+    kind_line: str
+    text: str | None
+    caption: str
+
+
 class AdvisoryPanel(Shape):
     sentence: str
     publisher: AdvisoryQuote | None
     affected: AdvisoryAffected | None
-    notes: str | None
+    notes: AdvisoryNotes | None
     also_known_as: list[str]
     sources: list[AdvisorySource]
     test: AdvisoryTestBlock | None

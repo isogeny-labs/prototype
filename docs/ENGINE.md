@@ -808,7 +808,9 @@ failed advisory check is among the failures of the program itself, and then:
 
 - **Looking at a page (`view`) never asks Claude and writes nothing.** The view uses the answer already stored for
   this assessment or, while Live Otto is off, the recorded answer for exactly this prompt. With Live Otto on, a key
-  present and no stored answer, the fix is listed as not written yet (`otto.pending`).
+  present and no stored answer, the recorded answer is not used: the fix is listed as not written yet
+  (`otto.pending`, with the label "Not written yet", never "Written by Otto"), and its card says what the click
+  sends and that an answer which is not a registered program is refused although the request was made.
 - **A person's click (`connect`, Connect demo code) is the only thing that makes a live call:** once, within the
   spending limit of that one request. The step is then stored (`otto_steps`, and in full in the assessment's Otto
   ledger), marked used or refused, and never asked for again.
@@ -855,9 +857,11 @@ and added to the plan with origin `added`, like a test from **+ Add test**. It i
 - In a proof it is a test that runs the changed code and must pass on it (`PROOF_PASS_CODES`).
 - One new reason for Couldn't run, `otto_not_installed`: a check added from a pack does not run where the pinned Otto
   is missing, because its run could not be recorded.
-- The result carries `advisories`: the box "The advisory this check is for" (`present/advisory.box`), tagged "from the
-  advisory, not a result". A link from a pack is sent to the screen or the report only when it is an https address of
-  a known publisher (`present/advisory.LINK_HOSTS`); anything else is shown as text. The Suggested fix line repeats
+- The result carries `advisories`: the box "The advisory this check is for" (`present/advisory.box`), tagged "quoted
+  from the named source, not a result" (a quote may come from the publisher's source file, not the advisory page).
+  The link is the address the quoted text was read from (`read_from` in the pack). A link from a pack is sent to the
+  screen or the report only when it is an https address of a known publisher (`present/advisory.LINK_HOSTS`);
+  anything else is shown as text. The Suggested fix line repeats
   what the installed pack says about a fix (`Lab.otto_result_fix`): words only.
 
 **A design** (`isogeny.advisory-design/1`, `otto/designs.py`) is what a pack carries for one test. It is data and can't
@@ -900,6 +904,9 @@ must-reject case is refused.
 - `trial` is `{"hypothesis", "decision", "outcome", "replayed", "arms"}`; the first two are record ids of the research
   ledger. A test's arms are `reference`, `affected`, `fixed` and `accept-all`, each with `right`, `wrong` and `total`;
   a fix's are `affected`, `fixed` and `affected-again`, each with `failing` and `tests`.
+- Each of an advisory's `sources` is `{"label", "title", "publisher", "url", "read_from", "fetched"}`: `url` is the
+  page a person would look at, `read_from` the address the quoted text was downloaded from on the day in `fetched`
+  (for a file in a repository, the raw file at its pinned commit). The screens link to `read_from`.
 - `steps` are the advisory's Claude steps (`step`, `source`, `model`, `prompt_sha256`, `answer`, `answer_sha256`, the
   tokens and the cost, `at`, `how`, `outcome` `used` or `refused`, `refusal`, and `claim`, its entry in the research
   ledger). `ledger` lists that advisory's entries of the research ledger (`seq`, `kind`, `id`, `at`, `what`).
@@ -918,13 +925,19 @@ must-reject case is refused.
   list), with an effort level for each step. A busy API is tried again, at most twice. If the API answers a declined
   request with another model it offers in its place, the step names the model that answered. A declined, cut-off or
   empty answer is not used, and nothing is made up in its place.
-- *The spending limit* (`Budget`): before a call, its worst case (every byte of the prompt counted as a token, a
-  full-length answer, the dearest price that could apply) is added to what the run has spent; if that passes the
-  limit, the call is not sent. After a call the cost is worked out from the tokens the API reports, every attempt
+- *The spending limit* (`Budget`): before every request (the first, and each one sent again after a busy answer or
+  a time-out), its worst case is added to what the run has spent; if that passes the limit, the request is not
+  sent. The worst case is every byte of the prompt counted as a token and a full-length answer, at the dearest price
+  that could apply, for every attempt that could be billed (two where a declined request may be passed to another
+  model). A request that got no answer at all may have been billed, so its worst case stays counted against the
+  limit (`unanswered_nano`). After an answer the cost is worked out from the tokens the API reports, every attempt
   counted. Prices are whole numbers of a billionth of a dollar per token (`PRICES_NANO_PER_TOKEN`, with its source and
   date in `PRICE_SOURCE`), so every sum is exact.
 - *The key* is read from the environment at the moment of a call, sent only as that request's header, and removed
-  from every text that leaves the module (`redact`). It is in no step, log, error or file.
+  from every text that leaves the module (`redact`). A value that is not in the form of a key (a space or a line
+  break inside it) is never sent, and a request that can't be made is reported by the kind of its error only, never
+  in the error's own words, because an HTTP library can name a header's value there. It is in no step, log, error
+  or file.
 - A step is `{"step", "source": "recorded" | "live", "model", "prompt", "answer", "prompt_sha256", "answer_sha256",
   "input_tokens", "output_tokens", "cost_nano_usd", "at", "how"}`; `model` is null for a recorded answer. The steps are
   `read_advisory`, `design_test` and `propose_fix` (the research side; prompts and answer checks in
@@ -934,6 +947,9 @@ must-reject case is refused.
 records:
 
 - a `question` for each advisory's test and, once that test held its trial, one for its fix;
+- a design that selects exactly the published cases of another advisory's check is refused before any trial
+  (`ottolab/research.same_check_as`): its step is kept as refused, no hypothesis is registered, and the pack reads
+  "No test yet" with that reason;
 - for each Claude step an `objective`, a `claim` that holds the step in full (with what the answer came to, or why it
   was refused) and the `verdict` of the pinned checker `check_model_step.py`: the hashes match, the answer has its
   shape, and every quoted line stands in the prompt that was sent;
@@ -948,8 +964,9 @@ records:
 - a `run` for each arm: `ottolab/pinned/trial.py` locks the check, runs it through `Lab` and reads the review, so a
   real library runs only in its container. A test that could not run, or a run that can't be trusted, is not a number:
   the script stops, and the harness records an infrastructure failure, never a result;
-- the harness's `decision` (`supported`, `refuted` and so on), an `audit` for the replay by a second author, and a
-  `fact` that states what the trial showed (a dead end when it was refuted).
+- the harness's `decision` (`supported`, `refuted` and so on), an `audit` for the replay under a second author's
+  name (a second role of the same build on the same computer, and worded so on screen), and a `fact` that states
+  what the trial showed (a dead end when it was refuted).
 
 `ottolab/build.py` turns that ledger into a pack: a test is `ready` only when its trial was supported and replayed, a
 fix `proven` only when its own trial was. The agent command (`ottolab/agent.py`) reads the loop's prompt as data: only
@@ -973,6 +990,13 @@ the run and its review are already stored and stay.
 **Records:** three more add-only tables: `otto_packs` (the installed packs), `otto_checks` (the plan item, the pack and
 the design it came from, and its lock entry) and `otto_steps` (every Claude step taken in the app, in full). The Live
 Otto switch and the spending limit are two rows of `app_settings`.
+
+**What the Advisories view says and does not say** (`present/otto.py`). A row's Result cell counts only the programs
+that have a result ("1 of 1 run so far; 3 with no result yet"). The panel's `notes` is `{"title", "kind_line",
+"text", "caption"}`: Claude's reading notes, labelled as Claude's words, with the kind of weakness the reading
+recorded. The line about a change for your own code is shown only when a program of the assessment that is one of our
+demo components (`run/components.lookup`; never a real library) has this check in its plan and no fix answers it yet.
+A trial's replay is worded as a step of the same build on the same computer.
 
 **Views and routes** (`otto/state.py`, words in `present/otto.py`, routes in `web/otto.py`): `GET /api/otto` (Settings:
 Test packs, the two status lines and Live Otto), `POST /api/otto/packs/check`, `POST /api/otto/packs/install`
@@ -1001,8 +1025,13 @@ order:
 3. the ledger is one unbroken hash chain, and its latest entry is the one the signed evidence names;
 4. every run the ledger binds is in the file with a record and a review that match the SHA-256 the ledger holds, and
    every Claude step matches its SHA-256 and has its entry in the ledger;
-5. with `--previous OLDER.json`, the older file's latest ledger entry is still in this chain, at the same place;
-6. Otto's own audit of the ledger, with the pinned checker run again on every entry.
+5. with `--previous OLDER.json`, the older file's latest ledger entry is still in this chain, at the same place
+   (entries added since are not covered by that comparison);
+6. Otto's own audit of the ledger, with the pinned checker run again on every entry. A ledger read from a file is
+   data, and Otto's audit starts the checker each entry names. So before the audit is given the ledger,
+   `otto/assurance.only_our_checker` must hold: every entry is of a kind this app writes and names only our own
+   pinned checker, with parameters of the known shape. A ledger that names anything else fails the check, and
+   nothing it names is run. A run in the file that the ledger does not bind, and every note of the audit, fails too.
 
 Step 6 needs the pinned harness on the computer that runs the command. Without it the first five checks are still
 made, the command says that Otto's audit was not run, and it exits with code 2. A pack signed by a key you do not

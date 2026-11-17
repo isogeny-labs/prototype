@@ -90,6 +90,11 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
+class ReachedClaude(BaseException):
+    """A test tried to reach the Claude API. Not an ordinary error on purpose: Otto's client turns every ordinary
+    error of a request into a plain sentence, and this one must stop the test instead."""
+
+
 @pytest.fixture(autouse=True)
 def no_call_to_claude(monkeypatch):
     """Phase 5c: no test ever reaches the Claude API. Otto's client looks its transport up at the moment of a call;
@@ -97,7 +102,7 @@ def no_call_to_claude(monkeypatch):
     from app.otto import model
 
     def refuse(body, headers, timeout):
-        raise AssertionError("a test tried to reach the Claude API; give the client a stand-in transport")
+        raise ReachedClaude("a test tried to reach the Claude API; give the client a stand-in transport")
     monkeypatch.setattr(model, "_http_transport", refuse)
 
 

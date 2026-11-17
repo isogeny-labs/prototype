@@ -122,6 +122,25 @@ def used_step(st, lab, advisory_id: str, step: str) -> tuple[str, dict] | None:
     return None
 
 
+def same_check_as(st, advisory_id: str, design: dict) -> str | None:
+    """The other advisory whose design already selects exactly these published cases, if there is one. Two advisories
+    with the same cases would be one check under two names, and a trial on public copies could not tell their
+    weaknesses apart: where the same release fixes both, the affected version fails and the fixed one passes for
+    either. So only the first advisory gets the check."""
+    def cases_of(made: dict) -> tuple:
+        return made["cases"]["file"], made["cases"]["sha256"], tuple(sorted(made["cases"]["ids"]))
+    mine = cases_of(design)
+    for _, claim in st.of("claim"):
+        art = claim["artifact"]
+        if not isinstance(art.get("step"), dict) or art["step"].get("step") != "design_test" or art.get("outcome") != "used" \
+                or art.get("advisory") == advisory_id:
+            continue
+        parsed = art.get("parsed") or {}
+        if parsed.get("decision") == "test" and cases_of(parsed["design"]) == mine:
+            return str(art["advisory"])
+    return None
+
+
 def trial_kind(hyp: dict) -> str:
     return "fix" if any(path.startswith("fixes/") for path in hyp["code"]) else "test"
 
@@ -231,9 +250,16 @@ def propose_test(lab, model: OttoModel, question_id: str, advisory: dict) -> str
     reading = read["artifact"]["parsed"]
     if not any(c["artifact"]["step"]["step"] == "design_test" for _, c in step_claims(st, aid)):
         prompt = prompts.design_test_prompt(advisory, reading)
-        claim, note, record = ask(lab, model, question_id, advisory, "design_test", prompt,
-                                  lambda step: prompts.check_design_note(step.answer, advisory, reading,
-                                                                         {"prompt_sha256": step.prompt_sha256, "answer_sha256": step.answer_sha256}))
+
+        def checked(step) -> dict:
+            made = prompts.check_design_note(step.answer, advisory, reading,
+                                             {"prompt_sha256": step.prompt_sha256, "answer_sha256": step.answer_sha256})
+            twin = same_check_as(st, aid, made["design"]) if made["decision"] == "test" else None
+            if twin is not None:
+                raise prompts.Refused(f"The design selects exactly the published cases of the check for {twin}. That would be the same "
+                                      "check under a second name: it could not tell this advisory's weakness from that one's.")
+            return made
+        claim, note, record = ask(lab, model, question_id, advisory, "design_test", prompt, checked)
         if note is None:
             return f"{aid}: the design note was refused; no test is registered."
         if note["decision"] == "no_test":

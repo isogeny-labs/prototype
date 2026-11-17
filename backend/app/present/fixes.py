@@ -220,6 +220,7 @@ TEMPLATE_WORDS = {"ecdsa-range-check": _range_check_words}
 
 # Phase 5c: a change Otto wrote (Claude, recorded or live) for an advisory whose check failed on the customer's own code.
 OTTO_LABEL = "Written by Otto"
+OTTO_PENDING_LABEL = "Not written yet"     # Live Otto is on and nobody has asked Claude yet: nothing is Otto's until it is written
 OTTO_FIX_LABEL = "From Otto"
 
 
@@ -229,9 +230,13 @@ def _otto_words(name: str, version: str | None, size: str, otto: dict) -> dict:
     advisory = f"{otto['advisory']} ({otto.get('plain_name') or 'an advisory'})"
     if otto.get("pending"):
         waiting = [_t("Live Otto is on. When you connect the code, Otto asks Claude to write a change for "), _m(otto["advisory"]),
-                   _t(" in "), _m(name), _t("'s code. That sends this program's source file and the cases it got wrong to Claude, through "
-                                            "your key and within the spending limit. The change is offered only after every locked test "
-                                            "passes on the changed code.")]
+                   _t(" in "), _m(name),
+                   _t("'s code. That sends this program's source file and the cases it got wrong to Claude, through your key and within "
+                      "the spending limit. The answer is used only if it is a clean change that gives one of our bundled demo components "
+                      "byte for byte, because only those can run in this version. Otherwise it is refused and nothing is connected, "
+                      "although the request was still made on your key; Fixes then says why, and offers the fix template in its place "
+                      "where that answers the failure. A change that is used is offered only after every locked test passes on the "
+                      "changed code.")]
         return {"title": f"{name}: a change for {otto['advisory']}", "available": waiting, "changes": waiting, "fixes": waiting,
                 "intro": "Otto has not written this change yet."}
     summary = str(otto.get("summary") or "").rstrip()
@@ -689,7 +694,9 @@ def code_fix(fix: dict, *, plan_id: int, titles: list[str], server_findings: int
         "id": fix["id"], "kind": "code", "title": words["title"], "list_source": _list_source(titles),
         "source": _source(titles, "signing component", f"{component['name']} {component['version']}"),
         "status": {"key": fix["status"], "word": STATUS_WORDS[fix["status"]], "busy": fix["status"] == "proving"},
-        "labels": [OTTO_LABEL if otto else CHANGE_LABEL], "is_demo": fix["connection"]["is_demo"] if connected else True,
+        # "Written by Otto" only for a change that exists and can be proven here; before the click nothing is written
+        "labels": [(OTTO_PENDING_LABEL if otto.get("pending") else OTTO_LABEL) if otto else CHANGE_LABEL],
+        "is_demo": fix["connection"]["is_demo"] if connected else True,
         "what": {"label": "What it fixes" if proven(fix) else "What it changes", "paragraphs": [what] + extra,
                  "server_line": _server_line(fix, server_findings)},
         "proof": proof, "pull_request": _pull_request(fix, holds), "approvers": _approvers(fix, reviewers),

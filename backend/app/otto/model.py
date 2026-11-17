@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import time
 import urllib.error
 import urllib.request
@@ -58,7 +59,7 @@ PRICES_NANO_PER_TOKEN = {
     # models a declined request may be retried on (priced at their own, higher or equal, rates)
     "claude-opus-5": (5_000, 25_000),
     "claude-opus-4-8": (5_000, 25_000),
-    "claude-sonnet-5": (3_000, 15_000),
+    "claude-sonnet-5": (2_000, 10_000),
 }
 FALLBACK_MODELS = ("claude-opus-5", "claude-opus-4-8", "claude-sonnet-5")
 DEFAULT_LIMIT_NANO = 2 * NANO               # 2 US dollars per run, until the owner changes it in Settings
@@ -91,6 +92,19 @@ def sha256_text(text: str) -> str:
 def key_present(environ: dict | None = None) -> bool:
     """Is an API key set on this computer? Says yes or no; never returns the key."""
     return bool(str((environ if environ is not None else os.environ).get(KEY_ENV) or "").strip())
+
+
+_KEY_SHAPE = re.compile(r"\A[\x21-\x7e]{8,512}\Z")     # printable characters only: no space, no line break, nothing else
+
+
+def _key_for_header(environ: dict) -> str:
+    """The key as it goes into the request's header. A value that is not in the form of a key (a space or a line
+    break inside it, say) is never sent: the HTTP library would name it, whole, in its own error text."""
+    key = str(environ.get(KEY_ENV) or "").strip()
+    if not _KEY_SHAPE.match(key):
+        raise LiveCallFailed(f"The value of {KEY_ENV} on this computer is not in the form of an API key (it may hold a space or a "
+                             "line break), so no request was sent. Nothing was changed.")
+    return key
 
 
 def redact(text: object, environ: dict | None = None) -> str:
@@ -162,6 +176,22 @@ def read_recorded(path: Path) -> dict | None:
     return data
 
 
+def recorded_since(folders: tuple[Path, ...] | list[Path]) -> str | None:
+    """When the recorded answers on this computer were made: the time of the earliest one, or None when there is none
+    that can be read. It reads the files only; it asks nobody."""
+    earliest: str | None = None
+    for folder in folders:
+        try:
+            paths = sorted(Path(folder).glob("*.json"))[:500]
+        except OSError:
+            continue
+        for path in paths:
+            data = read_recorded(path)
+            if data is not None and (earliest is None or data["recorded"]["at"] < earliest):
+                earliest = data["recorded"]["at"]
+    return earliest
+
+
 def write_recorded(folder: Path, step: str, prompt: str, answer: str, at: str, how: str) -> Path:
     """Store one answer for one exact prompt (used when the recorded answers are made, never by the app)."""
     if step not in STEPS:
@@ -183,23 +213,32 @@ class Budget:
     limit_nano: int = DEFAULT_LIMIT_NANO
     spent_nano: int = 0
     calls: int = 0
+    unanswered_nano: int = 0      # the most that requests with no answer could have cost: nobody can say whether they were billed
 
-    def worst_case(self, model: str, prompt: str, max_tokens: int = MAX_OUTPUT_TOKENS) -> int:
-        """The most one call could cost: every byte of the prompt counted as a token and a full-length answer, at the
-        dearest price among this model and the models a declined request may be retried on."""
+    def worst_case(self, model: str, prompt: str, max_tokens: int = MAX_OUTPUT_TOKENS, attempts: int = 1) -> int:
+        """The most one request could cost: every byte of the prompt counted as a token and a full-length answer, at
+        the dearest price among this model and the models a declined request may be retried on, for every attempt
+        that could be billed (a declined attempt and its retry on another model are two)."""
         price_in, price_out = _top_prices(model)
-        return (len(prompt.encode("utf-8")) + 200) * price_in + max_tokens * price_out
+        return max(1, attempts) * ((len(prompt.encode("utf-8")) + 200) * price_in + max_tokens * price_out)
 
-    def check(self, model: str, prompt: str) -> None:
-        could = self.worst_case(model, prompt)
-        if self.spent_nano + could > self.limit_nano:
+    def check(self, model: str, prompt: str, attempts: int = 1) -> None:
+        could = self.worst_case(model, prompt, attempts=attempts)
+        if self.spent_nano + self.unanswered_nano + could > self.limit_nano:
+            maybe = (f" Up to {dollars(self.unanswered_nano)} more may have been billed for a request that got no answer, and it counts "
+                     "against the limit." if self.unanswered_nano else "")
             raise SpendingLimitReached(
                 f"The spending limit for this run is {dollars(self.limit_nano)}. {dollars(self.spent_nano)} is spent, and the next "
-                f"request could cost up to {dollars(could)}, so it was not sent. Raise the limit in Settings to go on.")
+                f"request could cost up to {dollars(could)}, so it was not sent.{maybe} Raise the limit in Settings to go on.")
 
     def add(self, nano: int) -> None:
         self.spent_nano += int(nano)
         self.calls += 1
+
+    def add_unanswered(self, nano: int) -> None:
+        """A request that got no answer at all (a time-out, a broken connection). It may or may not have been billed,
+        so the most it could have cost counts against the limit from here on."""
+        self.unanswered_nano += int(nano)
 
 
 def _top_prices(model: str, served: str | None = None) -> tuple[int, int]:
@@ -301,22 +340,29 @@ class OttoModel:
         model = model_name(env)
         if model not in PRICES_NANO_PER_TOKEN:
             raise LiveCallFailed(f"The model named in {MODEL_ENV} has no price in this version's price list, so it is not called.")
-        self.budget.check(model, prompt)
         body = {"model": model, "max_tokens": MAX_OUTPUT_TOKENS, "output_config": {"effort": EFFORT[step]},
                 "messages": [{"role": "user", "content": prompt}]}
-        headers = {"content-type": "application/json", "anthropic-version": API_VERSION, "x-api-key": str(env.get(KEY_ENV) or "").strip()}
+        headers = {"content-type": "application/json", "anthropic-version": API_VERSION, "x-api-key": _key_for_header(env)}
         fallback = self.use_fallback
         status, raw, waits = 0, b"", list(RETRY_WAITS)
         while True:
+            # Before every request, the first and each one sent again: could it pass the limit? With the fallback
+            # option a declined attempt and its retry on another model can both be billed, so both are counted.
+            self.budget.check(model, prompt, attempts=2 if fallback else 1)
             send = dict(body, fallbacks="default") if fallback else body
             send_headers = dict(headers, **({"anthropic-beta": FALLBACK_BETA} if fallback else {}))
             try:
                 status, raw = (self.transport or _http_transport)(json.dumps(send).encode("utf-8"), send_headers, REQUEST_TIMEOUT_SECONDS)
             except OSError as exc:
+                # No answer came back, so nobody can say whether it was billed: the most it could have cost counts
+                # against the limit from here on.
+                self.budget.add_unanswered(self.budget.worst_case(model, prompt, attempts=2 if fallback else 1))
                 if waits:
                     self.sleep(waits.pop(0))
                     continue
                 raise LiveCallFailed(f"Claude could not be reached ({exc.__class__.__name__}). Nothing was changed.") from None
+            except Exception as exc:     # never the error's own words: an HTTP library can name a header's value in them
+                raise LiveCallFailed(f"The request to Claude could not be made ({exc.__class__.__name__}). Nothing was changed.") from None
             if status == 400 and fallback and b"fallback" in raw.lower():
                 fallback = False        # this account or model does not take the fallback option: ask once more without it
                 continue
@@ -340,14 +386,22 @@ class OttoModel:
         if data.get("stop_reason") == "max_tokens":
             raise LiveCallFailed("Claude's answer was cut off before it ended, so it is not used. Nothing was changed.")
         blocks: list = data["content"] if isinstance(data.get("content"), list) else []
+        # Where a model declined part-way and another took over, the answer is what came after the last switch: the
+        # declined model's partial text before it is not part of the answer.
+        switches = [n for n, b in enumerate(blocks) if isinstance(b, dict) and b.get("type") == "fallback"]
+        if switches:
+            blocks = blocks[switches[-1] + 1:]
         answer = "".join(b.get("text", "") for b in blocks if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str))
         if not answer.strip():
             raise LiveCallFailed("Claude's answer held no text, so it is not used. Nothing was changed.")
         answer = redact(answer, env)
         served = data.get("model") if isinstance(data.get("model"), str) else model
+        how = f"Live: Claude ({served}), through the API key on this computer"
+        if switches or served != model:
+            how += f"; {model} declined the request and it was answered by {served}"
         return Step(step=step, source="live", model=served, prompt=prompt, answer=answer, prompt_sha256=sha256_text(prompt),
                     answer_sha256=sha256_text(answer), input_tokens=tokens_in, output_tokens=tokens_out, cost_nano_usd=cost, at=at,
-                    how=f"Live: Claude ({served}), through the API key on this computer")
+                    how=how)
 
 
 def _spend_cap(raw: bytes) -> bool:

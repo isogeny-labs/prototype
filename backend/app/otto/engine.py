@@ -22,6 +22,9 @@ NOT_REGISTERED = ("the program it gives is not the same as any of our bundled de
                   "can run in this version, so it can't be proven here.")
 
 
+PENDING_LABEL = "Not written yet"        # Live Otto is on and nobody has asked Claude yet: nothing is labelled as Otto's
+
+
 class OttoCouldNot(Exception):
     """A person asked for Otto's change and Otto has none to give. str(exc) is one plain sentence."""
 
@@ -150,7 +153,7 @@ class OttoEngine:
         click that asks Claude. It holds no change yet."""
         answers = [place for place, r in failed if r.get("kind") == research.ADVISORY_KIND]
         return {"template_id": key, "title": f"A change for {advisory['id']}, written by Otto when the code is connected",
-                "branch": "fix/" + key, "label": fixes.LABEL, "answers": answers, "files": dict(request.get("files") or {}), "edits": [],
+                "branch": "fix/" + key, "label": PENDING_LABEL, "answers": answers, "files": dict(request.get("files") or {}), "edits": [],
                 "written_by": "otto", "proposed_by": fixes.OTTO_ID,
                 "otto": {"advisory": advisory["id"], "plain_name": advisory.get("plain_name"), "pack": advisory.get("pack"), "pending": True,
                          "summary": None, "source": "live", "how": "Live: Claude, through your key"}}

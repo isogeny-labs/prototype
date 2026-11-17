@@ -16,7 +16,9 @@ from app.present.results import DISCLAIMER
 
 TEST_LABELS = {"ready": ("Test ready", "pass"), "not_offered": ("Not offered", "warn"), "none": ("No test yet", "neutral")}
 FIX_LABEL = "From Otto"
-PUBLISHER_TAG = "from the advisory, not a result"
+# A quote is not always from the advisory page itself: where the advisory does not put the weakness into words, the
+# reading quotes the publisher's own source file. The caption beside each quote names where it was read.
+PUBLISHER_TAG = "quoted from the named source, not a result"
 NOT_INSTALLED_TAIL = " Advisory checks can't be added or run, because their runs could not be recorded. Everything else works as before."
 # What kind of entry a ledger line is, in plain words. Otto's own record names stay in the ledger: one of them is
 # "verdict", which is a check of a record and must never read as the result of a test.
@@ -29,6 +31,10 @@ def _entries(ledger: list[dict]) -> list[dict]:
             for e in ledger]
 STEP_WORDS = {"read_advisory": "Read the advisory", "design_test": "Design a test", "propose_fix": "Propose the fix",
               "write_fix": "Write a change for your own code"}
+# What a reading recorded about the weakness, in plain words (a reading's notes can refer to "the kind").
+KIND_WORDS = {"accepts_bad_signature": "accepts a signature it must reject", "rejects_good_signature": "rejects a signature it must accept",
+              "stops_with_error": "stops with an error"}
+AREA_WORDS = {"ecdsa_signature_check": "when checking ECDSA signatures", "eddsa_signature_check": "when checking EdDSA signatures"}
 SENT_LINE = ("What is sent to Claude when this is on: the advisory text and, for a fix to your own code, the source file of the failing "
              "program and the cases it got wrong. Nothing else leaves this computer.")
 
@@ -149,13 +155,16 @@ def _trial_lines(advisory: dict) -> list[str]:
         lines.append(f"{package} {f.get('version')} (the publisher's fixed version): {f['wrong']} of {f['total']} cases wrong.")
     if "total" in c:
         lines.append(f"The control that must fail (a program that accepts every signature): {c['wrong']} of {c['total']} cases wrong.")
+    # The replay is a second, separate step of the same build on the same computer: said as that, not as an outside check.
     lines.append(f"Otto's harness judged the trial against thresholds fixed before the first run: {trial['outcome'].replace('_', ' ')}."
-                 + (" A second author replayed it with the same numbers." if trial["replayed"] else " It was not replayed."))
+                 + (" It was then run again as a separate replay step of the same build, on the same computer, and gave the same numbers."
+                    if trial["replayed"] else " It was not replayed."))
     return lines
 
 
-def _fix_block(advisory: dict, fix_view: dict | None, own_program: bool) -> dict:
-    """The fix line of an advisory's panel. `fix_view` is the entry in Fixes that answers this advisory's check here."""
+def _fix_block(advisory: dict, fix_view: dict | None, own_programs: list[str]) -> dict:
+    """The fix line of an advisory's panel. `fix_view` is the entry in Fixes that answers this advisory's check here.
+    `own_programs`: the assessment's own programs (our demo components, never a real library) that have this check."""
     fix = advisory["fix"]
     lines, label = [fix["reason"]], None
     if fix["kind"] == "update":
@@ -173,16 +182,18 @@ def _fix_block(advisory: dict, fix_view: dict | None, own_program: bool) -> dict
     if fix_view is not None:
         link = {"label": "View in Fixes", "link": {"page": "fixes", "item": fix_view["id"]},
                 "line": f"In this assessment: {fix_view['title']} ({fix_view['status']['word']})."}
-    elif own_program and advisory["test"]["state"] == "ready":
-        lines.append("For your own code: if this advisory's check fails here, Fixes offers a change. A change Otto wrote is offered only "
-                     "when it can be proven on this computer; otherwise the fix template takes its place.")
+    elif own_programs and advisory["test"]["state"] == "ready":
+        lines.append(f"For your own code ({', '.join(own_programs)}): if this advisory's check fails here, Fixes shows what can be offered. "
+                     "A change Otto wrote is offered only when it can be proven on this computer. Where it can't be, the fix template is "
+                     "offered if it answers the failure; if not, Fixes says why no change is offered.")
     return {"title": "Fix", "label": label, "state": fix["state"], "lines": lines, "quote": quote, "here": link}
 
 
 def _quoted(advisory: dict, quote: dict) -> dict:
     source = next((s for s in advisory["sources"] if s["label"] == quote["source"]), advisory["sources"][0])
-    return {"text": quote["text"], "source": source["title"], "publisher": source["publisher"], "href": present_advisory.safe_href(source["url"]),
-            "read_on": day(source["fetched"]), "tag": PUBLISHER_TAG}
+    # the link goes to the address the quoted text was read from on that day, so "read on" is true of what it opens
+    return {"text": quote["text"], "source": source["title"], "publisher": source["publisher"],
+            "href": present_advisory.safe_href(source["read_from"]), "read_on": day(source["fetched"]), "tag": PUBLISHER_TAG}
 
 
 def _steps(advisory: dict) -> list[dict]:
@@ -196,8 +207,25 @@ def _steps(advisory: dict) -> list[dict]:
     return out
 
 
+def _notes(advisory: dict) -> dict | None:
+    """What Claude noted when it read the advisory, as that: its words, where they came from, and the kind of weakness
+    it recorded (the notes can refer to it). Information, never a result."""
+    reading = advisory["reading"]
+    if not reading:
+        return None
+    kind = KIND_WORDS.get(str(reading["kind"]), "has a weakness of another kind")
+    area = AREA_WORDS.get(str(reading["area"]), "outside signature checking")
+    read = next((s for s in advisory["steps"] if s["step"] == "read_advisory" and s["outcome"] == "used"), None)
+    where = (read["how"] if read["source"] == "recorded" else f"Live: Claude ({read['model']})") if read else None
+    return {"title": "Otto's notes on reading it",
+            "kind_line": f"Kind of weakness, as Otto recorded it: the affected software {kind}, {area}.",
+            "text": reading["notes"] or None,
+            "caption": ("Claude's words from reading the advisory" + (f" ({where})" if where else "") + ". S1, S2 and so on are the "
+                        "sources listed above. Information, not a result.")}
+
+
 def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list[str], closed: bool, harness_status: dict, answers_line: str,
-                    assessment_id: int | None, items: dict) -> dict:
+                    assessment_id: int | None) -> dict:
     out = []
     for row in rows:
         pack, advisory, design = row["pack"], row["advisory"], row["design"]
@@ -229,8 +257,15 @@ def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list
             or (results[0] if results else None)
         if shown is not None:
             # for the Result filter: Failed, Passed, or the one option for every result that is neither
+            same, ran = sum(1 for r in results if r["label"] == shown["label"]), len(results)
+            if len(here) == 1:
+                counted = None
+            elif ran == len(here):
+                counted = f"{same} of {ran} programs"
+            else:       # some programs have no result yet: the count is of the ones that ran, and says how many have not
+                counted = f"{same} of {ran} run so far; {len(here) - ran} with no result yet"
             result_cell = {"key": shown["tone"] if shown["tone"] in ("pass", "fail") else "warn", "label": shown["label"], "tone": shown["tone"],
-                           "text": (f"{sum(1 for r in results if r['label'] == shown['label'])} of {len(here)} programs" if len(here) > 1 else None)}
+                           "text": counted}
         elif state != "ready":
             result_cell = {"key": "none", "label": "No check", "tone": "neutral", "text": None}
         elif not here:
@@ -264,7 +299,7 @@ def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list
                        "ledger": ({"title": "Otto ledger entries", "count": len(advisory["ledger"]),
                                    "entries": _entries(advisory["ledger"]),
                                    "note": "From Otto's research ledger, a hash chain kept with the Otto harness."} if advisory["ledger"] else None)}
-        own = any(items.get(entry["item_id"]) is not None for entry in row["here"])
+        own = [entry["program"] for entry in row["here"] if entry["own_code"] and entry["item_id"] is not None]
         out.append({
             "id": advisory["id"], "name": name, "published": advisory["published"], "published_text": day(advisory["published"]),
             "package": f"{advisory['package']['name']} ({advisory['package']['ecosystem']})", "pack": pack.version,
@@ -277,10 +312,10 @@ def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list
                 "publisher": _quoted(advisory, reading["weakness_quote"]) if reading else None,
                 "affected": ({"line": f"Affected versions, in the publisher's terms: {reading['affected']['versions']}",
                               "quote": _quoted(advisory, reading["affected"]["quote"])} if reading else None),
-                "notes": (reading["notes"] or None) if reading else None,
+                "notes": _notes(advisory),
                 "also_known_as": advisory["aliases"],
-                "sources": [{"label": s["label"], "title": s["title"], "publisher": s["publisher"], "href": present_advisory.safe_href(s["url"]),
-                             "read_on": day(s["fetched"])} for s in advisory["sources"]],
+                "sources": [{"label": s["label"], "title": s["title"], "publisher": s["publisher"],
+                             "href": present_advisory.safe_href(s["read_from"]), "read_on": day(s["fetched"])} for s in advisory["sources"]],
                 "test": test_block, "no_test": no_test,
                 "here": {"title": "In this assessment", "rows": here,
                          "empty": (None if here else

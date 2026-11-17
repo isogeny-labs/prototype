@@ -155,6 +155,7 @@ def test_live_otto_asks_only_at_the_click():
     pending = engine.propose_change(_request("view"))
     assert pending["written_by"] == "otto" and pending["otto"]["pending"] is True and pending["edits"] == [] and lab.asked == 0
     assert pending["files"] == _request("view")["files"]              # it holds no change yet
+    assert pending["label"] == "Not written yet"                      # and is not labelled as Otto's before it is written
     connected = engine.propose_change(_request("connect"))
     assert lab.asked == 1 and connected["otto"]["source"] == "live" and connected["otto"]["pending"] is False
     assert connected["files"]["acme_sign.py"] == components.lookup("acme-sign", "1.4.3").read_text(encoding="utf-8")

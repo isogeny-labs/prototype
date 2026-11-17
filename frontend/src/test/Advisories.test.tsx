@@ -297,14 +297,21 @@ describe("Advisories, the table", () => {
 });
 
 describe("Advisories, an advisory's panel", () => {
+  it("says when the advisory was published under its id, because the table drops that column while the panel is open", async () => {
+    await open(advisoriesFailed);
+    const inPanel = await openRow(BLANK);
+    const row = advisoriesFailed.rows.find((r) => r.id === BLANK)!;
+    expect(inPanel.getByTestId("advisory-published").textContent).toBe(`Published ${row.published_text}`);
+  });
+
   it("opens on a click with its parts in order, and starts nothing", async () => {
     const fetchMock = await open(advisoriesTwoPacks);
     expect(screen.queryByTestId("advisory-panel")).toBeNull();
     const inPanel = await openRow(BLANK);
     await inPanel.findByTestId("advisory-related");
-    // The plain name and the id head the panel.
+    // The plain name, the id and the day it was published head the panel.
     const heading = inPanel.getByRole("heading", { level: 2, name: blankFailed.name });
-    expect(text(heading.parentElement)).toBe(`${blankFailed.name}${blankFailed.id}`);
+    expect(text(heading.parentElement)).toBe(`${blankFailed.name}${blankFailed.id}Published ${blankFailed.published_text}`);
     expect(heading.compareDocumentPosition(inPanel.getByTestId("advisory-sentence")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(partsInOrder()).toEqual([
       "advisory-sentence",
@@ -578,13 +585,26 @@ describe("Advisories, an advisory's panel", () => {
 
   it("shows the notes and the other names of an advisory when the view has them, between what is affected and the test", async () => {
     // Not in the samples (their advisories have neither): the fields are filled in here to see them drawn.
+    const said = {
+      title: "Otto's notes on reading it",
+      kind_line: "Kind of weakness, as Otto recorded it: the affected software accepts a signature it must reject, when checking ECDSA signatures.",
+      text: "The publisher lists Java 15 to 18 as affected.",
+      caption: "Claude's words from reading the advisory (Recorded during the build, not through the API). Information, not a result.",
+    };
     const view = withFirstRow(advisoriesFailed, (r) => ({
       ...r,
-      panel: { ...r.panel, notes: "The publisher lists Java 15 to 18 as affected.", also_known_as: ["GHSA-4w7w-66w2-5vf9", "JDK-8277233"] },
+      panel: { ...r.panel, notes: said, also_known_as: ["GHSA-4w7w-66w2-5vf9", "JDK-8277233"] },
     }));
     await open(view);
     let inPanel = await openRow(BLANK);
-    expect(inPanel.getByTestId("advisory-notes").textContent).toBe("The publisher lists Java 15 to 18 as affected.");
+    // Claude's own words are long and are not a result: they stay folded under their name, with where they came from.
+    const fold = inPanel.getByTestId("advisory-notes") as HTMLDetailsElement;
+    expect(fold.tagName).toBe("DETAILS");
+    expect(fold.open).toBe(false);
+    expect(within(fold).getByText(said.title).tagName).toBe("SUMMARY");
+    expect(inPanel.getByTestId("advisory-notes-kind").textContent).toBe(said.kind_line);
+    expect(inPanel.getByTestId("advisory-notes-text").textContent).toBe(said.text);
+    expect(text(fold)).toContain(said.caption);
     expect(text(inPanel.getByTestId("advisory-also-known-as"))).toContain("GHSA-4w7w-66w2-5vf9, JDK-8277233");
     expect(partsInOrder().slice(0, 5)).toEqual(["advisory-sentence", "advisory-publisher", "advisory-sources", "advisory-affected", "advisory-test-block"]);
     const notes = inPanel.getByTestId("advisory-notes");

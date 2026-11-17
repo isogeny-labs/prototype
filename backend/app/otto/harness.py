@@ -28,7 +28,11 @@ from types import ModuleType
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 LOCK_PATH = BACKEND_DIR / "otto.lock.json"
-OTTO_HOME = BACKEND_DIR / ".otto"          # ignored by git; one folder per pinned commit
+# Where the pinned copy is kept: one folder per pinned commit, ignored by git. EVIDENCE_LAB_OTTO_HOME names another
+# folder (the end-to-end walk uses an empty one to show the app without Otto). Wherever it is, the copy is used only
+# if its fingerprint is the pinned one.
+HOME_ENV = "EVIDENCE_LAB_OTTO_HOME"
+OTTO_HOME = Path(os.environ[HOME_ENV]).resolve() if os.environ.get(HOME_ENV) else BACKEND_DIR / ".otto"
 SOURCE_ENV = "EVIDENCE_LAB_OTTO_SOURCE"   # optional: a local git checkout of Otto to take the pinned commit from
 FETCH_LIMIT_SECONDS = 180
 MAX_FILE_BYTES = 16 * 1024 * 1024

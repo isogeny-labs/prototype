@@ -179,3 +179,21 @@ def test_adams_own_tests_and_audit_pass_from_the_pinned_copy():
     assert done["tests_ok"], done["tests_line"]
     assert done["audit_ok"] and "chain intact, every decision re-derived" in done["audit_line"]
     assert harness.tree_sha256(harness.status().path) == before       # running them left the pinned copy as it was
+
+
+def test_another_folder_can_be_named_for_the_harness_and_an_empty_one_reads_as_not_installed(tmp_path):
+    """EVIDENCE_LAB_OTTO_HOME names the folder the pinned copy is kept in (the end-to-end walk points it at an empty
+    one). The app then says, plainly, that Otto is not installed here; nothing is fetched and nothing else changes."""
+    import os
+    import subprocess
+    import sys
+    code = ("from app.otto import harness; s = harness.status(); "
+            "print(harness.OTTO_HOME); print(s.installed); print(s.sentence)")
+    env = {**os.environ, harness.HOME_ENV: str(tmp_path)}
+    done = subprocess.run([sys.executable, "-c", code], cwd=Path(__file__).resolve().parents[2], env=env, capture_output=True,
+                          text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    home, installed, sentence = done.stdout.strip().splitlines()
+    assert Path(home) == tmp_path.resolve() and installed == "False"
+    assert sentence.startswith("Otto is not installed on this computer") and "has not been fetched" in sentence
+    assert list(tmp_path.iterdir()) == []                                  # looking fetched nothing

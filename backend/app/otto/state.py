@@ -32,6 +32,7 @@ from app.evidence.export import review_part
 from app.lab.testlab import read_spec, review_dict, run_record
 from app.otto import assurance, checks, designs, harness, model, packs
 from app.present import otto as present_otto
+from app.run import components
 
 LIVE_KEY, LIMIT_KEY = "otto_live", "otto_limit_nano"
 MAX_LIMIT_NANO = 1000 * model.NANO
@@ -181,10 +182,26 @@ class OttoMixin:
             return self._otto_live_on(db) and model.key_present()
 
     def _answers_line(self, db, installed: list) -> str:
+        """Settings: where an answer Otto needs from now on comes from."""
         if self._otto_live_on(db) and model.key_present():
             return "Live: Claude, through your key"
         notes = [pack.pack["research"]["answers_note"] for _, pack in installed]
-        return notes[-1] if notes else "Answers recorded during the build"
+        if notes:
+            return notes[-1]
+        # no pack yet: the answers Otto would use are the recorded ones on this computer, which say when they were made
+        since = model.recorded_since((self.settings.otto_recorded,))
+        return "Answers recorded during the build" + (f", {present_otto.day(since)}" if since else "")
+
+    @staticmethod
+    def _pack_answers_line(installed: list) -> str:
+        """Advisories: where the answers on that page came from. They are in the installed packs, each of which says how
+        its own answers were made; the Live Otto switch changes nothing about them."""
+        notes = {pack.version: pack.pack["research"]["answers_note"] for _, pack in installed}
+        if not notes:
+            return "No test pack is installed, so there are no answers here yet."
+        if len(set(notes.values())) == 1:
+            return next(iter(notes.values()))
+        return " ".join(f"Pack {version}: {note}." for version, note in notes.items())
 
     # ---------------------------------------------------------------- the Advisories page
 
@@ -228,7 +245,6 @@ class OttoMixin:
             entries = self._pack_advisories(db, upto)
             added = {(c.advisory_id, c.plan_item_id): c for c in self._otto_checks(db, plan_id)}
             to_add = self._to_add(db, plan, upto) if upto is None else []
-            items = {i.id: i for i in self._items(db, plan_id, include_removed=True)}
             rows = []
             for pack, advisory in entries:
                 here = []
@@ -243,18 +259,20 @@ class OttoMixin:
                         if check is not None:
                             ledger = self._ledger_about(plan_id, check.objective_id)
                     here.append({"program": program["label"], "item_id": item.id if item is not None and not item.removed else None,
-                                 "result": shown, "ledger": ledger})
+                                 "result": shown, "ledger": ledger,
+                                 # the assessment's own program (one of our demo components), not a real library
+                                 "own_code": components.lookup(program["component"], program["version"]) is not None})
                 item_ids = {h["item_id"] for h in here if h["item_id"] is not None}
                 answering = [f for f in fixes if any(a.get("item_id") in item_ids for a in (states.get(f["id"]) or {}).get("answers") or [])]
                 # where several programs failed this check, the link goes to a fix that Otto proposes, if there is one
                 fix = next((f for f in answering if f.get("labels")), answering[0] if answering else None)
                 rows.append({"pack": pack, "advisory": advisory, "design": pack.design(design_sha) if design_sha else None, "here": here, "fix": fix})
             a = self.assessment_for(plan_id=plan_id)
-            answers = self._answers_line(db, installed)
+            answers = self._pack_answers_line(installed)
         status = harness.public_status()
         return present_otto.advisories_view(rows=rows, packs=[pack for _, pack in installed], to_add=len(to_add), fitting=[p["label"] for p in fitting],
                                             closed=upto is not None, harness_status=status, answers_line=answers,
-                                            assessment_id=a.id if a is not None else None, items=items)
+                                            assessment_id=a.id if a is not None else None)
 
     def otto_relations(self, plan_id: int) -> list[dict]:
         """For the Related block: every advisory of the installed packs with the plan's checks that came from it."""
@@ -323,8 +341,11 @@ class OttoMixin:
 
     # ---------------------------------------------------------------- the fix a pack carries for an advisory
 
-    def _pack_advisory(self, db, advisory_id: str) -> tuple[packs.Pack, dict] | None:
-        return next(((pack, a) for pack, a in self._pack_advisories(db) if a["id"] == advisory_id), None)
+    def _pack_advisory(self, db, advisory_id: str, plan_id: int | None = None) -> tuple[packs.Pack, dict] | None:
+        """What the installed packs say about one advisory. For a closed assessment: the packs that were installed when
+        it was signed off, so nothing it shows changes when a later pack says more about the same advisory."""
+        upto = self._closed_at(plan_id) if plan_id is not None else None
+        return next(((pack, a) for pack, a in self._pack_advisories(db, upto) if a["id"] == advisory_id), None)
 
     def _otto_pack_fix(self, db, item_id: int, program: str | None = None) -> dict | None:
         """For a failed advisory check: the fix its test pack proposes for the advisory (the publisher's fixed version
@@ -334,7 +355,7 @@ class OttoMixin:
         item = db.get(PlanItemRow, item_id)
         spec, _ = read_spec(db.get(TestSpecRow, item.spec_hash)) if item is not None else ({}, False)
         advisory_id = ((spec.get("inputs") or {}).get("advisory") or {}).get("id")
-        found = self._pack_advisory(db, str(advisory_id)) if advisory_id else None
+        found = self._pack_advisory(db, str(advisory_id), item.plan_id) if advisory_id else None
         if found is None:
             return None
         pack, advisory = found
@@ -352,19 +373,18 @@ class OttoMixin:
         return {**about, "state": fix["state"], "kind": fix["kind"], "library": fix["library"], "version": fix["version"],
                 "summary": fix["summary"], "reason": fix["reason"], "quote": quote}
 
-    def otto_result_fix(self, db, spec: dict, name: str | None, version: str | None) -> dict | None:
+    def otto_result_fix(self, db, spec: dict, name: str | None, version: str | None, plan_id: int | None = None) -> dict | None:
         """What the Suggested fix line of an advisory check's result may say: Otto's fix for this program, when the
-        installed packs carry one. For the assessment's own demo program it points to Fixes, where Otto writes a change."""
+        installed packs carry one. For the assessment's own demo program it points to Fixes."""
         advisory_id = ((spec.get("inputs") or {}).get("advisory") or {}).get("id")
-        found = self._pack_advisory(db, str(advisory_id)) if advisory_id else None
+        found = self._pack_advisory(db, str(advisory_id), plan_id) if advisory_id else None
         if found is None or name is None:
             return None
-        from app.run import components
         if components.lookup(name, version) is not None:
             return {"state": "own_code"}
         fix = found[1]["fix"]
         if fix["kind"] == "update" and fix["library"] == name:
-            return {"state": fix["state"], "kind": "update", "library": fix["library"], "version": fix["version"]}
+            return {"state": fix["state"], "kind": "update", "library": fix["library"], "version": fix["version"], "reason": fix["reason"]}
         return None
 
     # ---------------------------------------------------------------- hooks around a run of an advisory check

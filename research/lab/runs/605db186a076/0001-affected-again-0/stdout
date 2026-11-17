@@ -1,0 +1,5 @@
+openjdk 17.0.2: official_vectors: failed
+openjdk 17.0.2: bad_signatures: failed
+openjdk 17.0.2: advisory check CVE-2022-21449: failed
+openjdk 17.0.2: advisory check CVE-2019-14859: passed
+{"failing": 3, "tests": 4}

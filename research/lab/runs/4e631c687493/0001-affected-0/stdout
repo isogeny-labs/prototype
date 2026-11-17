@@ -1,2 +1,0 @@
-advisory check for CVE-2019-14853 on python-ecdsa 0.13.2: review code failed, mode isolated
-{"right": 1, "total": 9, "wrong": 8}

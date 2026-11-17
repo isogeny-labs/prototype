@@ -72,7 +72,7 @@ const QUOTE: AdvisoryQuote = {
   publisher: "The test suite",
   href: "https://openjdk.org/groups/vulnerability/advisories/2022-04-19",
   read_on: "17 November 2026",
-  tag: "from the advisory, not a result",
+  tag: "quoted from the named source, not a result",
 };
 
 const SOURCES: AdvisorySource[] = [
@@ -925,7 +925,7 @@ export const advisoryCheckRow: LabRow = {
     real: false,
     advisories: {
       title: "The advisory this check is for",
-      tag: "from the advisory, not a result",
+      tag: "quoted from the named source, not a result",
       items: [
         {
           id: "CVE-2022-21449",

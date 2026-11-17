@@ -95,6 +95,15 @@ def test_a_shipped_test_or_fix_is_only_what_its_trial_on_public_copies_supports(
                 assert fix["trial"]["outcome"] != "supported" or fix["trial"]["arms"]["fixed"]["failing"] > 0
             assert not any(word in text.lower() for text in _our_words(advisory) for word in BANNED + ("secure",)), advisory["id"]
     assert set(states) == {aid for _, ids in build.SHIP_PLAN for aid in ids} and len(states) == 6
+    # no check is shipped twice under two names: every ready test selects cases of its own
+    selections = [tuple(sorted(t["design"]["cases"]["ids"])) for pack in _shipped() for t in pack.pack["tests"]]
+    assert len(selections) == len(set(selections)) == 3
+    twin = next(a for pack in _shipped() for a in pack.pack["advisories"] if a["id"] == "CVE-2019-14853")
+    assert twin["test"]["state"] == "none" and "the same check under a second name" in twin["test"]["reason"]
+    # each source says both where a person would look and the address the quoted text was read from on that day
+    for pack in _shipped():
+        for advisory in pack.pack["advisories"]:
+            assert all(s["url"].startswith("https://") and s["read_from"].startswith("https://") and s["fetched"] for s in advisory["sources"])
 
 
 def test_every_recorded_answer_was_asked_by_the_build_or_by_the_app_and_says_how_it_was_made():
@@ -180,7 +189,7 @@ def test_the_shipped_packs_install_and_their_tests_fit_the_demo(tmp_path):
         view = lab.advisories_view(plan.id)
         assert [r["id"] for r in view["rows"]] == [aid for _, ids in build.SHIP_PLAN for aid in ids]
         ready = [r for r in view["rows"] if r["test"]["key"] == "ready"]
-        assert len(ready) == view["add"]["count"] == 4 and all(r["fits"] == ["acme-sign 1.4.2"] for r in ready)
+        assert len(ready) == view["add"]["count"] == 3 and all(r["fits"] == ["acme-sign 1.4.2"] for r in ready)
         assert all(r["test"]["label"] and r["test"]["reason"] and r["result"]["label"] for r in view["rows"])
         assert all(r["panel"]["publisher"]["text"] and r["panel"]["publisher"]["href"].startswith("https://") for r in view["rows"])
         text = " ".join(_our_words(view)).lower()
@@ -189,7 +198,7 @@ def test_the_shipped_packs_install_and_their_tests_fit_the_demo(tmp_path):
         before = len(lab.plan_view(plan.id)["tests"])
         added = lab.add_new_checks(plan.id)
         tests = lab.plan_view(plan.id)["tests"]
-        assert len(tests) == before + 4 and added["add"]["count"] == 0 and not lab.jobs.busy(plan.id)
+        assert len(tests) == before + 3 and added["add"]["count"] == 0 and not lab.jobs.busy(plan.id)
         assert all(t["status"] != "done" for t in tests if t["kind"] == "advisory_cases")          # added, not run
         # each new card says which advisory it came from, with the way to it; no other card does
         for card in tests:
@@ -216,7 +225,8 @@ def test_the_evidence_report_links_a_shipped_advisory_to_its_publisher_and_the_f
         lab.wait_until_idle(plan.id, 240)
         result = next(r for r in lab.lab_view(plan.id)["rows"] if r["item_id"] == item)["result"]
         source = result["advisories"]["items"][0]["href"]
-        assert result["label"] == "Failed" and source.startswith("https://github.com/openjdk/")
+        # the link is the address the quoted line was read from: the file at its pinned commit
+        assert result["label"] == "Failed" and source.startswith("https://raw.githubusercontent.com/openjdk/jdk17u/")
         made = lab.export_evidence(plan.id)
         report = lab.evidence_file(made["id"], "html")[1].decode("utf-8")
         assert f'<a href="{source.replace("&", "&amp;")}" rel="noreferrer noopener">' in report

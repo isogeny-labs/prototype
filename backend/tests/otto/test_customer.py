@@ -16,7 +16,7 @@ from app.main import create_app
 from app.otto import assurance, harness, model, packs
 from conftest import PASSWORD, demo_plan, free_port, play_back_speed
 
-pytestmark = [pytest.mark.needs_otto]
+pytestmark: list = []   # marks are on the tests that need the harness
 BANNED = ("secure", "score", "severity", "critical", "time to hack")
 
 
@@ -51,6 +51,7 @@ def _installed(lab):
     return lab
 
 
+@pytest.mark.needs_otto
 def test_with_no_pack_the_page_says_so_and_nothing_can_be_added(otto_lab):
     view = otto_lab.advisories_view(otto_lab.plan.id)
     assert view["rows"] == [] and "No test pack is installed yet" in view["empty"]
@@ -59,6 +60,7 @@ def test_with_no_pack_the_page_says_so_and_nothing_can_be_added(otto_lab):
         otto_lab.add_new_checks(otto_lab.plan.id)
 
 
+@pytest.mark.needs_otto
 def test_the_page_lists_every_advisory_of_the_installed_packs(otto_lab):
     view = _installed(otto_lab).advisories_view(otto_lab.plan.id)
     assert [r["id"] for r in view["rows"]] == ["CVE-2022-21449", "CVE-2019-14853"]
@@ -68,7 +70,7 @@ def test_the_page_lists_every_advisory_of_the_installed_packs(otto_lab):
     assert none["test"]["label"] == "No test yet" and none["result"]["label"] == "No check" and none["fits"] == []
     assert none["panel"]["test"] is None and none["panel"]["no_test"]["reason"].startswith("No test yet")
     panel = ready["panel"]
-    assert panel["publisher"]["tag"] == "from the advisory, not a result" and panel["publisher"]["href"].startswith("https://openjdk.org/")
+    assert panel["publisher"]["tag"] == "quoted from the named source, not a result" and panel["publisher"]["href"].startswith("https://openjdk.org/")
     assert panel["test"]["question"] and "accepts every signature" in panel["test"]["control"] and "Any wrong answer means Failed" in panel["test"]["rule"]
     assert any("acme-sign 1.4.2 (affected): 2 of 64 cases wrong" in line for line in panel["test"]["trial"]["lines"])
     assert panel["test"]["ledger"]["entries"] and panel["here"]["rows"][0]["status"] == "Not added yet"
@@ -81,6 +83,7 @@ def test_the_page_lists_every_advisory_of_the_installed_packs(otto_lab):
     assert not any(word in t.lower() for t in shown for word in BANNED)
 
 
+@pytest.mark.needs_otto
 def test_add_new_checks_locks_and_adds_and_runs_nothing(otto_lab):
     lab, plan_id = _installed(otto_lab), otto_lab.plan.id
     before = len(lab.plan_view(plan_id)["tests"])
@@ -107,6 +110,7 @@ def test_add_new_checks_locks_and_adds_and_runs_nothing(otto_lab):
     assert any(r["name"].startswith("Advisory check: Blank signature accepted") for r in groups["encryption"]["rows"])
 
 
+@pytest.mark.needs_otto
 def test_the_lock_entry_is_in_the_ledger_before_the_first_run(otto_lab):
     lab, plan_id = _installed(otto_lab), otto_lab.plan.id
     lab.add_new_checks(plan_id)
@@ -146,6 +150,7 @@ def test_the_lock_entry_is_in_the_ledger_before_the_first_run(otto_lab):
     assert row["panel"]["fix"]["here"]["label"] == "View in Fixes"
 
 
+@pytest.mark.needs_otto
 @pytest.mark.slow
 def test_every_retest_and_proof_run_of_the_check_gets_its_own_entry(otto_lab):
     lab, plan_id = _installed(otto_lab), otto_lab.plan.id
@@ -163,6 +168,7 @@ def test_every_retest_and_proof_run_of_the_check_gets_its_own_entry(otto_lab):
     assert book.audit() == []
 
 
+@pytest.mark.needs_otto
 def test_a_librarys_fix_is_never_proposed_for_another_program_that_fails_the_same_check(otto_lab):
     """An advisory is about one library, and its publisher's fixed version is a version of that library. Another
     program can fail the same check (Java fails the check made for an elliptic advisory): the pack holds no fix
@@ -182,6 +188,7 @@ def test_a_librarys_fix_is_never_proposed_for_another_program_that_fails_the_sam
 OTTO_TABLES = {"otto_packs": "version", "otto_checks": "advisory_id", "otto_steps": "answer"}
 
 
+@pytest.mark.needs_otto
 @pytest.mark.parametrize("table", OTTO_TABLES)
 def test_raw_sql_cannot_change_or_delete_ottos_records(otto_lab, table):
     """An installed pack, an added check and a Claude step are kept for good: the database itself refuses a change or
@@ -202,6 +209,7 @@ def test_raw_sql_cannot_change_or_delete_ottos_records(otto_lab, table):
         assert db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar() == before
 
 
+@pytest.mark.needs_otto
 def test_without_otto_a_check_cannot_be_added_and_an_added_one_cannot_run(otto_lab, monkeypatch):
     lab, plan_id = _installed(otto_lab), otto_lab.plan.id
     missing = harness.OttoStatus(False, harness.NOT_FETCHED, "isogeny-labs/otto", "a" * 40, "0.1.0", None)
@@ -228,6 +236,7 @@ def test_without_otto_a_check_cannot_be_added_and_an_added_one_cannot_run(otto_l
     assert settings["harness"]["installed"] is False and "can't be added or run" in settings["harness"]["line"]
 
 
+@pytest.mark.needs_otto
 def test_a_check_removed_from_the_plan_can_be_added_back_with_its_lock(otto_lab):
     lab, plan_id = _installed(otto_lab), otto_lab.plan.id
     lab.add_new_checks(plan_id)
@@ -255,6 +264,7 @@ def _client(tmp_path, monkeypatch):
     return TestClient(create_app(settings))
 
 
+@pytest.mark.needs_otto
 def test_the_routes_and_a_closed_assessment(tmp_path, monkeypatch):
     with _client(tmp_path, monkeypatch) as client:
         assert client.get("/api/otto").status_code == 401                       # every route needs the login
@@ -279,6 +289,37 @@ def test_the_routes_and_a_closed_assessment(tmp_path, monkeypatch):
         refused = client.post(f"/api/plans/{plan['id']}/advisories/add")
         assert refused.status_code == 409 and refused.json()["error"]["message"] == "This assessment is closed. Start a new one to continue."
         assert client.get(f"/api/plans/{plan['id']}/related", params={"key": "advisory:CVE-2022-21449"}).status_code == 200
+
+
+@pytest.mark.needs_otto
+def test_a_later_pack_never_changes_the_fix_a_closed_assessment_shows(tmp_path, monkeypatch):
+    """A later pack may say something new about an advisory an earlier pack held (here: its fix is no longer called
+    proven). An open assessment then shows the newer word. A closed one keeps what it had when it was signed off."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    key = Ed25519PrivateKey.generate()
+    first, public = helpers.make_pack("2026.11.1", None, [helpers.pack_advisory()], key)
+    one = packs.read_envelope(first, {public: (helpers.SIGNER, False)})
+    second, _ = helpers.make_pack("2026.11.2", one.fingerprint, [helpers.pack_advisory(fix_state="not_proven")], key)
+    lab = helpers.lab_with_packs(tmp_path, monkeypatch, {"2026.11.1.json": first, "2026.11.2.json": second}, [public])
+    try:
+        closed_plan, open_plan = demo_plan(lab), demo_plan(lab)
+        lab.check_pack_updates()
+        lab.install_pack("2026.11.1")
+        for plan in (closed_plan, open_plan):
+            lab.add_new_checks(plan.id)
+        lab.update_assessment(lab.assessment_for(plan_id=closed_plan.id).id, {"close": True, "signed_off_by": "Sam Lee", "note": None})
+        with lab.db() as db:
+            items = {row.plan_id: row.plan_item_id for row in db.scalars(select(OttoCheckRow))}
+            before = lab._otto_pack_fix(db, items[closed_plan.id], "acme-sign")
+        assert before["state"] == "proven"
+        lab.install_pack("2026.11.2")
+        with lab.db() as db:
+            assert lab._otto_pack_fix(db, items[closed_plan.id], "acme-sign") == before                      # kept as it was
+            assert lab._otto_pack_fix(db, items[open_plan.id], "acme-sign")["state"] == "not_proven"         # the open one moved on
+        assert lab.advisories_view(closed_plan.id)["rows"][0]["panel"]["fix"]["state"] == "proven"
+        assert lab.advisories_view(open_plan.id)["rows"][0]["panel"]["fix"]["state"] == "not_proven"
+    finally:
+        lab.stop()
 
 
 def test_a_closed_assessment_shows_the_packs_it_had_when_it_was_signed_off(tmp_path, monkeypatch):

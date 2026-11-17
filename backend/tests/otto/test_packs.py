@@ -14,7 +14,7 @@ import otto_helpers as helpers
 from app.errors import BadRequest, Conflict
 from app.otto import model, packs
 
-pytestmark = [pytest.mark.needs_otto]
+# None of this needs the Otto harness: a pack is read, checked and installed by the app's own code.
 
 
 def _two_packs():
@@ -98,6 +98,41 @@ def test_damaged_pack_files_are_read_or_refused_plainly():
             outcomes["refused"] += 1
         assert time.monotonic() - start < 2.0
     assert outcomes["refused"] >= 295
+
+
+def test_a_signed_pack_that_is_damaged_inside_is_refused_plainly():
+    """Seeded fuzz of the pack's shape check itself. The damage is inside the pack and the pack is then signed again
+    with a trusted key, so its signature holds: only the shape check stands between such a pack and the app. A copy
+    is refused with one plain sentence, or (where the damage left a well-formed pack) read; never anything else."""
+    key = Ed25519PrivateKey.generate()
+    keys = {helpers.public_hex(key): (helpers.SIGNER, False)}
+    entries = [helpers.pack_advisory(), helpers.pack_advisory("CVE-2019-14853", "Stops on a bad signature", state="none"),
+               helpers.pack_advisory("CVE-2024-42460", "Missing leading zero accepted", flags=("MissingZero",), fix_state="not_proven")]
+    whole = json.loads(helpers.make_pack("2026.11.1", None, entries, key)[0])["pack"]
+    assert packs.read_envelope(helpers.sign_pack(whole, key), keys).version == "2026.11.1"
+    rng = random.Random(20261120)
+    outcomes = {"read": 0, "refused": 0, "asked directly": 0}
+    for _ in range(600):
+        damaged = otto_fuzz.damage_json(rng, whole)
+        for _ in range(rng.randrange(3)):
+            damaged = otto_fuzz.damage_json(rng, damaged)
+        try:
+            raw = helpers.sign_pack(damaged, key)
+        except (TypeError, ValueError):       # a value the canonical form can't hold (a float): the shape check is asked directly
+            raw = None
+            outcomes["asked directly"] += 1
+        start = time.monotonic()
+        try:
+            if raw is None:
+                packs.check_pack(damaged)
+            else:
+                packs.read_envelope(raw, keys)
+            outcomes["read"] += 1
+        except packs.PackError as exc:
+            assert str(exc) and len(str(exc)) < 400
+            outcomes["refused"] += 1
+        assert time.monotonic() - start < 2.0
+    assert outcomes["refused"] > 450 and outcomes["refused"] + outcomes["read"] == 600, outcomes
 
 
 def test_packs_install_in_order_and_are_never_removed(tmp_path, monkeypatch):

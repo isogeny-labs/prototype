@@ -2964,6 +2964,43 @@
         ],
         "title": "AdvisoryNoTest"
       },
+      "AdvisoryNotes": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "kind_line": {
+            "type": "string",
+            "title": "Kind Line"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "caption": {
+            "type": "string",
+            "title": "Caption"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "kind_line",
+          "text",
+          "caption"
+        ],
+        "title": "AdvisoryNotes",
+        "description": "What Claude noted when it read the advisory. Information, never a result."
+      },
       "AdvisoryPanel": {
         "properties": {
           "sentence": {
@@ -2993,13 +3030,12 @@
           "notes": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/AdvisoryNotes"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Notes"
+            ]
           },
           "also_known_as": {
             "items": {

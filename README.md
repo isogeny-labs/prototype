@@ -204,9 +204,9 @@ come next. The rules are in [docs/SPEC.md](docs/SPEC.md), section 7f.
   **Not offered**, each with its reason). Open a row to read the publisher's own line, the test, and how the test
   did when it was tried on public copies before the pack shipped. **Add new checks** adds every test that fits. It
   runs nothing.
-- **Run them** on **Checks**, like any other test. Expected on the Acme Pay demo with both packs installed: four
+- **Run them** on **Checks**, like any other test. Expected on the Acme Pay demo with both packs installed: three
   advisory checks. The check for CVE-2022-21449 is **Failed** on `acme-sign` 1.4.2 (3 of 77 published cases wrong);
-  the other three are **Passed**. A result says which cases got the wrong answer. It says nothing about how serious
+  the other two are **Passed**. Three of the six advisories read **No test yet**, each with its reason. A result says which cases got the wrong answer. It says nothing about how serious
   an advisory is.
 - **The fix.** In **Fixes**, connect the demo code as before. The proof now reruns the advisory checks too, and
   after the merge and **Retest now** the same locked check reads **Passed** on 1.4.3. Otto also wrote a change of

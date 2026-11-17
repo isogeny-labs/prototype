@@ -2,7 +2,7 @@
  "schema": "isogeny.pack-keys/1",
  "keys": [
   {
-   "public_key": "15000b42f06b0e018a956959cd9fcacbf9de51ea3a1834da546445cf2e61af5f",
+   "public_key": "ece7b7da4d6ed4b83ca2ae56093fdadbdd2bcf109463ad458ce61b42425bc390",
    "label": "Isogeny Labs demo pack key (made when the packs were built; its private half was thrown away)",
    "made": "2026-11-17"
   }

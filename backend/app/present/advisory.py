@@ -10,7 +10,7 @@ from app.engine import vectors
 from app.present import plain as plain_words
 
 BOX_TITLE = "The advisory this check is for"
-BOX_TAG = "from the advisory, not a result"
+BOX_TAG = "quoted from the named source, not a result"
 SUMMARY_TITLE = "Output summary"
 SUMMARY_NOTE = "Summary written by the app from the stored run. The full raw output is in the downloaded evidence JSON."
 # An advisory's link comes from a signed test pack. It is sent as a link only when it points at one of these
@@ -59,18 +59,21 @@ def box(spec: dict) -> dict:
 def fix_words(comp: str, fix: dict | None) -> str:
     """The Suggested fix line of a failed advisory check. `fix` is what the installed test pack says about a fix for
     this advisory (None when the app has not looked it up): {"state": "proven" | "not_proven" | "none", "kind",
-    "library", "version"}."""
+    "library", "version", "reason"}. What a trial on public copies showed is said in the pack's own words (`reason`),
+    never in a sentence of this app's that the pack might not bear out."""
     name = comp.split(" ")[0]
     if fix and fix.get("state") == "proven" and fix.get("kind") == "update":
         return (f"Otto proposes: update {fix['library']} to {fix['version']} or later, the version its publisher names as fixed. On public copies "
                 "this check passed after the update and every other locked test still passed. Fixes has the details; then press "
                 "“Retest new version” to rerun the same tests on your version.")
     if fix and fix.get("state") == "not_proven" and fix.get("kind") == "update":
-        return (f"The publisher names {fix['library']} {fix['version']} as fixed, and on public copies this check passed on it. Otto does not offer "
-                "it as a proven fix, because another locked test still failed on that version. Fixes has the details.")
+        reason = str(fix.get("reason") or "").strip()
+        return (f"The publisher names {fix['library']} {fix['version']} as fixed. Otto does not offer the update as a proven fix."
+                + (f" {reason}" if reason else "") + " Fixes has the details.")
     if fix and fix.get("state") == "own_code":
-        return (f"Open Fixes and connect the code of {name}: Otto writes a change for this advisory there, and it is offered only after "
-                "every locked test passes on the changed code.")
+        return (f"Open Fixes: it shows what can be offered for {name}. A change Otto wrote is offered only when it can be proven on "
+                "this computer. Where it can't be, the fix template is offered if it answers this failure; if not, Fixes says why no "
+                "change is offered. A change is offered only after every locked test passes on the changed code.")
     return f"Correct the signature check in {name} so that these cases get the right answer, then run the same tests again."
 
 

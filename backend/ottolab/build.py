@@ -277,7 +277,9 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
             fix.update(state="not_proven", reason=("Not proven: the trial of the update gave no outcome that held ("
                                                    + trial["outcome"].replace("_", " ") + (", replayed" if trial["replayed"] else ", not replayed") + ")."))
     entry = {"id": aid, "aliases": list(advisory["aliases"]), "package": dict(advisory["package"]), "published": advisory["published"],
-             "sources": [{"label": snapshot.source_label(i), "title": s["title"], "publisher": s["publisher"], "url": s["url"], "fetched": s["fetched"]}
+             # `url` is the page a person would open; `read_from` is the address the quoted bytes came from on that day
+             "sources": [{"label": snapshot.source_label(i), "title": s["title"], "publisher": s["publisher"], "url": s["url"],
+                          "read_from": s["fetched_from"], "fetched": s["fetched"]}
                          for i, s in enumerate(advisory["sources"])],
              "reading": reading, "reading_refused": refused, "test": test, "fix": fix, "steps": steps, "ledger": _ledger_entries(lab, st, aid)}
     return entry, design
@@ -349,11 +351,12 @@ def ship(args) -> int:
     existing = sorted(p.stem for p in PACKS.glob("*.json") if packs._VERSION.match(p.stem)) if PACKS.is_dir() else []
     todo = [(version, ids) for version, ids in SHIP_PLAN if version not in existing]
     if not todo:
-        say("Both shipped packs are already built. A pack is never rebuilt; delete research/packs and research/lab to start over.")
+        say("Both shipped packs are already built, and a shipped pack is never rebuilt. New advisories go into the next pack "
+            "(python -m ottolab.build next --inbox DIR).")
         return 0
     if existing:
-        say("Some shipped packs exist and some do not. They are signed with one key whose private half is thrown away, so they are "
-            "built together: delete research/packs and research/lab to start over.")
+        say("Some shipped packs exist and some do not. They are signed together, with one key whose private half is thrown away, so "
+            "the missing ones can't be added now. Nothing was built.")
         return 1
     lab = research.open_lab(LAB)
     key = Ed25519PrivateKey.generate()
