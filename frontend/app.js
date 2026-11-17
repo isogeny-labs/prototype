@@ -275,6 +275,8 @@ function toolHeadline(tool, m) {
     case "suite_factor_toy": return `${f("prime_factors")} factors of a ${f("n_bits")}-bit N · complete ${f("complete")}`;
     case "suite_aes_reduced": return `${f("rounds")}-round instance · ${f("pairs_used")} pairs · verified ${f("verified")}`;
     case "suite_hash_kat": return `${f("input_bytes")} B · KAT match ${f("kat_match")}`;
+    case "sidechannel_ct_audit": return [m.taint_sites_library !== undefined ? `${f("taint_sites_library")} secret-dependent site(s)${m.taint_sites_harness ? ` (+${f("taint_sites_harness")} harness)` : ""}` : "",
+      m.ir_deterministic === 0 ? "Ir: not applicable (A/A varies)" : m.ir_secret_dependent !== undefined ? (m.ir_secret_dependent ? `Ir varies ${f("ir_min")}–${f("ir_max")}` : `Ir constant ${f("ir_min")}`) : ""].filter(Boolean).join(" · ");
   }
   return "";
 }
@@ -325,15 +327,15 @@ async function toolkitView(pid, q) {
   const presets = tool.controls.filter(c => !c.generated);
   const preset = q.preset !== undefined ? presets[+q.preset] : null;
   setTimeout(() => syncWhen($("#toolform")));
-  const canRun = tk.suite.available && impls.length && !window.IEL_STATIC;
+  const canRun = tool.available && impls.length && !window.IEL_STATIC;
   const base = `#/p/${pid}/research?tab=toolkit`;
   const runControl = (c) => c.generated
     ? `<button class="ghost sm" ${canRun ? "" : "disabled"} ${on("click", () => toolRun(pid, tool, {control: c.id}))}>Run</button>`
     : `<a href="${base}&tool=${tool.id}&preset=${presets.indexOf(c)}"><button class="ghost sm">Load</button></a>`;
-  return `<p class="small muted">The Isogeny Labs cryptanalysis suite (<code>crax</code>) connected as ${tk.tools.length} bounded tools, each answering one engineering question about public material (curve parameters, public keys, signature transcripts, parameter sets). Runs land in Evidence as measured, append-only, platform-signed records. A <b>negative control</b> must come back clean on real material; a <b>positive control</b> plants the weakness the tool claims to find.</p>
+  return `<p class="small muted">The Isogeny Labs cryptanalysis suite (<code>crax</code>) and the <code>crypto</code> crate's side-channel harness, connected as ${tk.tools.length} bounded tools, each answering one engineering question (curve parameters, public keys, signature transcripts, parameter sets, secret-dependent control flow). Runs land in Evidence as measured, append-only, platform-signed records. A <b>negative control</b> must come back clean on real material; a <b>positive control</b> plants the weakness the tool claims to find.</p>
   ${suiteBanner(tk.suite)}
   <div class="grid toolgrid"><div class="panel"><h3>Tools</h3>${tk.families.map(fam => `<h3>${esc(fam)}</h3><ul class="tight toollist">${tk.tools.filter(t => t.family === fam).map(t => `<li><a href="${base}&tool=${t.id}" class="${t.id === tool.id ? "cur" : ""}">${esc(t.title)}</a> <span class="muted">${runs.filter(r => r.tool === t.id).length || ""}</span></li>`).join("")}</ul>`).join("")}<details><summary>Execution boundary</summary>${nl(tk.boundary)}</details></div>
-  <div><div class="panel"><h2 style="margin-top:0">${esc(tool.title)}</h2><p>${esc(tool.question)}</p><p class="muted small"><code>${esc(tool.operation)}</code> · acceptance: ${esc(tool.acceptance.join("; "))}</p>
+  <div><div class="panel"><h2 style="margin-top:0">${esc(tool.title)}</h2><p>${esc(tool.question)}</p>${tool.runner !== "cryptanalysis_suite" ? (tool.available ? `<div class="callout info">Runner <code>${esc(tool.runner)}</code> connected.</div>` : `<div class="callout">Runner <code>${esc(tool.runner)}</code> not connected here: ${esc(String(tool.unavailable_reason).replace(/\.?$/, "."))} Recorded and imported evidence below remains readable.</div>`) : ""}<p class="muted small"><code>${esc(tool.operation)}</code> · acceptance: ${esc(tool.acceptance.join("; "))}</p>
     ${tool.controls.length ? `<h3>Controls</h3><table>${tool.controls.map(c => `<tr><td>${kindBadge(c.kind)}</td><td>${esc(c.name)}${c.generated ? ' <span class="muted small">(fresh material generated server-side)</span>' : ""}</td><td>${runControl(c)}</td></tr>`).join("")}</table>` : ""}
     <h3>${preset ? `Parameters — loaded from control “${esc(preset.name)}”` : "Parameters"}</h3>
     <form id="toolform" ${on("change", function () { syncWhen(this); })} ${on("submit", () => toolRun(pid, tool))}><div class="grid g2">${tool.params.map(p => paramField(p, preset?.params?.[p.name])).join("")}</div>
@@ -341,7 +343,7 @@ async function toolkitView(pid, q) {
     <p><button ${canRun ? "" : "disabled"}>Run tool</button> <span class="muted small">${window.IEL_STATIC ? "Static demo: browse the recorded runs below." : "Typed fields only — the runner builds argv itself and never accepts a command, flag, path or environment value."}</span></p></form>
     <details><summary>Limitations</summary>${nl(tool.limitations)}</details></div></div></div>
   <div class="panel"><h2>Toolkit evidence in this project</h2><table><tr><th>Run</th><th>Tool</th><th>Record</th><th>Against</th><th>Classification</th><th>Checks</th><th>Headline</th><th>When</th></tr>
-  ${runs.map(r => `<tr class="clickable" tabindex="0" ${on("click", () => location.hash = `#/p/${pid}/runs/${r.id}`)}><td>#${r.sequence}</td><td>${esc(tk.tools.find(t => t.id === r.tool)?.title || r.tool)}</td><td>${r.control ? kindBadge(r.control.kind) + " " : ""}${esc(r.record_name)}${r.exclusions?.length ? ' <span class="badge b-demo" title="secret material redacted">redacted</span>' : ""}</td><td class="muted">${esc(r.implementation_label)}</td><td>${st(r.classification)}</td><td>${passmark(r.overall_pass)} <span class="muted">${r.scenarios_passed}/${r.scenarios_total}</span></td><td class="small">${toolHeadline(r.tool, r.metrics || {})}</td><td class="muted small">${when(r.created_at)}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No toolkit evidence yet. Pick a tool and run a control first (needs the suite binary).</td></tr>'}</table></div>`;
+  ${runs.map(r => `<tr class="clickable" tabindex="0" ${on("click", () => location.hash = `#/p/${pid}/runs/${r.id}`)}><td>#${r.sequence}</td><td>${esc(tk.tools.find(t => t.id === r.tool)?.title || r.tool)}</td><td>${r.control ? kindBadge(r.control.kind) + " " : ""}${esc(r.record_name)}${r.exclusions?.length ? ' <span class="badge b-demo" title="secret material redacted">redacted</span>' : ""}</td><td class="muted">${esc(r.implementation_label)}</td><td>${st(r.classification)} ${r.provenance ? prov(r.provenance) : ""}</td><td>${passmark(r.overall_pass)} <span class="muted">${r.scenarios_passed}/${r.scenarios_total}</span></td><td class="small">${toolHeadline(r.tool, r.metrics || {})}</td><td class="muted small">${when(r.created_at)}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No toolkit evidence yet. Pick a tool and run a control first (needs the suite binary).</td></tr>'}</table></div>`;
 }
 
 // ---- research portfolio (imported, read-only)

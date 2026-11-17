@@ -1,6 +1,7 @@
 """Cryptanalysis-suite toolkit (supporting component of Research & Experiments): tool catalog, one-step bounded tool
 runs against an implementation, and the imported research portfolio. Each tool run is an append-only platform run
-(runner `cryptanalysis_suite`) under a per-project test definition named after the tool."""
+(through the tool's own runner: `cryptanalysis_suite` or `ct_audit`) under a per-project test definition named after
+the tool."""
 from __future__ import annotations
 
 import json
@@ -27,6 +28,8 @@ def toolkit(user: User = Depends(current_user)):
     tools = []
     for t in TOOLS.values():
         d = t.describe()
+        ok, why = get_runner(t.runner).available()
+        d["available"], d["unavailable_reason"] = ok, ("" if ok else why)
         d["controls"] = [{**c, "generated": False} for c in d["controls"]] + [g for g in generated.values() if g["tool"] == t.id]
         tools.append(d)
     return {"suite": suite_identity(), "families": list(FAMILIES), "tools": tools,
@@ -63,7 +66,7 @@ def create_tool_run(db, project, impl, user, tool_id: str, params: dict, name: s
     validated = tool.validate(params)
     tool.build(validated)  # surfaces cross-field errors before anything is recorded
     t = tool_test_definition(db, project, tool)
-    runner = get_runner("cryptanalysis_suite")
+    runner = get_runner(tool.runner)
     run = services.create_run_record(db, project.id, t.id, impl.id, "platform_sandbox", runner.kind, runner.provenance, user.id)
     run.inputs = {"tool": tool.id, "params": params, "record_name": name or (f"Control: {control_note['name']}" if control_note else tool.title),
                   **({"control": control_note} if control_note else {})}
@@ -79,10 +82,6 @@ def create_tool_run(db, project, impl, user, tool_id: str, params: dict, name: s
 def run_tool(body: ToolRunIn, ctx=Depends(editor)):
     project, db, user = ctx
     impl = get_or_404(db, Implementation, body.implementation_id, project.id)
-    runner = get_runner("cryptanalysis_suite")
-    ok, why = runner.available()
-    if not ok:
-        raise HTTPException(409, f"cryptanalysis suite unavailable: {why}")
     note = None
     tool_id, params = body.tool, body.params
     if body.control:
@@ -91,6 +90,9 @@ def run_tool(body: ToolRunIn, ctx=Depends(editor)):
         tool_id, params, note = controls.generate(body.control)
     if tool_id not in TOOLS:
         raise HTTPException(400, f"tool must be one of {sorted(TOOLS)}")
+    ok, why = get_runner(TOOLS[tool_id].runner).available()
+    if not ok:
+        raise HTTPException(409, f"runner for {tool_id} unavailable: {why}")
     try:
         _, run = create_tool_run(db, project, impl, user, tool_id, params, body.name, note)
     except ParamError as exc:
@@ -116,7 +118,7 @@ def tool_runs(ctx=Depends(viewer)):
                     "created_at": r.created_at.isoformat() if r.created_at else None, "tool": tests[r.test_definition_id].fixture,
                     "record_name": inp.get("record_name") or tests[r.test_definition_id].name, "control": inp.get("control"),
                     "implementation_label": f"{i.name} {i.version}" if i else "?", "scenarios_passed": sum(1 for s in r.scenarios or [] if s.get("pass")),
-                    "scenarios_total": len(r.scenarios or []), "failures": r.failures, "exclusions": r.exclusions, "labels": [l["label"] for l in r.evidence_labels]})
+                    "scenarios_total": len(r.scenarios or []), "provenance": r.provenance, "runner_kind": r.runner_kind, "failures": r.failures, "exclusions": r.exclusions, "labels": [l["label"] for l in r.evidence_labels]})
     return out
 
 

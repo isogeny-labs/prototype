@@ -16,6 +16,7 @@
 | Versioned retest | Import revised version linked to a recommendation → awaiting_retest → retest evaluation (resolved within tested scope / still failing / inconclusive), comparison with limits. |
 | Platform | Auth, project roles, audit with secret scrubbing, append-only runs, job queue, evidence package export with SHA-256 manifest. |
 | Cryptanalysis toolkit (supporting component) | Optional `cryptanalysis_suite` runner with ten allowlisted, bounded `crax` tools (`backend/runners/suite_tools.py`): curve parameter audit, attack-cost model, structural weak-curve analysis, ECDSA transcript audit, RSA public-key hygiene audit, ML-KEM/ML-DSA lattice estimate, toy rho, toy factoring, reduced-round AES, digest KAT. Typed parameters; adapter builds argv; minimal environment; rlimits; negative and positive controls; recovered secrets from non-synthetic targets redacted. Shown under Research & Experiments. The binary is built in CI; it is **not** present in the build environment used here, so tool execution was tested only against a fake suite (parameter bounds, argv, redaction, API). |
+| Side-channel audit (supporting component) | Optional `ct_audit` runner (`backend/runners/ct_audit_runner.py`): the crypto crate's `ct_dynamic_audit` harness (isogeny-labs/crypto #3296) under Valgrind for one allowlisted target. Memcheck taint of the secret (library vs harness sites) and Callgrind instruction counts over four secret classes, with positive and negative controls; an A/A arm that already varies makes the instruction-count verdict *not applicable*, never a pass. Fixed argv, fresh temporary directory, no inherited environment. Without the binary, the frozen #3296 run is imported (unsigned, `imported`, hash-pinned in `seeds/ct_audit_snapshot.json`). Not a constant-time proof: no conditional moves, cache or port effects, no clocks. |
 | Research portfolio (supporting component) | Read-only imported snapshot of the index-calculus leaderboard (`seeds/research_portfolio.json`, commit and SHA-256 pinned). Nothing recomputed. |
 
 ## Imported
@@ -33,4 +34,6 @@ is set), Docker sandbox and the runner container image (no daemon in the build e
 
 ## Out of scope
 Repository integrations, continuous monitoring, IoT/application adapters beyond placeholders, compliance management,
-automatic patching/deployment/key rotation, production readiness or tenant isolation claims, side-channel measurement.
+automatic patching/deployment/key rotation, production readiness or tenant isolation claims, fault injection, power/EM
+side channels and wall-clock timing studies (software side channels are covered only by the bounded instruction-level
+audit above).

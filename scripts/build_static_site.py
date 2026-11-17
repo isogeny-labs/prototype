@@ -68,10 +68,14 @@ def main():
             for t in tests:
                 for i in snap["get"][b + "/implementations"]:
                     get(f"{b}/tests/{t['id']}/preflight?implementation_id={i['id']}&execution_mode=platform_sandbox")
-            # like-for-like comparisons only (same test definition); cross-tool pairs are not meaningful and grow quadratically
+            # like-for-like comparisons only (same test definition); cross-tool pairs are not meaningful and grow quadratically.
+            # The side-channel tool also keys on the audited target: two different code paths are not comparable.
+            def like_for_like(r):
+                inp = r.get("inputs") or {}
+                return (r["test_definition_id"], (inp.get("params") or {}).get("target") if inp.get("tool") == "sidechannel_ct_audit" else None)
             done = [r for r in snap["get"][b + "/runs"] if r["status"] == "completed"]
             for rx, ry in itertools.permutations(done, 2):
-                if rx["test_definition_id"] != ry["test_definition_id"]:
+                if like_for_like(rx) != like_for_like(ry):
                     continue
                 get(f"{b}/compare?baseline_run_id={rx['id']}&candidate_run_id={ry['id']}")
             post_json(f"{b}/export/compliance", {"applicability": {}, "format": "json"})

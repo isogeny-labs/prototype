@@ -76,6 +76,23 @@ When an audit recovers a secret from a target that is not a declared synthetic c
 factors or private exponent), the stored raw output and metrics carry `[redacted sha256:<prefix>]` instead, and the run
 records the redaction as an exclusion. The finding is retained; the key is not.
 
+## Side-channel tool (separate runner)
+
+`sidechannel_ct_audit` lives in the same tool registry but is executed by its own runner, `ct_audit`
+(`backend/runners/ct_audit_runner.py`), not by `crax`. Each tool declares its runner; the toolkit dispatches on it and
+reports availability per tool. Inputs are fixed choices: `target` (the 11 entry points of isogeny-labs/crypto #3296,
+including the two controls), `instrument` (`taint`, `ir`, `both`) and `expect`. The runner resolves
+`IEL_CT_AUDIT_BIN` and `IEL_VALGRIND_BIN` (or `PATH`), builds every argv, works in a fresh temporary directory
+(recorded as `$WORKDIR`), passes no inherited environment, and shares one wall-clock budget across Memcheck, Callgrind
+and the binary's `analyze` step. It sets no address-space limit because Valgrind reserves a large address space up
+front. Sites in the harness's own glue (its BigUint conversion of the secret) are counted separately from library
+sites; the `ctrl_*` control functions count as code under test. An instruction-count verdict whose A/A arm varies is
+recorded as not applicable (`pass: null`), never as a pass or a failure.
+
+`scripts/import_ct_audit.py /path/to/crypto` refreshes `seeds/ct_audit_snapshot.json` (source commit, summary and
+receipt SHA-256). The seed always imports those 11 results; it also runs the controls and two targets live when the
+binary and Valgrind are present.
+
 ## Process and evidence boundary
 
 1. Resolve `crax` from the explicit `IEL_CRAX_BIN` path, or from `PATH` when no path is configured. An invalid explicit
