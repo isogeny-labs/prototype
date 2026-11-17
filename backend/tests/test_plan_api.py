@@ -204,7 +204,10 @@ def test_there_is_no_route_that_accepts_software(client):
                       # Projects (phase 5a): names, a folder or project id to move to, the archived flag, close
                       "/api/organization": "NameBody", "/api/folders": "FolderBody", "/api/folders/{folder_id}": "FolderChangeBody",
                       "/api/projects": "ProjectBody", "/api/projects/{project_id}": "ProjectChangeBody",
-                      "/api/assessments/{assessment_id}": "AssessmentChangeBody"}
+                      "/api/assessments/{assessment_id}": "AssessmentChangeBody",
+                      # Phase 5b: the New assessment box and Rerun as new assessment: a name, a purpose from a fixed list, a reference
+                      "/api/projects/{project_id}/assessments": "NewAssessmentBody",
+                      "/api/assessments/{assessment_id}/rerun": "NewAssessmentBody"}
     assert {k: v for k, v in with_json_body.items() if k in allowed_bodies} == allowed_bodies
     extra = set(with_json_body) - set(allowed_bodies)
     assert all(p.startswith("/api/evidence") or p.endswith("/evidence") for p in extra), extra

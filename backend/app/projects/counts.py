@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from app.db import PlanRow, VerifyRunRow
+from app.db import PlanRow, TestRunRow, VerifyRunRow
+from app.ledger import groups as G
 
-IN_PLACE = "In place (measured)"
 STATUS_ORDER = ("classical", "hybrid", "pq_only", "couldnt_check", "not_measured")
 
 
@@ -41,10 +41,14 @@ def assessment_counts(lab: Any, import_id: int | None) -> dict:
                         "passed": sum(1 for r in ran if r.get("code") == "passed")}
     if summary.get("has_results") or summary.get("has_migration"):
         fixes = lab.fixes_view(plan_id)["fixes"]
-        open_ = [f for f in fixes if f["status"]["key"] != "merged"
-                 and not (f.get("change_box") and f["change_box"]["badge"]["label"] == IN_PLACE)]
+        # Phase 5b: "open" means what it means on every group heading (Kevin's decision 8): not started on yet. A fix in
+        # review, being tried or applied is in progress, not open.
+        open_ = [f for f in fixes if f.get("fix_state", G.fix_state(f["status"]["word"])) == "open"]
         out["fixes"] = {"total": len(fixes), "open": len(open_)}
-    if summary.get("has_migration"):
+    # Phase 5b: each count shows as soon as its kind of check has run (a measurement, not a Fixes entry, opens this one).
+    with lab.db() as db:
+        measured = db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_id == plan_id, TestRunRow.phase == "migration")) or 0
+    if measured or summary.get("has_migration"):
         systems = lab.migration_view(plan_id)["systems"]
         by = {code: 0 for code in STATUS_ORDER}
         for s in systems:

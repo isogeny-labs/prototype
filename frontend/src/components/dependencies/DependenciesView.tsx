@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { api, errorMessage, MAX_DEPENDENCY_LIST_BYTES, type DependenciesView as View, type DependencyRow } from "../../api";
-import { withPlainName } from "../../plainNames";
 import { CLOSED_SENTENCE, useReadOnly } from "../../readOnly";
 import { DataTable, DetailPanel, FilterSelect, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "../layout";
 import { ViewInFixes } from "../migration/parts";
-import { ErrorBox, SecondaryButton, SourceTag, StatusView } from "../ui";
-import { AnswerChip, DependencyDetail } from "./DependencyRowCard";
+import { ErrorBox, NameText, SecondaryButton, SourceTag, StatusView } from "../ui";
+import { AlgoName } from "../plainName";
+import { RelatedFor } from "../related";
+import { AnswerChip, BlocksMarker, DependencyDetail } from "./DependencyRowCard";
 
 type RowFilter = "all" | "blocks" | "answered" | "unanswered";
 
@@ -16,15 +17,20 @@ interface Props {
   onViewFix: (fixId: string) => void;
   /** A list, a tie or a measurement can change the Migration step and Fixes: the app loads the plan again. */
   onChanged: () => void;
+  /** Phase 5b: a library row to open, from a link. */
+  openItem?: string | null;
 }
 
 /** The Dependencies view of the Migration step (phase 4d). Every answer, label, tie and blocker comes from the backend. */
-export function DependenciesView({ importId, onViewFix, onChanged }: Props) {
+export function DependenciesView({ importId, onViewFix, onChanged, openItem = null }: Props) {
   const [view, setView] = useState<View | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
-  const [openRow, setOpenRow] = useState<string | null>(null);
+  const [openRow, setOpenRow] = useState<string | null>(openItem && openItem.startsWith("row-") ? openItem : null);
+  useEffect(() => {
+    if (openItem && openItem.startsWith("row-")) setOpenRow(openItem);
+  }, [openItem]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<RowFilter>("all");
   const readOnly = useReadOnly();
@@ -134,33 +140,43 @@ export function DependenciesView({ importId, onViewFix, onChanged }: Props) {
   };
   const selected = allRows.find((r) => r.id === openRow) ?? null;
 
-  const columns: Column<DependencyRow>[] = [
-    {
-      key: "library",
-      header: "Library",
-      render: (row) => (
-        <div className="min-w-0">
-          <p className="break-all font-mono text-sm font-medium text-slate-100">{row.label}</p>
-          {row.library ? <p className="mt-0.5 text-xs text-slate-400">{row.library}</p> : null}
-          {row.job ? (
-            <div className="mt-1.5">
-              <StatusView status={row.job} />
-            </div>
-          ) : null}
+  // Phase 5b: the library's name (breaking only at spaces and dots), "direct" or "through ..." under it, and the Blocks
+  // marker; one column per question with a short heading (plain name, the technical name under it).
+  const libraryCell = (row: DependencyRow) => (
+    <div className="min-w-0">
+      <p className="font-mono text-sm font-medium text-slate-100">
+        <NameText text={row.label} />
+      </p>
+      <p data-testid="via-words" className="mt-0.5 text-xs text-slate-400">
+        {row.via_words}
+        {row.library ? ` · ${row.library}` : ""}
+      </p>
+      <BlocksMarker row={row} />
+      {row.job ? (
+        <div className="mt-1.5">
+          <StatusView status={row.job} />
         </div>
-      ),
-    },
-    { key: "part-of", header: "Part of", render: (row) => <span className="text-[13px] text-slate-300">{row.via_words}</span> },
+      ) : null}
+    </div>
+  );
+  const columns: Column<DependencyRow>[] = [
+    { key: "library", header: "Library", minWidth: 170, render: libraryCell },
     ...current.questions.map(
       (q, i): Column<DependencyRow> => ({
         key: q.key,
-        header: withPlainName(q.title),
+        minWidth: 150,
+        header: <AlgoName text={q.title.match(/ML-KEM-768|X25519MLKEM768|ML-DSA-65/)?.[0] ?? q.title} />,
         render: (row) => {
           const cell = row.cells[i];
           return cell ? <AnswerChip cell={cell} /> : null;
         },
       }),
     ),
+  ];
+  // Beside the open panel: the library and version, its answers in short, and the Blocks marker.
+  const compactColumns: Column<DependencyRow>[] = [
+    { key: "library", header: "Library", minWidth: 150, render: libraryCell },
+    { key: "answers", header: "Answers", minWidth: 110, render: (row) => <span className="text-sm text-slate-200">{row.answers_short}</span> },
   ];
 
   const filterOptions: { value: RowFilter; label: string }[] = [
@@ -210,6 +226,7 @@ export function DependenciesView({ importId, onViewFix, onChanged }: Props) {
                 rows={shown}
                 rowKey={(r) => r.id}
                 rowTestId="dependency-row"
+                compactColumns={compactColumns}
                 selectedKey={selected?.id ?? null}
                 onRowClick={(r) => setOpenRow((cur) => (cur === r.id ? null : r.id))}
                 empty="No libraries match this search."
@@ -241,6 +258,7 @@ export function DependenciesView({ importId, onViewFix, onChanged }: Props) {
           onViewFix={onViewFix}
         />
       ) : null}
+      {selected ? <RelatedFor itemKey={`library:${selected.id}`} /> : null}
     </DetailPanel>
   );
 

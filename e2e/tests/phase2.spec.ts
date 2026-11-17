@@ -7,7 +7,7 @@ import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_pr
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, screenshotFolder, shotFixes, stepLink, openFreshAssessment, evidenceRow, openResult, resultPanel, toggleResult } from "./shared";
+import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, screenshotFolder, shotFixes, stepLink, openFreshAssessment, evidenceRow, openResult, resultPanel, toggleResult, expectPageOpen } from "./shared";
 
 const SHOTS = screenshotFolder("phase2");
 const PQ_TOO_OLD = "Couldn't run (needs OpenSSL 3.5 or newer)";
@@ -106,9 +106,9 @@ test("log in, Use demo file, Verify claims, Continue to tests: five tests are su
   await expect(page.getByText("Demo data", { exact: true })).toBeVisible();
   await expect(page.getByTestId("mode-line")).toHaveText("Demo mode: running our own demo software, not isolated. Isolated mode is switched off for this run.");
   await expect(page.getByRole("button", { name: "Run all" })).toBeEnabled();
-  // Evidence Lab opens only once there is a result, and so does Fixes (the fifth step, phase 3a).
-  await expect(stepLink(page, "4. Evidence Lab")).toBeDisabled();
-  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
+  // Phase 5b: once a file is in, Evidence and Fixes open too (each says what fills it until there is a result).
+  await expectPageOpen(page, "4. Evidence Lab");
+  await expectPageOpen(page, "5. Fixes");
   await expectNoSoftwareUpload();
   await expectCarefulWording();
   await shot(page, "01-tests-before-running.png");
@@ -122,7 +122,7 @@ test("reorder two tests (keyboard, then drag); the order is kept after a refresh
   const swapped = ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)", "Speed and size", "Attacker tricks (our short list)"];
   await expect.poll(cardTitles).toEqual(swapped);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
   await expect.poll(cardTitles).toEqual(swapped);
   const stored = await (await page.request.get("/api/import/current")).json();
   const plan = await (await page.request.get(`/api/import/${stored.id}/plan`)).json();
@@ -157,7 +157,8 @@ test("+ Add test opens the short catalog; adding Post-quantum readiness puts it 
 test("run one test by itself: Certificate strength passes, the others stay not run", async () => {
   await card("Certificate strength").getByRole("button", { name: "Run Certificate strength" }).click();
   await expect(card("Certificate strength").getByTestId("result-badge").locator("span:last-child")).toHaveText("Passed", { timeout: 60_000 });
-  await expect(page.getByTestId("result-badge").locator("span:last-child")).toHaveCount(1);
+  // (Checks also lists the Verify results above the test plan; count the plan's own badges.)
+  await expect(page.getByTestId("test-plan").getByTestId("result-badge").locator("span:last-child")).toHaveCount(1);
   for (const title of ALL_SIX.filter((t) => t !== "Certificate strength")) {
     await expect(card(title).getByTestId("test-status")).toHaveText("Not run yet");
   }

@@ -34,8 +34,8 @@ def test_envelope_shape_and_what_is_inside(demo_flow):
     assert envelope["fingerprint"] == hashlib.sha256(canonical_bytes(e)).hexdigest() == made["fingerprint"]
     assert re.fullmatch(r"[0-9a-f]{64}", envelope["public_key"]) and re.fullmatch(r"[0-9a-f]{128}", envelope["signature"])
     assert envelope["public_key"] == (demo_flow.lab.settings.data_dir / PUBLIC_KEY_FILE).read_text().strip()
-    assert sorted(e) == ["app", "assessment", "changes", "code", "component", "dependencies", "disclaimer", "fixes", "generated_at", "import", "migration", "mode_line", "retest",
-                         "schema", "signer_key_fingerprint", "tests", "verify"]
+    assert sorted(e) == ["app", "assessment", "changes", "checks", "code", "component", "dependencies", "disclaimer", "fixes", "generated_at", "import", "migration", "mode_line", "retest",
+                         "schema", "signer_key_fingerprint", "tests", "verify", "verify_runs"]
     # no code was connected for this file, so the two fixes are listed as they stood: nothing prepared, nothing proved
     assert e["code"] is None and [(f["id"], f["kind"], f["status"]) for f in e["fixes"]] == [
         ("fix-ecdsa-range-check", "code", "Code not connected"), ("fix-tls-versions", "text", "Ready to try")]   # phase 4b: the change box's status
@@ -231,7 +231,7 @@ def test_routes_download_both_files_and_need_a_login(client, anon_client):
     plan = client.post(f"/api/import/{imp['id']}/plan").json()
     pid = plan["id"]
     nothing = client.post(f"/api/plans/{pid}/evidence")
-    assert nothing.status_code == 409 and nothing.json()["error"]["message"] == "Run a test first, so there is something to download."
+    assert nothing.status_code == 409 and nothing.json()["error"]["message"] == "Verify the claims first, so there is something to download."
     assert client.post("/api/plans/999/evidence").status_code == 404
     client.post(f"/api/plans/{pid}/tests/{plan['tests'][1]['id']}/run")
     wait(client, pid)

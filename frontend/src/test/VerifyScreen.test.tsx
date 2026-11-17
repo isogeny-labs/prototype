@@ -40,7 +40,8 @@ describe("Verify screen", () => {
     expect(screen.queryByTestId("detail-panel")).toBeNull();
 
     fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    // Phase 5b: beside the open panel the table is compact (claim and result); the open row is the selected one.
+    expect(screen.getAllByTestId("result-row")[0]!.getAttribute("aria-selected")).toBe("true");
     const details = panel();
     expect(details.getByText("What we found")).not.toBeNull();
     expect(details.getByText(/Accepts TLS 1.3 and TLS 1.2/)).not.toBeNull();
@@ -93,7 +94,7 @@ describe("Verify screen", () => {
     expect(screen.queryByText("TLS 1.2 handshake")).toBeNull();
 
     fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getAllByTestId("result-row")[0]!.getAttribute("aria-selected")).toBe("true");
     const details = panel();
     expect(details.getByText("TLS 1.2 handshake")).not.toBeNull();
     expect(details.getByText("openssl s_client -connect localhost:8443 -tls1_2")).not.toBeNull();
@@ -104,8 +105,12 @@ describe("Verify screen", () => {
     expect(details.getByText(/OpenSSL 3.0.13/)).not.toBeNull();
     expect(details.getByText("Time:")).not.toBeNull();
 
-    fireEvent.click(toggle);
+    // A click on the open row (compact now) folds it away again, and the full table comes back.
+    fireEvent.click(screen.getAllByTestId("result-row")[0]!);
     expect(screen.queryByText("TLS 1.2 handshake")).toBeNull();
+    expect(within(screen.getAllByTestId("result-row")[0]!).getByRole("button", { name: "Details and evidence" }).getAttribute("aria-expanded")).toBe(
+      "false",
+    );
   });
 
   it("says so when a row has no evidence", async () => {
@@ -121,14 +126,14 @@ describe("Verify screen", () => {
       "Details and evidence",
       "Details and evidence",
       "Details and evidence",
-      "Continue to tests",
+      "Continue to checks",
     ]);
     expect(screen.queryAllByRole("link")).toHaveLength(0);
   });
 
-  it("continues to tests", async () => {
+  it("continues to checks", async () => {
     const onContinue = renderVerify();
-    fireEvent.click(screen.getByRole("button", { name: "Continue to tests" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue to checks" }));
     expect(onContinue).toHaveBeenCalledOnce();
   });
   it("wraps long evidence lines at spaces instead of splitting words", () => {

@@ -90,8 +90,8 @@ test("Verify: one plain sentence on top of every row, the Also noticed note, the
 });
 
 test("Tests: grouped by target, with what isn't tested and why; eight tests in all", async () => {
-  await page.getByRole("button", { name: "Continue to tests" }).click();
-  await expect(page.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Continue to checks" }).click();
+  await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
   const groups = page.getByTestId("test-group");
   await expect(groups).toHaveCount(5);
   for (const heading of GROUPS) await expect(group("test-group", heading)).toBeVisible();
@@ -149,9 +149,12 @@ test("Evidence Lab: grouped results, each with its plain line; 9.9 is only under
 
 test("Fixes: the code fix for our program, and one text suggestion for each failing server", async () => {
   await stepLink(page, "5. Fixes").click();
-  const list = page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByRole("button");
+  // (phase 5b: the list is in the four work groups; each group heading is a button too, so count the fixes' rows)
+  const list = page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByTestId("fix-row");
   await expect(list).toHaveCount(3);
-  // (phase 5a follow-up: where a fix came from is in its row, beside the title button)
+  // (phase 5a follow-up: where a fix came from is in its row, beside the title button; phase 5b: in the full row, so
+  // with the panel closed; beside an open panel a row is the fix and its status)
+  await page.getByTestId("detail-panel").getByRole("button", { name: "Close details" }).click();
   const rows = page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByTestId("fix-row");
   await expect(rows.nth(1)).toContainText("Old TLS versions on localhost:8443");
   await expect(rows.nth(2)).toContainText("Certificate strength on localhost:8446");

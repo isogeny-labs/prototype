@@ -31,7 +31,8 @@ def test_the_file_and_the_report_name_where_the_pass_belongs_and_stay_signed(cli
     where = envelope["evidence"]["assessment"]
     assert where == {"organization": "Acme Corp", "folders": ["Payments", "EU"], "project": "Acme Pay",
                      "assessment": "Assessment 1", "assessment_number": 1, "opened_at": where["opened_at"],
-                     "closed_at": None, "status": "open"}
+                     "closed_at": None, "status": "open", "purpose": "Full review", "reference": None,
+                     "signed_off_by": None, "signed_off_at": None, "signoff_note": None}
     html = client.get(export["html"]["url"]).text
     assert "Acme Corp / Payments / EU / Acme Pay / Assessment 1" in html
     key = trusted_key_from_data_dir(settings.data_dir)
@@ -41,8 +42,11 @@ def test_the_file_and_the_report_name_where_the_pass_belongs_and_stay_signed(cli
 
 def test_a_closed_assessment_says_closed_in_its_evidence(client):
     made, plan_id = _assessment_with_results(client)
-    client.post(f"/api/assessments/{made['assessment_id']}", json={"close": True})
+    client.post(f"/api/assessments/{made['assessment_id']}", json={"close": True, "signed_off_by": "Sam Lee"})
     export = client.post(f"/api/plans/{plan_id}/evidence").json()
     envelope = json.loads(client.get(export["json"]["url"]).content)
     assert envelope["evidence"]["assessment"]["status"] == "closed"
-    assert "Acme Pay / Assessment 1 (closed)" in client.get(export["html"]["url"]).text
+    assert envelope["evidence"]["assessment"]["signed_off_by"] == "Sam Lee"   # phase 5b: the sign-off is in the signed file
+    html = client.get(export["html"]["url"]).text
+    assert "Acme Pay / Assessment 1 (closed)" in html and "Signed off by: </strong>Sam Lee" in html
+    assert "Purpose: </strong>Full review" in html

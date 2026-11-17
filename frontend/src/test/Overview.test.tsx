@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it } from "vitest";
 import App from "../App";
 import { calls, mockApi, plan, session, text } from "./fixtures";
-import { acmeRoutes, assessmentView, closedAssessment, emptyAssessment, openAssessment } from "./shellFixtures";
+import { ONE_LOGIN_LINE, OVERVIEW_BLOCKS, acmeRoutes, assessmentView, closedAssessment, emptyAssessment, emptyWorkspace, openAssessment } from "./shellFixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
 
@@ -14,7 +14,7 @@ beforeEach(() => {
 const routes = (extra: Record<string, unknown> = {}): Routes =>
   ({ "GET /api/session": { body: session }, ...acmeRoutes, "POST /api/import/7/plan": { body: { ...plan, has_results: true } }, ...extra }) as Routes;
 
-const card = (key: string) => screen.getAllByTestId("summary-card").find((c) => c.getAttribute("data-card") === key)!;
+const group = (key: string) => screen.getAllByTestId("overview-group").find((g) => g.getAttribute("data-group") === key)!;
 
 async function show(extra: Record<string, unknown> = {}) {
   const fetchMock = mockApi(routes(extra));
@@ -23,55 +23,64 @@ async function show(extra: Record<string, unknown> = {}) {
   return fetchMock;
 }
 
-describe("Overview counts", () => {
-  it("shows the four counts from the assessment, with what each counts", async () => {
+describe("Overview blocks", () => {
+  it("shows the four work groups in order, each with its counts and facts as links to its own page", async () => {
     await show();
-    expect(text(card("claims"))).toContain("12");
-    expect(text(card("claims"))).toContain("3 false");
-    expect(text(card("tests"))).toContain("2");
-    expect(text(card("tests"))).toContain("of 5 run");
-    expect(text(card("fixes"))).toContain("2");
-    expect(text(card("fixes"))).toContain("of 4");
-    expect(text(card("systems"))).toContain("6");
-    expect(text(card("systems"))).toContain("3 classical");
-    expect(text(card("systems"))).toContain("2 hybrid");
+    expect(screen.getAllByTestId("overview-group").map((g) => g.getAttribute("data-group"))).toEqual([
+      "verification",
+      "encryption",
+      "migration",
+      "dependencies",
+    ]);
+    expect(text(group("verification"))).toContain("Checks: Open 0 · In progress 0 · Done 12");
+    expect(within(group("verification")).getAllByTestId("overview-fact").map((a) => [text(a), a.getAttribute("href")])).toEqual([
+      ["True 7", "#/a/101/inventory/verify?group=verification"],
+      ["False 3", "#/a/101/inventory/verify?group=verification"],
+      ["Couldn't check 2", "#/a/101/inventory/verify?group=verification"],
+    ]);
+    // Verification has no fixes of its own, so it shows no fixes count.
+    expect(text(group("verification"))).not.toContain("Fixes:");
+    const fixes = within(group("encryption")).getByRole("link", { name: /^Fixes:/ });
+    expect(text(fixes)).toBe("Fixes: Open 1 · In progress 1 · Done 0");
+    expect(fixes.getAttribute("href")).toBe("#/a/101/fixes?group=encryption");
+    expect(within(group("encryption")).getByRole("link", { name: /^Checks:/ }).getAttribute("href")).toBe("#/a/101/checks?group=encryption");
+    // An empty group stays and says why.
+    expect(text(group("migration"))).toContain("Nothing measured yet. Measure status is on Migration.");
+    expect(text(group("dependencies"))).toContain("No dependency list yet. Add one on Dependencies.");
   });
 
-  it("takes every number from assessment.counts and nowhere else", async () => {
-    // The workspace's row for this project says something different; the page must not use it.
-    const counts = {
-      claims: { checked: 41, false: 9, true: 30, couldnt_check: 2 },
-      tests: { run: 17, failed: 6, passed: 11 },
-      fixes: { total: 8, open: 7 },
-      systems: { total: 5, classical: 1, hybrid: 0, pq_only: 2, couldnt_check: 0, not_measured: 2 },
+  it("takes every number from assessment.blocks and nowhere else", async () => {
+    // The workspace's row for this project and the 5a counts say something different; the page must not use them.
+    const blocks = {
+      ...OVERVIEW_BLOCKS,
+      groups: OVERVIEW_BLOCKS.groups.map((g) => (g.key === "verification" ? { ...g, facts: g.facts.map((f, i) => ({ ...f, value: [30, 9, 2][i]! })) } : g)),
+      findings: OVERVIEW_BLOCKS.findings.map((f) => ({ ...f, value: f.label === "False claims" ? 9 : f.value })),
+      evidence: { runs: 41, last_download: null },
     };
-    await show({ "GET /api/assessments/101": { body: assessmentView({ counts }) } });
-    expect(text(card("claims"))).toContain("41");
-    expect(text(card("claims"))).toContain("9 false");
-    expect(text(card("tests"))).toContain("6");
-    expect(text(card("tests"))).toContain("of 17 run");
-    expect(text(card("fixes"))).toContain("7");
-    expect(text(card("fixes"))).toContain("of 8");
-    // Measured systems are the ones that are not "not measured": 5 - 2.
-    expect(text(card("systems"))).toContain("3");
-    expect(text(card("systems"))).toContain("2 post-quantum only");
+    await show({ "GET /api/assessments/101": { body: assessmentView({ blocks }) } });
+    expect(within(group("verification")).getAllByTestId("overview-fact").map((a) => text(a))).toEqual(["True 30", "False 9", "Couldn't check 2"]);
+    expect(within(screen.getByTestId("open-findings")).getAllByTestId("finding-count").map((a) => text(a))).toEqual([
+      "False claims 9",
+      "Failed tests 2",
+      "Dependency blockers 0",
+    ]);
+    expect(text(screen.getByTestId("overview-evidence"))).toContain("41 runs recorded");
   });
 
-  it("shows a dash and says it has not happened, instead of a made-up number, when nothing was measured", async () => {
+  it("shows no group and no number that has not happened when no file is in yet", async () => {
     window.history.replaceState(null, "", "#/a/111/overview");
     mockApi({
       "GET /api/session": { body: session },
-      "GET /api/workspace": { body: { organization: "Acme Security", folders: [], projects: [] } },
+      "GET /api/workspace": { body: { ...emptyWorkspace } },
       "GET /api/assessments/111": { body: emptyAssessment },
-      "GET /api/projects/11": { body: { id: 11, name: "Ledger", folder_id: null, archived: false, is_demo: false, path: [], assessments: [] } },
+      "GET /api/projects/11": { body: { id: 11, name: "Ledger", folder_id: null, archived: false, is_demo: false, path: [], assessments: [], next_name: "Assessment 2" } },
     });
     render(<App />);
     await screen.findByTestId("overview-page");
-    for (const key of ["claims", "tests", "fixes", "systems"]) {
-      expect(text(card(key)), key).toContain("—");
-      expect(text(card(key)).replace(/—/g, "").match(/\d/), key).toBeNull();
-    }
-    expect(text(card("claims"))).toMatch(/not verified/i);
+    expect(screen.queryAllByTestId("overview-group")).toHaveLength(0);
+    expect(screen.queryByTestId("open-findings")).toBeNull();
+    expect(text(screen.getByTestId("brought-in"))).toContain("Nothing yet.");
+    expect(text(screen.getByTestId("brought-in")).match(/\d/)).toBeNull();
   });
 
   it("uses no score, grade or verdict words", async () => {
@@ -79,14 +88,33 @@ describe("Overview counts", () => {
     expect(text(screen.getByTestId("overview-page"))).not.toMatch(/\bscore|\bgrade|secure|time to hack/i);
   });
 
-  it("says what was imported and when, labelled as demo data", async () => {
+  it("says what was brought in and when, labelled as demo data, with the purpose beside the status", async () => {
     await show();
     const header = screen.getByTestId("page-header");
     expect(text(header)).toContain("acme-pay-cbom.json");
     expect(text(header)).toContain("Demo data");
-    const imported = screen.getByRole("region", { name: "What was imported" });
-    expect(text(imported)).toContain("acme-pay-cbom.json");
-    expect(text(imported)).toContain("3");
+    expect(text(screen.getByTestId("assessment-purpose"))).toBe("Full review");
+    const brought = screen.getByRole("region", { name: "Brought in" });
+    expect(text(brought)).toContain("acme-pay-cbom.json");
+    expect(text(brought)).toContain("Dependency list: none yet");
+  });
+
+  it("shows the open findings and the evidence, each a link to the page that holds them", async () => {
+    await show({
+      "GET /api/assessments/101": {
+        body: assessmentView({ blocks: { ...OVERVIEW_BLOCKS, evidence: { runs: 6, last_download: { at: "2026-11-12T10:00:00Z", fingerprint: "ab12cd34ef567890" } } } }),
+      },
+    });
+    const findings = within(screen.getByTestId("open-findings")).getAllByTestId("finding-count");
+    expect(findings.map((a) => a.getAttribute("href"))).toEqual([
+      "#/a/101/inventory/verify?group=verification",
+      "#/a/101/evidence?group=encryption",
+      "#/a/101/migration/dependencies?group=dependencies",
+    ]);
+    const evidence = screen.getByTestId("overview-evidence");
+    expect(text(evidence)).toContain("6 runs recorded");
+    expect(text(evidence)).toContain("fingerprint ab12cd34ef56");
+    expect(within(evidence).getByRole("link", { name: "6 runs recorded" }).getAttribute("href")).toBe("#/a/101/evidence");
   });
 });
 
@@ -95,8 +123,8 @@ describe("Overview next step", () => {
     await show();
     const next = screen.getByTestId("next-step");
     expect(text(next)).toContain("Run the suggested tests");
-    fireEvent.click(within(next).getByRole("button", { name: "Go to Tests" }));
-    await waitFor(() => expect(window.location.hash).toBe("#/a/101/tests"));
+    fireEvent.click(within(next).getByRole("button", { name: "Open checks" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks"));
   });
 
   it("goes to Import when the next step is the import", async () => {
@@ -120,6 +148,8 @@ describe("Overview next step", () => {
     const button = within(screen.getByTestId("next-step")).getByRole("button", { name: "New assessment" }) as HTMLButtonElement;
     expect(button.disabled).toBe(false);
     fireEvent.click(button);
+    const box = await screen.findByTestId("new-assessment-box");
+    fireEvent.click(within(box).getByRole("button", { name: "Start" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/102/overview"));
     expect(calls(fetchMock)).toContain("POST /api/projects/10/assessments");
   });
@@ -139,8 +169,8 @@ describe("Overview buttons", () => {
     fireEvent.click(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Verify" }));
     const bar = await screen.findByTestId("guided-bar");
     expect(within(bar).getByRole("button", { name: /Back: Import/ })).not.toBeNull();
-    fireEvent.click(within(bar).getByRole("button", { name: /Next: Tests/ }));
-    await waitFor(() => expect(window.location.hash).toBe("#/a/101/tests"));
+    fireEvent.click(within(bar).getByRole("button", { name: /Next: Checks/ }));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks"));
   });
 
   it("starts with Guided demo on when it was left on", async () => {
@@ -155,9 +185,51 @@ describe("Overview buttons", () => {
       "GET /api/assessments/102": { body: assessmentView({ id: 102, number: 3, title: "Assessment 3", file: null, import: null, plan_id: null }) },
     });
     fireEvent.click(within(screen.getByTestId("page-header")).getByRole("button", { name: "New assessment" }));
+    // The box: a name filled in ("Assessment 3"), a purpose and an optional reference. It closes nothing.
+    const box = within(await screen.findByTestId("new-assessment-box"));
+    expect((box.getByLabelText("Name") as HTMLInputElement).value).toBe("Assessment 3");
+    expect((box.getByLabelText("Purpose") as HTMLSelectElement).value).toBe("full_review");
+    expect(Array.from((box.getByLabelText("Purpose") as HTMLSelectElement).options).map((o) => o.textContent)).toEqual([
+      "Full review",
+      "Compliance review",
+      "Migration wave",
+      "Release check",
+      "Advisory response",
+      "Other",
+    ]);
+    fireEvent.change(box.getByLabelText("Purpose"), { target: { value: "release_check" } });
+    fireEvent.change(box.getByLabelText("Reference (optional)"), { target: { value: "Release 2.1" } });
+    fireEvent.click(box.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/102/overview"));
-    expect(calls(fetchMock)).toContain("POST /api/projects/10/assessments");
+    const call = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/projects/10/assessments" && i?.method === "POST");
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: "Assessment 3", purpose: "release_check", reference: "Release 2.1" });
+    // Nothing else was closed or changed.
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual(["POST /api/projects/10/assessments"]);
     expect(await screen.findByRole("heading", { level: 1, name: "Assessment 3" })).not.toBeNull();
+  });
+
+  it("Cancel in the New assessment box starts nothing", async () => {
+    const fetchMock = await show();
+    fireEvent.click(within(screen.getByTestId("page-header")).getByRole("button", { name: "New assessment" }));
+    fireEvent.click(within(await screen.findByTestId("new-assessment-box")).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByTestId("new-assessment-box")).toBeNull();
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("Rerun as new assessment opens the same box, filled in, and brings the same file in again on Import", async () => {
+    const fetchMock = await show({
+      "POST /api/assessments/101/rerun": { body: { id: 102 } },
+      "GET /api/assessments/102": { body: assessmentView({ id: 102, number: 3, title: "Assessment 2 (again)", import: null, plan_id: null }) },
+    });
+    fireEvent.click(within(screen.getByTestId("page-header")).getByRole("button", { name: "Rerun as new assessment" }));
+    const box = within(await screen.findByTestId("new-assessment-box"));
+    expect(box.getByRole("heading", { name: "Rerun as new assessment" })).not.toBeNull();
+    expect((box.getByLabelText("Name") as HTMLInputElement).value).toBe("Assessment 2 (again)");
+    expect(text(screen.getByTestId("new-assessment-box"))).toContain("the file only, no results or choices");
+    fireEvent.click(box.getByRole("button", { name: "Start" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/102/inventory/import"));
+    const call = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/assessments/101/rerun" && i?.method === "POST");
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ name: "Assessment 2 (again)", purpose: "full_review", reference: "" });
   });
 
   it("Close assessment closes it, and then the page is read-only", async () => {
@@ -170,9 +242,19 @@ describe("Overview buttons", () => {
       },
     });
     fireEvent.click(screen.getByRole("button", { name: "Close assessment" }));
+    // Closing is a sign-off: the box needs a name before it can close, and says it can't be undone.
+    const box = within(await screen.findByTestId("close-box"));
+    expect(text(screen.getByTestId("close-box"))).toContain("It can't be reopened.");
+    expect(text(screen.getByTestId("close-box"))).toContain(ONE_LOGIN_LINE);
+    const sign = box.getByRole("button", { name: "Close and sign off" }) as HTMLButtonElement;
+    expect(sign.disabled).toBe(true);
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+    fireEvent.change(box.getByLabelText("Signed off by"), { target: { value: "Dana Lee" } });
+    fireEvent.change(box.getByLabelText("Note (optional)"), { target: { value: "Wave 1 done" } });
+    fireEvent.click(sign);
     expect(await screen.findByTestId("closed-banner")).not.toBeNull();
     const call = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/assessments/101" && i?.method === "POST");
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ close: true });
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ close: true, signed_off_by: "Dana Lee", note: "Wave 1 done" });
     expect(screen.queryByRole("button", { name: "Close assessment" })).toBeNull();
   });
 
@@ -184,10 +266,10 @@ describe("Overview buttons", () => {
     expect(screen.queryByRole("button", { name: "Close assessment" })).toBeNull();
   });
 
-  it("offers Rename, Move and Archive in the more-actions menu", async () => {
+  it("offers Rename, Change purpose, Move and Archive in the more-actions menu", async () => {
     const fetchMock = await show({ "POST /api/assessments/101": { body: openAssessment } });
     fireEvent.click(screen.getByRole("button", { name: "More actions for this assessment" }));
-    expect(screen.getAllByRole("menuitem").map((m) => text(m))).toEqual(["Rename", "Move to another project", "Archive"]);
+    expect(screen.getAllByRole("menuitem").map((m) => text(m))).toEqual(["Rename", "Change purpose", "Move to another project", "Archive"]);
     fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }));
     const form = screen.getByRole("form", { name: "Rename this assessment" });
     fireEvent.change(within(form).getByLabelText("Name"), { target: { value: "Before the fix" } });
@@ -199,26 +281,45 @@ describe("Overview buttons", () => {
   });
 });
 
-describe("Overview history", () => {
-  it("lists the project's assessments with file, status and start time, and marks this one", async () => {
+describe("Overview and the project", () => {
+  it("has no history table of its own: one link opens the Project overview, where every assessment is", async () => {
     await show();
-    const table = await screen.findByRole("table", { name: "Assessments in this project" });
-    const rows = within(table).getAllByTestId("history-row");
-    expect(rows).toHaveLength(2);
-    expect(text(rows[0]!)).toContain("Assessment 2");
-    expect(text(rows[0]!)).toContain("(this one)");
-    expect(text(rows[0]!)).toContain("Open");
-    expect(text(rows[1]!)).toContain("Assessment 1");
-    expect(text(rows[1]!)).toContain("Closed");
-    expect(text(rows[1]!)).toContain("acme-pay-cbom.json");
+    expect(screen.queryByRole("table", { name: "Assessments in this project" })).toBeNull();
+    const link = screen.getByTestId("to-project-overview");
+    expect(text(link)).toBe("Project overview");
+    expect(link.getAttribute("href")).toBe("#/p/10");
   });
 
-  it("opens an older assessment from its row, and does nothing for the one already open", async () => {
-    await show({ "GET /api/assessments/100": { body: closedAssessment } });
-    const rows = await screen.findAllByTestId("history-row");
-    fireEvent.click(rows[0]!);
-    expect(window.location.hash).toBe("#/a/101/overview");
-    fireEvent.click(rows[1]!);
-    await waitFor(() => expect(window.location.hash).toBe("#/a/100/overview"));
+  it("shows who signed a closed assessment off, and when", async () => {
+    window.history.replaceState(null, "", "#/a/100/overview");
+    const signed = { ...closedAssessment, status: { ...closedAssessment.status, signoff: { by: "Dana Lee", at: "2026-11-11T09:00:00Z", note: null } } };
+    mockApi(routes({ "GET /api/assessments/100": { body: signed } }));
+    render(<App />);
+    await screen.findByTestId("overview-page");
+    expect(text(screen.getByTestId("signoff-line"))).toMatch(/^· Signed off by Dana Lee, /);
+  });
+});
+
+describe("Overview stays current", () => {
+  it("asks for the assessment again each time it opens, so it shows what the pages say now", async () => {
+    let asked = 0;
+    const later = {
+      ...OVERVIEW_BLOCKS,
+      findings: OVERVIEW_BLOCKS.findings.map((f) => (f.label === "Failed tests" ? { ...f, value: 4 } : f)),
+    };
+    await show({
+      "GET /api/assessments/101": () => {
+        asked += 1;
+        return { body: assessmentView({ blocks: asked > 2 ? later : OVERVIEW_BLOCKS }) };
+      },
+      "GET /api/plans/1/checks": { body: { plan_id: 1, title: "Checks", subline: "", groups: [], busy: false, came_from_options: [], libraries: [], evidence_counts: {} } },
+      "POST /api/import/7/plan": { body: { ...plan, has_results: true } },
+    });
+    const failed = () => within(screen.getByTestId("open-findings")).getAllByTestId("finding-count")[1]!;
+    await waitFor(() => expect(text(failed())).toBe("Failed tests 2"));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Checks" }));
+    await screen.findByRole("heading", { level: 1, name: "Checks" });
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Overview" }));
+    await waitFor(() => expect(text(failed())).toBe("Failed tests 4"));
   });
 });

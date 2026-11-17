@@ -5,6 +5,7 @@ import { FixTable } from "./fixes/FixTable";
 import { FixSections } from "./fixes/FixSections";
 import { FixSummary, type FixRequest } from "./fixes/FixSummary";
 import { DetailPanel, PageHeader, SummaryCards, TableWithPanel } from "./layout";
+import { RelatedFor } from "./related";
 import { DemoDataLabel, ErrorBox } from "./ui";
 
 const POLL_MS = 1000;
@@ -14,14 +15,16 @@ interface Props {
   /** The fix to show. Without one, or when it is not in the list, the first fix is shown. */
   selectedId: string | null;
   onSelect: (fixId: string) => void;
-  /** "Retest now" has started the retest: the app opens Evidence Lab, where it shows. */
-  onRetestStarted: () => void;
+  /** "Retest now" has started the retest: the app opens Evidence Lab on the result it retests (its before and after). */
+  onRetestStarted: (item?: string | null) => void;
   /** A change was tried, approved, applied or rolled back: the app loads the plan again. */
   onPlanChanged?: () => void;
+  /** Phase 5b: a work group to start filtered to. */
+  group?: string | null;
 }
 
 /** The Fixes step. Every word, status and button comes from the backend; this screen works nothing out. */
-export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onPlanChanged }: Props) {
+export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onPlanChanged, group = null }: Props) {
   const [view, setView] = useState<FixesView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -110,12 +113,13 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
     setDismissed(false);
     onSelect(fixId);
   };
-  // One card for each status the backend sent, in its own word, counted by its key (no wording of our own).
+  // One card for each status word the backend sent, counted by that word (no wording of our own). Phase 5b: counted by
+  // the word, not the key, because the statuses of a change box share one key while each has its own word.
   const byStatus = new Map<string, { word: string; n: number }>();
   for (const f of current.fixes) {
-    const seen = byStatus.get(f.status.key);
+    const seen = byStatus.get(f.status.word);
     if (seen) seen.n += 1;
-    else byStatus.set(f.status.key, { word: f.status.word, n: 1 });
+    else byStatus.set(f.status.word, { word: f.status.word, n: 1 });
   }
 
   async function act(call: () => Promise<FixesView>) {
@@ -142,7 +146,8 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
     setError(null);
     try {
       await api.retestNow(current.plan_id, fixId);
-      onRetestStarted();
+      const fix = current.fixes.find((f) => f.id === fixId);
+      onRetestStarted(fix?.came_from_links?.[0]?.link.item ?? null);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -188,8 +193,15 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
         {current.disclaimer}
       </p>
 
-      {current.fixes.length > 0 ? (
+      {/* With the four groups, each empty group says why itself; the page's own sentence is for a view without them. */}
+      {current.fixes.length === 0 && current.empty_text && (current.groups ?? []).length === 0 ? (
+        <p data-testid="fixes-empty" className="mt-6 text-sm text-slate-400">
+          {current.empty_text}
+        </p>
+      ) : null}
+      {current.fixes.length > 0 || (current.groups ?? []).length > 0 ? (
         <div className="mt-6">
+          {current.fixes.length > 0 ? (
           <SummaryCards
             label="Fixes summary"
             cards={[
@@ -197,9 +209,19 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
               ...Array.from(byStatus, ([key, { word, n }]) => ({ key, label: word, value: n })).slice(0, 3),
             ]}
           />
+          ) : null}
           <TableWithPanel
             panelOpen={fix !== null}
-            table={<FixTable title={current.list_title} fixes={current.fixes} selectedId={fix?.id ?? null} onSelect={choose} />}
+            table={
+              <FixTable
+                title={current.list_title}
+                fixes={current.fixes}
+                groups={current.groups ?? []}
+                selectedId={fix?.id ?? null}
+                onSelect={choose}
+                group={group}
+              />
+            }
             panel={
               <DetailPanel
                 open={fix !== null}
@@ -235,16 +257,13 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
                         })
                       }
                     />
+                    <RelatedFor itemKey={`fix:${fix.id}`} />
                   </div>
                 ) : null}
               </DetailPanel>
             }
           />
         </div>
-      ) : current.empty_text ? (
-        <p data-testid="fixes-empty" className="mt-6 text-sm text-slate-400">
-          {current.empty_text}
-        </p>
       ) : null}
     </section>
   );

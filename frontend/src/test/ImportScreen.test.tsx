@@ -328,3 +328,30 @@ describe("Import screen", () => {
     expect(screen.queryByTestId("import-settings")).toBeNull();
   });
 });
+
+describe("Import screen, phase 5b", () => {
+  const headers = () => within(screen.getByRole("table", { name: "What the file claims" })).getAllByRole("columnheader").map((h) => text(h));
+
+  it("draws an algorithm's plain name with the technical name under it", () => {
+    renderImport(demoImport);
+    const value = within(screen.getAllByTestId("claim-row")[1]!).getByTestId("algo-name");
+    expect(Array.from(value.children).map((c) => c.textContent)).toEqual(["Classical signatures", "ECDSA P-256"]);
+  });
+
+  it("beside an open claim, a row is where and what and the claimed value; the panel links to its Verify result", () => {
+    renderImport(demoImport);
+    const full = headers();
+    fireEvent.click(screen.getAllByTestId("claim-row")[0]!);
+    expect(headers()).toEqual(["Where and what", "Claimed value"]);
+    expect(headers().length).toBeLessThan(full.length);
+    const panel = within(screen.getByTestId("claim-panel"));
+    expect(panel.getByTestId("claim-to-verify").textContent).toBe("Its Verify result");
+    fireEvent.click(panel.getByRole("button", { name: "Close details" }));
+    expect(headers()).toEqual(full);
+  });
+
+  it("opens the claim a link names", () => {
+    renderImport(demoImport, { openItem: "claim-3" });
+    expect(within(screen.getByTestId("claim-panel")).getByRole("heading", { level: 2 }).textContent).toContain("acme-sign 1.4.2");
+  });
+});

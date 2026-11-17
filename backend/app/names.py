@@ -5,6 +5,19 @@ import re
 
 TLS_VERSIONS = ["TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3"]
 
+# Phase 5b: the plain name each screen draws first, with the technical name under it, in table cells, column headings
+# and panel titles. Ids, answer keys and evidence fields keep the technical names; sentences stay as they are. Longer
+# names first, so "X25519MLKEM768" is found before "X25519".
+ALGORITHM_NAMES: tuple[tuple[str, str], ...] = (
+    ("X25519MLKEM768", "Hybrid connection"),
+    ("ML-KEM-768", "Quantum-safe key exchange"),
+    ("ML-DSA-65", "Quantum-safe signatures"),
+    ("ECDSA P-256", "Classical signatures"),
+    ("Ed25519", "Classical signatures"),
+    ("RSA", "Classical signatures"),
+    ("X25519", "Classical key exchange"),
+)
+
 _CURVES = {
     "P256": "P-256", "SECP256R1": "P-256", "PRIME256V1": "P-256", "NISTP256": "P-256",
     "P384": "P-384", "SECP384R1": "P-384", "NISTP384": "P-384",

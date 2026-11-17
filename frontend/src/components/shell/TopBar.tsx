@@ -7,7 +7,7 @@ export const PAGE_TITLES: Record<string, string> = {
   overview: "Overview",
   "inventory/import": "Import",
   "inventory/verify": "Verify",
-  tests: "Tests",
+  checks: "Checks",
   evidence: "Evidence",
   fixes: "Fixes",
   "migration/systems": "Systems",
@@ -16,13 +16,14 @@ export const PAGE_TITLES: Record<string, string> = {
 };
 
 /** Folder / Project / Assessment / Page. Only the project and the assessment are links. */
-function Breadcrumbs({ route, assessment }: { route: Route; assessment: AssessmentView | null }) {
+function Breadcrumbs({ route, assessment, projectName }: { route: Route; assessment: AssessmentView | null; projectName?: string | null }) {
   const crumbs: { label: string; href?: string }[] = [];
   if (route.kind === "projects") crumbs.push({ label: "Projects" });
   else if (route.kind === "settings") crumbs.push({ label: "Settings" });
+  else if (route.kind === "project") crumbs.push({ label: projectName ?? "Project" }, { label: "Project overview" });
   else if (assessment) {
     for (const f of assessment.path) crumbs.push({ label: f.name });
-    crumbs.push({ label: assessment.project.name, href: `#/a/${assessment.id}/overview` });
+    crumbs.push({ label: assessment.project.name, href: `#/p/${assessment.project.id}` });
     crumbs.push({ label: assessment.title, href: `#/a/${assessment.id}/overview` });
     const section = route.page.startsWith("inventory/") ? "Inventory" : route.page.startsWith("migration/") ? "Migration" : null;
     if (section) crumbs.push({ label: section });
@@ -96,10 +97,13 @@ export function TopBar({
   copilotShown,
   onToggleCopilot,
   onOpenMenu,
+  projectName,
 }: {
   session: Session;
   route: Route;
   assessment: AssessmentView | null;
+  /** Phase 5b: the open project's name, for the Project overview's breadcrumbs. */
+  projectName?: string | null;
   copilotShown: boolean;
   onToggleCopilot: () => void;
   onOpenMenu: () => void;
@@ -115,7 +119,7 @@ export function TopBar({
         <Icon name="menu" className="h-5 w-5" />
       </button>
       <div className="min-w-0 flex-1">
-        <Breadcrumbs route={route} assessment={route.kind === "assessment" ? assessment : null} />
+        <Breadcrumbs route={route} assessment={route.kind === "assessment" ? assessment : null} projectName={projectName} />
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {route.kind === "assessment" && assessment ? (

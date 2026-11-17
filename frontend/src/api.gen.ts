@@ -44,6 +44,8 @@ export type DependencyAnswer =
 export type DependencyLabel = "release_notes" | "public_copy";
 export type DependencyState = "measured" | "not_measured" | "couldnt_check" | "couldnt_trust" | "not_offered";
 export type DependencyTrack = "kex" | "auth" | "signatures";
+export type GroupKey = "verification" | "encryption" | "migration" | "dependencies";
+export type ItemState = "open" | "in_progress" | "done";
 
 export interface AddTestBody {
   catalog_id: string;
@@ -71,6 +73,10 @@ export interface AdvisoriesItem {
   link: string;
   href: string;
   covered: string;
+}
+export interface AlgorithmName {
+  technical: string;
+  plain: string;
 }
 export interface ApplyView {
   title: string;
@@ -170,11 +176,20 @@ export interface AssessmentBrief {
    */
   title: string;
   name: string | null;
+  /**
+   * Phase 5b: what it is for (a label only); null for one made before phase 5b.
+   */
+  purpose: Purpose | null;
+  reference: string | null;
   status: AssessmentStatus;
   archived: boolean;
   created_at: string;
   closed_at: string | null;
   file: AssessmentFile | null;
+}
+export interface Purpose {
+  key: string;
+  label: string;
 }
 export interface AssessmentStatus {
   key: "open" | "closed";
@@ -183,6 +198,18 @@ export interface AssessmentStatus {
    * Why it is closed, then the closed sentence; null when open.
    */
   closed_line: string | null;
+  /**
+   * Phase 5b: who signed it off and when; null when open or closed by the earlier rule.
+   */
+  signoff: Signoff | null;
+}
+export interface Signoff {
+  /**
+   * The name typed when it was closed (the app has one login).
+   */
+  by: string;
+  note: string | null;
+  at: string;
 }
 export interface AssessmentFile {
   import_id: number;
@@ -196,6 +223,10 @@ export interface AssessmentChangeBody {
   project_id?: number | null;
   archived?: boolean | null;
   close?: boolean;
+  signed_off_by?: string | null;
+  note?: string | null;
+  purpose?: string | null;
+  reference?: string | null;
 }
 export interface AssessmentCounts {
   claims: ClaimCounts | null;
@@ -240,6 +271,11 @@ export interface AssessmentView {
    */
   title: string;
   name: string | null;
+  /**
+   * Phase 5b: what it is for (a label only); null for one made before phase 5b.
+   */
+  purpose: Purpose | null;
+  reference: string | null;
   status: AssessmentStatus;
   archived: boolean;
   created_at: string;
@@ -255,6 +291,10 @@ export interface AssessmentView {
   has_migration: boolean;
   counts: AssessmentCounts;
   next_step: NextStep;
+  /**
+   * Phase 5b: the Overview's blocks (null before a file).
+   */
+  blocks?: OverviewBlocks | null;
 }
 export interface PathStep {
   id: number;
@@ -322,6 +362,60 @@ export interface NextStep {
   label: string;
   text: string;
 }
+export interface OverviewBlocks {
+  groups: OverviewGroup[];
+  /**
+   * False claims, failed tests, dependency blockers: each its own count.
+   */
+  findings: OverviewFact[];
+  evidence: OverviewEvidence;
+}
+export interface OverviewGroup {
+  key: "verification" | "encryption" | "migration" | "dependencies";
+  label: string;
+  question: string;
+  checks: StateCounts | null;
+  fixes: StateCounts | null;
+  facts: OverviewFact[];
+  empty_text: string | null;
+}
+export interface StateCounts {
+  open: number;
+  in_progress: number;
+  done: number;
+}
+export interface OverviewFact {
+  label: string;
+  value: number;
+  link: ItemLink;
+}
+export interface ItemLink {
+  /**
+   * The page that holds the item, e.g. "evidence", "fixes", "migration/systems".
+   */
+  page: string;
+  /**
+   * The item to open there (a check, claim, fix, system or library id); null for the page.
+   */
+  item: string | null;
+  section?: string | null;
+  /**
+   * The work group to filter the page to.
+   */
+  group?: string | null;
+  /**
+   * Another assessment (the Project overview links into each).
+   */
+  assessment_id?: number | null;
+}
+export interface OverviewEvidence {
+  runs: number;
+  last_download: LastDownload | null;
+}
+export interface LastDownload {
+  at: string;
+  fingerprint: string;
+}
 export interface Badge {
   code:
     | "passed"
@@ -335,6 +429,13 @@ export interface Badge {
     | "not_offered";
   label: string;
   tone: "pass" | "fail" | "neutral" | "warn";
+}
+export interface CameFrom {
+  key: string;
+  /**
+   * "Verify", "Test plan", "Retest", "Fix proof", "Try on a test copy", "After Apply", ...
+   */
+  label: string;
 }
 export interface CatalogItem {
   catalog_id:
@@ -621,6 +722,336 @@ export interface ResearchField {
   label: string;
   value: string;
 }
+export interface CheckDetail {
+  check: CheckRow;
+  /**
+   * The newest run, worded as its page words it (null for a claim).
+   */
+  result: LabResult | null;
+  /**
+   * For a claim: its newest Verify result.
+   */
+  verify: Result | null;
+  /**
+   * Newest first.
+   */
+  runs: CheckRun[];
+  related: RelatedLine[];
+}
+export interface CheckRow {
+  /**
+   * "claim-3", "test-12", "retest-12", "proof-12", "try-<change>-try", "system-<key>", "library-<row>"
+   */
+  id: string;
+  group: "verification" | "encryption" | "migration" | "dependencies";
+  kind: string;
+  name: string;
+  ran_on: string;
+  came_from: CameFrom;
+  link: ItemLink1;
+  evidence_link: ItemLink;
+  state: "open" | "in_progress" | "done";
+  /**
+   * Set while it waits or runs.
+   */
+  status: RowStatus | null;
+  /**
+   * Its newest result, in the words of the page it came from.
+   */
+  result: CheckResult | null;
+  plain: string | null;
+  last_run_at: string | null;
+  runs: number;
+  /**
+   * Phase 5b: the same measurement made elsewhere (decisions 3 and 4); each keeps its own run.
+   */
+  same_as?: SameMeasurement[];
+}
+/**
+ * Open where it started.
+ */
+export interface ItemLink1 {
+  /**
+   * The page that holds the item, e.g. "evidence", "fixes", "migration/systems".
+   */
+  page: string;
+  /**
+   * The item to open there (a check, claim, fix, system or library id); null for the page.
+   */
+  item: string | null;
+  section?: string | null;
+  /**
+   * The work group to filter the page to.
+   */
+  group?: string | null;
+  /**
+   * Another assessment (the Project overview links into each).
+   */
+  assessment_id?: number | null;
+}
+export interface CheckResult {
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  code: string;
+}
+export interface SameMeasurement {
+  id: string;
+  name: string;
+  ran_on: string;
+  group_label: string;
+  link: ItemLink2;
+  evidence_link: ItemLink;
+}
+/**
+ * The other check on Checks.
+ */
+export interface ItemLink2 {
+  /**
+   * The page that holds the item, e.g. "evidence", "fixes", "migration/systems".
+   */
+  page: string;
+  /**
+   * The item to open there (a check, claim, fix, system or library id); null for the page.
+   */
+  item: string | null;
+  section?: string | null;
+  /**
+   * The work group to filter the page to.
+   */
+  group?: string | null;
+  /**
+   * Another assessment (the Project overview links into each).
+   */
+  assessment_id?: number | null;
+}
+export interface LabResult {
+  code:
+    | "passed"
+    | "failed"
+    | "couldnt_run"
+    | "couldnt_trust"
+    | "measured"
+    | "no_slowdown"
+    | "slowdown"
+    | "offered"
+    | "not_offered";
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  run_id: number;
+  component: string | null;
+  mode: "demo" | "isolated";
+  finished_at: string;
+  duration_ms: number;
+  summary: string;
+  short: string;
+  /**
+   * One plain sentence: what was found and why that gives this result.
+   */
+  plain: string;
+  /**
+   * Side notes about things the test saw that it wasn't asked about. Never a result.
+   */
+  also_noticed: string[];
+  also_noticed_title: string;
+  control: LabResultControl;
+  what_happened: string[];
+  shows_title: string;
+  shows: string[];
+  evidence: (EvidenceBlockTable | EvidenceBlockText)[];
+  run_record: RunRecordView;
+  locked_test: LockedTestView;
+  /**
+   * True when the component is a real library, not one of our demo components (phase 4c).
+   */
+  real: boolean;
+  fix_title: string;
+  suggested_fix: string | null;
+  /**
+   * When set, suggested_fix is null and the "Suggested fix" box is not drawn.
+   */
+  fix_line: FixLine | null;
+  reviewed: LabResultReviewed | null;
+  research: ResearchView | null;
+  /**
+   * Phase 4c: advisories for this version (null for our own demo code).
+   */
+  advisories: Advisories | null;
+}
+export interface Result {
+  claim_id: number;
+  claim: Claim;
+  result: "True" | "False" | "Couldn't check";
+  found: string;
+  reason: string | null;
+  evidence: Evidence[];
+  /**
+   * One plain sentence: what was found and why that gives this result. Shown on top of the row.
+   */
+  summary: string;
+  /**
+   * Things the check saw that the file didn't ask about. Side notes, never a result. Often empty.
+   */
+  also_noticed: string[];
+}
+export interface Evidence {
+  title: string;
+  command: string;
+  output: string;
+  started_at: string;
+  duration_ms: number;
+  tool: string;
+  tool_version: string;
+}
+export interface CheckRun {
+  run_id: number | null;
+  verify_run_id: number | null;
+  at: string | null;
+  came_from: string;
+  label: string | null;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  /**
+   * The run record's SHA-256 (a Verify run has none).
+   */
+  fingerprint: string | null;
+}
+export interface RelatedLine {
+  kind: "claim" | "test" | "fix" | "system" | "library";
+  /**
+   * "Claim", "Checks", "Fix", "System and track", "Library"
+   */
+  title: string;
+  items: RelatedItem[];
+}
+export interface RelatedItem {
+  key: string;
+  label: string;
+  sub: string;
+  link: ItemLink;
+  also: ItemLink | null;
+}
+export interface CheckGroup {
+  key: "verification" | "encryption" | "migration" | "dependencies";
+  label: string;
+  question: string;
+  counts: StateCounts;
+  /**
+   * Set when the group has no rows: why it is empty.
+   */
+  empty_text: string | null;
+  note: string | null;
+  started_on: StartedOn;
+  rows: CheckRow[];
+  /**
+   * Checks of another group linked from this group's foot ("Also relates to this group").
+   */
+  also?: SameMeasurement[];
+}
+export interface StartedOn {
+  label: string;
+  page: string;
+}
+export interface ChecksView {
+  plan_id: number;
+  title: string;
+  subline: string;
+  /**
+   * Always the four groups, in order.
+   */
+  groups: CheckGroup[];
+  busy: boolean;
+  came_from_options: CameFrom[];
+  /**
+   * For Evidence's Dependencies group: one row per library.
+   */
+  libraries: LibraryEvidenceRow[];
+  evidence_counts: {
+    [k: string]: StateCounts | undefined;
+  };
+}
+export interface LibraryEvidenceRow {
+  id: string;
+  row_id: string;
+  name: string;
+  via_words: string;
+  answers_short: string;
+  blocks: DependencyBlock[];
+  measured: boolean;
+  state: "open" | "in_progress" | "done";
+  /**
+   * Each lookup's source, quoted line and date checked.
+   */
+  lookups?: DependencyLookup[];
+  /**
+   * Its answers as Dependencies words them.
+   */
+  cells?: DependencyCell[];
+}
+export interface DependencyBlock {
+  system: string;
+  track: "kex" | "auth" | "signatures";
+  track_words: string;
+  fix_id: string;
+  /**
+   * Phase 5b: the system the Blocks marker opens.
+   */
+  system_key?: string | null;
+  /**
+   * Phase 5b: "Blocks localhost:8443 · key exchange".
+   */
+  words?: string;
+}
+export interface DependencyLookup {
+  question: "ml_kem_768" | "x25519mlkem768" | "ml_dsa_65";
+  question_words: string;
+  title: string;
+  url: string;
+  quote: string;
+  checked: string;
+  /**
+   * the same source and quote as an earlier question of this row
+   */
+  repeat: boolean;
+}
+export interface DependencyCell {
+  question: "ml_kem_768" | "x25519mlkem768" | "ml_dsa_65";
+  answer: "yes" | "no" | "doesnt_apply" | "not_in_knowledge_base" | "couldnt_tell_version" | "needs_your_environment";
+  answer_words: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  /**
+   * exactly one label on a yes or a no; null on every other answer
+   */
+  label: ("release_notes" | "public_copy") | null;
+  label_words: string | null;
+  reason: string;
+  /**
+   * on a no: the first version that can, or "none_known"
+   */
+  first_version: string | null;
+  first_version_words: string | null;
+  state: "measured" | "not_measured" | "couldnt_check" | "couldnt_trust" | "not_offered";
+  state_words: string;
+  agreement: ("agrees" | "differs") | null;
+  agreement_words: string | null;
+  /**
+   * Phase 5b: under a No, the reason in one line ("OpenSSL added this in 3.5.0; you have 3.0.22.").
+   */
+  no_reason?: string | null;
+}
+export interface Compare {
+  from_id: number;
+  to_id: number;
+  lists: CompareList[];
+}
+export interface CompareList {
+  key: "new" | "gone" | "moved" | "single";
+  title: string;
+  items: CompareItem[];
+}
+export interface CompareItem {
+  label: string;
+  sub: string;
+  link: ItemLink;
+}
 export interface ConfirmBody {
   address: string;
   confirmed: boolean;
@@ -631,6 +1062,10 @@ export interface Created {
    * A new project's first assessment.
    */
   assessment_id?: number | null;
+  /**
+   * Phase 5b: Rerun as new assessment, the import's notices.
+   */
+  notices?: string[] | null;
 }
 export interface DemoProjectsLoaded {
   added: string[];
@@ -775,6 +1210,10 @@ export interface DependencyRow {
    * one per question, in the order of questions
    */
   cells: DependencyCell[];
+  /**
+   * Phase 5b: the answers in a few words, for the compact table ("No to all three").
+   */
+  answers_short?: string;
   blocks: DependencyBlock[];
   measure: DependencyMeasure;
   same_copy_note: string | null;
@@ -782,50 +1221,11 @@ export interface DependencyRow {
   measurement: DependencyMeasurement | null;
   job: RowStatus | null;
 }
-export interface DependencyCell {
-  question: "ml_kem_768" | "x25519mlkem768" | "ml_dsa_65";
-  answer: "yes" | "no" | "doesnt_apply" | "not_in_knowledge_base" | "couldnt_tell_version" | "needs_your_environment";
-  answer_words: string;
-  tone: "pass" | "fail" | "neutral" | "warn";
-  /**
-   * exactly one label on a yes or a no; null on every other answer
-   */
-  label: ("release_notes" | "public_copy") | null;
-  label_words: string | null;
-  reason: string;
-  /**
-   * on a no: the first version that can, or "none_known"
-   */
-  first_version: string | null;
-  first_version_words: string | null;
-  state: "measured" | "not_measured" | "couldnt_check" | "couldnt_trust" | "not_offered";
-  state_words: string;
-  agreement: ("agrees" | "differs") | null;
-  agreement_words: string | null;
-}
-export interface DependencyBlock {
-  system: string;
-  track: "kex" | "auth" | "signatures";
-  track_words: string;
-  fix_id: string;
-}
 export interface DependencyMeasure {
   label: string;
   enabled: boolean;
   blocked_reason: string | null;
   busy: boolean;
-}
-export interface DependencyLookup {
-  question: "ml_kem_768" | "x25519mlkem768" | "ml_dsa_65";
-  question_words: string;
-  title: string;
-  url: string;
-  quote: string;
-  checked: string;
-  /**
-   * the same source and quote as an earlier question of this row
-   */
-  repeat: boolean;
 }
 export interface DependencyMeasurement {
   /**
@@ -865,15 +1265,6 @@ export interface DetailFact {
    * true: draw the value small, fixed-width, breaking anywhere
    */
   fingerprint: boolean;
-}
-export interface Evidence {
-  title: string;
-  command: string;
-  output: string;
-  started_at: string;
-  duration_ms: number;
-  tool: string;
-  tool_version: string;
 }
 export interface EvidenceExport {
   id: number;
@@ -935,6 +1326,10 @@ export interface FixButton {
   primary: boolean;
   enabled: boolean;
 }
+export interface FixCameFrom {
+  label: string;
+  link: ItemLink;
+}
 export interface FixDetail {
   /**
    * "fix-ecdsa-range-check" | "fix-tls-versions"
@@ -976,6 +1371,16 @@ export interface FixDetail {
    * Phase 4c: advisories for a text-only fix on a real library.
    */
   advisories: Advisories | null;
+  /**
+   * Phase 5b: the work group it came from.
+   */
+  group?: string;
+  group_label?: string;
+  /**
+   * Phase 5b: where it came from, as links.
+   */
+  came_from_links?: FixCameFrom[];
+  fix_state?: "open" | "in_progress" | "done";
 }
 export interface FixStatus {
   key: "not_connected" | "proving" | "ready" | "failed" | "waiting" | "ready_to_merge" | "merged" | "text_only";
@@ -1213,6 +1618,23 @@ export interface TextSuggestionBlock {
   place: string;
   code: string;
 }
+export interface FixGroup {
+  key: "verification" | "encryption" | "migration" | "dependencies";
+  label: string;
+  question: string;
+  counts: StateCounts;
+  fix_ids: string[];
+  empty_text: string | null;
+  /**
+   * "Also relates to this group": fixes listed in another group.
+   */
+  also: FixGroupAlso[];
+}
+export interface FixGroupAlso {
+  fix_id: string;
+  title: string;
+  group_label: string;
+}
 export interface FixesView {
   plan_id: number;
   is_demo: boolean;
@@ -1238,6 +1660,10 @@ export interface FixesView {
    * something is running: ask again in a second
    */
   busy: boolean;
+  /**
+   * Phase 5b: the four work groups, in order.
+   */
+  groups?: FixGroup[];
 }
 export interface FolderBody {
   name: string;
@@ -1252,58 +1678,12 @@ export interface FolderChangeBody {
   move?: boolean;
   archived?: boolean | null;
 }
-export interface LabResult {
-  code:
-    | "passed"
-    | "failed"
-    | "couldnt_run"
-    | "couldnt_trust"
-    | "measured"
-    | "no_slowdown"
-    | "slowdown"
-    | "offered"
-    | "not_offered";
-  label: string;
-  tone: "pass" | "fail" | "neutral" | "warn";
-  run_id: number;
-  component: string | null;
-  mode: "demo" | "isolated";
-  finished_at: string;
-  duration_ms: number;
-  summary: string;
-  short: string;
-  /**
-   * One plain sentence: what was found and why that gives this result.
-   */
-  plain: string;
-  /**
-   * Side notes about things the test saw that it wasn't asked about. Never a result.
-   */
-  also_noticed: string[];
-  also_noticed_title: string;
-  control: LabResultControl;
-  what_happened: string[];
-  shows_title: string;
-  shows: string[];
-  evidence: (EvidenceBlockTable | EvidenceBlockText)[];
-  run_record: RunRecordView;
-  locked_test: LockedTestView;
-  /**
-   * True when the component is a real library, not one of our demo components (phase 4c).
-   */
-  real: boolean;
-  fix_title: string;
-  suggested_fix: string | null;
-  /**
-   * When set, suggested_fix is null and the "Suggested fix" box is not drawn.
-   */
-  fix_line: FixLine | null;
-  reviewed: LabResultReviewed | null;
-  research: ResearchView | null;
-  /**
-   * Phase 4c: advisories for this version (null for our own demo code).
-   */
-  advisories: Advisories | null;
+export interface Headline {
+  claims: ClaimCounts | null;
+  tests: TestCounts | null;
+  fixes: FixCounts | null;
+  systems: SystemCounts | null;
+  blockers: number | null;
 }
 export interface LabRow {
   item_id: number;
@@ -1680,6 +2060,14 @@ export interface MigrationView {
 export interface NameBody {
   name: string;
 }
+/**
+ * Phase 5b: the New assessment box (and Rerun as new assessment). Every field may be left out.
+ */
+export interface NewAssessmentBody {
+  name?: string | null;
+  purpose?: string | null;
+  reference?: string | null;
+}
 export interface Ok {
   ok: true;
 }
@@ -1759,6 +2147,47 @@ export interface ProjectChangeBody {
   move?: boolean;
   archived?: boolean | null;
 }
+export interface ProjectOverview {
+  id: number;
+  /**
+   * Open assessments first, newest first.
+   */
+  rows: ProjectOverviewRow[];
+  compare: Compare | null;
+  shared: SharedSystem[];
+  choices: SharedAssessment[];
+}
+export interface ProjectOverviewRow {
+  id: number;
+  number: number;
+  /**
+   * "Assessment 2", or the name the person gave it
+   */
+  title: string;
+  name: string | null;
+  /**
+   * Phase 5b: what it is for (a label only); null for one made before phase 5b.
+   */
+  purpose: Purpose | null;
+  reference: string | null;
+  status: AssessmentStatus;
+  archived: boolean;
+  created_at: string;
+  closed_at: string | null;
+  file: AssessmentFile | null;
+  headline: Headline;
+  has_results: boolean;
+}
+export interface SharedSystem {
+  name: string;
+  kind: "server" | "software";
+  assessments: SharedAssessment[];
+  note: string | null;
+}
+export interface SharedAssessment {
+  id: number;
+  title: string;
+}
 export interface ProjectView {
   id: number;
   name: string;
@@ -1770,6 +2199,10 @@ export interface ProjectView {
    * Newest first.
    */
   assessments: AssessmentBrief[];
+  /**
+   * Phase 5b: the name the New assessment box starts with ("Assessment 3").
+   */
+  next_name: string;
 }
 export interface ProofRowCheck1 {
   ok: boolean | null;
@@ -1790,21 +2223,9 @@ export interface PullRequestBody {
     | [string, string, string, string, string, string, string]
     | [string, string, string, string, string, string, string, string];
 }
-export interface Result {
-  claim_id: number;
-  claim: Claim;
-  result: "True" | "False" | "Couldn't check";
-  found: string;
-  reason: string | null;
-  evidence: Evidence[];
-  /**
-   * One plain sentence: what was found and why that gives this result. Shown on top of the row.
-   */
-  summary: string;
-  /**
-   * Things the check saw that the file didn't ask about. Side notes, never a result. Often empty.
-   */
-  also_noticed: string[];
+export interface RelatedView {
+  key: string;
+  related: RelatedLine[];
 }
 export interface RetestBody {
   version: string;
@@ -1831,6 +2252,18 @@ export interface Workspace {
   organization: string;
   folders: WorkspaceFolder[];
   projects: WorkspaceProject[];
+  /**
+   * Phase 5b: the purposes an assessment can have, in order.
+   */
+  purposes: Purpose[];
+  /**
+   * Phase 5b: said in the Close box: who records the sign-off name.
+   */
+  one_login_line: string;
+  /**
+   * Phase 5b: plain name first, technical under it.
+   */
+  algorithm_names?: AlgorithmName[];
 }
 export interface WorkspaceFolder {
   id: number;
@@ -1851,6 +2284,14 @@ export interface WorkspaceProject {
   created_at: string;
   path: PathStep[];
   assessments: number;
+  /**
+   * Phase 5b: open assessments (archived ones left out).
+   */
+  open_count: number;
+  closed_count: number;
+  /**
+   * Phase 5b: the assessment worked on last.
+   */
   latest: AssessmentBrief | null;
   counts: AssessmentCounts;
 }

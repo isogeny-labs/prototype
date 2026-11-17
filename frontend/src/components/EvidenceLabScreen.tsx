@@ -10,7 +10,13 @@ import {
   type RowStatus,
 } from "../api";
 import { DownloadStatus, downloadEvidence } from "./evidenceDownload";
-import { DataTable, DetailPanel, FilterSelect, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "./layout";
+import { DataTable, DetailPanel, FilterSelect, GroupSection, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "./layout";
+import { AlsoChecks, CheckPanel, EarlierRuns } from "./checks/CheckPanel";
+import { CheckTable } from "./checks/CheckTable";
+import { LibraryPanel, LibraryTable } from "./checks/LibraryEvidence";
+import { ItemLinkView, RelatedFor } from "./related";
+import { VerifyResultDetails } from "./VerifyScreen";
+import type { CheckDetail, ChecksView } from "../api";
 import { ResultDetail } from "./lab/ResultDetail";
 import {
   AlsoNoticedList,
@@ -127,9 +133,36 @@ interface Props {
   planId: number;
   /** "View in Fixes" on a failed result: the app opens the Fixes step on that fix. */
   onViewFix: (fixId: string) => void;
+  /** Phase 5b: an item to open (from a link: test-<id>, claim-<id>, system-<key>, library-<row>, proof-<id>, ...). */
+  openItem?: string | null;
+  /** Phase 5b: a work group to filter to. */
+  group?: string | null;
 }
 
-export function EvidenceLabScreen({ planId, onViewFix }: Props) {
+const OPEN_IN: Record<string, string> = {
+  verification: "Open where it started",
+  encryption: "Open in Fixes",
+  migration: "Open in Migration",
+  dependencies: "Open in Dependencies",
+};
+
+/** The every-run list of one test (its earlier runs), asked of the backend. */
+function RunsFor({ planId, checkId }: { planId: number; checkId: string }) {
+  const [detail, setDetail] = useState<CheckDetail | null>(null);
+  useEffect(() => {
+    let live = true;
+    api
+      .getCheck(planId, checkId)
+      .then((d) => live && setDetail(d))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [planId, checkId]);
+  return detail ? <EarlierRuns runs={detail.runs} /> : null;
+}
+
+export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = null }: Props) {
   const [lab, setLab] = useState<LabView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -139,10 +172,29 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [exported, setExported] = useState<EvidenceExport | null>(null);
   const [pollTick, setPollTick] = useState(0);
+  // Phase 5b: every other kind of check, in the four groups.
+  const [checks, setChecks] = useState<ChecksView | null>(null);
+  const [openCheck, setOpenCheck] = useState<string | null>(null);
+  const [groupFilter, setGroupFilter] = useState<string>(group ?? "all");
+  const [folded, setFolded] = useState<Record<string, boolean>>({});
+  useEffect(() => setGroupFilter(group ?? "all"), [group]);
+  useEffect(() => {
+    if (!openItem) return;
+    if (openItem.startsWith("test-") || openItem.startsWith("retest-")) {
+      setOpenCheck(null);
+      setOpenRow(Number(openItem.split("-")[1]));
+    } else {
+      setOpenRow(null);
+      setOpenCheck(openItem);
+    }
+  }, [openItem]);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   useDismiss(menuOpen, menuRef, closeMenu);
-  const closePanel = useCallback(() => setOpenRow(null), []);
+  const closePanel = useCallback(() => {
+    setOpenRow(null);
+    setOpenCheck(null);
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -159,8 +211,22 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
     };
   }, [planId]);
 
+  const labStamp = lab ? `${lab.busy}:${lab.rows.map((r) => `${r.result?.run_id ?? ""}/${r.after?.run_id ?? ""}`).join(",")}` : "";
+  // Asked once the lab's own answer is in, and again whenever a result in it changes (or while something runs).
+  useEffect(() => {
+    if (!labStamp) return;
+    let live = true;
+    api
+      .getChecks(planId)
+      .then((next) => live && setChecks(next))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [planId, labStamp, pollTick]);
+
   // While a retest (or any test, or a proof in Fixes) is still going, ask again every second.
-  const polling = lab !== null && needsPolling(lab);
+  const polling = lab !== null && (needsPolling(lab) || checks?.busy === true);
   useEffect(() => {
     if (!polling) return;
     let live = true;
@@ -304,6 +370,36 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
           },
         ];
 
+  // Phase 5b: beside an open panel, a row is the test, its result (the after result of a retest) and its Fix ready marker.
+  const compactColumns: Column<LabRow>[] = [
+    {
+      key: "test",
+      header: "Test",
+      minWidth: 150,
+      render: (row) => (
+        <>
+          <span data-testid="lab-row-header" className="block font-medium text-slate-100">
+            {row.title}
+          </span>
+          {leading(row, beforeAfter)?.fix_line ? (
+            <span data-testid="compact-fix-line" className="block text-xs text-slate-400">
+              {leading(row, beforeAfter)!.fix_line!.lead} {leading(row, beforeAfter)!.fix_line!.rest}
+            </span>
+          ) : null}
+        </>
+      ),
+    },
+    {
+      key: "result",
+      header: "Result",
+      minWidth: 110,
+      render: (row) => {
+        const r = leading(row, beforeAfter);
+        return r ? <ResultBadge label={r.label} tone={r.tone} /> : row.result_status ? <StatusView status={row.result_status} /> : null;
+      },
+    },
+  ];
+
   const table = (rows: LabRow[], first: boolean, label: string) => (
     <DataTable
       label={label}
@@ -315,8 +411,10 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
       selectedKey={selected ? String(selected.item_id) : null}
       onRowClick={(r) => {
         if (r.result === null && r.after === null) return;
+        setOpenCheck(null);
         setOpenRow((cur) => (cur === r.item_id ? null : r.item_id));
       }}
+      compactColumns={compactColumns}
     />
   );
 
@@ -400,9 +498,116 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
               onViewFix={onViewFix}
             />
           ) : null}
+          <div className="mt-4">
+            <RunsFor planId={current.plan_id} checkId={`test-${selected.item_id}`} />
+          </div>
+          <RelatedFor itemKey={`test:${selected.item_id}`} />
         </div>
       ) : null}
     </DetailPanel>
+  );
+
+  // Phase 5b: the other kinds of check, in their groups; a library row of the dependency list.
+  const ledgerRows = (checks?.groups ?? []).flatMap((g) => g.rows);
+  const openLedger = openCheck ? (ledgerRows.find((r) => r.id === openCheck) ?? null) : null;
+  const openLibrary = openCheck && !openLedger ? (checks?.libraries.find((l) => l.id === openCheck) ?? null) : null;
+  const keepCheck = (r: { name: string; ran_on?: string; via_words?: string; answers_short?: string; result?: { label: string } | null; id: string }) =>
+    r.id === openCheck ||
+    !needle ||
+    [r.name, r.ran_on ?? "", r.via_words ?? "", r.answers_short ?? "", r.result?.label ?? ""].some((t) => t.toLowerCase().includes(needle));
+  const checkPanel = (
+    <CheckPanel planId={current.plan_id} check={openLedger} onClose={closePanel}>
+      {(detail) => (
+        <>
+          <p>
+            <ItemLinkView link={detail.check.link} testId="open-in">
+              {OPEN_IN[detail.check.group] ?? "Open where it started"}
+            </ItemLinkView>
+          </p>
+          {detail.verify ? <VerifyResultDetails result={detail.verify} /> : null}
+          {detail.result ? (
+            <details data-testid="run-record" className="rounded-lg border border-slate-800 p-3">
+              <summary className="cursor-pointer text-sm font-medium text-slate-200">The run&apos;s record</summary>
+              <div className="mt-3">
+                <ResultDetail result={detail.result} busy={busy} onViewFix={onViewFix} />
+              </div>
+            </details>
+          ) : null}
+        </>
+      )}
+    </CheckPanel>
+  );
+  const anyPanelOpen = selected !== null || openLedger !== null || openLibrary !== null;
+  const panels = (
+    <>
+      {panel}
+      {checkPanel}
+      <LibraryPanel library={openLibrary} onClose={closePanel} />
+    </>
+  );
+  const groupsShown = (checks?.groups ?? []).filter((g) => groupFilter === "all" || g.key === groupFilter);
+  const grouped = (
+    <div>
+      {groupsShown.map((g) => {
+        const counts = checks?.evidence_counts[g.key] ?? g.counts;
+        const open = !folded[g.key];
+        const toggle = () => setFolded((f) => ({ ...f, [g.key]: !f[g.key] }));
+        if (g.key === "encryption") {
+          const extra = g.rows.filter((r) => !["plan", "retest"].includes(r.came_from.key) && !r.id.startsWith("test-") && !r.id.startsWith("retest-")).filter(keepCheck);
+          return (
+            <GroupSection key={g.key} group={g} counts={counts} open={open} onToggle={toggle}>
+              {listing}
+              {extra.length > 0 ? (
+                <div className="mt-4">
+                  <h3 className="mb-2 text-sm font-semibold text-slate-200">Fix proofs and changes</h3>
+                  <CheckTable label="Fix proofs and changes" rows={extra} selectedId={openCheck} onOpen={(r) => {
+                    setOpenRow(null);
+                    setOpenCheck(r.id === openCheck ? null : r.id);
+                  }} />
+                </div>
+              ) : null}
+            </GroupSection>
+          );
+        }
+        if (g.key === "dependencies") {
+          const libs = (checks?.libraries ?? []).filter(keepCheck);
+          return (
+            <GroupSection key={g.key} group={g} counts={counts} open={open} onToggle={toggle}
+              emptyText={(checks?.libraries ?? []).length === 0 ? g.empty_text ?? null : null}>
+              {libs.length > 0 ? (
+                <LibraryTable libraries={libs} selectedId={openCheck} onOpen={(id) => {
+                  setOpenRow(null);
+                  setOpenCheck(id === openCheck ? null : id);
+                }} />
+              ) : (
+                <p className="px-1 py-2 text-sm text-slate-400">No library matches this search.</p>
+              )}
+            </GroupSection>
+          );
+        }
+        const rows = g.rows.filter(keepCheck);
+        return (
+          <GroupSection
+            key={g.key}
+            group={g}
+            counts={counts}
+            open={open}
+            onToggle={toggle}
+            emptyText={g.rows.length === 0 ? g.empty_text : null}
+            also={<AlsoChecks items={g.also ?? []} which="evidence_link" />}
+          >
+            {rows.length > 0 ? (
+              <CheckTable label={`${g.label} results`} rows={rows} selectedId={openCheck} onOpen={(r) => {
+                setOpenRow(null);
+                setOpenCheck(r.id === openCheck ? null : r.id);
+              }} />
+            ) : (
+              <p className="px-1 py-2 text-sm text-slate-400">No result matches this search.</p>
+            )}
+          </GroupSection>
+        );
+      })}
+    </div>
   );
 
   return (
@@ -500,10 +705,16 @@ export function EvidenceLabScreen({ planId, onViewFix }: Props) {
 
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} label="Search results" placeholder="Search tests and results" />
+        <FilterSelect
+          label="Group"
+          value={groupFilter}
+          options={[{ value: "all", label: "All groups" }, ...(checks?.groups ?? []).map((g) => ({ value: g.key, label: g.label }))]}
+          onChange={setGroupFilter}
+        />
         <FilterSelect label="Result" value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
       </Toolbar>
 
-      <TableWithPanel panelOpen={selected !== null} table={listing} panel={panel} />
+      <TableWithPanel panelOpen={anyPanelOpen} table={checks ? grouped : listing} panel={panels} />
     </section>
   );
 }

@@ -406,7 +406,8 @@ else describes it by hand.
   for each run shown in Evidence Lab (`first`, and `retest` if there was one): the run `record`,
   its `run_sha256`, the `review`, the `code` it ran on (the `run_code` values, or null for a
   server test), the worded `result` as shown on screen, `reviewed_at` and the `research_request`.
-  Tests removed from the plan, and older runs of a test that was run again, are not in the file.
+  Tests removed from the plan are not in the file. Since phase 5b each entry also has `earlier_runs`: the older
+  reviewed runs of that test (a first result or a retest no longer shown), in full, in the same shape as `runs`.
 - `retest` also holds the column headings and the sentence that say which code each side ran on.
 - `code` is the connected code: `repository`, `branch`, `base_commit`, `component`, `is_demo`,
   `connected_at`. It is null before **Connect demo code**.
@@ -731,3 +732,42 @@ like the Migration measurements; the Tests step never shows it. Rules in SPEC 7e
 - **Evidence:** the `dependencies` part: `list`, `described`, `tops` (with their tie), `rows` (each answer with its
   label, first version, state, agreement and the lookup with its source), `systems` (blockers, libraries without an
   answer), `not_libraries`, and `measurements` (each copy's locked spec and its run, like any other result).
+
+## Phase 5b: one connected assessment (every check, the work groups, links, the evidence)
+
+Nothing here decides a result. Every number and word is read from the page that already shows it (`Lab._result` words
+every run, the same function every page uses), so Checks, Evidence, the two overviews and the Related block repeat what
+the checks and tests decided.
+
+- **Every check** (`backend/app/ledger/checks.py`, `LedgerMixin.ledger(plan_id)`): one row per check of every kind,
+  built on each read from records that already exist: each claim of the newest Verify run (kind `verify`), and each
+  reviewed run of a test by its phase: `first` (came from the test plan), `retest`, `proof` (a fix's proof),
+  `try` and `try_nginx` (a try on a test copy), `migration` (Measure status; a run right after an Apply or a Roll back
+  reads "After Apply" or "After Roll back", found by the apply's or roll back's `runs_before`) and `dependencies`
+  (Measure on a public copy). Each row has what ran (`name`), on what (`ran_on`), where it came from (`came_from`, with
+  a link back to where it was started), the newest result in its home page's words, when it last ran, how many runs,
+  and every run (`history`, newest first, each with its run record's SHA-256; a Verify run has no locked test, so no
+  fingerprint). Hidden plan items (`HIDDEN_ORIGINS`) stay hidden.
+- **The four work groups** (`ledger/groups.py`): Verification, Encryption tests, Migration, Dependencies, in that order
+  everywhere. An item sits in the group of the work it came from; one that relates to another group is named in that
+  group's foot line ("Also relates to this group"), never shown or counted twice. Each group counts Open, In progress
+  and Done; a fix's status word is sorted by `FIX_STATE_BY_WORD` (an unknown word counts as open). An empty group says
+  why (`EMPTY_CHECKS`, `EMPTY_FIXES`).
+- **Related** (`ledger/relations.py`): a graph of recorded links only (the claim a test targets, the results a fix came
+  from, a system's address or program, a migration system's fixes, a library's tie and blockers). `related(plan_id,
+  key)` gives up to five lines (Claim, Checks, Fix, System and track, Library); with no recorded link there is no line.
+- **Views and routes:** `GET /api/plans/{id}/checks` (the groups, the libraries for Evidence, the counts),
+  `GET /api/plans/{id}/checks/{check_id}` (one check with every run and its Related lines),
+  `GET /api/plans/{id}/related?key=` (any item's Related block), `GET /api/projects/{id}/overview` (every assessment
+  side by side, What changed between two, shared systems; `projects/overview.py`), and the Overview's blocks on
+  `GET /api/assessments/{id}` (`blocks`). The Fixes view carries `groups`.
+- **Assessments** (`projects/store.py`): add-only tables `assessment_details` (purpose and reference),
+  `assessment_signoffs` (who closed it, a note, when) and `import_files` (a copy of each scanner file, at most 1 MB,
+  data that is never run; it is what Rerun as new assessment brings in again). A phase 5a database opens unchanged.
+- **The evidence file** gains, inside the signed part: `verify_runs` (every Verify run, newest first; `verify` is the
+  first of them), `checks` (every check of every kind: `check`, `group`, `name`, `ran_on`, `came_from`, and `runs` with
+  `run_id` or `verify_run_id`, `at`, `came_from`, `result` and `run_sha256`), and each test's `earlier_runs` (above).
+  The `assessment` part also has the purpose, the reference and the sign-off. Download evidence works from the first
+  Verify result. The report has an "Every check" table near the top and Purpose and Signed off by lines under its
+  title. Signing is unchanged.
+

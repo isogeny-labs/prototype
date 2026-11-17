@@ -286,6 +286,77 @@
         }
       }
     },
+    "/api/projects/{project_id}/overview": {
+      "get": {
+        "summary": "Project Overview",
+        "operationId": "project_overview_api_projects__project_id__overview_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "from_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From Id"
+            }
+          },
+          {
+            "name": "to_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To Id"
+            }
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Archived"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectOverview"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{project_id}/assessments": {
       "post": {
         "summary": "New Assessment",
@@ -301,6 +372,53 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewAssessmentBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Created"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assessments/{assessment_id}/rerun": {
+      "post": {
+        "summary": "Rerun Assessment",
+        "operationId": "rerun_assessment_api_assessments__assessment_id__rerun_post",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewAssessmentBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1870,6 +1988,111 @@
           }
         }
       }
+    },
+    "/api/plans/{plan_id}/checks": {
+      "get": {
+        "summary": "Checks",
+        "operationId": "checks_api_plans__plan_id__checks_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecksView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/checks/{check_id}": {
+      "get": {
+        "summary": "Check",
+        "operationId": "check_api_plans__plan_id__checks__check_id__get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "check_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Check Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/related": {
+      "get": {
+        "summary": "Related",
+        "operationId": "related_api_plans__plan_id__related_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelatedView"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2007,6 +2230,25 @@
           "covered"
         ],
         "title": "AdvisoriesItem"
+      },
+      "AlgorithmName": {
+        "properties": {
+          "technical": {
+            "type": "string",
+            "title": "Technical"
+          },
+          "plain": {
+            "type": "string",
+            "title": "Plain"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "technical",
+          "plain"
+        ],
+        "title": "AlgorithmName"
       },
       "ApplyView": {
         "properties": {
@@ -2395,6 +2637,28 @@
             ],
             "title": "Name"
           },
+          "purpose": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Purpose"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5b: what it is for (a label only); null for one made before phase 5b."
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
           "status": {
             "$ref": "#/components/schemas/AssessmentStatus"
           },
@@ -2435,6 +2699,8 @@
           "number",
           "title",
           "name",
+          "purpose",
+          "reference",
           "status",
           "archived",
           "created_at",
@@ -2483,6 +2749,54 @@
             "type": "boolean",
             "title": "Close",
             "default": false
+          },
+          "signed_off_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed Off By"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
           }
         },
         "type": "object",
@@ -2629,6 +2943,17 @@
             ],
             "title": "Closed Line",
             "description": "Why it is closed, then the closed sentence; null when open."
+          },
+          "signoff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Signoff"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5b: who signed it off and when; null when open or closed by the earlier rule."
           }
         },
         "additionalProperties": false,
@@ -2636,7 +2961,8 @@
         "required": [
           "key",
           "label",
-          "closed_line"
+          "closed_line",
+          "signoff"
         ],
         "title": "AssessmentStatus"
       },
@@ -2665,6 +2991,28 @@
               }
             ],
             "title": "Name"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Purpose"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5b: what it is for (a label only); null for one made before phase 5b."
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
           },
           "status": {
             "$ref": "#/components/schemas/AssessmentStatus"
@@ -2750,6 +3098,17 @@
           },
           "next_step": {
             "$ref": "#/components/schemas/NextStep"
+          },
+          "blocks": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewBlocks"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5b: the Overview's blocks (null before a file)."
           }
         },
         "additionalProperties": false,
@@ -2759,6 +3118,8 @@
           "number",
           "title",
           "name",
+          "purpose",
+          "reference",
           "status",
           "archived",
           "created_at",
@@ -2817,6 +3178,26 @@
           "tone"
         ],
         "title": "Badge"
+      },
+      "CameFrom": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Verify\", \"Test plan\", \"Retest\", \"Fix proof\", \"Try on a test copy\", \"After Apply\", ..."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "CameFrom"
       },
       "CatalogItem": {
         "properties": {
@@ -3298,6 +3679,443 @@
         ],
         "title": "ChangeView"
       },
+      "CheckDetail": {
+        "properties": {
+          "check": {
+            "$ref": "#/components/schemas/CheckRow"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest run, worded as its page words it (null for a claim)."
+          },
+          "verify": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Result"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a claim: its newest Verify result."
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRun"
+            },
+            "type": "array",
+            "title": "Runs",
+            "description": "Newest first."
+          },
+          "related": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedLine"
+            },
+            "type": "array",
+            "title": "Related"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "check",
+          "result",
+          "verify",
+          "runs",
+          "related"
+        ],
+        "title": "CheckDetail"
+      },
+      "CheckGroup": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "verification",
+              "encryption",
+              "migration",
+              "dependencies"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/StateCounts"
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text",
+            "description": "Set when the group has no rows: why it is empty."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "started_on": {
+            "$ref": "#/components/schemas/StartedOn"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "also": {
+            "items": {
+              "$ref": "#/components/schemas/SameMeasurement"
+            },
+            "type": "array",
+            "title": "Also",
+            "description": "Checks of another group linked from this group's foot (\"Also relates to this group\")."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "question",
+          "counts",
+          "empty_text",
+          "note",
+          "started_on",
+          "rows"
+        ],
+        "title": "CheckGroup"
+      },
+      "CheckResult": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "tone",
+          "code"
+        ],
+        "title": "CheckResult"
+      },
+      "CheckRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "\"claim-3\", \"test-12\", \"retest-12\", \"proof-12\", \"try-<change>-try\", \"system-<key>\", \"library-<row>\""
+          },
+          "group": {
+            "type": "string",
+            "enum": [
+              "verification",
+              "encryption",
+              "migration",
+              "dependencies"
+            ],
+            "title": "Group"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "ran_on": {
+            "type": "string",
+            "title": "Ran On"
+          },
+          "came_from": {
+            "$ref": "#/components/schemas/CameFrom"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink",
+            "description": "Open where it started."
+          },
+          "evidence_link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "in_progress",
+              "done"
+            ],
+            "title": "State"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RowStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set while it waits or runs."
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its newest result, in the words of the page it came from."
+          },
+          "plain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plain"
+          },
+          "last_run_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run At"
+          },
+          "runs": {
+            "type": "integer",
+            "title": "Runs"
+          },
+          "same_as": {
+            "items": {
+              "$ref": "#/components/schemas/SameMeasurement"
+            },
+            "type": "array",
+            "title": "Same As",
+            "description": "Phase 5b: the same measurement made elsewhere (decisions 3 and 4); each keeps its own run."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "group",
+          "kind",
+          "name",
+          "ran_on",
+          "came_from",
+          "link",
+          "evidence_link",
+          "state",
+          "status",
+          "result",
+          "plain",
+          "last_run_at",
+          "runs"
+        ],
+        "title": "CheckRow"
+      },
+      "CheckRun": {
+        "properties": {
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "verify_run_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verify Run Id"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "came_from": {
+            "type": "string",
+            "title": "Came From"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fingerprint",
+            "description": "The run record's SHA-256 (a Verify run has none)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "verify_run_id",
+          "at",
+          "came_from",
+          "label",
+          "tone",
+          "fingerprint"
+        ],
+        "title": "CheckRun"
+      },
+      "ChecksView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/CheckGroup"
+            },
+            "type": "array",
+            "title": "Groups",
+            "description": "Always the four groups, in order."
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy"
+          },
+          "came_from_options": {
+            "items": {
+              "$ref": "#/components/schemas/CameFrom"
+            },
+            "type": "array",
+            "title": "Came From Options"
+          },
+          "libraries": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryEvidenceRow"
+            },
+            "type": "array",
+            "title": "Libraries",
+            "description": "For Evidence's Dependencies group: one row per library."
+          },
+          "evidence_counts": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StateCounts"
+            },
+            "type": "object",
+            "title": "Evidence Counts"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "title",
+          "subline",
+          "groups",
+          "busy",
+          "came_from_options",
+          "libraries",
+          "evidence_counts"
+        ],
+        "title": "ChecksView"
+      },
       "Claim": {
         "properties": {
           "id": {
@@ -3389,6 +4207,89 @@
         ],
         "title": "ClaimCounts"
       },
+      "Compare": {
+        "properties": {
+          "from_id": {
+            "type": "integer",
+            "title": "From Id"
+          },
+          "to_id": {
+            "type": "integer",
+            "title": "To Id"
+          },
+          "lists": {
+            "items": {
+              "$ref": "#/components/schemas/CompareList"
+            },
+            "type": "array",
+            "title": "Lists"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "from_id",
+          "to_id",
+          "lists"
+        ],
+        "title": "Compare"
+      },
+      "CompareItem": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "sub",
+          "link"
+        ],
+        "title": "CompareItem"
+      },
+      "CompareList": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "new",
+              "gone",
+              "moved",
+              "single"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CompareItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "items"
+        ],
+        "title": "CompareList"
+      },
       "ConfirmBody": {
         "properties": {
           "address": {
@@ -3425,6 +4326,21 @@
             ],
             "title": "Assessment Id",
             "description": "A new project's first assessment."
+          },
+          "notices": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notices",
+            "description": "Phase 5b: Rerun as new assessment, the import's notices."
           }
         },
         "additionalProperties": false,
@@ -3698,6 +4614,24 @@
           "fix_id": {
             "type": "string",
             "title": "Fix Id"
+          },
+          "system_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System Key",
+            "description": "Phase 5b: the system the Blocks marker opens."
+          },
+          "words": {
+            "type": "string",
+            "title": "Words",
+            "description": "Phase 5b: \"Blocks localhost:8443 · key exchange\".",
+            "default": ""
           }
         },
         "additionalProperties": false,
@@ -3868,6 +4802,18 @@
               }
             ],
             "title": "Agreement Words"
+          },
+          "no_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Reason",
+            "description": "Phase 5b: under a No, the reason in one line (\"OpenSSL added this in 3.5.0; you have 3.0.22.\")."
           }
         },
         "additionalProperties": false,
@@ -4326,6 +5272,12 @@
             "type": "array",
             "title": "Cells",
             "description": "one per question, in the order of questions"
+          },
+          "answers_short": {
+            "type": "string",
+            "title": "Answers Short",
+            "description": "Phase 5b: the answers in a few words, for the compact table (\"No to all three\").",
+            "default": ""
           },
           "blocks": {
             "items": {
@@ -4853,6 +5805,24 @@
         ],
         "title": "FixButton"
       },
+      "FixCameFrom": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "link"
+        ],
+        "title": "FixCameFrom"
+      },
       "FixCounts": {
         "properties": {
           "total": {
@@ -5023,6 +5993,35 @@
               }
             ],
             "description": "Phase 4c: advisories for a text-only fix on a real library."
+          },
+          "group": {
+            "type": "string",
+            "title": "Group",
+            "description": "Phase 5b: the work group it came from.",
+            "default": "encryption"
+          },
+          "group_label": {
+            "type": "string",
+            "title": "Group Label",
+            "default": ""
+          },
+          "came_from_links": {
+            "items": {
+              "$ref": "#/components/schemas/FixCameFrom"
+            },
+            "type": "array",
+            "title": "Came From Links",
+            "description": "Phase 5b: where it came from, as links."
+          },
+          "fix_state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "in_progress",
+              "done"
+            ],
+            "title": "Fix State",
+            "default": "open"
           }
         },
         "additionalProperties": false,
@@ -5247,6 +6246,93 @@
           "server_line"
         ],
         "title": "FixDetailWhat"
+      },
+      "FixGroup": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "verification",
+              "encryption",
+              "migration",
+              "dependencies"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/StateCounts"
+          },
+          "fix_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fix Ids"
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text"
+          },
+          "also": {
+            "items": {
+              "$ref": "#/components/schemas/FixGroupAlso"
+            },
+            "type": "array",
+            "title": "Also",
+            "description": "\"Also relates to this group\": fixes listed in another group."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "question",
+          "counts",
+          "fix_ids",
+          "empty_text",
+          "also"
+        ],
+        "title": "FixGroup"
+      },
+      "FixGroupAlso": {
+        "properties": {
+          "fix_id": {
+            "type": "string",
+            "title": "Fix Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "group_label": {
+            "type": "string",
+            "title": "Group Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "fix_id",
+          "title",
+          "group_label"
+        ],
+        "title": "FixGroupAlso"
       },
       "FixLine": {
         "properties": {
@@ -5574,6 +6660,14 @@
             "type": "boolean",
             "title": "Busy",
             "description": "something is running: ask again in a second"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/FixGroup"
+            },
+            "type": "array",
+            "title": "Groups",
+            "description": "Phase 5b: the four work groups, in order."
           }
         },
         "additionalProperties": false,
@@ -5661,6 +6755,71 @@
         "type": "object",
         "title": "FolderChangeBody",
         "description": "Rename, move or archive. Only the fields sent change (move to the top level with parent_id null)."
+      },
+      "Headline": {
+        "properties": {
+          "claims": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClaimCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tests": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TestCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fixes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FixCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "systems": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SystemCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "blockers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blockers"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "claims",
+          "tests",
+          "fixes",
+          "systems",
+          "blockers"
+        ],
+        "title": "Headline"
       },
       "Import": {
         "properties": {
@@ -5771,6 +6930,69 @@
         ],
         "title": "ImportSetting",
         "description": "One settings row from the file, e.g. location \"localhost:8451\", text \"Exposure: internet-facing. Data lifespan: long-lived.\" "
+      },
+      "ItemLink": {
+        "properties": {
+          "page": {
+            "type": "string",
+            "title": "Page",
+            "description": "The page that holds the item, e.g. \"evidence\", \"fixes\", \"migration/systems\"."
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item",
+            "description": "The item to open there (a check, claim, fix, system or library id); null for the page."
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group",
+            "description": "The work group to filter the page to."
+          },
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id",
+            "description": "Another assessment (the Project overview links into each)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "page",
+          "item"
+        ],
+        "title": "ItemLink"
       },
       "LabResult": {
         "properties": {
@@ -6421,6 +7643,98 @@
           "value"
         ],
         "title": "LabeledRichValue"
+      },
+      "LastDownload": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "fingerprint": {
+            "type": "string",
+            "title": "Fingerprint"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "at",
+          "fingerprint"
+        ],
+        "title": "LastDownload"
+      },
+      "LibraryEvidenceRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "row_id": {
+            "type": "string",
+            "title": "Row Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "via_words": {
+            "type": "string",
+            "title": "Via Words"
+          },
+          "answers_short": {
+            "type": "string",
+            "title": "Answers Short"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyBlock"
+            },
+            "type": "array",
+            "title": "Blocks"
+          },
+          "measured": {
+            "type": "boolean",
+            "title": "Measured"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "open",
+              "in_progress",
+              "done"
+            ],
+            "title": "State"
+          },
+          "lookups": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyLookup"
+            },
+            "type": "array",
+            "title": "Lookups",
+            "description": "Each lookup's source, quoted line and date checked."
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyCell"
+            },
+            "type": "array",
+            "title": "Cells",
+            "description": "Its answers as Dependencies words them."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "row_id",
+          "name",
+          "via_words",
+          "answers_short",
+          "blocks",
+          "measured",
+          "state"
+        ],
+        "title": "LibraryEvidenceRow"
       },
       "LockedTestField": {
         "properties": {
@@ -7982,6 +9296,49 @@
         ],
         "title": "NameBody"
       },
+      "NewAssessmentBody": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purpose"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          }
+        },
+        "type": "object",
+        "title": "NewAssessmentBody",
+        "description": "Phase 5b: the New assessment box (and Rerun as new assessment). Every field may be left out."
+      },
       "NextStep": {
         "properties": {
           "page": {
@@ -8061,6 +9418,156 @@
           "order"
         ],
         "title": "OrderBody"
+      },
+      "OverviewBlocks": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewFact"
+            },
+            "type": "array",
+            "title": "Findings",
+            "description": "False claims, failed tests, dependency blockers: each its own count."
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/OverviewEvidence"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "groups",
+          "findings",
+          "evidence"
+        ],
+        "title": "OverviewBlocks"
+      },
+      "OverviewEvidence": {
+        "properties": {
+          "runs": {
+            "type": "integer",
+            "title": "Runs"
+          },
+          "last_download": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LastDownload"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "runs",
+          "last_download"
+        ],
+        "title": "OverviewEvidence"
+      },
+      "OverviewFact": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "integer",
+            "title": "Value"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "value",
+          "link"
+        ],
+        "title": "OverviewFact"
+      },
+      "OverviewGroup": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "verification",
+              "encryption",
+              "migration",
+              "dependencies"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "checks": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StateCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fixes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StateCounts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/OverviewFact"
+            },
+            "type": "array",
+            "title": "Facts"
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "question",
+          "checks",
+          "fixes",
+          "facts",
+          "empty_text"
+        ],
+        "title": "OverviewGroup"
       },
       "PasswordBody": {
         "properties": {
@@ -8349,6 +9856,163 @@
         "type": "object",
         "title": "ProjectChangeBody"
       },
+      "ProjectOverview": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectOverviewRow"
+            },
+            "type": "array",
+            "title": "Rows",
+            "description": "Open assessments first, newest first."
+          },
+          "compare": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Compare"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shared": {
+            "items": {
+              "$ref": "#/components/schemas/SharedSystem"
+            },
+            "type": "array",
+            "title": "Shared"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/SharedAssessment"
+            },
+            "type": "array",
+            "title": "Choices"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "rows",
+          "compare",
+          "shared",
+          "choices"
+        ],
+        "title": "ProjectOverview"
+      },
+      "ProjectOverviewRow": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Assessment 2\", or the name the person gave it"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "purpose": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Purpose"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5b: what it is for (a label only); null for one made before phase 5b."
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssessmentStatus"
+          },
+          "archived": {
+            "type": "boolean",
+            "title": "Archived"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "closed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentFile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "headline": {
+            "$ref": "#/components/schemas/Headline"
+          },
+          "has_results": {
+            "type": "boolean",
+            "title": "Has Results"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "title",
+          "name",
+          "purpose",
+          "reference",
+          "status",
+          "archived",
+          "created_at",
+          "closed_at",
+          "file",
+          "headline",
+          "has_results"
+        ],
+        "title": "ProjectOverviewRow"
+      },
       "ProjectView": {
         "properties": {
           "id": {
@@ -8392,6 +10056,11 @@
             "type": "array",
             "title": "Assessments",
             "description": "Newest first."
+          },
+          "next_name": {
+            "type": "string",
+            "title": "Next Name",
+            "description": "Phase 5b: the name the New assessment box starts with (\"Assessment 3\")."
           }
         },
         "additionalProperties": false,
@@ -8403,7 +10072,8 @@
           "archived",
           "is_demo",
           "path",
-          "assessments"
+          "assessments",
+          "next_name"
         ],
         "title": "ProjectView"
       },
@@ -8725,6 +10395,25 @@
         ],
         "title": "PullRequestBody"
       },
+      "Purpose": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "Purpose"
+      },
       "RanOn": {
         "properties": {
           "title": {
@@ -8784,6 +10473,102 @@
           "tag"
         ],
         "title": "RanOnFingerprint"
+      },
+      "RelatedItem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "also": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "sub",
+          "link",
+          "also"
+        ],
+        "title": "RelatedItem"
+      },
+      "RelatedLine": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "claim",
+              "test",
+              "fix",
+              "system",
+              "library"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Claim\", \"Checks\", \"Fix\", \"System and track\", \"Library\""
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "title",
+          "items"
+        ],
+        "title": "RelatedLine"
+      },
+      "RelatedView": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "related": {
+            "items": {
+              "$ref": "#/components/schemas/RelatedLine"
+            },
+            "type": "array",
+            "title": "Related"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "related"
+        ],
+        "title": "RelatedView"
       },
       "ResearchField": {
         "properties": {
@@ -9147,6 +10932,44 @@
         ],
         "title": "RunRecordView"
       },
+      "SameMeasurement": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "ran_on": {
+            "type": "string",
+            "title": "Ran On"
+          },
+          "group_label": {
+            "type": "string",
+            "title": "Group Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink",
+            "description": "The other check on Checks."
+          },
+          "evidence_link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "ran_on",
+          "group_label",
+          "link",
+          "evidence_link"
+        ],
+        "title": "SameMeasurement"
+      },
       "Session": {
         "properties": {
           "setup_required": {
@@ -9185,6 +11008,100 @@
         ],
         "title": "Session"
       },
+      "SharedAssessment": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "SharedAssessment"
+      },
+      "SharedSystem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "server",
+              "software"
+            ],
+            "title": "Kind"
+          },
+          "assessments": {
+            "items": {
+              "$ref": "#/components/schemas/SharedAssessment"
+            },
+            "type": "array",
+            "title": "Assessments"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "assessments",
+          "note"
+        ],
+        "title": "SharedSystem"
+      },
+      "Signoff": {
+        "properties": {
+          "by": {
+            "type": "string",
+            "title": "By",
+            "description": "The name typed when it was closed (the app has one login)."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "by",
+          "note",
+          "at"
+        ],
+        "title": "Signoff"
+      },
       "SkippedItem": {
         "properties": {
           "name": {
@@ -9214,6 +11131,49 @@
         ],
         "title": "SkippedItem",
         "description": "Something in the file that this version doesn't check (for example a hash algorithm)."
+      },
+      "StartedOn": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "page": {
+            "type": "string",
+            "title": "Page"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "page"
+        ],
+        "title": "StartedOn"
+      },
+      "StateCounts": {
+        "properties": {
+          "open": {
+            "type": "integer",
+            "title": "Open"
+          },
+          "in_progress": {
+            "type": "integer",
+            "title": "In Progress"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "open",
+          "in_progress",
+          "done"
+        ],
+        "title": "StateCounts"
       },
       "StrongLabel": {
         "properties": {
@@ -9941,6 +11901,27 @@
             },
             "type": "array",
             "title": "Projects"
+          },
+          "purposes": {
+            "items": {
+              "$ref": "#/components/schemas/Purpose"
+            },
+            "type": "array",
+            "title": "Purposes",
+            "description": "Phase 5b: the purposes an assessment can have, in order."
+          },
+          "one_login_line": {
+            "type": "string",
+            "title": "One Login Line",
+            "description": "Phase 5b: said in the Close box: who records the sign-off name."
+          },
+          "algorithm_names": {
+            "items": {
+              "$ref": "#/components/schemas/AlgorithmName"
+            },
+            "type": "array",
+            "title": "Algorithm Names",
+            "description": "Phase 5b: plain name first, technical under it."
           }
         },
         "additionalProperties": false,
@@ -9948,7 +11929,9 @@
         "required": [
           "organization",
           "folders",
-          "projects"
+          "projects",
+          "purposes",
+          "one_login_line"
         ],
         "title": "Workspace"
       },
@@ -10041,6 +12024,15 @@
             "type": "integer",
             "title": "Assessments"
           },
+          "open_count": {
+            "type": "integer",
+            "title": "Open Count",
+            "description": "Phase 5b: open assessments (archived ones left out)."
+          },
+          "closed_count": {
+            "type": "integer",
+            "title": "Closed Count"
+          },
           "latest": {
             "anyOf": [
               {
@@ -10049,7 +12041,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Phase 5b: the assessment worked on last."
           },
           "counts": {
             "$ref": "#/components/schemas/AssessmentCounts"
@@ -10066,6 +12059,8 @@
           "created_at",
           "path",
           "assessments",
+          "open_count",
+          "closed_count",
           "latest",
           "counts"
         ],
@@ -10358,6 +12353,25 @@
         ],
         "type": "string",
         "title": "DependencyTrack"
+      },
+      "GroupKey": {
+        "enum": [
+          "verification",
+          "encryption",
+          "migration",
+          "dependencies"
+        ],
+        "type": "string",
+        "title": "GroupKey"
+      },
+      "ItemState": {
+        "enum": [
+          "open",
+          "in_progress",
+          "done"
+        ],
+        "type": "string",
+        "title": "ItemState"
       }
     }
   }

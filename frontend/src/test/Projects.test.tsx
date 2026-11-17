@@ -58,9 +58,12 @@ describe("Projects page table", () => {
     expect(acme).toContain("1 Couldn't check");
     expect(acme).not.toContain("Post-quantum only");
     expect(acme).not.toContain("Not yet");
+    // Each project says how many of its assessments are open and closed; the counts are those of the one worked on last.
+    expect(acme).toContain("1 open · 1 closed");
     const ledger = text(rowOf("Ledger"));
+    expect(ledger).toContain("1 open · 0 closed");
     expect(ledger.match(/Not yet/g)).toHaveLength(4);
-    expect(ledger).not.toMatch(/\d+ (checked|failed|open)/);
+    expect(ledger.replace("1 open · 0 closed", "")).not.toMatch(/\d+ (checked|failed|open)/);
   });
 
   it("uses no score, grade or verdict words", async () => {
@@ -71,14 +74,14 @@ describe("Projects page table", () => {
     expect(page).not.toMatch(/\bscore|\bgrade|secure|\brisk level|time to hack/i);
   });
 
-  it("searches by name and opens the project's latest assessment from a row", async () => {
+  it("searches by name and opens the project's overview from a row", async () => {
     mockApi(base());
     render(<App />);
     await screen.findByTestId("projects-page");
     fireEvent.change(within(screen.getByTestId("projects-page")).getByRole("searchbox", { name: "Search projects" }), { target: { value: "ledg" } });
     expect(rows()).toHaveLength(1);
     fireEvent.click(rows()[0]!);
-    await waitFor(() => expect(window.location.hash).toBe("#/a/111/overview"));
+    await waitFor(() => expect(window.location.hash).toBe("#/p/11"));
   });
 
   it("opens a row with the keyboard", async () => {
@@ -86,7 +89,7 @@ describe("Projects page table", () => {
     render(<App />);
     await screen.findByTestId("projects-page");
     fireEvent.keyDown(rowOf("Acme Pay"), { key: "Enter" });
-    await waitFor(() => expect(window.location.hash).toBe("#/a/101/overview"));
+    await waitFor(() => expect(window.location.hash).toBe("#/p/10"));
   });
 });
 

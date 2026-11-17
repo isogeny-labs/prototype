@@ -4,7 +4,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DISCLAIMER, openFreshAssessment, password, shotFixes, SIDEBAR_PAGES, stepLink, stepNav, shotBothThemes } from "./shared";
+import { DISCLAIMER, expectPageOpen, openFreshAssessment, password, shotFixes, SIDEBAR_PAGES, stepLink, stepNav, shotBothThemes } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.resolve(here, "../../docs/screenshots/phase1");
@@ -23,10 +23,13 @@ function row(target: Page, claimText: string | RegExp) {
 }
 
 // Phase 5a: a row's "Details and evidence" opens the right-side detail panel (today's details and raw evidence).
+// Phase 5b: beside the open panel the table is compact (claim and result, no toggle); a click on a row opens it there.
 async function openDetails(target: Page, claimText: string | RegExp) {
-  const toggle = row(target, claimText).getByTestId("verify-details-toggle");
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  const r = row(target, claimText);
+  const toggle = r.getByTestId("verify-details-toggle");
+  if ((await toggle.count()) > 0) await toggle.click();
+  else await r.click();
+  await expect(row(target, claimText)).toHaveAttribute("aria-selected", "true");
   return target.getByTestId("detail-panel");
 }
 
@@ -245,21 +248,22 @@ test("the assistant panel has its title and can be collapsed", async () => {
   await expect(panel.getByText("The assistant isn't built yet")).toBeVisible();
 });
 
-test("Continue to tests shows the five suggested tests", async () => {
-  await page.getByRole("button", { name: "Continue to tests" }).click();
-  await expect(page.getByRole("heading", { name: "Tests", level: 1 })).toBeVisible();
+test("Continue to checks shows the five suggested tests", async () => {
+  await page.getByRole("button", { name: "Continue to checks" }).click();
+  await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
   const cards = page.getByTestId("test-card");
   await expect(cards).toHaveCount(5);
   // Nothing has been run, so nothing shows a result.
   await expect(cards.getByTestId("test-status")).toHaveText(Array(5).fill("Not run yet"));
-  await expect(page.getByTestId("result-badge")).toHaveCount(0);
-  // The step bar highlights where you are: Tests, and only Tests. Evidence Lab opens once there are results.
+  // (Checks also lists the Verify results above the test plan; the plan itself shows no result yet.)
+  await expect(page.getByTestId("test-plan").getByTestId("result-badge")).toHaveCount(0);
+  // The sidebar highlights where you are: Checks (was Tests), and only Checks. Phase 5b: once a file is in, every page
+  // opens; a page with nothing yet says what fills it.
   await expect(stepLink(page, "3. Tests")).toHaveAttribute("aria-current", "page");
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveCount(1);
-  await expect(stepLink(page, "4. Evidence Lab")).toBeDisabled();
-  // The six steps are the sidebar's pages since phase 5a. Fixes opens when Evidence does: once there is a result.
+  await expectPageOpen(page, "4. Evidence Lab");
   await expect(stepNav(page).getByRole("link")).toHaveText(SIDEBAR_PAGES);
-  await expect(stepLink(page, "5. Fixes")).toBeDisabled();
+  await expectPageOpen(page, "5. Fixes");
   await shot(page, "09-tests.png");
 });
 

@@ -17,6 +17,7 @@ from app.fixes import changes
 from app.run import components
 from app.present import changes as present_changes
 from app.present import fixes as present_fixes
+from app.ledger.fixes import group_fixes
 from app.engine import research
 from app.db import ImportRow, PlanRow, ReviewRow, TestRunRow, TestSpecRow
 from app.fixes.gitrepo import GitRepoError
@@ -45,6 +46,8 @@ class FixesMixin:
     # Declared for the type check only (nothing is assigned): from Lab, and from DependenciesMixin (phase 4d).
     jobs: Any
     _dependency_fix_view: Callable[..., dict]
+    _dependency_state: Callable[..., dict | None]
+    _migration_states: Callable[..., list[dict]]
 
     def fixes_view(self, plan_id: int) -> dict:
         """The Fixes step for one plan: every fix as the screen shows it, in list order."""
@@ -56,8 +59,18 @@ class FixesMixin:
             # shown as still running with nothing left to make the screen ask again.
             busy = (self.jobs.busy(plan.id) or self.jobs.busy(("changes", plan.id)) or self.jobs.busy(("migration", plan.id))
                     or self.jobs.busy(("dependencies", plan.id)))
-            shown = [detail for _, detail in self._fix_details(db, plan)]
-            return present_fixes.view(plan.id, bool(imp.is_demo), shown, busy or any(d["status"]["busy"] for d in shown))
+            pairs = self._fix_details(db, plan)
+            shown = [detail for _, detail in pairs]
+            view = present_fixes.view(plan.id, bool(imp.is_demo), shown, busy or any(d["status"]["busy"] for d in shown))
+            # Phase 5b: the four work groups, each fix's group and the links for where it came from.
+            systems = {s["item_id"]: s["key"] for s in self._migration_states(db, plan)}
+            # The libraries of the dependency list, asked only when a fix is about a real library.
+            listed: set = set()
+            if any(state.get("real_library") for state, _ in pairs):
+                deps = self._dependency_state(db, plan)
+                listed = {(str(r.get("library") or r.get("name") or "").casefold(), str(r.get("version") or ""))
+                          for r in (deps or {}).get("rows") or []}
+            return group_fixes(view, pairs, systems, listed)
 
     def _fix_details(self, db, plan: PlanRow) -> list[tuple[dict, dict]]:
         """Every fix of the plan as (where it stands, what the Fixes step shows for it). The download uses the

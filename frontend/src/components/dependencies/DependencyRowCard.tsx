@@ -1,6 +1,7 @@
 import type { DependencyCell, DependencyRow } from "../../api";
 import { ResultDetail } from "../lab/ResultDetail";
 import { ViewInFixes } from "../migration/parts";
+import { ItemLinkView } from "../related";
 import { withPlainName } from "../../plainNames";
 import { ProofChip, ResultBadge, SecondaryButton, SourceTag, StatusView, formatTime } from "../ui";
 
@@ -43,13 +44,38 @@ interface Props {
   onViewFix: (fixId: string) => void;
 }
 
-/** The answers of one library as chips, one per question, each with its proof chip: the table's cells. */
+/** The answers of one library as chips, one per question, each with its proof chip: the table's cells. Phase 5b: under
+ * every No, the reason in one line ("OpenSSL added this in 3.5.0; you have 3.0.22."). */
 export function AnswerChip({ cell }: { cell: DependencyCell }) {
   return (
     <div data-testid="dependency-answer" data-question={cell.question} data-answer={cell.answer} data-state={cell.state} className="flex min-w-0 flex-col items-start gap-1.5">
-      <ResultBadge label={cell.answer_words} tone={cell.tone} />
+      <ResultBadge label={cell.answer_words} tone={cell.tone} wrap />
       {cell.label_words ? <ProofChip>{cell.label_words}</ProofChip> : null}
+      {cell.no_reason ? (
+        <p data-testid="no-reason" className="text-xs leading-snug text-slate-300">
+          {cell.no_reason}
+        </p>
+      ) : null}
     </div>
+  );
+}
+
+/** Phase 5b: the row's Blocks marker, naming the system and the track; it opens that track on the Roadmap. */
+export function BlocksMarker({ row }: { row: DependencyRow }) {
+  if (row.blocks.length === 0) return null;
+  return (
+    <span className="mt-1.5 flex flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+      {row.blocks.map((b) => (
+        <ItemLinkView
+          key={`${b.system}/${b.track}`}
+          link={{ page: "migration/roadmap", item: b.system_key ?? null }}
+          testId="blocks-marker"
+          className="rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[11px] font-medium text-amber-100 hover:underline"
+        >
+          {b.words || `Blocks ${b.system} · ${b.track_words}`}
+        </ItemLinkView>
+      ))}
+    </span>
   );
 }
 
@@ -78,7 +104,7 @@ export function DependencyDetail({ row, questions, busy, detailsOpen, onDetailsO
         </div>
       </div>
 
-      <div className="mt-3 grid gap-2 md:grid-cols-3">
+      <div className="mt-3 grid gap-2 @2xl:grid-cols-3">
         {row.cells.map((cell) => (
           <Cell key={cell.question} cell={cell} title={titles[cell.question] ?? cell.question} />
         ))}

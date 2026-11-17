@@ -122,6 +122,38 @@ export type {
   NextStep,
   AssessmentView,
   DemoProjectsLoaded,
+  // Phase 5b
+  GroupKey,
+  ItemState,
+  ItemLink,
+  StateCounts,
+  CameFrom,
+  CheckResult,
+  CheckRow,
+  SameMeasurement,
+  CheckGroup,
+  LibraryEvidenceRow,
+  ChecksView,
+  CheckRun,
+  RelatedItem,
+  RelatedLine,
+  CheckDetail,
+  RelatedView,
+  FixCameFrom,
+  FixGroup,
+  FixGroupAlso,
+  Purpose,
+  Signoff,
+  AlgorithmName,
+  OverviewFact,
+  OverviewGroup,
+  OverviewBlocks,
+  ProjectOverview,
+  ProjectOverviewRow,
+  Compare,
+  CompareList,
+  CompareItem,
+  SharedSystem,
 } from "./api.gen";
 import type {
   Session,
@@ -142,6 +174,10 @@ import type {
   ProjectView,
   AssessmentView,
   DemoProjectsLoaded,
+  ChecksView,
+  CheckDetail,
+  RelatedView,
+  ProjectOverview,
 } from "./api.gen";
 
 export class ApiError extends Error {
@@ -278,10 +314,38 @@ export const api = {
   getProject: (id: number) => request<ProjectView>(`/api/projects/${id}`),
   changeProject: (id: number, change: { name?: string; folder_id?: number | null; move?: boolean; archived?: boolean }) =>
     request<Created>(`/api/projects/${id}`, { method: "POST", json: change }),
-  newAssessment: (projectId: number) => request<Created>(`/api/projects/${projectId}/assessments`, { method: "POST" }),
+  /** Phase 5b: the New assessment box (every field may be left out). It closes nothing. */
+  newAssessment: (projectId: number, box: { name?: string; purpose?: string; reference?: string } = {}) =>
+    request<Created>(`/api/projects/${projectId}/assessments`, { method: "POST", json: box }),
+  /** Phase 5b: Rerun as new assessment: the same scanner file in a fresh assessment of the same project. */
+  rerunAssessment: (id: number, box: { name?: string; purpose?: string; reference?: string } = {}) =>
+    request<Created>(`/api/assessments/${id}/rerun`, { method: "POST", json: box }),
   getAssessment: (id: number) => request<AssessmentView>(`/api/assessments/${id}`),
-  changeAssessment: (id: number, change: { name?: string; project_id?: number; archived?: boolean; close?: boolean }) =>
-    request<AssessmentView>(`/api/assessments/${id}`, { method: "POST", json: change }),
+  changeAssessment: (
+    id: number,
+    change: {
+      name?: string;
+      project_id?: number;
+      archived?: boolean;
+      close?: boolean;
+      signed_off_by?: string;
+      note?: string;
+      purpose?: string;
+      reference?: string;
+    },
+  ) => request<AssessmentView>(`/api/assessments/${id}`, { method: "POST", json: change }),
+  getProjectOverview: (id: number, pick: { from?: number; to?: number; archived?: boolean } = {}) => {
+    const q = new URLSearchParams();
+    if (pick.from) q.set("from_id", String(pick.from));
+    if (pick.to) q.set("to_id", String(pick.to));
+    if (pick.archived) q.set("archived", "true");
+    const query = q.toString();
+    return request<ProjectOverview>(`/api/projects/${id}/overview${query ? `?${query}` : ""}`);
+  },
+  // Phase 5b: every check of an assessment, one check's detail, and the Related block of any item.
+  getChecks: (planId: number) => request<ChecksView>(`/api/plans/${planId}/checks`),
+  getCheck: (planId: number, checkId: string) => request<CheckDetail>(`/api/plans/${planId}/checks/${encodeURIComponent(checkId)}`),
+  getRelated: (planId: number, key: string) => request<RelatedView>(`/api/plans/${planId}/related?key=${encodeURIComponent(key)}`),
   loadDemoProjects: () => request<DemoProjectsLoaded>("/api/demo-projects", { method: "POST" }),
 
   getCurrentImport: () => orNullOn404(request<Import>("/api/import/current")),

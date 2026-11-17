@@ -516,6 +516,38 @@ class AssessmentRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class AssessmentDetailRow(Base):
+    """Phase 5b: an assessment's purpose and optional reference. A change adds a row; the newest one stands."""
+    __tablename__ = "assessment_details"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(ForeignKey("assessments.id"))
+    purpose: Mapped[str] = mapped_column(String(40))
+    reference: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class AssessmentSignoffRow(Base):
+    """Phase 5b: who signed an assessment off when it was closed (a typed name: the app has one login)."""
+    __tablename__ = "assessment_signoffs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    assessment_id: Mapped[int] = mapped_column(ForeignKey("assessments.id"), unique=True)
+    signed_off_by: Mapped[str] = mapped_column(String(120))
+    note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    signed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ImportFileRow(Base):
+    """Phase 5b: a copy of the scanner file an import was read from, so Rerun as new assessment can read it again.
+    It is data (at most 1 MB) and is never run."""
+    __tablename__ = "import_files"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    import_id: Mapped[int] = mapped_column(ForeignKey("imports.id"), unique=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    sha256: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 class AppSettingRow(Base):
     """Small settings of this installation, for example the organization's name."""
     __tablename__ = "app_settings"
@@ -529,7 +561,8 @@ NO_DELETE_TABLES = ("folders", "projects", "assessments")
 APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", "changes", "proofs", "proof_reviews",
                       "pull_requests", "approvals", "merges", "run_code", "system_settings", "migration_choices",
                       "change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks",
-                      "dependency_lists", "dependency_ties")
+                      "dependency_lists", "dependency_ties",
+                      "assessment_details", "assessment_signoffs", "import_files")   # phase 5b
 
 
 def create_append_only_triggers(engine) -> None:

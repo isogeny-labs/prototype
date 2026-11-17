@@ -1,7 +1,7 @@
 """Phase 5a: the organization, folders, projects and assessments, Load demo projects, and the closed guard."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Body, Depends, Request
 from pydantic import BaseModel, Field, StrictBool, StrictInt, StrictStr
 
 from app.projects.demo import load_demo_projects
@@ -43,6 +43,20 @@ class AssessmentChangeBody(BaseModel):
     project_id: StrictInt | None = None
     archived: StrictBool | None = None
     close: StrictBool = False
+    signed_off_by: StrictStr | None = Field(default=None, max_length=200)   # phase 5b: required to close
+    note: StrictStr | None = Field(default=None, max_length=1000)
+    purpose: StrictStr | None = Field(default=None, max_length=40)
+    reference: StrictStr | None = Field(default=None, max_length=400)
+
+
+class NewAssessmentBody(BaseModel):
+    """Phase 5b: the New assessment box (and Rerun as new assessment). Every field may be left out."""
+    name: StrictStr | None = Field(default=None, max_length=200)
+    purpose: StrictStr | None = Field(default=None, max_length=40)
+    reference: StrictStr | None = Field(default=None, max_length=400)
+
+
+OPTIONAL_BODY = Body(None)   # the box's fields may all be left out, and so may the body
 
 
 def _changes(body: BaseModel, move_field: str | None) -> dict:
@@ -86,13 +100,23 @@ def routes(lab, require_login) -> APIRouter:
     def project(project_id: int):
         return lab.project_view(project_id)
 
+    @router.get("/api/projects/{project_id}/overview", dependencies=login, responses=shows(models.ProjectOverview))
+    def project_overview(project_id: int, from_id: int | None = None, to_id: int | None = None, archived: bool = False):
+        return lab.project_overview(project_id, from_id, to_id, archived)
+
     @router.post("/api/projects/{project_id}", dependencies=login, responses=shows(models.Created))
     def change_project(project_id: int, body: ProjectChangeBody):
         return lab.update_project(project_id, _changes(body, "folder_id"))
 
     @router.post("/api/projects/{project_id}/assessments", dependencies=login, responses=shows(models.Created))
-    def new_assessment(project_id: int):
-        return lab.new_assessment(project_id)
+    def new_assessment(project_id: int, body: NewAssessmentBody = OPTIONAL_BODY):
+        b = body or NewAssessmentBody()
+        return lab.new_assessment(project_id, b.name, b.purpose, b.reference)
+
+    @router.post("/api/assessments/{assessment_id}/rerun", dependencies=login, responses=shows(models.Created))
+    def rerun_assessment(assessment_id: int, body: NewAssessmentBody = OPTIONAL_BODY):
+        b = body or NewAssessmentBody()
+        return lab.rerun_assessment(assessment_id, b.name, b.purpose, b.reference)
 
     @router.get("/api/assessments/{assessment_id}", dependencies=login, responses=shows(models.AssessmentView))
     def assessment(assessment_id: int):
@@ -104,7 +128,11 @@ def routes(lab, require_login) -> APIRouter:
         if body.project_id is not None:
             changes["project_id"] = body.project_id
         if body.close:
-            changes["close"] = True
+            changes.update(close=True, signed_off_by=body.signed_off_by, note=body.note)
+        if body.purpose is not None:
+            changes["purpose"] = body.purpose
+        if body.reference is not None:
+            changes["reference"] = body.reference
         lab.update_assessment(assessment_id, changes)
         return lab.assessment_view(assessment_id)
 

@@ -10,6 +10,7 @@ import {
   type MigrationView,
 } from "../api";
 import { DependenciesView } from "./dependencies/DependenciesView";
+import { RelatedFor } from "./related";
 import { downloadEvidence } from "./evidenceDownload";
 import { Roadmap } from "./migration/Roadmap";
 import { SystemDetail } from "./migration/SystemDetail";
@@ -35,6 +36,8 @@ interface Props {
   /** Phase 5a: the view the sidebar picked (Systems, Roadmap, Dependencies); the switches still work and tell the app. */
   tab?: Tab;
   onTab?: (tab: Tab) => void;
+  /** Phase 5b: a system (or, in Dependencies, a library row) to open, from a link. */
+  openItem?: string | null;
 }
 
 /** The Migration step. Every word, status, number and recommendation comes from the backend. */
@@ -44,6 +47,7 @@ export function MigrationScreen({
   onPlanChanged,
   tab: shownTab,
   onTab,
+  openItem = null,
 }: Props) {
   const [view, setView] = useState<MigrationView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +68,10 @@ export function MigrationScreen({
     setSelectedKey(key);
     setDismissed(false);
   }, []);
+  // Phase 5b: a link names a system ("server:localhost:8443"): open its panel.
+  useEffect(() => {
+    if (openItem && (openItem.startsWith("server:") || openItem.startsWith("software:"))) openSystem(openItem);
+  }, [openItem, openSystem]);
   const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(
     new Set(),
   );
@@ -275,10 +283,44 @@ export function MigrationScreen({
 
   // Two columns, so the table still fits beside the open detail panel: each track's name above its status, then the
   // plan line, in the order of the cards before the table.
+  // Phase 5b: beside an open panel, a row is the system, its track statuses and its plan line (which names its roadmap
+  // phase), each in the backend's own words.
+  const compactColumns: Column<MigrationSystem>[] = [
+    {
+      key: "system",
+      header: "System",
+      minWidth: 150,
+      render: (s) => (
+        <>
+          <span className="block text-sm font-medium text-slate-100">{s.name}</span>
+          {s.plan_line ? <span className="block text-xs text-slate-400">{s.plan_line}</span> : null}
+        </>
+      ),
+    },
+    {
+      key: "status",
+      header: "Tracks",
+      minWidth: 120,
+      render: (s) =>
+        (s.tracks_brief ?? []).length > 0 ? (
+          <span className="flex flex-col items-start gap-1">
+            {(s.tracks_brief ?? []).map((brief, i) => (
+              <span key={i} data-testid="compact-track" className="flex flex-col items-start gap-0.5">
+                <span className="text-[11px] text-slate-400">{brief.title}</span>
+                <StatusPill status={brief.status} />
+              </span>
+            ))}
+          </span>
+        ) : (
+          <StatusPill status={s.status} />
+        ),
+    },
+  ];
   const columns: Column<MigrationSystem>[] = [
     {
       key: "system",
       header: "System",
+      minWidth: 160,
       render: (s) => (
         <div className="min-w-0">
           <span className="block text-xs text-slate-400">{s.kind_label}</span>
@@ -336,6 +378,7 @@ export function MigrationScreen({
           onChanged={reloadAfterChange}
         />
       ) : null}
+      {system ? <RelatedFor itemKey={`system:${system.key}`} /> : null}
     </DetailPanel>
   );
 
@@ -431,6 +474,7 @@ export function MigrationScreen({
             importId={importId}
             onViewFix={onViewFix}
             onChanged={() => void reloadAfterChange()}
+            openItem={openItem}
           />
         ) : tab === "roadmap" ? (
           <TableWithPanel
@@ -468,6 +512,7 @@ export function MigrationScreen({
                     rows={listed}
                     rowKey={(s) => s.key}
                     rowTestId="system-card"
+                    compactColumns={compactColumns}
                     rowAttrs={(s) => ({ "data-system": s.key, "aria-current": s.key === system?.key ? "true" : undefined })}
                     selectedKey={system?.key ?? null}
                     onRowClick={(s) => openSystem(s.key)}
