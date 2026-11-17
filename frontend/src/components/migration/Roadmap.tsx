@@ -15,10 +15,13 @@ interface Props {
   exported: EvidenceExport | null;
   onDownload: () => void;
   onViewFix: (fixId: string) => void;
+  /** The system whose detail panel is open, and the way to open another. */
+  selectedKey: string | null;
+  onOpenSystem: (systemKey: string) => void;
 }
 
-/** The plan, band by band, exactly as sent. Pressing a system's name opens it in the Systems view. */
-export function Roadmap({ view, busy, exported, onDownload, onViewFix }: Props) {
+/** The plan, band by band, exactly as sent. A row opens that system's detail in the panel beside the plan. */
+export function Roadmap({ view, busy, exported, onDownload, onViewFix, selectedKey, onOpenSystem }: Props) {
   const roadmap = view.roadmap;
   const download = roadmap.download;
   return (
@@ -54,18 +57,30 @@ export function Roadmap({ view, busy, exported, onDownload, onViewFix }: Props) 
               </h2>
               <p className="text-[13px] text-slate-400">{band.sub}</p>
             </div>
-            <ul className="mt-2">
+            {/* The four columns need room; in a narrow plan (the detail panel open beside it) each row stacks. */}
+            <ul className="@container mt-2">
               {band.rows.map((row) => (
                 <li
                   key={`${row.system_key}:${row.track ?? ""}`}
                   data-testid="roadmap-row"
                   data-system={row.system_key}
-                  className="grid gap-x-4 gap-y-1 border-t border-slate-800 py-2.5 first:border-t-0 md:grid-cols-[200px_130px_230px_1fr]"
+                  onClick={() => onOpenSystem(row.system_key)}
+                  className={`grid cursor-pointer gap-x-4 gap-y-1 border-t border-slate-800 px-2 py-2 first:border-t-0 hover:bg-slate-800/40 @2xl:grid-cols-[minmax(0,200px)_minmax(0,130px)_minmax(0,230px)_minmax(0,1fr)] ${
+                    row.system_key === selectedKey ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]" : ""
+                  }`}
                 >
-                  <span>
+                  <button
+                    type="button"
+                    aria-current={row.system_key === selectedKey ? "true" : undefined}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenSystem(row.system_key);
+                    }}
+                    className="block self-start text-left"
+                  >
                     <span className="block text-xs text-slate-400">{row.kind_label}</span>
                     <span className="block text-sm font-semibold text-slate-100">{row.name}</span>
-                  </span>
+                  </button>
                   <span data-testid="roadmap-track" className="text-[13px] text-slate-300">
                     {row.track ?? ""}
                   </span>
@@ -78,7 +93,7 @@ export function Roadmap({ view, busy, exported, onDownload, onViewFix }: Props) 
                       </>
                     ) : null}
                   </span>
-                  <span data-testid="roadmap-note" className="text-[13px] text-slate-300">
+                  <span data-testid="roadmap-note" className="text-[13px] text-slate-300" onClick={(e) => e.stopPropagation()}>
                     <LineView line={row.note} onViewFix={onViewFix} />
                   </span>
                 </li>

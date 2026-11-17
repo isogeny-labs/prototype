@@ -1,6 +1,6 @@
 // Phase 5a, from the independent review: in a closed assessment the controls that change something without being a
 // button are off too, with the closed sentence: the "I own this system" tick on Import and a system's settings in Migration.
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ImportScreen } from "../components/ImportScreen";
 import { MigrationScreen } from "../components/MigrationScreen";
@@ -31,6 +31,8 @@ async function renderMigration(readOnly: boolean) {
     </ReadOnlyProvider>,
   );
   await screen.findByRole("heading", { level: 1, name: migrationView.title });
+  // A system's detail opens in the panel when its row is clicked.
+  fireEvent.click(screen.getAllByTestId("system-card")[0]!);
 }
 
 describe("a closed assessment's controls that are not buttons", () => {

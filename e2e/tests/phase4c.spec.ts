@@ -238,7 +238,7 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     await expect(list.getByRole("button").filter({ hasText: javaFix }).first(), `expected the Fixes list to hold "${javaFix}"`).toBeVisible();
     await list.getByRole("button").filter({ hasText: javaFix }).first().click();
     const summary = view.getByTestId("fix-summary");
-    await expect(summary.getByRole("heading", { name: javaFix, level: 2 })).toBeVisible();
+    await expect(view.getByTestId("detail-panel").getByRole("heading", { name: javaFix, level: 2 })).toBeVisible();   // the panel's heading
     await expect(summary.getByTestId("fix-status")).toHaveText("Text only");
     await expect(view.getByTestId("advisories"), "expected the advisories box with its link in the fix").toBeVisible();
     await expect(view.getByTestId("advisories").getByRole("link").first()).toHaveAttribute("href", /^https:\/\/openjdk\.org\//);

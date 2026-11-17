@@ -62,7 +62,7 @@ async function goTo(step: string): Promise<void> {
 
 async function pickFix(title: string): Promise<void> {
   await page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByRole("button").filter({ hasText: title }).click();
-  await expect(page.getByTestId("fix-summary").getByRole("heading", { name: title, level: 2 })).toBeVisible();
+  await expect(page.getByTestId("detail-panel").getByRole("heading", { name: title, level: 2 })).toBeVisible();   // the panel's heading
 }
 
 function cardStatuses(): Promise<string[]> {

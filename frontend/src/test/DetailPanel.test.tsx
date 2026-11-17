@@ -51,6 +51,24 @@ describe("DetailPanel", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("does not close on Escape while the person types in a field (a reason, a date), so the draft is kept", () => {
+    const onClose = vi.fn();
+    render(
+      <DetailPanel open title="T" onClose={onClose}>
+        <label>
+          Your reason
+          <textarea />
+        </label>
+        <input aria-label="Review date" />
+      </DetailPanel>,
+    );
+    fireEvent.keyDown(screen.getByLabelText("Your reason"), { key: "Escape" });
+    fireEvent.keyDown(screen.getByLabelText("Review date"), { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("stops listening for Escape once it is closed", () => {
     const onClose = vi.fn();
     const view = render(

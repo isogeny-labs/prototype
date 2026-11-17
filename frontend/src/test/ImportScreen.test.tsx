@@ -41,6 +41,22 @@ describe("Import screen", () => {
     expect(screen.queryByRole("table")).toBeNull();
   });
 
+  it("opens a claim's details in a panel on a row click, and closes it again", () => {
+    renderImport(demoImport);
+    expect(screen.queryByTestId("claim-panel")).toBeNull();
+    const first = screen.getAllByTestId("claim-row")[0]!;
+    fireEvent.click(first);
+    const panel = within(screen.getByTestId("claim-panel"));
+    expect(panel.getByRole("heading", { level: 2, name: "localhost:8443" })).not.toBeNull();
+    expect(panel.getByText("TLS versions")).not.toBeNull();
+    expect(panel.getByText("localhost:8443 accepts TLS 1.3 only")).not.toBeNull();
+    expect(panel.getByText("TLS 1.3")).not.toBeNull();
+    expect(panel.getByText("components[0] (bom-ref tls-acme-pay)")).not.toBeNull();
+    expect(first.getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(panel.getByRole("button", { name: "Close details" }));
+    expect(screen.queryByTestId("claim-panel")).toBeNull();
+  });
+
   it("loads the demo file through POST /api/import/demo", async () => {
     const fetchMock = mockApi({ "POST /api/import/demo": { body: demoImport } });
     const props = renderImport(null);
@@ -175,7 +191,7 @@ describe("Import screen", () => {
     await screen.findByRole("alert");
     expect(props.onImportFailed).toHaveBeenCalledTimes(1);
     fireEvent.change(input, { target: { files: [new File(["x"], "notes.txt")] } });
-    expect(props.onImportFailed).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(props.onImportFailed).toHaveBeenCalledTimes(2));
   });
 
   it("does not show a skipped note when nothing was skipped or the field is absent", () => {

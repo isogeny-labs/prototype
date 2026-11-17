@@ -151,7 +151,9 @@ test("Fixes: the code fix for our program, and one text suggestion for each fail
   await stepLink(page, "5. Fixes").click();
   const list = page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByRole("button");
   await expect(list).toHaveCount(3);
-  await expect(list.nth(1)).toContainText("Old TLS versions on localhost:8443");
-  await expect(list.nth(2)).toContainText("Certificate strength on localhost:8446");
+  // (phase 5a follow-up: where a fix came from is in its row, beside the title button)
+  const rows = page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByTestId("fix-row");
+  await expect(rows.nth(1)).toContainText("Old TLS versions on localhost:8443");
+  await expect(rows.nth(2)).toContainText("Certificate strength on localhost:8446");
   await shot("04-fixes-multi-target.png");
 });

@@ -97,6 +97,20 @@ test("run Acme Pay: Verify claims, then every suggested test", async () => {
   await expect(page.getByRole("heading", { name: "Import", level: 1 })).toBeVisible();
   await expect(page.getByTestId("claim-row")).toHaveCount(3);
   await shots("03-inventory-import");
+  // Phase 5a follow-up (approved by Kevin on 17 November 2026): a claim's row opens its details in the side panel.
+  const claim = page.getByTestId("claim-row").first();
+  const where = (await claim.locator("td").first().locator("div").first().innerText()).trim();
+  await claim.click();
+  const claimPanel = page.getByTestId("claim-panel");
+  await expect(claimPanel).toBeVisible();
+  await expect(claim).toHaveAttribute("aria-selected", "true");
+  await expect(claimPanel.getByRole("heading", { level: 2 })).toHaveText(where);
+  await expect(claimPanel.getByTestId("claim-details")).toContainText("Claimed value");
+  await expect(claimPanel.getByTestId("claim-details")).toContainText("from the file");
+  await expect(claimPanel.getByTestId("claim-details")).toContainText("Source in the file");
+  await shots("03-inventory-import-panel");
+  await claimPanel.getByRole("button", { name: "Close details" }).click();
+  await expect(claimPanel).toHaveCount(0);
   await page.getByTestId("address-confirm").click();
   await page.getByRole("button", { name: "Verify claims" }).click();
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
@@ -134,7 +148,28 @@ test("Evidence: a table of results; a row opens the detail panel; Fixes and Migr
   await shots("09-migration-systems");
   await stepLink(page, "Roadmap").click();
   await expect(page.getByTestId("roadmap-band").first()).toBeVisible();
+  await expect(page.getByTestId("detail-panel")).toHaveCount(0);   // the Roadmap opens with no panel
   await shots("10-migration-roadmap");
+  // Phase 5a follow-up (approved by Kevin on 17 November 2026): a system's name on the Roadmap opens that system's
+  // detail panel. Opening it changes nothing: no request but reads goes to the backend.
+  const roadmapRow = page.getByTestId("roadmap-row").first();
+  const systemKey = await roadmapRow.getAttribute("data-system");
+  const rowsBefore = await page.getByTestId("roadmap-row").allInnerTexts();
+  const changing: string[] = [];
+  const watch = (request: { method(): string; url(): string }) => {
+    if (request.method() !== "GET") changing.push(`${request.method()} ${request.url()}`);
+  };
+  page.on("request", watch);
+  await roadmapRow.getByRole("button").first().click();
+  const systemPanel = page.getByTestId("detail-panel");
+  await expect(systemPanel.getByTestId("migration-system")).toHaveAttribute("data-system", systemKey ?? "");
+  await expect(roadmapRow.getByRole("button").first()).toHaveAttribute("aria-current", "true");
+  await shots("10-migration-roadmap-panel");
+  await page.keyboard.press("Escape");
+  await expect(systemPanel).toHaveCount(0);
+  page.off("request", watch);
+  expect(changing).toEqual([]);
+  expect(await page.getByTestId("roadmap-row").allInnerTexts()).toEqual(rowsBefore);
   await stepLink(page, "Dependencies").click();
   await expect(page.getByTestId("dependencies-view")).toBeVisible();
   await page.getByLabel("Choose a dependency list").setInputFiles(DEPENDENCY_LIST);

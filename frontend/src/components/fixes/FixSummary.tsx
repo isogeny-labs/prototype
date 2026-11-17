@@ -182,12 +182,9 @@ export function FixSummary({ fix, busy, onRequest }: Props) {
     <section
       data-testid="fix-summary"
       data-fix-id={fix.id}
-      aria-labelledby="fix-title"
+      aria-label={fix.title}
       className="rounded-xl border border-slate-700 bg-slate-900 p-4"
     >
-      <h2 id="fix-title" className="text-[17px] font-semibold text-slate-50">
-        {fix.title}
-      </h2>
       <p data-testid="fix-source" className="mt-1 text-sm text-slate-400">
         <Rich parts={fix.source} />
       </p>

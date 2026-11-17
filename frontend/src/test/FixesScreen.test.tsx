@@ -5,6 +5,7 @@ import type { FixStatusKey, FixesView } from "../api";
 import { FixesScreen } from "../components/FixesScreen";
 import { StatusChip } from "../components/fixes/parts";
 import { chipClass } from "../components/ui";
+import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
 import {
   CODE_FIX,
   ONE_LOGIN,
@@ -40,6 +41,8 @@ function Harness({ start }: { start: string | null }) {
 async function open(view: FixesView, routes: Routes = {}, start: string | null = null) {
   const fetchMock = mockApi({ [`GET ${FIXES}`]: { body: view }, ...routes });
   render(<Harness start={start} />);
+  // The panel opens on a click on a row (or at once for a fix chosen from outside, as View in Fixes does).
+  if (start === null && view.fixes.length > 0) fireEvent.click((await screen.findAllByTestId("fix-row"))[0]!);
   await screen.findByTestId("fix-summary");
   return fetchMock;
 }
@@ -56,7 +59,8 @@ const inSummary = () => within(summary());
 const button = (name: string | RegExp) => screen.getByRole("button", { name }) as HTMLButtonElement;
 const summaryButtons = () => inSummary().queryAllByRole("button") as HTMLButtonElement[];
 const listItems = () => within(screen.getByRole("navigation", { name: /^Open findings with a fix/ })).getAllByRole("button");
-const selectedTitles = () => listItems().filter((b) => b.getAttribute("aria-current") === "true").map((b) => b.firstElementChild?.textContent);
+const rows = () => screen.getAllByTestId("fix-row");
+const selectedTitles = () => listItems().filter((b) => b.getAttribute("aria-current") === "true").map((b) => b.textContent);
 const sections = () => screen.queryAllByTestId("fix-section");
 const section = (key: string) => sections().find((s) => s.getAttribute("data-section") === key)!;
 const fold = (key: string) => within(section(key)).getAllByRole("button")[0]!;
@@ -76,14 +80,15 @@ describe("Fixes, the page", () => {
     expect(screen.getByTestId("disclaimer").textContent).toBe(DISCLAIMER);
 
     expect(screen.getByRole("navigation", { name: "Open findings with a fix (2)" })).not.toBeNull();
-    expect(listItems().map((b) => Array.from(b.children).map((part) => part.textContent))).toEqual([
-      ["acme-sign accepts out-of-range signatures", "Ready for review", "Came from 2 failed tests: Official test vectors, Bad signatures"],
-      ["Server accepts TLS 1.2", "Text only", "Came from 1 failed test: Old TLS versions"],
+    expect(rows().map((row) => Array.from(row.children).map((cell) => cell.textContent))).toEqual([
+      ["acme-sign accepts out-of-range signatures", "Came from 2 failed tests: Official test vectors, Bad signatures", "Ready for review"],
+      ["Server accepts TLS 1.2", "Came from 1 failed test: Old TLS versions", "Text only"],
     ]);
     expect(listItems().map((b) => b.getAttribute("aria-current"))).toEqual(["true", null]);
+    expect(screen.getByTestId("detail-panel")).not.toBeNull();
 
     expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
-    expect(inSummary().getByRole("heading", { level: 2, name: "acme-sign accepts out-of-range signatures" })).not.toBeNull();
+    expect(within(screen.getByTestId("detail-panel")).getByRole("heading", { level: 2, name: "acme-sign accepts out-of-range signatures" })).not.toBeNull();
     expect(text(inSummary().getByTestId("fix-source"))).toBe(
       "Came from 2 failed tests on signing component acme-sign 1.4.2: Official test vectors and Bad signatures.",
     );
@@ -102,7 +107,9 @@ describe("Fixes, the page", () => {
     const all = document.body.textContent ?? "";
     expect(all.match(/secure/gi)).toHaveLength(1);
     expect(all).not.toMatch(/score|time.to.hack|upload|mockup/i);
-    expect(document.querySelector('input:not([type="checkbox"]):not([type="search"]), textarea, select, form')).toBeNull();
+    expect(document.querySelector('input:not([type="checkbox"]):not([type="search"]), textarea, form')).toBeNull();
+    // The only choice list is the status filter of the table.
+    expect(Array.from(document.querySelectorAll("select")).map((s) => s.closest("label")?.textContent?.startsWith("Status"))).toEqual([true]);
   });
 
   it("opens on the fix it was asked for, and on the first one when that fix is not in the list", async () => {
@@ -112,7 +119,9 @@ describe("Fixes, the page", () => {
   });
 
   it("falls back to the first fix for an id it does not know", async () => {
-    await open(fixesViews.ready, {}, "fix-that-is-gone");
+    mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
+    render(<Harness start="fix-that-is-gone" />);
+    await screen.findAllByTestId("fix-row");
     expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
     expect(selectedTitles()).toEqual(["acme-sign accepts out-of-range signatures"]);
   });
@@ -306,7 +315,7 @@ describe("Fixes, the code fix in each status", () => {
     // The status, in the summary and in the list, in the backend's word.
     expect(status().getAttribute("data-status")).toBe(expected.key);
     expect(status().textContent).toBe(expected.word);
-    expect(within(listItems()[0]!).getByTestId("fix-status").textContent).toBe(expected.word);
+    expect(within(rows()[0]!).getByTestId("fix-status").textContent).toBe(expected.word);
 
     // What it does. Until the proof has passed, the screen must not say that it fixes anything.
     const rowLabels = Array.from(summary().querySelectorAll("dt")).map((dt) => dt.textContent);
@@ -870,7 +879,7 @@ describe("Fixes, the folded sections", () => {
 describe("Fixes, a text-only suggestion", () => {
   it("shows what it suggests, that it has no proof, and no button at all", async () => {
     const fetchMock = await open(fixesViews.ready, {}, TLS_FIX);
-    expect(inSummary().getByRole("heading", { level: 2, name: "Server accepts TLS 1.2" })).not.toBeNull();
+    expect(within(screen.getByTestId("detail-panel")).getByRole("heading", { level: 2, name: "Server accepts TLS 1.2" })).not.toBeNull();
     expect(text(inSummary().getByTestId("fix-source"))).toBe(
       "Came from 1 failed test on server localhost:8443: Old TLS versions. The file claims TLS 1.3 only.",
     );
@@ -894,8 +903,8 @@ describe("Fixes, a text-only suggestion", () => {
     expect(summaryButtons()).toHaveLength(0);
     expect(inSummary().queryByTestId("fix-actions")).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
-    // The only buttons left are the two findings and the fold of the suggestion.
-    expect(screen.getAllByRole("button")).toHaveLength(3);
+    // The only buttons left are the two findings, the fold of the suggestion and the panel's close button.
+    expect(screen.getAllByRole("button")).toHaveLength(4);
     expect(calls(fetchMock)).toEqual([`GET ${FIXES}`]);
   });
 
@@ -1032,6 +1041,7 @@ describe("Fixes, while something runs", () => {
       },
     });
     render(<Harness start={null} />);
+    fireEvent.click((await screen.findAllByTestId("fix-row"))[0]!);
     await screen.findByTestId("fix-summary");
     expect(status().textContent).toBe("Proving");
 
@@ -1059,7 +1069,7 @@ describe("Fixes, while something runs", () => {
     expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
     expect(["change", "proof", "details"].map(isOpen)).toEqual([false, true, false]);
     expect(within(section("proof")).getByTestId("proof-verdict")).not.toBeNull();
-    expect(within(listItems()[0]!).getByTestId("fix-status").textContent).toBe("Ready for review");
+    expect(within(rows()[0]!).getByTestId("fix-status").textContent).toBe("Ready for review");
 
     // Nothing runs any more, so nothing more is asked.
     await pause(1300);
@@ -1082,10 +1092,99 @@ describe("Fixes, while something runs", () => {
       },
     });
     render(<Harness start={null} />);
+    fireEvent.click((await screen.findAllByTestId("fix-row"))[0]!);
     await screen.findByTestId("fix-summary");
     fireEvent.click(screen.getByRole("checkbox", { name: /Demo reviewer A/ }));
     await waitFor(() => expect(polls).toBe(2), { timeout: 3000 });
     await pause(50);
     expect((screen.getAllByRole("checkbox") as HTMLInputElement[]).map((box) => box.checked)).toEqual([true, true, false]);
+  });
+});
+
+describe("Fixes, the table and its detail panel", () => {
+  it("shows the table with summary cards counted from the statuses, opens on the first fix, and stays closed once closed", async () => {
+    mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
+    render(<Harness start={null} />);
+    await screen.findAllByTestId("fix-row");
+    // As before the panel: the page opens on the first fix.
+    expect(within(screen.getByTestId("detail-panel")).getByTestId("fix-summary").getAttribute("data-fix-id")).toBe(CODE_FIX);
+    // The cards: how many fixes, then one per status the backend sent, labelled with the backend's own word.
+    const cardLabels = screen.getAllByTestId("summary-card").map((c) => c.querySelector("p")?.textContent);
+    const cardValues = screen.getAllByTestId("summary-card").map((c) => c.querySelector("p:nth-of-type(2)")?.textContent);
+    const words = [...new Set(fixesViews.ready.fixes.map((f) => f.status.word))];
+    expect(cardLabels).toEqual(["Fixes", ...words]);
+    expect(cardValues).toEqual([
+      String(fixesViews.ready.fixes.length),
+      ...words.map((w) => String(fixesViews.ready.fixes.filter((f) => f.status.word === w).length)),
+    ]);
+    fireEvent.click(rows()[1]!);
+    const panel = screen.getByTestId("detail-panel");
+    expect(within(panel).getByTestId("fix-summary").getAttribute("data-fix-id")).toBe(TLS_FIX);
+    expect(rows()[1]!.getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(within(panel).getByRole("button", { name: "Close details" }));
+    expect(screen.queryByTestId("detail-panel")).toBeNull();
+    // Closed stays closed (it does not fall back to the first fix) until a row is clicked again.
+    expect(screen.queryByTestId("fix-summary")).toBeNull();
+    fireEvent.click(rows()[0]!);
+    expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
+  });
+
+  it("filters by status and by search", async () => {
+    mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
+    render(<Harness start={null} />);
+    await screen.findAllByTestId("fix-row");
+    // The open fix (the first one) stays listed whatever the filter, as before the panel.
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), { target: { value: "text_only" } });
+    expect(rows().map((r) => r.textContent)).toEqual([
+      expect.stringContaining("acme-sign accepts out-of-range signatures"),
+      expect.stringContaining("Server accepts TLS 1.2"),
+    ]);
+    // With the panel closed, the filter alone decides.
+    fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
+    expect(rows().map((r) => r.textContent)).toEqual([expect.stringContaining("Server accepts TLS 1.2")]);
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), { target: { value: "all" } });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), { target: { value: "range" } });
+    expect(rows()).toHaveLength(1);
+  });
+
+  it("opens the panel on a fix chosen from outside, as View in Fixes does", async () => {
+    mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
+    function Outside() {
+      const [selected, setSelected] = useState<string | null>(null);
+      return (
+        <>
+          <button type="button" onClick={() => setSelected(TLS_FIX)}>
+            View in Fixes
+          </button>
+          <FixesScreen planId={1} selectedId={selected} onSelect={setSelected} onRetestStarted={() => undefined} />
+        </>
+      );
+    }
+    render(<Outside />);
+    await screen.findAllByTestId("fix-row");
+    expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);   // the first fix, until one is chosen
+    fireEvent.click(screen.getByRole("button", { name: "View in Fixes" }));
+    expect(summary().getAttribute("data-fix-id")).toBe(TLS_FIX);
+  });
+
+  it("keeps the panel's buttons working: a button of the panel still makes its call", async () => {
+    const fetchMock = await open(fixesViews.not_connected, { [`POST ${FIXES}/connect`]: { body: fixesViews.ready } });
+    fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Connect demo code" }));
+    await waitFor(() => expect(sent(fetchMock, `${FIXES}/connect`)).toHaveLength(1));
+  });
+
+  it("turns the panel's changing buttons off in a closed assessment, and the close button on", async () => {
+    mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready_to_merge } });
+    render(
+      <ReadOnlyProvider readOnly>
+        <Harness start={null} />
+      </ReadOnlyProvider>,
+    );
+    fireEvent.click((await screen.findAllByTestId("fix-row"))[0]!);
+    const panel = within(await screen.findByTestId("detail-panel"));
+    const merge = panel.getByRole("button", { name: "Merge pull request" }) as HTMLButtonElement;
+    expect(merge.disabled).toBe(true);
+    expect(merge.getAttribute("title")).toBe(CLOSED_SENTENCE);
+    expect((panel.getByRole("button", { name: "Close details" }) as HTMLButtonElement).disabled).toBe(false);
   });
 });

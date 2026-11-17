@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { useCallback, useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import {
   api,
   ApiError,
@@ -12,7 +12,7 @@ import {
   type VerifyRun,
 } from "../api";
 import { CLOSED_SENTENCE, useReadOnly } from "../readOnly";
-import { PageHeader } from "./layout";
+import { DataTable, DetailPanel, PageHeader, TableWithPanel, type Column } from "./layout";
 import { DemoDataLabel, ErrorBox, PrimaryButton, SecondaryButton, SourceTag } from "./ui";
 
 const KIND_LABELS: Record<ClaimKind, string> = {
@@ -29,6 +29,71 @@ const LOCATION_LABELS: Record<Claim["location_kind"], string> = {
   software: "Software",
   unknown: "Unrecognised location",
 };
+
+const claimColumns: Column<Claim>[] = [
+  {
+    key: "where",
+    header: "Where",
+    render: (claim) => (
+      <>
+        <div className="font-mono text-slate-100">{claim.location}</div>
+        <div className="mt-0.5 text-xs text-slate-500">{LOCATION_LABELS[claim.location_kind]}</div>
+      </>
+    ),
+  },
+  {
+    key: "what",
+    header: "What",
+    render: (claim) => (
+      <>
+        <div className="text-slate-100">{KIND_LABELS[claim.kind]}</div>
+        <div className="mt-0.5 text-xs text-slate-400">{claim.text}</div>
+      </>
+    ),
+  },
+  {
+    key: "value",
+    header: "Claimed value",
+    render: (claim) => (
+      <>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-medium text-slate-100">{claim.claimed_value}</span>
+          <SourceTag>from the file</SourceTag>
+        </div>
+        <div className="mt-0.5 text-xs text-slate-500">{claim.source}</div>
+      </>
+    ),
+  },
+];
+
+/** What opens in the panel: the claim as the file states it, and where in the file it was read. */
+function ClaimDetails({ claim }: { claim: Claim }) {
+  return (
+    <dl data-testid="claim-details" className="space-y-4 text-sm">
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-slate-500">Where</dt>
+        <dd className="mt-1 font-mono text-slate-100">{claim.location}</dd>
+        <dd className="text-xs text-slate-400">{LOCATION_LABELS[claim.location_kind]}</dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-slate-500">What</dt>
+        <dd className="mt-1 text-slate-100">{KIND_LABELS[claim.kind]}</dd>
+        <dd className="text-xs text-slate-400">{claim.text}</dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-slate-500">Claimed value</dt>
+        <dd className="mt-1 flex flex-wrap items-center gap-2 text-slate-100">
+          <span className="font-medium">{claim.claimed_value}</span>
+          <SourceTag>from the file</SourceTag>
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs uppercase tracking-wide text-slate-500">Source in the file</dt>
+        <dd className="mt-1 text-slate-300">{claim.source}</dd>
+      </div>
+    </dl>
+  );
+}
 
 interface UploadError {
   message: string;
@@ -61,6 +126,10 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
   const [verifyError, setVerifyError] = useState<string | null>(null);
   const [addressBusy, setAddressBusy] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
+  // The claim whose panel is open, for the file it belongs to (a new file starts with none open).
+  const [opened, setOpened] = useState<{ file: number; claim: number } | null>(null);
+  const openClaim = imp && opened?.file === imp.id ? (imp.claims.find((c) => c.id === opened.claim) ?? null) : null;
+  const closeClaim = useCallback(() => setOpened(null), []);
 
   async function load(action: (assessmentId?: number) => Promise<Import>, isUpload = false) {
     setUploadError(null);
@@ -245,44 +314,31 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
             {imp.claims.length === 0 ? (
               <p className="text-sm text-slate-400">This file has no encryption claims we can check.</p>
             ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-800">
-                <table className="w-full min-w-[36rem] text-left text-sm">
-                  <thead className="bg-slate-900 text-xs uppercase tracking-wide text-slate-400">
-                    <tr>
-                      <th scope="col" className="px-4 py-2.5 font-medium">
-                        Where
-                      </th>
-                      <th scope="col" className="px-4 py-2.5 font-medium">
-                        What
-                      </th>
-                      <th scope="col" className="px-4 py-2.5 font-medium">
-                        Claimed value
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {imp.claims.map((claim) => (
-                      <tr key={claim.id} data-testid="claim-row" className="align-top">
-                        <td className="px-4 py-3">
-                          <div className="font-mono text-slate-100">{claim.location}</div>
-                          <div className="mt-0.5 text-xs text-slate-500">{LOCATION_LABELS[claim.location_kind]}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-slate-100">{KIND_LABELS[claim.kind]}</div>
-                          <div className="mt-0.5 text-xs text-slate-400">{claim.text}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium text-slate-100">{claim.claimed_value}</span>
-                            <SourceTag>from the file</SourceTag>
-                          </div>
-                          <div className="mt-0.5 text-xs text-slate-500">{claim.source}</div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <TableWithPanel
+                panelOpen={openClaim !== null}
+                table={
+                  <DataTable
+                    label="What the file claims"
+                    columns={claimColumns}
+                    rows={imp.claims}
+                    rowKey={(claim) => String(claim.id)}
+                    rowTestId="claim-row"
+                    selectedKey={openClaim ? String(openClaim.id) : null}
+                    onRowClick={(claim) => setOpened((cur) => (cur?.claim === claim.id && cur.file === imp.id ? null : { file: imp.id, claim: claim.id }))}
+                  />
+                }
+                panel={
+                  <DetailPanel
+                    open={openClaim !== null}
+                    title={openClaim ? openClaim.location : ""}
+                    subtitle={openClaim ? LOCATION_LABELS[openClaim.location_kind] : undefined}
+                    onClose={closeClaim}
+                    testId="claim-panel"
+                  >
+                    {openClaim ? <ClaimDetails claim={openClaim} /> : null}
+                  </DetailPanel>
+                }
+              />
             )}
             {settings.length > 0 ? (
               <div data-testid="import-settings" className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3">

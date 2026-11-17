@@ -51,10 +51,12 @@ describe("Tests screen", () => {
     const list = await shownCards();
     expect(screen.queryByTestId("test-group")).toBeNull();
     expect(screen.queryByTestId("not-tested")).toBeNull();
-    // One list, straight under the screen, each card with its own level-2 title.
-    const ul = list[0]!.parentElement!;
-    expect(ul.tagName).toBe("UL");
-    expect(ul.children).toHaveLength(5);
+    // One table, straight under the screen, each row with its own level-2 title.
+    const body = list[0]!.parentElement!;
+    expect(body.tagName).toBe("TBODY");
+    expect(body.closest("table")!.getAttribute("aria-label")).toBe("Tests");
+    expect(body.children).toHaveLength(5);
+    expect(screen.getAllByRole("table")).toHaveLength(1);
     expect(list.map((c) => within(c).getByRole("heading").tagName)).toEqual(["H2", "H2", "H2", "H2", "H2"]);
   });
 

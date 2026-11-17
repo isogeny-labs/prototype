@@ -119,6 +119,7 @@ export function DataTable<T>({
   selectedKey,
   empty,
   rowTestId,
+  rowAttrs,
   headTestId,
 }: {
   label: string;
@@ -129,6 +130,8 @@ export function DataTable<T>({
   selectedKey?: string | null;
   empty?: ReactNode;
   rowTestId?: string;
+  /** Extra attributes for a row (for example a data attribute a screen's tests look for). */
+  rowAttrs?: (row: T) => Record<string, string | undefined>;
   /** A test id for the header row (so a screen can find its column headings). */
   headTestId?: string;
 }) {
@@ -160,6 +163,7 @@ export function DataTable<T>({
                   key={key}
                   data-testid={rowTestId}
                   data-key={key}
+                  {...(rowAttrs ? rowAttrs(row) : {})}
                   aria-selected={onRowClick ? selected : undefined}
                   tabIndex={onRowClick ? 0 : undefined}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
@@ -225,7 +229,11 @@ export function DetailPanel({
     before.current = document.activeElement;
     ref.current?.focus({ preventScroll: true });
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") close.current();
+      if (e.key !== "Escape") return;
+      // Escape in a field the person is typing in (a reason, a date) must not close the panel and lose the draft.
+      const t = e.target;
+      if (t instanceof HTMLElement && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+      close.current();
     }
     document.addEventListener("keydown", onKey);
     return () => {

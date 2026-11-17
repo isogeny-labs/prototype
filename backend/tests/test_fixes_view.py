@@ -166,8 +166,11 @@ def flow(tmp_path_factory):
         seen["ready_to_merge"] = look(lab, plan.id)
         lab.merge(plan.id, FIX)
         seen["merged"] = look(lab, plan.id)
-        lab.retest_now(plan.id, FIX)
-        seen["retesting"] = look(lab, plan.id)
+        # Taken while the retest certainly runs: its jobs wait at the door until the picture is taken (a fast machine
+        # could otherwise finish the retest first, and the picture would show the "after" state).
+        with held(lab):
+            lab.retest_now(plan.id, FIX)
+            seen["retesting"] = look(lab, plan.id)
         lab.wait_until_idle(plan.id, 300)
         seen["after"] = look(lab, plan.id)
         yield SimpleNamespace(lab=lab, plan=plan, **seen)

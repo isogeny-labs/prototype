@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type FixSection, type FixesView } from "../api";
 import { ChangeBox } from "./change/ChangeBox";
-import { FixList } from "./fixes/FixList";
+import { FixTable } from "./fixes/FixTable";
 import { FixSections } from "./fixes/FixSections";
 import { FixSummary, type FixRequest } from "./fixes/FixSummary";
-import { PageHeader } from "./layout";
+import { DetailPanel, PageHeader, SummaryCards, TableWithPanel } from "./layout";
 import { DemoDataLabel, ErrorBox } from "./ui";
 
 const POLL_MS = 1000;
@@ -28,6 +28,22 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
   // The sections the user opened or closed, by fix and section. The others keep the state the backend sent.
   const [toggled, setToggled] = useState<Readonly<Record<string, boolean>>>({});
   const [pollTick, setPollTick] = useState(0);
+  // The fix whose panel is open. A fix chosen from outside (View in Fixes) opens its panel too.
+  const [openId, setOpenId] = useState<string | null>(selectedId);
+  // As before the panel, the page opens on the first fix until the person closes the panel (then it stays closed).
+  const [dismissed, setDismissed] = useState(false);
+  const [seenSelected, setSeenSelected] = useState<string | null>(selectedId);
+  if (selectedId !== seenSelected) {
+    setSeenSelected(selectedId);
+    setOpenId(selectedId);
+    setDismissed(false);
+  }
+  // Escape also closes the merge confirm box; while that box is open it is the only thing that closes.
+  const closePanel = useCallback(() => {
+    if (document.querySelector('[role="dialog"]')) return;
+    setOpenId(null);
+    setDismissed(true);
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -88,7 +104,19 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
   }
 
   const current = view;
-  const fix = current.fixes.find((f) => f.id === selectedId) ?? current.fixes[0];
+  const fix = current.fixes.find((f) => f.id === openId) ?? (dismissed ? null : (current.fixes[0] ?? null));
+  const choose = (fixId: string) => {
+    setOpenId(fixId);
+    setDismissed(false);
+    onSelect(fixId);
+  };
+  // One card for each status the backend sent, in its own word, counted by its key (no wording of our own).
+  const byStatus = new Map<string, { word: string; n: number }>();
+  for (const f of current.fixes) {
+    const seen = byStatus.get(f.status.key);
+    if (seen) seen.n += 1;
+    else byStatus.set(f.status.key, { word: f.status.word, n: 1 });
+  }
 
   async function act(call: () => Promise<FixesView>) {
     setBusy(true);
@@ -160,38 +188,58 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
         {current.disclaimer}
       </p>
 
-      {fix ? (
-        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <FixList title={current.list_title} fixes={current.fixes} selectedId={fix.id} onSelect={onSelect} />
-          <div className="flex min-w-0 flex-col gap-3">
-            {/* The key gives each fix its own ticks and its own confirm box. */}
-            <FixSummary key={fix.id} fix={fix} busy={busy} onRequest={(asked) => request(fix.id, asked)} />
-            {fix.sections_note ? (
-              <p data-testid="fix-sections-note" className="px-1 text-xs text-slate-400">
-                {fix.sections_note}
-              </p>
-            ) : null}
-            {fix.change_box ? (
-              <ChangeBox
-                key={fix.change_box.id}
-                change={fix.change_box}
-                planId={current.plan_id}
-                onChanged={reloadAfterChange}
-                onViewFix={onSelect}
-              />
-            ) : null}
-            <FixSections
-              sections={fix.sections}
-              advisories={fix.advisories}
-              isOpen={(section) => toggled[sectionKey(fix.id, section)] ?? section.open}
-              onToggle={(section) =>
-                setToggled((prev) => {
-                  const key = sectionKey(fix.id, section);
-                  return { ...prev, [key]: !(prev[key] ?? section.open) };
-                })
-              }
-            />
-          </div>
+      {current.fixes.length > 0 ? (
+        <div className="mt-6">
+          <SummaryCards
+            label="Fixes summary"
+            cards={[
+              { key: "fixes", label: "Fixes", value: current.fixes.length },
+              ...Array.from(byStatus, ([key, { word, n }]) => ({ key, label: word, value: n })).slice(0, 3),
+            ]}
+          />
+          <TableWithPanel
+            panelOpen={fix !== null}
+            table={<FixTable title={current.list_title} fixes={current.fixes} selectedId={fix?.id ?? null} onSelect={choose} />}
+            panel={
+              <DetailPanel
+                open={fix !== null}
+                title={fix?.title ?? ""}
+                onClose={closePanel}
+              >
+                {fix ? (
+                  <div className="flex min-w-0 flex-col gap-3">
+                    {/* The key gives each fix its own ticks and its own confirm box. */}
+                    <FixSummary key={fix.id} fix={fix} busy={busy} onRequest={(asked) => request(fix.id, asked)} />
+                    {fix.sections_note ? (
+                      <p data-testid="fix-sections-note" className="px-1 text-xs text-slate-400">
+                        {fix.sections_note}
+                      </p>
+                    ) : null}
+                    {fix.change_box ? (
+                      <ChangeBox
+                        key={fix.change_box.id}
+                        change={fix.change_box}
+                        planId={current.plan_id}
+                        onChanged={reloadAfterChange}
+                        onViewFix={choose}
+                      />
+                    ) : null}
+                    <FixSections
+                      sections={fix.sections}
+                      advisories={fix.advisories}
+                      isOpen={(section) => toggled[sectionKey(fix.id, section)] ?? section.open}
+                      onToggle={(section) =>
+                        setToggled((prev) => {
+                          const key = sectionKey(fix.id, section);
+                          return { ...prev, [key]: !(prev[key] ?? section.open) };
+                        })
+                      }
+                    />
+                  </div>
+                ) : null}
+              </DetailPanel>
+            }
+          />
         </div>
       ) : current.empty_text ? (
         <p data-testid="fixes-empty" className="mt-6 text-sm text-slate-400">

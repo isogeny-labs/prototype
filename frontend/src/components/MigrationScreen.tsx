@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
   ApiError,
@@ -6,6 +6,7 @@ import {
   type EvidenceExport,
   type MigrationOptionKey,
   type MigrationSettingField,
+  type MigrationSystem,
   type MigrationView,
 } from "../api";
 import { DependenciesView } from "./dependencies/DependenciesView";
@@ -14,7 +15,7 @@ import { Roadmap } from "./migration/Roadmap";
 import { SystemDetail } from "./migration/SystemDetail";
 import { StatusPill } from "./migration/parts";
 import type { SaveChoice } from "./migration/OptionCard";
-import { PageHeader, SearchInput, SummaryCards, Toolbar } from "./layout";
+import { DataTable, DetailPanel, FilterSelect, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "./layout";
 import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton } from "./ui";
 
 const POLL_MS = 1000;
@@ -52,6 +53,17 @@ export function MigrationScreen({
   const setTab = (next: Tab) => (onTab ? onTab(next) : setOwnTab(next));
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  // As before the panel, Systems opens on the first system until the person closes the panel (then it stays closed).
+  const [dismissed, setDismissed] = useState(false);
+  const closePanel = useCallback(() => {
+    setSelectedKey(null);
+    setDismissed(true);
+  }, []);
+  const openSystem = useCallback((key: string) => {
+    setSelectedKey(key);
+    setDismissed(false);
+  }, []);
   const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(
     new Set(),
   );
@@ -144,7 +156,8 @@ export function MigrationScreen({
 
   const current = view;
   const system =
-    current.systems.find((s) => s.key === selectedKey) ?? current.systems[0];
+    current.systems.find((s) => s.key === selectedKey) ??
+    (dismissed || tab !== "systems" ? null : (current.systems[0] ?? null));
 
   async function act(call: () => Promise<MigrationView>, tellApp: boolean) {
     setActing(true);
@@ -248,15 +261,83 @@ export function MigrationScreen({
       })),
   ];
   const needle = search.trim().toLowerCase();
-  const listed = needle
-    ? current.systems.filter(
-        (s) =>
-          s.key === system?.key ||
-          [s.name, s.kind_label, s.plan_line, s.status.label].some((t) =>
-            t.toLowerCase().includes(needle),
-          ),
-      )
-    : current.systems;
+  // The open system stays listed whatever the search, as before the panel.
+  const listed = current.systems.filter(
+    (s) =>
+      s.key === system?.key ||
+      (statusFilter === "all" || s.status.code === statusFilter) &&
+      (!needle || [s.name, s.kind_label, s.plan_line, s.status.label].some((t) => t.toLowerCase().includes(needle))),
+  );
+  const statusOptions = [
+    { value: "all", label: "All statuses" },
+    ...Array.from(byStatus.entries()).map(([code, v]) => ({ value: code, label: v.label })),
+  ];
+
+  // Two columns, so the table still fits beside the open detail panel: each track's name above its status, then the
+  // plan line, in the order of the cards before the table.
+  const columns: Column<MigrationSystem>[] = [
+    {
+      key: "system",
+      header: "System",
+      render: (s) => (
+        <div className="min-w-0">
+          <span className="block text-xs text-slate-400">{s.kind_label}</span>
+          <span className="block text-sm font-medium text-slate-100">{s.name}</span>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status and plan",
+      render: (s) => (
+        <div className="flex flex-col items-start gap-2">
+          {(s.tracks_brief ?? []).length > 0 ? (
+            (s.tracks_brief ?? []).map((brief, i) => (
+              <span key={i} data-testid="card-track" className="flex flex-col items-start gap-0.5">
+                <span className="text-[11px] text-slate-400">{brief.title}</span>
+                <StatusPill status={brief.status} />
+              </span>
+            ))
+          ) : (
+            <StatusPill status={s.status} />
+          )}
+          <span className="text-xs text-slate-400">{s.plan_line}</span>
+        </div>
+      ),
+    },
+  ];
+
+  const panel = (
+    <DetailPanel
+      open={system !== null}
+      title={system?.kind_label ?? ""}
+      onClose={closePanel}
+    >
+      {system ? (
+        <SystemDetail
+          key={system.key}
+          system={system}
+          busy={acting}
+          detailsOpen={detailsOpen.has(system.key)}
+          onDetailsOpen={(open) =>
+            setDetailsOpen((prev) => {
+              const next = new Set(prev);
+              if (open) next.add(system.key);
+              else next.delete(system.key);
+              return next;
+            })
+          }
+          openOption={choosing?.system === system.key ? choosing.option : null}
+          onOpenOption={(option) => setChoosing(option ? { system: system.key, option } : null)}
+          onSetting={(field, value) => setting(system.key, field, value)}
+          onSaveChoice={saveChoice(system.key)}
+          onViewFix={onViewFix}
+          planId={current.plan_id}
+          onChanged={reloadAfterChange}
+        />
+      ) : null}
+    </DetailPanel>
+  );
 
   return (
     <section aria-label={current.title}>
@@ -352,108 +433,50 @@ export function MigrationScreen({
             onChanged={() => void reloadAfterChange()}
           />
         ) : tab === "roadmap" ? (
-          <Roadmap
-            view={current}
-            busy={acting}
-            exported={exported}
-            onDownload={() => void download()}
-            onViewFix={onViewFix}
+          <TableWithPanel
+            panelOpen={system !== null}
+            table={
+              <Roadmap
+                view={current}
+                busy={acting}
+                exported={exported}
+                onDownload={() => void download()}
+                onViewFix={onViewFix}
+                selectedKey={system?.key ?? null}
+                onOpenSystem={openSystem}
+              />
+            }
+            panel={panel}
           />
-        ) : system ? (
+        ) : current.systems.length > 0 ? (
           <>
             <SummaryCards label="Systems by status" cards={cards} />
-            <div className="grid items-start gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-              <nav aria-labelledby="migration-list-title" className="min-w-0">
-                <h2
-                  id="migration-list-title"
-                  className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500"
-                >
-                  {current.list_title}
-                </h2>
-                <Toolbar>
-                  <SearchInput
-                    value={search}
-                    onChange={setSearch}
-                    label="Search systems"
-                    placeholder="Search systems"
+            <TableWithPanel
+              panelOpen={system !== null}
+              table={
+                <nav aria-labelledby="migration-list-title" className="min-w-0">
+                  <h2 id="migration-list-title" className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
+                    {current.list_title}
+                  </h2>
+                  <Toolbar>
+                    <SearchInput value={search} onChange={setSearch} label="Search systems" placeholder="Search systems" />
+                    <FilterSelect label="Status" value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
+                  </Toolbar>
+                  <DataTable
+                    label="Systems"
+                    columns={columns}
+                    rows={listed}
+                    rowKey={(s) => s.key}
+                    rowTestId="system-card"
+                    rowAttrs={(s) => ({ "data-system": s.key, "aria-current": s.key === system?.key ? "true" : undefined })}
+                    selectedKey={system?.key ?? null}
+                    onRowClick={(s) => openSystem(s.key)}
+                    empty="No systems match this search."
                   />
-                </Toolbar>
-                <ul className="flex flex-col divide-y divide-slate-800/70 overflow-hidden rounded-xl border border-slate-800 bg-slate-900/30">
-                  {listed.map((s) => {
-                    const selected = s.key === system.key;
-                    return (
-                      <li key={s.key} data-testid="system-row">
-                        <button
-                          type="button"
-                          data-testid="system-card"
-                          data-system={s.key}
-                          aria-current={selected ? "true" : undefined}
-                          onClick={() => setSelectedKey(s.key)}
-                          className={`w-full px-4 py-3 text-left transition-colors ${
-                            selected
-                              ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]"
-                              : "hover:bg-slate-800/40"
-                          }`}
-                        >
-                          <span className="block text-xs text-slate-400">
-                            {s.kind_label}
-                          </span>
-                          <span className="block text-sm font-medium text-slate-100">
-                            {s.name}
-                          </span>
-                          {(s.tracks_brief ?? []).length > 0 ? (
-                            (s.tracks_brief ?? []).map((brief, i) => (
-                              <span
-                                key={i}
-                                data-testid="card-track"
-                                className="mt-1.5 flex items-center justify-between gap-2"
-                              >
-                                <span className="text-[11px] text-slate-400">
-                                  {brief.title}
-                                </span>
-                                <StatusPill status={brief.status} />
-                              </span>
-                            ))
-                          ) : (
-                            <span className="mt-1.5 block">
-                              <StatusPill status={s.status} />
-                            </span>
-                          )}
-                          <span className="mt-1.5 block text-xs text-slate-400">
-                            {s.plan_line}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </nav>
-              <SystemDetail
-                key={system.key}
-                system={system}
-                busy={acting}
-                detailsOpen={detailsOpen.has(system.key)}
-                onDetailsOpen={(open) =>
-                  setDetailsOpen((prev) => {
-                    const next = new Set(prev);
-                    if (open) next.add(system.key);
-                    else next.delete(system.key);
-                    return next;
-                  })
-                }
-                openOption={
-                  choosing?.system === system.key ? choosing.option : null
-                }
-                onOpenOption={(option) =>
-                  setChoosing(option ? { system: system.key, option } : null)
-                }
-                onSetting={(field, value) => setting(system.key, field, value)}
-                onSaveChoice={saveChoice(system.key)}
-                onViewFix={onViewFix}
-                planId={current.plan_id}
-                onChanged={reloadAfterChange}
-              />
-            </div>
+                </nav>
+              }
+              panel={panel}
+            />
           </>
         ) : current.empty_text ? (
           <p data-testid="migration-empty" className="text-sm text-slate-400">

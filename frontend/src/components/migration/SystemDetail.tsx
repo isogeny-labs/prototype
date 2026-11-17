@@ -333,10 +333,8 @@ export function SystemDetail({
 
   return (
     <div data-testid="migration-system" data-system={system.key} className="flex min-w-0 flex-col gap-3">
-      <div>
-        <p className="text-xs text-slate-400">{system.kind_label}</p>
-        <h2 className="text-lg font-semibold text-slate-50">{system.name}</h2>
-      </div>
+      {/* The panel's own heading shows the kind of system; the name is the heading of this box. */}
+      <h2 className="text-lg font-semibold text-slate-50">{system.name}</h2>
       <Today
         system={system}
         detailsOpen={detailsOpen}

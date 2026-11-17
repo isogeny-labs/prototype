@@ -71,6 +71,7 @@ describe("Migration 4b, two tracks", () => {
 
   it("draws the target line, then one box per track with its facts, Next and Why", async () => {
     await open(migrationView4b);
+    fireEvent.click(card("localhost:8451"));
     const today = within(screen.getByTestId("migration-today"));
     expect(screen.getByTestId("target-line").textContent).toMatch(/^Target: post-quantum on both tracks/);
     expect(screen.queryByTestId("today-sentence")).toBeNull();
@@ -343,7 +344,8 @@ describe("Migration 4b, polling", () => {
     await screen.findByRole("heading", { level: 1, name: "Migration plan" });
     fireEvent.click(card("localhost:8452"));
     expect(screen.getByTestId("change-box").getAttribute("data-busy")).toBe("true");
-    await waitFor(() => expect(screen.getByTestId("change-box").getAttribute("data-busy")).toBe("false"), { timeout: 4000 });
+    // Two asks a second apart: wait for the not-busy answer on screen, however slow the machine (it ends as soon as it holds).
+    await waitFor(() => expect(screen.getByTestId("change-box").getAttribute("data-busy")).toBe("false"), { timeout: 15_000 });
     expect(calls(fetchMock)).toEqual([GET, GET, GET]);
     await new Promise((resolve) => setTimeout(resolve, 1300));
     expect(calls(fetchMock)).toHaveLength(3);
@@ -407,7 +409,7 @@ describe("Fixes 4b, the change box in an entry", () => {
     fireEvent.click(box().getByRole("button", { name: "Try on a test copy" }));
     await waitFor(() => expect(calls(fetchMock).filter((c) => c === "GET /api/plans/1/fixes")).toHaveLength(2));
     expect(body(fetchMock, `POST ${PLAN}/try`)).toEqual({ change: TLS_CHANGE_ID });
-    expect(onPlanChanged).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onPlanChanged).toHaveBeenCalledTimes(1));
   });
 
   it("asks again every second while a change is busy", async () => {

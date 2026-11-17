@@ -261,6 +261,8 @@ describe("full flow", () => {
   // Evidence is a table; a row opens its detail in the right-hand panel.
   const expandRow = (title: string) =>
     fireEvent.click(screen.getAllByTestId("evidence-row").find((r) => within(r).queryAllByText(title).length > 0)!);
+  // Fixes is a table; with no fix asked for, it opens on the first fix, as before the panel.
+  const openFirstFix = async () => screen.findByTestId("fix-summary");
   const viewInFixes = (title: string) => {
     const panel = screen.getByTestId("detail-panel");
     expect(within(panel).getByRole("heading", { level: 2, name: title })).not.toBeNull();
@@ -277,10 +279,10 @@ describe("full flow", () => {
     expect(calls(fetchMock)).not.toContain("GET /api/plans/1/fixes");
 
     goTo("Fixes");
-    const summary = await screen.findByTestId("fix-summary");
+    const summary = await openFirstFix();
     expect(screen.getByRole("heading", { level: 1, name: "Fixes" })).not.toBeNull();
     expect(currentPages()).toEqual(["Fixes"]);
-    // With nothing asked for, the first fix in the list is the one shown.
+    // With nothing asked for, the page opens on the first fix.
     expect(summary.getAttribute("data-fix-id")).toBe(CODE_FIX);
     expect(screen.getByTestId("copilot-panel")).not.toBeNull();
     expect(screen.getByTestId("mode-line")).not.toBeNull();
@@ -321,7 +323,7 @@ describe("full flow", () => {
     at("fixes");
     mockApi(withFixes());
     render(<App />);
-    await screen.findByTestId("fix-summary");
+    await openFirstFix();
     fireEvent.click(screen.getByRole("button", { name: /^Server accepts TLS 1\.2/ }));
     expect(screen.getByTestId("fix-summary").getAttribute("data-fix-id")).toBe(TLS_FIX);
 
@@ -347,7 +349,7 @@ describe("full flow", () => {
       "GET /api/plans/2/fixes": { body: { ...fixesViews.ready, plan_id: 2 } },
     } as Routes);
     render(<App />);
-    await screen.findByTestId("fix-summary");
+    await openFirstFix();
     fireEvent.click(screen.getByRole("button", { name: /^Server accepts TLS 1\.2/ }));
     expect(screen.getByTestId("fix-summary").getAttribute("data-fix-id")).toBe(TLS_FIX);
 
@@ -360,7 +362,7 @@ describe("full flow", () => {
     await screen.findAllByTestId("test-card");
     await waitFor(() => expect(isOff("Fixes")).toBe(false));
     goTo("Fixes");
-    expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(CODE_FIX);
+    expect((await openFirstFix()).getAttribute("data-fix-id")).toBe(CODE_FIX);
   });
 
   it("Retest now calls its route and then opens Evidence, where before and after show", async () => {
@@ -378,7 +380,7 @@ describe("full flow", () => {
       }),
     );
     render(<App />);
-    await screen.findByTestId("fix-summary");
+    await openFirstFix();
 
     fireEvent.click(screen.getByRole("button", { name: "Retest now" }));
     expect(await screen.findByTestId("lab-columns")).not.toBeNull();
@@ -400,7 +402,7 @@ describe("full flow", () => {
       }),
     );
     render(<App />);
-    await screen.findByTestId("fix-summary");
+    await openFirstFix();
     fireEvent.click(screen.getByRole("button", { name: "Retest now" }));
     expect(text(await screen.findByRole("alert"))).toBe("A retest is running. Wait until it has finished.");
     expect(currentPages()).toEqual(["Fixes"]);
@@ -412,11 +414,11 @@ describe("full flow", () => {
     const first = render(<App />);
     await screen.findAllByTestId("evidence-row");
     goTo("Fixes");
-    await screen.findByTestId("fix-summary");
+    await openFirstFix();
     first.unmount();
 
     render(<App />);
-    expect(await screen.findByTestId("fix-summary")).not.toBeNull();
+    expect(await openFirstFix()).not.toBeNull();
     expect(currentPages()).toEqual(["Fixes"]);
   });
 

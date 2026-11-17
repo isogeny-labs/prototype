@@ -144,10 +144,18 @@ function fixList(): Locator {
 function listed(title: string): Locator {
   return fixList().getByRole("button").filter({ hasText: title });
 }
+/** Phase 5a follow-up: a fix's row in the table (its status chip and where it came from sit beside the title button). */
+function listedRow(title: string): Locator {
+  return fixList().getByTestId("fix-row").filter({ hasText: title });
+}
 
 /** The summary card of the selected fix. */
 function summary(): Locator {
   return page.getByTestId("fix-summary");
+}
+/** Phase 5a follow-up: the open fix's title is the detail panel's heading. */
+function fixTitle(): Locator {
+  return page.getByTestId("detail-panel").getByRole("heading", { level: 2 }).first();
 }
 
 function section(key: "change" | "proof" | "details" | "suggestion"): Locator {
@@ -170,7 +178,7 @@ async function selectFix(title: string, id: string): Promise<void> {
 async function expectStatus(key: string, word: string): Promise<void> {
   await expect(summary().getByTestId("fix-status")).toHaveAttribute("data-status", key, { timeout: 15_000 });
   await expect(summary().getByTestId("fix-status")).toHaveText(word);
-  await expect(listed(CODE_FIX_TITLE).getByTestId("fix-status")).toHaveText(word);
+  await expect(listedRow(CODE_FIX_TITLE).getByTestId("fix-status")).toHaveText(word);
 }
 
 /** Before a proof has passed, the summary never calls the change ready and never says that it fixes anything. */
@@ -378,7 +386,7 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
   await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText("Fixes");
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
-  await expect(summary().getByRole("heading", { level: 2 })).toHaveText(CODE_FIX_TITLE);
+  await expect(fixTitle()).toHaveText(CODE_FIX_TITLE);
   await expect(page.getByTestId("fixes-subline")).toHaveText(
     "Fixes for the findings in Evidence Lab. A code change is ready for review only after its proof has passed.",
   );
@@ -386,15 +394,18 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
   await expect(page.getByText("Demo data", { exact: true }).first()).toBeVisible();
 
   await expect(fixList().getByRole("heading")).toHaveText("Open findings with a fix (2)");
+  // Phase 5a follow-up: the list is a table; each row's title is the button that opens the fix in the detail panel.
   const items = fixList().getByRole("button");
+  const rows = fixList().getByTestId("fix-row");
   await expect(items).toHaveCount(2);
+  await expect(rows).toHaveCount(2);
   await expect(items.nth(0)).toContainText(CODE_FIX_TITLE);
-  await expect(items.nth(0).getByTestId("fix-status")).toHaveText("Code not connected");
-  await expect(items.nth(0)).toContainText("Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)");
+  await expect(rows.nth(0).getByTestId("fix-status")).toHaveText("Code not connected");
+  await expect(rows.nth(0)).toContainText("Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)");
   await expect(items.nth(0)).toHaveAttribute("aria-current", "true");
   await expect(items.nth(1)).toContainText(TLS_FIX_TITLE);
-  await expect(items.nth(1).getByTestId("fix-status")).toHaveText("Ready to try");
-  await expect(items.nth(1)).toContainText("Came from 1 failed test: Old TLS versions");
+  await expect(rows.nth(1).getByTestId("fix-status")).toHaveText("Ready to try");
+  await expect(rows.nth(1)).toContainText("Came from 1 failed test: Old TLS versions");
   await expect(items.nth(1)).not.toHaveAttribute("aria-current", "true");
 
   // From the other failed signing test: the same fix (one fix answers both).
@@ -409,7 +420,7 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
   await tls.getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
   await expect(summary()).toHaveAttribute("data-fix-id", TLS_FIX);
-  await expect(summary().getByRole("heading", { level: 2 })).toHaveText(TLS_FIX_TITLE);
+  await expect(fixTitle()).toHaveText(TLS_FIX_TITLE);
   await expect(listed(TLS_FIX_TITLE)).toHaveAttribute("aria-current", "true");
   await expect(listed(CODE_FIX_TITLE)).not.toHaveAttribute("aria-current", "true");
 
@@ -765,7 +776,7 @@ test("after the proof Evidence Lab's line reads Fix ready, and the server failur
   await expect(summary()).toHaveAttribute("data-fix-id", TLS_FIX);
   await expect(summary().getByTestId("fix-status")).toHaveText("Ready to try");
   await expect(summary().getByRole("button")).toHaveCount(0);   // its buttons are in the change box below
-  await expect(listed(CODE_FIX_TITLE).getByTestId("fix-status")).toHaveText("Ready for review");
+  await expect(listedRow(CODE_FIX_TITLE).getByTestId("fix-status")).toHaveText("Ready for review");
   await expect(page.getByTestId("change-box")).toBeVisible();
   await shot("11-fixes-server-tls-text-only.png");
 });
@@ -1034,7 +1045,7 @@ test("the opened row after the retest: the code each side ran on, the Code item,
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
   await expectStatus("merged", "Merged");
   await expect(fixList().getByRole("button")).toHaveCount(2);
-  await expect(listed(TLS_FIX_TITLE).getByTestId("fix-status")).toHaveText("Ready to try");
+  await expect(listedRow(TLS_FIX_TITLE).getByTestId("fix-status")).toHaveText("Ready to try");
   await expect(summary().getByRole("button")).toHaveText(["Retest now", "Download patch"]);
   await expectNoSoftwareUpload();
   await expectCarefulWording();
@@ -1530,7 +1541,7 @@ test("a third import: Fixes says when no failed test has a fix, and Connect demo
   await expect(fixList().getByRole("heading")).toHaveText("Open findings with a fix (1)");
   await expectStatus("not_connected", "Code not connected");
   const s = summary();
-  await expect(listed(CODE_FIX_TITLE)).toContainText("Came from 1 failed test: Attacker tricks (our short list)");
+  await expect(listedRow(CODE_FIX_TITLE)).toContainText("Came from 1 failed test: Attacker tricks (our short list)");
   await expect(s.getByRole("button")).toHaveText(["Connect demo code"]);
   await expect(s.getByRole("button", { name: "Connect demo code" })).toBeDisabled();
   await expect(s.getByTestId("fix-actions")).toContainText("Run every test in the plan first, so there is a result to compare with.");

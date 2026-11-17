@@ -266,7 +266,8 @@ test("Fixes: the change for Phase 1 has its change box (Ready to try); the block
   const list = page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByRole("button");
   await expect(list).toHaveCount(2);
   const fix = page.getByTestId("fix-summary");
-  await expect(fix.getByRole("heading", { name: "Turn on hybrid key exchange on localhost:8452" })).toBeVisible();
+  // (phase 5a follow-up: the open fix's title is the detail panel's heading)
+  await expect(page.getByTestId("detail-panel").getByRole("heading", { name: "Turn on hybrid key exchange on localhost:8452", level: 2 })).toBeVisible();
   // Since phase 4b the status word is the change box's badge.
   await expect(fix.getByTestId("fix-status")).toHaveText("Ready to try");
   await expect(fix.getByTestId("fix-proof")).toContainText("The change box below shows its try on a test copy, its approvals, and Apply.");

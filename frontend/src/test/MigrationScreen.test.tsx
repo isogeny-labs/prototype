@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { describe, expect, it, vi } from "vitest";
 import type { MigrationView } from "../api";
 import { MigrationScreen } from "../components/MigrationScreen";
+import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
 import { calls, evidenceExport, mockApi, text } from "./fixtures";
 import { HYBRID_FIX, SIGN_FIX, measuringView, migrationView, withSystem } from "./migrationFixtures";
 
@@ -36,7 +37,8 @@ describe("Migration, header and Systems view", () => {
     expect(button("Systems · 7").getAttribute("aria-pressed")).toBe("true");
     expect(button("Roadmap").getAttribute("aria-pressed")).toBe("false");
     // The first answer tells the app, which loads the plan again (the GET may have made it).
-    expect(onPlanChanged).toHaveBeenCalledTimes(1);
+    // The screen tells the app from an effect just after it draws: wait for the call itself.
+    await waitFor(() => expect(onPlanChanged).toHaveBeenCalledTimes(1));
 
     expect(screen.getByRole("heading", { level: 2, name: "Systems in the file (7)" })).not.toBeNull();
     expect(cards().map((c) => c.getAttribute("data-system"))).toEqual(migrationView.systems.map((s) => s.key));
@@ -53,9 +55,10 @@ describe("Migration, header and Systems view", () => {
     expect(text(within(card("localhost:8451")).getByTestId("migration-status"))).toBe("◑Hybrid");
     expect(text(within(card("acme-sign 9.9")).getByTestId("migration-status"))).toBe("?Couldn't check");
     expect(text(card("localhost:8452"))).toBe("Serverlocalhost:8452○ClassicalPlan: Hybrid · Phase 1");
-    // The first system is selected when nothing was picked.
+    // As before the panel, Systems opens on the first system; the panel shows it.
     expect(cards().map((c) => c.getAttribute("aria-current"))).toEqual(["true", null, null, null, null, null, null]);
     expect(screen.getByRole("heading", { level: 2, name: "localhost:8451" })).not.toBeNull();
+    expect(within(screen.getByTestId("detail-panel")).getByTestId("migration-system").getAttribute("data-system")).toBe("server:localhost:8451");
     expect(document.body.textContent).not.toMatch(/score/i);
   });
 
@@ -198,12 +201,16 @@ describe("Migration, settings", () => {
     });
     expect((screen.getByLabelText("Data lifespan") as HTMLSelectElement).value).toBe("short");
     expect(text(card("localhost:8452"))).toContain("Plan: Hybrid · Phase 2");
-    expect(onPlanChanged).toHaveBeenCalledTimes(2);
+    // The screen tells the app from an effect just after it draws: wait for the call itself.
+    await waitFor(() => expect(onPlanChanged).toHaveBeenCalledTimes(2));
   });
 
   it("locks the settings while a measurement runs", async () => {
     await open(measuringView, { [GET]: { body: measuringView } });
-    for (const select of screen.getAllByRole("combobox")) expect((select as HTMLSelectElement).disabled).toBe(true);
+    fireEvent.click(cards()[0]!);
+    const settings = within(screen.getByTestId("detail-panel")).getAllByRole("combobox");
+    expect(settings.length).toBeGreaterThan(0);
+    for (const select of settings) expect((select as HTMLSelectElement).disabled).toBe(true);
   });
 });
 
@@ -259,7 +266,8 @@ describe("Migration, choosing an option", () => {
     });
     expect(within(screen.getByTestId("migration-choice")).getByText(/^Your choice: Keep classical for now/)).not.toBeNull();
     expect(screen.getAllByTestId("choice-history").map((h) => h.textContent)).toEqual(["Earlier: Hybrid, 14 Nov 2026, 5:10 PM"]);
-    expect(onPlanChanged).toHaveBeenCalledTimes(2);
+    // The screen tells the app from an effect just after it draws: wait for the call itself.
+    await waitFor(() => expect(onPlanChanged).toHaveBeenCalledTimes(2));
   });
 
   it("sends no review date for an option without one", async () => {
@@ -291,7 +299,8 @@ describe("Migration, choosing an option", () => {
     expect((await box.findByTestId("choose-error")).textContent).toBe("The review date can't be later than 31 December 2030.");
     expect((box.getByLabelText(/^Your reason/) as HTMLTextAreaElement).value).toBe("Because.");
     expect((box.getByRole("button", { name: "Save choice" }) as HTMLButtonElement).disabled).toBe(false);
-    expect(onPlanChanged).toHaveBeenCalledTimes(1);
+    // The screen tells the app from an effect just after it draws: wait for the call itself.
+    await waitFor(() => expect(onPlanChanged).toHaveBeenCalledTimes(1));
   });
 });
 
@@ -306,7 +315,7 @@ describe("Migration, View in Fixes", () => {
     const phase2 = screen.getAllByTestId("roadmap-band").find((b) => b.getAttribute("data-band") === "phase2")!;
     fireEvent.click(within(phase2).getByRole("button", { name: "View in Fixes" }));
     expect(onViewFix).toHaveBeenLastCalledWith(SIGN_FIX);
-    expect(screen.getAllByRole("button", { name: "View in Fixes" })).toHaveLength(2);
+    expect(within(screen.getByTestId("migration-roadmap")).getAllByRole("button", { name: "View in Fixes" })).toHaveLength(2);
   });
 });
 
@@ -339,13 +348,20 @@ describe("Migration, Roadmap view", () => {
     );
   });
 
-  it("has no buttons the spec does not list: a system's name in a row is plain text", async () => {
+  it("has no buttons the spec does not list: Download, View in Fixes, and one button on each row that opens its panel", async () => {
     await open();
     fireEvent.click(button("Roadmap"));
     const roadmap = screen.getByTestId("migration-roadmap");
-    expect(within(roadmap).queryByRole("button", { name: "acme-sign 1.4.2" })).toBeNull();
-    const names = within(roadmap).getAllByRole("button").map((b) => b.textContent);
-    expect(new Set(names)).toEqual(new Set(["Download evidence", "View in Fixes"]));
+    const rowButtons = within(roadmap).getAllByTestId("roadmap-row").map((r) => within(r).getAllByRole("button")[0]!);
+    const others = within(roadmap)
+      .getAllByRole("button")
+      .filter((b) => !rowButtons.includes(b))
+      .map((b) => b.textContent);
+    expect(new Set(others)).toEqual(new Set(["Download evidence", "View in Fixes"]));
+    // A row button is the system's name, and it opens that system in the panel.
+    expect(screen.queryByTestId("detail-panel")).toBeNull();
+    fireEvent.click(within(roadmap).getByRole("button", { name: /acme-sign 1\.4\.2/ }));
+    expect(within(screen.getByTestId("detail-panel")).getByTestId("migration-system").getAttribute("data-system")).toBe("software:acme-sign-1.4.2");
   });
 
   it("downloads the same evidence as Evidence Lab and shows its fingerprint", async () => {
@@ -382,6 +398,7 @@ describe("Migration, measuring", () => {
 
   it("disables the measure button with its reason and shows the progress while measuring, and draws each system's status", async () => {
     await open(measuringView, { [GET]: { body: measuringView } });
+    fireEvent.click(cards()[0]!);
     expect(button("Measure again").disabled).toBe(true);
     expect(screen.getByTestId("measure-blocked").textContent).toBe("A measurement is running.");
     expect(screen.getByTestId("measure-progress").textContent).toBe("Measuring: 2 of 7 systems finished.");
@@ -411,17 +428,79 @@ describe("Migration, measuring", () => {
     const onPlanChanged = vi.fn();
     render(<MigrationScreen importId={7} onViewFix={vi.fn()} onPlanChanged={onPlanChanged} />);
     await screen.findByRole("heading", { level: 1, name: "Migration plan" });
-    expect(onPlanChanged).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(button("Measure again").disabled).toBe(false), { timeout: 4000 });
+    // The screen tells the app from an effect that runs just after it draws, so wait for the call itself: on a busy
+    // machine that moment can come a little after the new screen is already there.
+    await waitFor(() => expect(onPlanChanged).toHaveBeenCalledTimes(1));
+    // Two asks a second apart, then the answer that is not busy: wait for that on screen, however slow the machine.
+    await waitFor(() => expect(button("Measure again").disabled).toBe(false), { timeout: 15_000 });
     expect(calls(fetchMock)).toEqual([GET, GET, GET]);
-    expect(onPlanChanged).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(onPlanChanged).toHaveBeenCalledTimes(2));
+    // Nothing asks again once it is done (an absence can only be checked by waiting past the next tick).
     await new Promise((resolve) => setTimeout(resolve, 1300));
     expect(calls(fetchMock)).toHaveLength(3);
+    expect(onPlanChanged).toHaveBeenCalledTimes(2);
   });
 
   it("does not ask again when nothing runs", async () => {
     const { fetchMock } = await open();
     await new Promise((resolve) => setTimeout(resolve, 1300));
     expect(calls(fetchMock)).toEqual([GET]);
+  });
+});
+
+describe("Migration, the systems table and its detail panel", () => {
+  it("opens a system in the panel on a row click, shows the whole detail there, and closes with the close button or Escape", async () => {
+    await open();
+    // The first system is open to begin with; a row click opens another one in the same panel.
+    expect(within(screen.getByTestId("detail-panel")).getByTestId("migration-system").getAttribute("data-system")).toBe("server:localhost:8451");
+    fireEvent.click(card("localhost:8452"));
+    const panel = within(screen.getByTestId("detail-panel"));
+    expect(panel.getByTestId("migration-today")).not.toBeNull();
+    expect(panel.getByTestId("migration-settings")).not.toBeNull();
+    expect(panel.getByTestId("migration-recommendation")).not.toBeNull();
+    expect(panel.getAllByTestId("option-card")).toHaveLength(4);
+    expect(card("localhost:8452").getAttribute("aria-selected")).toBe("true");
+    fireEvent.click(panel.getByRole("button", { name: "Close details" }));
+    expect(screen.queryByTestId("detail-panel")).toBeNull();   // closed stays closed: no fall back to the first system
+    fireEvent.click(card("localhost:8452"));
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("detail-panel")).toBeNull();
+  });
+
+  it("filters the table by status and by search", async () => {
+    await open();
+    // The open system (the first one) stays listed whatever the filter, as before the panel.
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), { target: { value: "couldnt_check" } });
+    expect(cards()).toHaveLength(2);
+    expect(cards()[0]!.getAttribute("aria-current")).toBe("true");
+    // With the panel closed, the filter alone decides.
+    fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
+    expect(cards()).toHaveLength(1);
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), { target: { value: "all" } });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search systems" }), { target: { value: "8452" } });
+    expect(cards()).toHaveLength(1);
+  });
+
+  it("opens the same panel from a Roadmap row", async () => {
+    await open();
+    fireEvent.click(button("Roadmap"));
+    fireEvent.click(screen.getAllByTestId("roadmap-row")[0]!);
+    const panel = within(screen.getByTestId("detail-panel"));
+    expect(panel.getByTestId("migration-system")).not.toBeNull();
+    expect(panel.getByTestId("migration-today")).not.toBeNull();
+  });
+
+  it("turns the panel's changing buttons off in a closed assessment", async () => {
+    mockApi({ [GET]: { body: migrationView } });
+    render(
+      <ReadOnlyProvider readOnly>
+        <MigrationScreen importId={7} onViewFix={vi.fn()} onPlanChanged={vi.fn()} />
+      </ReadOnlyProvider>,
+    );
+    await screen.findByRole("heading", { level: 1, name: migrationView.title });
+    fireEvent.click(card("localhost:8452"));
+    const choose = within(option("keep")).getByRole("button", { name: "Choose this option" }) as HTMLButtonElement;
+    expect(choose.disabled).toBe(true);
+    expect(choose.getAttribute("title")).toBe(CLOSED_SENTENCE);
   });
 });
