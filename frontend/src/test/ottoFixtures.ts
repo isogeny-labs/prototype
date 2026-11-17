@@ -1291,7 +1291,7 @@ export const nextStepVerify: AssessmentView["next_step"] = { page: "inventory/im
 export const nextStepAdvisories: AssessmentView["next_step"] = {
   page: "advisories",
   label: "Open advisories",
-  text: "1 new advisory check is ready to add from the installed test packs. Adding them runs nothing.",
+  text: "1 new advisory check is ready to add from the installed test packs. Adding it runs nothing.",
 };
 
 /** After Check for updates met files it would not take: each file with the backend's one plain reason. */

@@ -264,7 +264,7 @@ class ProjectsMixin:
         if new_checks:
             return {"page": "advisories", "label": "Open advisories",
                     "text": (f"{new_checks} new advisory {'check is' if new_checks == 1 else 'checks are'} ready to add from the installed "
-                             "test packs. Adding them runs nothing.")}
+                             f"test packs. Adding {'it' if new_checks == 1 else 'them'} runs nothing.")}
         if counts["fixes"] and counts["fixes"]["open"]:
             return {"page": "fixes", "label": "Open fixes",
                     "text": "Some failed tests or migration steps have a suggested fix waiting."}

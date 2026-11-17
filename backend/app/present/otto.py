@@ -149,12 +149,14 @@ def _trial_lines(advisory: dict) -> list[str]:
     arms, package = trial["arms"], advisory["package"]["name"]
     a, f, c = arms["affected"], arms["fixed"], arms["accept-all"]
     lines = []
+    def counted(arm: dict) -> str:
+        return f"{arm['wrong']} of {arm['total']} {_plural(arm['total'], 'case')} wrong"
     if "total" in a:
-        lines.append(f"{package} {a.get('version')} (affected): {a['wrong']} of {a['total']} cases wrong.")
+        lines.append(f"{package} {a.get('version')} (affected): {counted(a)}.")
     if "total" in f:
-        lines.append(f"{package} {f.get('version')} (the publisher's fixed version): {f['wrong']} of {f['total']} cases wrong.")
+        lines.append(f"{package} {f.get('version')} (the publisher's fixed version): {counted(f)}.")
     if "total" in c:
-        lines.append(f"The control that must fail (a program that accepts every signature): {c['wrong']} of {c['total']} cases wrong.")
+        lines.append(f"The control that must fail (a program that accepts every signature): {counted(c)}.")
     # The replay is a second, separate step of the same build on the same computer: said as that, not as an outside check.
     lines.append(f"Otto's harness judged the trial against thresholds fixed before the first run: {trial['outcome'].replace('_', ' ')}."
                  + (" It was then run again as a separate replay step of the same build, on the same computer, and gave the same numbers."

@@ -367,6 +367,21 @@ describe("Advisories, an advisory's panel", () => {
     expect(affected.querySelector("q")!.textContent).toBe(blankFailed.panel.affected!.quote.text);
   });
 
+  it("shows a quote that is a raw field of a record as it stands, without a second pair of quotation marks", async () => {
+    const raw = '"fixed": "6.5.7"';
+    const view = withFirstRow(advisoriesFailed, (r) => ({
+      ...r,
+      panel: { ...r.panel, publisher: { ...r.panel.publisher!, text: raw } },
+    }));
+    await open(view);
+    const publisher = (await openRow(BLANK)).getByTestId("advisory-publisher");
+    expect(within(publisher).getByTestId("quote-raw").textContent).toBe(raw);
+    expect(within(publisher).getByTestId("quote-raw").tagName).toBe("CODE");
+    expect(publisher.querySelector("q")).toBeNull();
+    // it is still a quote under its tag, from its named source
+    expect(within(publisher).getByText(view.rows[0]!.panel.publisher!.tag)).not.toBeNull();
+  });
+
   it("shows a source whose address is not https as text, never as a link", async () => {
     const view = withFirstRow(advisoriesFailed, (r) => ({
       ...r,

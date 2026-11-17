@@ -31,10 +31,19 @@ export function SourceName({ name, href }: { name: string; href: string }) {
 /** A line of the publisher's own text, word for word, under its tag: information from the advisory, never a result,
  * so it has no pass or fail look. */
 export function QuoteView({ quote, testId }: { quote: AdvisoryQuote; testId?: string }) {
+  // A quote can be a raw field of a record, with double quotes of its own ("fixed": "6.5.7"). It is then shown as it
+  // stands, in fixed-width letters: a second pair of quotation marks around it would only confuse.
+  const raw = quote.text.includes('"');
   return (
     <figure data-testid={testId} className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3">
       <p className="break-words border-l-2 border-slate-600 pl-3 text-slate-200">
-        <q>{quote.text}</q>
+        {raw ? (
+          <code data-testid="quote-raw" className="font-mono text-[13px]">
+            {quote.text}
+          </code>
+        ) : (
+          <q>{quote.text}</q>
+        )}
       </p>
       <figcaption className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
         {quote.tag ? <SourceTag>{quote.tag}</SourceTag> : null}

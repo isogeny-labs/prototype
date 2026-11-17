@@ -137,3 +137,31 @@ def test_settings_dates_the_recorded_answers_before_any_pack_is_installed(tmp_pa
         assert lab.otto_view()["answers"]["line"] == "Answers written for a test, 17 November 2026"   # then the pack's own line
     finally:
         lab.stop()
+
+
+def test_a_trial_line_counts_one_case_as_one_case():
+    entry, made = helpers.pack_advisory("CVE-2024-42460", "Wrongly encoded signature accepted", flags=("MissingZero",))
+    arms = entry["test"]["trial"]["arms"]
+    assert len(made["cases"]["ids"]) == 1
+    arms["affected"].update(right=0, wrong=1, total=1)
+    arms["fixed"].update(right=1, wrong=0, total=1)
+    arms["accept-all"].update(right=0, wrong=1, total=1)
+    lines = _row([], entry=entry, made=made)["panel"]["test"]["trial"]["lines"]
+    assert lines[0].endswith("(affected): 1 of 1 case wrong.") and lines[1].endswith("0 of 1 case wrong.")
+    assert not any("1 cases" in line for line in lines)
+    assert any("2 of 64 cases wrong" in line for line in _row([])["panel"]["test"]["trial"]["lines"])      # several stay "cases"
+
+
+def test_the_overviews_next_step_points_to_advisories_only_when_a_check_can_be_added():
+    """It opens a page and runs nothing. The plan's own tests come first, and a closed assessment is never sent there."""
+    from app.projects.store import ProjectsMixin
+    brief = {"status": {"key": "open"}, "file": {"name": "acme-pay-cbom.json"}}
+    counts = {"claims": 3, "tests": 5, "fixes": {"open": 1}}
+    one = ProjectsMixin._next_step(brief, counts, None, 1)
+    assert one["page"] == "advisories" and one["label"] == "Open advisories"
+    assert one["text"] == "1 new advisory check is ready to add from the installed test packs. Adding it runs nothing."
+    two = ProjectsMixin._next_step(brief, counts, None, 2)
+    assert two["text"] == "2 new advisory checks are ready to add from the installed test packs. Adding them runs nothing."
+    assert ProjectsMixin._next_step(brief, counts, None, 0)["page"] == "fixes"                  # nothing to add: as before
+    assert ProjectsMixin._next_step(brief, {**counts, "tests": None}, None, 2)["page"] == "checks"
+    assert ProjectsMixin._next_step({**brief, "status": {"key": "closed"}}, counts, None, 2)["page"] == "overview"
