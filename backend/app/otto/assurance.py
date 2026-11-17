@@ -17,10 +17,17 @@ result. Evidence Lab's own read gate still re-reviews every result each time it 
 
 A lab is acted on only through the harness's own functions; the ledger file is never written by this code. The only
 program the harness starts here is the pinned record checker (checker/recheck.py, copied into the lab).
+
+A ledger that comes out of a file (the verify command reads one from an evidence file) is data. Otto's audit runs
+the verifier each entry names, and a verifier can name a command. So before the harness is given such a ledger,
+`only_our_checker` makes sure it names nothing to run but this app's own pinned record checker; otherwise nothing is
+run at all.
 """
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 import shutil
 import threading
 from pathlib import Path
@@ -29,7 +36,12 @@ from app.otto import harness
 
 CHECKER_SOURCE = Path(__file__).with_name("checker") / "recheck.py"
 CHECKER = "recheck.py"
+CHECKER_TIMEOUT_SECONDS = 60
 AUTHOR = "evidence-lab"
+ENTRY_KINDS = ("objective", "claim", "verdict")      # the only kinds of entry an assessment's ledger holds
+PARAM_KINDS = ("run", "step")                        # what the pinned checker checks: a bound run, or a Claude step
+_HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
+OTHER_VERSION = "the ledger was written with a record checker that is not this version's (it may come from another version of the app)"
 _locks: dict[str, threading.Lock] = {}
 _locks_guard = threading.Lock()
 
@@ -70,7 +82,7 @@ class Ledger:
 
     def _verifier(self, params: dict) -> dict:
         return {"kind": "certificate", "checker": CHECKER, "checker_sha256": _sha256(self.folder / CHECKER), "params": params,
-                "timeout_seconds": 60}
+                "timeout_seconds": CHECKER_TIMEOUT_SECONDS}
 
     def lock_check(self, *, title: str, program: str, spec_hash: str, design_sha256: str, pack_fingerprint: str, pack_version: str,
                    advisory_id: str) -> str:
@@ -142,7 +154,9 @@ class Ledger:
         if not self.exists():
             return []
         with self._guard:
-            return list(self._lab().audit(reverify=True))
+            lab = self._lab()
+            problems = list(lab.audit(reverify=True))
+            return problems + [f"an entry could not be checked again ({note})" for note in getattr(lab, "audit_notes", []) or []]
 
     def about(self, objective_id: str) -> list[dict]:
         """The entries about one locked check, oldest first: {"seq", "kind", "id", "at", "what"}. The words only say
@@ -172,15 +186,51 @@ class Ledger:
 PHASE_WORDS = {"first": "first run", "retest": "retest", "proof": "fix proof"}
 
 
+def only_our_checker(entries: list) -> str | None:
+    """A ledger that came out of a file is data, and Otto's audit runs what its entries name. This says, in one plain
+    phrase, what such a ledger names that is not this app's own pinned record checker, or None when it names nothing
+    else. Nothing is run to find out. OTHER_VERSION is returned when the only difference is the checker's fingerprint."""
+    ours = _sha256(CHECKER_SOURCE)
+    other_version = False
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("kind") not in ENTRY_KINDS or not isinstance(entry.get("payload"), dict) \
+                or entry["payload"].get("type") != entry["kind"]:
+            return "the ledger holds an entry of a kind an assessment's ledger never holds"
+        if entry["kind"] != "objective":
+            continue
+        verifier = entry["payload"].get("verifier")
+        if not isinstance(verifier, dict) or set(verifier) != {"kind", "checker", "checker_sha256", "params", "timeout_seconds"} \
+                or verifier["kind"] != "certificate" or verifier["checker"] != CHECKER \
+                or verifier["timeout_seconds"] != CHECKER_TIMEOUT_SECONDS or isinstance(verifier["timeout_seconds"], bool) \
+                or not isinstance(verifier["params"], dict) or verifier["params"].get("kind") not in PARAM_KINDS \
+                or not isinstance(verifier["checker_sha256"], str) or not _HEX64.match(verifier["checker_sha256"]):
+            return "the ledger names something to run that is not this app's own pinned record checker"
+        if verifier["checker_sha256"] != ours:
+            other_version = True
+    return OTHER_VERSION if other_version else None
+
+
 def verify_lines(lines: list[str], scratch: Path) -> list[str]:
     """Check a ledger given as its lines (from an evidence file): write it into a scratch lab with the pinned checker
-    and run Otto's own audit on it. Returns the problems found (empty when there are none). Raises OttoNotInstalled."""
+    and run Otto's own audit on it. Returns the problems found (empty when there are none). Raises OttoNotInstalled.
+
+    The lines are data from a file. Unless they name nothing to run but our own pinned checker, the harness is not
+    given them and nothing is run. An entry the audit could not check again is a problem too, never a quiet pass."""
+    try:
+        entries = [json.loads(line) for line in lines]
+    except (TypeError, ValueError):
+        return ["the ledger's lines could not be read"]
+    foreign = only_our_checker(entries)
+    if foreign is not None:
+        return [f"{foreign}, so nothing was run"]
     module = harness.module("lab")
     ledger_module = harness.module("ledger")
     scratch.mkdir(parents=True, exist_ok=True)
     (scratch / "ledger.jsonl").write_text("".join(line + "\n" for line in lines), encoding="utf-8")
     shutil.copyfile(CHECKER_SOURCE, scratch / CHECKER)
     try:
-        return list(module.Lab(str(scratch)).audit(reverify=True))
+        lab = module.Lab(str(scratch))
+        problems = list(lab.audit(reverify=True))
     except ledger_module.LedgerError as exc:
         return [f"the chain does not hold: {exc}"]
+    return problems + [f"an entry could not be checked again ({note})" for note in getattr(lab, "audit_notes", []) or []]
