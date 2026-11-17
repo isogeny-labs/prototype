@@ -16,7 +16,7 @@ _(none pinned — set one with `/goal <text>`)_
 
 ## Active items (top = next)
 
-- [ ] Standardize the repository CI check contract (Codex, started 2026-11-17, branch codex/standard-ci-check)
+- [ ] Standardize the repository CI check contract (Codex, started 2026-11-17, branch codex/standard-ci-check, PR #5)
 <!-- One line per task, added as the task's first step with its draft PR:
 - [ ] <task> (<runtime>, started YYYY-MM-DD, branch <branch>, PR #<n>) -->
 
