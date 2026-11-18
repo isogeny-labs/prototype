@@ -308,15 +308,17 @@ def _fix_entry(lab, db, fix: dict, shown: dict) -> dict:
              "proof_summary": {"state": said.get("state"), "label": (said.get("badge") or {}).get("label"), "text": said.get("text")},
              "source": {"kind": fix["source_kind"], "text": shown.get("list_source"),
                         "results": [_pick(answer, ("item_id", "kind", "run_id", "phase")) for answer in fix["answers"]]},
-             "suggestion": _suggestion(shown), "change": None, "proofs": [], "pull_request": None, "approvals": [], "merge": None,
-             # Phase 5c: a library's fix from Otto has two proof rows, in the same words as on the screens ...
-             "proof_rows": [{"label": row["label"], "word": row["badge"]["label"], "text": row["text"], "line": row["line"],
-                             "note": row.get("note")}
-                            for row in shown.get("proof_rows") or []] or None,
-             # ... and a fix of Otto's is a proposal: where the person's decisions on it stand (the decisions themselves,
-             # with who and when, are in the Otto part of this file)
-             "proposal": ({"id": shown["proposal"]["id"], "label": shown["proposal"]["label"], "status": shown["proposal"]["status"]["word"],
-                           "decided": shown["proposal"]["decided_line"]} if shown.get("proposal") else None)}
+             "suggestion": _suggestion(shown), "change": None, "proofs": [], "pull_request": None, "approvals": [], "merge": None}
+    # Phase 5c, only on a fix of Otto's (an entry of any other fix reads exactly as it did before): a library's fix
+    # has two proof rows, in the same words as on the screens ...
+    if shown.get("proof_rows"):
+        entry["proof_rows"] = [{"label": row["label"], "word": row["badge"]["label"], "text": row["text"], "line": row["line"],
+                                "note": row.get("note")} for row in shown["proof_rows"]]
+    # ... and a fix of Otto's is a proposal: where the person's decisions on it stand (the decisions themselves, with
+    # who and when, are in the Otto part of this file)
+    if shown.get("proposal"):
+        entry["proposal"] = {"id": shown["proposal"]["id"], "label": shown["proposal"]["label"],
+                             "status": shown["proposal"]["status"]["word"], "decided": shown["proposal"]["decided_line"]}
     change, request, merge = fix["change"], fix["pull_request"], fix["merge"]
     if change is None:
         return entry

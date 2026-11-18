@@ -140,8 +140,10 @@ def test_image_holds_only_the_component_files(probe):
     expected = sorted(p.relative_to(COMPONENTS_DIR).as_posix() for p in COMPONENTS_DIR.rglob("*")
                       if p.is_file() and "__pycache__" not in p.parts and p.name not in ("Dockerfile", ".dockerignore"))
     assert probe["image_files"] == expected
-    assert expected == ["acme-sign-1.4.2/acme_sign.py", "acme-sign-1.4.3/acme_sign.py", "controls/accept_all.py",
-                        "controls/slow.py", "harness/driver.py"]
+    # (since 18 November 2026, Kevin's decision: the program that Otto's recorded change gives is a registered demo
+    # program too, so the demo can prove Otto's own change. It is our own file, like the two beside it.)
+    assert expected == ["acme-sign-1.4.2/acme_sign.py", "acme-sign-1.4.3-otto/acme_sign.py", "acme-sign-1.4.3/acme_sign.py",
+                        "controls/accept_all.py", "controls/slow.py", "harness/driver.py"]
 
 
 def test_runner_starts_exactly_the_fixed_command_and_cannot_be_asked_for_more(docker_ready, monkeypatch):
