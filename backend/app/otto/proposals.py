@@ -552,7 +552,10 @@ class ProposalsMixin:
                         if _stamp_after(run.finished_at, last.installed_at):
                             newest[run.plan_item_id] = run
                     labels = [r["label"] for r in (self._result(db, run) for run in newest.values()) if r]      # type: ignore[attr-defined]
+                # (the updates this pack brings for libraries of the dependency list that its advisories name)
+                updates = [p for p in proposals if p["kind"] == "dependency" and p["about"].get("pack") == last.version]
                 since = {"brought": {s: sum(1 for p in brought if p["state"] == s) for s in ("proposed", "accepted", "rejected")},
+                         "updates": {s: sum(1 for p in updates if p["state"] == s) for s in ("proposed", "accepted", "rejected")},
                          "decisions": len(decided), "results": labels}
             rows.append({"assessment": a, "waiting": waiting, "since": since,
                          "why": None if since is not None or last is None else "It was closed before this pack was installed."})

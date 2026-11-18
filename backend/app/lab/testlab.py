@@ -94,6 +94,7 @@ class TestLabMixin:
     otto_result_fix: Callable[..., dict | None]
     otto_keeps_in_plan: Callable[..., str | None]          # from ProposalsMixin (phase 5c)
     otto_result_blocks: Callable[..., dict[int, dict]]     # from ProposalsMixin (phase 5c): where an advisory check came from
+    _column_code: Callable[..., dict | None]               # from FixesMixin: the code one side of before and after ran on
     _merged_versions: Callable[..., list[str]]             # from ChangesMixin (phase 5c): what merged changes of the plan give
 
     def _init_testlab(self) -> None:

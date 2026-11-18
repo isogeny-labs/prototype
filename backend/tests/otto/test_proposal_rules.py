@@ -143,6 +143,14 @@ def test_evidence_and_the_results_own_words_use_the_same_rows():
     assert "every other locked test still passed" not in words                               # nothing the pack does not bear out
 
 
+def test_a_program_is_named_with_its_whole_version_also_when_the_version_has_a_hyphen():
+    """The speed test's sentence names the program it measured. Otto's registered program is acme-sign 1.4.3-otto."""
+    from app.present.results import _version_label
+    assert _version_label({"key": "acme-sign-1.4.2"}) == "acme-sign 1.4.2"
+    assert _version_label({"key": "acme-sign-1.4.3-otto"}) == "acme-sign 1.4.3-otto"
+    assert _version_label({"key": ""}) == "" and _version_label({}) == ""
+
+
 # ---------------------------------------------------------------- Dependencies: named by an advisory, and "update first"
 
 @pytest.fixture
@@ -233,6 +241,23 @@ def test_otto_proposes_update_first_and_a_person_accepts_or_rejects_it(listed):
     undone = _rows(lab.dependencies_view(plan_id))["python-ecdsa 0.13.2"]
     assert undone["otto_status"] is None and undone["otto_proposals"][0]["status"]["word"] == "Proposed"
     assert undone["otto_proposals"][0]["history"]["count"] == 2
+
+
+@pytest.mark.needs_otto
+def test_the_project_overview_says_which_updates_the_newest_pack_brought(listed):
+    """What changed since the last pack: the checks it brought, and the updates it brought for libraries its advisories
+    name. Counts only, from the same proposals the pages show."""
+    lab, plan_id = listed, listed.plan.id
+    a = lab.assessment_for(plan_id=plan_id)
+    row, = lab.otto_project_block([a])["rows"]
+    # the newest pack (2026.11.2) brought one check for acme-sign and one update (elliptic); the first pack's are not counted here
+    assert row["since"] == ["It brought 1 proposed check for this assessment: 1 waiting.",
+                            "It also brought 1 proposed dependency update for libraries its advisories name: 1 waiting."]
+    elliptic = next(p for p in lab.otto_proposals(plan_id, ("dependency",)) if p["about"]["library"] == "elliptic")
+    lab.otto_decide(plan_id, elliptic["id"], "accept")
+    row, = lab.otto_project_block([a])["rows"]
+    assert row["since"][1] == "It also brought 1 proposed dependency update for libraries its advisories name: 1 accepted."
+    assert row["since"][2] == "1 decision recorded since."
 
 
 @pytest.mark.needs_otto

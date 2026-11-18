@@ -5,6 +5,7 @@ by reviewer.py from the raw outputs). This module only chooses words, and builds
 outcome (the real failing cases, the real timings)."""
 from __future__ import annotations
 
+import re
 import json
 
 from app.present import advisory as present_advisory
@@ -433,7 +434,12 @@ def _bad_signatures(w: _Words, spec, run, review, ctx) -> None:
 
 
 def _version_label(summary: dict) -> str:
+    """"acme-sign-1.4.2" as "acme-sign 1.4.2". The version starts at the first part that begins with a digit, so a
+    version with a hyphen of its own stays whole ("acme-sign-1.4.3-otto" is "acme-sign 1.4.3-otto", phase 5c)."""
     key = str(summary.get("key") or "")
+    found = re.match(r"^(.+?)-(\d.*)$", key)
+    if found:
+        return f"{found.group(1)} {found.group(2)}"
     name, _, version = key.rpartition("-")
     return f"{name} {version}" if name else key
 

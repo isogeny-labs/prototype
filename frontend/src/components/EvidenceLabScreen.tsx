@@ -395,7 +395,8 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
       minWidth: 110,
       render: (row) => {
         const r = leading(row, beforeAfter);
-        return r ? <ResultBadge label={r.label} tone={r.tone} /> : row.result_status ? <StatusView status={row.result_status} /> : null;
+        // (the column is narrow here, so a long result, "No slowdown beyond measured noise", may wrap between words)
+        return r ? <ResultBadge label={r.label} tone={r.tone} wrap /> : row.result_status ? <StatusView status={row.result_status} /> : null;
       },
     },
   ];

@@ -238,6 +238,23 @@ added at every push:
   pictures; the layout walk at 1440 pixels with the new columns; the full backend suite; the accuracy check in both
   modes; the run with Otto absent; the type-check baseline (one old finding whose hint text changed); the
   independent review; the merge and the report.
+- **Checkpoint 4 (the end-to-end walk is written and passes; pictures not committed yet).**
+  `e2e/tests/otto.spec.ts` is rewritten as the one walk of the success flow, in three parts: demo mode (eight
+  stages, with a tour that opens every tab at each stage, measures it at 1440 pixels and photographs it in both
+  looks; 5 minutes), isolated mode (a file that names one real library; the two proof rows; a retest on 6.5.7 turns
+  the second row to "Passed"; 4 minutes) and a copy without Otto (30 seconds). All three pass. The walk found and
+  fixed four things: a program's version with a hyphen was split in the speed test's sentence ("acme-sign-1.4.3
+  otto"); a long result label did not wrap in the narrow tables of Checks and of Evidence beside an open panel
+  after a retest (an older gap of phase 5b's layout check: no walk measured those tables in that state); and
+  pictures taken before a page had its data (the walk now waits until the page has settled). The Project overview
+  also says which dependency updates the newest pack brought. The type-check baseline is settled (the one finding
+  is gone: a type-only declaration). SPEC 12 item 10 and `CLAUDE.md` describe the walk as built.
+  **The pictures are not in this commit:** they are retaken by the last full end-to-end run, after the review, so
+  that they show the final code (the folder `docs/screenshots/phase5c/` still holds the first build's 44 pictures
+  in git; on disk they are deleted and replaced).
+  **Not done yet:** the full backend suite; the accuracy check in both modes (and `--only otto`, whose walk gained
+  a dependency step that has not run yet); the run with Otto absent; the full end-to-end suite; the independent
+  review; the pictures; the merge and the report.
 
 ## 4. The new criteria against the build: what is there, what is missing
 
@@ -310,7 +327,23 @@ for review (before the new criteria).
 **Waiting for Kevin:**
 
 - **The fifth answer key** (`demo/expected-otto.json`): who writes it and when. Never written by the build.
-- **Questions the new criteria raise.** If there is no answer, take the default named and say so in the report:
+- **Questions the new criteria raise: answered by Kevin on 18 November 2026.** His answers, word for word, then the
+  questions as they were asked:
+  1. "Register Otto's recorded acme-sign program as one of our demo programs, so the walk shows Otto's own code
+     change proposed, accepted, proven on a test copy, merged and retested. Keep the fix template as the fallback
+     when Otto is absent."
+  2. "Use your suggested wording: 'Proven on public copies: Not proven. 17.0.2 fails the advisory check and 17.0.3
+     passes it, but another locked test still fails on 17.0.3.'"
+  3. "'Who' is the name the app already records for approvals and sign-offs."
+  4. "Plan and dependency proposals come from rules over the results, no new Claude job. They are still shown as
+     'From Otto' proposals with Accept and Reject."
+  5. "No accept-everything button; each proposal is decided by itself."
+
+  He also said: "Build without waiting for me, keep the handoff updated, and push wip/5c-otto at least hourly. When
+  everything passes (full backend suite, frontend checks, all end-to-end walks, accuracy in both modes with the four
+  existing keys unchanged, independent review), merge into mvp/crypto-simple, push, and send me the plain-English
+  report: what the user sees on each tab, with screenshots, and the test results."
+- **The questions as they were asked** (kept for the record):
   1. *A code change that is Otto's, on the demo.* The walk wants "a fix is proposed and accepted, proven, merged".
      Today the change that can be proven is the fix template's, not Otto's. Either register Otto's recorded program
      as one of our demo programs (his decision 1; it adds a demo component), or the walk accepts the template's

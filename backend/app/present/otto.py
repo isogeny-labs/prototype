@@ -336,6 +336,12 @@ def project_block(rows: list[dict], pack: dict | None) -> dict:
                 since_lines.append(f"It brought {_count(brought, 'proposed check')} for this assessment: " + ", ".join(x for x in parts if x) + ".")
             else:
                 since_lines.append("It brought no check that fits this assessment's file.")
+            u = s.get("updates") or {}
+            if sum(u.values()):
+                parts = [f"{u['proposed']} waiting" if u.get("proposed") else "", f"{u['accepted']} accepted" if u.get("accepted") else "",
+                         f"{u['rejected']} not added" if u.get("rejected") else ""]
+                since_lines.append(f"It also brought {_count(sum(u.values()), 'proposed dependency update')} for libraries its advisories name: "
+                                   + ", ".join(x for x in parts if x) + ".")
             if s["decisions"]:
                 since_lines.append(f"{_count(s['decisions'], 'decision')} recorded since.")
             if s["results"]:

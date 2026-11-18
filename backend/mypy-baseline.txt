@@ -129,7 +129,6 @@
 1	app/jobs.py: Item "None" of "Semaphore | None" has no attribute "__aexit__" [union-attr]
 1	app/lab/hub.py: Incompatible types in assignment (expression has type "Callable[[Any], dict[Any, Any] | None]", variable has type "Callable[[Any], None]") [assignment]
 1	app/lab/testlab.py: "TestLabMixin" has no attribute "_code_for_run" [attr-defined]
-1	app/lab/testlab.py: "TestLabMixin" has no attribute "_column_code"; maybe "_run_code"? [attr-defined]
 1	app/lab/testlab.py: "TestLabMixin" has no attribute "_fix_lines" [attr-defined]
 1	app/lab/testlab.py: "TestLabMixin" has no attribute "_has_migration" [attr-defined]
 1	app/lab/testlab.py: "TestLabMixin" has no attribute "_migration_states" [attr-defined]

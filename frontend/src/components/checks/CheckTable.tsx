@@ -19,9 +19,11 @@ export function FromOttoMark({ row }: { row: CheckRow }) {
   );
 }
 
-function Result({ row }: { row: CheckRow }) {
+/** `wrap`: beside an open panel the column is narrow, so a long result ("No slowdown beyond measured noise") may take
+ * two lines, breaking between words only. */
+function Result({ row, wrap = false }: { row: CheckRow; wrap?: boolean }) {
   if (row.status) return <StatusView status={row.status} />;
-  if (row.result) return <ResultBadge label={row.result.label} tone={row.result.tone} />;
+  if (row.result) return <ResultBadge label={row.result.label} tone={row.result.tone} wrap={wrap} />;
   return <span className="text-xs text-slate-500">Not run yet</span>;
 }
 
@@ -77,7 +79,7 @@ const compactColumns: Column<CheckRow>[] = [
       </>
     ),
   },
-  { key: "result", header: "Result", minWidth: 96, render: (r) => <Result row={r} /> },
+  { key: "result", header: "Result", minWidth: 96, render: (r) => <Result row={r} wrap /> },
 ];
 
 /** Phase 5b: a group's checks (Checks and Evidence draw the same table). */
