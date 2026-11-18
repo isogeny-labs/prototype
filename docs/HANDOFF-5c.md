@@ -255,6 +255,22 @@ added at every push:
   **Not done yet:** the full backend suite; the accuracy check in both modes (and `--only otto`, whose walk gained
   a dependency step that has not run yet); the run with Otto absent; the full end-to-end suite; the independent
   review; the pictures; the merge and the report.
+- **Checkpoint 5 (pictures in, as an interim set; the machine was restarted once).** Commit `a55cb30` holds 256
+  pictures of the walk (every tab at each of the eight stages in both looks, and the close-ups; 70 MB in LFS). They
+  are from the run before the walk took every picture at one point per page point: the 64 close-ups were scaled
+  down and stored with fewer colours. **The last full end-to-end run replaces all of them** with the walk's own
+  pictures; commit that set and no other. Checked since checkpoint 4: `python -m app.accuracy --only otto --mode
+  demo` walks to its end (113 answers, exit code 2 because the fifth key does not exist, by design), and
+  `python -m app.accuracy --mode demo` matches all four keys (18/18, 47/47, 1/1, 186/186; exit code 0).
+  The build machine was restarted during the full backend suite, so that run and the two reviewers were stopped
+  and started again (Docker has to be started by hand after a restart: section 7).
+  **Two independent reviews are running** (one against Kevin's criteria, the SPEC and `CLAUDE.md`, by reading the
+  code; one walking the pictures as a busy security engineer). Their findings, and what was done about each, go
+  into `docs/HANDOFF.md` under the second part.
+  **Not done yet:** the full backend suite (running); the fixes the reviews call for; accuracy in isolated mode
+  (`--mode isolated`, then `--only otto --mode isolated`); the fast set with Otto absent; `ottolab.build audit`;
+  the full end-to-end suite and the final pictures; the last counts in `docs/HANDOFF.md`; ticking the line in
+  `docs/ACTIVE.md`; pull request #6 ready and merged into `mvp/crypto-simple`; the report doc for Kevin.
 
 ## 4. The new criteria against the build: what is there, what is missing
 
