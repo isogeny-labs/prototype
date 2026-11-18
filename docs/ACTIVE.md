@@ -19,6 +19,16 @@ _(none pinned — set one with `/goal <text>`)_
 <!-- One line per task, added as the task's first step with its draft PR:
 - [ ] <task> (<runtime>, started YYYY-MM-DD, branch <branch>, PR #<n>) -->
 
-- [ ] Phase 5c: Otto in Evidence Lab (claude, started 2026-11-17, branch claude/trusting-goodall-m2i9g6, PR #6)
+- [x] Phase 5c: Otto in Evidence Lab (claude, started 2026-11-17, branch claude/trusting-goodall-m2i9g6, PR #6; built and checked 2026-11-18, ready for review, waiting for the owner's merge)
 
 ## Blocked / questions for the owner
+
+From phase 5c (details in `docs/HANDOFF.md`, "Decisions waiting for Kevin", and in the doc "Phase 5c report: Otto in Evidence Lab"). None blocks the merge of PR #6; each is the owner's to decide:
+
+- Otto's own change for `acme-sign` is not offered (its program is not byte for byte a registered demo program): keep that, register the program, or allow running a change Claude wrote (needs a sandbox design).
+- The strict reading of "every other locked test still passes" (so "update Java to 17.0.3" reads "not proven").
+- The default spending limit of Live Otto (2 US dollars per run).
+- Anthropic's official package, or the standard-library call as built.
+- Information-only lines on Advisories and Settings beyond the approved wording (SPEC 2 lists them).
+- The packs were rebuilt before the merge ("a shipped pack is never rebuilt" was read as "once merged").
+- The fifth answer key, `demo/expected-otto.json`: who writes it and when (`docs/OTTO-KEY.md` has the questions).

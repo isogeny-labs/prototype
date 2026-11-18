@@ -345,11 +345,15 @@ describe("sidebar, phase 5b", () => {
     const picker = screen.getByTestId("assessment-picker");
     expect(picker.getAttribute("aria-label")).toBe("Assessment: Assessment 2, Open");
     fireEvent.click(picker);
-    const menu = within(screen.getByRole("menu", { name: "Assessments" }));
-    expect(menu.getAllByRole("menuitem").map((m) => text(m))).toEqual(["Assessment 2Open", "Assessment 1Closed", "New assessment"]);
-    expect(menu.getAllByRole("menuitem")[1]!.getAttribute("href")).toBe("#/a/100/overview");
-    expect(menu.getAllByRole("menuitem")[0]!.getAttribute("aria-current")).toBe("true");
-    fireEvent.click(menu.getByRole("menuitem", { name: "New assessment" }));
+    // The project's assessments come in a request of their own, after the assessment's. The open menu fills in when
+    // they arrive, so the list is waited for (read at once, it can hold only New assessment on a slow computer).
+    const menu = () => within(screen.getByRole("menu", { name: "Assessments" }));
+    await waitFor(() =>
+      expect(menu().getAllByRole("menuitem").map((m) => text(m))).toEqual(["Assessment 2Open", "Assessment 1Closed", "New assessment"]),
+    );
+    expect(menu().getAllByRole("menuitem")[1]!.getAttribute("href")).toBe("#/a/100/overview");
+    expect(menu().getAllByRole("menuitem")[0]!.getAttribute("aria-current")).toBe("true");
+    fireEvent.click(menu().getByRole("menuitem", { name: "New assessment" }));
     expect(await screen.findByTestId("new-assessment-box")).not.toBeNull();
     expect(screen.queryByRole("menu", { name: "Assessments" })).toBeNull();
   });

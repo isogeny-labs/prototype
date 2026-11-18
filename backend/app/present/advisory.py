@@ -52,8 +52,9 @@ def box(spec: dict) -> dict:
     return {"title": BOX_TITLE, "tag": BOX_TAG,
             "items": [{"id": str(a["id"]), "text": plain_words.quoted(str(a["quote"])), "link": str(source.get("title") or ""),
                        "href": safe_href(source.get("url")),
-                       "covered": (f"This check reruns the {total} published test {_plural(total, 'case')} that match it, from test pack "
-                                   f"{a['pack']}. The words above are the publisher's; the result comes only from the test.")}]}
+                       "covered": (f"This check reruns the {total} published test {_plural(total, 'case')} that "
+                                   f"{_plural(total, 'matches', 'match')} it, from test pack {a['pack']}. "
+                                   "The words above are the publisher's; the result comes only from the test.")}]}
 
 
 def fix_words(comp: str, fix: dict | None) -> str:

@@ -212,7 +212,8 @@ describe("Overview buttons", () => {
     fireEvent.click(within(screen.getByTestId("page-header")).getByRole("button", { name: "New assessment" }));
     // The box: a name filled in ("Assessment 3"), a purpose and an optional reference. It closes nothing.
     const box = within(await screen.findByTestId("new-assessment-box"));
-    expect((box.getByLabelText("Name") as HTMLInputElement).value).toBe("Assessment 3");
+    // The name the box suggests comes with the project's data, in a request of its own, so it is waited for.
+    await waitFor(() => expect((box.getByLabelText("Name") as HTMLInputElement).value).toBe("Assessment 3"));
     expect((box.getByLabelText("Purpose") as HTMLSelectElement).value).toBe("full_review");
     expect(Array.from((box.getByLabelText("Purpose") as HTMLSelectElement).options).map((o) => o.textContent)).toEqual([
       "Full review",

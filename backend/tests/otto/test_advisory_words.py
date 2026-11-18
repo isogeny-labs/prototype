@@ -153,6 +153,37 @@ def test_a_trial_line_counts_one_case_as_one_case():
     assert any("2 of 64 cases wrong" in line for line in _row([])["panel"]["test"]["trial"]["lines"])      # several stay "cases"
 
 
+def test_the_advisory_box_counts_one_case_as_one_case():
+    """The box on a check's result panel says how many published cases the check reruns. The check for
+    CVE-2024-42460 reruns exactly one."""
+    def covered(cases: int) -> str:
+        spec = {"inputs": {"advisory": {"id": "CVE-2024-42460", "quote": "a line of the publisher's", "pack": "2026.11.2",
+                                        "source": {"title": "the record", "url": "https://github.com/advisories/GHSA-977x-g7h5-7qgw"}},
+                           "cases": [{"id": str(n)} for n in range(cases)]}}
+        return present_advisory.box(spec)["items"][0]["covered"]
+    one, many = covered(1), covered(77)
+    assert "the 1 published test case that matches it" in one and "1 published test cases" not in one and "case that match it" not in one
+    assert "the 77 published test cases that match it" in many and "cases that matches" not in many
+    for line in (one, many):
+        assert "from test pack 2026.11.2" in line and line.endswith("the result comes only from the test.")
+
+
+def test_the_pack_builder_counts_one_case_as_one_case():
+    """The sentence a pack carries about a ready test. Pack 2026.11.2 was signed with "1 of 1 cases wrong" and stays
+    as it is; the builder words the next pack right, and the sentences of the shipped packs with several cases are
+    the ones it would still write."""
+    import json
+
+    from ottolab import build
+    one = build.ready_reason("elliptic", {"version": "6.5.6", "wrong": 1, "total": 1}, {"version": "6.5.7"})
+    assert "elliptic 6.5.6 got 1 of 1 case wrong, elliptic 6.5.7 got none wrong" in one and "1 cases" not in one
+    shipped = json.loads((build.PACKS / "2026.11.1.json").read_text())
+    body = shipped.get("pack", shipped)
+    java = next(a for a in body["advisories"] if a["id"] == "CVE-2022-21449")
+    arms = java["test"]["trial"]["arms"]
+    assert build.ready_reason("openjdk", arms["affected"], arms["fixed"]) == java["test"]["reason"]
+
+
 def test_the_overviews_next_step_points_to_advisories_only_when_a_check_can_be_added():
     """It opens a page and runs nothing. The plan's own tests come first, and a closed assessment is never sent there."""
     from app.projects.store import ProjectsMixin

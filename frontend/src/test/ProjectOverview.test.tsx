@@ -149,7 +149,8 @@ describe("Project overview", () => {
     });
     fireEvent.click(within(screen.getByTestId("page-header")).getByRole("button", { name: "New assessment" }));
     const box = within(await screen.findByTestId("new-assessment-box"));
-    expect((box.getByLabelText("Name") as HTMLInputElement).value).toBe("Assessment 3");
+    // The name the box suggests comes with the project's data, in a request of its own, so it is waited for.
+    await waitFor(() => expect((box.getByLabelText("Name") as HTMLInputElement).value).toBe("Assessment 3"));
     fireEvent.click(box.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/102/overview"));
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual(["POST /api/projects/10/assessments"]);

@@ -236,10 +236,7 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
                 test.update(state="not_offered", reason="Not offered: its trial on public copies did not finish.")
             elif trial["outcome"] == "supported" and trial["replayed"]:
                 design = made
-                test.update(state="ready", reason=(
-                    f"Test ready: tried on public copies before this pack was signed. {package} {affected.get('version')} got "
-                    f"{affected.get('wrong')} of {affected.get('total')} cases wrong, {package} {fixed.get('version')} got none wrong, and the "
-                    "control that must fail did."))
+                test.update(state="ready", reason=ready_reason(package, affected, fixed))
             elif trial["outcome"] == "supported":
                 test.update(state="not_offered", reason="Not offered: its trial on public copies did not repeat when it was run again in a "
                                                         "separate replay step.")
@@ -296,6 +293,15 @@ def checks_of(pack: dict) -> list[dict]:
     return [{"advisory": t["design"]["advisory"], "package": about[t["design"]["advisory"]], "pack": pack["version"],
              "file": t["design"]["cases"]["file"], "sha256": t["design"]["cases"]["sha256"], "ids": sorted(t["design"]["cases"]["ids"])}
             for t in pack["tests"]]
+
+
+def ready_reason(package: str, affected: dict, fixed: dict) -> str:
+    """What a pack says about a test that is ready, from its trial's numbers. One case is "1 case". (Pack 2026.11.2
+    was signed with "1 of 1 cases wrong"; a signed pack stays as it is.)"""
+    total = affected.get("total")
+    return (f"Test ready: tried on public copies before this pack was signed. {package} {affected.get('version')} got "
+            f"{affected.get('wrong')} of {total} {'case' if total == 1 else 'cases'} wrong, {package} {fixed.get('version')} got none wrong, "
+            "and the control that must fail did.")
 
 
 def same_check_twice(checks: list[dict]) -> str | None:

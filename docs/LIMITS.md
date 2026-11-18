@@ -267,6 +267,10 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   when it is merged, they stay reachable through pull request #6. Nothing had shipped. From the merge of this
   phase on, a pack that is in the repository is never rebuilt. Whether building again before the merge was right
   is the owner's call: the rule in `CLAUDE.md` says "a shipped pack is never rebuilt".
+- **One sentence inside pack 2026.11.2 has a wording slip.** The pack's own line about the test for CVE-2024-42460
+  reads "elliptic 6.5.6 got 1 of 1 cases wrong". It is part of the signed pack, so it stays as it is, and the
+  Advisories panel shows it that way. The lines the app words itself say "1 of 1 case wrong", and the pack builder
+  words the next pack right (`ottolab/build.ready_reason`).
 - **No shipped advisory reads "Not offered".** The plan expected one design to be tried and refuted. In the real
   build no design was refuted: for CVE-2024-42461 the design step answered "no test fits" instead, and for
   CVE-2019-14853 the design was refused before it could be tried. The refuted path is real and tested on a made-up
