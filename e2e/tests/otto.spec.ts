@@ -30,7 +30,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  BACKEND, DISCLAIMER, PYTHON, REPO, continueToChecks, enterApp, evidenceRow, importVerifyAndOpenTests, layoutProblems, openFreshAssessment,
+  BACKEND, DISCLAIMER, PYTHON, REPO, continueToChecks, enterApp, evidenceRow, exactText, importVerifyAndOpenTests, layoutProblems, openFreshAssessment,
   openResult, screenshotFolder, startCopy, stepLink, stopCopy, type Copy,
 } from "./shared";
 
@@ -653,7 +653,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await page.getByLabel("Choose a dependency list").setInputFiles(DEPENDENCIES_FILE);
     await expect(page.getByTestId("dependency-row")).toHaveCount(10);
     const library = (label: string) =>
-      page.getByTestId("dependency-row").filter({ has: page.locator("p.font-mono", { hasText: new RegExp(`^${label.replace(/\./g, "\\.")}$`) }) });
+      page.getByTestId("dependency-row").filter({ has: page.locator("p.font-mono", { hasText: exactText(label) }) });
     await expect(library("python-ecdsa 0.13.2").getByTestId("advisory-marker").first()).toContainText("Named by advisory CVE-2019-14859: not yet checked");
     await expect(library("openjdk 17.0.2").getByTestId("advisory-marker")).toContainText("Named by advisory CVE-2022-21449: not yet checked");
     await expect(library("elliptic 6.5.6").getByTestId("advisory-marker")).toHaveCount(0);      // its advisories come with the next pack

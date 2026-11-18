@@ -15,6 +15,12 @@ export const PYTHON = path.join(BACKEND, ".venv/bin/python");
 
 export const DISCLAIMER = "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
 
+/** A pattern that matches exactly this text and nothing else. Every character a pattern could read as its own is
+ * escaped, the backslash too (escaping only the dots was flagged by GitHub's code scanning on 18 November 2026). */
+export function exactText(text: string): RegExp {
+  return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`);
+}
+
 // Made once per run by playwright.config.ts, for the throwaway data folder. It is never written anywhere.
 export const password: string = process.env.E2E_PASSWORD ?? "";
 if (!password) throw new Error("E2E_PASSWORD is not set; run the tests with `npm test` from the e2e folder.");
