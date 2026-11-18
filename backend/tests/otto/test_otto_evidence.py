@@ -63,6 +63,14 @@ def ran(tmp_path_factory):
     patch.undo()
 
 
+@pytest.fixture(scope="module")
+def ran_download(ran):
+    """One evidence download of `ran`, as text: each test that only changes a copy of the file reads it from here
+    (a download a case costs a third of a second, and there are some 25 cases)."""
+    raw, _ = _download(ran, ran.plan.id)
+    return raw
+
+
 @pytest.fixture
 def ran_alone(tmp_path, monkeypatch):
     lab = _ran(tmp_path, monkeypatch)
@@ -163,8 +171,8 @@ def _resigned(lab, evidence: dict) -> bytes:
                                   "an undecided proposal passed off as added before decisions were recorded",
                                   "a second proposal for a check that a recorded accept put in the plan",
                                   "the word for where a proposal stands changed", "a proposal marked as withdrawn and reworded"])
-def test_a_change_inside_the_otto_part_is_caught_even_when_the_file_is_signed_again(ran, tmp_path, name):
-    _, evidence = _download(ran, ran.plan.id)
+def test_a_change_inside_the_otto_part_is_caught_even_when_the_file_is_signed_again(ran, ran_download, tmp_path, name):
+    evidence = json.loads(ran_download)["evidence"]            # this case's own copy
     otto = evidence["otto"]
     lines = otto["ledger"]["lines"]
     decided = next(p for p in otto["proposals"] if p["decisions"])

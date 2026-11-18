@@ -407,16 +407,26 @@ def _strip(view: dict) -> dict:
 
 
 @pytest.mark.needs_otto
-def test_a_failed_advisory_check_proposes_something_to_fix_first_on_the_programs_track(failed_check):
+@pytest.mark.parametrize("failed_check", ["not_measured"], indirect=True)
+def test_a_failed_advisory_check_proposes_something_to_fix_first_on_the_programs_track(failed_check, monkeypatch):
+    """The one rule for plan changes. Also (second review, 18 November 2026): with the status not measured, the Overview
+    counted "1 proposed change to the migration plan" while the Roadmap read "there is no plan". A change to a plan
+    needs a plan: nothing is proposed until Measure status has placed the system, and then the same result proposes it."""
     lab, plan_id = failed_check, failed_check.plan.id
-    before = lab.migration_view(plan_id)
-    assert all(s["otto"] is None for s in before["systems"])                       # no check yet: nothing is proposed
-    assert lab.otto_proposals(plan_id, ("plan",)) == []
+    assert lab.otto_proposals(plan_id, ("plan",)) == []                            # no check yet: nothing is proposed
     helpers.accept_checks(lab, plan_id)
     item = next(t["id"] for t in lab.plan_view(plan_id)["tests"] if t["kind"] == "advisory_cases")
     assert lab.otto_proposals(plan_id, ("plan",)) == []                            # accepted, not run: still nothing to propose
     lab.run_test(plan_id, item)
     lab.wait_until_idle(plan_id, 240)
+    # the check has failed, and the status is not measured: the system has no place on the plan, so nothing is proposed
+    assert lab.otto_proposals(plan_id, ("plan",)) == [] and lab.otto_waiting(plan_id)["plan"] == 0
+    unplaced = lab.migration_view(plan_id)
+    assert all(s["otto"] is None for s in unplaced["systems"])
+    assert all(row["otto"] is None for band in unplaced["roadmap"]["bands"] for row in band["rows"])
+    lab.measure_migration(plan_id)                                                 # Measure status, as a person presses it
+    lab.wait_until_measured(plan_id, 300)
+    assert lab.otto_waiting(plan_id)["plan"] == 1
     proposal, = lab.otto_proposals(plan_id, ("plan",))
     assert proposal["title"] == "Fix acme-sign 1.4.2 before its signatures move to post-quantum" and proposal["label"] == "From Otto"
     assert proposal["why"].startswith("acme-sign 1.4.2 gave the wrong answer on 2 published cases of the kind CVE-2022-21449 describes")
@@ -429,8 +439,16 @@ def test_a_failed_advisory_check_proposes_something_to_fix_first_on_the_programs
     assert all(s["otto"] is None for s in view["systems"] if s["name"] != "acme-sign 1.4.2")
     marks = [row["otto"] for band in view["roadmap"]["bands"] for row in band["rows"] if row["name"] == "acme-sign 1.4.2"]
     assert marks and all(m == {"label": "From Otto", "text": "1 proposal waiting for your decision", "tone": "warn", "waiting": 1} for m in marks)
-    # everything the migration answer key grades reads exactly as before: the proposal only stands beside it
-    assert _strip(view)["systems"] == _strip(before)["systems"] and _strip(view)["roadmap"] == _strip(before)["roadmap"]
+    # everything the migration answer key grades reads exactly as the same page does with Otto's part left out: the
+    # proposal only stands beside it
+    with monkeypatch.context() as without:
+        without.setattr(lab, "_otto_checks", lambda db, plan_id: [])
+        plain = lab.migration_view(plan_id)
+    assert all(s["otto"] is None for s in plain["systems"]) and all(r["otto"] is None for b in plain["roadmap"]["bands"] for r in b["rows"])
+    before = _strip(plain)
+    assert _strip(view)["systems"] == before["systems"] and _strip(view)["roadmap"] == before["roadmap"]
+    # Fixes lists no entry for a plan change: it is decided on Migration
+    assert not any(f.get("title") == proposal["title"] for f in lab.fixes_view(plan_id)["fixes"])
 
     lab.otto_decide(plan_id, proposal["id"], "accept")
     accepted = lab.migration_view(plan_id)
@@ -439,7 +457,7 @@ def test_a_failed_advisory_check_proposes_something_to_fix_first_on_the_programs
     assert [b["label"] for b in shown["buttons"]] == ["Undo"]
     mark = next(row["otto"] for band in accepted["roadmap"]["bands"] for row in band["rows"] if row["name"] == "acme-sign 1.4.2")
     assert mark["waiting"] == 0 and mark["text"] == "On the plan: something to fix first, on the Signatures track."
-    assert _strip(accepted)["systems"] == _strip(before)["systems"] and _strip(accepted)["roadmap"] == _strip(before)["roadmap"]
+    assert _strip(accepted)["systems"] == before["systems"] and _strip(accepted)["roadmap"] == before["roadmap"]       # accepting changed none of it
     # Reject keeps the plan as it was, with the reason (shown here on the same proposal after an undo)
     lab.otto_decide(plan_id, proposal["id"], "undo")
     lab.otto_decide(plan_id, proposal["id"], "reject", "We retire this program in January")
@@ -447,30 +465,6 @@ def test_a_failed_advisory_check_proposes_something_to_fix_first_on_the_programs
     shown, = next(s for s in rejected["systems"] if s["name"] == "acme-sign 1.4.2")["otto"]["proposals"]
     assert shown["status"]["word"] == "Not added (We retire this program in January)" and [b["label"] for b in shown["buttons"]] == ["Reconsider"]
     assert not any(word in json.dumps(program["otto"]).lower() for word in BANNED)
-
-
-@pytest.mark.needs_otto
-@pytest.mark.parametrize("failed_check", ["not_measured"], indirect=True)
-def test_a_plan_change_is_proposed_only_once_the_system_has_a_place_on_the_plan(failed_check):
-    """Found by the second review of 18 November 2026: with the status not measured, the Overview counted "1 proposed
-    change to the migration plan" while the Roadmap read "there is no plan". A change to a plan needs a plan: nothing is
-    proposed until Measure status has placed the system, and then the same failed result proposes it."""
-    lab, plan_id = failed_check, failed_check.plan.id
-    helpers.accept_checks(lab, plan_id)
-    item = next(t["id"] for t in lab.plan_view(plan_id)["tests"] if t["kind"] == "advisory_cases")
-    lab.run_test(plan_id, item)
-    lab.wait_until_idle(plan_id, 240)
-    assert lab.otto_proposals(plan_id, ("plan",)) == [] and lab.otto_waiting(plan_id)["plan"] == 0
-    view = lab.migration_view(plan_id)
-    assert all(s["otto"] is None for s in view["systems"])
-    assert all(row["otto"] is None for band in view["roadmap"]["bands"] for row in band["rows"])
-    lab.measure_migration(plan_id)
-    lab.wait_until_measured(plan_id, 300)
-    proposal, = lab.otto_proposals(plan_id, ("plan",))
-    assert proposal["title"] == "Fix acme-sign 1.4.2 before its signatures move to post-quantum" and lab.otto_waiting(plan_id)["plan"] == 1
-    # Fixes lists no entry for a plan change: it is decided on Migration (the words for an empty Migration group
-    # there are tested below, on the words themselves)
-    assert not any(f["id"] == proposal["id"] or f.get("title") == proposal["title"] for f in lab.fixes_view(plan_id)["fixes"])
 
 
 @pytest.mark.needs_otto
