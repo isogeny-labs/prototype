@@ -93,6 +93,33 @@ def test_the_second_row_says_what_this_assessments_own_retest_showed():
     assert present_otto.public_copies_row({**fix, "state": "proven", "trial": None}, None)["note"] is None
 
 
+def test_the_second_row_reads_passed_only_for_a_whole_retest():
+    """Found by the independent review of 18 November 2026: "Passed" must wait for every pass-or-fail test of the
+    library in that same retest. While one is running, or after one was interrupted, the row reads "Not yet"."""
+    fix = {"library": "openjdk", "version": "17.0.3"}
+    base = {"item_id": 9, "finished_at": "2026-11-18T10:20:31Z", "check": {"code": "passed", "label": "Passed"}, "failing": 0, "tests": 4}
+    running = present_otto.your_system_row(fix, {**base, "state": "running", "done": 2, "live": True})
+    assert running["badge"] == {"label": "Not yet", "tone": "neutral"}
+    assert running["text"] == ("A retest on openjdk 17.0.3 is running: 2 of 4 pass-or-fail tests have a result so far. Nothing is proven "
+                               "until it has finished.")
+    unfinished = present_otto.your_system_row(fix, {**base, "state": "unfinished", "done": 1, "live": False})
+    assert unfinished["badge"]["label"] == "Not yet"
+    assert unfinished["text"] == "The retest on openjdk 17.0.3 did not finish: 1 of 4 pass-or-fail tests have a result. Press Retest again."
+    assert unfinished["links"] == [{"label": "See the retest's result", "link": {"page": "evidence", "item": "test-9"}}]
+    starting = present_otto.your_system_row(fix, {"state": "not_yet", "live": True})
+    assert starting["badge"]["label"] == "Not yet" and starting["text"].startswith("A retest on openjdk 17.0.3 is running.")
+    assert present_otto.your_system_row(fix, {"state": "not_yet", "live": False})["text"] == "Update the library, then press Retest."
+    for row in (running, unfinished, starting):
+        assert "Passed" not in row["line"] and row["note"] == present_otto.HERE_NOTE
+    # a test that could not run did not pass either, and is not said to "fail"
+    couldnt = present_otto.your_system_row(fix, {**base, "state": "not_proven", "failing": 1, "done": 4,
+                                                  "others": [{"code": "couldnt_run", "label": "Couldn't run"}, {"code": "passed", "label": "Passed"}]})
+    assert couldnt["text"].endswith("the advisory check passed, but another locked test did not pass on 17.0.3.")
+    failed = present_otto.your_system_row(fix, {**base, "state": "not_proven", "failing": 1, "done": 4,
+                                                 "others": [{"code": "failed", "label": "Failed"}]})
+    assert failed["text"].endswith("the advisory check passed, but another locked test still fails on 17.0.3.")
+
+
 def _update_fix(advisory_id: str, here: dict | None = None) -> dict:
     """A failed advisory check's fix as `fix_states` gives it for a library the advisory names."""
     advisory = _shipped()[advisory_id]
@@ -241,6 +268,64 @@ def test_otto_proposes_update_first_and_a_person_accepts_or_rejects_it(listed):
     undone = _rows(lab.dependencies_view(plan_id))["python-ecdsa 0.13.2"]
     assert undone["otto_status"] is None and undone["otto_proposals"][0]["status"]["word"] == "Proposed"
     assert undone["otto_proposals"][0]["history"]["count"] == 2
+
+
+def _list_with(change) -> bytes:
+    """The demo dependency list after `change(doc)`, as a file's bytes."""
+    doc = json.loads(DEPENDENCIES.read_text())
+    change(doc)
+    return json.dumps(doc).encode()
+
+
+def _without(doc: dict, name: str) -> None:
+    gone = {c.get("bom-ref") for c in doc["components"] if c["name"] == name}
+    doc["components"] = [c for c in doc["components"] if c["name"] != name]
+    for d in doc.get("dependencies", []):
+        d["dependsOn"] = [ref for ref in d.get("dependsOn", []) if ref not in gone]
+    doc["dependencies"] = [d for d in doc.get("dependencies", []) if d.get("ref") not in gone]
+
+
+def test_a_package_of_the_same_name_from_another_place_is_not_named(listed):
+    """Found by the independent review of 18 November 2026. The advisories about elliptic are about the npm package. A
+    package called elliptic from PyPI is another program: the knowledge base does not recognise it, so it is not named,
+    and Otto proposes nothing for it. A name is never matched by itself."""
+    def to_pypi(doc):
+        for c in doc["components"]:
+            if c["name"] == "elliptic":
+                c["purl"] = "pkg:pypi/elliptic@6.5.6"
+    listed.add_dependency_list(listed.plan.id, "other.cdx.json", _list_with(to_pypi))
+    rows = _rows(listed.dependencies_view(listed.plan.id))
+    assert rows["elliptic 6.5.6"]["advisories"] == [] and rows["elliptic 6.5.6"]["otto_proposals"] == []
+    assert rows["python-ecdsa 0.13.2"]["advisories"] and rows["openjdk 17.0.2"]["advisories"]          # recognised by their own addresses
+    assert not any(p["about"]["library"] == "elliptic" for p in listed.otto_proposals(listed.plan.id, ("dependency",)))
+
+
+@pytest.mark.needs_otto
+def test_a_decision_stays_with_its_library_and_version_when_a_newer_list_is_added(listed):
+    """Found by the independent review of 18 November 2026: a decision was tied to a row's place in the list, so with a
+    newer list "Update first" could land on whatever library stood in that place. It is tied to the library, its
+    version and the advisory. A decision on a library that is no longer in the list stays on the record and marks no row."""
+    lab, plan_id = listed, listed.plan.id
+    ecdsa, java, _ = lab.otto_proposals(plan_id, ("dependency",))
+    lab.otto_decide(plan_id, java["id"], "accept")
+    lab.otto_decide(plan_id, ecdsa["id"], "accept")
+    assert _rows(lab.dependencies_view(plan_id))["openjdk 17.0.2"]["otto_status"]["label"] == "Update first"
+    # a newer list, without openjdk: every row after it moves up one place
+    lab.add_dependency_list(plan_id, "newer.cdx.json", _list_with(lambda doc: _without(doc, "openjdk")))
+    rows = _rows(lab.dependencies_view(plan_id))
+    assert "openjdk 17.0.2" not in rows
+    marked = sorted(label for label, row in rows.items() if row["otto_status"])
+    assert marked == ["python-ecdsa 0.13.2"]                           # its own decision came along; nothing else is marked
+    assert rows["python-ecdsa 0.13.2"]["otto_proposals"][0]["id"] == ecdsa["id"]
+    assert all(not row["otto_proposals"] for label, row in rows.items() if not label.startswith(("python-ecdsa", "elliptic")))
+    # the decision on openjdk is still on the record, as a proposal Otto no longer makes here
+    kept = next(p for p in lab.otto_proposals(plan_id, ("dependency",)) if p["id"] == java["id"])
+    assert kept["current"] is False and kept["state"] == "accepted" and len(kept["decisions"]) == 1
+    assert all(reason for reason in kept["actions"].values())
+    assert lab.otto_waiting(plan_id)["dependency"] == 1                 # elliptic's, still undecided
+    # and it comes back with its library: the first list again, and openjdk reads "Update first" as decided
+    lab.add_dependency_list(plan_id, DEPENDENCIES.name, DEPENDENCIES.read_bytes())
+    assert _rows(lab.dependencies_view(plan_id))["openjdk 17.0.2"]["otto_status"]["label"] == "Update first"
 
 
 @pytest.mark.needs_otto
@@ -429,12 +514,88 @@ def test_an_undecided_plan_change_is_no_longer_proposed_once_the_check_passes(fa
     assert lab.otto_waiting(plan_id)["plan"] == 0
 
 
+@pytest.mark.needs_otto
+@pytest.mark.slow
+def test_a_plan_change_that_is_open_again_is_no_longer_proposed_once_the_check_passes(failed_check):
+    """Found by the independent review of 18 November 2026: accepted and then undone, it was still proposed after the
+    check had passed (and accepting it then read "Done" at once). It is open, so it is no longer proposed; its two
+    decisions stay on the record."""
+    from conftest import play_back_speed
+    lab, plan_id = failed_check, failed_check.plan.id
+    helpers.accept_checks(lab, plan_id)
+    play_back_speed(lab)
+    lab.run_all(plan_id)
+    lab.wait_until_idle(plan_id, 300)
+    proposal, = lab.otto_proposals(plan_id, ("plan",))
+    lab.otto_decide(plan_id, proposal["id"], "accept")
+    lab.otto_decide(plan_id, proposal["id"], "undo")
+    assert lab.otto_waiting(plan_id)["plan"] == 1                       # open again while the check still fails
+    lab.start_retest(plan_id, "1.4.3")
+    lab.wait_until_idle(plan_id, 300)
+    after, = lab.otto_proposals(plan_id, ("plan",))
+    assert after["id"] == proposal["id"] and after["state"] == "proposed" and after["current"] is False
+    assert [d["decision"] for d in after["decisions"]] == ["accept", "undo"]
+    assert after["actions"] and all(reason for reason in after["actions"].values())
+    assert lab.otto_waiting(plan_id)["plan"] == 0
+    view = lab.migration_view(plan_id)
+    assert all(s["otto"] is None for s in view["systems"])
+    assert all(row["otto"] is None for band in view["roadmap"]["bands"] for row in band["rows"])
+
+
+@pytest.mark.needs_otto
+@pytest.mark.slow
+def test_proven_here_needs_every_pass_or_fail_test_of_the_program_in_the_same_retest(failed_check, monkeypatch):
+    """The rule behind "Proven on your system", on the app's own runs (found by the independent review of 18 November
+    2026: the row read "Passed" as soon as the advisory check's own retest run had passed, while the others were
+    still running, and stayed so when a retest was interrupted)."""
+    from app.db import PlanItemRow, RetestRow
+    from conftest import play_back_speed
+    lab, plan_id = failed_check, failed_check.plan.id
+    helpers.accept_checks(lab, plan_id)
+    play_back_speed(lab)
+    lab.run_all(plan_id)
+    lab.wait_until_idle(plan_id, 300)
+    check = next(t["id"] for t in lab.plan_view(plan_id)["tests"] if t["kind"] == "advisory_cases")
+
+    def here() -> dict:
+        with lab.db() as db:
+            return lab._proven_here(db, db.get(PlanItemRow, check), "acme-sign", "1.4.3")
+    assert here() == {"state": "not_yet", "library": "acme-sign", "version": "1.4.3", "item_id": check, "live": False}
+    lab.start_retest(plan_id, "1.4.3")
+    lab.wait_until_idle(plan_id, 300)
+    whole = here()
+    assert whole["state"] == "passed" and (whole["tests"], whole["done"], whole["failing"]) == (3, 3, 0) and whole["missing"] == []
+    assert sorted(o["kind"] for o in whole["others"]) == ["bad_signatures", "official_vectors"]
+    # a second retest of which only this check's run exists (as when the app is stopped part-way): nothing is proven by it
+    with lab._plan_lock, lab.db() as db:
+        retest = RetestRow(plan_id=plan_id, baseline_version="1.4.2", version="1.4.3")
+        db.add(retest)
+        db.commit()
+        lab._submit(lab._plan(db, plan_id), db.get(PlanItemRow, check), "retest", retest)
+    lab.wait_until_idle(plan_id, 300)
+    half = here()
+    assert half["state"] == "unfinished" and (half["tests"], half["done"]) == (3, 1) and len(half["missing"]) == 2 and half["live"] is False
+    row = present_otto.your_system_row({"library": "acme-sign", "version": "1.4.3"}, half)
+    assert row["badge"]["label"] == "Not yet" and "did not finish: 1 of 3 pass-or-fail tests have a result. Press Retest again." in row["text"]
+
+    # ... and while the others of that retest are still running, it reads as running
+    class Busy:
+        status = "running"
+    missing = {m["item_id"] for m in half["missing"]}
+    monkeypatch.setattr(lab.jobs, "get", lambda key: Busy() if key[0] in missing and key[1] == "retest" else None)
+    going = here()
+    assert going["state"] == "running" and going["live"] is True and going["done"] == 1
+
+
 def test_the_ids_of_proposals_do_not_change_with_what_else_is_in_the_plan():
     assert proposals.check_id("CVE-2022-21449", "a" * 64, "ref-1") == proposals.check_id("CVE-2022-21449", "a" * 64, "ref-1")
     assert proposals.check_id("CVE-2022-21449", "a" * 64, "ref-1") != proposals.check_id("CVE-2022-21449", "a" * 64, "ref-2")
     assert proposals.check_id("CVE-2022-21449", "a" * 64, "ref-1").startswith("check-cve-2022-21449-")
     assert proposals.code_fix_id("otto-cve-2022-21449") == "fix-code-otto-cve-2022-21449" and proposals.update_fix_id(12) == "fix-update-12"
-    assert proposals.plan_id_for("software:x", 3).startswith("plan-") and proposals.dependency_id("row", "CVE-1").startswith("dep-")
+    assert proposals.plan_id_for("software:x", 3).startswith("plan-") and proposals.dependency_id("elliptic", "6.5.6", "CVE-1").startswith("dep-")
+    # a dependency proposal is for a library in a version and an advisory, wherever the list names it
+    assert proposals.dependency_id("Elliptic", "6.5.6", "CVE-1") == proposals.dependency_id("elliptic", "6.5.6", "CVE-1")
+    assert proposals.dependency_id("elliptic", "6.5.6", "CVE-1") != proposals.dependency_id("elliptic", "6.5.5", "CVE-1")
     for made in ("check-x", "fix-code-x", "fix-update-3", "plan-abc", "dep-abc"):
         assert proposals._kind_of_id(made) in proposals.KINDS
     assert proposals._kind_of_id("nonsense") is None

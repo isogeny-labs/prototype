@@ -75,8 +75,10 @@ def plan_id_for(system_key: str, item_id: int) -> str:
     return f"plan-{short(system_key, item_id)}"
 
 
-def dependency_id(row_key: str, advisory_id: str) -> str:
-    return f"dep-{short(row_key, advisory_id)}"
+def dependency_id(library: str, version: object, advisory_id: str) -> str:
+    """One proposal for one library in one version and one advisory, wherever (and however often) the list names it. So
+    a decision stays with that library and version when a newer list is added, and never moves to another row."""
+    return f"dep-{short(str(library).casefold(), version, advisory_id)}"
 
 
 def content(proposal: dict) -> dict:
@@ -255,14 +257,18 @@ class ProposalsMixin:
                                        "program": program, "fix": fix["id"], "pack": pack_fix.get("pack"),
                                        "public_copies": pack_fix.get("state")},
                                 proposed_at=at, item=fix["id"],
-                                facts={"fix_id": fix["id"], "code": False, "retested": here.get("state") in ("passed", "not_proven")}))
+                                # (a retest on the fixed version that has a result, also while it is still running, and one that is
+                                # running with no result yet: from either moment on, the accept stands)
+                                facts={"fix_id": fix["id"], "code": False, "retested": here.get("state", "not_yet") != "not_yet",
+                                       "live": bool(here.get("live"))}))
         return out
 
     def _plan_proposals(self, db, plan: PlanRow, shown: list[dict], fixes: list[dict], decided: set[str] | None = None) -> list[dict]:
         """From a fixed rule over the results: when an advisory check's newest result on a signing program of the file
         is a failure, Otto proposes to put fixing it on that program's Signatures track, as something to fix first.
-        `decided`: the proposals a person has decided on. Such a one stays when a newer result of its check passes,
-        and then reads done; one nobody decided on is simply no longer proposed."""
+        `decided`: the proposals a person's decision stands on (accepted or rejected). Such a one stays when a newer
+        result of its check passes, and then reads done; one that is open (never decided, or open again after an undo)
+        is no longer proposed then."""
         claims = self._claims(db.get(ImportRow, plan.import_id))
         systems = {s["target"]: s for s in self._systems(claims) if s["kind"] == "software"}
         newest: dict[int, dict] = {}
@@ -317,8 +323,11 @@ class ProposalsMixin:
 
     def _named_by(self, db, plan: PlanRow, state: dict | None, upto) -> dict[str, list[dict]]:
         """For each library row of the dependency list (by its key): the published advisories of the installed packs
-        that name it, each with what this assessment has measured. An advisory names a library when it is about that
-        package and the version in the list is below the version its publisher names as fixed."""
+        that name it, each with what this assessment has measured. An advisory names a library when the knowledge base
+        has recognised the row as the package the advisory is about, and the version in the list is below the version
+        its publisher names as fixed. "Recognised" is by the row's exact package address (a name alone only where the
+        row has no address and the knowledge base lists that bare name as safe to match): a package of the same name
+        from another ecosystem is not named."""
         if state is None:
             return {}
         claims = self._claims(db.get(ImportRow, plan.import_id))
@@ -326,7 +335,9 @@ class ProposalsMixin:
         shown = self._shown(db, plan, self._items(db, plan.id))
         out: dict[str, list[dict]] = {}
         for row in state["rows"]:
-            library = str(row.get("library") or row.get("name") or "")
+            library = str(row.get("library") or "")
+            if not library:
+                continue        # not a library the knowledge base recognises: never matched by its bare name
             here = read_version(row.get("version"))
             for pack, advisory in self._pack_advisories(db, upto):
                 reading = advisory["reading"] or {}
@@ -367,27 +378,33 @@ class ProposalsMixin:
 
     def _dependency_proposals(self, db, plan: PlanRow, state: dict | None, upto) -> list[dict]:
         """From a fixed rule over the dependency list and the installed packs: for a library that an advisory names,
-        where the pack carries the publisher's fixed version as a fix, Otto proposes the status "update first"."""
-        out = []
+        where the pack carries the publisher's fixed version as a fix, Otto proposes the status "update first". One
+        proposal for one library, version and advisory, however many rows of the list name it (`facts.row_keys`)."""
+        from app.present import otto as present_otto      # (words only; imported here to keep this module's top small)
+        out: dict[str, dict] = {}
         for row_key, named in self._named_by(db, plan, state, upto).items():
             for n in named:
                 fix = n["fix"]
                 if fix.get("kind") != "update" or n["version_note"] != "below_fixed":
                     continue
-                from app.present import otto as present_otto      # (words only; imported here to keep this module's top small)
+                pid = dependency_id(n["library"], n["version"], n["advisory"])
+                if pid in out:
+                    out[pid]["facts"]["row_keys"].append(row_key)
+                    out[pid]["facts"]["rows"].append(n["row"])
+                    continue
                 public = present_otto.public_copies_row(n["fix"], None)
-                out.append(make(
-                    "dependency", dependency_id(row_key, n["advisory"]),
+                out[pid] = make(
+                    "dependency", pid,
                     title=f"Update {n['library']} {n['version']} to {fix['version']} before the move",
                     why=(f"Your dependency list has {n['label']}. Advisory {n['advisory']} ({n['plain_name']}) is about {n['library']}, and its "
                          f"publisher names {fix['version']} as the fixed version."),
                     lines=[str(fix.get("summary") or ""), public["line"],
                            "Otto proposes to mark this library “update first”. Accepting changes nothing on any system and runs nothing."],
                     about={"library": n["library"], "version": n["version"], "fixed": fix["version"], "advisory": n["advisory"],
-                           "row": n["row"], "pack": n["pack"], "public_copies": fix.get("state")},
+                           "pack": n["pack"], "public_copies": fix.get("state")},
                     proposed_at=(state or {}).get("list", {}).get("at"), item=n["row"],
-                    facts={"row": n["row"], "row_key": row_key, "advisory_id": n["advisory"]}))
-        return out
+                    facts={"rows": [n["row"]], "row_keys": [row_key], "advisory_id": n["advisory"]})
+        return list(out.values())
 
     def _proposals(self, db, plan: PlanRow, kinds: tuple[str, ...] | None = None, fixes: list[dict] | None = None,
                    dependency_state: dict | None = None) -> list[dict]:
@@ -408,7 +425,10 @@ class ProposalsMixin:
                 made += self._fix_proposals(db, plan, fixes)
             if "plan" in wanted:
                 shown = self._shown(db, plan, self._items(db, plan.id))
-                made += self._plan_proposals(db, plan, shown, fixes, set(rows))
+                # (a plan change stays when its check has passed since only where a person's decision stands on it:
+                # accepted, or rejected. One that is open again after an undo is no longer proposed then, like one nobody
+                # ever decided; its decisions stay on the record.)
+                made += self._plan_proposals(db, plan, shown, fixes, {pid for pid, decided in rows.items() if state_of(decided) != "proposed"})
         if "dependency" in wanted:
             state = dependency_state if dependency_state is not None else self._dependency_state(db, plan)
             made += self._dependency_proposals(db, plan, state, upto)
@@ -443,6 +463,8 @@ class ProposalsMixin:
             return "The code is connected and the change is on its branch, so this accept stands."
         if kind == "fix" and not facts.get("code") and facts.get("retested"):
             return "A retest has run on the updated version, so this accept stands."
+        if kind == "fix" and not facts.get("code") and facts.get("live"):
+            return "A retest on the updated version is running, so this accept stands."
         if kind == "plan" and facts.get("done"):
             return DONE
         return None
@@ -628,21 +650,32 @@ class ProposalsMixin:
                 raise Conflict(refused)
             before, after = proposal["state"], STEPS[(proposal["state"], decision)]
             about = dict(proposal["about"])
+            earlier = self._decision_rows(db, plan_id).get(proposal_id, [])
+            number, at = len(earlier) + 1, now_stamp()
+            # Before anything is written, anywhere: the entry this decision would make, shown to the app's own pinned
+            # checker. An entry it does not take is never put into the ledger, so "nothing was changed" is true.
+            would_be = {"proposal": proposal_id, "proposal_kind": proposal["kind"], "proposal_sha256": proposal["fingerprint"],
+                        "title": proposal["title"], "decision": decision, "before": before, "after": after, "by": BY, "at": at, "reason": why,
+                        "number": number, "about": about}
+            if assurance.run_checker({"kind": "decision", "proposal": proposal_id, "proposal_kind": proposal["kind"]}, would_be,
+                                     assurance.DECISION_CHECKER) != "accept":
+                raise Conflict("The decision could not be recorded: the record checker did not take it. Nothing was changed.")
             if proposal["kind"] == "check":
                 if decision == "accept":
                     about["lock_entry"] = self._accept_check(db, plan, proposal, ledger)
                 elif decision == "undo":
                     self._undo_check(db, plan, proposal)
-            earlier = self._decision_rows(db, plan_id).get(proposal_id, [])
-            number, at = len(earlier) + 1, now_stamp()
             objective = next((r.objective_id for r in earlier if r.objective_id), None)
             objective, claim, verdict = ledger.record_decision(
                 objective_id=objective, proposal_id=proposal_id, kind=proposal["kind"], title=proposal["title"],
                 proposal_sha256=proposal["fingerprint"], decision=decision, before=before, after=after, by=BY, at=at, reason=why,
                 number=number, about=about)
             if verdict != "accept":
+                # The checker took this entry a moment ago and gives no answer now (it did not run in time). The ledger
+                # keeps the attempt, marked as not accepted; it is no decision, and the proposal stands as it was.
                 db.rollback()
-                raise Conflict("The decision could not be recorded in Otto's ledger, so nothing was changed.")
+                raise Conflict("The decision was not recorded: Otto's ledger could not check its entry just now. The proposal stands as "
+                               "it was; the attempt stays in the ledger, marked as not accepted. Try again.")
             db.add(OttoDecisionRow(plan_id=plan_id, proposal_id=proposal_id, kind=proposal["kind"], decision=decision, before=before, after=after,
                                    number=number, reason=why, by=BY, at=at, proposal=content(proposal),
                                    proposal_sha256=proposal["fingerprint"], objective_id=objective, claim_id=claim))
@@ -687,8 +720,15 @@ class ProposalsMixin:
 
     def otto_keeps_in_plan(self, db, item_id: int) -> str | None:
         """Why a test can't be taken out of the test plan with its own remove button: it is an advisory check that came
-        from an accepted proposal. Its place to be undone is Advisories, until it has run."""
-        if db.scalars(select(OttoCheckRow).where(OttoCheckRow.plan_item_id == item_id)).first() is None:
+        from an accepted proposal. Its place to be undone is Advisories, until it has run. A check that was added before
+        decisions were recorded has no accept to undo there, so its own remove button works as it always did."""
+        check = db.scalars(select(OttoCheckRow).where(OttoCheckRow.plan_item_id == item_id)).first()
+        item = db.get(PlanItemRow, item_id) if check is not None else None
+        if check is None or item is None:
+            return None
+        spec, _ = read_spec(db.get(TestSpecRow, item.spec_hash))
+        proposal_id = check_id(check.advisory_id, check.design_sha256, str((spec.get("target") or {}).get("claim")))
+        if self._otto_state(db, check.plan_id, proposal_id) != "accepted":
             return None
         return ("This check came from one of Otto's proposals. Until it has run, Undo on Advisories takes it out of the test plan; "
                 "once it has run, it stays.")

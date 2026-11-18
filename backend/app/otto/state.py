@@ -24,8 +24,8 @@ from sqlalchemy import func, select
 
 from app.canonical import canonical_bytes, sha256_hex
 from app.db import (
-    AppSettingRow, AssessmentRow, ImportRow, OttoCheckRow, OttoDecisionRow, OttoPackRow, OttoStepRow, PlanItemRow, PlanRow, ReviewRow,
-    RunCodeRow, TestRunRow, TestSpecRow, iso,
+    AppSettingRow, AssessmentRow, ImportRow, OttoCheckRow, OttoDecisionRow, OttoPackRow, OttoStepRow, PlanItemRow, PlanRow, RetestRow,
+    ReviewRow, RunCodeRow, TestRunRow, TestSpecRow, iso,
 )
 from app.engine import research
 from app.errors import BadRequest, Conflict
@@ -47,6 +47,7 @@ class OttoMixin:
     """Mixed into `Lab`."""
 
     db: Callable[..., Any]
+    jobs: Any
     settings: Any
     _plan: Callable[..., PlanRow]
     _plan_lock: Any
@@ -363,11 +364,31 @@ class OttoMixin:
         return out
 
     def _proven_here(self, db, item: PlanItemRow, library: str, fixed: str) -> dict:
-        """What this assessment's own retests show about a library's fix: the newest retest of this advisory check on
-        the fixed version, read through the same gate as every result, with the other pass-or-fail tests of that
-        library in the same retest. "passed" only when the check passed there and every one of those passed too (the
-        rule a fix is called proven by on public copies); "not_proven" when a retest ran and that does not hold;
-        "not_yet" while no retest on the fixed version has a result."""
+        """What this assessment's own retests show about a library's fix. It reads the newest retest on the fixed version in
+        which this advisory check has a reviewed run, through the same gate as every result, with every other
+        pass-or-fail test the plan holds for that same program:
+
+          "passed"      the check passed there, and every one of those tests has a result in that same retest and passed
+                        (the rule a fix is called proven by on public copies);
+          "not_proven"  the check did not pass there, or one of those tests has a result there that is not a pass;
+          "running"     nothing has failed so far, some of those tests have no result yet, and that retest is still running;
+          "unfinished"  the same, and that retest is no longer running (it was interrupted): half a retest proves nothing;
+          "not_yet"     no retest on the fixed version has a result for this check (`live`: one is running now)."""
+        mine, _ = read_spec(db.get(TestSpecRow, item.spec_hash))
+        program = (mine.get("target") or {}).get("claim")
+        expected = []              # every pass-or-fail test of the plan for this same program, this check among them
+        for other in self._items(db, item.plan_id):
+            row = db.get(TestSpecRow, other.spec_hash)
+            if row is None or row.kind not in PASS_OR_FAIL_KINDS:
+                continue
+            spec, _ = read_spec(row)
+            if other.id == item.id or (program is not None and (spec.get("target") or {}).get("claim") == program):
+                expected.append((other, row.kind, research.title_of(row.kind, spec)))
+        # is a retest on that fixed version running right now? (the newest retest of the plan, and a job of it not done)
+        newest_retest = db.scalars(select(RetestRow).where(RetestRow.plan_id == item.plan_id).order_by(RetestRow.id.desc()).limit(1)).first()
+        live = False
+        if newest_retest is not None and newest_retest.version == fixed:
+            live = any((job := self.jobs.get((other.id, "retest"))) is not None and job.status != "done" for other, _, _ in expected)
         runs = db.scalars(select(TestRunRow).where(TestRunRow.plan_item_id == item.id, TestRunRow.phase == "retest",
                                                    TestRunRow.component_name == library, TestRunRow.component_version == fixed)
                           .order_by(TestRunRow.id.desc())).all()
@@ -381,20 +402,28 @@ class OttoMixin:
             newest: dict[int, TestRunRow] = {}
             for other in same:
                 newest[other.plan_item_id] = other
-            others = []
-            for other in newest.values():
-                row = db.get(TestSpecRow, other.spec_hash)
-                if other.plan_item_id == item.id or row is None or row.kind not in PASS_OR_FAIL_KINDS:
+            others, missing = [], []
+            for other, kind, title in expected:
+                if other.id == item.id:
                     continue
-                said = self._result(db, other)
-                if said is not None:
-                    others.append({"item_id": other.plan_item_id, "kind": row.kind, "code": said["code"], "label": said["label"]})
+                said = self._result(db, newest[other.id]) if other.id in newest else None
+                if said is None:
+                    missing.append({"item_id": other.id, "kind": kind, "title": title})
+                else:
+                    others.append({"item_id": other.id, "kind": kind, "title": title, "code": said["code"], "label": said["label"]})
             failing = [o for o in others if o["code"] != "passed"]
-            return {"state": "passed" if result["code"] == "passed" and not failing else "not_proven", "library": library, "version": fixed,
-                    "item_id": item.id, "run_id": run.id, "retest_id": run.retest_id, "finished_at": run.finished_at,
-                    "check": {"code": result["code"], "label": result["label"]}, "tests": len(others) + 1, "failing": len(failing),
-                    "others": others}
-        return {"state": "not_yet", "library": library, "version": fixed, "item_id": item.id}
+            still_running = live and newest_retest is not None and run.retest_id == newest_retest.id
+            if result["code"] != "passed" or failing:
+                state = "not_proven"
+            elif missing:
+                state = "running" if still_running else "unfinished"
+            else:
+                state = "passed"
+            return {"state": state, "library": library, "version": fixed, "item_id": item.id, "run_id": run.id, "retest_id": run.retest_id,
+                    "finished_at": run.finished_at, "check": {"code": result["code"], "label": result["label"]},
+                    "tests": len(others) + len(missing) + 1, "done": len(others) + 1, "failing": len(failing), "others": others,
+                    "missing": missing, "live": bool(still_running)}
+        return {"state": "not_yet", "library": library, "version": fixed, "item_id": item.id, "live": bool(live)}
 
     def otto_result_fix(self, db, spec: dict, name: str | None, version: str | None, plan_id: int | None = None) -> dict | None:
         """What the Suggested fix line of an advisory check's result may say: Otto's fix for this program, when the

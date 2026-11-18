@@ -81,6 +81,10 @@ class RelationsMixin:
             shown = row.get("after") or row.get("result")
             target = spec.get("target") or {}
             where = target.get("address") or next((c.location for c in claims if c.ref == target.get("claim")), None)
+            if row.get("after") and row["after"].get("component"):
+                # the newest result is a retest's, on another version of the program: say the version it ran on, so that
+                # "Passed" never stands beside the version the file names when it was measured on a newer one
+                where = row["after"]["component"]
             nodes[f"test:{item.id}"] = {"kind": "test", "label": spec.get("title") or "A test",
                                         "sub": " · ".join(x for x in (where, shown["label"] if shown else "Not run yet") if x),
                                         "link": {"page": "evidence", "item": f"test-{item.id}"}}

@@ -17,7 +17,12 @@ In order:
      with the same proposal, decision, name, time and reason, accepted by the pinned checker for decisions; the copy
      of the proposal it was made on matches its SHA-256; the decisions on a proposal follow one another as the app
      allows, and the proposal stands where its last decision left it; and the ledger holds no decision that the file
-     does not show. A file made before decisions were recorded has none, and is checked as before;
+     does not show. A proposal may stand as accepted with no decision only where the file holds the check it stands
+     for (one added before decisions were recorded); the word the report prints for where a proposal stands is the
+     word of that state; and a proposal Otto no longer makes is shown as its last decision was made on it. An entry
+     for a decision that the pinned checker did not accept is an attempt, not a decision, and is said as that. What
+     the ledger knows nothing of is an undecided proposal: that part is covered by the file's own signature only.
+     A file made before decisions were recorded has none, and is checked as before;
   5. with --previous OLDER.json: the older file's latest ledger entry is still in this chain, at the same place, so
      the history the older file held was not cut or rewritten. Entries added after the older download are not
      covered by this comparison;
@@ -302,12 +307,27 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
         # 4b. the decisions on Otto's proposals (a file made before decisions were recorded has no such part)
         proposals = otto.get("proposals")
         decision_claims = {rid: c for rid, c in claims.items() if isinstance(c.get("artifact"), dict) and "decision" in c["artifact"]}
+        # An entry the pinned checker did not accept is an attempt, not a decision (the app writes no database row for
+        # it and the proposal stands as it was). Only accepted entries are decisions, and each must be in the file.
+        attempts = {rid for rid in decision_claims if rid not in accepted}
         if proposals is None:
-            if decision_claims:
+            if set(decision_claims) - attempts:
                 raise _Failed("the ledger holds decisions on Otto's proposals, and the file does not show them.")
         else:
             if not isinstance(proposals, list):
                 raise _Failed("the list of Otto's proposals in the file could not be read.")
+            # A check that was added before decisions were recorded stands as "accepted" with no decision. That is
+            # allowed only for a check the file itself holds in the test plan: one such proposal for one such check.
+            older_checks: dict[tuple, int] = {}
+            for check in checks:
+                if isinstance(check, dict) and check.get("in_plan") is True:
+                    pair = (check.get("advisory"), check.get("design_sha256"))
+                    older_checks[pair] = older_checks.get(pair, 0) + 1
+            for proposal in proposals:      # (a check that a recorded accept put in the plan is not an older one)
+                if isinstance(proposal, dict) and proposal.get("kind") == "check" and proposal.get("legacy") is not True \
+                        and isinstance(proposal.get("about"), dict) and proposal.get("state") == "accepted":
+                    pair = (proposal["about"].get("advisory"), proposal["about"].get("design"))
+                    older_checks[pair] = older_checks.get(pair, 0) - 1
             listed, count = set(), 0
             for proposal in proposals:
                 if not isinstance(proposal, dict):
@@ -339,14 +359,42 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
                         raise _Failed(f"the ledger entry of decision {place} on “{title}” was not accepted by the pinned checker.")
                     state = decision["after"]
                     count += 1
-                stands = "accepted" if proposal.get("legacy") is True and not proposal.get("decisions") else state
+                decided = proposal.get("decisions") or []
+                stands = state
+                if proposal.get("legacy") is True:
+                    named_in = proposal.get("about")
+                    about: dict = named_in if isinstance(named_in, dict) else {}
+                    pair = (about.get("advisory"), about.get("design"))
+                    if decided or proposal.get("kind") != "check" or older_checks.get(pair, 0) < 1:
+                        raise _Failed(f"“{title}” is marked as added before decisions were recorded, and the file holds no such check "
+                                      "in the test plan.")
+                    older_checks[pair] -= 1
+                    stands = "accepted"
+                elif proposal.get("legacy") not in (False, None):
+                    raise _Failed(f"“{title}” could not be read.")
                 if proposal.get("state") != stands:
                     raise _Failed(f"“{title}” does not stand where its last decision left it.")
-                if proposal.get("current") is True \
-                        and _sha({k: proposal.get(k) for k in ("id", "kind", "title", "why", "lines", "about")}) != proposal.get("fingerprint"):
-                    raise _Failed(f"“{title}” does not match its own fingerprint.")
-            if set(decision_claims) - listed:
+                # the word the report prints for where it stands must be the word of that state
+                last = decided[-1] if decided else {}
+                word = ("Proposed" if stands == "proposed" else
+                        ("Added" if proposal.get("kind") == "check" else "Accepted") if stands == "accepted" else
+                        f"Not added ({last.get('reason')})" if last.get("reason") else "Not added (no reason given)")
+                if proposal.get("status") != word:
+                    raise _Failed(f"“{title}” is worded as “{_plain(proposal.get('status'), 60)}”, which is not where it stands.")
+                content = {k: proposal.get(k) for k in ("id", "kind", "title", "why", "lines", "about")}
+                if proposal.get("current") is True:
+                    if _sha(content) != proposal.get("fingerprint"):
+                        raise _Failed(f"“{title}” does not match its own fingerprint.")
+                elif not decided or content != decided[-1].get("proposal"):
+                    # a proposal Otto no longer makes is in a file only because someone decided on it, and it is shown as
+                    # the copy its last decision was made on (which the ledger holds by its SHA-256)
+                    raise _Failed(f"“{title}” is no longer proposed, and the file does not show it as its last decision was made on it.")
+            if (set(decision_claims) - attempts) - listed:
                 raise _Failed("the ledger holds a decision on one of Otto's proposals that the file does not show.")
+            if attempts:
+                out.lines.append(f"Note: the ledger holds {len(attempts)} attempted "
+                                 f"{'entry' if len(attempts) == 1 else 'entries'} for a decision that the pinned checker did not accept. "
+                                 "They are not decisions.")
             out.lines.append(f"Decisions: {count} on {sum(1 for p in proposals if p.get('decisions'))} of Otto's {len(proposals)} "
                              f"{'proposal' if len(proposals) == 1 else 'proposals'}, each in the ledger with who and when, in an order the app allows.")
         # 5. an older download

@@ -455,11 +455,23 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **A decision is a record, not a result.** The second pinned checker confirms that a decision entry is whole and
   that the step was allowed from where the proposal stood. It can't confirm who pressed the button, and its answer
   is never shown as a decision or as a result.
+- **What the ledger binds of a proposal, and what it does not.** A decision's ledger entry holds the SHA-256 of the
+  proposal as it stood when the person decided, and the file carries that copy. A proposal nobody decided on is not
+  in the ledger at all: in an evidence file it is covered by the file's own signature only. The same goes for the
+  present wording of a proposal that was decided earlier and that Otto still makes (its `why` can change with a
+  newer result); the copy each decision was made on is what the ledger holds.
+- **Two stores, written one after the other.** A decision goes into Otto's ledger and then into the database. The
+  app shows the entry to its own checker before it writes anything, so a refused entry changes nothing. If the app
+  is stopped in the moment between the two writes, the ledger holds a decision that the database does not, and an
+  evidence file of that assessment then fails the verify command, which says which decision the file does not
+  show. There is no repair tool in this version. If the ledger's own check of the entry gives no answer in time,
+  the decision is not recorded, the attempt stays in the ledger marked as not accepted, and the verify command
+  says that it is no decision.
 - **Undo has an end.** A check can be taken out again until it has a run; a change to your own code until the code
-  is connected; a library's update until a retest has run on the updated version; a plan change until a newer
-  result of its check has passed. After that the accept stands, and the button says why. A check that was added
-  with the earlier **Add new checks** button has no decision on record: it reads "Added before decisions were
-  recorded" and can't be undone from Advisories.
+  is connected; a library's update until a retest on the updated version is running or has run; a plan change until
+  a newer result of its check has passed. After that the accept stands, and the button says why. A check that was
+  added with the earlier **Add new checks** button has no decision on record: it reads "Added before decisions were
+  recorded", can't be undone from Advisories, and keeps its own × in the test plan.
 - **A rejected fix has no stand-in.** When a person rejects Otto's change for their own code, the fix template is
   not offered in its place: the fix reads "Not added (reason)" until someone presses **Reconsider**. The template
   stands in only where Otto's change is not offered at all.
@@ -469,9 +481,13 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   Accepting lists it on the plan as something to fix first. It changes no status, no recommendation, no roadmap
   band and no measured fact, so everything the migration answer key grades reads exactly as before. "Accept
   updates the plan" is built as that listed line, and nothing more.
-- **Proposals for a dependency: one rule.** A library of the dependency list is "named by an advisory" when an
-  advisory of the installed packs is about that library and the version in the list reads as lower than the
-  publisher's fixed version. A version the app can't read is not named. Where the pack carries an update for it,
+- **Proposals for a dependency: one rule.** A library of the dependency list is "named by an advisory" when the
+  knowledge base has recognised it as the package an advisory of the installed packs is about (by its package
+  address; a bare name only where the list gives no address and the knowledge base lists that name as safe), and the
+  version in the list reads as lower than the publisher's fixed version. A package of the same name from another
+  ecosystem is not named, a library the knowledge base has no file for is not named, and a version the app can't
+  read is not named. A decision belongs to the library in that version and to the advisory, not to a place in the
+  list. Where the pack carries an update for it,
   Otto proposes it. Accepted, the library reads "Update first", and the box of the system it is tied to says so.
   It is never counted among the blockers, and no answer about what a library can do changes, so everything the
   dependencies answer key grades reads exactly as before.
@@ -487,8 +503,11 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   the row says so in a line under it. "Passed" therefore means the fixed version passes the locked tests here,
   not that anyone's deployed system was updated.
 - **The second row is as strict as the first.** It reads "Passed" only when the advisory check and every other
-  pass-or-fail test of that library passed in the same retest. For Java it would read "Not proven" after a retest
-  on 17.0.3, because the Independent exam still fails there, as the pack's own trial found.
+  pass-or-fail test the plan holds for that library has a result in the same retest and passed. While that retest
+  runs, or after it was interrupted, it stays "Not yet" and says how many tests have a result. For Java it would
+  read "Not proven" after a retest on 17.0.3, because the Independent exam still fails there, as the pack's own
+  trial found. (The first independent review found that an earlier form counted only the runs that existed, so
+  the row could read "Passed" part-way through a retest; it is fixed and tested.)
 - **The "next step" is a pointer, not a proposal.** Kevin's list of what Otto produces names "a next step". The
   Overview's next step has no Accept or Reject: it opens the page that holds the next thing to do, and since this
   part it names Otto's waiting proposals. Nothing happens by following it or by ignoring it.

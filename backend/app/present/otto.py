@@ -204,15 +204,29 @@ def your_system_row(fix: dict, here: dict | None) -> dict:
     here = here or {"state": "not_yet"}
     name = f"{fix.get('library')} {fix.get('version')}"
     if here.get("state") == "not_yet":
-        return _row("here", HERE_LABEL, "Not yet", "neutral", NOT_YET_TEXT, note=HERE_NOTE)
+        # nothing of a retest on the fixed version has a result yet (one may be running: the row still reads "Not yet")
+        return _row("here", HERE_LABEL, "Not yet", "neutral",
+                    f"A retest on {name} is running. Nothing is proven until it has finished." if here.get("live") else NOT_YET_TEXT,
+                    note=HERE_NOTE)
     links = [{"label": "See the retest's result", "link": {"page": "evidence", "item": f"test-{here.get('item_id')}"}}]
     when = stamp(here.get("finished_at"))
+    if here.get("state") in ("running", "unfinished"):
+        # some of the library's pass-or-fail tests have no result in that retest: half a retest proves nothing
+        done, tests = int(here.get("done") or 0), int(here.get("tests") or 0)
+        so_far = f"{done} of {tests} pass-or-fail tests have a result"
+        return _row("here", HERE_LABEL, "Not yet", "neutral",
+                    (f"A retest on {name} is running: {so_far} so far. Nothing is proven until it has finished."
+                     if here.get("state") == "running" else
+                     f"The retest on {name} did not finish: {so_far}. Press Retest again."), links, note=HERE_NOTE)
     if here.get("state") == "passed":
         return _row("here", HERE_LABEL, "Passed", "pass",
                     f"On {when} the retest on {name} passed: the advisory check and every other locked pass-or-fail test.", links, note=HERE_NOTE)
     if (here.get("check") or {}).get("code") == "passed":
         failing = int(here.get("failing") or 0)
-        more = "another locked test still fails" if failing == 1 else f"{failing} other locked tests still fail"
+        # "still fails" only where every one of them read Failed; a test that could not run did not pass either
+        failed = all(o.get("code") == "failed" for o in here.get("others") or [] if o.get("code") != "passed")
+        more = (("another locked test still fails" if failing == 1 else f"{failing} other locked tests still fail") if failed else
+                ("another locked test did not pass" if failing == 1 else f"{failing} other locked tests did not pass"))
         return _row("here", HERE_LABEL, "Not proven", "warn",
                     f"On {when} the retest on {name} ran: the advisory check passed, but {more} on {fix.get('version')}.", links, note=HERE_NOTE)
     return _row("here", HERE_LABEL, "Not proven", "warn",
@@ -397,6 +411,7 @@ def _effect(p: dict) -> str | None:
                 else "Next: Connect demo code. The change goes on a branch, and the proof reruns every locked test on it.")
     if kind == "fix":
         return ("A retest has run on the updated version: the two proof rows say what it showed." if facts.get("retested")
+                else "A retest on the updated version is running." if facts.get("live")
                 else "Next: whoever owns the software updates it; then press Retest.")
     if kind == "plan":
         done = facts.get("done")

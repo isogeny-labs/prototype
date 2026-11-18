@@ -1006,10 +1006,23 @@ stored: `{"id", "kind", "label": "From Otto", "title", "why", "lines", "about", 
 "facts"}`, to which the stored decisions add `state` (`proposed`, `accepted`, `rejected`), `decisions`, `actions`
 (each allowed button, with the reason when it is off) and `fingerprint` (the SHA-256 of the canonical `{id, kind,
 title, why, lines, about}`). Kinds and ids: `check` (`check-<advisory>-<12 hex>`), `fix` (`fix-code-<fix key>`,
-`fix-update-<plan item>`), `plan` (`plan-<12 hex>`), `dependency` (`dep-<12 hex>`). `otto_decide` writes the
-`otto_decisions` row (append-only: the decision, the state before and after, its number, the reason, who, when, a copy
-of the proposal and its SHA-256, and the ledger entries) and the ledger entries above. A rejected proposal stays; a
-decided proposal that is no longer worked out is served from its last decision's copy with `current: false`.
+`fix-update-<plan item>`), `plan` (`plan-<12 hex>`), `dependency` (`dep-<12 hex>`). `otto_decide` first shows
+the entry the decision would make to the app's own pinned decision checker (`assurance.run_checker`): an entry it
+does not take is written nowhere. Then it writes the ledger entries above and the `otto_decisions` row (append-only:
+the decision, the state before and after, its number, the reason, who, when, a copy of the proposal and its SHA-256,
+and the ledger entries). A rejected proposal stays; a decided proposal that is no longer worked out is served from
+its last decision's copy with `current: false` (a plan change is no longer worked out once its check has passed,
+unless it stands accepted or rejected). A dependency proposal's id is made from the library, its version and the
+advisory (`dependency_id`), so it does not depend on where the list names the library; `facts.row_keys` holds the
+rows it shows on. A library is matched to an advisory only through the knowledge base's own recognition of the row
+(`row["library"]`), never by the list's bare name.
+
+**The second proof row** (`OttoMixin._proven_here`): it takes the newest retest on the fixed version in which the
+advisory check has a reviewed run, and every other pass-or-fail test the plan holds for the same program (same
+`target.claim`). `passed` needs a result for each of them in that retest, all passed; `not_proven` a result that is
+not a pass; `running` and `unfinished` mean that some have no result there (the retest is still live, or was
+interrupted) and read "Not yet"; `not_yet` that the check has no result on the fixed version (`live`: a retest on it
+is running, which already locks Undo).
 
 **Records:** four more add-only tables: `otto_packs` (the installed packs), `otto_checks` (the plan item, the pack and
 the design it came from, and its lock entry), `otto_steps` (every Claude step taken in the app, in full) and

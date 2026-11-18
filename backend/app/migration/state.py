@@ -244,6 +244,8 @@ class MigrationMixin:
         by_system: dict[str, list[dict]] = {}
         if self._otto_checks(db, plan.id):                                                    # type: ignore[attr-defined]
             for p in self._proposals(db, plan, ("plan",)):                                    # type: ignore[attr-defined]
+                if not p["current"] and p["state"] == "proposed":
+                    continue        # open, and Otto no longer proposes it (its check has passed since): nothing to decide here
                 shown = present_otto.proposal_view(p, self.otto_ledger_about(plan.id, p.get("objective_id")))   # type: ignore[attr-defined]
                 by_system.setdefault(str(p["about"].get("system")), []).append(shown)
         for system in view["systems"]:

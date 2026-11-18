@@ -155,7 +155,10 @@ def _resigned(lab, evidence: dict) -> bytes:
                                   "a decision under another name", "a decision at another time", "a decision with a reason added",
                                   "a decision taken out", "a decision made up", "an accept turned into a reject",
                                   "a proposal that stands elsewhere", "the proposal a decision was made on changed",
-                                  "the list of proposals taken out", "a proposal reworded"])
+                                  "the list of proposals taken out", "a proposal reworded",
+                                  "an undecided proposal passed off as added before decisions were recorded",
+                                  "a second proposal for a check that a recorded accept put in the plan",
+                                  "the word for where a proposal stands changed", "a proposal marked as withdrawn and reworded"])
 def test_a_change_inside_the_otto_part_is_caught_even_when_the_file_is_signed_again(ran, tmp_path, name):
     _, evidence = _download(ran, ran.plan.id)
     otto = evidence["otto"]
@@ -188,6 +191,18 @@ def test_a_change_inside_the_otto_part_is_caught_even_when_the_file_is_signed_ag
         del otto["proposals"]
     elif name == "a proposal reworded":
         decided["why"] = "Because it is required by law."
+    elif name == "an undecided proposal passed off as added before decisions were recorded":
+        waiting = next(p for p in otto["proposals"] if not p["decisions"])
+        waiting["legacy"], waiting["state"], waiting["status"] = True, "accepted", "Accepted"
+    elif name == "a second proposal for a check that a recorded accept put in the plan":
+        twin = {**copy.deepcopy(decided), "id": decided["id"][:-1] + ("0" if decided["id"][-1] != "0" else "1"), "decisions": [],
+                "legacy": True, "state": "accepted", "status": "Added", "ledger_entry": None}
+        twin["fingerprint"] = evidence_otto._sha({k: twin[k] for k in ("id", "kind", "title", "why", "lines", "about")})
+        otto["proposals"].append(twin)
+    elif name == "the word for where a proposal stands changed":
+        decided["status"] = "Not added (no reason given)"
+    elif name == "a proposal marked as withdrawn and reworded":
+        decided["current"], decided["title"] = False, "Something else was proposed"
     elif name == "a ledger line removed":
         del lines[1]
         otto["ledger"]["height"] -= 1

@@ -302,8 +302,10 @@ class DependenciesMixin:
                     fix_id = self._text_fix_id(db, plan, "advisory_cases", item_id) if item_id is not None else None   # type: ignore[attr-defined]
                     link = {"page": "fixes", "item": fix_id} if fix_id else {"page": "advisories", "item": n["advisory"]}
                 lines.append(present_otto.named_line(n, link))
+            # (only what Otto proposes now for this very library and version: a decision on a proposal that is no longer
+            # made stays on the record, in the evidence, and is never laid on whatever row stands in that place now)
             mine = [present_otto.proposal_view(p, self.otto_ledger_about(plan.id, p.get("objective_id")))      # type: ignore[attr-defined]
-                    for p in proposals if p["facts"].get("row_key") == row_key or (not p["current"] and p["about"].get("row") == entries[0]["row"])]
+                    for p in proposals if p["current"] and row_key in (p["facts"].get("row_keys") or [])]
             out[row_key] = {"advisories": lines, "proposals": mine, "status": present_otto.dependency_status(mine)}
         return out
 

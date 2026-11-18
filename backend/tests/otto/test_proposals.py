@@ -238,6 +238,9 @@ def test_what_locks_an_accept_is_that_it_has_run_or_been_applied():
     assert "has run" in locked(_made("check", runs=2)) and "has run" in locked(_made("check", live=True))
     assert locked(_made("fix", code=True, connected=False)) is None and "code is connected" in locked(_made("fix", code=True, connected=True))
     assert locked(_made("fix", code=False, retested=False)) is None and "retest has run" in locked(_made("fix", code=False, retested=True))
+    # ... and from the moment a retest on the updated version is running, before it has any result
+    assert locked(_made("fix", code=False, retested=False, live=True)) == "A retest on the updated version is running, so this accept stands."
+    assert locked(_made("fix", code=False, retested=False, live=False)) is None
     assert locked(_made("plan")) is None and "passed since" in locked(_made("plan", done={"version": "1.4.3"}))
     assert locked(_made("dependency")) is None
 
@@ -460,6 +463,81 @@ def test_a_check_added_before_decisions_were_recorded_reads_added_with_no_accept
     assert listed["legacy"] is True and listed["state"] == "accepted" and listed["decisions"] == []
     outcome = evidence_otto.check_otto(evidence, {lab.pack_key} if hasattr(lab, "pack_key") else set())
     assert outcome.code in (evidence_otto.OK, evidence_otto.NOT_CONFIRMED) and "Decisions: 0 on 0" in " ".join(outcome.lines)
+
+
+@pytest.mark.needs_otto
+def test_a_check_added_before_decisions_keeps_its_own_remove_button(lab):
+    """It has no accept on record, so Advisories has nothing to undo: its own × works as it always did. A check a
+    person accepted has no × of its own (Undo on Advisories takes it out, until it has run)."""
+    plan_id = lab.plan.id
+    older, accepted = helpers.check_proposals(lab, plan_id)[:2]
+    with lab._otto_lock, lab._plan_lock, lab.db() as db:               # what the old button did: lock and add, no decision
+        lab._accept_check(db, lab._plan(db, plan_id), older, _ledger(lab))
+        db.commit()
+    lab.otto_decide(plan_id, accepted["id"], "accept")
+    cards = {lab.otto_proposal(plan_id, p["id"])["facts"]["item_id"]: p["id"] for p in (older, accepted)}
+    shown = {c["id"]: c for c in lab.plan_view(plan_id)["tests"] if c["id"] in cards}
+    old_item, new_item = (next(i for i, pid in cards.items() if pid == p["id"]) for p in (older, accepted))
+    assert shown[old_item]["can_remove"] is True and "remove_blocked" not in shown[old_item]
+    assert shown[new_item]["can_remove"] is False and "Undo on Advisories" in shown[new_item]["remove_blocked"]
+    with pytest.raises(Conflict):
+        lab.remove_test(plan_id, new_item)
+    lab.remove_test(plan_id, old_item)                                 # the older one leaves the plan by its own button
+    assert old_item not in {c["id"] for c in lab.plan_view(plan_id)["tests"]}
+    again = lab.otto_proposal(plan_id, older["id"])
+    assert again["state"] == "proposed" and again["legacy"] is False and set(again["actions"]) == {"accept", "reject"}
+
+
+@pytest.mark.needs_otto
+def test_nothing_is_written_anywhere_when_the_record_checker_does_not_take_the_entry(lab, monkeypatch):
+    """The entry a decision would make is shown to the app's own pinned checker before anything is written. If it is
+    not taken, the ledger, the database and the test plan are exactly as they were: "Nothing was changed" is true."""
+    plan_id = lab.plan.id
+    found = helpers.check_proposals(lab, plan_id)[0]
+    lab.otto_decide(plan_id, helpers.check_proposals(lab, plan_id)[1]["id"], "reject", "Not needed")   # so that a ledger exists
+    height, tests = len(_ledger(lab).entries()), [c["id"] for c in lab.plan_view(plan_id)["tests"]]
+    monkeypatch.setattr(assurance, "run_checker", lambda params, artifact, checker=assurance.CHECKER: "unavailable")
+    with pytest.raises(Conflict) as refused:
+        lab.otto_decide(plan_id, found["id"], "accept")
+    assert str(refused.value) == "The decision could not be recorded: the record checker did not take it. Nothing was changed."
+    monkeypatch.undo()
+    assert len(_ledger(lab).entries()) == height and [c["id"] for c in lab.plan_view(plan_id)["tests"]] == tests
+    with lab.db() as db:
+        assert [r.decision for r in db.scalars(select(OttoDecisionRow)).all()] == ["reject"]
+    assert lab.otto_proposal(plan_id, found["id"])["state"] == "proposed"
+
+
+@pytest.mark.needs_otto
+def test_an_entry_the_checker_did_not_accept_is_an_attempt_and_not_a_decision(lab):
+    """The ledger can hold an entry for a decision that the pinned checker did not accept (the app writes no database
+    row for it, and the proposal stands as it was). The verify command says it is there and that it is no decision;
+    the file still verifies, with its real decisions counted."""
+    from evidence import otto as evidence_otto
+    plan_id = lab.plan.id
+    lab.run_test(plan_id, lab.plan.item["bad_signatures"])             # a first result, so that there is evidence to download
+    lab.wait_until_idle(plan_id, 240)
+    first, second = helpers.check_proposals(lab, plan_id)[:2]
+    lab.otto_decide(plan_id, first["id"], "reject", "Not needed")
+    # an entry that is not a step the app allows (an undo of something that was never accepted): the checker rejects it
+    _, _, verdict = _ledger(lab).record_decision(
+        objective_id=None, proposal_id=second["id"], kind="check", title=second["title"], proposal_sha256=second["fingerprint"],
+        decision="undo", before="proposed", after="proposed", by="You", at="2026-11-18T10:00:00Z", reason=None, number=1, about=second["about"])
+    assert verdict == "reject"
+    assert lab.otto_proposal(plan_id, second["id"])["state"] == "proposed"
+    evidence = json.loads(lab.evidence_file(lab.export_evidence(plan_id)["id"], "json")[1])["evidence"]
+    outcome = evidence_otto.check_otto(evidence, set())
+    said = " ".join(outcome.lines)
+    assert outcome.code != evidence_otto.FAILED, outcome.problem
+    assert "Decisions: 1 on 1 of Otto's" in said and "1 attempted entry for a decision that the pinned checker did not accept" in said
+    # but it can't be passed off as a decision in the file
+    forged = json.loads(json.dumps(evidence))
+    target = next(p for p in forged["otto"]["proposals"] if p["id"] == second["id"])
+    attempt = next(json.loads(line) for line in forged["otto"]["ledger"]["lines"] if '"decision":"undo"' in line)
+    target["decisions"] = [{"number": 1, "decision": "undo", "by": "You", "at": "2026-11-18T10:00:00Z", "reason": None, "before": "proposed",
+                            "after": "proposed", "proposal_sha256": second["fingerprint"], "proposal": proposals.content(second),
+                            "ledger_entry": assurance.record_id(attempt["payload"])}]
+    refused = evidence_otto.check_otto(forged, set())
+    assert refused.code == evidence_otto.FAILED and refused.problem
 
 
 @pytest.mark.needs_otto
