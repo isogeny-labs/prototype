@@ -402,9 +402,20 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   of another kind could still pose as an objective. Both are closed, and tests plant such files to show that
   nothing runs (`backend/tests/otto/test_verify_reads_data.py`). What this rests on: the harness's audit without
   re-verification starts nothing. That is true of the pinned commit and must be looked at again when the pin moves.
-- **The research audit command is for our own lab.** `python -m ottolab.build audit` does ask the harness to run the
-  pinned checker again, after making sure the ledger names nothing else. Run it on the repository's own
-  `research/lab/`, or on a lab this computer built.
+- **The research audit command reads a lab folder as data too.** `python -m ottolab.build audit` no longer asks the
+  harness to run anything: the harness checks the chain and the records and derives every decision again, and the
+  command runs the research side's own pinned checker itself. A lab folder that holds a link is refused before
+  anything is done. A fourth review found that the folder's own copy of the checker could be made to stand for
+  another program; nothing from the audited folder is started now, and tests plant such folders
+  (`backend/tests/otto/test_research_audit.py`).
+- **The checker in an assessment's Otto folder is made the app's own before each use.** The harness starts the file
+  in that folder when a run or a Claude step is recorded. If someone who can write to the data folder puts another
+  program or a link there, the app replaces it with its own checker first. The check guards the file at that moment;
+  it does not make a computer safe that someone else can write to.
+- **What the verify command binds, and its limits.** A run shown in the file must match the SHA-256 the ledger
+  holds for its record and its review; the words that describe the result beside it are covered by the file's own
+  signature, not by the ledger. A ledger of more than 20,000 entries is refused, and checking entries again stops
+  after five minutes with a failure, so a very large honest ledger would need those limits raised.
 - **The fifth answer key is not written yet.** `demo/expected-otto.json` is written independently of the build.
   Until it is in the repository, `python -m app.accuracy --only otto` shows the app's answers and grades nothing
   (exit code 2, which is not a pass; 3 when Otto is not installed). `docs/OTTO-KEY.md` lists its questions.

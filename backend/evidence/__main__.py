@@ -83,9 +83,18 @@ def main(argv: list[str] | None = None) -> int:
                 print("Evidence NOT verified: the older file given with --previous does not verify the same way as this one "
                       f"({older.message.removeprefix('Evidence NOT verified: ')})")
                 return FAILED
+            if older.signer != outcome.signer:
+                print("Evidence NOT verified: the older file given with --previous was not signed with the same key as this one, "
+                      "so the two can't be downloads of the same assessment.")
+                return FAILED
             previous = _evidence_of(older_raw)
+        from .otto import check_otto, needs_otto_part, pack_keys
+        if "otto" not in evidence and needs_otto_part(evidence):
+            # A file from this app that holds an advisory check always has its Otto part: the packs, the lock entries
+            # and the ledger that binds each run. Without it those runs are bound to nothing.
+            print("Evidence NOT verified: the file holds an advisory check but no Otto part (its test packs and its ledger).")
+            return FAILED
         if "otto" in evidence or previous is not None:
-            from .otto import check_otto, pack_keys
             if "otto" not in evidence:
                 print("Evidence NOT verified: --previous compares Otto ledgers, and this file has no Otto part.")
                 return FAILED

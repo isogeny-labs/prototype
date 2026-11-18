@@ -1046,7 +1046,19 @@ order:
      A different answer, or an entry that could not be checked again, fails the check.
 
    The app's own audit of an assessment's ledger (`Ledger.audit`) goes the same way. A run in the file that the
-   ledger does not bind fails too. What is printed of the file's own text holds printable characters only.
+   ledger does not bind fails too, and so does a run in the file's own list of tests whose record or review does not
+   match the SHA-256 the ledger holds under its number. A file with an advisory check and no Otto part fails
+   (`needs_otto_part`). `MAX_ENTRIES` and `CHECK_AGAIN_SECONDS` bound a ledger made to be slow, and a claim may be
+   settled only once. What is printed of the file's own text holds printable characters only.
+
+   The pinned checker itself (`otto/checker/recheck.py`) takes a run entry only with exactly its fields (fingerprints
+   and names; no place for a result) and what it ran on with exactly four. `Ledger._lab` makes the checker file in an
+   assessment's folder the app's own before every use (a regular file with the bytes of `CHECKER_SOURCE`; a link is
+   removed, never followed), and the lock names that checker's SHA-256.
+
+   The research side's audit (`ottolab/build.audit_problems`) follows the same pattern for a research lab folder:
+   folders and regular files only (`only_regular_files`), `names_only_our_checker`, the harness's audit without
+   re-verification, and `run_pinned_checker` (ottolab/pinned/check_model_step.py, started by the command itself).
 
 Step 6 needs the pinned harness on the computer that runs the command. Without it the first five checks are still
 made, the command says that Otto's audit was not run, and it exits with code 2. A pack signed by a key you do not

@@ -68,7 +68,7 @@ class _Failed(Exception):
 
 def _plain(value: object, limit: int = 120) -> str:
     """Text from the file as it may be printed: printable characters only, and not too long."""
-    text = "".join(ch if ch.isprintable() else "?" for ch in str(value))
+    text = " ".join("".join(ch if ch.isprintable() else "?" for ch in str(value)).split())
     return text if len(text) <= limit else text[:limit] + "..."
 
 
@@ -106,11 +106,16 @@ def _chain(lines: object) -> list[dict]:
     for number, raw in enumerate(lines):
         try:
             entry = loads_strict(raw.encode("utf-8"))
-        except ValueError:
-            raise _Failed(f"ledger line {number + 1} is not valid JSON.") from None
-        if not isinstance(entry, dict) or set(entry) != {"seq", "prev", "kind", "payload", "ts", "hash"}:
+        except (ValueError, RecursionError):
+            raise _Failed(f"ledger line {number + 1} is not valid JSON, or is nested too deeply to read.") from None
+        if not isinstance(entry, dict) or set(entry) != {"seq", "prev", "kind", "payload", "ts", "hash"} \
+                or type(entry["seq"]) is not int or not isinstance(entry["ts"], str) or not isinstance(entry["kind"], str):
             raise _Failed(f"ledger line {number + 1} does not have the parts of a ledger entry.")
-        if canonical_bytes(entry).decode("utf-8") != raw:
+        try:
+            as_written = canonical_bytes(entry).decode("utf-8")
+        except (ValueError, TypeError, RecursionError):
+            as_written = None
+        if as_written != raw:
             raise _Failed(f"ledger line {number + 1} is not written exactly as the ledger writes it.")
         if entry["seq"] != number or entry["prev"] != prev:
             raise _Failed(f"the ledger's chain is broken at line {number + 1}: an entry was removed, added or moved.")
@@ -148,17 +153,25 @@ def _runs_in_file(evidence: dict) -> list[tuple[object, dict]]:
                 if isinstance(run, dict):
                     out.append((test.get("item_id"), run))
 
-    def proofs(value: object) -> None:           # a fix's proofs hold one row per test, each with its proof run
+    # a fix's proofs hold one row per test, each with its proof run; they are looked for without recursion, so a
+    # file nested very deeply is walked like any other
+    todo = [evidence.get("fixes")]
+    while todo:
+        value = todo.pop()
         if isinstance(value, dict):
             if "item_id" in value and isinstance(value.get("run"), dict):
                 out.append((value["item_id"], value["run"]))
-            for inner in value.values():
-                proofs(inner)
+            todo.extend(value.values())
         elif isinstance(value, list):
-            for inner in value:
-                proofs(inner)
-    proofs(evidence.get("fixes"))
+            todo.extend(value)
     return out
+
+
+def needs_otto_part(evidence: object) -> bool:
+    """Does this evidence hold an advisory check? A file from this app that does always has an Otto part."""
+    tests = evidence.get("tests") if isinstance(evidence, dict) else None
+    return any(isinstance(t, dict) and (t.get("kind") == "advisory_cases" or t.get("proposed_by") == PACK_ID)
+               for t in (tests if isinstance(tests, list) else []))
 
 
 def check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | None = None) -> OttoOutcome:
@@ -241,11 +254,25 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
                 raise _Failed(f"the ledger entry of run {_plain(art.get('run_id'), 40)} was not accepted by the pinned checker.")
         if set(shown) - set(run_claims):
             raise _Failed("the file lists a run as bound that the ledger does not bind.")
-        # ... and the other way round: every run of an advisory check that the file holds is bound in the ledger
-        bound_runs = {art.get("run_id") for art in (c["artifact"] for c in run_claims.values())}
+        # ... and the other way round: every run of an advisory check that the file holds is bound in the ledger, and
+        # is the very run the ledger binds: its record and its review match the SHA-256 the ledger holds. (The copies
+        # under `otto.runs` were compared above; these are the ones the file's own list of tests shows.)
+        bound: dict[object, dict] = {}
+        for claim in run_claims.values():
+            number = claim["artifact"].get("run_id")
+            if type(number) is not int or number in bound:
+                raise _Failed("the ledger binds a run with no number, or binds one run twice.")
+            bound[number] = claim["artifact"]
         titles = {check.get("item_id"): _plain(check.get("title")) for check in checks}
         for item_id, run in _runs_in_file(evidence):
-            if item_id not in titles or run.get("run_id") in bound_runs:
+            if item_id not in titles:
+                continue
+            art = bound.get(run.get("run_id")) if type(run.get("run_id")) is int else None
+            if art is not None:
+                review = {k: v for k, v in (run.get("review") or {}).items() if k != "created_at"}
+                if _sha(run.get("record")) != art.get("run_sha256") or _sha(review) != art.get("review_sha256"):
+                    raise _Failed(f"run {_plain(run.get('run_id'), 40)} of “{titles[item_id]}” in the file's list of tests is not the "
+                                  "run Otto's ledger binds under that number (a SHA-256 differs).")
                 continue
             if ((run.get("review") or {}).get("verdict") or {}).get("reason_code") == NOT_RECORDED_REASON:
                 continue      # it never started: without Otto it could not be recorded, and its result says so
@@ -259,8 +286,11 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
             kept = ((claims.get(step.get("ledger_entry")) or {}).get("artifact") or {}).get("step") or {}
             if (kept.get("prompt_sha256"), kept.get("answer_sha256")) != (step.get("prompt_sha256"), step.get("answer_sha256")):
                 raise _Failed("a Claude step in the file has no matching entry in the ledger.")
+            if step.get("ledger_entry") not in accepted:
+                raise _Failed("the ledger entry of a Claude step in the file was not accepted by the pinned checker.")
         if steps:
-            out.lines.append(f"Claude steps: {len(steps)}, each with its prompt and answer matching its SHA-256 and its entry in the ledger.")
+            out.lines.append(f"Claude steps: {len(steps)}, each with its prompt and answer matching its SHA-256 and its entry in the ledger, "
+                             "accepted by the pinned checker.")
         # 5. an older download
         if previous is not None:
             older = (previous.get("otto") or {}).get("ledger") if isinstance(previous, dict) else None
@@ -311,6 +341,6 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
                            "with --pack-key, or use the app that installed the pack.")
     except _Failed as exc:
         out.code, out.problem = FAILED, str(exc)
-    except (KeyError, TypeError, AttributeError, ValueError):
+    except (KeyError, TypeError, AttributeError, ValueError, RecursionError):
         out.code, out.problem = FAILED, "the Otto part of the file could not be read."
     return out

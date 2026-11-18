@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import shlex
+import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -397,7 +398,7 @@ def ship(args) -> int:
         say("Some shipped packs exist and some do not. They are signed together, with one key whose private half is thrown away, so "
             "the missing ones can't be added now. Nothing was built.")
         return 1
-    lab = research.open_lab(LAB)
+    lab = open_lab(LAB)
     key = Ed25519PrivateKey.generate()
     previous = None
     with tempfile.TemporaryDirectory(prefix="ottolab-") as scratch:
@@ -464,7 +465,7 @@ def next_pack(args) -> int:
     if not ids:
         say("Every advisory in the inbox is already in an earlier pack.")
         return 1
-    lab = research.open_lab(data_dir / "otto-research-lab")
+    lab = open_lab(data_dir / "otto-research-lab")
     recorded = Path(args.recorded) if args.recorded else RECORDED
     with tempfile.TemporaryDirectory(prefix="ottolab-") as scratch:
         spent_file = Path(scratch) / "spent.json"
@@ -479,8 +480,10 @@ def next_pack(args) -> int:
 
 def names_only_our_checker(entries: list[dict]) -> str | None:
     """A research ledger is a file too. Asked to check entries again, Otto's harness starts the verifier an entry
-    names, and finds that entry by its id whatever kind it is. So before it is asked: does this ledger name anything
-    to run but the research side's own pinned checker of Claude's step records? One plain phrase, or None."""
+    names, and finds that entry by its id whatever kind it is. So the audit command never asks it to: it runs the
+    research side's own pinned checker itself. This is the look before that: does the ledger name anything to run
+    but that checker, and does every claim and verdict point at an earlier entry of the right kind? One plain
+    phrase, or None."""
     ours = research.file_sha256(research.PINNED / research.CHECKER)
     kinds: dict[str, str] = {}
     for entry in entries:
@@ -503,21 +506,100 @@ def names_only_our_checker(entries: list[dict]) -> str | None:
     return None
 
 
+def _plain(value: object, limit: int = 300) -> str:
+    """Text from a lab folder as it may be printed: printable characters only, and not too long."""
+    text = " ".join("".join(ch if ch.isprintable() else "?" for ch in str(value)).split())
+    return text if len(text) <= limit else text[:limit] + "..."
+
+
+def only_regular_files(root: Path) -> str | None:
+    """A lab holds folders and regular files, written by Otto's harness and by this build. A link in it could make
+    one path read as one file here and as another to a program started in another folder, or make a write land
+    somewhere else. One plain phrase about the first thing that is neither, or None."""
+    if root.is_symlink():
+        return "the lab folder is a link"
+    for folder, dirs, files in os.walk(root, followlinks=False):
+        for name in sorted(dirs) + sorted(files):
+            path = Path(folder) / name
+            if path.is_symlink() or not (path.is_dir() or path.is_file()):
+                return f"the lab folder holds something that is not a folder or a regular file ({_plain(path.relative_to(root), 120)})"
+    return None
+
+
+def open_lab(root: Path):
+    """The research lab in this folder, opened only when the folder holds nothing but folders and regular files."""
+    odd = only_regular_files(root) if root.exists() else None
+    if odd is not None:
+        raise research.ResearchError(f"{odd}. Nothing was done.")
+    return research.open_lab(root)
+
+
+def run_pinned_checker(params: object, artifact: object) -> str:
+    """The research side's own pinned checker of a Claude step record, run on one entry: "accept", "reject", or
+    "unavailable" when it gave no usable answer. The program started is always ottolab/pinned/check_model_step.py,
+    with a fixed command, an empty folder to work in and a bare environment: never a file from the lab that is audited."""
+    try:
+        sent = json.dumps({"params": params, "artifact": artifact}).encode("utf-8")
+        with tempfile.TemporaryDirectory(prefix="ottolab-check-") as empty:
+            done = subprocess.run([sys.executable, "-I", str(research.PINNED / research.CHECKER)], input=sent, capture_output=True,
+                                  cwd=empty, timeout=60, env={"PATH": os.environ.get("PATH", "")}, shell=False)
+        if done.returncode != 0:
+            return "unavailable"
+        said = json.loads(done.stdout)
+        status = said.get("status") if isinstance(said, dict) else None
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError, RecursionError):
+        return "unavailable"
+    return status if status in ("accept", "reject") else "unavailable"
+
+
+def audit_problems(root: Path) -> tuple[list[str], int]:
+    """(the problems of the research ledger in this folder, how many entries it holds). The folder is read as data:
+    nothing in it is started, and nothing is written into it. Otto's harness checks the chain and the records and
+    derives every decision again from its runs, without running any verifier; the research side's own pinned
+    checker is then run again, by this command, on every entry it once accepted or rejected."""
+    if not (root / "ledger.jsonl").is_file() or (root / "ledger.jsonl").is_symlink():
+        return ["there is no ledger file in this folder"], 0
+    odd = only_regular_files(root)
+    if odd is not None:
+        return [f"{odd}. Nothing was run"], 0
+    lab = harness.module("lab").Lab(str(root))
+    entries = list(lab.ledger.entries())            # the harness checks the hash chain as it reads
+    foreign = names_only_our_checker(entries)
+    if foreign is not None:
+        return [f"{foreign}. Nothing was run"], len(entries)
+    problems = [str(problem) for problem in lab.audit(reverify=False)]      # never reverify=True on a folder: see names_only_our_checker
+    digest = harness.module("canonical").digest
+    records = {digest(entry["payload"]): entry["payload"] for entry in entries}
+    for entry in entries:
+        verdict = entry["payload"]
+        if entry["kind"] != "verdict" or verdict.get("status") not in ("accept", "reject"):
+            continue
+        objective, claim = records[str(verdict.get("objective_id"))], records[str(verdict.get("claim_id"))]
+        now = run_pinned_checker(objective["verifier"].get("params", {}), claim.get("artifact"))
+        if now == "unavailable":
+            problems.append(f"entry {entry.get('seq')} could not be checked again (the pinned checker gave no usable answer)")
+        elif now != verdict["status"]:
+            problems.append(f"entry {entry.get('seq')}: the stored verdict is {verdict['status']} but the pinned checker now says {now}")
+    for name in (research.TRIAL, research.CHECKER):     # the lab's own copies of the two pinned scripts, compared as bytes
+        if not (root / name).is_file() or (root / name).read_bytes() != (research.PINNED / name).read_bytes():
+            problems.append(f"the lab's {name} is not the one in ottolab/pinned")
+    return problems, len(entries)
+
+
 def audit(args) -> int:
     """Otto's own audit of a research ledger, with the pinned checker run again on every checked entry. An entry that
-    could not be checked again is a problem here, never a note beside a pass."""
-    lab = research.open_lab(Path(args.lab) if args.lab else LAB)
-    foreign = names_only_our_checker(list(lab.ledger.entries()))
-    if foreign is not None:
-        say(f"PROBLEM: {foreign}. Nothing was run.")
-        return 1
-    problems = list(lab.audit(reverify=True))
-    problems += [f"an entry could not be checked again ({note})" for note in getattr(lab, "audit_notes", []) or []]
-    head = lab.ledger.head()
+    could not be checked again is a problem here, never a note beside a pass; so is a folder that can't be read."""
+    root = Path(args.lab) if args.lab else LAB
+    try:
+        problems, height = audit_problems(root)
+    except harness.OttoNotInstalled:
+        raise
+    except Exception as exc:        # a ledger that is not one, a record with a part missing: said plainly, never a traceback
+        problems, height = [f"the lab could not be audited ({exc.__class__.__name__}: {exc})"], 0
     for problem in problems:
-        say("PROBLEM: " + problem)
+        say("PROBLEM: " + _plain(problem))
     if not problems:
-        say(f"{head['height']} entries; chain intact, every decision re-derived, every pinned checker run again.")
+        say(f"{height} entries; chain intact, every decision re-derived, every pinned checker run again.")
     return 1 if problems else 0
 
 

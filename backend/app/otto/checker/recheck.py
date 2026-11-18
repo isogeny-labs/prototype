@@ -22,9 +22,13 @@ import json
 import re
 import sys
 
-HEX64 = re.compile(r"^[0-9a-f]{64}$")
+HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")       # the whole value: 64 hex characters and nothing after them
 PHASES = ("first", "retest", "proof")
 PACK_ID = "isogeny.otto-pack/1"
+# A run entry holds exactly these, and what it ran on exactly those: fingerprints and names. With no other field
+# there is no place for a result, whatever it might be called.
+RUN_FIELDS = {"test", "run_id", "run_sha256", "review_sha256", "proposed_by", "reviewer", "phase", "ran_on"}
+RAN_ON_FIELDS = {"name", "version", "mode", "commit"}
 
 
 def sha(text):
@@ -33,6 +37,11 @@ def sha(text):
 
 def is_hex(value):
     return isinstance(value, str) and bool(HEX64.match(value))
+
+
+def is_name(value):
+    """A short plain line of text (a component's name, a version, a mode), or nothing."""
+    return value is None or (isinstance(value, str) and 0 < len(value) <= 200 and value.isprintable())
 
 
 def check_run(params, artifact):
@@ -52,9 +61,13 @@ def check_run(params, artifact):
         return "the run is in a phase this app does not have"
     if not isinstance(artifact.get("run_id"), int) or isinstance(artifact.get("run_id"), bool) or artifact["run_id"] < 1:
         return "the run has no number"
-    for forbidden in ("result", "verdict", "label", "passed", "failed"):
-        if forbidden in artifact:
-            return "a ledger entry never holds a result"
+    if set(artifact) != RUN_FIELDS:
+        return "a ledger entry holds fingerprints and names only, never a result or anything else"
+    ran_on = artifact["ran_on"]
+    if not isinstance(ran_on, dict) or set(ran_on) != RAN_ON_FIELDS or not all(is_name(value) for value in ran_on.values()):
+        return "what the run ran on is not a name, a version, a mode and a commit"
+    if not is_name(reviewer) or len(reviewer) > 80:
+        return "the reviewer is not a plain name"
     return None
 
 

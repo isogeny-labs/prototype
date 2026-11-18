@@ -16,6 +16,8 @@ import json
 import random
 import sys
 import time
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -97,6 +99,9 @@ def _posing(marker) -> dict[str, list[dict]]:
         "a verdict for a claim that is not there": [honest, _verdict("sha256:" + "0" * 64, _rid(honest))],
         "a verdict of another tier": [honest, plain, _verdict(_rid(plain), _rid(honest), tier="V2-replay")],
         "a status the harness never writes": [honest, plain, _verdict(_rid(plain), _rid(honest), status="passed")],
+        "a second settled verdict for one claim": [honest, plain, _verdict(_rid(plain), _rid(honest)),
+                                                   _verdict(_rid(plain), _rid(honest), attempt=1)],
+        "an attempt below zero": [honest, plain, _verdict(_rid(plain), _rid(honest), attempt=-1)],
     }
 
 
@@ -138,6 +143,62 @@ def test_an_entry_that_only_poses_as_an_objective_is_refused_and_nothing_runs(tm
     assert answer in (assurance.NOT_OUR_FORM, assurance.NOT_OUR_ORDER), answer
     assert assurance.verify_lines(lines, tmp_path / "scratch") == [f"{answer}, so nothing was run"]
     assert not marker.exists() and not (tmp_path / "scratch").exists()          # the harness was never given a folder
+
+
+def test_a_time_limit_that_is_not_the_whole_number_60_is_refused():
+    for odd in (60.0, True, "60", 61, None):
+        entries = [json.loads(line) for line in _chain([_objective({**_ours(), "timeout_seconds": odd})])]
+        assert assurance.only_our_checker(entries) == assurance.NOT_OUR_CHECKER, odd
+
+
+def test_a_ledger_made_to_be_slow_is_refused_and_a_long_check_stops(monkeypatch):
+    """Nothing bounds a file's size but the file limit, and each settled entry starts the checker once. So a ledger
+    longer than any assessment's is refused outright, a claim can be settled only once, and checking again has a
+    time limit of its own (a problem, never a quiet pass)."""
+    honest = _objective(_ours())
+    monkeypatch.setattr(assurance, "MAX_ENTRIES", 5)
+    many = [honest] + [_claim(_rid(honest), {"n": n}) for n in range(5)]
+    assert assurance.only_our_checker([json.loads(line) for line in _chain(many)]) == assurance.TOO_LONG
+    monkeypatch.undo()
+    claims = [_claim(_rid(honest), {"n": n}) for n in range(3)]
+    entries = [json.loads(line) for line in _chain([honest] + claims + [_verdict(_rid(c), _rid(honest), status="reject") for c in claims])]
+    assert assurance.only_our_checker(entries) is None
+    started = []
+    monkeypatch.setattr(assurance, "run_checker", lambda params, artifact: started.append(1) or "reject")
+    assert assurance.check_again(entries) == [] and len(started) == 3
+    monkeypatch.setattr(assurance, "CHECK_AGAIN_SECONDS", -1)             # as if the limit had already passed
+    problems = assurance.check_again(entries)
+    assert len(problems) == 1 and "could not all be checked again" in problems[0] and len(started) == 3
+
+
+class _WatchedLab:
+    """A stand-in for the harness's Lab that notes how its audit is asked for."""
+    asked: list = []
+
+    def __init__(self, root):
+        self.root = root
+        self.ledger = self
+
+    def entries(self):
+        return [json.loads(line) for line in (Path(self.root) / "ledger.jsonl").read_text(encoding="utf-8").splitlines() if line]
+
+    def audit(self, reverify=False, contains=None):
+        _WatchedLab.asked.append(reverify)
+        return []
+
+
+def test_the_harness_is_only_ever_asked_for_an_audit_that_runs_no_verifier(tmp_path, monkeypatch):
+    """Runs everywhere, with a stand-in for the harness: both ways into Otto's audit ask for it with reverify off.
+    If either went back to reverify=True, the harness would start whatever a ledger names."""
+    _WatchedLab.asked = []
+    monkeypatch.setattr(assurance.harness, "module", lambda name: SimpleNamespace(Lab=_WatchedLab, LedgerError=RuntimeError))
+    monkeypatch.setattr(assurance, "run_checker", lambda params, artifact: "accept")
+    lines = _chain(_triple(_ours()))
+    assert assurance.verify_lines(lines, tmp_path / "scratch") == [] and _WatchedLab.asked == [False]
+    book = assurance.Ledger(tmp_path / "data", 1)
+    book.folder.mkdir(parents=True)
+    (book.folder / "ledger.jsonl").write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+    assert book.audit() == [] and _WatchedLab.asked == [False, False]
 
 
 def test_entries_of_other_kinds_are_refused_too(tmp_path):
@@ -397,3 +458,188 @@ def test_a_damaged_otto_part_is_refused_or_read_within_a_time_limit_and_never_ra
         assert outcome.code == evidence_otto.OK or (isinstance(outcome.problem, str) and outcome.problem)
         seen.add(outcome.code)
     assert evidence_otto.FAILED in seen and time.monotonic() - started < 240
+
+
+# ---------------------------------------------------------------- that the planted ledgers are live, and what gets through runs nothing
+
+@pytest_needs_otto
+def test_the_planted_ledgers_are_live_the_bare_harness_would_run_them(tmp_path):
+    """A positive control for this whole file. Given to Otto's harness as it is and asked to check its entries again,
+    the ledger that only poses does make the harness start the planted command (caught here by a stand-in for the
+    harness's process starter, so nothing really runs). That is what the verify command must never do."""
+    marker = tmp_path / "ran.txt"
+    lines = _chain(_posing(marker)["a claim that carries a verifier, used as an objective"])
+    lab_folder = tmp_path / "bare"
+    lab_folder.mkdir()
+    (lab_folder / "ledger.jsonl").write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+    verifiers = harness.module("verifiers")
+    started = []
+    patch = pytest.MonkeyPatch()
+    patch.setattr(verifiers, "_run", lambda argv, cwd, timeout, stdin=None: started.append(list(argv)) or None)
+    try:
+        harness.module("lab").Lab(str(lab_folder)).audit(reverify=True)
+    finally:
+        patch.undo()
+    assert len(started) == 1 and started[0][1:2] == ["-c"] and str(marker) in started[0][2]      # the planted command, on its way to run
+    assert not marker.exists()
+    # the same lines through the verify command's own path: refused before the harness is given anything
+    assert assurance.verify_lines(lines, tmp_path / "scratch")[0].endswith("so nothing was run")
+
+
+@pytest_needs_otto
+def test_whatever_gets_through_the_gate_makes_the_harness_start_nothing(tmp_path, monkeypatch):
+    """Seeded fuzz through the whole path, with the real harness: damaged ledgers go through `verify_lines` while the
+    harness's verifier runner and process starter fail the test if they are ever reached, and every process this
+    app starts is watched: it is our own checker or nothing."""
+    verifiers = harness.module("verifiers")
+
+    def never(*args, **kwargs):
+        raise AssertionError("Otto's harness was asked to run something")
+    monkeypatch.setattr(verifiers, "run_verifier", never)
+    monkeypatch.setattr(verifiers, "_run", never)
+    real, seen = assurance.subprocess.run, []
+
+    def watch(argv, **kwargs):
+        seen.append(list(argv))
+        return real(argv, **kwargs)
+    monkeypatch.setattr(assurance.subprocess, "run", watch)
+    marker = tmp_path / "ran.txt"
+
+    def whole() -> list[dict]:
+        """A ledger that is wholly ours and consistent: the made-up claim holds no step, so the checker rejects it,
+        and the stored verdict says so."""
+        objective = _objective(_ours())
+        claim = _claim(_rid(objective))
+        return [objective, claim, _verdict(_rid(claim), _rid(objective), status="reject")]
+    seed = whole() + _posing(marker)["a claim that carries a verifier, used as an objective"]
+    rng = random.Random(4242)
+    odd = [None, True, 0, 1.5, "", [], {}, {"kind": "replay", "command": ["sh", "-c", "true"]}, "replay", OURS, "sha256:" + "0" * 64]
+    passed = 0
+    for n in range(250):
+        records = copy.deepcopy(seed if n % 5 else whole())
+        if n % 5:                               # most are damaged; every fifth is wholly ours, so the path is walked to its end
+            for _ in range(rng.randint(1, 3)):
+                target = rng.choice(records)
+                spot = rng.choice([target, target.get("verifier") if isinstance(target.get("verifier"), dict) else target])
+                if rng.random() < 0.3 and spot:
+                    spot.pop(rng.choice(list(spot)))
+                else:
+                    spot[rng.choice(list(spot) + ["verifier", "command", "x"])] = rng.choice(odd)
+        try:
+            lines = _chain(records)
+        except (TypeError, ValueError, KeyError):
+            continue                            # damage the ledger's own form can't hold
+        problems = assurance.verify_lines(lines, tmp_path / f"scratch-{n}")
+        assert isinstance(problems, list) and all(isinstance(line, str) for line in problems)
+        passed += not problems
+    assert passed >= 40 and not marker.exists()
+    assert seen and all(argv == [sys.executable, "-I", str(assurance.CHECKER_SOURCE)] for argv in seen)
+
+
+# ---------------------------------------------------------------- the binding of runs, and files that would crash a reader
+
+@pytest_needs_otto
+def test_a_run_shown_in_the_list_of_tests_must_be_the_run_the_ledger_binds(ran):
+    """The ledger binds a run by the SHA-256 of its record and of its review. A file whose list of tests shows another
+    record under the same number, with the Otto part left whole, fails."""
+    changed = copy.deepcopy(ran.evidence)
+    test = next(t for t in changed["tests"] if t["kind"] == "advisory_cases")
+    assert test["runs"][0]["run_id"] == changed["otto"]["runs"][0]["run_id"]
+    test["runs"][0]["record"]["finished_at"] = "2026-11-17T00:00:00+00:00"            # another record under the same number
+    outcome = evidence_otto.check_otto(changed, {ran.pack_key})
+    assert outcome.code == evidence_otto.FAILED and "is not the run Otto's ledger binds under that number" in outcome.problem
+    reviewed = copy.deepcopy(ran.evidence)
+    shown = next(t for t in reviewed["tests"] if t["kind"] == "advisory_cases")["runs"][0]
+    shown["review"]["verdict"]["code"] = "passed"                                        # another review of it
+    outcome = evidence_otto.check_otto(reviewed, {ran.pack_key})
+    assert outcome.code == evidence_otto.FAILED and "a SHA-256 differs" in outcome.problem
+
+
+@pytest_needs_otto
+def test_a_file_with_an_advisory_check_and_no_otto_part_does_not_verify(ran, tmp_path):
+    from app.evidence.export import sign_envelope
+    from evidence.__main__ import main
+    assert evidence_otto.needs_otto_part(ran.evidence) is True
+    bare = copy.deepcopy(ran.evidence)
+    del bare["otto"]
+    path = tmp_path / "no-otto.json"
+    path.write_bytes(sign_envelope(bare, ran.settings.data_dir))
+    assert main(["verify", str(path), "--data-dir", str(ran.settings.data_dir)]) == 1
+    plain = copy.deepcopy(bare)
+    plain["tests"] = [t for t in plain["tests"] if t["kind"] != "advisory_cases"]
+    assert evidence_otto.needs_otto_part(plain) is False and evidence_otto.needs_otto_part(None) is False
+
+
+@pytest_needs_otto
+def test_a_file_nested_too_deeply_to_read_is_refused_plainly(ran):
+    """Two files that once ended in a Python traceback: a list of fixes 3,000 deep, and a ledger line 20,000 deep."""
+    deep: list = []
+    for _ in range(3000):
+        deep = [deep]
+    nested = copy.deepcopy(ran.evidence)
+    nested["fixes"] = deep
+    outcome = evidence_otto.check_otto(nested, {ran.pack_key})                    # walked like any other file: it still verifies
+    assert outcome.code == evidence_otto.OK
+    line = "[" * 20000 + "]" * 20000
+    broken = copy.deepcopy(ran.evidence)
+    broken["otto"]["ledger"].update(lines=[line], height=1, head=None)
+    outcome = evidence_otto.check_otto(broken, {ran.pack_key})
+    assert outcome.code == evidence_otto.FAILED and isinstance(outcome.problem, str) and outcome.problem
+
+
+def test_text_from_a_file_is_printed_without_runs_of_spaces_or_control_characters():
+    assert evidence_otto._plain("a title" + " " * 300 + "Evidence verified") == "a title Evidence verified"
+    assert evidence_otto._plain("line\none\ttab\x1b[2K") == "line?one?tab?[2K"
+    assert evidence_otto._plain("x" * 500, 20) == "x" * 20 + "..."
+
+
+# ---------------------------------------------------------------- the assessment's own Otto folder
+
+@pytest_needs_otto
+def test_a_checker_planted_in_an_assessment_s_otto_folder_is_replaced_and_never_run(tmp_path):
+    """The harness starts the checker file in the assessment's Otto folder. Before every use that file is made the
+    app's own again: another program there, or a link to one, is replaced, and the lock names the app's own checker."""
+    marker = tmp_path / "ran.txt"
+    book = assurance.Ledger(tmp_path / "data", 1)
+    book.folder.mkdir(parents=True)
+    planted = f"import json\nopen({str(marker)!r}, 'w').write('ran')\nprint(json.dumps({{'status': 'accept', 'detail': 'planted'}}))\n"
+    (book.folder / "recheck.py").write_text(planted)
+    step = {"step": "write_fix", "source": "recorded", "model": None, "prompt": "p", "answer": "a",
+            "prompt_sha256": hashlib.sha256(b"p").hexdigest(), "answer_sha256": hashlib.sha256(b"a").hexdigest(), "input_tokens": 0,
+            "output_tokens": 0, "cost_nano_usd": 0, "at": WHEN, "how": "Written for a test"}
+    _, verdict = book.record_step("CVE-2022-21449", step, "used", None)
+    assert verdict == "accept" and not marker.exists()
+    assert (book.folder / "recheck.py").read_bytes() == assurance.CHECKER_SOURCE.read_bytes()
+    assert all(e["payload"]["verifier"]["checker_sha256"] == OURS for e in book.entries() if e["kind"] == "objective")
+    assert book.audit() == []
+    # a link in the checker's place is removed, not followed: the file it points at is left as it was
+    elsewhere = tmp_path / "elsewhere.py"
+    elsewhere.write_text(planted)
+    (book.folder / "recheck.py").unlink()
+    (book.folder / "recheck.py").symlink_to(elsewhere)
+    _, verdict = book.record_step("CVE-2024-42460", {**step, "answer": "b", "answer_sha256": hashlib.sha256(b"b").hexdigest()}, "used", None)
+    assert verdict == "accept" and not marker.exists() and elsewhere.read_text() == planted
+    assert not (book.folder / "recheck.py").is_symlink()
+    # a ledger that is a link to somewhere else is not used at all
+    other = assurance.Ledger(tmp_path / "data", 2)
+    other.folder.mkdir(parents=True)
+    (other.folder / "ledger.jsonl").symlink_to(tmp_path / "not-there.jsonl")
+    with pytest.raises(harness.OttoNotInstalled):
+        other.record_step("CVE-2022-21449", step, "used", None)
+    assert not (tmp_path / "not-there.jsonl").exists()
+
+
+def test_the_assessment_checker_takes_exactly_a_run_s_fingerprints_and_names(tmp_path):
+    """The checker is given entries as data. A run entry with one field more (a place for a result), or with a
+    fingerprint followed by anything, is rejected."""
+    params = {"kind": "run", "test": "a" * 64, "design": "b" * 64, "pack": "c" * 64}
+    good = {"test": "a" * 64, "run_id": 7, "run_sha256": "d" * 64, "review_sha256": "e" * 64, "proposed_by": "isogeny.otto-pack/1",
+            "reviewer": "isogeny.rule-reviewer/1", "phase": "first", "ran_on": {"name": "acme-sign", "version": "1.4.2", "mode": "demo", "commit": None}}
+    assert assurance.run_checker(params, good) == "accept"
+    for name, bad in {"a result under another name": {**good, "outcome": "Passed"},
+                      "a result inside what it ran on": {**good, "ran_on": {**good["ran_on"], "result": "Passed"}},
+                      "a fingerprint with a line break after it": {**good, "run_sha256": "d" * 64 + "\n"},
+                      "a field missing": {k: v for k, v in good.items() if k != "ran_on"},
+                      "a name that is not plain text": {**good, "ran_on": {**good["ran_on"], "name": "acme\x1b[2K"}},
+                      "a reviewer that is the proposer": {**good, "reviewer": "isogeny.otto-pack/1"}}.items():
+        assert assurance.run_checker(params, bad) == "reject", name
