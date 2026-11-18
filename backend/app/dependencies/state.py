@@ -276,8 +276,38 @@ class DependenciesMixin:
             imp = db.get(ImportRow, plan.import_id)
             busy = self.jobs.busy((DEPENDENCY_ORIGIN, plan_id))
             state = self._dependency_state(db, plan)
+            otto = self._dependency_otto(db, plan, state)
             return present_deps.view(plan_id=plan.id, import_id=imp.id, is_demo=bool(imp.is_demo), state=state, busy=busy,
-                                     isolated=self.mode.name == "isolated")
+                                     isolated=self.mode.name == "isolated", otto=otto)
+
+    def _dependency_otto(self, db, plan: PlanRow, state: dict | None) -> dict:
+        """Phase 5c: for each library row (by its key), the published advisories that name it with what this assessment
+        measured, and Otto's proposals for it as the screen shows them. Worked out from the installed packs, the list
+        and the results; nothing is stored by looking, and no existing answer changes."""
+        from app.present import otto as present_otto
+        if state is None:
+            return {}
+        upto = self._closed_at(plan.id)                                       # type: ignore[attr-defined]
+        named = self._named_by(db, plan, state, upto)                         # type: ignore[attr-defined]
+        if not named:
+            return {}
+        proposals = self._proposals(db, plan, ("dependency",), dependency_state=state)   # type: ignore[attr-defined]
+        out: dict[str, dict] = {}
+        for row_key, entries in named.items():
+            lines = []
+            for n in entries:
+                link = None
+                if n["fix"].get("kind") == "update":
+                    item_id = n["measured"].get("item_id") if n["measured"]["state"] == "affected" else None
+                    fix_id = self._text_fix_id(db, plan, "advisory_cases", item_id) if item_id is not None else None   # type: ignore[attr-defined]
+                    link = {"page": "fixes", "item": fix_id} if fix_id else {"page": "advisories", "item": n["advisory"]}
+                lines.append(present_otto.named_line(n, link))
+            # (only what Otto proposes now for this very library and version: a decision on a proposal that is no longer
+            # made stays on the record, in the evidence, and is never laid on whatever row stands in that place now)
+            mine = [present_otto.proposal_view(p, self.otto_ledger_about(plan.id, p.get("objective_id")))      # type: ignore[attr-defined]
+                    for p in proposals if p["current"] and row_key in (p["facts"].get("row_keys") or [])]
+            out[row_key] = {"advisories": lines, "proposals": mine, "status": present_otto.dependency_status(mine)}
+        return out
 
     def dependencies_view_for_import(self, import_id: int) -> dict:
         return self.dependencies_view(self.ensure_plan(import_id)["id"])

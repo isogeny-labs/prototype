@@ -19,13 +19,19 @@ Passing these tests doesn't prove a system secure. It shows these specific check
 | 6. Migration (where each system stands on post-quantum cryptography, measured on two tracks, key exchange and authentication; the target is post-quantum; what each option costs; a recommendation from fixed rules; your own choice; a roadmap by track; a change ready to apply, tried on a test copy, then applied with approval and rolled back if needed, on our own servers only) | Built (phase 4a, made real in phase 4b) |
 | Demo mode and isolated mode (Docker) | Built |
 | Real crypto libraries written by others (phase 4c): Java (OpenJDK), python-ecdsa, elliptic (npm), OpenSSL | Built, isolated mode (Docker) only |
+| Otto (phase 5c): published advisories turned into locked tests for signing programs and libraries, shipped as signed test packs; an Advisories page; Test packs and Live Otto in Settings | Built. Advisory checks need the Otto harness, which `./run-demo.sh` fetches (read access to a private repository) |
 | Uploading outside software | Not in this version: only our own demo components and the pinned real libraries run |
 | Connecting real code hosts (GitHub and others) | Not in this version: only the small demo repository that comes with the app |
 | Server setting change with proof (SPEC section 7c) | Built (phase 4b), on the Acme Pay demo server only |
 | Changing a server that isn't ours (connectors) | Not built (a later phase); Download change still works |
 | Change watch | Not built (phase 3c) |
-| Assistant panel | Empty panel only; the assistant is phase 3b. No AI model is connected |
+| Assistant panel | Empty panel only; the assistant is phase 3b. No AI model is connected to it (Otto, above, uses Claude for other jobs) |
 | Accuracy panel in the app | Not built (phase 3b); the accuracy check is a command for now |
+
+This table and the walk below were last brought up to date for phase 4c. Phases 4d, 5a and 5b (dependency
+readiness, projects and assessments with the new layout, one connected assessment) are described in
+[docs/SPEC.md](docs/SPEC.md) and [docs/HANDOFF.md](docs/HANDOFF.md): since phase 5a the app opens on Projects and
+the steps are pages in a sidebar. Phase 5c has its own section below.
 
 What is real, what is demo and what is missing is listed honestly in [docs/LIMITS.md](docs/LIMITS.md).
 The full spec is [docs/SPEC.md](docs/SPEC.md). How tests, runs and reviews are recorded is in
@@ -35,6 +41,7 @@ Screenshots are in [docs/screenshots/](docs/screenshots/).
 ## Run the demo (one command)
 
 You need Python 3.12 and Node.js 20 or newer installed. Docker is optional. No internet is needed after the first run.
+Otto (phase 5c, below) is optional too: the first run fetches its harness if this computer may read its repository.
 
 ```
 ./run-demo.sh
@@ -176,6 +183,69 @@ fingerprint (see [demo/real-libraries/README.md](demo/real-libraries/README.md);
     findings are sealed before a library is added, and revealed after the run. See
     [docs/BLIND-TEST.md](docs/BLIND-TEST.md).
 
+### Otto: advisories, test packs and advisory checks (phase 5c)
+
+Otto is the part that keeps checking. A newly published weakness (an *advisory*) becomes a locked test, the same
+test runner and reviewer decide whether a program is affected, a fix is proven on a copy, a person approves it, and
+the same tests run again after every change. In this phase it covers **signing programs and libraries**; servers
+come next. The rules are in [docs/SPEC.md](docs/SPEC.md), section 7f.
+
+- **What you need.** Otto is Adam's research harness, kept in a private repository. `./run-demo.sh` fetches it at one
+  pinned commit and checks its fingerprint (it needs read access to that repository once, and no Docker). Without it
+  the app works as before and says "Otto is not installed on this computer" with the reason; advisory checks then
+  can't be added or run.
+- **Test packs.** Open **Settings**, section **Test packs**, and click **Check for updates**. It looks in a folder on
+  this computer, never on the internet, and finds test pack 2026.11.1, which comes with the app. **Install update**
+  shows what the pack adds, and **Install** installs it. A pack is signed data, like an antivirus update: nothing in
+  it runs. A second pack, 2026.11.2, installs after the first.
+- **Advisories.** Open the Acme Pay assessment (**Load demo projects**, on the empty Projects page or in Settings,
+  adds it) and then **Advisories** in the sidebar. Each row is a real published advisory: its plain name, when it
+  was published, which signing programs here it fits, and whether it has a test (**Test ready**, **No test yet** or
+  **Not offered**, each with its reason). Open a row to read the publisher's own line, the test, and how the test
+  did when it was tried on public copies before the pack shipped. Where a test fits a signing program of your file,
+  Otto proposes its check, marked "From Otto": **Accept** adds that one check to the test plan and runs nothing;
+  **Reject** asks for an optional short reason and keeps the proposal on the record as "Not added (reason)". An
+  accept can be undone until the check has run, and a rejection can be reconsidered. Every decision is recorded with
+  who and when.
+- **Run them** on **Checks**, like any other test. Expected on the Acme Pay demo with both packs installed: three
+  advisory checks. The check for CVE-2022-21449 is **Failed** on `acme-sign` 1.4.2 (3 of 77 published cases wrong);
+  the other two are **Passed**. Three of the six advisories read **No test yet**, each with its reason. A result says which cases got the wrong answer. It says nothing about how serious
+  an advisory is.
+- **The fix.** In **Fixes**, Otto proposes its own change for `acme-sign`, labelled "Written by Otto". Accept the
+  proposal first (accepting runs nothing); then **Connect demo code** proves the change on a test copy, rerunning
+  every locked test, the advisory checks among them. Open the pull request, approve, merge, and **Retest now**: the
+  same locked check reads **Passed**. (The program Otto's recorded change gives is one line different from our own
+  1.4.3, so it is registered as a demo program of its own, `acme-sign 1.4.3-otto`. Where Otto is not installed, the
+  fix template is offered instead.) For a real library the fix is labelled "From Otto": its publisher's fixed
+  version with the quoted source, and two rows, "Proven on public copies" (the trial before the pack shipped) and
+  "Proven on your system" ("Not yet" until a retest on the updated version has run here).
+- **Everywhere else.** The Overview counts what is "Waiting for you"; Import says how many checks may apply;
+  Migration and Dependencies show Otto's proposals for the plan and for libraries that an advisory names. Otto
+  proposes; a person decides; nothing runs without a click.
+- **Otto and Claude.** Otto uses Claude to read each advisory, design its test and propose its fix, and to write a
+  change for your own program when an advisory check has failed on it. Nothing Claude writes is trusted by itself,
+  and Claude never sets a result. What comes with the app are answers **recorded during the build**; tests,
+  screenshots and the accuracy check use only those. **Live Otto** (in Settings) lets Otto ask Claude for real. It
+  is off by default, it can be turned on only when an API key is set in the `ANTHROPIC_API_KEY` environment
+  variable, and it has a spending limit per run (2 US dollars to start with). The key is never stored or shown.
+  With Live Otto on, the advisory text and, for a fix to your own code, the source file of the failing program go to
+  Claude.
+- **Evidence.** **Download evidence** now also holds the packs, the assessment's Otto ledger (a hash-chained record
+  that every run of an advisory check belongs to a test locked before it) and Claude's steps. The same command
+  checks all of it: `cd backend && .venv/bin/python -m evidence verify <file.json>`. Add
+  `--previous <older file.json>` to check that nothing was dropped since an earlier download. On a computer without
+  the Otto harness the command still checks what it can and ends "not confirmed", which is not a pass.
+- Three more commands:
+  - `cd backend && .venv/bin/python -m app.prepare --otto` fetches the Otto harness by itself (`--check` only
+    reports).
+  - `cd backend && .venv/bin/python -m app.accuracy --only otto` walks Otto's loop through the same path as the
+    buttons. Its answer key, `demo/expected-otto.json`, is written independently and is not in the repository yet,
+    so for now the command shows the app's answers and grades nothing.
+  - `cd backend && .venv/bin/python -m ottolab.build audit` runs Otto's own audit of the research ledger in
+    `research/lab/`: the record of how each shipped test and fix was tried.
+
+What this phase can't show is listed in [docs/LIMITS.md](docs/LIMITS.md), "Limits of phase 5c".
+
 ### Demo mode and isolated mode
 
 The line under the step bar says which mode the app is in.
@@ -197,6 +267,9 @@ Things to know:
 - Your data lives in the `data/` folder, which is never committed: a small database, the demo test certificate
   and the app's evidence signing key (a local key, made on first start, readable only by you).
 - Only our own demo software and the pinned real libraries can be run. There is nowhere to upload other software in this version.
+- Since phase 5c the app also uses the Otto harness: one pinned commit, fetched only by `./run-demo.sh` and checked
+  by its fingerprint. It is not software under test. It keeps Otto's records and starts only a few small scripts of
+  ours. A test pack is data: nothing in it runs.
 - The suggested code change is proved before it is offered: the app first checks that the changed file is, byte
   for byte, one of our own demo components, and then runs that component. Nothing else is ever run.
 - Each imported file gets its own fresh copy of the demo repository, in `data/repos/`. So importing the demo file
@@ -241,19 +314,25 @@ The accuracy command also runs the migration demo and compares it with `demo/exp
 (`--only acme` or `--only migration` runs one of the two), ending with, for example,
 `Migration demo accuracy: 47 of 47 match`. Since phase 4c it also runs the real libraries against
 `demo/expected-real-libraries.json` (`--only real` runs just those; they need isolated mode and the prepared
-images). The build never edits any answer key.
+images). The build never edits any answer key. Since phase 5c `--only otto` walks Otto's loop; its answer key,
+`demo/expected-otto.json`, is written independently and is not in the repository yet, so until then the command
+shows the app's answers and grades nothing.
 
 The fast backend set takes a few minutes and says how many slow tests it left out; `--full` runs everything
 and takes about 24 minutes with Docker ready. The end-to-end test takes about 20. Tests that need real containers
 are skipped, with a message, when Docker is not running or the images are not prepared
-(`cd backend && .venv/bin/python -m app.prepare`). Lint, type check and the GitHub checks are described in
-[docs/LAYOUT.md](docs/LAYOUT.md).
+(`cd backend && .venv/bin/python -m app.prepare`). Tests that need the Otto harness (phase 5c) are skipped where it
+is not installed, and the run says how many. No test reaches Claude's API or needs an API key. Lint, type check and
+the GitHub checks are described in [docs/LAYOUT.md](docs/LAYOUT.md).
 
 ## Where things are
 
 - `backend/` – Python 3.12, FastAPI, SQLite. `app/` is the code (one folder per job, see
   [docs/LAYOUT.md](docs/LAYOUT.md)), `tests/` the tests, `evidence/` the small
-  command that checks a downloaded evidence file.
+  command that checks a downloaded evidence file. Since phase 5c also `ottolab/` (Otto's research side, which makes
+  the test packs) and `otto.lock.json` (which commit of the Otto harness is used).
+- `research/` – Otto's research data (phase 5c): the dated snapshot of six published advisories, Claude's recorded
+  answers, Otto's research ledger and the two signed test packs.
 - `frontend/` – React, TypeScript, Vite, Tailwind.
 - `e2e/` – the Playwright end-to-end test.
 - `demo/` – the demo file (`acme-pay-cbom.json`), the CSV template (`claims-template.csv`), the demo signing

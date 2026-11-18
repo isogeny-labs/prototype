@@ -17,6 +17,7 @@ from app.db import (
 )
 from app.errors import BadRequest, Conflict, NotFound
 from app.names import ALGORITHM_NAMES, clean_text
+from app.present import otto as present_otto
 from app.projects.counts import assessment_counts
 
 CLOSED_SENTENCE = "This assessment is closed. Start a new one to continue."
@@ -236,17 +237,28 @@ class ProjectsMixin:
         imp = self.import_json_for(import_id) if import_id else None
         summary = self.plan_view(plan_id) if plan_id is not None else None
         counts = assessment_counts(self, import_id)
+        # Phase 5c: how many of Otto's proposals nobody has decided yet, by kind, each linking to the page it lives on.
+        # A closed assessment and one without Otto have nothing waiting: nothing can be decided there.
+        waiting = self.otto_waiting(plan_id if self._can_decide(plan_id) else None)      # type: ignore[attr-defined]
         return {**brief, "organization": self.organization_name(), "project": project, "path": path,
                 IMPORT_KEY: imp, "plan_id": plan_id,
                 "blocks": self.assessment_blocks(import_id, plan_id),   # type: ignore[attr-defined]   # phase 5b
                 "has_verify": counts["claims"] is not None,
                 "has_results": bool(summary and summary.get("has_results")),
                 "has_migration": bool(summary and summary.get("has_migration")),
-                "counts": counts, "next_step": self._next_step(brief, counts, summary)}
+                "counts": counts,
+                "waiting": present_otto.waiting_view(waiting),
+                "next_step": self._next_step(brief, counts, summary, waiting)}
+
+    def _can_decide(self, plan_id: int | None) -> bool:
+        return plan_id is not None and self._decisions_blocked(plan_id) is None      # type: ignore[attr-defined]
 
     @staticmethod
-    def _next_step(brief: dict, counts: dict, summary: dict | None) -> dict:
-        """The page that holds the next thing to do, with one plain sentence. It opens the page; it runs nothing."""
+    def _next_step(brief: dict, counts: dict, summary: dict | None, waiting: dict | None = None) -> dict:
+        """The page that holds the next thing to do, with one plain sentence. It opens the page; it runs nothing.
+        `waiting`: how many of Otto's proposals in this assessment nobody has decided yet, by kind (phase 5c)."""
+        waiting = waiting or {}
+        new_checks = int(waiting.get("check") or 0)
         if brief["status"]["key"] == "closed":
             return {"page": "overview", "label": "New assessment",
                     "text": "This assessment is closed and kept as it was. Start a new one in this project to continue."}
@@ -256,12 +268,28 @@ class ProjectsMixin:
         if counts["claims"] is None:
             return {"page": "inventory/import", "label": "Verify claims",
                     "text": "Check each claim in the file against the real system."}
+        # (before the first run, on purpose: a check accepted now runs with the suggested tests, in one go)
+        if new_checks:
+            return {"page": "advisories", "label": "Open advisories",
+                    "text": (f"Otto proposes {new_checks} advisory {'check' if new_checks == 1 else 'checks'} from the installed test packs. "
+                             f"Accept or reject {'it' if new_checks == 1 else 'each one'}: accepting runs nothing.")}
         if counts["tests"] is None:
             return {"page": "checks", "label": "Open checks",
                     "text": "Run the suggested tests on what the file names. The test plan is on Checks."}
+        if waiting.get("fix"):
+            n = int(waiting["fix"])
+            return {"page": "fixes", "label": "Open fixes",
+                    "text": (f"Otto proposes {'a fix' if n == 1 else f'{n} fixes'} for a failed advisory check. Accept or reject "
+                             f"{'it' if n == 1 else 'each one'}: accepting runs nothing.")}
         if counts["fixes"] and counts["fixes"]["open"]:
             return {"page": "fixes", "label": "Open fixes",
                     "text": "Some failed tests or migration steps have a suggested fix waiting."}
+        if waiting.get("plan"):
+            return {"page": "migration/systems", "label": "Open migration",
+                    "text": "Otto proposes a change to the migration plan, from a result. Accept or reject it: accepting changes no system."}
+        if waiting.get("dependency"):
+            return {"page": "migration/dependencies", "label": "Open dependencies",
+                    "text": "Otto proposes an update for a library that a published advisory names. Accept or reject it: accepting runs nothing."}
         if not (summary and summary.get("has_migration")):
             return {"page": "migration/systems", "label": "Open migration",
                     "text": "Measure where each system stands on the move to post-quantum cryptography."}

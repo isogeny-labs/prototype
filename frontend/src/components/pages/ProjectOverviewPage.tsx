@@ -1,9 +1,81 @@
 import { useEffect, useState } from "react";
-import { api, errorMessage, type ProjectOverview, type ProjectOverviewRow, type Workspace } from "../../api";
+import { api, errorMessage, type OttoProjectBlock, type ProjectOverview, type ProjectOverviewRow, type Workspace } from "../../api";
 import { linkRoute, routeHref } from "../../router";
 import { DataTable, FilterSelect, PageHeader, type Column } from "../layout";
 import { ErrorBox, SecondaryButton, StatusChip, formatTime } from "../ui";
 import { ActionsMenu, ClaimsCell, FixesCell, InlineForm, Section, SystemsCell, TestsCell, folderOptions } from "./parts";
+
+/** The three columns of the block below, on a screen wide enough for columns: the assessment, how many proposals wait
+ * in it, and what changed since the pack. */
+const OTTO_COLS = "md:grid-cols-[minmax(9rem,14rem)_minmax(9rem,16rem)_minmax(0,1fr)]";
+
+/** Phase 5c: Otto in this project. For each assessment: how many of Otto's proposals wait for a decision there, and
+ * what changed since the newest test pack was installed. Every word and count is the backend's, read from each
+ * assessment's own pages. A row opens that assessment; nothing here decides or runs anything. No score, no trend. */
+function OttoProjectSection({ otto }: { otto: OttoProjectBlock }) {
+  return (
+    <Section title={otto.title} testId="project-otto">
+      <p data-testid="project-otto-pack" className="break-words text-sm text-slate-300">
+        {otto.pack_line}
+      </p>
+      <p data-testid="project-otto-note" className="mb-3 mt-1 break-words text-xs text-slate-400">
+        {otto.note}
+      </p>
+      {otto.rows.length > 0 ? (
+        <div className="rounded-xl border border-slate-800 text-sm">
+          {otto.since_title ? (
+            // The heading of the third column, on a screen wide enough to have columns.
+            <div aria-hidden="true" className={`hidden gap-x-4 border-b border-slate-800 px-4 py-2 text-xs font-medium text-slate-400 md:grid ${OTTO_COLS}`}>
+              <span />
+              <span />
+              <span>{otto.since_title}</span>
+            </div>
+          ) : null}
+          <ul className="divide-y divide-slate-800">
+            {otto.rows.map((row) => (
+              <li
+                key={row.assessment_id}
+                data-testid="project-otto-row"
+                data-assessment={row.assessment_id}
+                data-waiting={row.waiting}
+                className={`grid gap-x-4 gap-y-1 px-4 py-2.5 ${OTTO_COLS}`}
+              >
+                <a
+                  href={routeHref(linkRoute(row.link, row.link.assessment_id ?? row.assessment_id))}
+                  data-testid="project-otto-link"
+                  className="min-w-0 break-words font-medium text-slate-100 hover:text-sky-300"
+                >
+                  {row.title}
+                </a>
+                <span data-testid="project-otto-waiting" className="min-w-0">
+                  {row.waiting > 0 ? (
+                    <StatusChip size="sm" label={row.waiting_text} tone="warn" wrap />
+                  ) : (
+                    <span className="text-slate-400">{row.waiting_text}</span>
+                  )}
+                </span>
+                <div className="min-w-0">
+                  {row.since.length > 0 ? (
+                    <>
+                      {otto.since_title ? <p className="text-xs font-medium text-slate-400 md:sr-only">{otto.since_title}</p> : null}
+                      <ul data-testid="project-otto-since" className="space-y-0.5 text-slate-300">
+                        {row.since.map((line, i) => (
+                          <li key={i} className="break-words">
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </Section>
+  );
+}
 
 /** Phase 5b: the Project overview: every assessment of the project side by side, what changed between two, and which
  * of them share a system. Counts only, read from each assessment's own pages; no score, no trend. */
@@ -189,6 +261,9 @@ export function ProjectOverviewPage({
           </p>
         )}
       </Section>
+
+      {/* Phase 5c: proposals waiting in each assessment, and what changed since the newest test pack. */}
+      {view?.otto ? <OttoProjectSection otto={view.otto} /> : null}
 
       <Section title="What changed">
         {view && choices.length >= 2 ? (

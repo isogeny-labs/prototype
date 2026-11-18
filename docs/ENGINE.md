@@ -1,12 +1,14 @@
 # The research engine socket and the records behind every result
 
 Everything that thinks about tests goes through one interface, `ResearchEngine`. A real research
-engine (the autoresearcher) is meant to plug in here later without any screen changing.
+engine (the autoresearcher) is meant to plug in here later without any screen changing. Since phase 5c
+the first part of it has: Otto sits in the socket, around the rule-based engine (see "Phase 5c", at
+the end).
 
-**Read this first.** In this version nothing "thinks":
+**Read this first.** The two engines that propose and decide do not "think":
 
-- **Both engines are plain rule-based code from the same build.** There is no AI model and no
-  outside service. The engine that proposes tests is `isogeny.rule-engine/1`
+- **Both engines are plain rule-based code from the same build.** No AI model and no outside
+  service is part of either. The engine that proposes tests is `isogeny.rule-engine/1`
   (`backend/app/engine/research.py`). The engine that reviews runs is `isogeny.rule-reviewer/1`
   (`backend/app/engine/reviewer.py`).
 - They are two separate modules with two separate ids, and the reviewer imports nothing from the
@@ -14,6 +16,11 @@ engine (the autoresearcher) is meant to plug in here later without any screen ch
   never reviews its own result. It is **not** an independent second opinion: the same people
   wrote both, at the same time. The reviewer imports only `engine/vectors.py`, `engine/pq_vectors.py`,
   `canonical.py` and `checks/tls_names.py`; `tests/test_engine.py` checks this with the full module names.
+- **Since phase 5c Otto uses Claude, and decides nothing.** A test can also come from a signed test
+  pack (an advisory check, proposed by `isogeny.otto-pack/1`), which Otto's research side made with
+  Claude's help and tried on public copies before it shipped. In the app Claude is asked for one thing
+  only: a code change, after an advisory check failed on the assessment's own program. What Claude
+  writes is data. Every result still comes from the rule-based reviewer.
 - **Dig deeper answers nothing.** It saves a request with status `waiting for research engine`.
   No engine picks it up in this version.
 
@@ -36,7 +43,7 @@ class ResearchEngine(Protocol):          # backend/app/engine/research.py
 | `design_test` | **+ Add test** | Returns one test for one target (`target`: a server address or a program's claim ref; the first that fits when not given). **+ Add test** asks once for every target that fits and has no such test yet; a removed test comes back instead of a new one. Raises `CannotDesign` if the test does not fit. |
 | `review` | after every run, and again every time a result is read | Only `RuleReviewer` does this. `RuleEngine.review` always refuses (`ReviewNotAllowed`), and the reviewer refuses a test it proposed itself. |
 | `dig_deeper` | **Dig deeper** | Writes down the finding and one question. Looks into nothing. |
-| `propose_change` | **Connect demo code**; the Fixes list before the code is connected; and, once it is connected, every look at the fixes (the same question again, to see whether a failing test that joined the plan later is answered by the same change; the answer is never stored and nothing is run) | Applies the one fix template (below), or returns `None`. No AI model writes anything. `RuleReviewer.propose_change` always refuses. |
+| `propose_change` | **Connect demo code**; the Fixes list before the code is connected; and, once it is connected, every look at the fixes (the same question again, to see whether a failing test that joined the plan later is answered by the same change; the answer is never stored and nothing is run) | Applies the one fix template (below), or returns `None`. No AI model writes anything. `RuleReviewer.propose_change` always refuses. Since phase 5c the engine in the socket is `OttoEngine`: when an advisory check has failed, it asks Otto first and falls back to this ("Phase 5c", below). |
 
 `RuleReviewer` is the only module with pass/fail logic. The code that runs tests
 (`backend/app/run/execute/`) returns raw outcomes only, and the code that words results
@@ -67,7 +74,9 @@ file exactly once. Otherwise the answer is `None`. The reply:
 ```
 
 A proposed change is never offered because the engine proposed it. It is proved first (every test in the plan
-is rerun on it), and the separate reviewer decides (`RuleReviewer.review_proof`, below).
+is rerun on it), and the separate reviewer decides (`RuleReviewer.review_proof`, below). The same holds for a
+change Otto wrote (phase 5c): its reply has the same shape, with `written_by` `"otto"` and the label "Written
+by Otto".
 
 ### `review_proof`: may a change be offered?
 
@@ -177,8 +186,8 @@ same test with the same fingerprint is rerun on a new version.
 ```
 
 - Kinds: `tls_versions`, `certificate`, `official_vectors`, `bad_signatures`, `speed_size`,
-  `pq_readiness`, `mldsa_compare`, and since phase 4c `mlkem_vectors` and `mldsa_vectors`
-  (see "Phase 4c" below).
+  `pq_readiness`, `mldsa_compare`, since phase 4c `mlkem_vectors` and `mldsa_vectors`
+  (see "Phase 4c" below), and since phase 5c `advisory_cases` (see "Phase 5c" below).
 - `target` for a server test is `{"kind": "server", "address": "localhost:8443"}`.
 - `target.claim` (phase 3a-fixes) is the ref of the file's claim that names the program, so two versions of one
   program (`acme-sign 1.4.2` and `acme-sign 9.9`) are two targets. It names no version: the version a test runs
@@ -192,7 +201,8 @@ same test with the same fingerprint is rerun on a new version.
 - Specs hold no decimal numbers: thresholds are whole numbers (for example
   `"noise_factor_milli": 1858, "sigma": 4, "floor_percent": 3` in the speed rule).
 - Stored columns: `hash` (the key), `kind`, `canonical` (the exact text), `proposed_by`, `locked_at`.
-  A locked test can't be edited; a changed test is a new row with a new fingerprint.
+  A locked test can't be edited; a changed test is a new row with a new fingerprint. `proposed_by` is
+  the rule-based engine's id, or since phase 5c `isogeny.otto-pack/1` for a test from a test pack.
 
 ### Run record (`test_runs`)
 
@@ -255,7 +265,7 @@ review", ...) is worked out from these rows every time it is shown.
 | Table | One row is | What it holds |
 |---|---|---|
 | `code_connections` | the code connected for one imported file (**Connect demo code**) | `repository`, `folder` (the app's own copy, under the data folder), `branch`, `base_commit`, the component name and version, `is_demo` |
-| `changes` | one code change: a branch plus the commit it starts from | `fix_key`, `source_kind` and `source` (the failed runs it answers), `written_by` (`fix_template`), `template_id`, `proposed_by`, `title`, `branch`, `base_commit`, `head_commit`, `files` (lines added and removed, blob ids, SHA-256 before and after, and the lines each edit changed), `built` (the byte-for-byte check: the file's SHA-256 and the registered component it is identical to, or null) |
+| `changes` | one code change: a branch plus the commit it starts from | `fix_key`, `source_kind` and `source` (the failed runs it answers), `written_by` (`fix_template`, or `otto` since phase 5c), `template_id`, `proposed_by`, `title`, `branch`, `base_commit`, `head_commit`, `files` (lines added and removed, blob ids, SHA-256 before and after, and the lines each edit changed), `built` (the byte-for-byte check: the file's SHA-256 and the registered component it is identical to, or null) |
 | `proofs` | one proof of a change | `baseline_version`, `version` (the registered version that runs), `items` (the plan's tests when it started, each with the first run it is compared with). Its runs are `test_runs` rows with phase `proof` and this row's id in `retest_id`. |
 | `proof_reviews` | the reviewer's answer for one proof | `reviewer`, `record_sha256` (the evidence fingerprint of the proof), `offered`, `detail` (`checks`, `counts`, each test's `group`, `report_only`, `ok` and `reason`, and `answers` and `speed`) |
 | `pull_requests` | a pull request inside the app, opened on one passed proof | `number`, `title`, `reviewers` (ids from the fixed list `you`, `a`, `b`), `proof_id` (the proof it was opened on; if the plan changes later, the change's latest proof is the one that counts) |
@@ -465,13 +475,15 @@ Check a file:
 
 ```
 cd backend && .venv/bin/python -m evidence verify <file.json> [--public-key HEX_OR_FILE] [--data-dir DIR]
+                                                              [--previous OLDER.json] [--pack-key HEX_OR_FILE]
 ```
 
 It fails (exit code 1) on any change of even one byte: the file must be exactly the canonical
 form of its own content, the fingerprint must match the evidence, the signature must be valid,
 and the signer must be the key you trust (by default this app's own public key in its data
 folder). With no trusted key to compare with, it says "The file is consistent with itself, but
-the signer could not be confirmed." and exits with code 2, which is not a pass.
+the signer could not be confirmed." and exits with code 2, which is not a pass. Since phase 5c it
+also checks a file's Otto part, and `--previous` and `--pack-key` belong to that ("Phase 5c", below).
 
 ## Plugging in a real engine later
 
@@ -483,6 +495,10 @@ the signer could not be confirmed." and exits with code 2, which is not a pass.
   engine from the proposer.
 - To answer research requests, an engine would read `research_requests` rows with status
   `waiting for research engine`. The table and screens for showing an answer do not exist yet.
+- Since phase 5c the socket shows one way to do it: `Lab.engine` is `OttoEngine`, a wrapper that
+  keeps the rule-based engine's id, passes its calls through and adds to one of them. Otto answers
+  no research request and proposes no test of its own inside the app: its tests arrive in signed
+  test packs.
 
 ## Phase 4a: the migration measurements
 
@@ -770,4 +786,324 @@ the checks and tests decided.
   The `assessment` part also has the purpose, the reference and the sign-off. Download evidence works from the first
   Verify result. The report has an "Every check" table near the top and Purpose and Signed off by lines under its
   title. Signing is unchanged.
+
+## Phase 5c: Otto (advisory checks, test packs, the two ledgers, Otto's use of Claude)
+
+Same path as every test: written down and locked, run by the job runner, stored, reviewed by the separate reviewer, and
+read back through the read gate. Nothing in `backend/app/otto/` decides a result. The rules are in SPEC 7f.
+
+**The engine in the socket** (`backend/app/otto/engine.py`). `Lab.engine` is `OttoEngine(RuleEngine(...), lab)`. Its
+`engine_id` is the rule-based engine's, and every call but one is passed straight through, so the tests of the
+rule-based engine keep their stamp and their fingerprints. The one call it looks at is `propose_change`. Since this
+phase the request says, beside the question, who is asking:
+
+```python
+{"component": {...}, "failed": [...], "files": {...},                               # the question, as before
+ "asking": {"plan_id": 12, "mode": "view" | "connect", "template_only": False}}     # new: who asks
+```
+
+A failed `advisory_cases` entry of `failed` also carries `advisory` (what its locked test says about where it came
+from) and `title`. The rule-based engine is always given the question without `asking`. Otto is asked only when a
+failed advisory check is among the failures of the program itself, and then:
+
+- **Looking at a page (`view`) never asks Claude and writes nothing.** The view uses the answer already stored for
+  this assessment or, while Live Otto is off, the recorded answer for exactly this prompt. With Live Otto on, a key
+  present and no stored answer, the recorded answer is not used: the fix is listed as not written yet
+  (`otto.pending`, with the label "Not written yet", never "Written by Otto"), and its card says what the click
+  sends and that an answer which is not a registered program is refused although the request was made.
+- **A person's click (`connect`, Connect demo code) is the only thing that makes a live call:** once, within the
+  spending limit of that one request. The step is then stored (`otto_steps`, and in full in the assessment's Otto
+  ledger), marked used or refused, and never asked for again.
+- **An answer is used only if it is a clean change that gives a registered program.** `otto/fixes.check_change` reads
+  the answer (`{"title", "summary", "answers": [1, ...], "edits": [{"file", "title", "why", "find": [lines], "put":
+  [lines]}]}`) and refuses one that is not exactly that shape, names a file that is not in the code, does not apply
+  (the lines of each `find` must stand in the file exactly once), changes nothing, holds more than 8 edits or 80
+  changed lines, or uses a word this app never says about a system. Then `run/components.registered_version` must
+  name one of our demo components for the changed file, byte for byte. Nothing is run to find out.
+- **The reply** for a change Otto may offer has the fix template's shape, with `template_id` `otto-<advisory id>`
+  (the id in lower case), `branch` `fix/otto-<advisory id>`, `label` "Written by Otto", `written_by` `"otto"`,
+  `proposed_by` `isogeny.otto/1` and `otto` (the advisory, the pack, the SHA-256 of the prompt and of the answer,
+  where the answer came from, and the step's ledger entry). When Otto has no change it may offer, the reply is the
+  rule-based engine's own with `otto_note`, the plain reason, which Fixes shows ("Otto's own change is not offered
+  here. ... The fix template is offered in its place."). When the click itself asked Claude and the answer can't be
+  used, `OttoCouldNot` is raised and nothing is connected.
+
+From there a change Otto wrote takes the path of every code fix: the byte-for-byte check, the proof, `review_proof`,
+the pull request, the approvals and the merge are unchanged.
+
+**The advisory check** (`advisory_cases`, titled "Advisory check: *plain name* (*id*)"). It is made from a pack's
+design by `otto/designs.spec_for`, locked by `otto/checks.add_design_item` with `proposed_by` `isogeny.otto-pack/1`
+and added to the plan with origin `added`, like a test from **+ Add test**. It is run by
+`run/execute/signing.run_advisory_cases`, judged by `RuleReviewer._advisory_cases` and worded in
+`present/advisory.py`. The locked spec's own fields:
+
+```json
+{"kind": "advisory_cases", "title": "Advisory check: Missing ECDSA signature range check (CVE-2022-21449)",
+ "target": {"kind": "software", "component": "acme-sign", "algorithm": "ECDSA P-256", "claim": "<claim ref>"},
+ "inputs": {"advisory": {"id": "CVE-2022-21449", "plain_name": "...", "quote": "<the publisher's own line>",
+                         "source": {"title": "...", "url": "...", "published": "...", "checked": "..."},
+                         "pack": "2026.11.1", "pack_fingerprint": "<64 hex>", "design_sha256": "<64 hex>"},
+            "files": [{"set": "ecdsa_p256", "file": "ecdsa_secp256r1_sha256_test.json", "sha256": "182db4f3...",
+                       "cases": 77, "used_on": "component"}],
+            "cases": ["109", "151", "..."], "must_reject": 77, "must_accept": 0, "commit": "...", "source_url": "..."},
+ "control": {"kind": "accept_all_verifier", "text": "...", "must": {"wrong_on": "every invalid case"}},
+ "rule": {"type": "all_cases_match", "valid": "accept", "invalid": "reject", "acceptable": "not counted"}}
+```
+
+- The reviewer takes only the cases the locked test names, each of which must be in the pinned file, and judges them
+  as it judges the Independent exam: the control must get every invalid case wrong, the reference library every case
+  right, and the program passes only if every answer is right. The review's detail is the exam's (`total`, `right`,
+  `wrong`, and so on).
+- In a proof it is a test that runs the changed code and must pass on it (`PROOF_PASS_CODES`).
+- One new reason for Couldn't run, `otto_not_installed`: a check added from a pack does not run where the pinned Otto
+  is missing, because its run could not be recorded.
+- The result carries `advisories`: the box "The advisory this check is for" (`present/advisory.box`), tagged "quoted
+  from the named source, not a result" (a quote may come from the publisher's source file, not the advisory page).
+  The link is the address the quoted text was read from (`read_from` in the pack). A link from a pack is sent to the
+  screen or the report only when it is an https address of a known publisher (`present/advisory.LINK_HOSTS`);
+  anything else is shown as text. The Suggested fix line repeats
+  what the installed pack says about a fix (`Lab.otto_result_fix`): words only.
+
+**A design** (`isogeny.advisory-design/1`, `otto/designs.py`) is what a pack carries for one test. It is data and can't
+carry code: `advisory`, `block` (`signature_cases`, the one building block), `plain_name`, `question` (naming the
+program once as `{program}`), `why`, `cases` (`set`, `file`, `sha256`, `commit`, `source_url`, `select` with `flags`
+and `ids`, `ids`, `must_reject`, `must_accept`), `control` (`accept_all_verifier`), `rule` (`all_cases_match`) and
+`model_step` (the SHA-256 of the prompt and of the answer it was made from). `check_design` runs every time a design is
+used: the case list must be exactly what its own selection picks from the pinned file, and a selection with no
+must-reject case is refused.
+
+**A test pack** (`otto/packs.py`; `research/packs/<version>.json`):
+
+```json
+{"pack": {"schema": "isogeny.test-pack/1", "version": "2026.11.1", "built_at": "...", "previous": null, "signer": "...",
+          "research": {"snapshot": "2026-11-17", "snapshot_sha256": "...", "answers": "recorded",
+                       "answers_note": "..."},
+          "otto": {"repository": "...", "commit": "...", "version": "...",
+                   "ledger": {"height": 82, "head": "...", "root": "..."}, "scripts": {"<name>": "<SHA-256>"}},
+          "advisories": [{"id": "...", "aliases": [], "package": {}, "published": "...", "sources": [],
+                          "reading": {}, "reading_refused": null,
+                          "test": {"state": "ready", "reason": "...", "design_sha256": "...", "trial": {}},
+                          "fix": {"state": "proven", "reason": "...", "kind": "update", "library": "...",
+                                  "version": "...", "quote": {}, "summary": "...", "trial": {}},
+                          "steps": [], "ledger": []}],
+          "tests": [{"design": {}, "design_sha256": "<64 hex>"}]},
+ "fingerprint": "<SHA-256 of the pack part>", "public_key": "<64 hex>", "signature": "<128 hex>"}
+```
+
+- The file is the canonical form of that object. The signature is Ed25519 over the bytes
+  `isogeny-evidence-lab/test-pack/v1\n` followed by the fingerprint text. `previous` is the fingerprint of the pack
+  before it, or null for the first. `research.answers` is `recorded`, `live` or `mixed`.
+- A test's `state` is `ready`, `not_offered` or `none` (on screen: Test ready, Not offered, No test yet). A fix's is
+  `proven`, `not_proven` or `none`; its `kind` is `update` or null.
+- `read_envelope` takes a pack only when the file is exactly canonical, the fingerprint matches, the signature holds,
+  the signer is a trusted key (`otto/trusted-pack-keys.json`, shipped with the app, plus this computer's own public key
+  in the data folder for a pack built here) and `check_pack` passes: the exact shape, every design runnable by this
+  version, a `ready` test only with a trial that was supported and replayed, a `proven` fix only with a ready test and
+  such a trial of its own, and every step's answer matching its SHA-256. `follows` says why a pack can't be installed
+  next. A file is at most 4 MB and holds at most 60 advisories. Every refusal is one plain sentence.
+- `trial` is `{"hypothesis", "decision", "outcome", "replayed", "arms"}`; the first two are record ids of the research
+  ledger. A test's arms are `reference`, `affected`, `fixed` and `accept-all`, each with `right`, `wrong` and `total`;
+  a fix's are `affected`, `fixed` and `affected-again`, each with `failing` and `tests`.
+- Each of an advisory's `sources` is `{"label", "title", "publisher", "url", "read_from", "fetched"}`: `url` is the
+  page a person would look at, `read_from` the address the quoted text was downloaded from on the day in `fetched`
+  (for a file in a repository, the raw file at its pinned commit). The screens link to `read_from`.
+- `steps` are the advisory's Claude steps (`step`, `source`, `model`, `prompt_sha256`, `answer`, `answer_sha256`, the
+  tokens and the cost, `at`, `how`, `outcome` `used` or `refused`, `refusal`, and `claim`, its entry in the research
+  ledger). `ledger` lists that advisory's entries of the research ledger (`seq`, `kind`, `id`, `at`, `what`).
+- An installed pack is a row of `otto_packs`: the file as it was read, never removed. **Check for updates** reads the
+  updates folder (`research/packs/`, or the folder `EVIDENCE_LAB_OTTO_UPDATES` names) and the data folder's
+  `otto-updates/`, where a pack built on this computer goes. Nothing is downloaded.
+
+**Otto's use of Claude** (`otto/model.py`). One client, two sources:
+
+- *Recorded:* `research/recorded/<step>-<first 16 hex of the prompt's SHA-256>.json` (`isogeny.recorded-answer/1`:
+  `step`, `prompt_sha256`, `prompt`, `answer`, `answer_sha256`, `recorded` with `at` and `how`). A file whose prompt or
+  answer no longer matches its SHA-256 is no answer. `EVIDENCE_LAB_OTTO_RECORDED` names another folder.
+- *Live:* one request to Claude's Messages API, made with Python's standard library, only when live calls are allowed
+  (the Live Otto switch, or `--live` on the research command) and `ANTHROPIC_API_KEY` is set. One model answers every
+  step, `claude-opus-5-5` (`DEFAULT_MODEL`; `EVIDENCE_LAB_OTTO_MODEL` names another, which must have a price in the
+  list), with an effort level for each step. A busy API is tried again, at most twice. If the API answers a declined
+  request with another model it offers in its place, the step names the model that answered. A declined, cut-off or
+  empty answer is not used, and nothing is made up in its place.
+- *The spending limit* (`Budget`): before every request (the first, and each one sent again after a busy answer or
+  a time-out), its worst case is added to what the run has spent; if that passes the limit, the request is not
+  sent. The worst case is every byte of the prompt counted as a token and a full-length answer, at the dearest price
+  that could apply, for every attempt that could be billed (two where a declined request may be passed to another
+  model). A request that got no answer at all may have been billed, so its worst case stays counted against the
+  limit (`unanswered_nano`); so does an answer cut off part-way and an answer that can't be read. In the research
+  command each step is its own process, and the file `OTTOLAB_SPENT_FILE` names carries what was spent, the calls
+  and that amount from step to step. After an answer the cost is worked out from the tokens the API reports, every
+  attempt counted. Prices are whole numbers of a billionth of a dollar per token (`PRICES_NANO_PER_TOKEN`, with its source and
+  date in `PRICE_SOURCE`), so every sum is exact.
+- *The key* is read from the environment at the moment of a call, sent only as that request's header, and removed
+  from every text that leaves the module (`redact`). A value that is not in the form of a key (a space or a line
+  break inside it) is never sent, and a request that can't be made is reported by the kind of its error only, never
+  in the error's own words, because an HTTP library can name a header's value there. It is in no step, log, error
+  or file.
+- A step is `{"step", "source": "recorded" | "live", "model", "prompt", "answer", "prompt_sha256", "answer_sha256",
+  "input_tokens", "output_tokens", "cost_nano_usd", "at", "how"}`; `model` is null for a recorded answer. The steps are
+  `read_advisory`, `design_test` and `propose_fix` (the research side; prompts and answer checks in
+  `ottolab/prompts.py`) and `write_fix` (in the app; `otto/fixes.py`).
+
+**The research ledger** (`research/lab/`; written only by Otto's harness, driven by `backend/ottolab/`). In Otto's own
+records:
+
+- a `question` for each advisory's test and, once that test held its trial, one for its fix;
+- a design that selects exactly the published cases of the check of another advisory about the same library is
+  refused before any trial (`ottolab/research.same_check_as`): its step is kept as refused, no hypothesis is
+  registered, and the pack reads "No test yet" with that reason. Only a check that exists counts: a design of this
+  build whose own trial held, or a test of an earlier pack (the build command lists those for the run in the file
+  `OTTOLAB_EARLIER_FILE` names, so a lab that never saw the earlier packs knows them too). The same cases for
+  another library are another check. `ottolab/build.same_check_twice` looks once more before a pack is signed;
+- for each Claude step an `objective`, a `claim` that holds the step in full (with what the answer came to, or why it
+  was refused) and the `verdict` of the pinned checker `check_model_step.py`: the hashes match, the answer has its
+  shape, and every quoted line stands in the prompt that was sent;
+- a `hypothesis` for each trial, registered before any run, with its arms, baseline, prediction, kill line, controls,
+  claim ceiling and the SHA-256 of the files it runs (`trial.py`, the design or the fix file). A test's trial has the
+  arms `reference` (the baseline: the app's reference library on the same cases), `affected`, `fixed` and `accept-all`;
+  the metric is `right`; the prediction is that the affected version gets at least one case fewer right than the
+  reference; the negative control is the fixed version (no difference from the reference) and the positive control the
+  accept-everything program (wrong on every must-reject case). A fix's trial has the arms `affected` (the baseline),
+  `fixed` and `affected-again`; the metric is `failing`, how many pass-or-fail tests did not read Passed; the
+  prediction is that it falls to none on the fixed version;
+- a `run` for each arm: `ottolab/pinned/trial.py` locks the check, runs it through `Lab` and reads the review, so a
+  real library runs only in its container. A test that could not run, or a run that can't be trusted, is not a number:
+  the script stops, and the harness records an infrastructure failure, never a result;
+- the harness's `decision` (`supported`, `refuted` and so on), an `audit` for the replay under a second author's
+  name (a second role of the same build on the same computer, and worded so on screen), and a `fact` that states
+  what the trial showed (a dead end when it was refuted).
+
+`ottolab/build.py` turns that ledger into a pack: a test is `ready` only when its trial was supported and replayed, a
+fix `proven` only when its own trial was. The agent command (`ottolab/agent.py`) reads the loop's prompt as data: only
+its action line and its target line are used. The model judge of Otto's loop is never used.
+
+**The assessment's Otto ledger** (`otto/assurance.py`): one Otto lab for each assessment, at
+`<data>/otto/assessment-<id>/`, with the two pinned checkers copied in: `otto/checker/recheck.py` (runs and Claude
+steps) and, since 18 November 2026, `otto/checker/decisions.py` (decisions on Otto's proposals). `recheck.py` is
+unchanged, so earlier ledgers and evidence files read as before.
+
+| Entry | When | What it holds |
+|---|---|---|
+| lock entry (an `objective`) | when a person accepts Otto's proposed check, before the check can run (until 18 November 2026: **Add new checks**) | the locked test's fingerprint, the design's SHA-256, the pack's fingerprint and version, the advisory and the program |
+| run entry (a `claim`, then the checker's `verdict`) | after each reviewed run of that check: `first`, `retest` or `proof` | the test's fingerprint, the run's id, the SHA-256 of its run record and of its review, `proposed_by`, `reviewer`, the phase and what it ran on; never a result |
+| step entry (an `objective`, a `claim`, a `verdict`) | a Claude step taken in the app | the step in full, and `used` or `refused` with the reason |
+| proposal entry (an `objective`) | with the first decision on one of Otto's proposals | the proposal's id and kind (`params`: `{"kind": "decision", "proposal", "proposal_kind"}`) |
+| decision entry (a `claim`, then the checker's `verdict`) | each accept, reject, undo or reconsider | exactly `proposal`, `proposal_kind`, `proposal_sha256`, `title`, `decision`, `before`, `after`, `by`, `at`, `reason`, `number`, `about`; never a result |
+
+The checker accepts a run entry only when it names the test its lock entry locked, carries both SHA-256, was proposed
+by the pack and reviewed by someone else, and holds no result. "accept" means bound and consistent; it is never shown
+as a result. The review's SHA-256 is taken over the review as the evidence file holds it, without its time
+(`otto/state.review_fingerprint`), so anyone can work it out again from the file. If a ledger entry can't be written,
+the run and its review are already stored and stay.
+
+The decision checker accepts a decision entry only when it has exactly those fields, names the proposal its
+objective names, and takes a step the app allows from where the proposal stood (proposed to accepted or rejected;
+accepted back to proposed by undo; rejected back to proposed by reconsider); a reason stands only on a rejection.
+"accept" there means whole and in order. It is never shown as a decision or as a result.
+
+**Otto's proposals** (`otto/proposals.py`; SPEC 7f point 9). A proposal is worked out on every read and never
+stored: `{"id", "kind", "label": "From Otto", "title", "why", "lines", "about", "proposed_at", "link", "current",
+"facts"}`, to which the stored decisions add `state` (`proposed`, `accepted`, `rejected`), `decisions`, `actions`
+(each allowed button, with the reason when it is off) and `fingerprint` (the SHA-256 of the canonical `{id, kind,
+title, why, lines, about}`). Kinds and ids: `check` (`check-<advisory>-<12 hex>`), `fix` (`fix-code-<fix key>`,
+`fix-update-<plan item>`), `plan` (`plan-<12 hex>`), `dependency` (`dep-<12 hex>`). `otto_decide` first shows
+the entry the decision would make to the app's own pinned decision checker (`assurance.run_checker`): an entry it
+does not take is written nowhere. Then it writes the ledger entries above and the `otto_decisions` row (append-only:
+the decision, the state before and after, its number, the reason, who, when, a copy of the proposal and its SHA-256,
+and the ledger entries). A rejected proposal stays; a decided proposal that is no longer worked out is served from
+its last decision's copy with `current: false` (a plan change is no longer worked out once its check has passed,
+unless it stands accepted or rejected). A dependency proposal's id is made from the library, its version and the
+advisory (`dependency_id`), so it does not depend on where the list names the library; `facts.row_keys` holds the
+rows it shows on. A library is matched to an advisory only through the knowledge base's own recognition of the row
+(`row["library"]`), never by the list's bare name.
+
+**The second proof row** (`OttoMixin._proven_here`): it takes the newest retest on the fixed version in which the
+advisory check has a reviewed run, and every other pass-or-fail test the plan holds for the same program (same
+`target.claim`). `passed` needs a result for each of them in that retest, all passed; `not_proven` a result that is
+not a pass; `running` and `unfinished` mean that some have no result there (the retest is still live, or was
+interrupted) and read "Not yet"; `not_yet` that the check has no result on the fixed version (`live`: a retest on it
+is running, which already locks Undo).
+
+**Records:** four more add-only tables: `otto_packs` (the installed packs), `otto_checks` (the plan item, the pack and
+the design it came from, and its lock entry), `otto_steps` (every Claude step taken in the app, in full) and
+`otto_decisions` (every decision on a proposal). The Live
+Otto switch and the spending limit are two rows of `app_settings`.
+
+**What the Advisories view says and does not say** (`present/otto.py`). A row's Result cell counts only the programs
+that have a result ("1 of 1 run so far; 3 with no result yet"). The panel's `notes` is `{"title", "kind_line",
+"text", "caption"}`: Claude's reading notes, labelled as Claude's words, with the kind of weakness the reading
+recorded. The line about a change for your own code is shown only when a program of the assessment that is one of our
+demo components (`run/components.lookup`; never a real library) has this check in its plan and no fix answers it yet.
+A trial's replay is worded as a step of the same build on the same computer.
+
+**Views and routes** (`otto/state.py`, words in `present/otto.py`, routes in `web/otto.py`): `GET /api/otto` (Settings:
+Test packs, the two status lines and Live Otto), `POST /api/otto/packs/check`, `POST /api/otto/packs/install`
+`{version}`, `POST /api/otto/live` `{on, limit}`, `GET /api/plans/{id}/advisories`,
+`GET /api/plans/{id}/otto/proposals` (every proposal with the "Waiting for you" counts) and
+`POST /api/plans/{id}/otto/proposals/{proposal}/{decision}` with an optional `{reason}` (`accept`, `reject`, `undo`,
+`reconsider`; refused on a closed assessment and where Otto is not installed; it runs nothing and answers with the
+proposal as it now stands). The route that added every check at once (`POST /api/plans/{id}/advisories/add`) is gone. The Related graph gains `advisory:<id>` nodes
+(the sixth line), the Overview's next step can point to Advisories, and a failed advisory check on a real library gets
+a text-only fix with `otto_fix`: the pack's fix, labelled "From Otto", when the advisory is about that library, and
+otherwise one sentence that says the pack holds no fix for this program (no label).
+
+**The evidence file** gains `otto`, inside the signed part, only when the assessment has an advisory check, a Claude
+step or a decision on a proposal. Since 18 November 2026 it holds `proposals` (every proposal, decided or not: its
+content, `label`, `proposed_at`, `current`, `fingerprint`, `state`, `status`, `legacy`, `ledger_entry`, and
+`decisions`, each with `number`, `decision`, `by`, `at`, `reason`, `before`, `after`, `proposal_sha256`,
+`ledger_entry` and the `proposal` it was made on) and `decisions_note`; a fix entry gains `proposal` and, for a
+library's fix, `proof_rows` (`label`, `word`, `text`, `line`, `note`). The rest: `schema` (`isogeny.otto-evidence/1`), `harness` (repository, commit, version, installed), `packs` (the signed
+pack files its checks came from, whole), `checks` (for each advisory check: `item_id`, `title`, `advisory`,
+`spec_hash`, `spec`, `design_sha256`, `pack`, `pack_fingerprint`, `lock_entry`, `added_at`, `in_plan`), `ledger`
+(`height`, `head`, `root` and its `lines`, exactly as written), `runs` (every run the ledger binds: `ledger_entry`,
+`lock_entry`, `run_id`, `phase`, the run `record` and its `review`), `steps` (every Claude step taken in the app, in
+full) and a `note`. `app.note` then says that advisory checks come from Otto's packs. The report gains part 8, "Otto:
+test packs, the ledger and Claude's steps".
+
+**The verify command** (`backend/evidence/otto.py`) checks the Otto part after the file's own signature held, in this
+order:
+
+1. every pack in the file is whole, its signature holds, and its signer is a pack key you trust (the keys shipped
+   with the app, this computer's own, or one given with `--pack-key`);
+2. every advisory check's design is in its pack, its locked test matches its fingerprint and names that design and
+   that pack, and its lock entry is in the ledger with the same fingerprints;
+3. the ledger is one unbroken hash chain, and its latest entry is the one the signed evidence names;
+4. every run the ledger binds is in the file with a record and a review that match the SHA-256 the ledger holds, and
+   every Claude step matches its SHA-256 and has its entry in the ledger; and (4b, since 18 November 2026) every
+   decision in the file has its entry in the ledger with the same fields, in an order the app allows, on the copy of
+   the proposal whose SHA-256 it names, accepted by the pinned decision checker, and no decision entry of the ledger
+   is missing from the file (a check added by an earlier build, with no decision on record, is allowed as such);
+5. with `--previous OLDER.json`, the older file's latest ledger entry is still in this chain, at the same place
+   (entries added since are not covered by that comparison);
+6. Otto's own audit of the chain and the records, and the pinned checker run again on every checked entry. A
+   ledger read from a file is data, and nothing it names is ever run. Asked to check entries again
+   (`audit(reverify=True)`), Otto's harness starts the verifier an entry names, and it looks that entry up by its
+   id whatever its kind; a verifier can name a command. So the harness is never asked to. Instead:
+   - `otto/assurance.only_our_checker` holds every entry to the exact form this app writes: one of the three kinds
+     (`ENTRY_KINDS`) with exactly the fields of its kind (`ENTRY_FIELDS`); an objective whose verifier is our own
+     pinned checker with nothing added; a claim that points at an earlier objective; a verdict that points at an
+     earlier claim and at that claim's own objective. Anything else fails the check, and nothing is run;
+   - the harness audits the chain and the records with `audit(reverify=False)`, which runs no verifier;
+   - `otto/assurance.check_again` runs this app's own checker (`run_checker`: the file that ships with the app, a
+     fixed command, an empty folder, a bare environment) on every entry it once accepted or rejected, and compares.
+     A different answer, or an entry that could not be checked again, fails the check.
+
+   The app's own audit of an assessment's ledger (`Ledger.audit`) goes the same way. A run in the file that the
+   ledger does not bind fails too, and so does a run in the file's own list of tests whose record or review does not
+   match the SHA-256 the ledger holds under its number. A file with an advisory check and no Otto part fails
+   (`needs_otto_part`). `MAX_ENTRIES` and `CHECK_AGAIN_SECONDS` bound a ledger made to be slow, and a claim may be
+   settled only once. What is printed of the file's own text holds printable characters only.
+
+   The pinned checker itself (`otto/checker/recheck.py`) takes a run entry only with exactly its fields (fingerprints
+   and names; no place for a result) and what it ran on with exactly four. `Ledger._lab` makes the checker file in an
+   assessment's folder the app's own before every use (a regular file with the bytes of `CHECKER_SOURCE`; a link is
+   removed, never followed), and the lock names that checker's SHA-256.
+
+   The research side's audit (`ottolab/build.audit_problems`) follows the same pattern for a research lab folder:
+   folders and regular files only (`only_regular_files`), `names_only_our_checker`, the harness's audit without
+   re-verification, and `run_pinned_checker` (ottolab/pinned/check_model_step.py, started by the command itself).
+
+Step 6 needs the pinned harness on the computer that runs the command. Without it the first five checks are still
+made, the command says that Otto's audit was not run, and it exits with code 2. A pack signed by a key you do not
+trust also gives code 2. Neither is a pass. Any check that fails gives code 1.
 

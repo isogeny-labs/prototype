@@ -69,7 +69,8 @@ describe("closed assessment banner", () => {
     fireEvent.click(fresh);
     // The New assessment box opens (its buttons stay on too); Start makes the new one and opens it on Import.
     const box = within(await screen.findByTestId("new-assessment-box"));
-    expect((box.getByLabelText("Name") as HTMLInputElement).value).toBe("Assessment 3");
+    // The name the box suggests comes with the project's data, in a request of its own, so it is waited for.
+    await waitFor(() => expect((box.getByLabelText("Name") as HTMLInputElement).value).toBe("Assessment 3"));
     fireEvent.click(box.getByRole("button", { name: "Start" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/102/inventory/import"));
     expect(calls(fetchMock)).toContain("POST /api/projects/10/assessments");

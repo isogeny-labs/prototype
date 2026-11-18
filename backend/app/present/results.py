@@ -5,8 +5,10 @@ by reviewer.py from the raw outputs). This module only chooses words, and builds
 outcome (the real failing cases, the real timings)."""
 from __future__ import annotations
 
+import re
 import json
 
+from app.present import advisory as present_advisory
 from app.present import plain as plain_words
 from app.engine import vectors
 from app.engine.guidance import OWN_LINKS
@@ -43,8 +45,9 @@ CONTROL_WHAT = {
     "capability": ("the two control copies (one that can, one that can't)", "answered yes and no as they must"),
     "mlkem_vectors": ("each deliberately broken copy", "failed this test"),
     "mldsa_vectors": ("each deliberately broken copy", "failed this test"),
+    "advisory_cases": ("a deliberately broken signer", "failed this test"),   # phase 5c
 }
-FAILING_CONTROLS = ("tls_versions", "certificate", "official_vectors", "bad_signatures", "mlkem_vectors", "mldsa_vectors")
+FAILING_CONTROLS = ("tls_versions", "certificate", "official_vectors", "bad_signatures", "mlkem_vectors", "mldsa_vectors", "advisory_cases")
 MODE_WORDS = {"demo": "Demo mode, not isolated", "isolated": "Isolated mode: locked-down container, no network"}
 RANGE_IDS = {"r0-s0", "r0", "s0", "r-equals-n", "s-equals-n", "s-plus-n", "r-plus-n"}
 # A proof (Fixes) reruns the server tests too. Before any merge nothing has been updated, so its words differ from a retest's.
@@ -269,17 +272,7 @@ def _certificate(w: _Words, spec, run, review, ctx) -> None:
                       "below the minimum key size, as expected. That tells us this test can catch a weak certificate.")
 
 
-def _case_words(comment: str) -> str:
-    text = comment.replace("Signature with special case values ", "")
-    if text == "Legacy: ASN encoding of s misses leading 0":
-        return "a number written without its leading zero (a missing leading zero)"
-    if text == "r=0 and s=0":
-        return "r=0 and s=0 (a signature made of zeros)"
-    if text == "r=0 and s=n":
-        return "r=0 and s=n (zero, written a second way)"
-    if text == "s is larger than n":
-        return "s larger than n (a value outside the allowed range)"
-    return text
+_case_words = plain_words.case_words
 
 
 def _range_cause_official(wrong: list[dict]) -> bool:
@@ -441,7 +434,12 @@ def _bad_signatures(w: _Words, spec, run, review, ctx) -> None:
 
 
 def _version_label(summary: dict) -> str:
+    """"acme-sign-1.4.2" as "acme-sign 1.4.2". The version starts at the first part that begins with a digit, so a
+    version with a hyphen of its own stays whole ("acme-sign-1.4.3-otto" is "acme-sign 1.4.3-otto", phase 5c)."""
     key = str(summary.get("key") or "")
+    found = re.match(r"^(.+?)-(\d.*)$", key)
+    if found:
+        return f"{found.group(1)} {found.group(2)}"
     name, _, version = key.rpartition("-")
     return f"{name} {version}" if name else key
 
@@ -657,7 +655,8 @@ _WORDS = {"tls_versions": _tls_versions, "certificate": _certificate, "official_
           "bad_signatures": _bad_signatures, "speed_size": _speed_size, "pq_readiness": _pq_readiness, "mldsa_compare": _mldsa_compare,
           "pq_status": present_pq.pq_status, "signing_status": present_pq.signing_status,
           "mlkem_vectors": present_real.pq_exam, "mldsa_vectors": present_real.pq_exam,
-          "capability": present_deps.capability_result}
+          "capability": present_deps.capability_result,
+          "advisory_cases": present_advisory.advisory_cases}   # phase 5c
 
 
 def _not_a_result(w: _Words, spec, run, review, ctx) -> None:
@@ -671,6 +670,9 @@ def _not_a_result(w: _Words, spec, run, review, ctx) -> None:
         if review.get("reason_code") == "needs_isolated_mode":
             w.plain = ("This test couldn't run: this is real software from outside, which runs only in isolated mode (Docker), and this "
                        "run is in demo mode. So there is no result either way.")
+        if review.get("reason_code") == "otto_not_installed":
+            w.plain = ("This check couldn't run: Otto is not installed on this computer, so its run could not be recorded "
+                       "(./run-demo.sh fetches it). So there is no result either way.")
         if review.get("reason_code") == "real_image_missing":
             w.plain = ("This test couldn't run: this library's container image is not prepared on this computer "
                        "(./run-demo.sh prepares it, with internet, once). So there is no result either way.")
@@ -705,7 +707,8 @@ def _not_a_result(w: _Words, spec, run, review, ctx) -> None:
 # ------------------------------------------------------------------ the views
 
 def lab_result(*, spec: dict, spec_hash: str, locked_at: str, run_id: int, run: dict, review: dict, trusted: bool,
-               mark: dict | None, research: dict | None, fix_version: str | None, code: dict | None = None) -> dict:
+               mark: dict | None, research: dict | None, fix_version: str | None, code: dict | None = None,
+               advisory_fix: dict | None = None) -> dict:
     """One reviewed run, worded. `review` is the stored Review (flat: code, reason_code, reason, control, detail, ...).
     `trusted` is False when the stored record no longer matches its fingerprint. `code` is which code the run
     ran on (its run_code values), or None for a run in which no component of ours ran."""
@@ -715,7 +718,8 @@ def lab_result(*, spec: dict, spec_hash: str, locked_at: str, run_id: int, run: 
         review = {**review, "code": "couldnt_trust", "reason_code": None, "reason": RECORD_CHANGED,
                   "control": {"outcome": review["control"]["outcome"], "reason": "the stored record was changed after the review"}}
     w = _Words()
-    ctx = {"component": component or spec["target"].get("component") or "the component", "phase": run.get("phase"), "fix_version": fix_version}
+    ctx = {"component": component or spec["target"].get("component") or "the component", "phase": run.get("phase"), "fix_version": fix_version,
+           "advisory_fix": advisory_fix}
     filler = _WORDS[kind] if review["code"] not in ("couldnt_run", "couldnt_trust") else _not_a_result
     real = present_real.is_real(run.get("component"))   # phase 4c: a real library, not one of our demo components
     try:
@@ -763,7 +767,9 @@ def lab_result(*, spec: dict, spec_hash: str, locked_at: str, run_id: int, run: 
             "note": "The details can't change after locking. The run record carries the same fingerprint, so anyone can confirm the test wasn't adjusted to fit the result."},
         # Phase 4c: is the component a real library (not demo data), and the advisories its publisher has out for this version.
         "real": real,
-        "advisories": present_real.advisories(run.get("component"), kind) if review["code"] not in ("couldnt_run", "couldnt_trust") else None,
+        # Phase 5c: an advisory check shows the advisory it was made for, as its publisher words it (also when it couldn't run).
+        "advisories": (present_advisory.box(spec) if kind == "advisory_cases" else
+                       present_real.advisories(run.get("component"), kind) if review["code"] not in ("couldnt_run", "couldnt_trust") else None),
         "fix_title": "Suggested fix", "suggested_fix": w.fix,
         "reviewed": {"at": mark["at"], "text": "You marked this result as reviewed."} if mark else None,
         "research": research_view(research) if research else None,

@@ -21,14 +21,14 @@ from app.importer.reader import parse_file
 from app.engine.reviewer import RuleReviewer, pq_status_of, signature_family
 from app.checks.tlsprobe import ProbeSession
 from app.web import models
-from conftest import csv_bytes, free_port, make_lab, play_back_speed, upload
+from conftest import csv_bytes, free_ports, make_lab, play_back_speed, upload
 from view_helpers import problems
 
 ROLES = ("hybrid", "classical_internet", "classical_internal", "legacy_tls12", "pq_only")
 
 
 def _ports(n=5):
-    return tuple(free_port() for _ in range(n))
+    return free_ports(n)
 
 
 # ------------------------------------------------------------------ the probe

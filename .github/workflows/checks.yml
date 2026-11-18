@@ -55,7 +55,7 @@ jobs:
 
       - name: "Backend: lint (ruff)"
         working-directory: backend
-        run: .venv/bin/ruff check app tests tools evidence
+        run: .venv/bin/ruff check app tests tools evidence ottolab
 
       - name: "Backend: type check (new problems only)"
         working-directory: backend
@@ -65,6 +65,9 @@ jobs:
         working-directory: backend
         run: .venv/bin/python tools/api_schema.py --check
 
+      # Otto's research harness (phase 5c) lives in a private repository and this workflow uses no secrets, so it is
+      # not fetched here. The tests that need it are skipped, and the run says how many. They run on a computer
+      # where ./run-demo.sh (or python -m app.prepare --otto) could fetch the pinned copy.
       - name: "Backend: fast tests"
         working-directory: backend
         run: .venv/bin/python -m pytest -q tests --durations=15

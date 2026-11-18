@@ -12,7 +12,8 @@ export function LinkProvider({ assessmentId, planId, children }: { assessmentId:
 
 export function useLinkHref(): (link: ItemLink) => string {
   const ctx = useContext(AssessmentLinks);
-  return (link) => (ctx ? routeHref(linkRoute(link, ctx.assessmentId)) : "#");
+  // Phase 5c: a link to Settings (the Test packs section) belongs to no assessment, so it needs none open.
+  return (link) => (ctx ? routeHref(linkRoute(link, ctx.assessmentId)) : link.page === "settings" ? routeHref(linkRoute(link, 0)) : "#");
 }
 
 export function usePlanId(): number | null {
@@ -29,8 +30,9 @@ export function ItemLinkView({ link, children, className, testId }: { link: Item
   );
 }
 
-/** The Related block of a detail panel: up to five lines (Claim, Checks, Fix, System and track, Library), each shown
- * only when the backend recorded the relation. Every entry opens that item on its own page. */
+/** The Related block of a detail panel: up to six lines (Claim, Checks, Fix, System and track, Library, and since phase
+ * 5c Advisory), each shown only when the backend recorded the relation, under the title the backend gave it. Every
+ * entry opens that item on its own page. */
 export function RelatedBlock({ lines }: { lines: RelatedLine[] | null }) {
   if (!lines || lines.length === 0) return null;
   return (
@@ -57,7 +59,7 @@ export function RelatedBlock({ lines }: { lines: RelatedLine[] | null }) {
   );
 }
 
-/** The Related block of one item, asked of the backend (a claim, a test, a fix, a system or a library). */
+/** The Related block of one item, asked of the backend (a claim, a test, a fix, a system, a library or an advisory). */
 export function useRelated(planId: number | null, key: string | null): RelatedLine[] | null {
   const [lines, setLines] = useState<RelatedLine[] | null>(null);
   useEffect(() => {

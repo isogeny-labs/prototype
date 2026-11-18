@@ -80,6 +80,17 @@ def test_a_detail_has_its_newest_result_its_earlier_runs_and_links_back(demo_flo
     assert f"test:{item}" in {i["key"] for i in back["test"]["items"]}
 
 
+def test_a_retested_check_is_related_by_the_version_its_newest_result_ran_on(demo_flow):
+    """After a retest a test's newest result is on another version of the program. The Related block names that
+    version beside the result, never the version the file names beside a result that version did not give."""
+    lab, plan = demo_flow.lab, demo_flow.plan
+    nodes = lab.relation_graph(plan.id)["nodes"]
+    assert nodes[f"test:{plan.item['official_vectors']}"]["sub"] == "acme-sign 1.4.3 · Passed"
+    assert nodes[f"test:{plan.item['bad_signatures']}"]["sub"] == "acme-sign 1.4.3 · Passed"
+    server = nodes[f"test:{plan.item['tls_versions']}"]["sub"]          # a server test names its address, as before
+    assert server.startswith("localhost:") and server.endswith(" · Failed")
+
+
 def test_every_relation_is_recorded_both_ways(demo_flow):
     graph = demo_flow.lab.relation_graph(demo_flow.plan.id)
     for a, near in graph["edges"].items():

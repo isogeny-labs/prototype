@@ -6,14 +6,14 @@ import pytest
 from app.servers import migration_servers
 from app.web import models
 from tests.view_helpers import problems
-from tests.conftest import free_port, make_lab, play_back_speed
+from tests.conftest import free_port, free_ports, make_lab, play_back_speed
 
 pytestmark = pytest.mark.slow
 
 
 @pytest.fixture(scope="module")
 def changed(tmp_path_factory):
-    ports = tuple(free_port() for _ in range(5))
+    ports = free_ports(5)
     lab = make_lab(tmp_path_factory.mktemp("ledger-changes"), migration_ports=ports, lab_nginx_port=free_port())
     play_back_speed(lab)
     try:

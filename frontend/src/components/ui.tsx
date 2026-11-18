@@ -35,6 +35,7 @@ export function PrimaryButton({
   onClick,
   type = "button",
   allowWhenClosed,
+  testId,
 }: {
   children: ReactNode;
   disabled?: boolean;
@@ -43,6 +44,7 @@ export function PrimaryButton({
   type?: "button" | "submit";
   /** Phase 5a: a download or a way forward that stays on in a closed assessment. */
   allowWhenClosed?: boolean;
+  testId?: string;
 }) {
   const closed = useReadOnly() && !allowWhenClosed;
   return (
@@ -53,6 +55,7 @@ export function PrimaryButton({
       aria-busy={busy || undefined}
       title={closed ? CLOSED_SENTENCE : undefined}
       data-closed={closed || undefined}
+      data-testid={testId}
       className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-sm transition-colors hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none"
     >
       {children}
@@ -67,6 +70,7 @@ export function SecondaryButton({
   expanded,
   pressed,
   allowWhenClosed,
+  testId,
 }: {
   children: ReactNode;
   disabled?: boolean;
@@ -77,6 +81,7 @@ export function SecondaryButton({
   pressed?: boolean;
   /** Phase 5a: a download or a way forward that stays on in a closed assessment. */
   allowWhenClosed?: boolean;
+  testId?: string;
 }) {
   const closed = useReadOnly() && !allowWhenClosed;
   return (
@@ -89,6 +94,7 @@ export function SecondaryButton({
       aria-pressed={pressed}
       title={closed ? CLOSED_SENTENCE : undefined}
       data-closed={closed || undefined}
+      data-testid={testId}
       className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-slate-700 bg-slate-900 px-3.5 py-2 text-sm font-medium text-slate-100 shadow-sm transition-colors hover:border-slate-500 hover:bg-slate-800 aria-expanded:border-slate-500 aria-expanded:bg-slate-800 aria-pressed:border-slate-500 aria-pressed:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
@@ -153,16 +159,19 @@ export function StatusChip({
   size = "md",
   testId,
   wrap = false,
+  title,
 }: {
   label: string;
   tone: Tone;
   size?: "sm" | "md";
   testId?: string;
   wrap?: boolean;
+  /** Phase 5c: the reason behind the label, in the backend's words, shown on hover (an advisory's Test chip). */
+  title?: string;
 }) {
   const look = TONES[tone] ?? TONES.neutral;
   return (
-    <span data-testid={testId} data-tone={tone} className={chipClass(tone, size, wrap)}>
+    <span data-testid={testId} data-tone={tone} title={title} className={chipClass(tone, size, wrap)}>
       {/* The symbol is drawn by CSS, so the chip's text is exactly the backend's word. */}
       <span aria-hidden="true" data-symbol={look.symbol} className="font-mono text-[0.85em] before:content-[attr(data-symbol)]" />
       <span>{label}</span>

@@ -2,18 +2,20 @@ import type { FixSection, ProofCell, ProofTable, ProofVerdict, ProofWaiting } fr
 import { ProgressBar, ResultBadge, SourceTag } from "../ui";
 import { H } from "./parts";
 
-const GRID = "md:grid-cols-[150px_1fr_1fr_120px]";
+// The four columns sit side by side only where the panel itself is wide enough for them (a container query on the
+// side panel's own width, not the window's): in a narrow panel each cell goes under the last, with its heading.
+const GRID = "@2xl:grid-cols-[150px_1fr_1fr_120px]";
 
-/** The column heading, repeated in the cell on narrow screens where the heading row is hidden. */
+/** The column heading, repeated in the cell where the panel is too narrow for the heading row. */
 function CellLabel({ children }: { children: string }) {
-  return <p className="mb-1.5 text-xs uppercase tracking-wide text-slate-500 md:hidden">{children}</p>;
+  return <p className="mb-1.5 text-xs uppercase tracking-wide text-slate-500 @2xl:hidden">{children}</p>;
 }
 
 function ResultCell({ cell, control }: { cell: ProofCell; control?: string }) {
   return (
     <>
-      <ResultBadge label={cell.label} tone={cell.tone} />
-      <p className="mt-1.5 text-[13px] text-slate-300">{cell.short}</p>
+      <ResultBadge label={cell.label} tone={cell.tone} wrap />
+      <p className="mt-1.5 break-words text-[13px] text-slate-300">{cell.short}</p>
       {control ? <p className="mt-1 text-xs text-slate-400">{control}</p> : null}
     </>
   );
@@ -61,7 +63,7 @@ function Table({ table }: { table: ProofTable }) {
       <p className="mt-0.5 text-xs text-slate-400">{table.need}</p>
       <div
         data-testid="proof-columns"
-        className={`mt-2 hidden gap-3 border-b border-slate-800 pb-1.5 text-xs uppercase tracking-wide text-slate-500 md:grid ${GRID}`}
+        className={`mt-2 hidden gap-3 border-b border-slate-800 pb-1.5 text-xs uppercase tracking-wide text-slate-500 @2xl:grid ${GRID}`}
       >
         {table.columns.map((column, i) => (
           <span key={i}>{column}</span>

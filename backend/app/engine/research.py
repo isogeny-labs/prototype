@@ -73,7 +73,12 @@ TITLES = {
     "capability": "Post-quantum capability",
     "mlkem_vectors": "Key exchange exam (ML-KEM-768)", "mldsa_vectors": "Signature exam (ML-DSA-65)",
 }
-SOFTWARE_TEST_KINDS = ("official_vectors", "bad_signatures", "speed_size", "mldsa_compare") + PQ_EXAM_KINDS
+# Phase 5c: an advisory check. A test that comes from a signed test pack (app/otto), built from one published
+# advisory: the published cases that match its weakness, with the same control and pass rule as the exam they come
+# from. It is never suggested by this engine and is not in the catalog: a person adds it from the Advisories page.
+ADVISORY_KIND = "advisory_cases"
+TITLES[ADVISORY_KIND] = "Advisory check"
+SOFTWARE_TEST_KINDS = ("official_vectors", "bad_signatures", "speed_size", "mldsa_compare") + PQ_EXAM_KINDS + (ADVISORY_KIND,)
 PQ_SIGNATURE, PQ_KEY_EXCHANGE = "ML-DSA-65", "ML-KEM-768"
 CATALOG_DESCRIPTIONS = {
     "pq_readiness": "Checks whether the server offers a quantum-resistant key exchange (such as X25519MLKEM768).",
@@ -93,6 +98,14 @@ class ResearchEngine(Protocol):
     def review(self, result: dict) -> dict: ...
     def dig_deeper(self, finding: dict) -> dict: ...
     def propose_change(self, request: dict) -> dict | None: ...
+
+
+def title_of(kind: object, spec: dict | None = None) -> str:
+    """The screen title of a test. An advisory check carries its own (it names its advisory); every other test has
+    the title of its kind."""
+    if kind == ADVISORY_KIND and isinstance(spec, dict) and spec.get("title"):
+        return str(spec["title"])
+    return TITLES.get(str(kind), str(kind))
 
 
 def join_and(items: list[str]) -> str:
@@ -239,7 +252,7 @@ def out_of_range_cause(kind: object, detail: object) -> bool:
     wrong = detail.get("wrong") if isinstance(detail, dict) else None
     if not isinstance(wrong, list) or not wrong or not all(isinstance(x, dict) for x in wrong):
         return False
-    if kind == "official_vectors":
+    if kind in ("official_vectors", ADVISORY_KIND):   # an advisory check reruns cases of the same official file
         return all(x.get("expected") == "invalid" and any(k in str(x.get("comment")) for k in _RANGE_COMMENTS) for x in wrong)
     if kind == "bad_signatures":
         return {x.get("id") for x in wrong} <= _RANGE_CASE_IDS

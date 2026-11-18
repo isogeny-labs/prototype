@@ -1,6 +1,9 @@
-import { useCallback, useState, type ReactNode } from "react";
-import type { FixAction, FixApprovers, FixButton, FixDetail } from "../../api";
-import { DemoDataLabel, PrimaryButton, ResultBadge, SecondaryButton, Spinner, formatTime, saveFile } from "../ui";
+import { Fragment, useCallback, useState, type ReactNode } from "react";
+import type { FixAction, FixApprovers, FixButton, FixDetail, FixProofRow, OttoProposal } from "../../api";
+import { LedgerView } from "../advisories/parts";
+import { ProposalCard } from "../otto/ProposalCard";
+import { ItemLinkView } from "../related";
+import { DemoDataLabel, PrimaryButton, ResultBadge, SecondaryButton, Spinner, StatusChip as ToneChip, formatTime, saveFile } from "../ui";
 import { MergeDialog } from "./MergeDialog";
 import { DT, Rich, StatusChip } from "./parts";
 
@@ -66,6 +69,46 @@ function Proof({ proof }: { proof: FixDetail["proof"] }) {
     );
   }
   return <p className="text-slate-300">{words}</p>;
+}
+
+/** Phase 5c: one of the two proof rows of a library's fix from Otto ("Proven on public copies", "Proven on your
+ * system"): the row's own word as a chip, its sentence, its links, and under the first row the research ledger's
+ * entries, folded. Every word is the view's; the chip repeats what a trial or a retest showed and decides nothing. */
+function ProofRowView({ row }: { row: FixProofRow }) {
+  return (
+    <>
+      <div className="flex flex-wrap items-start gap-2.5">
+        <ToneChip label={row.badge.label} tone={row.badge.tone} testId="proof-row-badge" />
+        <p data-testid="proof-row-text" className="min-w-0 flex-1 basis-64 break-words text-slate-300">
+          {row.text}
+        </p>
+      </div>
+      {row.note ? (
+        // What the row is about (a public copy, not the system the reader runs). It qualifies the word in the chip, so it
+        // is set right under it at the size of the text, with a rule beside it: never small print under the links.
+        <p
+          data-testid="proof-row-note"
+          className="mt-2 break-words rounded-md border border-slate-700 border-l-2 border-l-sky-400/50 bg-slate-900/60 px-3 py-2 text-[13px] text-slate-200"
+        >
+          {row.note}
+        </p>
+      ) : null}
+      {row.links.length > 0 ? (
+        <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+          {row.links.map((entry, i) => (
+            <ItemLinkView key={i} link={entry.link} testId="proof-row-link">
+              {entry.label}
+            </ItemLinkView>
+          ))}
+        </p>
+      ) : null}
+      {row.ledger ? (
+        <div className="mt-2">
+          <LedgerView ledger={row.ledger} />
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 function Approvers({
@@ -146,10 +189,16 @@ interface Props {
   /** A call is on its way: every button waits for its answer. */
   busy: boolean;
   onRequest: (request: FixRequest) => void;
+  /** Phase 5c: the plan a decision on Otto's proposal is recorded in. Without it the proposal is not drawn. */
+  planId?: number;
+  /** Phase 5c: a decision on Otto's proposal was recorded: the screen reads its view again. */
+  onProposalDecided?: (next: OttoProposal) => void;
 }
 
-/** One screen about the selected fix: what it does, its proof, who approves, and the button for the next step. */
-export function FixSummary({ fix, busy, onRequest }: Props) {
+/** One screen about the selected fix: what it does, its proof, who approves, and the button for the next step. Since
+ * phase 5c a fix of Otto's is a proposal: its card (Accept, Reject, Undo, Reconsider) sits on top, and a library's
+ * fix has two proof rows in place of the one Proof line. */
+export function FixSummary({ fix, busy, onRequest, planId, onProposalDecided }: Props) {
   const [picked, setPicked] = useState<ReadonlySet<string> | null>(null);
   const [confirming, setConfirming] = useState(false);
   const closeDialog = useCallback(() => setConfirming(false), []);
@@ -201,6 +250,14 @@ export function FixSummary({ fix, busy, onRequest }: Props) {
         {fix.is_demo ? <DemoDataLabel /> : null}
       </div>
 
+      {/* Phase 5c: Otto proposes this fix; a person decides. The card records a decision and runs nothing: the fix's own
+          buttons below stay as the view sends them (Connect demo code is off, with the reason, until the accept). */}
+      {fix.proposal && planId !== undefined ? (
+        <div data-testid="fix-proposal" className="mt-3">
+          <ProposalCard planId={planId} proposal={fix.proposal} onDecided={(next) => onProposalDecided?.(next)} />
+        </div>
+      ) : null}
+
       {/* "Proof", "Pull request" and "Who approves" only name the rows. Everything that says how the fix stands comes from the view. */}
       <dl className="mt-4 grid gap-x-4 gap-y-3.5 border-t border-slate-800 pt-4 text-sm sm:grid-cols-[120px_1fr]">
         <dt className={DT}>{fix.what.label}</dt>
@@ -217,10 +274,24 @@ export function FixSummary({ fix, busy, onRequest }: Props) {
           ) : null}
         </dd>
 
-        <dt className={DT}>Proof</dt>
-        <dd data-testid="fix-proof" data-state={fix.proof.state} className="text-slate-200">
-          <Proof proof={fix.proof} />
-        </dd>
+        {fix.proof_rows && fix.proof_rows.length > 0 ? (
+          // Phase 5c: a library's fix from Otto. Two plain rows, each named by the view, in place of the one Proof line.
+          fix.proof_rows.map((row) => (
+            <Fragment key={row.key}>
+              <dt className={DT}>{row.label}</dt>
+              <dd data-testid="proof-row" data-key={row.key} data-tone={row.badge.tone} className="min-w-0 text-slate-200">
+                <ProofRowView row={row} />
+              </dd>
+            </Fragment>
+          ))
+        ) : (
+          <>
+            <dt className={DT}>Proof</dt>
+            <dd data-testid="fix-proof" data-state={fix.proof.state} className="text-slate-200">
+              <Proof proof={fix.proof} />
+            </dd>
+          </>
+        )}
 
         {fix.pull_request ? (
           <>

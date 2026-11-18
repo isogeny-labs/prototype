@@ -1,9 +1,10 @@
-import type { DependencyCell, DependencyRow } from "../../api";
+import type { DependencyAdvisory, DependencyCell, DependencyRow, OttoProposal } from "../../api";
 import { ResultDetail } from "../lab/ResultDetail";
 import { ViewInFixes } from "../migration/parts";
+import { FromOttoTag, ProposalCard } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
 import { withPlainName } from "../../plainNames";
-import { ProofChip, ResultBadge, SecondaryButton, SourceTag, StatusView, formatTime } from "../ui";
+import { ProofChip, ResultBadge, SecondaryButton, SourceTag, StatusChip, StatusView, formatTime } from "../ui";
 
 /** One answer: the answer, its one label, the first version that can (on a no), the measurement state, agreement. */
 function Cell({ cell, title }: { cell: DependencyCell; title: string }) {
@@ -42,6 +43,69 @@ interface Props {
   onDetailsOpen: (open: boolean) => void;
   onMeasure: () => void;
   onViewFix: (fixId: string) => void;
+  /** Phase 5c: for a decision on one of Otto's proposals for this library. */
+  planId: number;
+  /** After a decision was recorded: the screen reads its own view again. */
+  onDecided: (next: OttoProposal) => void;
+}
+
+/** Phase 5c: the links of one "Named by advisory" line: its advisory, the evidence of its check here (when one ran) and
+ * Otto's proposed fix (when the pack carries one). */
+function AdvisoryLinks({ advisory }: { advisory: DependencyAdvisory }) {
+  return (
+    <>
+      <ItemLinkView link={advisory.advisory_link} testId="dependency-advisory-link">
+        {advisory.id}
+      </ItemLinkView>
+      {advisory.evidence_link ? (
+        <ItemLinkView link={advisory.evidence_link} testId="dependency-advisory-evidence">
+          See the evidence
+        </ItemLinkView>
+      ) : null}
+      {advisory.fix_link && advisory.fix_label ? (
+        <ItemLinkView link={advisory.fix_link} testId="dependency-advisory-fix">
+          {advisory.fix_label}
+        </ItemLinkView>
+      ) : null}
+    </>
+  );
+}
+
+/** Phase 5c: in the table, a library that a published advisory names says so under its name: each advisory's line with
+ * its state as the chip's tone ("Named by advisory CVE-...: not yet checked") and the way to the proposed fix; the
+ * status a person accepted; and Otto's tag with where each proposal stands. Every word is the view's. A library that
+ * no advisory names draws nothing. */
+export function OttoMarker({ row }: { row: DependencyRow }) {
+  const advisories = row.advisories ?? [];
+  const proposals = row.otto_proposals ?? [];
+  const first = proposals[0];
+  if (advisories.length === 0 && !first && !row.otto_status) return null;
+  return (
+    <span data-testid="dependency-otto-marker" className="mt-1.5 flex flex-col items-start gap-1">
+      {advisories.map((a) => (
+        <span key={a.id} data-testid="advisory-marker" data-advisory={a.id} data-state={a.state.key} className="flex flex-col items-start gap-0.5">
+          <StatusChip label={a.line} tone={a.state.tone} size="sm" wrap />
+          {a.fix_link && a.fix_label ? (
+            // The link goes to the fix; a click on it does not also open the row.
+            <span onClick={(e) => e.stopPropagation()}>
+              <ItemLinkView link={a.fix_link} testId="advisory-marker-fix" className="text-[11px] text-sky-300 underline-offset-2 hover:underline">
+                {a.fix_label}
+              </ItemLinkView>
+            </span>
+          ) : null}
+        </span>
+      ))}
+      {row.otto_status ? <StatusChip label={row.otto_status.label} tone={row.otto_status.tone} size="sm" wrap testId="otto-status-marker" /> : null}
+      {first ? (
+        <span data-testid="proposal-marker" className="flex flex-wrap items-center gap-1">
+          <FromOttoTag label={first.label} testId="proposal-marker-label" />
+          {proposals.map((p) => (
+            <StatusChip key={p.id} label={p.status.word} tone={p.status.tone} size="sm" wrap />
+          ))}
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 /** The answers of one library as chips, one per question, each with its proof chip: the table's cells. Phase 5b: under
@@ -80,8 +144,10 @@ export function BlocksMarker({ row }: { row: DependencyRow }) {
 }
 
 /** One library of the list, in the detail panel. Every word comes from the backend. */
-export function DependencyDetail({ row, questions, busy, detailsOpen, onDetailsOpen, onMeasure, onViewFix }: Props) {
+export function DependencyDetail({ row, questions, busy, detailsOpen, onDetailsOpen, onMeasure, onViewFix, planId, onDecided }: Props) {
   const titles = Object.fromEntries(questions.map((q) => [q.key, withPlainName(q.title)]));
+  const advisories = row.advisories ?? [];
+  const proposals = row.otto_proposals ?? [];
   return (
     <div data-testid="dependency-detail" data-row={row.id}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -119,6 +185,51 @@ export function DependencyDetail({ row, questions, busy, detailsOpen, onDetailsO
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {/* Phase 5c: what the installed test packs' advisories say about this library, and what Otto proposes for it.
+          "Measured" is only ever this assessment's own reviewed result; the view words every line. */}
+      {advisories.length > 0 || proposals.length > 0 || row.otto_status ? (
+        <section data-testid="dependency-otto" className="mt-3 space-y-3">
+          {row.otto_status ? (
+            <div data-testid="dependency-otto-status" className="min-w-0 text-sm">
+              <StatusChip label={row.otto_status.label} tone={row.otto_status.tone} wrap />
+              {row.otto_status.lines.map((line, i) => (
+                <p key={i} className="mt-1 break-words text-[13px] text-slate-300">
+                  {line}
+                </p>
+              ))}
+            </div>
+          ) : null}
+          {advisories.length > 0 ? (
+            <ul className="space-y-2">
+              {advisories.map((a) => (
+                <li
+                  key={a.id}
+                  data-testid="dependency-advisory"
+                  data-advisory={a.id}
+                  data-state={a.state.key}
+                  className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3 text-sm"
+                >
+                  <StatusChip label={a.line} tone={a.state.tone} wrap testId="dependency-advisory-line" />
+                  <p className="mt-1.5 break-words text-xs text-slate-400">{a.name}</p>
+                  <p data-testid="dependency-advisory-detail" className="mt-1.5 break-words text-slate-200">
+                    {a.detail}
+                  </p>
+                  <p data-testid="dependency-advisory-fixed" className="mt-1 break-words text-[13px] text-slate-300">
+                    {a.fixed_line}
+                  </p>
+                  <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
+                    <AdvisoryLinks advisory={a} />
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {proposals.map((p) => (
+            <ProposalCard key={p.id} planId={planId} proposal={p} onDecided={onDecided} />
+          ))}
+        </section>
       ) : null}
 
       {row.lookups.length > 0 || row.measurement ? (

@@ -1,6 +1,6 @@
 # Limits: what is real, what is demo, what is not built
 
-Updated at the end of **phase 4c** (real code: real crypto libraries written by others as test subjects, and the two post-quantum exams). Updated each phase; each phase has its own section below.
+Updated at the end of **phase 5c** (Otto in Evidence Lab: advisories, signed test packs, advisory checks, Otto's use of Claude; and its second part of 18 November 2026: Otto proposes and a person decides, on every tab). Most phases have their own section below. Phases 4d and 5a have none here; phase 4d's limits are in `docs/HANDOFF.md`, under "Known weak spots".
 
 ## What is real
 
@@ -62,7 +62,9 @@ Updated at the end of **phase 4c** (real code: real crypto libraries written by 
   1.4.2. It is the only code that can be connected.
 - **The suggested change comes from one fix template,** for one kind of bug (the missing range check), written for
   `acme-sign`'s code. It is labelled "From a fix template" and is not written by an AI model. What it produces is
-  exactly our bundled 1.4.3.
+  exactly our bundled 1.4.3. (Since phase 5c Otto writes a change of its own when an advisory check has failed. Since
+  18 November 2026 the demo offers that change, as a proposal, and the template is the fallback where Otto is not
+  installed: see "Limits of phase 5c".)
 - **Pull requests live inside the app only.** Nothing is sent to any code host. "Merged" means the main branch of
   the app's own copy in `data/repos/` moved to a merge commit. Nothing is deployed, and no other program on this
   computer changes.
@@ -93,9 +95,11 @@ Updated at the end of **phase 4c** (real code: real crypto libraries written by 
   "Couldn't check" in Verify and "Couldn't run (only our demo components can be run in this version)" in the tests,
   and "Not tested, and why" says so on the Tests and Evidence Lab screens. (That sentence is older than phase 4c: read
   it as "only the software this version knows".)
-- **No AI model and no research engine are connected.** Tests are proposed by fixed rules and reviewed by fixed
+- **The engines that propose and review are fixed rules.** Tests are proposed by fixed rules and reviewed by fixed
   rules. Both are code from this same build, written by the same people: the review is a separate step with
-  its own module, not an independent second opinion.
+  its own module, not an independent second opinion. Until phase 5c no AI model was connected at all. Since
+  phase 5c Otto uses Claude for four named jobs and decides nothing: see "Limits of phase 5c". The assistant
+  panel still has no AI model.
 - **Dig deeper answers nothing.** It saves a research request marked "waiting for research engine" and shows it as
   queued. Nothing looks into it, and there is no screen for an answer yet.
 - **Connecting real code hosts (GitHub and others) is not in this version.** Only the bundled demo repository can
@@ -186,6 +190,357 @@ Limits to know:
 - **Post-quantum readiness (the catalog test)** now uses the same measurement, so it gives a result without
   Docker. A test of that kind locked before phase 4a keeps its old checker and rule, and its stored results read
   as before.
+
+## Limits of phase 5c (Otto in Evidence Lab; 17 November 2026)
+
+### What is real
+
+- **The six advisories are real and published.** Every quoted line is an exact piece of a page or file downloaded on
+  17 November 2026, kept with the SHA-256 of what was downloaded (`research/snapshot/2026-11-17/`; its `README.md`
+  lists every source, its licence and the pinned commits). They are not Demo data.
+- **Every shipped test and fix was tried before it shipped.** Each trial ran on public copies of the affected and
+  the fixed version, in isolated mode, through the app's own runner and reviewer, as an experiment registered in
+  Otto's harness before its first run. The harness judged the numbers against thresholds frozen in that
+  registration. The research ledger (`research/lab/`, 103 entries: six registered trials, three of tests and three
+  of fixes) holds all of it and passes Otto's own audit; a test of our own code runs that audit.
+- **The packs are really signed** (Ed25519). A pack with one byte changed, a pack signed by an unknown key and a pack
+  out of order are refused, each with one plain sentence.
+- **Results still come only from the runner and the reviewer.** An advisory check is an ordinary locked test with a
+  control that must fail. Advisories, the packs and Otto's ledgers only repeat or bind. None of them words a result.
+- **An advisory check uses no network.** It hands published signatures to a program or a library copy and reads its
+  yes or no. Otto never touches a live system, and the research side has no way into an assessment.
+- **The Otto part of the evidence file is inside what is signed.** `python -m evidence verify` checks the file, the
+  packs and the assessment's ledger together.
+- **The harness is Adam's code, unchanged,** at one pinned commit, checked by its fingerprint before it is used.
+
+### What the packs hold, and what the checks catch (measured, not tuned)
+
+These are the build's own measurements, as the packs and the recorded runs hold them. The fifth answer key is
+written independently and must not be copied from this section (`docs/OTTO-KEY.md` says what to work from).
+
+- **CVE-2022-21449** ("Missing ECDSA signature range check", Java): 77 cases. `openjdk` 17.0.2 got 10 wrong, 17.0.3
+  none, and the accept-everything control all 77.
+- **CVE-2019-14859** ("Badly encoded signature accepted", python-ecdsa): 9 cases. 0.13.2 got 8 wrong, 0.13.3 none.
+- **CVE-2019-14853** ("Malformed signature raises unexpected error", python-ecdsa) reads **No test yet.** Its
+  recorded design picked exactly the nine cases of the check for CVE-2019-14859, an advisory about the same
+  library, so it was refused before any trial as the same check under a second name (see the limits below).
+- **CVE-2024-42460** ("Wrongly encoded signature accepted", elliptic): 1 case, case 6. 6.5.6 got it wrong, 6.5.7 right.
+- **CVE-2024-42461** and **CVE-2024-42459** (elliptic) read **No test yet.** Claude's design step answered that no
+  test fits the building blocks of this version, and gave its reason: the first needs a longer signature from a
+  larger curve, the second is in EdDSA.
+- **The fixes.** "Update python-ecdsa to 0.13.3" (for CVE-2019-14859; all 4 pass-or-fail tests passed on 0.13.3, 3
+  failed on 0.13.2) and "update elliptic to 6.5.7" (all 5 passed on 6.5.7, 2 failed on 6.5.6) are **proven**: on
+  the fixed version the advisory check passed and every other pass-or-fail test passed too. "Update Java to 17.0.3"
+  is **not proven** (see the limits below).
+- **On the Acme Pay demo** the three ready tests all fit `acme-sign` 1.4.2. The check for CVE-2022-21449 fails on
+  it (3 of 77 cases wrong: 168, 171 and 364, the planted bug). The other two pass.
+
+### Limits
+
+- **The first advisory checks find nothing the full exam would miss.** Each one reruns a slice of the Independent
+  exam (the same Wycheproof file of 484 cases). What they add is the link from a published advisory to measured
+  behaviour, your own code included, and a reason to look again when a pack arrives. New detection needs a new
+  building block.
+- **One building block: "run these published signature cases".** ECDSA P-256 signatures, checking only. It can't
+  test another curve, hash or signature scheme, signing, timing, or a crash that the program turns into a plain
+  rejection. An advisory that needs any of those reads "No test yet", with the reason.
+- **Signing programs and libraries only.** An advisory about a server can't become a test yet. That needs a
+  handshake building block (phase 5d).
+- **CVE-2019-14853 has no test, because its design was a copy of another advisory's check.** The advisory is about
+  the kind of error python-ecdsa raises for a malformed signature. The one building block can't show that: by the
+  owner's rule an error raised by the library counts as "not accepted" (phase 4c). The recorded design therefore
+  picked the nine badly encoded signatures that the check for CVE-2019-14859, an advisory about the same library,
+  already uses. Such a check would pass or fail together with that one and could not tell the two weaknesses apart,
+  yet its name would say it measured this advisory. So the design was refused before any trial, the advisory reads
+  "No test yet" with that reason, and no fix is offered for it.
+- **What the duplicate rule does, and what it leaves.** A design is refused only when another advisory about the
+  same library has a check with exactly the same published cases: a test of an earlier pack, or a design of the
+  same build whose own trial held. The advisory that comes first keeps the check; the order is the order of the
+  snapshot. A design with one case more or one case fewer is not refused, so two checks can still overlap. The
+  same cases for another library are allowed on purpose (the same weakness in two libraries is two advisories, each
+  with its own fix), so on a program of your own two such checks would rerun the same cases under two names.
+- **The packs in the repository are the third build.** The independent reviews changed the research script twice,
+  and a pack names its scripts by fingerprint, so each time the research was run again from an empty ledger with
+  the same recorded answers. The first build (17 November 2026) shipped the duplicate check above as "Test ready"
+  (four tests in all); the second added the rule; the third (18 November 2026) corrected it as described above.
+  Every trial that is in more than one build gave the same numbers each time. The two earlier builds are kept in
+  this branch's git history (commits `370a380` and `8789c4b`), not in the working files; if the branch is squashed
+  when it is merged, they stay reachable through pull request #6. Nothing had shipped. From the merge of this
+  phase on, a pack that is in the repository is never rebuilt. Whether building again before the merge was right
+  is the owner's call: the rule in `CLAUDE.md` says "a shipped pack is never rebuilt".
+- **One sentence inside pack 2026.11.2 has a wording slip.** The pack's own line about the test for CVE-2024-42460
+  reads "elliptic 6.5.6 got 1 of 1 cases wrong". It is part of the signed pack, so it stays as it is, and the
+  Advisories panel shows it that way. The lines the app words itself say "1 of 1 case wrong", and the pack builder
+  words the next pack right (`ottolab/build.ready_reason`).
+- **No shipped advisory reads "Not offered".** The plan expected one design to be tried and refuted. In the real
+  build no design was refuted: for CVE-2024-42461 the design step answered "no test fits" instead, and for
+  CVE-2019-14853 the design was refused before it could be tried. The refuted path is real and tested on a made-up
+  snapshot, where a design that can't catch the affected version comes out refuted and stays out of the pack
+  (`backend/tests/otto/test_research.py`).
+- **"Update Java to 17.0.3" reads "not proven", by the strict reading of "every other locked test still passes".**
+  On 17.0.3 the check for CVE-2022-21449 passes, but the Independent exam still fails (the three cases listed under
+  phase 4c), so 1 of the 4 pass-or-fail tests did not pass. The screen says what was measured and nothing about how
+  serious it is. Counting only the tests that failed before the fix would call this fix proven. Which reading to
+  keep is the owner's decision.
+- **A check can fail on a library its advisory does not name.** Case 6 (a number written without its leading zero)
+  is the one case of the check for CVE-2024-42460, an elliptic advisory. Java gets that case wrong too: the
+  accuracy walk in isolated mode (17 November 2026) read that check as Failed on Java 17.0.2 and still Failed on
+  Java 17.0.3, although no advisory names Java for it. The research trials did not run that pair, so no pack
+  states it: the app's own run on the Real libraries file is what shows it. Such a result says which case got the
+  wrong answer, and nothing more. A pack's fix is for the library its advisory names, so for another library Fixes
+  says that the test pack holds no fix for it, and that entry carries no "From Otto" label.
+- **Otto's own change for `acme-sign` is offered because its program was registered by hand.** The recorded answer
+  is a clean change that names all three failed tests, and the program it gives is one line different from our own
+  `acme-sign` 1.4.3 (the same range check, written another way). Only our registered demo programs may run. In the
+  first build that program was not one of them, so the change was not offered. On 18 November 2026 Kevin decided to
+  register it as a demo program of its own, `acme-sign 1.4.3-otto`
+  (`demo/components/acme-sign-1.4.3-otto/acme_sign.py`). So the demo now shows a fix labelled "Written by Otto"
+  going the whole way: proposed, accepted, proven on that program, approved, merged, retested. What this is, and
+  what it is not: the file is exactly what the app's own change checker gives when it applies the recorded answer
+  to 1.4.2 (a test of our own code holds it to that); it is in the repository, where anyone can read its one line of
+  difference; it was added once, by a decision, not by the app. The app still decides nothing about code it has not
+  got: a live answer that differs by one character from every registered program is still refused. The program is
+  not in the general list of versions; a retest can choose it only in an assessment where its change is merged.
+- **Where Otto is not installed, the fix template stands in for Otto's change.** A decision on a proposal is
+  recorded in Otto's ledger, which the harness keeps. Without it no decision can be recorded, so Otto's change is
+  not offered and Fixes says so; the fix template is offered, as before phase 5c.
+- **Running a program that Claude wrote, and that is not registered, is not in this version.** A live answer will
+  usually not be one of our registered programs. With Live Otto on, such an answer is refused at the click and nothing is connected, although the
+  request was made on the key and is paid for; the fix template is offered afterwards where it answers the
+  failure. Until the click, Fixes lists that fix as "Not written yet" (never as written by Otto) and its card says
+  all of this before anyone presses the button. Proving a change that is not a registered program would mean
+  running code Claude wrote. That needs the owner's decision and a sandbox design first.
+- **The recorded answers were not made through the API.** No API key exists in the build environment. Every answer
+  shipped in `research/recorded/` was made during the build by giving the exact prompt to Claude in a fresh helper
+  session with nothing else, and was stored word for word. Each is labelled "Recorded during the build, not through
+  the API" and names no model. Tests, screenshots and the accuracy check use only these. A prompt with no recorded
+  answer gets "No recorded answer: this needs Live Otto."
+- **Some words on screen were written by Claude.** An advisory's plain name, the one plain sentence about its
+  weakness, the affected versions, its notes, the test's question and why-line, the reason given for "No test yet"
+  and a fix's summary are Claude's words, from the recorded answers. So is the title of an advisory check, which
+  carries the plain name. They are checked for their shape and for words this app never says about a system, and
+  every line quoted from a publisher must stand in the publisher's text, character for character. Nothing else
+  checks that such a sentence is right, which is why the publisher's own line is shown beside it. The notes are
+  folded in the panel under "Otto's notes on reading it" and labelled as Claude's words; they can be long, and they
+  name sources by their short labels (S1, S2), which the Sources list above them spells out. No result is
+  worded by Claude: the sentences of a check's result are fixed templates.
+- **A recorded answer belongs to one exact prompt.** If one word of a research prompt changes, its recorded answer
+  no longer fits: new answers must be recorded and new packs built, and a test of our own code fails until then. If
+  the app's own prompt changes, Fixes says "No recorded answer: this needs Live Otto." until a new answer is
+  recorded.
+- **The live path is not proven by a real call.** It could be tested here only with no key present and with a
+  stand-in for the network. No real call has been made by the tests.
+- **Live Otto sends source code out.** For a fix to your own code, the source file of the failing program and the
+  cases it got wrong go to Claude through your key, with the advisory text. Live Otto is off by default, also when a
+  key is present, and the setting says what is sent.
+- **Cost.** The spending limit (2 US dollars per run until changed) stops a run before the request that could pass
+  it, also a request that is sent again. It counts the worst case of that request (a full-length answer at the
+  dearest price that could apply, twice where a declined request may be answered by another model), so a run can
+  stop early. A request that got no answer that can be read (a time-out, an answer cut off part-way, an answer
+  that is not what the API sends) may still have been billed, so the most it could have cost counts against the
+  limit too, and in the research command that is carried from step to step. The price list is a config value and can go out of date; Settings shows its source and
+  date. One model answers every step.
+- **The live call is made with Python's standard library,** not with Anthropic's official package. Adding that
+  package would be a new dependency and needs the owner's OK.
+- **Otto is private, so not every computer can run the Otto checks.** GitHub's checks can't fetch it (they use no
+  secrets): the tests that need it are skipped there, with one line that says how many, and run only where the
+  harness is installed. Someone who checks an evidence file without the harness gets the verify command's own
+  checks and "not confirmed" for Otto's audit, which is not a pass. A new Codespace needs the access that
+  `.devcontainer/devcontainer.json` asks for.
+- **Otto is version 0.1.0.** A newer version may change its record formats, and a ledger written under this one
+  could then fail its audit. The pin, and an audit at every move of the pin, guard against that. There is no
+  promise yet about reading older ledgers.
+- **Otto's harness starts programs with no sandbox of its own.** In this version it starts only five small scripts
+  of ours (the research agent command, the trial script, and three record checkers: one on the research side, and in
+  an assessment's folder one for runs and Claude steps and one for decisions). The trial script calls the app's own lock, run and review path, so a real library still runs only in its
+  locked-down container.
+- **Otto does not run on Windows.** Its ledger locks files the Linux and macOS way. On Windows the app says Otto is
+  not installed.
+- **The harness's fingerprint covers the files of the pinned commit, and nothing else in its folder.** Python's own
+  cache folders (`__pycache__`), compiled `.pyc` files and links in that folder are left out, so that running Otto
+  does not change the fingerprint. Someone who can write to that folder can therefore change what runs without
+  changing the fingerprint, as they could change the app's own code. The check guards what was fetched, not a
+  computer that someone else can write to. `EVIDENCE_LAB_OTTO_HOME` lets that folder be anywhere; the same holds
+  there.
+- **A data folder that holds packs from an earlier build of this phase can't go on.** The form of a pack changed
+  during the build (a source now says where its text was read from), and the two packs were built again under the
+  same version numbers. A data folder that installed an earlier build's packs can't read them and can't install
+  the new ones after them. Settings says so in one line. Start with a new data folder: stop the app, move the folder
+  `data/` away and start the app again. A new Codespace starts with a new one.
+- **A ledger can't be rebuilt byte for byte.** Clock times are inside its hashes. So the research ledger in the
+  repository is audited, never made again and compared, and a shipped pack is never rebuilt.
+- **The demo pack key can sign nothing more.** It was made when the packs were built and its private half was
+  thrown away. Who holds a real release key is not decided. A pack built on this computer by the research command
+  is signed with a key made here (kept in the data folder, readable by this user only) and is trusted by this
+  installation only.
+- **Authors in Otto's ledgers are plain names.** Otto signs nothing. The "second author" who replays a trial is a
+  second role of the same build on the same computer, not a second person or a second machine, and the Advisories
+  panel words the replay that way ("run again as a separate replay step of the same build, on the same computer"). The evidence
+  signature covers the assessment's ledger. The research ledger is named by the pack (its latest entry) and stays
+  in the repository.
+- **The assessment's Otto ledger confirms binding, not results.** It shows that a run belongs to a test locked
+  earlier and that the reviewer was not the proposer. It does not redo the review; Evidence Lab's own read gate
+  does that each time a result is shown.
+- **Without Otto, advisory checks can't be added or run,** because their runs could not be recorded. A check added
+  earlier then reads "Couldn't run (Otto is not installed on this computer)". Everything else works as before.
+- **"Keeps checking" means on events.** There is no timer. A check reruns when a person clicks, and where the app
+  already reruns by itself (fix proofs and retests). A new pack never adds or runs anything by itself.
+- **Packs come from a folder on this computer.** Check for updates never uses the internet. There is no update
+  channel yet.
+- **A real library's advisory check needs isolated mode.** In demo mode it reads "Couldn't run (needs isolated
+  mode)".
+- **Speed is not part of a fix trial on public copies.** Timings hold only for the computer they are measured on.
+  Retest measures speed on yours.
+- **Evidence files grow.** The pack files (whole), the assessment's ledger, every bound run and every Claude step
+  with its full prompt and answer travel inside the file.
+- **A source's link opens what was read, which is not always a web page.** The quoted text was downloaded from the
+  files themselves (the advisory database's records and the libraries' source files, at pinned commits), and the
+  link beside a quote opens that address, so "Read on 17 November 2026" is true of what it opens. For a file in a
+  repository that is the raw file at its pinned commit, not the repository's web page. A pack also keeps a page
+  address for each source, written from the record's id or from the repository, the tag and the path; those pages
+  were not opened by the build and are not what the links open. The web pages of github.com, nvd.nist.gov and
+  cve.org could not be reached from the build machine (the snapshot's `README.md` has the full list).
+- **A quoted line is not always from the advisory page.** Oracle's and OpenJDK's pages for CVE-2022-21449 do not
+  put the weakness into words, so its quoted line is the range check in the fixed JDK source. Some quotes are a
+  raw field of an advisory record (`"fixed": "0.13.3"`). Each quote names its source and publisher, and its tag
+  reads "quoted from the named source, not a result".
+- **The verify command runs nothing that a file names.** A ledger inside an evidence file is data. Otto's harness,
+  asked to check entries again, starts the verifier an entry names, and it finds that entry by its id whatever its
+  kind. So the command never asks it to. Every entry must first be in the exact form this app writes (its kind,
+  its fields, the one checker an objective may name, each pointer to an earlier entry of the right kind); the
+  harness then audits the chain and the records without running any verifier; and the app runs its own pinned
+  checker again on every checked entry. Two independent reviews of the phase found holes here before it shipped:
+  first, that the command would have started what an objective named; then, after that was closed, that an entry
+  of another kind could still pose as an objective. Both are closed, and tests plant such files to show that
+  nothing runs (`backend/tests/otto/test_verify_reads_data.py`). What this rests on: the harness's audit without
+  re-verification starts nothing. That is true of the pinned commit and must be looked at again when the pin moves.
+- **The research audit command reads a lab folder as data too.** `python -m ottolab.build audit` no longer asks the
+  harness to run anything: the harness checks the chain and the records and derives every decision again, and the
+  command runs the research side's own pinned checker itself. A lab folder that holds a link is refused before
+  anything is done. A fourth review found that the folder's own copy of the checker could be made to stand for
+  another program; nothing from the audited folder is started now, and tests plant such folders
+  (`backend/tests/otto/test_research_audit.py`).
+- **The checkers in an assessment's Otto folder are made the app's own before each use.** There are two since
+  18 November 2026: `recheck.py` (runs and Claude steps; unchanged, so earlier ledgers read as before) and
+  `decisions.py` (decisions on proposals). The harness starts the file
+  in that folder when a run, a Claude step or a decision is recorded. If someone who can write to the data folder puts another
+  program or a link there, the app replaces it with its own checker first. The check guards the file at that moment;
+  it does not make a computer safe that someone else can write to.
+- **What the verify command binds, and its limits.** A run shown in the file must match the SHA-256 the ledger
+  holds for its record and its review; the words that describe the result beside it are covered by the file's own
+  signature, not by the ledger. A ledger of more than 20,000 entries is refused, and checking entries again stops
+  after five minutes with a failure, so a very large honest ledger would need those limits raised.
+- **The fifth answer key is not written yet.** `demo/expected-otto.json` is written independently of the build.
+  Until it is in the repository, `python -m app.accuracy --only otto` shows the app's answers and grades nothing
+  (exit code 2, which is not a pass; 3 when Otto is not installed). `docs/OTTO-KEY.md` lists its questions.
+- **Verify still has no locked test and no separate review** (phase 5d), and Verify runs are not entered in Otto's
+  ledger.
+- **Not built, in the order planned:** Verify under a locked test and the reviewer, then Otto's server checks by
+  handshake (5d); running code that Claude wrote; Otto as the assistant in the side panel, answers to Dig deeper and
+  proposals for the knowledge base; moving the seven built-in
+  tests into the pack library; separate accounts, so that "who" is more than one name; a timer; packs over the internet and a real release signing key; Otto's sealed
+  claims, its Lean proofs and its model judge.
+
+### Limits of the second part: Otto proposes, a person decides (18 November 2026)
+
+- **"Who" is one name.** The app has one login and no separate accounts. Every accept, reject, undo and reconsider
+  is recorded as made by "You", the name the app already records for approvals, with the time. It shows that a
+  person at the keyboard decided, and when; it can't show which person. Every list of decisions says so.
+- **Proposals are worked out, not stored.** Each time a page is read the app works out what Otto proposes from the
+  installed packs, the file and the results. Only a person's decisions are stored, each with a copy of the proposal
+  as it stood and that copy's SHA-256. So a proposal that was decided and that Otto would no longer make stays on
+  the record, marked as no longer proposed. A proposal that nobody decided and that no longer applies is simply no
+  longer shown: nothing records that it was once proposed. The time a proposal says it was made is worked out too
+  (the later of the pack's installation and the file's import).
+- **A decision is a record, not a result.** The second pinned checker confirms that a decision entry is whole and
+  that the step was allowed from where the proposal stood. It can't confirm who pressed the button, and its answer
+  is never shown as a decision or as a result.
+- **What the ledger binds of a proposal, and what it does not.** A decision's ledger entry holds the SHA-256 of the
+  proposal as it stood when the person decided, and the file carries that copy. A proposal nobody decided on is not
+  in the ledger at all: in an evidence file it is covered by the file's own signature only. The same goes for the
+  present wording of a proposal that was decided earlier and that Otto still makes (its `why` can change with a
+  newer result); the copy each decision was made on is what the ledger holds.
+- **Two stores, written one after the other.** A decision goes into Otto's ledger and then into the database. The
+  app shows the entry to its own checker before it writes anything, so a refused entry changes nothing. If the app
+  is stopped in the moment between the two writes, the ledger holds a decision that the database does not, and an
+  evidence file of that assessment then fails the verify command, which says which decision the file does not
+  show. There is no repair tool in this version. If the ledger's own check of the entry gives no answer in time,
+  the decision is not recorded, the attempt stays in the ledger marked as not accepted, and the verify command
+  says that it is no decision.
+- **Undo has an end.** A check can be taken out again until it has a run; a change to your own code until the code
+  is connected; a library's update until a retest on the updated version is running or has run; a plan change until
+  a newer result of its check has passed. After that the accept stands, and the button says why. A check that was
+  added with the earlier **Add new checks** button has no decision on record: it reads "Added before decisions were
+  recorded", can't be undone from Advisories, and keeps its own × in the test plan.
+- **A rejected fix has no stand-in.** When a person rejects Otto's change for their own code, the fix template is
+  not offered in its place: the fix reads "Not added (reason)" until someone presses **Reconsider**. The template
+  stands in only where Otto's change is not offered at all.
+- **Proposals for the migration plan: one rule.** An advisory check whose newest result on a signing program is
+  Failed proposes "Fix *program* before its signatures move to post-quantum" on that program's Signatures track.
+  No other test proposes anything, and nothing is proposed for a server (Otto's server checks are phase 5d).
+  Accepting lists it on the plan as something to fix first. It changes no status, no recommendation, no roadmap
+  band and no measured fact, so everything the migration answer key grades reads exactly as before. "Accept
+  updates the plan" is built as that listed line, and nothing more. A plan change needs a plan: it is proposed only
+  once **Measure status** has given that system a status. A failed advisory check on a program whose status was
+  never measured proposes a fix (on Fixes) and no plan change, and no page says that one will follow. (The second
+  review found the earlier form proposing a change to a plan that the Roadmap said did not exist.)
+- **Proposals for a dependency: one rule.** A library of the dependency list is "named by an advisory" when the
+  knowledge base has recognised it as the package an advisory of the installed packs is about (by its package
+  address; a bare name only where the list gives no address and the knowledge base lists that name as safe), and the
+  version in the list reads as lower than the publisher's fixed version. A package of the same name from another
+  ecosystem is not named, a library the knowledge base has no file for is not named, and a version the app can't
+  read is not named. A decision belongs to the library in that version and to the advisory, not to a place in the
+  list. Where the pack carries an update for it,
+  Otto proposes it. Accepted, the library reads "Update first", and the box of the system it is tied to says so.
+  It is never counted among the blockers, and no answer about what a library can do changes, so everything the
+  dependencies answer key grades reads exactly as before.
+- **"Measured affected" is rare by design.** "Measured" is only this assessment's own reviewed result of that
+  advisory's check on the same library and version. An advisory check runs on the signing programs the scanner
+  file names, not on a library that is only in the dependency list. On the Acme Pay demo the dependency list names
+  three such libraries (openjdk 17.0.2, python-ecdsa 0.13.2, elliptic 6.5.6) and the scanner file names none of
+  them, so all three read "not yet checked", each with that reason. The trial on public copies is not counted as a
+  measurement of your library: it is said where the fix is.
+- **"Proven on your system" is a retest on a public copy.** The row's name is the owner's wording. What stands
+  behind it: this assessment's own retest of the same locked tests on the fixed version, which the app runs on a
+  public copy of that version in its own container. The app has no connector to the system a customer runs, and
+  the row says so right under its sentence, at the size of the text ("This row is about a public copy, not the
+  system you run ... The app has not checked that your own system was updated"). "Passed" therefore means the
+  fixed version passes the locked tests here, not that anyone's deployed system was updated. A reader who takes
+  in only the row's name and the green word can still read more into it than it says; another name for the row
+  (for example "Proven in this assessment") is the owner's call. After such a retest the scanner file still names
+  the old version, so Verify still reads that claim as true of the file.
+- **A library's fix that passed its retest still counts as Open.** Its status word stays "Text only", by the
+  owner's rule that the app never calls other people's software fixed, and the page counts by that word. The two
+  proof rows say what was shown.
+- **Two entries for one update.** Where the Independent exam and an advisory check both fail on a real library,
+  Fixes lists the entry for the failed tests (phase 4c) and Otto's proposal. They answer different tests and only
+  Otto's is a proposal, so they stay two entries; each names the other and says "It is one update, not two."
+- **The pack does not name the other test that still fails.** For Java the first row reads "another locked test
+  still fails on 17.0.3". The shipped pack records the counts of its fix trial (1 of 4 on 17.0.3), not which test,
+  and a shipped pack is never rebuilt. A retest in the assessment names it.
+- **The Overview builds each of its blocks afresh.** On a large assessment (eight tests, a proof, a retest, a
+  dependency list, two test packs) its data takes about a second and a half to build on the build machine, and
+  Otto's proposals are about a quarter of that. Nothing is kept between the blocks of one read. Closing such an
+  assessment shows "Closed" as soon as the close itself has answered; the rest of the page follows a moment later.
+- **A check added after a retest first runs on the old version.** Run runs a test on the version the scanner file
+  names. A check accepted after a retest therefore has a first result on that version and no result after, until
+  the next retest. Evidence then counts the tests that have a result after, and Advisories says of each result
+  which version it is of.
+- **The second row is as strict as the first.** It reads "Passed" only when the advisory check and every other
+  pass-or-fail test the plan holds for that library has a result in the same retest and passed. While that retest
+  runs, or after it was interrupted, it stays "Not yet" and says how many tests have a result. For Java it would
+  read "Not proven" after a retest on 17.0.3, because the Independent exam still fails there, as the pack's own
+  trial found. (The first independent review found that an earlier form counted only the runs that existed, so
+  the row could read "Passed" part-way through a retest; it is fixed and tested.)
+- **The "next step" is a pointer, not a proposal.** Kevin's list of what Otto produces names "a next step". The
+  Overview's next step has no Accept or Reject: it opens the page that holds the next thing to do, and since this
+  part it names Otto's waiting proposals. Nothing happens by following it or by ignoring it.
+- **No button accepts everything,** by Kevin's decision. With many programs and many advisories that is many
+  clicks.
+- **A closed assessment gets no proposals to decide.** It shows the packs that were installed when it was signed
+  off and the decisions made until then; every button is off.
+- **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
+  also a rejection, before any check has run.
 
 ## Limits of phase 5b (one connected assessment; 17 November 2026)
 
@@ -480,7 +835,8 @@ approval asked for. It measures again right after, and can roll back. What follo
 - **The plain sentences are fixed templates**, written from the stored result and run record; no AI model writes
   them. For cipher-suite and key-exchange claims that come back False, the sentence reuses the technical
   finding. A Verify row stored before these fixes gets a plain fallback ("This matches the claim." plus the
-  technical text), not a new sentence.
+  technical text), not a new sentence. (Since phase 5c the sentence of an advisory check names its advisory by a
+  plain name that Claude wrote: see "Limits of phase 5c".)
 - **"Also noticed" covers one case:** a certificate check (in Verify or the Certificate strength test) whose
   handshakes show the server accepts TLS 1.0 or 1.1. It is not shown when the same file also claims that
   server's TLS versions (the TLS row already says it). It is words only: the reviewer never reads it.
@@ -625,6 +981,9 @@ approval asked for. It measures again right after, and can roll back. What follo
 - **Private keys are masked before anything is stored or downloaded** (any field whose name contains "private", and
   any PEM private-key block). A secret in some other form inside a tool's output would not be recognised. The
   demo only ever uses throwaway test keys.
+- **Since phase 5c a file can hold an Otto part** (the test packs, the assessment's Otto ledger, Claude's steps), and
+  the verify command checks it too. Its last check, Otto's own audit, needs the Otto harness on the computer that
+  runs the command; without it the command ends "not confirmed", which is not a pass. See "Limits of phase 5c".
 
 ## Things done early or differently, by owner decision
 
@@ -718,6 +1077,10 @@ Kevin accepted every rule below after testing phase 3a end to end. They stand un
 - The end-to-end test needs port 8443 free, so the app must be stopped while it runs.
 - Tests that need real containers are skipped, with a message saying so, when Docker is not running or the images
   are not prepared.
+- Tests that need the Otto harness (phase 5c) are skipped, with one line that says how many, where the harness is
+  not installed. That includes GitHub's checks, which can't fetch a private repository.
+- No test reaches Claude's API. Tests replay the recorded answers or answers written for the test; the live path is
+  tested with a stand-in for the network.
 - The backend tests use fewer timing repeats than the app (100 pairs instead of 200) to keep the run short. With
   much smaller counts the slowed control was sometimes missed; a missed control shows as "Couldn't trust this
   run", never as a wrong pass.

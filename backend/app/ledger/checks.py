@@ -64,6 +64,7 @@ class LedgerMixin:
     jobs: Any
     _plan: Callable[..., PlanRow]
     _result: Callable[..., dict | None]
+    otto_result_blocks: Callable[..., dict[int, dict]]     # from ProposalsMixin (phase 5c)
     _migration_states: Callable[..., list[dict]]
     dependencies_view: Callable[[int], dict]
     fix_states: Callable[[int], list[dict]]
@@ -272,9 +273,14 @@ class LedgerMixin:
         link = ({"page": "checks", "item": row_id} if origin == "plan" else
                 {"page": "evidence", "item": f"test-{item.id}"} if origin == "retest" else
                 {"page": "fixes", "item": None, "section": "proof"})
+        # Phase 5c: an advisory check came from one of Otto's proposals that a person accepted. Its row says so, with
+        # the way to its advisory.
+        advisory = ((spec.get("inputs") or {}).get("advisory") or {}).get("id") if spec.get("kind") == "advisory_cases" else None
+        from_otto = ({"label": "From Otto", "advisory": f"Advisory {advisory}", "link": {"page": "advisories", "item": str(advisory)}}
+                     if advisory else None)
         return {"id": row_id, "group": "encryption", "kind": spec.get("kind") or "test", "name": spec.get("title") or "",
                 "ran_on": ran_on or "", "came_from": {"key": origin, "label": ORIGINS[origin]}, "item_id": item.id,
-                "link": link, "evidence_link": {"page": "evidence", "item": row_id}}
+                "link": link, "evidence_link": {"page": "evidence", "item": row_id}, "from_otto": from_otto}
 
     @staticmethod
     def _system_base(state: dict) -> dict:
@@ -428,7 +434,7 @@ class LedgerMixin:
     @staticmethod
     def _public_row(row: dict) -> dict:
         keep = ("id", "group", "kind", "name", "ran_on", "came_from", "link", "evidence_link", "state", "status", "result",
-                "plain", "last_run_at", "runs")
+                "plain", "last_run_at", "runs", "from_otto")
         out = {k: row.get(k) for k in keep}
         out["measures"] = _measure_key(row)
         if row.get("pq_claim"):
@@ -480,6 +486,11 @@ class LedgerMixin:
         if row.get("newest_run_id") is not None:
             with self.db() as db:
                 result = self._result(db, db.get(TestRunRow, row["newest_run_id"]))
+                if result is not None and row.get("item_id") is not None:
+                    # phase 5c: where an advisory check came from, and the decisions on Otto's proposal (records only)
+                    came_from_otto = self.otto_result_blocks(db, self._plan(db, plan_id)).get(row["item_id"])
+                    if came_from_otto is not None:
+                        result["otto"] = came_from_otto
         related = self.related(plan_id, self.relation_key(row))   # type: ignore[attr-defined]
         return {"check": self._public_row(row), "result": result, "verify": row.get("verify"),
                 "runs": row.get("history") or [], "related": related}

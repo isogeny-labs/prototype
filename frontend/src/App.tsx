@@ -14,6 +14,7 @@ import {
   type Workspace,
   type WorkspaceProject,
 } from "./api";
+import { AdvisoriesScreen } from "./components/AdvisoriesScreen";
 import { ChecksScreen } from "./components/ChecksScreen";
 import { CloseBox, NewAssessmentBox } from "./components/pages/AssessmentBoxes";
 import { ProjectOverviewPage } from "./components/pages/ProjectOverviewPage";
@@ -97,7 +98,12 @@ export default function App() {
   }, []);
 
   /** Shows a fetched assessment. Called in the same moment as a route change, so the page never blanks in between. */
+  // How many times a whole read of the assessment has been put on the screen. The Overview's own quiet re-read (below)
+  // is used only if none was since it was asked: its answer can arrive after an action's fresh read (Close and sign
+  // off pressed right after the page opened) and must not put the earlier state back.
+  const appliedReads = useRef(0);
   const applyAssessment = useCallback((data: Awaited<ReturnType<typeof fetchAssessment>>) => {
+    appliedReads.current += 1;
     setAssessment(data.view);
     setImp(data.imp);
     setRun(data.run);
@@ -172,10 +178,30 @@ export default function App() {
   useEffect(() => {
     if (!loggedIn || routePage !== "overview" || routeId === null || loadedId !== routeId) return;
     let live = true;
+    const asked = appliedReads.current;
     api
       .getAssessment(routeId)
       .then((next) => {
-        if (live) setAssessment(next);
+        // (dropped when a fresh read was shown meanwhile: this answer is then the older one)
+        if (live && appliedReads.current === asked) setAssessment(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [loggedIn, routePage, routeId, loadedId]);
+  // Phase 5c: Import's line about Otto counts the checks of the test packs installed now, and a pack can be installed
+  // after the file came in. So that one line is asked for again each time Import opens. It only reads.
+  useEffect(() => {
+    if (!loggedIn || routePage !== "inventory/import" || routeId === null || loadedId !== routeId) return;
+    let live = true;
+    api
+      .getAssessment(routeId)
+      .then((next) => {
+        const fresh = next.import ?? null;
+        // (only that line, and only when it differs: nothing else on the page is replaced by this read)
+        if (live && fresh)
+          setImp((c) => (c && c.id === fresh.id && JSON.stringify(c.otto) !== JSON.stringify(fresh.otto) ? { ...c, otto: fresh.otto } : c));
       })
       .catch(() => undefined);
     return () => {
@@ -228,13 +254,15 @@ export default function App() {
   const closed = current?.status.key === "closed";
 
   // Which pages of the assessment can open now, and why not. Phase 5b: before a file is in, only Overview and Import;
-  // once a file is in, every page opens, and a page with nothing yet says what fills it.
+  // once a file is in, every page opens, and a page with nothing yet says what fills it. Phase 5c: Advisories opens by
+  // the same rule as Checks.
   const noFile = "Bring in a scanner file first (Inventory, Import).";
   const withFile = { open: imp !== null, reason: noFile };
   const access: PageAccess = {
     overview: { open: true },
     "inventory/import": { open: true },
     "inventory/verify": withFile,
+    advisories: withFile,
     checks: withFile,
     evidence: withFile,
     fixes: withFile,
@@ -292,8 +320,12 @@ export default function App() {
     setBoxBusy(true);
     setBoxError(null);
     try {
-      await api.changeAssessment(box.assessment.id, { close: true, signed_off_by: fields.signed_off_by, note: fields.note });
+      const now = await api.changeAssessment(box.assessment.id, { close: true, signed_off_by: fields.signed_off_by, note: fields.note });
       setBox(null);
+      // The answer is the assessment as it stands now: it is shown at once, so the page reads Closed without waiting
+      // for everything else to be read again (on a large assessment that takes a few seconds more).
+      appliedReads.current += 1;
+      setAssessment(now);
       await reloadAssessment();
     } catch (e) {
       setBoxError(errorMessage(e));
@@ -440,6 +472,7 @@ export default function App() {
         onLoadDemo={() => void loadDemo()}
         loadingDemo={loadingDemo}
         demoResult={demoResult}
+        section={route.section ?? null}
       />
     );
   } else if (!current) {
@@ -496,6 +529,10 @@ export default function App() {
     );
   } else if (page === "inventory/verify" && imp) {
     content = <VerifyScreen imp={imp} run={run} onContinue={() => go("checks")} openItem={routeItem} />;
+  } else if (page === "advisories" && plan) {
+    // Phase 5c: accepting one of Otto's proposed checks puts a test in the plan (and Undo takes it out), so the app's
+    // copy of the plan is read again after every decision.
+    content = <AdvisoriesScreen planId={plan.id} openItem={routeItem} onPlanChanged={() => void reloadPlan()} />;
   } else if (page === "checks" && imp) {
     content = <ChecksScreen importId={imp.id} plan={plan} onPlan={setPlan} openItem={routeItem} group={route.kind === "assessment" ? (route.group ?? null) : null} />;
   } else if (page === "evidence" && plan) {

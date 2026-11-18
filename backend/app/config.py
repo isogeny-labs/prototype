@@ -11,6 +11,8 @@ DEMO_CBOM = DEMO_DIR / "acme-pay-cbom.json"
 EXPECTED_JSON = DEMO_DIR / "expected.json"  # answer key: read-only, never written by the app
 EXPECTED_MIGRATION_JSON = DEMO_DIR / "expected-migration.json"  # the migration demo's answer key: read-only too
 FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
+OTTO_PACKS_DIR = REPO_ROOT / "research" / "packs"        # phase 5c: the signed test packs shipped with the app
+OTTO_RECORDED_DIR = REPO_ROOT / "research" / "recorded"  # phase 5c: Claude's answers recorded during the build
 
 BIND_HOST = "127.0.0.1"
 DEMO_HOSTNAME = "localhost"
@@ -43,6 +45,10 @@ class Settings:
     migration_ports: tuple[int, int, int, int, int] = (8451, 8452, 8453, 8454, 8455)
     # The lab nginx of demo/lab-nginx.csv (phase 4b): real nginx in isolated mode, started only when that file is imported.
     lab_nginx_port: int = 8461
+    # Phase 5c: the updates folder "Check for updates" looks in (on this computer, never the internet), and the
+    # folder of Claude's recorded answers. None means the ones shipped in the repository (research/packs, research/recorded).
+    otto_updates_dir: Path | None = None       # EVIDENCE_LAB_OTTO_UPDATES
+    otto_recorded_dir: Path | None = None      # EVIDENCE_LAB_OTTO_RECORDED
 
     @property
     def db_path(self) -> Path:
@@ -51,6 +57,19 @@ class Settings:
     @property
     def demo_address(self) -> str:
         return f"{DEMO_HOSTNAME}:{self.demo_tls_port}"
+
+    @property
+    def otto_updates(self) -> Path:
+        return self.otto_updates_dir or OTTO_PACKS_DIR
+
+    @property
+    def otto_local_updates(self) -> Path:
+        """Packs built on this computer by the live research command (signed with this computer's own key)."""
+        return self.data_dir / "otto-updates"
+
+    @property
+    def otto_recorded(self) -> Path:
+        return self.otto_recorded_dir or OTTO_RECORDED_DIR
 
 
 def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int | None = None) -> Settings:
@@ -69,9 +88,12 @@ def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int 
         force_mode = None
     if force_mode not in (None, "demo", "isolated"):
         raise SystemExit("EVIDENCE_LAB_MODE must be demo, isolated or auto")
+    updates, recorded = os.environ.get("EVIDENCE_LAB_OTTO_UPDATES"), os.environ.get("EVIDENCE_LAB_OTTO_RECORDED")
     return Settings(data_dir=Path(data_dir).resolve(), demo_tls_port=demo_tls_port,
                     max_jobs=_env_int("EVIDENCE_LAB_MAX_JOBS", 4, 1, 16), force_mode=force_mode,
-                    speed_rounds=_env_int("EVIDENCE_LAB_SPEED_ROUNDS", 40, 2, 50))
+                    speed_rounds=_env_int("EVIDENCE_LAB_SPEED_ROUNDS", 40, 2, 50),
+                    otto_updates_dir=Path(updates).resolve() if updates else None,
+                    otto_recorded_dir=Path(recorded).resolve() if recorded else None)
 
 
 def _env_int(name: str, default: int, low: int, high: int) -> int:

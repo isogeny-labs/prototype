@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, errorMessage, type CheckDetail, type CheckRow, type CheckRun, type SameMeasurement } from "../../api";
 import { DetailPanel } from "../layout";
+import { FromOttoTag } from "../otto/ProposalCard";
 import { ItemLinkView, RelatedBlock } from "../related";
 import { ErrorBox, formatTime, ResultBadge, StatusView } from "../ui";
 
@@ -52,6 +53,15 @@ export function CheckPanel({
             {check.status ? <StatusView status={check.status} /> : null}
             {!check.result && !check.status ? <span className="text-slate-400">Not run yet.</span> : null}
           </div>
+          {/* Phase 5c: an advisory check came from one of Otto's proposals: the tag and its advisory, in the view's words. */}
+          {check.from_otto ? (
+            <p data-testid="check-from-otto-line" className="flex min-w-0 flex-wrap items-center gap-2">
+              <FromOttoTag label={check.from_otto.label} />
+              <ItemLinkView link={check.from_otto.link} testId="check-from-otto">
+                {check.from_otto.advisory}
+              </ItemLinkView>
+            </p>
+          ) : null}
           {check.plain ? <p className="text-slate-200">{check.plain}</p> : null}
           <dl className="grid gap-2 @md:grid-cols-[9rem_minmax(0,1fr)]">
             <dt className="text-xs text-slate-500">Came from</dt>

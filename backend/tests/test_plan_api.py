@@ -207,7 +207,13 @@ def test_there_is_no_route_that_accepts_software(client):
                       "/api/assessments/{assessment_id}": "AssessmentChangeBody",
                       # Phase 5b: the New assessment box and Rerun as new assessment: a name, a purpose from a fixed list, a reference
                       "/api/projects/{project_id}/assessments": "NewAssessmentBody",
-                      "/api/assessments/{assessment_id}/rerun": "NewAssessmentBody"}
+                      "/api/assessments/{assessment_id}/rerun": "NewAssessmentBody",
+                      # Otto (phase 5c): the version of a test pack that is already in the updates folder on this computer (a
+                      # pack is never uploaded), and the Live Otto switch with its spending limit (never a key)
+                      "/api/otto/packs/install": "PackInstallBody", "/api/otto/live": "LiveOttoBody",
+                      # Otto's proposals (phase 5c): a short reason for a rejection, in words (300 characters at most); the
+                      # proposal's id and the decision are in the address, and both are held to what the app itself made
+                      "/api/plans/{plan_id}/otto/proposals/{proposal_id}/{decision}": "DecisionBody"}
     assert {k: v for k, v in with_json_body.items() if k in allowed_bodies} == allowed_bodies
     extra = set(with_json_body) - set(allowed_bodies)
     assert all(p.startswith("/api/evidence") or p.endswith("/evidence") for p in extra), extra

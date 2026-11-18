@@ -228,12 +228,32 @@ class MigrationMixin:
             busy = self.jobs.busy(("migration", plan_id)) or self.jobs.busy(("changes", plan_id))   # asked first: the screen asks again
             states = self._with_changes(db, plan, self._migration_states(db, plan))
             measured = [s["measured_at"] for s in states if s["measured_at"]]
-            return present_migration.view(
+            view = present_migration.view(
                 plan_id=plan.id, import_id=imp.id, is_demo=bool(imp.is_demo), filename=imp.filename, states=states,
                 busy=busy or self.jobs.busy(("migration", plan_id)), finished=sum(1 for s in states if s["job"] is None),
                 measured_at=max(measured) if measured else None, today=_today(),
                 download={"can_start": lab["download"]["can_start"] and not busy, "blocked_reason": lab["download"]["blocked_reason"]
                           if not lab["download"]["can_start"] else ("A measurement is running." if busy else None)})
+            return self._with_otto_plan(db, plan, view)
+
+    def _with_otto_plan(self, db, plan: PlanRow, view: dict) -> dict:
+        """Phase 5c: Otto's proposed changes to the plan, on the system each is about and as a mark on its roadmap rows.
+        They are added beside what was there: no status, recommendation, blocker or band is touched, so everything the
+        migration answer key grades reads as before. Only a plan with an advisory check has any."""
+        from app.present import otto as present_otto
+        by_system: dict[str, list[dict]] = {}
+        if self._otto_checks(db, plan.id):                                                    # type: ignore[attr-defined]
+            for p in self._proposals(db, plan, ("plan",)):                                    # type: ignore[attr-defined]
+                if not p["current"] and p["state"] == "proposed":
+                    continue        # open, and Otto no longer proposes it (its check has passed since): nothing to decide here
+                shown = present_otto.proposal_view(p, self.otto_ledger_about(plan.id, p.get("objective_id")))   # type: ignore[attr-defined]
+                by_system.setdefault(str(p["about"].get("system")), []).append(shown)
+        for system in view["systems"]:
+            system["otto"] = present_otto.plan_block(by_system.get(system["key"], []))
+        for band in view["roadmap"]["bands"]:
+            for row in band["rows"]:
+                row["otto"] = present_otto.roadmap_mark(by_system.get(row["system_key"], []))
+        return view
 
     def wait_until_measured(self, plan_id: int, timeout: float = 300.0) -> None:
         if not self.jobs.wait_idle(timeout, group=("migration", plan_id)):

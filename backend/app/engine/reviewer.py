@@ -31,7 +31,8 @@ PROOF_REVIEW_SCHEMA = "isogeny.proof-review/1"
 # What "passed on the changed code" means for each kind of test that runs it. A test whose code here is
 # "measured" only reports numbers: it has no pass or fail, so in a proof it only has to run, and by itself it
 # shows nothing about a change.
-PROOF_PASS_CODES = {"official_vectors": "passed", "bad_signatures": "passed", "speed_size": "no_slowdown", "mldsa_compare": "measured"}
+PROOF_PASS_CODES = {"official_vectors": "passed", "bad_signatures": "passed", "speed_size": "no_slowdown", "mldsa_compare": "measured",
+                    "advisory_cases": "passed"}   # phase 5c: an advisory check runs the changed code and must pass on it
 REPORT_ONLY_CODE = "measured"
 SPEED_KIND = "speed_size"  # the test that makes the speed comparison a proof must hold
 
@@ -59,6 +60,7 @@ COULDNT_RUN_REASONS = {
     # phase 4c: real libraries
     "needs_isolated_mode": "needs isolated mode",
     "real_image_missing": "this library's container image is not prepared",
+    "otto_not_installed": "Otto is not installed on this computer",   # phase 5c: the run could not be recorded
 }
 # Phase 4a. The key-exchange groups by family, and the signature algorithms by family (spelled as in the app).
 HYBRID_GROUPS = ("X25519MLKEM768", "SecP256r1MLKEM768", "SecP384r1MLKEM1024")
@@ -492,12 +494,18 @@ class RuleReviewer:
                 wrong.append({"id": c.id, "comment": c.comment, "flags": list(c.flags), "expected": c.expected, "got": got})
         return {"total": right + len(wrong) + len(missing), "right": right, "wrong": wrong, "missing": missing}
 
-    def _signing(self, spec, raw, review, subject_set: str, extra_reference: str | None):
+    def _signing(self, spec, raw, review, subject_set: str, extra_reference: str | None, only: list | None = None):
         try:
             cases = vectors.load_bad_signatures().cases if subject_set == "bad_signatures" else vectors.load_wycheproof(subject_set).cases
             extra = vectors.load_wycheproof(extra_reference).cases if extra_reference else ()
         except vectors.VectorFileChanged:
             raise _CouldntRun("vector_file_changed") from None
+        if only is not None:
+            # Phase 5c, an advisory check: only the cases the locked test names, each of which must be in the pinned file.
+            known = {c.id for c in cases}
+            if not isinstance(only, list) or not only or len(set(only)) != len(only) or any(i not in known for i in only):
+                raise ValueError("the locked test names cases that are not in the pinned file")
+            cases = tuple(c for c in cases if c.id in set(only))
         pins = ({f["file"]: f["sha256"] for f in spec["inputs"]["files"]} if "files" in spec["inputs"]
                 else {spec["inputs"]["file"]: spec["inputs"]["sha256"]})
         if raw.get("files") != pins:
@@ -631,6 +639,12 @@ class RuleReviewer:
 
     def _bad_signatures(self, spec, raw, run, review):
         return self._signing(spec, raw, review, "bad_signatures", None)
+
+    def _advisory_cases(self, spec, raw, run, review):
+        """Phase 5c: an advisory check. The published cases its locked test names, judged exactly like the exam they
+        come from: the broken signer must get every bad case wrong, the reference library every case right, and the
+        program passes only if all its answers are right. A selection with no bad case has no working control."""
+        return self._signing(spec, raw, review, "ecdsa_p256", None, only=spec["inputs"]["cases"])
 
     # ---------------------------------------------------------------- T5
 

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import type { PlanView } from "../api";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
+import { LinkProvider } from "../components/related";
 import { TestsScreen } from "../components/TestsScreen";
 import { calls, cards, groupedPlan, mockApi, plan, pqCard, runningPlan, text } from "./fixtures";
 
@@ -44,6 +45,30 @@ describe("Tests screen", () => {
     expect(screen.getByText(plan.intro)).not.toBeNull();
     expect(screen.getByText("Demo data")).not.toBeNull();
     expect(text(screen.getByTestId("plan-subject"))).toBe("Testing: server localhost:8443 and signing component acme-sign 1.4.2 from the file");
+  });
+
+  it("an advisory check's card says which advisory it came from, with the way to it (phase 5c)", async () => {
+    const advisoryCard = {
+      ...cards[3]!,
+      id: 21,
+      kind: "advisory_cases" as const,
+      title: "Advisory check: Missing ECDSA signature range check (CVE-2022-21449)",
+      origin: "added" as const,
+      advisory: { label: "From advisory CVE-2022-21449", link: { page: "advisories", item: "CVE-2022-21449" } },
+    };
+    mockApi({ "POST /api/import/7/plan": { body: { ...plan, tests: [...cards, advisoryCard] } } });
+    render(
+      <LinkProvider assessmentId={101} planId={1}>
+        <Harness />
+      </LinkProvider>,
+    );
+    const shown = await shownCards();
+    const links = screen.getAllByTestId("card-advisory");
+    // only the advisory check carries it, in the backend's words, and it opens that advisory on Advisories
+    expect(links).toHaveLength(1);
+    expect(shown.at(-1)!.contains(links[0]!)).toBe(true);
+    expect(links[0]!.textContent).toBe("From advisory CVE-2022-21449");
+    expect(links[0]!.getAttribute("href")).toBe("#/a/101/advisories?item=CVE-2022-21449");
   });
 
   it("keeps the flat list when the plan is not grouped: no group headings and no Not tested box", async () => {

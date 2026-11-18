@@ -52,7 +52,19 @@ export function SummaryCards({ cards, label }: { cards: SummaryCard[]; label: st
   );
 }
 
-export function SearchInput({ value, onChange, label, placeholder }: { value: string; onChange: (v: string) => void; label: string; placeholder?: string }) {
+export function SearchInput({
+  value,
+  onChange,
+  label,
+  placeholder,
+  testId,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  placeholder?: string;
+  testId?: string;
+}) {
   return (
     <label className="relative block min-w-[12rem] flex-1 sm:max-w-xs">
       <span className="sr-only">{label}</span>
@@ -61,6 +73,7 @@ export function SearchInput({ value, onChange, label, placeholder }: { value: st
       </span>
       <input
         type="search"
+        data-testid={testId}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder ?? label}
@@ -75,16 +88,19 @@ export function FilterSelect<V extends string>({
   value,
   options,
   onChange,
+  testId,
 }: {
   label: string;
   value: V;
   options: { value: V; label: string }[];
   onChange: (v: V) => void;
+  testId?: string;
 }) {
   return (
     <label className="flex items-center gap-2 text-sm text-slate-400">
       <span>{label}</span>
       <select
+        data-testid={testId}
         value={value}
         onChange={(e) => onChange(e.target.value as V)}
         className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-100"
@@ -259,6 +275,8 @@ export function DetailPanel({
       // Escape in a field the person is typing in (a reason, a date) must not close the panel and lose the draft.
       const t = e.target;
       if (t instanceof HTMLElement && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+      // A small dialog on top of the panel (the Reject box of a proposal) takes Escape for itself: it closes, the panel stays.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       close.current();
     }
     document.addEventListener("keydown", onKey);

@@ -69,6 +69,12 @@ if [ "$needs_build" = 1 ]; then
   (cd "$FRONTEND" && npm run build --silent)
 fi
 
+# 4b. Otto (phase 5c, optional). Fetch Adam's Otto harness at the one commit pinned in backend/otto.lock.json and check
+#     its fingerprint. It needs read access to its repository once, and no Docker. It can never stop the start: without
+#     it the app works as before and says that Otto is not installed.
+(cd "$BACKEND" && "$VENV/bin/python" -m app.prepare --otto) \
+  || echo "   Otto could not be fetched. The app will run without it and say so."
+
 # 5. Isolated mode (optional). If Docker is running, prepare our test images once. This is the only place
 #    anything is downloaded or built for containers; the app itself never does. It can never stop the start:
 #    no Docker, no internet or a slow download just means the app runs in demo mode and says so.

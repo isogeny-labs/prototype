@@ -118,7 +118,7 @@ def extras(w, kind: str, component: dict | None, review: dict) -> None:
     label = f"{name} {version}"
     d = review.get("detail") or {}
     crashes = d.get("general_errors") or []
-    if kind in ("official_vectors", "bad_signatures") and crashes:
+    if kind in ("official_vectors", "bad_signatures", "advisory_cases") and crashes:
         kinds = sorted({c["error"] for c in crashes})
         known = any(a["id"] == "CVE-2019-14853" for a in real_libraries.advisories(name, version))
         w.also_noticed.append(

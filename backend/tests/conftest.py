@@ -35,26 +35,42 @@ SLOW_SHARED_WALKS = {
     "test_fixes_api.py": "app_client",
     "test_multi_target.py": "flow",
     "test_ledger.py": "measured",     # phase 5b: the Acme Pay demo verified and measured for Migration, built for that file
+    "test_otto_fix.py": "failed",     # phase 5c: the Acme Pay demo with a test pack installed and every test run, built for each test
+    # phase 5c, second part: the Acme Pay demo measured, a pack installed, its check run and the evidence downloaded, built
+    # once for that file. The walk is short, but some thirty tests read it (the tamper cases of the verify command), and
+    # with them the fast set had reached five minutes on a slow day.
+    "test_otto_evidence.py": "ran",
 }
 
 
 def pytest_collection_modifyitems(config, items):
     """A test that needs Docker, or reads one of the long demo walks above, is slow by itself; others are marked
-    @pytest.mark.slow by hand. The everyday run leaves the slow ones out; --full (or naming a marker with -m) runs them."""
+    @pytest.mark.slow by hand. The everyday run leaves the slow ones out; --full (or naming a marker with -m) runs them.
+    Phase 5c: a test marked needs_otto is skipped, and counted, where Adam's Otto harness is not installed (GitHub's
+    checks can't fetch a private repository without a secret). Never a silent pass."""
     for item in items:
         fixtures = getattr(item, "fixturenames", ())
         if "docker_ready" in fixtures or SLOW_SHARED_WALKS.get(item.path.name) in fixtures:
             item.add_marker(pytest.mark.slow)
-    if config.getoption("--full") or config.getoption("markexpr"):
-        return
-    slow = [item for item in items if item.get_closest_marker("slow")]
-    if slow:
-        config.hook.pytest_deselected(items=slow)
-        items[:] = [item for item in items if not item.get_closest_marker("slow")]
-        config._slow_left_out = len(slow)
+    if not (config.getoption("--full") or config.getoption("markexpr")):
+        slow = [item for item in items if item.get_closest_marker("slow")]
+        if slow:
+            config.hook.pytest_deselected(items=slow)
+            items[:] = [item for item in items if not item.get_closest_marker("slow")]
+            config._slow_left_out = len(slow)
+    from app.otto import harness
+    otto = harness.status()
+    if not otto.installed:
+        needing = [item for item in items if item.get_closest_marker("needs_otto")]
+        for item in needing:
+            item.add_marker(pytest.mark.skip(reason=f"Otto is not installed here ({otto.reason})"))
+        config._otto_skipped = (len(needing), otto.reason)
 
 
 def pytest_terminal_summary(terminalreporter, config):
+    skipped, reason = getattr(config, "_otto_skipped", (0, None))
+    if skipped:
+        terminalreporter.write_line(f"Otto is not installed here ({reason}): {skipped} tests skipped.")
     left_out = getattr(config, "_slow_left_out", 0)
     if left_out:
         terminalreporter.write_line(f"{left_out} slow tests were left out (Docker, real libraries, timing, long "
@@ -76,6 +92,33 @@ def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+def free_ports(n: int) -> tuple[int, ...]:
+    """n free ports, all different. Asked one after the other, the system can hand the same free port out twice; a
+    demo file made from such ports names one address twice and is refused (it failed one run on 18 November 2026)."""
+    found: list[int] = []
+    while len(found) < n:
+        port = free_port()
+        if port not in found:
+            found.append(port)
+    return tuple(found)
+
+
+class ReachedClaude(BaseException):
+    """A test tried to reach the Claude API. Not an ordinary error on purpose: Otto's client turns every ordinary
+    error of a request into a plain sentence, and this one must stop the test instead."""
+
+
+@pytest.fixture(autouse=True)
+def no_call_to_claude(monkeypatch):
+    """Phase 5c: no test ever reaches the Claude API. Otto's client looks its transport up at the moment of a call;
+    here it is replaced by one that fails the test. A test of the live path puts its own stand-in in its place."""
+    from app.otto import model
+
+    def refuse(body, headers, timeout):
+        raise ReachedClaude("a test tried to reach the Claude API; give the client a stand-in transport")
+    monkeypatch.setattr(model, "_http_transport", refuse)
 
 
 @pytest.fixture

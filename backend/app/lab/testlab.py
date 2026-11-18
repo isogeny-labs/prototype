@@ -89,6 +89,13 @@ class TestLabMixin:
     _fix_lines (the one line about a fix) and _column_code (the code one side of before and after ran on)."""
     __test__ = False  # not a pytest class
     _dependency_blockers: Callable[..., dict[str, dict]]   # from DependenciesMixin (phase 4d); declared for the type check only
+    _otto_cannot_run: Callable[..., str | None]            # from OttoMixin (phase 5c), as the two below; declared for the type check only
+    _otto_after_review: Callable[..., None]
+    otto_result_fix: Callable[..., dict | None]
+    otto_keeps_in_plan: Callable[..., str | None]          # from ProposalsMixin (phase 5c)
+    otto_result_blocks: Callable[..., dict[int, dict]]     # from ProposalsMixin (phase 5c): where an advisory check came from
+    _column_code: Callable[..., dict | None]               # from FixesMixin: the code one side of before and after ran on
+    _merged_versions: Callable[..., list[str]]             # from ChangesMixin (phase 5c): what merged changes of the plan give
 
     def _init_testlab(self) -> None:
         self._plan_lock = threading.Lock()
@@ -101,12 +108,13 @@ class TestLabMixin:
         return [{"ref": c.ref, "location": c.location, "location_kind": c.location_kind, "kind": c.kind,
                  "claimed_value": c.claimed_value, "detail": dict(c.detail or {})} for c in imp.claims]
 
-    def _lock_spec(self, db, spec: dict) -> str:
-        """Write the test down and lock it. The same test proposed again is the same row (same fingerprint)."""
+    def _lock_spec(self, db, spec: dict, proposed_by: str | None = None) -> str:
+        """Write the test down and lock it. The same test proposed again is the same row (same fingerprint).
+        `proposed_by` names who proposed it when that is not the rule engine (phase 5c: a test from a test pack)."""
         text = canonical_bytes(spec).decode("utf-8")
         key = hashlib.sha256(text.encode("utf-8")).hexdigest()
         if db.get(TestSpecRow, key) is None:
-            db.add(TestSpecRow(hash=key, kind=spec["kind"], canonical=text, proposed_by=self.engine.engine_id))
+            db.add(TestSpecRow(hash=key, kind=spec["kind"], canonical=text, proposed_by=proposed_by or self.engine.engine_id))
             db.flush()
         return key
 
@@ -357,10 +365,20 @@ class TestLabMixin:
                 kind = row.kind if row else spec.get("kind")
                 job = self.jobs.get((item.id, "first"))
                 reruns = (self.jobs.get((item.id, "retest")), self.jobs.get((item.id, "proof")))
-                card = {"id": item.id, "kind": kind, "title": present.TITLES.get(kind, str(kind)), "origin": item.origin,
+                card = {"id": item.id, "kind": kind, "title": research.title_of(kind, spec), "origin": item.origin,
                         "tag": research.MLDSA_LABEL if kind == "mldsa_compare" else None,
                         "description": (spec.get("card") or {}).get("description", ""), "why": (spec.get("card") or {}).get("why", ""),
                         "group": key_of.get(item.id)}
+                # Phase 5c: an advisory check says which advisory it came from, with the way to it (as its locked test names
+                # it). Every other card is exactly as it was.
+                came_from = ((spec.get("inputs") or {}).get("advisory") or {}).get("id") if kind == research.ADVISORY_KIND else None
+                if came_from:
+                    card["advisory"] = {"label": f"From advisory {came_from}", "link": {"page": "advisories", "item": str(came_from)}}
+                # ... and since Otto's checks are proposals a person accepted: the mark "From Otto", and its remove button
+                # is off (an accepted check is undone on Advisories, until it has run).
+                kept = self.otto_keeps_in_plan(db, item.id) if came_from else None
+                if kept:
+                    card.update(from_otto="From Otto", remove_blocked=kept)
                 live = job is not None and job.status != "done"
                 if live:
                     state = present.status_view(job.status, job.progress_text, job.progress_percent, self.jobs.max_parallel)
@@ -373,7 +391,7 @@ class TestLabMixin:
                         b = {"code": result["code"], "label": result["label"], "tone": result["tone"]}
                         card.update(status="done", status_text=b["label"], progress=None, result=b)
                 card["can_run"] = not running
-                card["can_remove"] = not live and not any(j is not None and j.status != "done" for j in reruns)
+                card["can_remove"] = not kept and not live and not any(j is not None and j.status != "done" for j in reruns)
                 tests.append(card)
             has_results = bool(db.scalar(select(func.count(ReviewRow.id)).join(TestRunRow, TestRunRow.id == ReviewRow.run_id)
                                          .where(TestRunRow.plan_id == plan_id, TestRunRow.phase.not_in(HIDDEN_ORIGINS))))
@@ -519,6 +537,9 @@ class TestLabMixin:
                 raise NotFound("That test is not in this plan.")
             if any(j is not None and j.status != "done" for j in (self.jobs.get((item_id, phase)) for phase in ("first", "retest", "proof"))):
                 raise Conflict("This test is waiting or running. Remove it when it has finished.")
+            kept = self.otto_keeps_in_plan(db, item_id)   # phase 5c: a check from one of Otto's proposals is undone on Advisories
+            if kept:
+                raise Conflict(kept)
             item.removed = True
             db.commit()
         return self.plan_view(plan_id)
@@ -643,12 +664,16 @@ class TestLabMixin:
             spec_row = db.get(TestSpecRow, a["spec_hash"])
             spec, spec_ok = read_spec(spec_row)
             proposed_by = spec_row.proposed_by if spec_row else "unknown"
+            # Phase 5c: an advisory check that a person added from a test pack runs only when its run can be recorded.
+            no_otto = self._otto_cannot_run(db, a["item_id"])
         component = (a["component_name"], a["component_version"]) if a["component_name"] else None
         code = self._code_for_run(a)  # which code this run is about to run on (None when no component of ours runs)
         if not spec_ok:
             raw = problem("spec_changed", "The stored test no longer matches the fingerprint it was locked with, so it was not run.")
         elif a.get("copy_problem"):   # phase 4b: the test copy for a try could not be started
             raw = problem("copy_unavailable", a["copy_problem"])
+        elif no_otto is not None:
+            raw = problem("otto_not_installed", f"{no_otto} The run of an advisory check must be recorded in Otto's ledger, so it was not run.")
         else:
             # Phase 4b: a run "on a test copy" connects to the copy this app started for it, never to the real address.
             check_for = ((lambda address: self._copy_check(a["copy"], address)) if a.get("copy")
@@ -704,6 +729,11 @@ class TestLabMixin:
                              reason_code=review["verdict"]["reason_code"], reason=review["verdict"]["reason"],
                              detail=review["detail"]))
             db.commit()
+        try:
+            # Phase 5c: a reviewed run of an advisory check is bound to its locked test in the assessment's Otto ledger.
+            self._otto_after_review(run_id)
+        except Exception as exc:  # the run and its review are already stored: a ledger problem never loses them
+            job.log(f"the Otto ledger entry for this run could not be written ({exc.__class__.__name__})")
         job.run_id = run_id
         if a["phase"] == "proof":
             self._proof_run_finished(a["retest_id"])  # the proof itself is reviewed when its last run has been
@@ -730,8 +760,11 @@ class TestLabMixin:
         record = run_record(run)
         stored = review_dict(review_row)
         code = self._run_code(db, run.id)
+        # Phase 5c: for an advisory check, the fix the installed test packs carry (words only; it changes no result).
+        advisory_fix = (self.otto_result_fix(db, spec, run.component_name, run.component_version, run.plan_id)
+                        if spec_row is not None and spec_row.kind == research.ADVISORY_KIND else None)
         key = (sha256_hex(record), sha256_hex({k: v for k, v in stored.items() if k != "created_at"}), spec_ok, spec_row.hash if spec_row else None,
-               sha256_hex(code))
+               sha256_hex(code), sha256_hex(advisory_fix))
         cached = self._result_cache.get(run.id)
         if cached is not None and cached[0] == key:
             base = cached[1]
@@ -753,7 +786,7 @@ class TestLabMixin:
             base = present.lab_result(spec=spec, spec_hash=run.spec_hash, locked_at=iso(spec_row.locked_at) if spec_row else "",
                                       run_id=run.id, run=record, review=stored, trusted=bool(trusted),
                                       mark=None, research=None, fix_version=self._fix_version(run.component_name, run.component_version),
-                                      code=code)
+                                      code=code, advisory_fix=advisory_fix)
             self._result_cache[run.id] = (key, base, bool(trusted))
         result = dict(base)
         if result.get("also_noticed") and (spec_row.kind if spec_row else None) == "certificate":
@@ -838,7 +871,7 @@ class TestLabMixin:
                 first_job = self.jobs.get((item.id, "first"))
                 first_live = first_job is not None and first_job.status != "done"
                 result = None if first_live else self._latest_result(db, item, "first", None, plan)
-                row = {"item_id": item.id, "kind": kind, "title": present.TITLES.get(kind, str(kind)), "control_line": "",
+                row = {"item_id": item.id, "kind": kind, "title": research.title_of(kind, spec), "control_line": "",
                        "result": result, "result_status": None if result else self._row_status(item.id, "first"),
                        "after": None, "after_status": None, "group": key_of.get(item.id)}
                 if result is None:
@@ -862,12 +895,18 @@ class TestLabMixin:
             # The lines are worked out AFTER the rows, so they cover every result a row shows, also one whose test
             # ended while the rows were being read.
             lines = self._fix_lines(db, plan)
+            # Phase 5c: a result of an advisory check also says where the check came from (the advisory, the trial on public
+            # copies, the decisions on Otto's proposal with who and when, the Otto ledger entries). Records only, laid on
+            # here for the same reason as the fix line: a decision can be recorded after the run.
+            came_from_otto = self.otto_result_blocks(db, plan)
             for row in rows:
                 for shown in (row["result"], row["after"]):
                     if shown is not None:
                         shown["fix_line"] = lines.get(shown["run_id"])
                         if shown["fix_line"] is not None:
                             shown["suggested_fix"] = None
+                        if row["item_id"] in came_from_otto:
+                            shown["otto"] = came_from_otto[row["item_id"]]
             address, component = self._server_address(specs), self._component_words(plan)
             n_word = present.number_word(len(items))
             choices = self._retest_choices(plan, claims)
@@ -877,14 +916,17 @@ class TestLabMixin:
                            else "A retest needs a program that has another version in this app, and this file names none.")
             else:
                 blocked = BUSY[running] if busy else self._compare_blocked(plan_id, items, missing)
-            menu = self._retest_menu(plan, choices)
+            merged = self._merged_versions(db, plan)
+            menu = self._retest_menu(plan, choices, merged)
+            # (phase 5c: a version that only a merged change of this plan leads to is listed too, and counted)
+            n_versions = len(versions) + len([v for v in merged if v not in versions])
             only_demo = all(components.lookup(p["component"], p["version"]) for p in choices)
             tests_word = f"the same {n_word} locked {'test' if len(items) == 1 else 'tests'}"
             retest_view = {"can_start": blocked is None, "blocked_reason": blocked, "running": bool(retest_live),
                            "progress_text": (f"Retest running: {after_done} of {len(items)} tests finished." if retest_live else None),
                            "menu_title": "Choose the version to retest", "versions": menu,
                            "menu_note": (f"Choosing a version reruns {tests_word} on it and shows before and after. "
-                                         f"Only our {present.number_word(len(versions))} demo versions can be chosen here." if only_demo else
+                                         f"Only our {present.number_word(n_versions)} demo versions can be chosen here." if only_demo else
                                          f"Choosing a version reruns {tests_word} with that library moved to it, and shows before and after. "
                                          "Every other program is tested again as it is. Only the versions listed here can be chosen.")}
             any_result = len(items) > missing or self._has_migration(db, plan_id)   # a migration measurement counts too
@@ -917,9 +959,21 @@ class TestLabMixin:
             else:
                 swapped = self._retest_component(retest.id) or plan.component_name
                 before, after_name = f"{swapped} {retest.baseline_version}", f"{swapped} {retest.version}"
-                subline = [{"t": "text", "v": f"Before and after: the same {n_word} locked {'test' if len(items) == 1 else 'tests'}, run on "},
+                # A test added to the plan after the retest (or one the retest never reached) has no result after: then the
+                # line counts the ones that do, and says how the others get one.
+                rest = len(items) - after_done
+                partly = not retest_live and 0 < after_done < len(items)
+                none_after = not retest_live and after_done == 0 and bool(items)      # a retest that was stopped before any result
+                tests_words = f"{n_word} locked {'test' if len(items) == 1 else 'tests'}"
+                which = (f"{present.number_word(after_done)} of the {n_word} locked tests {'was' if after_done == 1 else 'were'}" if partly
+                         else f"the same {tests_words},")
+                subline = [{"t": "text", "v": f"Before and after: {which} run on "},
                            {"t": "mono", "v": before}, {"t": "text", "v": " and then on "}, {"t": "mono", "v": after_name}]
-                if grouped:
+                if none_after:
+                    subline = [{"t": "text", "v": f"Before and after: the {tests_words} ran on "}, {"t": "mono", "v": before},
+                               {"t": "text", "v": ". The retest on "}, {"t": "mono", "v": after_name},
+                               {"t": "text", "v": f" has no result yet: retest again to run {'it' if len(items) == 1 else 'them'} on that version"}]
+                if grouped and not none_after:
                     subline.append({"t": "text", "v": ". Every other server and program was tested again as it is"})
                 if retest_live:
                     subline.append({"t": "text", "v": ". Retest running."})
@@ -927,6 +981,10 @@ class TestLabMixin:
                     subline += [{"t": "text", "v": ". Retest finished "}, {"t": "time", "v": max(after_finished)}, {"t": "text", "v": "."}]
                 else:
                     subline.append({"t": "text", "v": "."})
+                if partly:
+                    subline += [{"t": "text", "v": (f" The other {'one has' if rest == 1 else present.number_word(rest) + ' have'} no result after "
+                                                    "yet: retest again to run every test in the plan on ")},
+                                {"t": "mono", "v": after_name}, {"t": "text", "v": "."}]
                 ran_on = self._column_code(db, rows, "result"), self._column_code(db, rows, "after")
                 view, code_line = "before_after", present_fixes.code_line(*ran_on)
                 columns = {"test": "Test", **present_fixes.code_columns(f"Before: {before}", f"After: {after_name}", *ran_on)}
@@ -992,13 +1050,19 @@ class TestLabMixin:
         return out
 
     @staticmethod
-    def _retest_menu(plan: PlanRow, choices: list[dict]) -> list[dict]:
+    def _retest_menu(plan: PlanRow, choices: list[dict], merged: list[str] | None = None) -> list[dict]:
+        """`merged`: the registered versions that a merged change of this plan gives and that are not in the general
+        list (phase 5c: the program Otto's change gives). They are offered for the plan's own program only."""
         menu = []
         for p in choices:
             name, current, versions = p["component"], p["version"], components.versions_of(p["component"])
             demo = components.lookup(name, current) is not None
+            if demo and name == plan.component_name:
+                versions = versions + [v for v in (merged or []) if v not in versions]
             for v in sorted(versions, key=lambda v: (v == current, -versions.index(v))):
-                if demo:
+                if demo and v in (merged or []) and components.version_note(name, v):
+                    note = "The version your merged change gives. " + str(components.version_note(name, v))
+                elif demo:
                     note = ("The demo version these results are for." if v == current
                             else "The corrected demo version." if versions.index(v) > versions.index(current) else "An earlier demo version.")
                 else:
@@ -1023,7 +1087,9 @@ class TestLabMixin:
                 name = component if component is not None else (plan.component_name if plan.component_name in choices else next(iter(choices)))
                 if name not in choices:
                     raise BadRequest("That program can't be chosen for a retest of this file.", field="component")
-                if version not in components.versions_of(name):
+                # (a registered version that only a change leads to can be chosen once that change is merged in this plan)
+                allowed = components.versions_of(name) + (self._merged_versions(db, plan) if name == plan.component_name else [])
+                if version not in allowed:
                     raise BadRequest("Only our demo versions can be chosen for a retest." if components.lookup(name, choices[name]["version"])
                                      else "Only the versions listed for this library can be chosen for a retest.", field="version")
                 baseline = choices[name]["version"]

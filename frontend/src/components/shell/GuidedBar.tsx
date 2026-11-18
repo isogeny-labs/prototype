@@ -14,10 +14,12 @@ const STEP_WORDS: Record<string, string> = {
   "migration/systems": "Migration",
 };
 
-/** Guided demo: Back and Next through the pages in today's order. Next is off, with the reason, until that page opens. */
+/** Guided demo: Back and Next through the pages in today's order. Next is off, with the reason, until that page opens.
+ * A page that is not one of its steps (the Overview; Advisories, phase 5c) has no bar. */
 export function GuidedBar({ page, access, onGo }: { page: Page; access: PageAccess; onGo: (p: Page) => void }) {
   const base: Page = page.startsWith("migration/") ? "migration/systems" : page;
   const i = GUIDED_ORDER.indexOf(base);
+  if (i < 0) return null;
   const prev = i > 0 ? GUIDED_ORDER[i - 1] : null;
   const next = i >= 0 && i < GUIDED_ORDER.length - 1 ? GUIDED_ORDER[i + 1] : null;
   const btn =

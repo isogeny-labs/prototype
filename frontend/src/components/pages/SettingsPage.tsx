@@ -3,9 +3,11 @@ import { api, errorMessage, type DemoProjectsLoaded, type Session, type Workspac
 import type { Theme } from "../../prefs";
 import { PageHeader } from "../layout";
 import { ErrorBox, SecondaryButton } from "../ui";
+import { OttoSettings } from "./OttoSettings";
 import { Section } from "./parts";
 
-/** Settings: the organization's name, the look, Load demo projects, and how software runs on this computer. */
+/** Settings: the organization's name, the look, Load demo projects, Otto's test packs and Live Otto (phase 5c), and how
+ * software runs on this computer. */
 export function SettingsPage({
   session,
   workspace,
@@ -15,6 +17,7 @@ export function SettingsPage({
   onLoadDemo,
   loadingDemo,
   demoResult,
+  section = null,
 }: {
   session: Session;
   workspace: Workspace | null;
@@ -24,6 +27,8 @@ export function SettingsPage({
   onLoadDemo: () => void;
   loadingDemo: boolean;
   demoResult: DemoProjectsLoaded | null;
+  /** Phase 5c: the section the address names (#/settings?section=test-packs), brought into view when the page opens. */
+  section?: string | null;
 }) {
   const [name, setName] = useState(workspace?.organization ?? "");
   const [saved, setSaved] = useState(false);
@@ -120,6 +125,8 @@ export function SettingsPage({
           ) : null}
         </div>
       </Section>
+
+      <OttoSettings section={section} />
 
       <Section title="How software runs here">
         <p className="rounded-xl border border-slate-800 bg-slate-900/30 p-4 text-sm text-slate-300">{session.mode_line}</p>

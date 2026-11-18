@@ -17,9 +17,10 @@ from app.fixes import changes
 from app.run import components
 from app.present import changes as present_changes
 from app.present import fixes as present_fixes
+from app.present import otto as present_otto
 from app.ledger.fixes import group_fixes
 from app.engine import research
-from app.db import ImportRow, PlanRow, ReviewRow, TestRunRow, TestSpecRow
+from app.db import ImportRow, PlanItemRow, PlanRow, ReviewRow, TestRunRow, TestSpecRow
 from app.fixes.gitrepo import GitRepoError
 from app.present.results import TITLES
 from app.lab.testlab import read_spec
@@ -70,13 +71,37 @@ class FixesMixin:
                 deps = self._dependency_state(db, plan)
                 listed = {(str(r.get("library") or r.get("name") or "").casefold(), str(r.get("version") or ""))
                           for r in (deps or {}).get("rows") or []}
-            return group_fixes(view, pairs, systems, listed)
+            view = group_fixes(view, pairs, systems, listed)
+            # Phase 5c: Otto's proposed plan changes are decided on Migration and are no entry here. Where this page's
+            # Migration group is empty, it says so with them, so it never reads as if nothing were proposed.
+            group = next((g for g in view["groups"] if g["key"] == "migration"), None)
+            # (asked only for a plan that has a check of Otto's: this view is read again while something runs)
+            if group is not None and group.get("empty_text") and self._otto_checks(db, plan.id):      # type: ignore[attr-defined]
+                plans = [p for p in self._proposals(db, plan, ("plan",), fixes=[state for state, _ in pairs])      # type: ignore[attr-defined]
+                         if p["current"] or p["state"] != "proposed"]
+                line = present_otto.fixes_plan_line(plans)
+                if line:
+                    group["empty_text"] = f"{group['empty_text']} {line}"
+            return view
+
+    @staticmethod
+    def _answer_title(db, answer: dict) -> str:
+        """The title of a test a fix answers. An advisory check carries its own (it names its advisory)."""
+        kind = answer["kind"]
+        if kind == research.ADVISORY_KIND:
+            item = db.get(PlanItemRow, answer["item_id"])
+            spec, _ = read_spec(db.get(TestSpecRow, item.spec_hash)) if item is not None else ({}, False)
+            return research.title_of(kind, spec)
+        return TITLES.get(kind, str(kind))
 
     def _fix_details(self, db, plan: PlanRow) -> list[tuple[dict, dict]]:
         """Every fix of the plan as (where it stands, what the Fixes step shows for it). The download uses the
         same pairs, so the words in it are the words on the screen."""
         states = self._fixes(db, plan)
         is_demo = bool(db.get(ImportRow, plan.import_id).is_demo)
+        # Phase 5c: Otto's fixes are proposals. Each one's state, decisions and buttons, worded once for every screen.
+        proposals = ({p["id"]: p for p in self._proposals(db, plan, ("fix",), fixes=states)}       # type: ignore[attr-defined]
+                     if any(fix.get("proposal") for fix in states) else {})
         answered = {fix["id"]: self._answered(db, fix) for fix in states
                     if fix["kind"] == "text" and fix["source_kind"] not in ("migration", "applied_change", "dependency")}
         server_findings = sum(1 for _, address in answered.values() if address is not None)
@@ -85,7 +110,7 @@ class FixesMixin:
         tls_changes = self._tls_changes(db, plan)
         out = []
         for fix in states:
-            titles = list(dict.fromkeys(TITLES.get(a["kind"], str(a["kind"])) for a in fix["answers"]))
+            titles = list(dict.fromkeys(self._answer_title(db, a) for a in fix["answers"]))
             if fix["source_kind"] == "migration":
                 shown = self._migration_fix_view(db, plan, fix, is_demo)   # phase 4a: the migration plan's how-to and blockers
             elif fix["source_kind"] == "dependency":
@@ -109,7 +134,12 @@ class FixesMixin:
                     shown = present_fixes.with_change_box(shown, box)
             shown.setdefault("change_box", None)
             shown.setdefault("advisories", None)   # phase 4c: only a text fix for a real library carries any
+            shown.setdefault("proof_rows", None)   # phase 5c: only a library's fix from Otto has the two rows
+            proposal = proposals.get((fix.get("proposal") or {}).get("id"))
+            shown["proposal"] = (present_otto.proposal_view(proposal, self.otto_ledger_about(plan.id, proposal.get("objective_id")))   # type: ignore[attr-defined]
+                                 if proposal is not None else None)
             out.append((fix, shown))
+        present_fixes.link_same_updates(out)
         return out
 
     @staticmethod

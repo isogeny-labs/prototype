@@ -2,11 +2,14 @@ import { useCallback, useEffect, useState } from "react";
 
 /** Phase 5a: where the app is, kept in the address bar's #part, so refresh and back/forward work. No router package.
  * Phase 5b: a project has its own overview (#/p/<id>), Tests is now Checks, and an address can name one item on a page
- * (#/a/<id>/<page>?item=<id>&group=<group>), so a link opens exactly that item and Back returns. */
+ * (#/a/<id>/<page>?item=<id>&group=<group>), so a link opens exactly that item and Back returns.
+ * Phase 5c: Advisories is a page of every assessment (between Inventory and Checks), and Settings can open on one of
+ * its sections (#/settings?section=test-packs). */
 export type Page =
   | "overview"
   | "inventory/import"
   | "inventory/verify"
+  | "advisories"
   | "checks"
   | "evidence"
   | "fixes"
@@ -18,6 +21,7 @@ export const PAGES: Page[] = [
   "overview",
   "inventory/import",
   "inventory/verify",
+  "advisories",
   "checks",
   "evidence",
   "fixes",
@@ -37,7 +41,10 @@ export type AssessmentRoute = {
   section?: string | null;
 };
 
-export type Route = { kind: "projects" } | { kind: "settings" } | { kind: "project"; id: number } | AssessmentRoute;
+/** Settings may name one of its sections to open on (phase 5c: "test-packs"). */
+export type SettingsRoute = { kind: "settings"; section?: string | null };
+
+export type Route = { kind: "projects" } | SettingsRoute | { kind: "project"; id: number } | AssessmentRoute;
 
 function pageOf(text: string | undefined): Page {
   if (text === "tests") return "checks"; // the phase 5a address of Tests still opens it
@@ -47,7 +54,10 @@ function pageOf(text: string | undefined): Page {
 export function parseRoute(hash: string): Route {
   const raw = hash.replace(/^#\/?/, "");
   const [path = "", query = ""] = raw.split("?", 2);
-  if (path === "settings") return { kind: "settings" };
+  if (path === "settings") {
+    const section = new URLSearchParams(query).get("section");
+    return section ? { kind: "settings", section } : { kind: "settings" };
+  }
   const p = /^p\/(\d+)$/.exec(path);
   if (p) return { kind: "project", id: Number(p[1]) };
   const m = /^a\/(\d+)(?:\/(.+))?$/.exec(path);
@@ -66,7 +76,7 @@ export function parseRoute(hash: string): Route {
 }
 
 export function routeHref(route: Route): string {
-  if (route.kind === "settings") return "#/settings";
+  if (route.kind === "settings") return route.section ? `#/settings?${new URLSearchParams({ section: route.section }).toString()}` : "#/settings";
   if (route.kind === "project") return `#/p/${route.id}`;
   if (route.kind === "assessment") {
     const params = new URLSearchParams();
@@ -83,11 +93,13 @@ export function pageHref(id: number, page: Page, item?: string | null, group?: s
   return routeHref({ kind: "assessment", id, page, item, group });
 }
 
-/** A link the backend sent (page and item): where it goes, in this assessment or the one it names. */
+/** A link the backend sent (page and item): where it goes, in this assessment or the one it names. Phase 5c: a link
+ * whose page is "settings" opens Settings (on the section it names), which belongs to no assessment. */
 export function linkRoute(
   link: { page: string; item?: string | null; group?: string | null; section?: string | null; assessment_id?: number | null },
   assessmentId: number,
-): AssessmentRoute {
+): AssessmentRoute | SettingsRoute {
+  if (link.page === "settings") return link.section ? { kind: "settings", section: link.section } : { kind: "settings" };
   return {
     kind: "assessment",
     id: link.assessment_id ?? assessmentId,

@@ -140,6 +140,19 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
     onPlanChanged?.();
   }
 
+  // Phase 5c: after a decision on one of Otto's proposals (accept, reject, undo, reconsider): this screen's own view
+  // again, so the fix's buttons and words are the backend's for the new state. The decision itself ran nothing.
+  async function reloadAfterDecision() {
+    // A read that was already on its way while a proof runs was asked before the decision: its answer is dropped, so
+    // it can't land on top of the newer view.
+    setPollTick((n) => n + 1);
+    try {
+      setView(await api.getFixes(planId));
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }
+
   // The same retest as "Retest new version". Its progress and the before and after show in Evidence Lab.
   async function retest(fixId: string) {
     setBusy(true);
@@ -231,7 +244,14 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
                 {fix ? (
                   <div className="flex min-w-0 flex-col gap-3">
                     {/* The key gives each fix its own ticks and its own confirm box. */}
-                    <FixSummary key={fix.id} fix={fix} busy={busy} onRequest={(asked) => request(fix.id, asked)} />
+                    <FixSummary
+                      key={fix.id}
+                      fix={fix}
+                      busy={busy}
+                      onRequest={(asked) => request(fix.id, asked)}
+                      planId={current.plan_id}
+                      onProposalDecided={() => void reloadAfterDecision()}
+                    />
                     {fix.sections_note ? (
                       <p data-testid="fix-sections-note" className="px-1 text-xs text-slate-400">
                         {fix.sections_note}

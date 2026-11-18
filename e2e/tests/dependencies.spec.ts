@@ -13,7 +13,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, enterApp, importVerifyAndOpenTests, PYTHON, REPO, screenshotFolder, startCopy, stepLink, stopCopy, openFreshAssessment, type Copy } from "./shared";
+import { BACKEND, enterApp, exactText, importVerifyAndOpenTests, PYTHON, REPO, screenshotFolder, startCopy, stepLink, stopCopy, openFreshAssessment, type Copy } from "./shared";
 
 const SHOTS = screenshotFolder("phase4d");
 fs.mkdirSync(SHOTS, { recursive: true });
@@ -39,7 +39,7 @@ async function addList(page: Page, file: string): Promise<number> {
 }
 
 function row(page: Page, label: string) {
-  return page.getByTestId("dependency-row").filter({ has: page.locator("p.font-mono", { hasText: new RegExp(`^${label.replace(/\./g, "\\.")}$`) }) });
+  return page.getByTestId("dependency-row").filter({ has: page.locator("p.font-mono", { hasText: exactText(label) }) });
 }
 
 /** Phase 5a: a library's row opens its details (answers, reasons, first version, blocks, sources, measurements) in the

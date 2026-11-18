@@ -23,6 +23,7 @@ import {
   useDismiss,
 } from "./ui";
 import { PageHeader, usePanelOpen } from "./layout";
+import { FromOttoTag } from "./otto/ProposalCard";
 import { ItemLinkView } from "./related";
 
 const POLL_MS = 1000;
@@ -145,7 +146,8 @@ function Card({
     <button
       type="button"
       aria-label={`Remove ${card.title}`}
-      title={closed ? CLOSED_SENTENCE : "Remove from the plan"}
+      // Phase 5c: a check from one of Otto's proposals is not removed here (the view sends why, and can_remove is false).
+      title={closed ? CLOSED_SENTENCE : (card.remove_blocked ?? "Remove from the plan")}
       disabled={closed || locked || !card.can_remove}
       onClick={onRemove}
       className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-slate-700 text-base text-slate-300 hover:border-slate-500 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
@@ -157,6 +159,30 @@ function Card({
     dropTarget ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]" : ""
   } ${dragging ? "opacity-50" : ""}`;
 
+  // Phase 5c: an advisory check says which advisory it came from, with the way to it; one that a person accepted from
+  // Otto's proposals carries the tag "From Otto" beside it, and the reason why it has no remove here (it is undone on
+  // Advisories, until it has run). The words are the backend's.
+  const advisory =
+    card.advisory || card.from_otto || card.remove_blocked ? (
+      <>
+        {card.advisory || card.from_otto ? (
+          <p className="mt-1 flex min-w-0 flex-wrap items-center gap-2 text-xs">
+            {card.from_otto ? <FromOttoTag label={card.from_otto} testId="card-from-otto" /> : null}
+            {card.advisory ? (
+              <ItemLinkView link={card.advisory.link} testId="card-advisory" className="text-sky-300 hover:underline">
+                {card.advisory.label}
+              </ItemLinkView>
+            ) : null}
+          </p>
+        ) : null}
+        {card.remove_blocked ? (
+          <p data-testid="remove-blocked" className="mt-1 break-words text-xs text-slate-500">
+            {card.remove_blocked}
+          </p>
+        ) : null}
+      </>
+    ) : null;
+
   if (compact) {
     // Phase 5b: beside an open panel, a row stacks: the handle and the name, then its status, Run and the ×.
     return (
@@ -166,6 +192,7 @@ function Card({
             {handle}
             <div className="min-w-0 flex-1">
               {title}
+              {advisory}
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <span data-testid="test-status">{status}</span>
                 <span className="ml-auto flex items-center gap-2">
@@ -187,6 +214,7 @@ function Card({
         {title}
         <p className="mt-1 text-sm text-slate-300">{card.description}</p>
         <p className="mt-1 text-[13px] text-slate-400">{card.why}</p>
+        {advisory}
       </td>
       <td data-testid="test-status" className="w-56 px-4 py-3 align-top">
         {status}

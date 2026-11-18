@@ -1,6 +1,7 @@
 import type { EvidenceExport, MigrationRoadmapBand, MigrationView } from "../../api";
 import { DownloadStatus } from "../evidenceDownload";
 import { usePanelOpen } from "../layout";
+import { FromOttoTag } from "../otto/ProposalCard";
 import { SecondaryButton, SourceTag } from "../ui";
 import { LineView } from "./parts";
 
@@ -117,6 +118,22 @@ export function Roadmap({ view, busy, exported, onDownload, onViewFix, selectedK
                       onClick={(e) => e.stopPropagation()}
                     >
                       <LineView line={row.note} onViewFix={onViewFix} />
+                    </span>
+                  ) : null}
+                  {/* Phase 5c: Otto has a proposal for this system: its tag and the view's own words, on a line of its
+                      own under the row in both forms. It is not a button: the row opens the system's panel, where the
+                      decision buttons are. */}
+                  {row.otto ? (
+                    <span
+                      data-testid="roadmap-otto"
+                      data-waiting={row.otto.waiting}
+                      data-tone={row.otto.tone}
+                      className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs ${compact ? "col-span-2" : "@2xl:col-span-4"} ${
+                        row.otto.waiting > 0 ? "font-medium text-slate-100" : "text-slate-400"
+                      }`}
+                    >
+                      <FromOttoTag label={row.otto.label} testId="roadmap-otto-label" />
+                      <span className="min-w-0 break-words">{row.otto.text}</span>
                     </span>
                   ) : null}
                 </li>

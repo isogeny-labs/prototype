@@ -3,10 +3,11 @@ import { api, errorMessage, MAX_DEPENDENCY_LIST_BYTES, type DependenciesView as 
 import { CLOSED_SENTENCE, useReadOnly } from "../../readOnly";
 import { DataTable, DetailPanel, FilterSelect, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "../layout";
 import { ViewInFixes } from "../migration/parts";
+import { FromOttoTag } from "../otto/ProposalCard";
 import { ErrorBox, NameText, SecondaryButton, SourceTag, StatusView } from "../ui";
 import { AlgoName } from "../plainName";
 import { RelatedFor } from "../related";
-import { AnswerChip, BlocksMarker, DependencyDetail } from "./DependencyRowCard";
+import { AnswerChip, BlocksMarker, DependencyDetail, OttoMarker } from "./DependencyRowCard";
 
 type RowFilter = "all" | "blocks" | "answered" | "unanswered";
 
@@ -152,6 +153,7 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
         {row.library ? ` · ${row.library}` : ""}
       </p>
       <BlocksMarker row={row} />
+      <OttoMarker row={row} />
       {row.job ? (
         <div className="mt-1.5">
           <StatusView status={row.job} />
@@ -256,6 +258,9 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
           }
           onMeasure={() => void act(() => api.measureDependencies(current.plan_id, selected.id))}
           onViewFix={onViewFix}
+          planId={current.plan_id}
+          // Phase 5c: a decision on one of Otto's proposals was recorded: this view again (it runs nothing), then the app.
+          onDecided={() => void act(() => api.getDependencies(importId))}
         />
       ) : null}
       {selected ? <RelatedFor itemKey={`library:${selected.id}`} /> : null}
@@ -345,6 +350,17 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
                   </li>
                 ))}
               </ul>
+              {/* Phase 5c: what a person accepted from Otto for a library of this system. Its own list: never among the blockers. */}
+              {(s.otto_lines ?? []).length > 0 ? (
+                <ul data-testid="system-otto-lines" className="mt-2 space-y-1 text-sm text-slate-200">
+                  {(s.otto_lines ?? []).map((line, i) => (
+                    <li key={i} data-testid="system-otto-line" className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <FromOttoTag testId="system-otto-line-label" />
+                      <span className="min-w-0 break-words">{line}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {s.without_answer_text ? <p className="mt-2 text-xs text-slate-300">{s.without_answer_text}</p> : null}
               <p className="mt-2 text-xs text-slate-400">{s.environment_line}</p>
             </div>

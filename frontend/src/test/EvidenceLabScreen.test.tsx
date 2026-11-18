@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FixLine, LabView, LibraryEvidenceRow } from "../api";
 import { checksView, retestDetail } from "./checksFixtures";
+import { advisoryCheckRow } from "./ottoFixtures";
 import { EvidenceLabScreen } from "../components/EvidenceLabScreen";
 import {
   DISCLAIMER,
@@ -717,6 +718,51 @@ describe("Evidence Lab, published advisories", () => {
     const box = within(detail.getByTestId("advisories"));
     expect(box.getByText(/OpenJDK advisory, 19 April 2022/)).not.toBeNull();
     expect(box.queryByRole("link")).toBeNull();
+  });
+});
+
+describe("Evidence Lab, an advisory check (phase 5c)", () => {
+  const title = advisoryCheckRow.title;
+  const withAdvisoryCheck: LabView = { ...lab, rows: [...lab.rows, advisoryCheckRow] };
+
+  it("lists the check like any other test: the reviewer's label, its plain sentence and its control line", async () => {
+    await open(withAdvisoryCheck);
+    expect(rows()).toHaveLength(6);
+    const row = within(rowOf(title));
+    expect(label(row.getByTestId("result-badge"))).toBe(advisoryCheckRow.result!.label);
+    expect(row.getByText(advisoryCheckRow.result!.plain)).not.toBeNull();
+    expect(row.getByText(advisoryCheckRow.control_line)).not.toBeNull();
+  });
+
+  it("shows the advisory the check is for in the advisories box: its id, the publisher's words under their tag, a safe link and what the check covers", async () => {
+    await open(withAdvisoryCheck);
+    expand(title);
+    const detail = within(within(panel()).getByTestId("result-detail"));
+    const advisories = advisoryCheckRow.result!.advisories!;
+    const box = within(detail.getByTestId("advisories"));
+    expect(box.getByText(advisories.title)).not.toBeNull();
+    expect(box.getByText(advisories.tag)).not.toBeNull();
+    const items = box.getAllByTestId("advisory-item");
+    expect(items).toHaveLength(advisories.items.length);
+    const item = advisories.items[0]!;
+    expect(within(items[0]!).getByText(item.id).className).toContain("font-mono");
+    expect(text(items[0])).toContain(item.text);
+    const link = within(items[0]!).getByRole("link", { name: item.link });
+    expect(link.getAttribute("href")).toBe(item.href);
+    expect(link.getAttribute("rel")).toContain("noreferrer");
+    expect(within(items[0]!).getByText(item.covered)).not.toBeNull();
+    // The box is information from the advisory: it carries no result chip of its own.
+    expect(detail.getByTestId("advisories").querySelector('[data-testid="result-badge"]')).toBeNull();
+    // The result beside it is the reviewer's, from the run: its locked test names the pack and the design it came from.
+    expect(text(detail.getByTestId("locked-test"))).toContain("test pack 2026.11.1 (design fingerprint 7b06a70535ac)");
+    expect(text(detail.getByTestId("control-outcome"))).toContain(advisoryCheckRow.result!.control.text);
+  });
+
+  it("offers the fix the failed check led to, with View in Fixes", async () => {
+    await open(withAdvisoryCheck);
+    expand(title);
+    fireEvent.click(within(within(panel()).getByTestId("result-detail")).getByRole("button", { name: advisoryCheckRow.result!.fix_line!.button! }));
+    expect(viewed).toEqual([advisoryCheckRow.result!.fix_line!.fix_id]);
   });
 });
 

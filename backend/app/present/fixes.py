@@ -120,6 +120,10 @@ def fix_line(fix: dict) -> dict:
     proof has passed; while the proof runs it is "prepared", and after a proof that did not pass, "not offered"."""
     def line(lead: str, rest: str, look: str, busy: bool = False) -> dict:
         return {"fix_id": fix["id"], "lead": lead, "rest": rest, "look": look, "busy": busy, "button": VIEW_IN_FIXES}
+    if fix["kind"] != "code" and (fix.get("otto_fix") or {}).get("kind") == "update":
+        # Phase 5c: a library's fix from Otto. The same two proof rows as in Fixes, word for word.
+        o = fix["otto_fix"]
+        return {**line("From Otto:", f"update {o['library']} to {o['version']}", "dashed"), "rows": [row["line"] for row in o.get("rows") or []]}
     if fix["kind"] != "code" and fix.get("real_library"):   # phase 4c: a real library; the fix is its publisher's fixed version
         return line("Text-only suggestion:", "update to the fixed version" if fix["real_library"]["fixed"] else "no fixed version is known", "dashed")
     if fix["kind"] != "code":
@@ -217,6 +221,48 @@ def _unknown_template_words(name: str, version: str | None, size: str) -> dict:
 
 
 TEMPLATE_WORDS = {"ecdsa-range-check": _range_check_words}
+
+# Phase 5c: a change Otto wrote (Claude, recorded or live) for an advisory whose check failed on the customer's own code.
+OTTO_LABEL = "Written by Otto"
+# What a passed proof of a code change means, in the proof's own two groups (the tables under it): a test of the server, or
+# of another program in the file, is rerun too and only has to come out as before, also when that is "Failed".
+# (Not "passed": the speed test reads "No slowdown beyond measured noise", and a comparison that only reports numbers only has to run.)
+PROOF_RULE = ("every locked test that runs the changed code did what the proof asks of it (each pass-or-fail test passed), and "
+              "every test that does not run it came out the same as before")
+OTTO_PENDING_LABEL = "Not written yet"     # Live Otto is on and nobody has asked Claude yet: nothing is Otto's until it is written
+OTTO_FIX_LABEL = "From Otto"
+
+
+def _otto_words(name: str, version: str | None, size: str, otto: dict) -> dict:
+    """The words for a change Otto wrote. `otto` is what was kept about it: the advisory, the change's own title and
+    summary (Claude's words, checked for plain text), and where the answer came from."""
+    advisory = f"{otto['advisory']} ({otto.get('plain_name') or 'an advisory'})"
+    if otto.get("pending"):
+        waiting = [_t("Live Otto is on. When you connect the code, Otto asks Claude to write a change for "), _m(otto["advisory"]),
+                   _t(" in "), _m(name),
+                   _t("'s code. That sends this program's source file and the cases it got wrong to Claude, through your key and within "
+                      "the spending limit. The answer is used only if it is a clean change that gives one of our bundled demo components "
+                      "byte for byte, because only those can run in this version. Otherwise it is refused and nothing is connected, "
+                      "although the request was still made on your key; where the fix template answers the failure, Fixes then offers "
+                      "it in Otto's place and says why. A change that is used is offered only after its proof: " + PROOF_RULE + ".")]
+        return {"title": f"{name}: a change for {otto['advisory']}", "available": waiting, "changes": waiting, "fixes": waiting,
+                "intro": "Otto has not written this change yet."}
+    summary = str(otto.get("summary") or "").rstrip()
+    # The registry's name for the program the change gives ("acme-sign 1.4.3-otto"). The program's own version line may
+    # read differently, so this is never worded as what the program "reports".
+    registered = f" The changed code is byte for byte one of the app's registered demo programs, {name} {version}." if version else ""
+    where = str(otto.get("how") or "")
+    return {
+        "title": f"{name}: {otto.get('title') or 'a change written by Otto'}",
+        # Claude's summary is written as if the change were in ("now rejects"): before a proof it is said as what the change would do
+        "available": [_t(f"Otto wrote a change for {advisory}. What it would change, in Otto's words: {summary} "
+                         "Nothing is changed until you accept it and connect the code: the change then goes on a branch and is proven.")],
+        "changes": [_t(f"For {advisory}. What it changes, in Otto's words: {summary}{registered} {size}.")],
+        "fixes": [_t(f"For {advisory}: {summary} The proof's tests show it: {PROOF_RULE}.{registered} {size}.")],
+        "intro": (f"Written by Otto for {advisory}. Claude wrote these lines from the advisory, the cases the program got wrong and the "
+                  f"program's source ({where}). What Claude writes is data: the app applied it to a copy of the code on a branch, and it "
+                  f"is offered only after its proof: {PROOF_RULE}."),
+    }
 
 
 # ------------------------------------------------------------------ the proof: its rows, what the rule check found
@@ -548,7 +594,7 @@ def _proof_section(fix: dict, rows: list[dict], said: dict) -> dict:
     # "every locked test in your plan" is said only while the proof covers the plan as it is now
     reran = "every locked test in your plan" if fix["proof"] is None or fix["proof"]["covers_plan"] else "every locked test that was in your plan at the time"
     steps = ("the same steps as your first results: the same test runner, then the same automatic check that decides each "
-             "result from what the run recorded. The fix template has no say in any result.")
+             f"result from what the run recorded. {'Otto' if fix.get('otto') else 'The fix template'} has no say in any result.")
     intro = f"The app applied this change on a new branch of its own copy of the code, then reran {reran}{timed}. The runs went through {steps}"
     if fix["proof"] is None:
         intro = "No test was run for this change: only our own demo components ever run, and the changed code is not one of them."
@@ -637,8 +683,14 @@ def code_fix(fix: dict, *, plan_id: int, titles: list[str], server_findings: int
     change, component = fix["change"], fix["component"]
     connected = change is not None
     matches = change["built"]["matches"] if connected else None
-    worded = TEMPLATE_WORDS.get(fix["template_id"], _unknown_template_words)
-    words = worded(component["name"], matches["version"] if matches else None, size_words(change) if connected else "")
+    otto = fix.get("otto")   # phase 5c: set when Otto wrote (or will write) this change
+    if otto:
+        words = _otto_words(component["name"], matches["version"] if matches else None, size_words(change) if connected else "", otto)
+    else:
+        worded = TEMPLATE_WORDS.get(fix["template_id"], _unknown_template_words)
+        words = worded(component["name"], matches["version"] if matches else None, size_words(change) if connected else "")
+    note = fix.get("otto_note")   # why the fix template is offered where Otto's own change could not be
+    extra = [[_t(f"Otto's own change is not offered here. {note} The fix template is offered in its place.")]] if note and not otto else []
     holds = f"{matches['name']} {matches['version']}" if matches else ""
     if connected:
         said = _proof_words(fix, rows, server_findings)
@@ -654,8 +706,10 @@ def code_fix(fix: dict, *, plan_id: int, titles: list[str], server_findings: int
         "id": fix["id"], "kind": "code", "title": words["title"], "list_source": _list_source(titles),
         "source": _source(titles, "signing component", f"{component['name']} {component['version']}"),
         "status": {"key": fix["status"], "word": STATUS_WORDS[fix["status"]], "busy": fix["status"] == "proving"},
-        "labels": [CHANGE_LABEL], "is_demo": fix["connection"]["is_demo"] if connected else True,
-        "what": {"label": "What it fixes" if proven(fix) else "What it changes", "paragraphs": [what],
+        # "Written by Otto" only for a change that exists and can be proven here; before the click nothing is written
+        "labels": [(OTTO_PENDING_LABEL if otto.get("pending") else OTTO_LABEL) if otto else CHANGE_LABEL],
+        "is_demo": fix["connection"]["is_demo"] if connected else True,
+        "what": {"label": "What it fixes" if proven(fix) else "What it changes", "paragraphs": [what] + extra,
                  "server_line": _server_line(fix, server_findings)},
         "proof": proof, "pull_request": _pull_request(fix, holds), "approvers": _approvers(fix, reviewers),
         "actions": _actions(fix, plan_tests, holds),
@@ -750,11 +804,36 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
     `result` is the worded failed result it answers; `address` is the server it is about (None for a test of the
     signing component); `tls` is the recorded outcome of a failed "Old TLS versions" test, when it is that."""
     on_server = address is not None
+    proof_rows = None      # phase 5c: a library's fix from Otto has two proof rows in place of the one Proof line
     claims = f" The file claims {join_and(tls['claimed'])} only." if tls else ""
     source = _source(titles, "server" if on_server else "signing component", address if on_server else str(result["component"]), claims)
     if tls:
         words = _tls_words(tls, result["suggested_fix"])
         approves = "Your own server team, outside this app. The app never changes your server."
+    elif fix.get("otto_fix"):
+        # Phase 5c: a failed advisory check on a library other people wrote. The fix is Otto's, from the test pack: the
+        # publisher's fixed version with its quoted source, and how the update did when it was tried on public copies.
+        o = fix["otto_fix"]
+        if o["kind"] == "update":
+            quote = o.get("quote") or {}
+            lines = [f"Otto proposes: update {o['library']} to {o['version']} or later. {o['summary']}"]
+            if quote.get("text"):
+                lines.append(f"The publisher's own line: \u2018{quote['text']}\u2019 ({quote.get('source')}, read on {quote.get('read_on')}).")
+            # Whether it is proven is said once, in the two proof rows of the summary (public copies, your system).
+            lines += [row["line"] for row in o.get("rows") or []]
+            lines.append("To prove it here: whoever owns the software updates it; then press \u201cRetest new version\u201d, which reruns "
+                         "the same locked tests on the updated version.")
+            proof_rows = o.get("rows")
+            words = {"title": f"Update {o['library']} to {o['version']}",
+                     "line": "Otto's proposed fix, with its two proof rows",
+                     "what": (f"From Otto, for advisory {o['advisory']}: update the library to the version its publisher names as fixed. "
+                              "This is other people's code: the app offers no code change and no pull request for it."),
+                     "suggestion": {"intro": lines, "warning": None, "where": None, "options": None, "exact": None}}
+        else:
+            words = {"title": f"{titles[0]}: {_lower(result['label'])}", "line": "What Otto can say about a fix",
+                     "what": f"Otto has no fix to propose for advisory {o['advisory']}. {o['reason']}",
+                     "suggestion": {"intro": [result["suggested_fix"] or o["reason"]], "warning": None, "where": None, "options": None, "exact": None}}
+        approves = "Whoever looks after this software, outside this app."
     elif fix.get("real_library"):
         # Phase 4c: a real library written by others. The fix is its publisher's fixed version; the app offers no code
         # change and no pull request for other people's code.
@@ -779,16 +858,20 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         # In a file with several servers or programs, the list names which one each suggestion is for.
         "id": fix["id"], "kind": "text", "title": words["title"],
         "list_source": _list_source(titles) + (f" on {address if on_server else result['component']}" if name_target else ""), "source": source,
-        "status": {"key": "text_only", "word": STATUS_WORDS["text_only"], "busy": False}, "labels": [], "is_demo": is_demo,
+        "status": {"key": "text_only", "word": STATUS_WORDS["text_only"], "busy": False},
+        # "From Otto" is on a fix Otto proposes; where Otto has none to propose, there is nothing of Otto's to label.
+        "labels": [OTTO_FIX_LABEL] if (fix.get("otto_fix") or {}).get("kind") == "update" else [], "is_demo": is_demo,
         "what": {"label": "What it suggests", "paragraphs": [[_t(words["what"])]], "server_line": None},
         "proof": {"state": "none", "badge": None, "muted": None,
-                  "text": "None. This suggestion is text only: the app has not applied it or tested it."},
+                  "text": ("In the two rows below: on public copies, and on your system." if proof_rows else
+                           "None. This suggestion is text only: the app has not applied it or tested it.")},
+        "proof_rows": proof_rows,
         "pull_request": None, "approvers": {"text": approves, "options": None, "rows": None, "footnote": None},
         "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None,
         "sections": [{"key": "suggestion", "title": "The suggestion", "line": words["line"], "open": True, "suggestion": words["suggestion"]}],
         "sections_note": None, "change_box": None,
         # Phase 4c: the published advisories for a real library's version, with their links (information, never a result).
-        "advisories": result.get("advisories") if fix.get("real_library") else None,
+        "advisories": result.get("advisories") if fix.get("real_library") or fix.get("otto_fix") else None,
     }
 
 
@@ -826,6 +909,29 @@ def applied_change_fix(fix: dict, box: dict, address: str, is_demo: bool) -> dic
 def server_change_line(line: dict) -> dict:
     """Evidence Lab's one line for that fix."""
     return {**line, "lead": "Server setting change:", "rest": "try it on a test copy, then apply"}
+
+
+def link_same_updates(pairs: list[tuple[dict, dict]]) -> None:
+    """Two entries can recommend one and the same update of a real library: the entry for its failed tests (phase 4c:
+    the publisher's fixed version, from the advisories the app knows) and Otto's proposal for a failed advisory check
+    (phase 5c, from a test pack). Each then says so and names the other (in place), so nobody reads them as two
+    updates. They stay two entries: they answer different tests, and only Otto's is a proposal to accept or reject."""
+    def same(a: object, b: object) -> bool:
+        return str(a or "").casefold() == str(b or "").casefold()
+    for state, shown in pairs:
+        o = state.get("otto_fix") or {}
+        if state.get("kind") != "text" or o.get("kind") != "update":
+            continue
+        for other, other_shown in pairs:
+            lib = other.get("real_library") or {}
+            if other is state or other.get("otto_fix") or not lib.get("fixed"):
+                continue
+            if not same(lib.get("name"), o.get("library")) or str(lib.get("fixed")) != str(o.get("version")):
+                continue
+            shown["what"]["paragraphs"].append([_t(f"The same update is recommended by the entry “{other_shown['title']}” in this list, "
+                                                   "for the other failed tests on this library. It is one update, not two.")])
+            other_shown["what"]["paragraphs"].append([_t(f"Otto proposes the same update for the advisory check that failed on this "
+                                                         f"library: “{shown['title']}” in this list. It is one update, not two.")])
 
 
 # ------------------------------------------------------------------ the whole step

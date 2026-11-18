@@ -178,7 +178,15 @@ def _row(row: dict, state: dict, busy: bool, isolated: bool) -> dict:
             "job": (m or {}).get("job") if running else None}
 
 
-def view(*, plan_id: int, import_id: int, is_demo: bool, state: dict | None, busy: bool, isolated: bool) -> dict:
+def _otto_row(entry: dict | None) -> dict:
+    """Phase 5c: what a library's row carries about Otto. `advisories`: one line for each published advisory that names
+    it ("Named by advisory X: measured affected / not affected / not yet checked"). `otto_proposals`: Otto's proposals
+    to change its status, each with its buttons. `otto_status`: the status a person accepted."""
+    entry = entry or {}
+    return {"advisories": entry.get("advisories") or [], "otto_proposals": entry.get("proposals") or [], "otto_status": entry.get("status")}
+
+
+def view(*, plan_id: int, import_id: int, is_demo: bool, state: dict | None, busy: bool, isolated: bool, otto: dict | None = None) -> dict:
     base = {"plan_id": plan_id, "import_id": import_id, "is_demo": is_demo, "title": "Dependencies", "disclaimer": DISCLAIMER,
             "busy": busy, "questions": [{"key": k, "title": w, "short": s} for k, w, s in QUESTIONS],
             "legend": [{"key": k, "words": w} for k, w in LABEL_WORDS.items() if k != "your_environment"],
@@ -195,6 +203,7 @@ def view(*, plan_id: int, import_id: int, is_demo: bool, state: dict | None, bus
                    ("Measuring needs isolated mode (Docker). Lookups work as they are." if not isolated else
                     "A measurement is running." if busy else "No library in this list is on the approved pinned list.")}
     systems = []
+    rows_by_id = {r["id"]: r for r in state["rows"]}
     for system in state["systems"].values():
         lines = []
         for track, blockers in system["blockers"].items():
@@ -203,8 +212,11 @@ def view(*, plan_id: int, import_id: int, is_demo: bool, state: dict | None, bus
                                       f"{LABEL_WORDS.get(b['answer_label'] or '', '').lower()}. "
                                       + (first_version_words(b["question"], b["first_version"], b["library_label"]) or ""),
                               "fix_id": b["fix_id"]})
+        # Phase 5c: what a person accepted from Otto for a library of this system (never among the blockers above)
+        otto_lines = [line for top in state["tops"] if top["tie"]["system"] == system["key"]
+                      for row_id in top["rows"] for line in (((otto or {}).get(rows_by_id[row_id]["key"]) or {}).get("status") or {}).get("lines") or []]
         systems.append({"key": system["key"], "name": system["name"], "kind_label": KIND_LABELS[system["kind"]],
-                        "tied_from": " and ".join(system["tops"]),
+                        "tied_from": " and ".join(system["tops"]), "otto_lines": otto_lines,
                         "blocker_lines": lines or [{"text": "No library in your list blocks a track of this system.", "fix_id": None}],
                         "without_answer": system["without_answer"],
                         "without_answer_text": _without_answer_words(system["without_answer"]),
@@ -222,7 +234,7 @@ def view(*, plan_id: int, import_id: int, is_demo: bool, state: dict | None, bus
         groups.append({"key": top["key"], "label": top["label"], "tie_words": words, "system": tie["system"], "tie_source": tie["source"],
                        "picker": {"label": "Part of", "options": choices, "selected": tie["system"] or ""},
                        "empty_text": None if top["rows"] else "Your file lists no libraries under it.",
-                       "rows": [_row(rows[i], state, busy, isolated) for i in top["rows"]]})
+                       "rows": [{**_row(rows[i], state, busy, isolated), **_otto_row((otto or {}).get(rows[i]["key"]))} for i in top["rows"]]})
     lst = state["list"]
     return {**base, "subline": (f"From your file {lst['filename']} ({lst['format']})"
                                 + (f", which describes {state['described']}" if state.get("described") else "") + "."),

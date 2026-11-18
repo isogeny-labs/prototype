@@ -13,6 +13,7 @@ import {
 } from "../api";
 import { CLOSED_SENTENCE, useReadOnly } from "../readOnly";
 import { DataTable, DetailPanel, PageHeader, TableWithPanel, type Column } from "./layout";
+import { FromOttoTag } from "./otto/ProposalCard";
 import { AlgoName } from "./plainName";
 import { ItemLinkView, RelatedFor } from "./related";
 import { DemoDataLabel, ErrorBox, PrimaryButton, SecondaryButton, SourceTag } from "./ui";
@@ -160,9 +161,12 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
   // The claim whose panel is open, for the file it belongs to (a new file starts with none open).
   const [opened, setOpened] = useState<{ file: number; claim: number } | null>(null);
   const linked = openItem && openItem.startsWith("claim-") ? Number(openItem.slice(6)) : null;
+  // A link to a claim opens it when the link or the file changes. Not each time the file's data is read again (an
+  // address ticked, Otto's line refreshed): a panel the person has closed stays closed.
+  const fileId = imp?.id ?? null;
   useEffect(() => {
-    if (linked !== null && imp) setOpened({ file: imp.id, claim: linked });
-  }, [linked, imp]);
+    if (linked !== null && fileId !== null) setOpened({ file: fileId, claim: linked });
+  }, [linked, fileId]);
   const openClaim = imp && opened?.file === imp.id ? (imp.claims.find((c) => c.id === opened.claim) ?? null) : null;
   const closeClaim = useCallback(() => setOpened(null), []);
 
@@ -267,6 +271,9 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
   const settings = imp?.settings ?? [];
   // Only the upload reply carries these (for example: the demo test servers this file needs were started).
   const notices = imp?.notices ?? [];
+  // Phase 5c: how many checks of the installed test packs may apply to this file, in the backend's words, with the
+  // way to Advisories. A line and a link: bringing a file in adds nothing and runs nothing.
+  const otto = imp?.otto ?? null;
 
   return (
     <section aria-label="Import" className="space-y-6">
@@ -388,6 +395,22 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
                 }
               />
             )}
+            {otto ? (
+              <div data-testid="import-otto" data-count={otto.count} className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm">
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-200">
+                  <FromOttoTag label={otto.label} testId="import-otto-label" />
+                  <span data-testid="import-otto-text" className="min-w-0 break-words">
+                    {otto.text}
+                  </span>
+                </p>
+                <p className="mt-1.5 break-words text-xs text-slate-400">
+                  <span data-testid="import-otto-note">{otto.note}</span>{" "}
+                  <ItemLinkView link={otto.link} testId="import-otto-link">
+                    {otto.link_label}
+                  </ItemLinkView>
+                </p>
+              </div>
+            ) : null}
             {settings.length > 0 ? (
               <div data-testid="import-settings" className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3">
                 <h3 className="text-sm font-semibold text-slate-100">{imp.settings_title}</h3>

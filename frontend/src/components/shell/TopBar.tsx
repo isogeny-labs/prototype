@@ -7,6 +7,7 @@ export const PAGE_TITLES: Record<string, string> = {
   overview: "Overview",
   "inventory/import": "Import",
   "inventory/verify": "Verify",
+  advisories: "Advisories",
   checks: "Checks",
   evidence: "Evidence",
   fixes: "Fixes",

@@ -7,7 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { REPO, enterApp, openFreshAssessment, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
+import { REPO, enterApp, layoutProblems, openFreshAssessment, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
 
 const SHOTS = screenshotFolder("phase5b");
 const LIST = path.join(REPO, "demo/dependencies-demo.cdx.json");
@@ -28,39 +28,6 @@ async function shots(name: string): Promise<void> {
   });
 }
 
-/** What is wrong with the page's layout right now: sideways scrolling, and words in table cells broken between
- * letters. Empty when all is well. */
-async function layoutProblems(): Promise<string[]> {
-  return page.evaluate(() => {
-    const problems: string[] = [];
-    const doc = document.documentElement;
-    if (doc.scrollWidth > doc.clientWidth + 1) problems.push(`the page scrolls sideways (${doc.scrollWidth} > ${doc.clientWidth})`);
-    for (const t of Array.from(document.querySelectorAll<HTMLElement>('[data-testid="data-table"]'))) {
-      if (t.offsetParent === null) continue;
-      if (t.scrollWidth > t.clientWidth + 1) {
-        const label = t.querySelector("table")?.getAttribute("aria-label") ?? "a table";
-        problems.push(`"${label}" scrolls sideways (${t.scrollWidth} > ${t.clientWidth})`);
-      }
-    }
-    // A run of letters and digits must sit on one line (a break is allowed only at a space or punctuation).
-    const cells = Array.from(document.querySelectorAll<HTMLElement>("main td, main th, aside[role='complementary'] h2"));
-    for (const cell of cells) {
-      const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        const text = node.textContent ?? "";
-        for (const m of text.matchAll(/[A-Za-z0-9]{2,}/g)) {
-          const range = document.createRange();
-          range.setStart(node, m.index ?? 0);
-          range.setEnd(node, (m.index ?? 0) + m[0].length);
-          const tops = new Set(Array.from(range.getClientRects()).filter((r) => r.width > 0).map((r) => Math.round(r.top)));
-          if (tops.size > 1) problems.push(`"${m[0]}" is broken between letters in "${text.trim().slice(0, 60)}"`);
-        }
-      }
-    }
-    return problems;
-  });
-}
-
 /** Measures the page with its panel closed, then opens a row's panel and measures again; takes both screenshots. */
 async function measure(name: string, open?: () => Promise<void>): Promise<void> {
   const panel = page.getByTestId("detail-panel").or(page.getByTestId("claim-panel"));
@@ -68,7 +35,7 @@ async function measure(name: string, open?: () => Promise<void>): Promise<void> 
     await panel.first().getByRole("button", { name: "Close details" }).click();
     await expect(panel).toHaveCount(0);
   }
-  expect(await layoutProblems(), `${name}, panel closed`).toEqual([]);
+  expect(await layoutProblems(page), `${name}, panel closed`).toEqual([]);
   await shots(`${name}-panel-closed`);
   if (!open) return;
   await open();
@@ -79,7 +46,7 @@ async function measure(name: string, open?: () => Promise<void>): Promise<void> 
   if ((await checkPanel.count()) > 0) await expect(checkPanel.getByTestId("earlier-runs")).toBeVisible();
   // The table (or the Roadmap's plan) beside the panel is in its compact form.
   await expect(page.locator('main [data-compact="true"]').first()).toBeVisible();
-  expect(await layoutProblems(), `${name}, panel open`).toEqual([]);
+  expect(await layoutProblems(page), `${name}, panel open`).toEqual([]);
   await shots(`${name}-panel-open`);
 }
 

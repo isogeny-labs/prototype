@@ -1,10 +1,40 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AssessmentView, OttoWaiting } from "../api";
 import App from "../App";
 import { calls, mockApi, plan, session, text } from "./fixtures";
 import { ONE_LOGIN_LINE, OVERVIEW_BLOCKS, acmeRoutes, assessmentView, closedAssessment, emptyAssessment, emptyWorkspace, openAssessment } from "./shellFixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
+
+/** The Overview's next step before the claims were verified, as the backend words it. */
+const nextStepVerify: AssessmentView["next_step"] = { page: "inventory/import", label: "Verify claims", text: "Check each claim in the file against the real system." };
+
+/** The Overview's next step while proposed checks of Otto's wait for a decision (phase 5c), as the backend words it. */
+const nextStepAdvisories: AssessmentView["next_step"] = {
+  page: "advisories",
+  label: "Open advisories",
+  text: "Otto proposes 2 advisory checks from the installed test packs. Accept or reject each one: accepting runs nothing.",
+};
+
+/** "Waiting for you" (phase 5c) as the backend sends it: Otto's proposals nobody has decided yet, by kind. */
+const WAITING: OttoWaiting = {
+  title: "Waiting for you",
+  total: 5,
+  items: [
+    { kind: "check", count: 2, text: "2 proposed checks", link: { page: "advisories", item: null }, page_label: "Advisories" },
+    { kind: "fix", count: 1, text: "1 proposed fix", link: { page: "fixes", item: null }, page_label: "Fixes" },
+    { kind: "plan", count: 1, text: "1 proposed change to the migration plan", link: { page: "migration/systems", item: null }, page_label: "Migration" },
+    { kind: "dependency", count: 1, text: "1 proposed dependency update", link: { page: "migration/dependencies", item: null }, page_label: "Dependencies" },
+  ],
+  line: "5 proposals from Otto wait for your decision.",
+  note: "Otto proposes; a person decides. Nothing is added, run or applied by itself.",
+};
+const NOTHING_WAITING: OttoWaiting = { ...WAITING, total: 0, items: [], line: "Nothing from Otto is waiting for a decision." };
+
+/** The Advisories page has its own tests. Where a test here only needs it to open, its request gets a plain refusal,
+ * which the page shows in place of its table. */
+const ADVISORIES_NOT_READ = { status: 503, body: { error: { message: "The advisories could not be read just now.", line: null, field: null } } };
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -134,6 +164,29 @@ describe("Overview next step", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/a/101/inventory/import"));
   });
 
+  it("goes to Advisories when proposed checks of Otto's wait for a decision (phase 5c), and decides nothing by itself", async () => {
+    const fetchMock = await show({
+      "GET /api/assessments/101": { body: assessmentView({ next_step: nextStepAdvisories }) },
+      "GET /api/plans/1/advisories": ADVISORIES_NOT_READ,
+    });
+    const next = screen.getByTestId("next-step");
+    expect(text(next)).toContain(nextStepAdvisories.text);
+    fireEvent.click(within(next).getByRole("button", { name: nextStepAdvisories.label }));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/advisories"));
+    // The Advisories page opened and asked for its own view. The next step only opened the page: nothing was accepted,
+    // added or run by it.
+    await waitFor(() => expect(calls(fetchMock)).toContain("GET /api/plans/1/advisories"));
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("shows the next step exactly as the backend sends it (the sample taken before the claims were verified)", async () => {
+    await show({ "GET /api/assessments/101": { body: assessmentView({ next_step: nextStepVerify }) } });
+    const next = screen.getByTestId("next-step");
+    expect(text(next)).toContain(nextStepVerify.text);
+    fireEvent.click(within(next).getByRole("button", { name: nextStepVerify.label }));
+    await waitFor(() => expect(window.location.hash).toBe(`#/a/101/${nextStepVerify.page}`));
+  });
+
   it("on a closed assessment the next step is a new assessment", async () => {
     window.history.replaceState(null, "", "#/a/100/overview");
     const fetchMock = mockApi(
@@ -152,6 +205,77 @@ describe("Overview next step", () => {
     fireEvent.click(within(box).getByRole("button", { name: "Start" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/102/overview"));
     expect(calls(fetchMock)).toContain("POST /api/projects/10/assessments");
+  });
+});
+
+describe("Overview: Waiting for you (phase 5c)", () => {
+  const waitingRoute = (waiting: OttoWaiting | null) => ({ "GET /api/assessments/101": { body: assessmentView({ waiting }) } });
+  const items = () => within(screen.getByTestId("overview-waiting")).getAllByTestId("waiting-item");
+
+  it("counts Otto's proposals nobody has decided yet, each kind a link to the page it lives on, in the backend's words", async () => {
+    const fetchMock = await show(waitingRoute(WAITING));
+    const block = screen.getByTestId("overview-waiting");
+    expect(block.getAttribute("data-total")).toBe("5");
+    expect(screen.getByRole("region", { name: "Waiting for you" })).toBe(block);
+    expect(text(within(block).getByTestId("waiting-line"))).toBe(WAITING.line);
+    expect(text(within(block).getByTestId("waiting-note"))).toBe(WAITING.note);
+    expect(items().map((li) => [li.getAttribute("data-kind"), text(li), within(li).getByRole("link").getAttribute("href")])).toEqual([
+      ["check", "2 proposed checks", "#/a/101/advisories"],
+      ["fix", "1 proposed fix", "#/a/101/fixes"],
+      ["plan", "1 proposed change to the migration plan", "#/a/101/migration/systems"],
+      ["dependency", "1 proposed dependency update", "#/a/101/migration/dependencies"],
+    ]);
+    // Looking at it sends nothing that changes anything, and it holds no button: a decision is made on its own page.
+    expect(within(block).queryAllByRole("button")).toHaveLength(0);
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("stands above the next step, which is still there and unchanged", async () => {
+    await show(waitingRoute(WAITING));
+    const block = screen.getByTestId("overview-waiting");
+    const next = screen.getByTestId("next-step");
+    expect(block.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(text(next)).toContain(openAssessment.next_step.text);
+    expect(within(next).getByRole("button", { name: openAssessment.next_step.label })).not.toBeNull();
+  });
+
+  it("a link opens the page the proposals live on and decides nothing", async () => {
+    const fetchMock = await show({ ...waitingRoute(WAITING), "GET /api/plans/1/advisories": ADVISORIES_NOT_READ });
+    fireEvent.click(within(items()[0]!).getByRole("link", { name: "2 proposed checks" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/advisories"));
+    await waitFor(() => expect(calls(fetchMock)).toContain("GET /api/plans/1/advisories"));
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("with nothing waiting it keeps its one calm line and shows no link", async () => {
+    await show(waitingRoute(NOTHING_WAITING));
+    const block = screen.getByTestId("overview-waiting");
+    expect(block.getAttribute("data-total")).toBe("0");
+    expect(text(within(block).getByTestId("waiting-line"))).toBe("Nothing from Otto is waiting for a decision.");
+    expect(within(block).queryAllByTestId("waiting-item")).toHaveLength(0);
+    expect(within(block).queryAllByRole("link")).toHaveLength(0);
+    // The next step is the page's own, whatever is or isn't waiting.
+    expect(screen.getByTestId("next-step")).not.toBeNull();
+  });
+
+  it("draws nothing when the answer carries no such block (an older answer, or none sent)", async () => {
+    await show();
+    expect(screen.queryByTestId("overview-waiting")).toBeNull();
+    expect(screen.getByTestId("next-step")).not.toBeNull();
+  });
+
+  it("draws nothing when the block is null", async () => {
+    await show(waitingRoute(null));
+    expect(screen.queryByTestId("overview-waiting")).toBeNull();
+  });
+
+  it("adds no word of its own: every word in the block is one the backend sent", async () => {
+    await show(waitingRoute(WAITING));
+    // (compared without spaces: the parts are separate elements, with no space between them in the page's text)
+    const squeezed = (words: string) => words.replace(/\s+/g, "");
+    const sent = [WAITING.title, WAITING.line, ...WAITING.items.map((i) => i.text), WAITING.note].join("");
+    expect(squeezed(text(screen.getByTestId("overview-waiting")))).toBe(squeezed(sent));
+    expect(text(screen.getByTestId("overview-waiting"))).not.toMatch(/\bscore|\bgrade|secure|time to hack/i);
   });
 });
 
@@ -187,7 +311,8 @@ describe("Overview buttons", () => {
     fireEvent.click(within(screen.getByTestId("page-header")).getByRole("button", { name: "New assessment" }));
     // The box: a name filled in ("Assessment 3"), a purpose and an optional reference. It closes nothing.
     const box = within(await screen.findByTestId("new-assessment-box"));
-    expect((box.getByLabelText("Name") as HTMLInputElement).value).toBe("Assessment 3");
+    // The name the box suggests comes with the project's data, in a request of its own, so it is waited for.
+    await waitFor(() => expect((box.getByLabelText("Name") as HTMLInputElement).value).toBe("Assessment 3"));
     expect((box.getByLabelText("Purpose") as HTMLSelectElement).value).toBe("full_review");
     expect(Array.from((box.getByLabelText("Purpose") as HTMLSelectElement).options).map((o) => o.textContent)).toEqual([
       "Full review",
@@ -256,6 +381,47 @@ describe("Overview buttons", () => {
     const call = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/assessments/101" && i?.method === "POST");
     expect(JSON.parse(String(call?.[1]?.body))).toEqual({ close: true, signed_off_by: "Dana Lee", note: "Wave 1 done" });
     expect(screen.queryByRole("button", { name: "Close assessment" })).toBeNull();
+  });
+
+  it("keeps the assessment closed when the Overview's own earlier read answers late", async () => {
+    // Opening the Overview asks for the assessment again. If a person closes it right away, that first answer can
+    // arrive after the close and its fresh read (it did in an end-to-end run on 18 November 2026, and the page read
+    // "Open" again). A late answer is dropped.
+    let closed = false;
+    const inner = mockApi(
+      routes({
+        "GET /api/assessments/101": () => ({ body: closed ? { ...openAssessment, status: closedAssessment.status } : openAssessment }),
+        "POST /api/assessments/101": () => {
+          closed = true;
+          return { body: { ...openAssessment, status: closedAssessment.status } };
+        },
+      }),
+    );
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "GET" && String(input) === "/api/assessments/101" && ++reads === 2) {
+        // the Overview's own re-read: answered as things stood when it was asked, and delivered late
+        const stale = new Response(JSON.stringify(openAssessment), { status: 200, headers: { "Content-Type": "application/json" } });
+        await held;
+        return stale;
+      }
+      return inner(input, init);
+    });
+    render(<App />);
+    await screen.findByTestId("overview-page");
+    fireEvent.click(screen.getByRole("button", { name: "Close assessment" }));
+    const box = within(await screen.findByTestId("close-box"));
+    fireEvent.change(box.getByLabelText("Signed off by"), { target: { value: "Dana Lee" } });
+    fireEvent.click(box.getByRole("button", { name: "Close and sign off" }));
+    expect(await screen.findByTestId("closed-banner")).not.toBeNull();
+    expect(reads).toBeGreaterThanOrEqual(3);          // the close asked for the assessment afresh
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 30));      // the late answer has arrived by now
+    expect(screen.queryByTestId("closed-banner")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Close assessment" })).toBeNull();
+    expect(text(screen.getByTestId("assessment-status"))).toMatch(/Closed/);
   });
 
   it("shows no Close assessment button once it is closed", async () => {

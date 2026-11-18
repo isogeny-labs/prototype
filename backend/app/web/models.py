@@ -123,6 +123,7 @@ class Import(Shape):
         default=None,
         description="Settings rows the file carries (not claims: nothing checks them). Optional: older stored answers may lack it.",
     )
+    otto: "ImportOtto | None" = Field(default=None, description='Phase 5c: "Otto found N checks that may apply". Nothing runs on import.')
 
 
 class ImportSetting(Shape):
@@ -161,10 +162,21 @@ class VerifyRun(Shape):
     started_at: str
     finished_at: str
     results: list[Result]
+    otto_note: str = Field(default="", description="Phase 5c: one sentence. Verify is unchanged and Otto proposes nothing on it yet.")
 
 
 # ---- Phase 2: test plan and Evidence Lab. All wording comes from the backend. ----
 
+CatalogKind = Literal[
+    "tls_versions",
+    "certificate",
+    "official_vectors",
+    "bad_signatures",
+    "speed_size",
+    "pq_readiness",
+    "mldsa_compare",
+]
+# Phase 5c: a test in a plan can also be an advisory check. It comes from a test pack and is never in the catalog.
 TestKind = Literal[
     "tls_versions",
     "certificate",
@@ -173,6 +185,7 @@ TestKind = Literal[
     "speed_size",
     "pq_readiness",
     "mldsa_compare",
+    "advisory_cases",
 ]
 
 ResultCode = Literal[
@@ -226,6 +239,16 @@ class TestCard(Shape):
     can_run: bool
     can_remove: bool
     group: str | None = Field(description="The key of the group this card is under, when the plan is grouped.")
+    advisory: CardAdvisory | None = Field(default=None, description="Phase 5c, an advisory check only: the advisory it came from.")
+    from_otto: str | None = Field(default=None, description='Phase 5c: "From Otto" on a check that came from an accepted proposal.')
+    remove_blocked: str | None = Field(default=None, description="Phase 5c: why this card has no remove button (it is undone on Advisories).")
+
+
+class CardAdvisory(Shape):
+    """On an advisory check's card: "From advisory CVE-...", with the link to it on the Advisories page."""
+
+    label: str
+    link: ItemLink
 
 
 class PlanGroup(Shape):
@@ -245,7 +268,7 @@ class NotTested(Shape):
 
 
 class CatalogItem(Shape):
-    catalog_id: TestKind
+    catalog_id: CatalogKind
     title: str
     tag: str | None
     description: str
@@ -406,6 +429,11 @@ class LabResult(Badge):
     reviewed: LabResultReviewed | None
     research: ResearchView | None
     advisories: Advisories | None = Field(description="Phase 4c: advisories for this version (null for our own demo code).")
+    otto: OttoResultBlock | None = Field(
+        default=None,
+        description="Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, "
+                    "the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result.",
+    )
 
 
 
@@ -510,6 +538,7 @@ class FixLine(Shape):
     look: Literal["plain", "pass", "fail", "dashed"]
     busy: bool = Field(description="true while the proof runs: a small spinner before the words")
     button: str = Field(description='"View in Fixes"')
+    rows: list[str] | None = Field(default=None, description="Phase 5c: a library's fix from Otto: its two proof rows, word for word as in Fixes.")
 
 
 FixStatusKey = Literal[
@@ -817,6 +846,8 @@ class FixDetail(Shape):
     sections_note: str | None = Field(description="shown instead of sections before the code is connected")
     change_box: ChangeView | None = Field(description="Phase 4b: the change box, drawn first in the fix's detail.")
     advisories: Advisories | None = Field(description="Phase 4c: advisories for a text-only fix on a real library.")
+    proof_rows: list["FixProofRow"] | None = Field(default=None, description="Phase 5c: a library's fix from Otto: two rows in place of the Proof line.")
+    proposal: "OttoProposal | None" = Field(default=None, description="Phase 5c: a fix of Otto's is a proposal: its state, decisions and buttons.")
     group: str = Field(default="encryption", description="Phase 5b: the work group it came from.")
     group_label: str = ""
     came_from_links: list["FixCameFrom"] = Field(default_factory=list, description="Phase 5b: where it came from, as links.")
@@ -990,6 +1021,7 @@ class MigrationSystem(Shape):
     also_noticed_title: str = None
     also_noticed: list[str] = None
     change: ChangeView | None = None
+    otto: "OttoPlanBlock | None" = Field(default=None, description="Phase 5c: Otto's proposed changes to this system's plan.")
 
 
 TrackKey = Literal["kex", "auth", "signatures"]
@@ -1160,6 +1192,7 @@ class MigrationRoadmapRow(Shape):
     track: str = Field(
         default=None, description='Phase 4b: "Key exchange" | "Authentication" | "Signatures" | "Both tracks".'
     )
+    otto: "OttoRoadmapMark | None" = Field(default=None, description="Phase 5c: the mark of a proposal of Otto's for this system.")
 
 
 class MigrationRoadmapBand(Shape):
@@ -1266,6 +1299,7 @@ class DependencySystem(Shape):
     without_answer: int
     without_answer_text: str | None
     environment_line: str
+    otto_lines: list[str] = Field(default_factory=list, description="Phase 5c: what a person accepted from Otto for a library of this system.")
 
 
 class DependencyPickerOption(Shape):
@@ -1345,6 +1379,9 @@ class DependencyRow(Shape):
     lookups: list[DependencyLookup]
     measurement: DependencyMeasurement | None
     job: RowStatus | None
+    advisories: list["DependencyAdvisory"] = Field(default_factory=list, description='Phase 5c: "Named by advisory X: ..." lines.')
+    otto_proposals: list["OttoProposal"] = Field(default_factory=list, description="Phase 5c: Otto's proposals to change this library's status.")
+    otto_status: "DependencyOttoStatus | None" = Field(default=None, description="Phase 5c: the status a person accepted.")
 
 
 class DependencyGroup(Shape):
@@ -1543,6 +1580,7 @@ class AssessmentView(AssessmentBrief):
     counts: AssessmentCounts
     next_step: NextStep
     blocks: "OverviewBlocks | None" = Field(default=None, description="Phase 5b: the Overview's blocks (null before a file).")
+    waiting: "OttoWaiting | None" = Field(default=None, description='Phase 5c: "Waiting for you": Otto\'s proposals nobody has decided yet.')
 
 
 # ---- Phase 5b: one connected assessment. Every word comes from the page each item lives on. ----
@@ -1636,6 +1674,7 @@ class ProjectOverview(Shape):
     compare: Compare | None
     shared: list[SharedSystem]
     choices: list[SharedAssessment]
+    otto: "OttoProjectBlock | None" = Field(default=None, description="Phase 5c: proposals waiting per assessment, and what changed since the newest pack.")
 
 
 class StateCounts(Shape):
@@ -1681,6 +1720,7 @@ class CheckRow(Shape):
     runs: int
     same_as: list[SameMeasurement] = Field(default_factory=list,
                                            description="Phase 5b: the same measurement made elsewhere (decisions 3 and 4); each keeps its own run.")
+    from_otto: "CheckFromOtto | None" = Field(default=None, description='Phase 5c: "From Otto" on an advisory check, with the way to its advisory.')
 
 
 class StartedOn(Shape):
@@ -1744,8 +1784,8 @@ class RelatedItem(Shape):
 
 
 class RelatedLine(Shape):
-    kind: Literal["claim", "test", "fix", "system", "library"]
-    title: str = Field(description='"Claim", "Checks", "Fix", "System and track", "Library"')
+    kind: Literal["claim", "test", "fix", "system", "library", "advisory"]
+    title: str = Field(description='"Claim", "Checks", "Fix", "System and track", "Library", "Advisory" (phase 5c)')
     items: list[RelatedItem]
 
 
@@ -1788,6 +1828,525 @@ class DemoProjectsLoaded(Shape):
     summary: str
     notices: list[str]
     open_assessment_id: int | None
+
+
+# ---------------------------------------------------------------- phase 5c: Otto (test packs, Live Otto, Advisories)
+
+class OttoPackCard(Shape):
+    version: str
+    built_at: str
+    built: str = Field(description='"17 November 2026"')
+    signer: str
+    made_here: bool = Field(description="Signed with a key made on this computer (a live research run).")
+    advisories: int
+    tests: int
+    line: str
+    fingerprint: str
+    installed_at: str | None
+
+
+class OttoUpdateDialog(Shape):
+    title: str
+    lines: list[str]
+    confirm: str
+    cancel: str
+
+
+class OttoUpdate(Shape):
+    version: str
+    button: str = Field(description='"Install update"')
+    line: str
+    dialog: OttoUpdateDialog
+
+
+class OttoRefusedPack(Shape):
+    file: str
+    reason: str
+
+
+class OttoCheckButton(Shape):
+    button: str = Field(description='"Check for updates"')
+    note: str
+
+
+class OttoPacksSection(Shape):
+    title: str
+    intro: str
+    installed: list[OttoPackCard] = Field(description="Oldest first. Packs are never removed.")
+    installed_line: str
+    unreadable_line: str | None = Field(description="Set when a pack installed by an earlier build can't be read by this version.")
+    counts_line: str | None
+    check: OttoCheckButton
+    checked_line: str | None = Field(description="Set after Check for updates: what was found in the updates folder.")
+    refused: list[OttoRefusedPack]
+    update: OttoUpdate | None = Field(description="The pack that can be installed next, after Check for updates found one.")
+    order_note: str
+
+
+class OttoHarnessLine(Shape):
+    installed: bool
+    line: str
+
+
+class OttoAnswersLine(Shape):
+    line: str = Field(description='"Answers recorded during the build, 17 November 2026" or "Live: Claude, through your key"')
+    live: bool
+
+
+class OttoLiveSwitch(Shape):
+    label: str = Field(description='"Use live Claude"')
+    on: bool
+    can_turn_on: bool = Field(description="Only when an API key is present on this computer.")
+    blocked_reason: str | None
+
+
+class OttoLiveLimit(Shape):
+    label: str
+    value: str = Field(description='US dollars, e.g. "2.00"')
+    save: str
+    note: str
+
+
+class OttoLiveSection(Shape):
+    title: str
+    key_present: bool = Field(description="Whether a key is set. The key itself is never sent to the screen.")
+    key_line: str
+    switch: OttoLiveSwitch
+    limit: OttoLiveLimit
+    sent_line: str
+    status_line: str
+    price_line: str
+
+
+class OttoSettingsView(Shape):
+    """Settings: the Test packs section, the two status lines and the Live Otto section (phase 5c)."""
+
+    packs: OttoPacksSection
+    harness: OttoHarnessLine
+    answers: OttoAnswersLine
+    live: OttoLiveSection
+
+
+class AdvisoryQuote(Shape):
+    """A line of the publisher's own text, word for word. Information from the advisory, never a result."""
+
+    text: str
+    source: str
+    publisher: str
+    href: str = Field(description='An https link to a known publisher, or "" (then the source is shown as text).')
+    read_on: str
+    tag: str
+
+
+class AdvisoryLedgerEntry(Shape):
+    seq: int
+    kind: str
+    id: str
+    at: str
+    what: str
+
+
+class AdvisoryLedger(Shape):
+    title: str
+    count: int
+    entries: list[AdvisoryLedgerEntry]
+    note: str
+
+
+class AdvisoryTrial(Shape):
+    title: str
+    lines: list[str]
+
+
+class AdvisoryTestBlock(Shape):
+    title: str
+    question: str
+    cases_line: str
+    control: str
+    rule: str
+    design_fingerprint: str
+    trial: AdvisoryTrial
+    ledger: AdvisoryLedger
+
+
+class AdvisoryNoTest(Shape):
+    label: str = Field(description='"No test yet" or "Not offered"')
+    reason: str
+    trial: AdvisoryTrial | None
+    ledger: AdvisoryLedger | None
+
+
+class AdvisoryHereResult(Shape):
+    """The reviewer's result for this advisory's check in this assessment, as Evidence Lab words it."""
+
+    label: str
+    tone: Tone
+    plain: str
+    component: str | None
+    finished_at: str | None
+    ran_on: str | None = Field(default=None, description="After a retest: which version this result is of, and what the first run read.")
+
+
+class AdvisoryHereRow(Shape):
+    program: str
+    status: str | None = Field(description='The proposal\'s word ("Proposed", "Not added (reason)") or "Not run yet"; null once there is a result.')
+    proposal: "OttoProposal | None" = Field(description="Otto's proposed check for this program, with its state, decisions and buttons.")
+    result: AdvisoryHereResult | None
+    checks_link: ItemLink | None = Field(description="Open in Checks.")
+    evidence_link: ItemLink | None = Field(description="See the evidence.")
+    ledger: AdvisoryLedger | None
+
+
+class AdvisoryHere(Shape):
+    title: str
+    rows: list[AdvisoryHereRow]
+    empty: str | None
+    note: str | None = None
+
+
+class AdvisoryFixHere(Shape):
+    label: str = Field(description='"View in Fixes"')
+    link: ItemLink
+    line: str
+
+
+class AdvisoryFix(Shape):
+    title: str
+    label: str | None = Field(description='"From Otto" when the pack proposes a fix.')
+    state: Literal["proven", "not_proven", "none"]
+    lines: list[str]
+    quote: AdvisoryQuote | None
+    here: AdvisoryFixHere | None
+
+
+class AdvisoryStep(Shape):
+    step: str
+    source: Literal["recorded", "live"]
+    line: str
+    prompt_sha256: str
+    answer_sha256: str
+
+
+class AdvisoryClaude(Shape):
+    title: str
+    steps: list[AdvisoryStep]
+    note: str
+
+
+class AdvisoryAffected(Shape):
+    line: str
+    quote: AdvisoryQuote
+
+
+class AdvisorySource(Shape):
+    label: str
+    title: str
+    publisher: str
+    href: str
+    read_on: str
+
+
+class AdvisoryNotes(Shape):
+    """What Claude noted when it read the advisory. Information, never a result."""
+
+    title: str
+    kind_line: str
+    text: str | None
+    caption: str
+
+
+class AdvisoryPanel(Shape):
+    sentence: str
+    publisher: AdvisoryQuote | None
+    affected: AdvisoryAffected | None
+    notes: AdvisoryNotes | None
+    also_known_as: list[str]
+    sources: list[AdvisorySource]
+    test: AdvisoryTestBlock | None
+    no_test: AdvisoryNoTest | None
+    here: AdvisoryHere
+    fix: AdvisoryFix
+    claude: AdvisoryClaude
+    related_key: str
+
+
+class AdvisoryTestCell(Shape):
+    key: Literal["ready", "not_offered", "none"]
+    label: str = Field(description='"Test ready", "Not offered" or "No test yet"')
+    tone: Tone
+    reason: str
+
+
+class AdvisoryResultCell(Shape):
+    key: str = Field(description='"pass", "fail", "warn", "neutral", "not_run", "not_added" or "none" (for the Result filter)')
+    label: str
+    tone: Tone
+    text: str | None
+
+
+class AdvisoryProposalCell(Shape):
+    key: str = Field(description='"proposed", "accepted", "rejected", "mixed" or "none" (for the Decision filter)')
+    label: str = Field(description='"Proposed", "Added", "Not added (reason)", "Mixed" or "Nothing proposed"')
+    tone: Tone
+    text: str | None = Field(description="With several programs: the counts, never merged.")
+    keys: list[str] = Field(default_factory=list, description="With several programs: every state among them.")
+
+
+class AdvisoryRow(Shape):
+    id: str
+    name: str
+    published: str
+    published_text: str
+    package: str
+    pack: str
+    fits: list[str]
+    fits_text: str
+    test: AdvisoryTestCell
+    proposal: AdvisoryProposalCell
+    result: AdvisoryResultCell
+    search: str
+    panel: AdvisoryPanel
+
+
+class AdvisoryFilterOption(Shape):
+    key: str
+    label: str
+
+
+class AdvisoryFilters(Shape):
+    test: list[AdvisoryFilterOption]
+    decision: list[AdvisoryFilterOption]
+    result: list[AdvisoryFilterOption]
+
+
+class AdvisoryWaiting(Shape):
+    """Above the table: how many proposed checks nobody has decided yet. There is no button that decides several."""
+
+    count: int
+    blocked_reason: str | None = Field(description="Why nothing can be decided here right now (closed, or Otto not installed).")
+    line: str
+    note: str
+
+
+class AdvisoriesView(Shape):
+    """The Advisories page of an assessment (phase 5c). It words no result and decides none."""
+
+    title: str
+    subline: str
+    standing_line: str
+    packs_line: str
+    packs_link: ItemLink
+    answers_line: str
+    otto: OttoHarnessLine
+    waiting: AdvisoryWaiting
+    filters: AdvisoryFilters
+    columns: list[str]
+    rows: list[AdvisoryRow]
+    empty: str | None
+    assessment_id: int | None
+
+
+# ---- Phase 5c, second part: Otto proposes, a person decides. Every word comes from the backend. ----
+
+
+class FixProofRow(Shape):
+    """One of the two proof rows of a library's fix: "Proven on public copies" or "Proven on your system"."""
+
+    key: Literal["public", "here"]
+    label: str
+    badge: FixDetailProofBadge = Field(description='"Passed", "Not proven" or "Not yet"')
+    text: str
+    line: str = Field(description="The row in one line, the same words wherever it is shown.")
+    links: list["LabeledLink"]
+    ledger: AdvisoryLedger | None = Field(description="The research ledger's entries behind the first row.")
+    note: str | None = Field(default=None, description="Under the second row: what a retest here runs on (a public copy, not your system).")
+
+
+class LabeledLink(Shape):
+    label: str
+    link: ItemLink
+
+
+class OttoProposalStatus(Shape):
+    key: Literal["proposed", "accepted", "rejected"]
+    word: str = Field(description='"Proposed", "Added" or "Accepted", "Not added (reason)"')
+    tone: Tone
+
+
+class OttoProposalButton(Shape):
+    key: Literal["accept", "reject", "undo", "reconsider"]
+    label: str
+    can: bool
+    blocked_reason: str | None = Field(description="Why the button is off right now.")
+
+
+class OttoRejectDialog(Shape):
+    title: str
+    line: str
+    reason_label: str
+    max: int
+    confirm: str
+    cancel: str
+
+
+class OttoDecisionLine(Shape):
+    number: int
+    word: str
+    by: str
+    at: str
+    at_text: str
+    reason: str | None
+    ledger_entry: str | None
+    line: str
+
+
+class OttoProposalHistory(Shape):
+    title: str
+    count: int
+    rows: list[OttoDecisionLine]
+    footnote: str
+    ledger: AdvisoryLedger | None
+
+
+class OttoResultDecisions(Shape):
+    title: str
+    count: int
+    rows: list[OttoDecisionLine]
+    footnote: str
+    empty: str | None
+
+
+class OttoResultBlock(Shape):
+    """Evidence, on a result of an advisory check: what stands behind the check. Records only; it words no result."""
+
+    label: str = Field(description='"From Otto"')
+    title: str
+    line: str
+    advisory: LabeledLink
+    design: AdvisoryTrial
+    trial: AdvisoryTrial | None
+    decisions: OttoResultDecisions
+    ledger: AdvisoryLedger
+    note: str
+
+
+class OttoProposal(Shape):
+    """One proposal of Otto's as a screen shows it. It words no result; a decision is recorded with who and when."""
+
+    id: str
+    kind: Literal["check", "fix", "plan", "dependency"]
+    kind_label: str
+    label: str = Field(description='"From Otto"')
+    title: str
+    why: str
+    why_label: str
+    lines: list[str]
+    status: OttoProposalStatus
+    decided_line: str | None
+    effect: str | None = Field(description="What an accepted proposal has led to so far.")
+    buttons: list[OttoProposalButton]
+    note: str | None
+    reject_dialog: OttoRejectDialog | None
+    history: OttoProposalHistory
+    link: ItemLink
+    proposed_at: str | None
+
+
+class OttoWaitingItem(Shape):
+    kind: Literal["check", "fix", "plan", "dependency"]
+    count: int
+    text: str
+    link: ItemLink
+    page_label: str
+
+
+class OttoWaiting(Shape):
+    """The Overview's "Waiting for you": Otto's proposals nobody has decided yet, each kind linking to its page."""
+
+    title: str
+    total: int
+    items: list[OttoWaitingItem]
+    line: str
+    note: str
+
+
+class OttoProposalsView(Shape):
+    plan_id: int
+    waiting: OttoWaiting
+    proposals: list[OttoProposal]
+    blocked_reason: str | None
+
+
+class OttoPlanBlock(Shape):
+    title: str
+    note: str
+    proposals: list[OttoProposal]
+
+
+class OttoRoadmapMark(Shape):
+    label: str
+    text: str
+    tone: Tone
+    waiting: int
+
+
+class OttoProjectRow(Shape):
+    assessment_id: int
+    title: str
+    waiting: int
+    waiting_text: str
+    link: ItemLink
+    since: list[str]
+
+
+class OttoProjectBlock(Shape):
+    title: str
+    note: str
+    pack_line: str
+    since_title: str | None
+    rows: list[OttoProjectRow]
+
+
+class ImportOtto(Shape):
+    """Import: "Otto found N checks that may apply", with the way to Advisories. Nothing runs on import."""
+
+    count: int
+    label: str
+    text: str
+    note: str
+    link: ItemLink
+    link_label: str
+
+
+class CheckFromOtto(Shape):
+    label: str
+    advisory: str
+    link: ItemLink
+
+
+class DependencyAdvisoryState(Shape):
+    key: Literal["affected", "not_affected", "not_checked"]
+    label: str
+    tone: Tone
+
+
+class DependencyAdvisory(Shape):
+    id: str
+    name: str
+    line: str = Field(description='"Named by advisory CVE-...: measured affected"')
+    state: DependencyAdvisoryState
+    detail: str
+    fixed_line: str
+    advisory_link: ItemLink
+    evidence_link: ItemLink | None
+    fix_link: ItemLink | None
+    fix_label: str | None
+
+
+class DependencyOttoStatus(Shape):
+    label: str
+    tone: Tone
+    lines: list[str]
 
 
 def _rebuild_all() -> None:

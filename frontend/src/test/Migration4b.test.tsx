@@ -283,7 +283,8 @@ describe("Migration 4b, the change box's buttons", () => {
     fireEvent.click(box().getByRole("button", { name: label }));
     await waitFor(() => expect(calls(fetchMock).filter((c) => c === GET)).toHaveLength(2));
     expect(body(fetchMock, `POST ${PLAN}/${route}`)).toEqual({ change: CHANGE_ID });
-    expect(onPlanChanged.mock.calls.length).toBe(before + 1);
+    // The app is told once the view has come back, which is after the request for it was made: it is waited for.
+    await waitFor(() => expect(onPlanChanged.mock.calls.length).toBe(before + 1));
   });
 
   it("the picker button sends the ticked reviewers, nobody else", async () => {
@@ -319,9 +320,12 @@ describe("Migration 4b, the change box's buttons", () => {
       saved.push(String(this.getAttribute("href")));
     });
     const { fetchMock } = await openWith(readyToTry);
+    // What was asked before the click, so that a view an earlier test was still loading cannot be taken for Download's.
+    const asked = calls(fetchMock);
     fireEvent.click(box().getByRole("button", { name: "Download change" }));
     expect(saved).toEqual([`${PLAN}/download?change=${encodeURIComponent(CHANGE_ID)}`]);
-    expect(calls(fetchMock)).toEqual([GET]);
+    expect(calls(fetchMock)).toEqual(asked);
+    expect(asked.filter((c) => c !== GET)).toEqual([]);
   });
 
   it("shows the error in the box when a call fails, and does not reload", async () => {

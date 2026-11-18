@@ -1,7 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { Import, SkippedItem } from "../api";
+import type { Import, ImportOtto, SkippedItem } from "../api";
 import { ImportScreen } from "../components/ImportScreen";
+import { LinkProvider } from "../components/related";
+import { ReadOnlyProvider } from "../readOnly";
 import { address, calls, claims, demoImport, mockApi, run, session, text } from "./fixtures";
 
 const skippedItems: SkippedItem[] = [
@@ -353,5 +355,138 @@ describe("Import screen, phase 5b", () => {
   it("opens the claim a link names", () => {
     renderImport(demoImport, { openItem: "claim-3" });
     expect(within(screen.getByTestId("claim-panel")).getByRole("heading", { level: 2 }).textContent).toContain("acme-sign 1.4.2");
+  });
+
+  it("keeps a linked claim's panel closed once the person has closed it, also when the file's data is read again", () => {
+    // The page gets the file again whenever something on it is refreshed (an address ticked, Otto's line read again
+    // on opening Import). A link opens its claim when the link or the file changes, never on such a read.
+    const props = { demoServer: session.demo_server, onImported: vi.fn(), onImportFailed: vi.fn(), onAddressChanged: vi.fn(), onVerified: vi.fn() };
+    const { rerender } = render(<ImportScreen {...props} imp={demoImport} openItem="claim-3" />);
+    fireEvent.click(within(screen.getByTestId("claim-panel")).getByRole("button", { name: "Close details" }));
+    expect(screen.queryByTestId("claim-panel")).toBeNull();
+    rerender(<ImportScreen {...props} imp={{ ...demoImport }} openItem="claim-3" />);     // the same file, read again
+    expect(screen.queryByTestId("claim-panel")).toBeNull();
+    // another file with that link opens its claim, as before
+    rerender(<ImportScreen {...props} imp={{ ...demoImport, id: demoImport.id + 1 }} openItem="claim-3" />);
+    expect(screen.getByTestId("claim-panel")).not.toBeNull();
+  });
+});
+
+describe("Import screen: what Otto found (phase 5c)", () => {
+  /** Import's line about Otto as the backend sends it once a file is in and a test pack is installed. */
+  const FOUND: ImportOtto = {
+    count: 2,
+    label: "From Otto",
+    text: "Otto found 2 checks that may apply: 2 published weaknesses with a test, for acme-sign 1.4.2.",
+    note: "Nothing runs on import. You accept or reject each proposed check on Advisories.",
+    link: { page: "advisories", item: null },
+    link_label: "Open Advisories",
+  };
+  const NONE_FIT: ImportOtto = {
+    ...FOUND,
+    count: 0,
+    text: "Otto found no check that may apply to this file: no signing program in this file checks ECDSA P-256 signatures.",
+    note: "Nothing runs on import.",
+  };
+  const NO_PACK: ImportOtto = {
+    count: 0,
+    label: "From Otto",
+    text: "Otto has nothing to propose for this file yet: no test pack is installed.",
+    note: "Test packs are installed in Settings. Nothing runs on import.",
+    link: { page: "settings", item: null, section: "test-packs" },
+    link_label: "Open Settings",
+  };
+
+  /** The page as the app shows it: inside the open assessment, so a link the backend sends has somewhere to go. */
+  function renderInAssessment(imp: Import | null, readOnly = false) {
+    const props = { demoServer: session.demo_server, imp, onImported: vi.fn(), onImportFailed: vi.fn(), onAddressChanged: vi.fn(), onVerified: vi.fn() };
+    render(
+      <ReadOnlyProvider readOnly={readOnly}>
+        <LinkProvider assessmentId={101} planId={1}>
+          <ImportScreen {...props} />
+        </LinkProvider>
+      </ReadOnlyProvider>,
+    );
+    return props;
+  }
+  const line = () => screen.getByTestId("import-otto");
+
+  it("says how many checks may apply once a file is in, with the way to Advisories, in the backend's words", () => {
+    const fetchMock = mockApi({});
+    renderInAssessment({ ...demoImport, otto: FOUND });
+    expect(line().getAttribute("data-count")).toBe("2");
+    expect(text(within(line()).getByTestId("import-otto-label"))).toBe("From Otto");
+    expect(text(within(line()).getByTestId("import-otto-text"))).toBe(FOUND.text);
+    expect(text(within(line()).getByTestId("import-otto-note"))).toBe(FOUND.note);
+    const link = within(line()).getByRole("link", { name: "Open Advisories" });
+    expect(link.getAttribute("href")).toBe("#/a/101/advisories");
+    // A line and a link: showing it asks for nothing and sends nothing.
+    expect(calls(fetchMock)).toEqual([]);
+  });
+
+  it("is a link, never a button: bringing a file in adds nothing and runs nothing", () => {
+    const fetchMock = mockApi({});
+    const props = renderInAssessment({ ...demoImport, otto: FOUND });
+    expect(within(line()).queryAllByRole("button")).toHaveLength(0);
+    // The page's buttons are the ones it always had.
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Use demo file", "Verify claims"]);
+    fireEvent.click(within(line()).getByRole("link", { name: "Open Advisories" }));
+    expect(calls(fetchMock)).toEqual([]);
+    expect(props.onVerified).not.toHaveBeenCalled();
+    expect(props.onImported).not.toHaveBeenCalled();
+    window.history.replaceState(null, "", "#/");   // (the link moved the address; put it back for the tests after this one)
+  });
+
+  it("sits with what the file claims, before the address ticks and Verify claims", () => {
+    mockApi({});
+    renderInAssessment({ ...demoImport, otto: FOUND });
+    const table = screen.getByRole("table", { name: "What the file claims" });
+    const verify = screen.getByRole("button", { name: "Verify claims" });
+    expect(table.compareDocumentPosition(line()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(line().compareDocumentPosition(verify) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(line().compareDocumentPosition(screen.getAllByTestId("address-confirm")[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("with no check that fits it says why, with the same way to Advisories", () => {
+    mockApi({});
+    renderInAssessment({ ...demoImport, otto: NONE_FIT });
+    expect(line().getAttribute("data-count")).toBe("0");
+    expect(text(within(line()).getByTestId("import-otto-text"))).toBe(NONE_FIT.text);
+    expect(text(within(line()).getByTestId("import-otto-note"))).toBe("Nothing runs on import.");
+    expect(within(line()).getByRole("link", { name: "Open Advisories" }).getAttribute("href")).toBe("#/a/101/advisories");
+  });
+
+  it("with no test pack installed it says so and points to Settings, Test packs", () => {
+    mockApi({});
+    renderInAssessment({ ...demoImport, otto: NO_PACK });
+    expect(line().getAttribute("data-count")).toBe("0");
+    expect(text(within(line()).getByTestId("import-otto-text"))).toBe(NO_PACK.text);
+    expect(within(line()).getByRole("link", { name: "Open Settings" }).getAttribute("href")).toBe("#/settings?section=test-packs");
+  });
+
+  it("draws nothing when the answer carries no such line, a null one, or no file is in", () => {
+    mockApi({});
+    renderInAssessment(demoImport);
+    expect(screen.queryByTestId("import-otto")).toBeNull();
+    cleanup();
+    renderInAssessment({ ...demoImport, otto: null });
+    expect(screen.queryByTestId("import-otto")).toBeNull();
+    cleanup();
+    renderInAssessment(null);
+    expect(screen.queryByTestId("import-otto")).toBeNull();
+  });
+
+  it("stays readable in a closed assessment: it is a way to a page, not an action", () => {
+    mockApi({});
+    renderInAssessment({ ...demoImport, otto: FOUND }, true);
+    expect(text(within(line()).getByTestId("import-otto-text"))).toBe(FOUND.text);
+    expect(within(line()).getByRole("link", { name: "Open Advisories" }).getAttribute("href")).toBe("#/a/101/advisories");
+  });
+
+  it("adds no word of its own: every word in the line is one the backend sent", () => {
+    mockApi({});
+    renderInAssessment({ ...demoImport, otto: FOUND });
+    const squeezed = (words: string) => words.replace(/\s+/g, "");
+    expect(squeezed(text(line()))).toBe(squeezed([FOUND.label, FOUND.text, FOUND.note, FOUND.link_label].join("")));
   });
 });

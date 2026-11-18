@@ -2093,6 +2093,213 @@
           }
         }
       }
+    },
+    "/api/otto": {
+      "get": {
+        "summary": "Otto",
+        "operationId": "otto_api_otto_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OttoSettingsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/otto/packs/check": {
+      "post": {
+        "summary": "Check For Updates",
+        "operationId": "check_for_updates_api_otto_packs_check_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OttoSettingsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/otto/packs/install": {
+      "post": {
+        "summary": "Install Update",
+        "operationId": "install_update_api_otto_packs_install_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackInstallBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OttoSettingsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/otto/live": {
+      "post": {
+        "summary": "Live Otto",
+        "operationId": "live_otto_api_otto_live_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveOttoBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OttoSettingsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/advisories": {
+      "get": {
+        "summary": "Advisories",
+        "operationId": "advisories_api_plans__plan_id__advisories_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvisoriesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/otto/proposals": {
+      "get": {
+        "summary": "Proposals",
+        "operationId": "proposals_api_plans__plan_id__otto_proposals_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OttoProposalsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/otto/proposals/{proposal_id}/{decision}": {
+      "post": {
+        "summary": "Decide",
+        "description": "Accept, reject (with an optional short reason), undo or reconsider one of Otto's proposals. It runs nothing.",
+        "operationId": "decide_api_plans__plan_id__otto_proposals__proposal_id___decision__post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "decision",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Decision"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OttoProposal"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2230,6 +2437,1159 @@
           "covered"
         ],
         "title": "AdvisoriesItem"
+      },
+      "AdvisoriesView": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "standing_line": {
+            "type": "string",
+            "title": "Standing Line"
+          },
+          "packs_line": {
+            "type": "string",
+            "title": "Packs Line"
+          },
+          "packs_link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "answers_line": {
+            "type": "string",
+            "title": "Answers Line"
+          },
+          "otto": {
+            "$ref": "#/components/schemas/OttoHarnessLine"
+          },
+          "waiting": {
+            "$ref": "#/components/schemas/AdvisoryWaiting"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/AdvisoryFilters"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AdvisoryRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty"
+          },
+          "assessment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "subline",
+          "standing_line",
+          "packs_line",
+          "packs_link",
+          "answers_line",
+          "otto",
+          "waiting",
+          "filters",
+          "columns",
+          "rows",
+          "empty",
+          "assessment_id"
+        ],
+        "title": "AdvisoriesView",
+        "description": "The Advisories page of an assessment (phase 5c). It words no result and decides none."
+      },
+      "AdvisoryAffected": {
+        "properties": {
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "quote": {
+            "$ref": "#/components/schemas/AdvisoryQuote"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "quote"
+        ],
+        "title": "AdvisoryAffected"
+      },
+      "AdvisoryClaude": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/AdvisoryStep"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "steps",
+          "note"
+        ],
+        "title": "AdvisoryClaude"
+      },
+      "AdvisoryFilterOption": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "AdvisoryFilterOption"
+      },
+      "AdvisoryFilters": {
+        "properties": {
+          "test": {
+            "items": {
+              "$ref": "#/components/schemas/AdvisoryFilterOption"
+            },
+            "type": "array",
+            "title": "Test"
+          },
+          "decision": {
+            "items": {
+              "$ref": "#/components/schemas/AdvisoryFilterOption"
+            },
+            "type": "array",
+            "title": "Decision"
+          },
+          "result": {
+            "items": {
+              "$ref": "#/components/schemas/AdvisoryFilterOption"
+            },
+            "type": "array",
+            "title": "Result"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "test",
+          "decision",
+          "result"
+        ],
+        "title": "AdvisoryFilters"
+      },
+      "AdvisoryFix": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "\"From Otto\" when the pack proposes a fix."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "proven",
+              "not_proven",
+              "none"
+            ],
+            "title": "State"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryQuote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "here": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryFixHere"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "label",
+          "state",
+          "lines",
+          "quote",
+          "here"
+        ],
+        "title": "AdvisoryFix"
+      },
+      "AdvisoryFixHere": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"View in Fixes\""
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "link",
+          "line"
+        ],
+        "title": "AdvisoryFixHere"
+      },
+      "AdvisoryHere": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AdvisoryHereRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "rows",
+          "empty"
+        ],
+        "title": "AdvisoryHere"
+      },
+      "AdvisoryHereResult": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "plain": {
+            "type": "string",
+            "title": "Plain"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "ran_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ran On",
+            "description": "After a retest: which version this result is of, and what the first run read."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "tone",
+          "plain",
+          "component",
+          "finished_at"
+        ],
+        "title": "AdvisoryHereResult",
+        "description": "The reviewer's result for this advisory's check in this assessment, as Evidence Lab words it."
+      },
+      "AdvisoryHereRow": {
+        "properties": {
+          "program": {
+            "type": "string",
+            "title": "Program"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "The proposal's word (\"Proposed\", \"Not added (reason)\") or \"Not run yet\"; null once there is a result."
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoProposal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Otto's proposed check for this program, with its state, decisions and buttons."
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryHereResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "checks_link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Open in Checks."
+          },
+          "evidence_link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "See the evidence."
+          },
+          "ledger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryLedger"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "program",
+          "status",
+          "proposal",
+          "result",
+          "checks_link",
+          "evidence_link",
+          "ledger"
+        ],
+        "title": "AdvisoryHereRow"
+      },
+      "AdvisoryLedger": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/AdvisoryLedgerEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "count",
+          "entries",
+          "note"
+        ],
+        "title": "AdvisoryLedger"
+      },
+      "AdvisoryLedgerEntry": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "what": {
+            "type": "string",
+            "title": "What"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "seq",
+          "kind",
+          "id",
+          "at",
+          "what"
+        ],
+        "title": "AdvisoryLedgerEntry"
+      },
+      "AdvisoryNoTest": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"No test yet\" or \"Not offered\""
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "trial": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryTrial"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ledger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryLedger"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "reason",
+          "trial",
+          "ledger"
+        ],
+        "title": "AdvisoryNoTest"
+      },
+      "AdvisoryNotes": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "kind_line": {
+            "type": "string",
+            "title": "Kind Line"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "caption": {
+            "type": "string",
+            "title": "Caption"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "kind_line",
+          "text",
+          "caption"
+        ],
+        "title": "AdvisoryNotes",
+        "description": "What Claude noted when it read the advisory. Information, never a result."
+      },
+      "AdvisoryPanel": {
+        "properties": {
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          },
+          "publisher": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryQuote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "affected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryAffected"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryNotes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "also_known_as": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Also Known As"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/AdvisorySource"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "test": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryTestBlock"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "no_test": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryNoTest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "here": {
+            "$ref": "#/components/schemas/AdvisoryHere"
+          },
+          "fix": {
+            "$ref": "#/components/schemas/AdvisoryFix"
+          },
+          "claude": {
+            "$ref": "#/components/schemas/AdvisoryClaude"
+          },
+          "related_key": {
+            "type": "string",
+            "title": "Related Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sentence",
+          "publisher",
+          "affected",
+          "notes",
+          "also_known_as",
+          "sources",
+          "test",
+          "no_test",
+          "here",
+          "fix",
+          "claude",
+          "related_key"
+        ],
+        "title": "AdvisoryPanel"
+      },
+      "AdvisoryProposalCell": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "\"proposed\", \"accepted\", \"rejected\", \"mixed\" or \"none\" (for the Decision filter)"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Proposed\", \"Added\", \"Not added (reason)\", \"Mixed\" or \"Nothing proposed\""
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text",
+            "description": "With several programs: the counts, never merged."
+          },
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keys",
+            "description": "With several programs: every state among them."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "tone",
+          "text"
+        ],
+        "title": "AdvisoryProposalCell"
+      },
+      "AdvisoryQuote": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "publisher": {
+            "type": "string",
+            "title": "Publisher"
+          },
+          "href": {
+            "type": "string",
+            "title": "Href",
+            "description": "An https link to a known publisher, or \"\" (then the source is shown as text)."
+          },
+          "read_on": {
+            "type": "string",
+            "title": "Read On"
+          },
+          "tag": {
+            "type": "string",
+            "title": "Tag"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "source",
+          "publisher",
+          "href",
+          "read_on",
+          "tag"
+        ],
+        "title": "AdvisoryQuote",
+        "description": "A line of the publisher's own text, word for word. Information from the advisory, never a result."
+      },
+      "AdvisoryResultCell": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "\"pass\", \"fail\", \"warn\", \"neutral\", \"not_run\", \"not_added\" or \"none\" (for the Result filter)"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "tone",
+          "text"
+        ],
+        "title": "AdvisoryResultCell"
+      },
+      "AdvisoryRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "published": {
+            "type": "string",
+            "title": "Published"
+          },
+          "published_text": {
+            "type": "string",
+            "title": "Published Text"
+          },
+          "package": {
+            "type": "string",
+            "title": "Package"
+          },
+          "pack": {
+            "type": "string",
+            "title": "Pack"
+          },
+          "fits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fits"
+          },
+          "fits_text": {
+            "type": "string",
+            "title": "Fits Text"
+          },
+          "test": {
+            "$ref": "#/components/schemas/AdvisoryTestCell"
+          },
+          "proposal": {
+            "$ref": "#/components/schemas/AdvisoryProposalCell"
+          },
+          "result": {
+            "$ref": "#/components/schemas/AdvisoryResultCell"
+          },
+          "search": {
+            "type": "string",
+            "title": "Search"
+          },
+          "panel": {
+            "$ref": "#/components/schemas/AdvisoryPanel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "published",
+          "published_text",
+          "package",
+          "pack",
+          "fits",
+          "fits_text",
+          "test",
+          "proposal",
+          "result",
+          "search",
+          "panel"
+        ],
+        "title": "AdvisoryRow"
+      },
+      "AdvisorySource": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "publisher": {
+            "type": "string",
+            "title": "Publisher"
+          },
+          "href": {
+            "type": "string",
+            "title": "Href"
+          },
+          "read_on": {
+            "type": "string",
+            "title": "Read On"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "title",
+          "publisher",
+          "href",
+          "read_on"
+        ],
+        "title": "AdvisorySource"
+      },
+      "AdvisoryStep": {
+        "properties": {
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "recorded",
+              "live"
+            ],
+            "title": "Source"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "prompt_sha256": {
+            "type": "string",
+            "title": "Prompt Sha256"
+          },
+          "answer_sha256": {
+            "type": "string",
+            "title": "Answer Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "step",
+          "source",
+          "line",
+          "prompt_sha256",
+          "answer_sha256"
+        ],
+        "title": "AdvisoryStep"
+      },
+      "AdvisoryTestBlock": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "cases_line": {
+            "type": "string",
+            "title": "Cases Line"
+          },
+          "control": {
+            "type": "string",
+            "title": "Control"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          },
+          "design_fingerprint": {
+            "type": "string",
+            "title": "Design Fingerprint"
+          },
+          "trial": {
+            "$ref": "#/components/schemas/AdvisoryTrial"
+          },
+          "ledger": {
+            "$ref": "#/components/schemas/AdvisoryLedger"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "question",
+          "cases_line",
+          "control",
+          "rule",
+          "design_fingerprint",
+          "trial",
+          "ledger"
+        ],
+        "title": "AdvisoryTestBlock"
+      },
+      "AdvisoryTestCell": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "not_offered",
+              "none"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Test ready\", \"Not offered\" or \"No test yet\""
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "tone",
+          "reason"
+        ],
+        "title": "AdvisoryTestCell"
+      },
+      "AdvisoryTrial": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines"
+        ],
+        "title": "AdvisoryTrial"
+      },
+      "AdvisoryWaiting": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason",
+            "description": "Why nothing can be decided here right now (closed, or Otto not installed)."
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "count",
+          "blocked_reason",
+          "line",
+          "note"
+        ],
+        "title": "AdvisoryWaiting",
+        "description": "Above the table: how many proposed checks nobody has decided yet. There is no button that decides several."
       },
       "AlgorithmName": {
         "properties": {
@@ -3109,6 +4469,17 @@
               }
             ],
             "description": "Phase 5b: the Overview's blocks (null before a file)."
+          },
+          "waiting": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoWaiting"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c: \"Waiting for you\": Otto's proposals nobody has decided yet."
           }
         },
         "additionalProperties": false,
@@ -3198,6 +4569,25 @@
           "label"
         ],
         "title": "CameFrom"
+      },
+      "CardAdvisory": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "link"
+        ],
+        "title": "CardAdvisory",
+        "description": "On an advisory check's card: \"From advisory CVE-...\", with the link to it on the Advisories page."
       },
       "CatalogItem": {
         "properties": {
@@ -3733,6 +5123,29 @@
         ],
         "title": "CheckDetail"
       },
+      "CheckFromOtto": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "advisory": {
+            "type": "string",
+            "title": "Advisory"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "advisory",
+          "link"
+        ],
+        "title": "CheckFromOtto"
+      },
       "CheckGroup": {
         "properties": {
           "key": {
@@ -3945,6 +5358,17 @@
             "type": "array",
             "title": "Same As",
             "description": "Phase 5b: the same measurement made elsewhere (decisions 3 and 4); each keeps its own run."
+          },
+          "from_otto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckFromOtto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c: \"From Otto\" on an advisory check, with the way to its advisory."
           }
         },
         "additionalProperties": false,
@@ -4350,6 +5774,24 @@
         ],
         "title": "Created"
       },
+      "DecisionBody": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "DecisionBody"
+      },
       "DemoProjectsLoaded": {
         "properties": {
           "added": {
@@ -4591,6 +6033,118 @@
           "empty_text"
         ],
         "title": "DependenciesView"
+      },
+      "DependencyAdvisory": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line",
+            "description": "\"Named by advisory CVE-...: measured affected\""
+          },
+          "state": {
+            "$ref": "#/components/schemas/DependencyAdvisoryState"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "fixed_line": {
+            "type": "string",
+            "title": "Fixed Line"
+          },
+          "advisory_link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "evidence_link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fix_link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "fix_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "line",
+          "state",
+          "detail",
+          "fixed_line",
+          "advisory_link",
+          "evidence_link",
+          "fix_link",
+          "fix_label"
+        ],
+        "title": "DependencyAdvisory"
+      },
+      "DependencyAdvisoryState": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "affected",
+              "not_affected",
+              "not_checked"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "tone"
+        ],
+        "title": "DependencyAdvisoryState"
       },
       "DependencyBlock": {
         "properties": {
@@ -5159,6 +6713,39 @@
         ],
         "title": "DependencyMeasurement"
       },
+      "DependencyOttoStatus": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "tone",
+          "lines"
+        ],
+        "title": "DependencyOttoStatus"
+      },
       "DependencyPicker": {
         "properties": {
           "label": {
@@ -5326,6 +6913,33 @@
                 "type": "null"
               }
             ]
+          },
+          "advisories": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyAdvisory"
+            },
+            "type": "array",
+            "title": "Advisories",
+            "description": "Phase 5c: \"Named by advisory X: ...\" lines."
+          },
+          "otto_proposals": {
+            "items": {
+              "$ref": "#/components/schemas/OttoProposal"
+            },
+            "type": "array",
+            "title": "Otto Proposals",
+            "description": "Phase 5c: Otto's proposals to change this library's status."
+          },
+          "otto_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DependencyOttoStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c: the status a person accepted."
           }
         },
         "additionalProperties": false,
@@ -5389,6 +7003,14 @@
           "environment_line": {
             "type": "string",
             "title": "Environment Line"
+          },
+          "otto_lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Otto Lines",
+            "description": "Phase 5c: what a person accepted from Otto for a library of this system."
           }
         },
         "additionalProperties": false,
@@ -5994,6 +7616,32 @@
             ],
             "description": "Phase 4c: advisories for a text-only fix on a real library."
           },
+          "proof_rows": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FixProofRow"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proof Rows",
+            "description": "Phase 5c: a library's fix from Otto: two rows in place of the Proof line."
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoProposal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c: a fix of Otto's is a proposal: its state, decisions and buttons."
+          },
           "group": {
             "type": "string",
             "title": "Group",
@@ -6370,6 +8018,21 @@
             "type": "string",
             "title": "Button",
             "description": "\"View in Fixes\""
+          },
+          "rows": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rows",
+            "description": "Phase 5c: a library's fix from Otto: its two proof rows, word for word as in Fixes."
           }
         },
         "additionalProperties": false,
@@ -6384,6 +8047,78 @@
         ],
         "title": "FixLine",
         "description": "The one line on a failed result that has a fix in the Fixes step."
+      },
+      "FixProofRow": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "public",
+              "here"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "badge": {
+            "$ref": "#/components/schemas/FixDetailProofBadge",
+            "description": "\"Passed\", \"Not proven\" or \"Not yet\""
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line",
+            "description": "The row in one line, the same words wherever it is shown."
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/LabeledLink"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "ledger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryLedger"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The research ledger's entries behind the first row."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Under the second row: what a retest here runs on (a public copy, not your system)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "badge",
+          "text",
+          "line",
+          "links",
+          "ledger"
+        ],
+        "title": "FixProofRow",
+        "description": "One of the two proof rows of a library's fix: \"Proven on public copies\" or \"Proven on your system\"."
       },
       "FixSectionChange": {
         "properties": {
@@ -6897,6 +8632,17 @@
             "type": "array",
             "title": "Settings",
             "description": "Settings rows the file carries (not claims: nothing checks them). Optional: older stored answers may lack it."
+          },
+          "otto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImportOtto"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c: \"Otto found N checks that may apply\". Nothing runs on import."
           }
         },
         "additionalProperties": false,
@@ -6910,6 +8656,45 @@
           "addresses"
         ],
         "title": "Import"
+      },
+      "ImportOtto": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "link_label": {
+            "type": "string",
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "count",
+          "label",
+          "text",
+          "note",
+          "link",
+          "link_label"
+        ],
+        "title": "ImportOtto",
+        "description": "Import: \"Otto found N checks that may apply\", with the way to Advisories. Nothing runs on import."
       },
       "ImportSetting": {
         "properties": {
@@ -7190,6 +8975,17 @@
               }
             ],
             "description": "Phase 4c: advisories for this version (null for our own demo code)."
+          },
+          "otto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoResultBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result."
           }
         },
         "additionalProperties": false,
@@ -7289,7 +9085,8 @@
               "bad_signatures",
               "speed_size",
               "pq_readiness",
-              "mldsa_compare"
+              "mldsa_compare",
+              "advisory_cases"
             ],
             "title": "Kind"
           },
@@ -7622,6 +9419,24 @@
         ],
         "title": "LabViewRetest"
       },
+      "LabeledLink": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "link"
+        ],
+        "title": "LabeledLink"
+      },
       "LabeledRichValue": {
         "properties": {
           "label": {
@@ -7735,6 +9550,35 @@
           "state"
         ],
         "title": "LibraryEvidenceRow"
+      },
+      "LiveOttoBody": {
+        "properties": {
+          "on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          }
+        },
+        "type": "object",
+        "title": "LiveOttoBody"
       },
       "LockedTestField": {
         "properties": {
@@ -8014,6 +9858,17 @@
               }
             ],
             "description": "Phase 4c: advisories for this version (null for our own demo code)."
+          },
+          "otto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoResultBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result."
           }
         },
         "additionalProperties": false,
@@ -8607,6 +10462,17 @@
             "type": "string",
             "title": "Track",
             "description": "Phase 4b: \"Key exchange\" | \"Authentication\" | \"Signatures\" | \"Both tracks\"."
+          },
+          "otto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoRoadmapMark"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c: the mark of a proposal of Otto's for this system."
           }
         },
         "additionalProperties": false,
@@ -8864,6 +10730,17 @@
                 "type": "null"
               }
             ]
+          },
+          "otto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoPlanBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c: Otto's proposed changes to this system's plan."
           }
         },
         "additionalProperties": false,
@@ -9419,6 +11296,1183 @@
         ],
         "title": "OrderBody"
       },
+      "OttoAnswersLine": {
+        "properties": {
+          "line": {
+            "type": "string",
+            "title": "Line",
+            "description": "\"Answers recorded during the build, 17 November 2026\" or \"Live: Claude, through your key\""
+          },
+          "live": {
+            "type": "boolean",
+            "title": "Live"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "live"
+        ],
+        "title": "OttoAnswersLine"
+      },
+      "OttoCheckButton": {
+        "properties": {
+          "button": {
+            "type": "string",
+            "title": "Button",
+            "description": "\"Check for updates\""
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "button",
+          "note"
+        ],
+        "title": "OttoCheckButton"
+      },
+      "OttoDecisionLine": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "word": {
+            "type": "string",
+            "title": "Word"
+          },
+          "by": {
+            "type": "string",
+            "title": "By"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "at_text": {
+            "type": "string",
+            "title": "At Text"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "ledger_entry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger Entry"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "number",
+          "word",
+          "by",
+          "at",
+          "at_text",
+          "reason",
+          "ledger_entry",
+          "line"
+        ],
+        "title": "OttoDecisionLine"
+      },
+      "OttoHarnessLine": {
+        "properties": {
+          "installed": {
+            "type": "boolean",
+            "title": "Installed"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "installed",
+          "line"
+        ],
+        "title": "OttoHarnessLine"
+      },
+      "OttoLiveLimit": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value",
+            "description": "US dollars, e.g. \"2.00\""
+          },
+          "save": {
+            "type": "string",
+            "title": "Save"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "value",
+          "save",
+          "note"
+        ],
+        "title": "OttoLiveLimit"
+      },
+      "OttoLiveSection": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "key_present": {
+            "type": "boolean",
+            "title": "Key Present",
+            "description": "Whether a key is set. The key itself is never sent to the screen."
+          },
+          "key_line": {
+            "type": "string",
+            "title": "Key Line"
+          },
+          "switch": {
+            "$ref": "#/components/schemas/OttoLiveSwitch"
+          },
+          "limit": {
+            "$ref": "#/components/schemas/OttoLiveLimit"
+          },
+          "sent_line": {
+            "type": "string",
+            "title": "Sent Line"
+          },
+          "status_line": {
+            "type": "string",
+            "title": "Status Line"
+          },
+          "price_line": {
+            "type": "string",
+            "title": "Price Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "key_present",
+          "key_line",
+          "switch",
+          "limit",
+          "sent_line",
+          "status_line",
+          "price_line"
+        ],
+        "title": "OttoLiveSection"
+      },
+      "OttoLiveSwitch": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Use live Claude\""
+          },
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          },
+          "can_turn_on": {
+            "type": "boolean",
+            "title": "Can Turn On",
+            "description": "Only when an API key is present on this computer."
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "on",
+          "can_turn_on",
+          "blocked_reason"
+        ],
+        "title": "OttoLiveSwitch"
+      },
+      "OttoPackCard": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "built_at": {
+            "type": "string",
+            "title": "Built At"
+          },
+          "built": {
+            "type": "string",
+            "title": "Built",
+            "description": "\"17 November 2026\""
+          },
+          "signer": {
+            "type": "string",
+            "title": "Signer"
+          },
+          "made_here": {
+            "type": "boolean",
+            "title": "Made Here",
+            "description": "Signed with a key made on this computer (a live research run)."
+          },
+          "advisories": {
+            "type": "integer",
+            "title": "Advisories"
+          },
+          "tests": {
+            "type": "integer",
+            "title": "Tests"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "fingerprint": {
+            "type": "string",
+            "title": "Fingerprint"
+          },
+          "installed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Installed At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "built_at",
+          "built",
+          "signer",
+          "made_here",
+          "advisories",
+          "tests",
+          "line",
+          "fingerprint",
+          "installed_at"
+        ],
+        "title": "OttoPackCard"
+      },
+      "OttoPacksSection": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "intro": {
+            "type": "string",
+            "title": "Intro"
+          },
+          "installed": {
+            "items": {
+              "$ref": "#/components/schemas/OttoPackCard"
+            },
+            "type": "array",
+            "title": "Installed",
+            "description": "Oldest first. Packs are never removed."
+          },
+          "installed_line": {
+            "type": "string",
+            "title": "Installed Line"
+          },
+          "unreadable_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unreadable Line",
+            "description": "Set when a pack installed by an earlier build can't be read by this version."
+          },
+          "counts_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counts Line"
+          },
+          "check": {
+            "$ref": "#/components/schemas/OttoCheckButton"
+          },
+          "checked_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked Line",
+            "description": "Set after Check for updates: what was found in the updates folder."
+          },
+          "refused": {
+            "items": {
+              "$ref": "#/components/schemas/OttoRefusedPack"
+            },
+            "type": "array",
+            "title": "Refused"
+          },
+          "update": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pack that can be installed next, after Check for updates found one."
+          },
+          "order_note": {
+            "type": "string",
+            "title": "Order Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "intro",
+          "installed",
+          "installed_line",
+          "unreadable_line",
+          "counts_line",
+          "check",
+          "checked_line",
+          "refused",
+          "update",
+          "order_note"
+        ],
+        "title": "OttoPacksSection"
+      },
+      "OttoPlanBlock": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/OttoProposal"
+            },
+            "type": "array",
+            "title": "Proposals"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "note",
+          "proposals"
+        ],
+        "title": "OttoPlanBlock"
+      },
+      "OttoProjectBlock": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "pack_line": {
+            "type": "string",
+            "title": "Pack Line"
+          },
+          "since_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since Title"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/OttoProjectRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "note",
+          "pack_line",
+          "since_title",
+          "rows"
+        ],
+        "title": "OttoProjectBlock"
+      },
+      "OttoProjectRow": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "waiting": {
+            "type": "integer",
+            "title": "Waiting"
+          },
+          "waiting_text": {
+            "type": "string",
+            "title": "Waiting Text"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "since": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Since"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "title",
+          "waiting",
+          "waiting_text",
+          "link",
+          "since"
+        ],
+        "title": "OttoProjectRow"
+      },
+      "OttoProposal": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "check",
+              "fix",
+              "plan",
+              "dependency"
+            ],
+            "title": "Kind"
+          },
+          "kind_label": {
+            "type": "string",
+            "title": "Kind Label"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"From Otto\""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "why_label": {
+            "type": "string",
+            "title": "Why Label"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OttoProposalStatus"
+          },
+          "decided_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided Line"
+          },
+          "effect": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effect",
+            "description": "What an accepted proposal has led to so far."
+          },
+          "buttons": {
+            "items": {
+              "$ref": "#/components/schemas/OttoProposalButton"
+            },
+            "type": "array",
+            "title": "Buttons"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reject_dialog": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoRejectDialog"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history": {
+            "$ref": "#/components/schemas/OttoProposalHistory"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "proposed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "kind_label",
+          "label",
+          "title",
+          "why",
+          "why_label",
+          "lines",
+          "status",
+          "decided_line",
+          "effect",
+          "buttons",
+          "note",
+          "reject_dialog",
+          "history",
+          "link",
+          "proposed_at"
+        ],
+        "title": "OttoProposal",
+        "description": "One proposal of Otto's as a screen shows it. It words no result; a decision is recorded with who and when."
+      },
+      "OttoProposalButton": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "reject",
+              "undo",
+              "reconsider"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason",
+            "description": "Why the button is off right now."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "can",
+          "blocked_reason"
+        ],
+        "title": "OttoProposalButton"
+      },
+      "OttoProposalHistory": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/OttoDecisionLine"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "footnote": {
+            "type": "string",
+            "title": "Footnote"
+          },
+          "ledger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryLedger"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "count",
+          "rows",
+          "footnote",
+          "ledger"
+        ],
+        "title": "OttoProposalHistory"
+      },
+      "OttoProposalStatus": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "accepted",
+              "rejected"
+            ],
+            "title": "Key"
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "\"Proposed\", \"Added\" or \"Accepted\", \"Not added (reason)\""
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "word",
+          "tone"
+        ],
+        "title": "OttoProposalStatus"
+      },
+      "OttoProposalsView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "waiting": {
+            "$ref": "#/components/schemas/OttoWaiting"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/OttoProposal"
+            },
+            "type": "array",
+            "title": "Proposals"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "waiting",
+          "proposals",
+          "blocked_reason"
+        ],
+        "title": "OttoProposalsView"
+      },
+      "OttoRefusedPack": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "title": "File"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "file",
+          "reason"
+        ],
+        "title": "OttoRefusedPack"
+      },
+      "OttoRejectDialog": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "reason_label": {
+            "type": "string",
+            "title": "Reason Label"
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          },
+          "confirm": {
+            "type": "string",
+            "title": "Confirm"
+          },
+          "cancel": {
+            "type": "string",
+            "title": "Cancel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "line",
+          "reason_label",
+          "max",
+          "confirm",
+          "cancel"
+        ],
+        "title": "OttoRejectDialog"
+      },
+      "OttoResultBlock": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"From Otto\""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "advisory": {
+            "$ref": "#/components/schemas/LabeledLink"
+          },
+          "design": {
+            "$ref": "#/components/schemas/AdvisoryTrial"
+          },
+          "trial": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryTrial"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decisions": {
+            "$ref": "#/components/schemas/OttoResultDecisions"
+          },
+          "ledger": {
+            "$ref": "#/components/schemas/AdvisoryLedger"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "title",
+          "line",
+          "advisory",
+          "design",
+          "trial",
+          "decisions",
+          "ledger",
+          "note"
+        ],
+        "title": "OttoResultBlock",
+        "description": "Evidence, on a result of an advisory check: what stands behind the check. Records only; it words no result."
+      },
+      "OttoResultDecisions": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/OttoDecisionLine"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "footnote": {
+            "type": "string",
+            "title": "Footnote"
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "count",
+          "rows",
+          "footnote",
+          "empty"
+        ],
+        "title": "OttoResultDecisions"
+      },
+      "OttoRoadmapMark": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "waiting": {
+            "type": "integer",
+            "title": "Waiting"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "text",
+          "tone",
+          "waiting"
+        ],
+        "title": "OttoRoadmapMark"
+      },
+      "OttoSettingsView": {
+        "properties": {
+          "packs": {
+            "$ref": "#/components/schemas/OttoPacksSection"
+          },
+          "harness": {
+            "$ref": "#/components/schemas/OttoHarnessLine"
+          },
+          "answers": {
+            "$ref": "#/components/schemas/OttoAnswersLine"
+          },
+          "live": {
+            "$ref": "#/components/schemas/OttoLiveSection"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "packs",
+          "harness",
+          "answers",
+          "live"
+        ],
+        "title": "OttoSettingsView",
+        "description": "Settings: the Test packs section, the two status lines and the Live Otto section (phase 5c)."
+      },
+      "OttoUpdate": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "button": {
+            "type": "string",
+            "title": "Button",
+            "description": "\"Install update\""
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "dialog": {
+            "$ref": "#/components/schemas/OttoUpdateDialog"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "button",
+          "line",
+          "dialog"
+        ],
+        "title": "OttoUpdate"
+      },
+      "OttoUpdateDialog": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "confirm": {
+            "type": "string",
+            "title": "Confirm"
+          },
+          "cancel": {
+            "type": "string",
+            "title": "Cancel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "confirm",
+          "cancel"
+        ],
+        "title": "OttoUpdateDialog"
+      },
+      "OttoWaiting": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OttoWaitingItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "total",
+          "items",
+          "line",
+          "note"
+        ],
+        "title": "OttoWaiting",
+        "description": "The Overview's \"Waiting for you\": Otto's proposals nobody has decided yet, each kind linking to its page."
+      },
+      "OttoWaitingItem": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "check",
+              "fix",
+              "plan",
+              "dependency"
+            ],
+            "title": "Kind"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "page_label": {
+            "type": "string",
+            "title": "Page Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "count",
+          "text",
+          "link",
+          "page_label"
+        ],
+        "title": "OttoWaitingItem"
+      },
       "OverviewBlocks": {
         "properties": {
           "groups": {
@@ -9568,6 +12622,20 @@
           "empty_text"
         ],
         "title": "OverviewGroup"
+      },
+      "PackInstallBody": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "maxLength": 20,
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "PackInstallBody"
       },
       "PasswordBody": {
         "properties": {
@@ -9893,6 +12961,17 @@
             },
             "type": "array",
             "title": "Choices"
+          },
+          "otto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoProjectBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c: proposals waiting per assessment, and what changed since the newest pack."
           }
         },
         "additionalProperties": false,
@@ -10119,7 +13198,8 @@
               "bad_signatures",
               "speed_size",
               "pq_readiness",
-              "mldsa_compare"
+              "mldsa_compare",
+              "advisory_cases"
             ],
             "title": "Kind"
           },
@@ -10522,14 +13602,15 @@
               "test",
               "fix",
               "system",
-              "library"
+              "library",
+              "advisory"
             ],
             "title": "Kind"
           },
           "title": {
             "type": "string",
             "title": "Title",
-            "description": "\"Claim\", \"Checks\", \"Fix\", \"System and track\", \"Library\""
+            "description": "\"Claim\", \"Checks\", \"Fix\", \"System and track\", \"Library\", \"Advisory\" (phase 5c)"
           },
           "items": {
             "items": {
@@ -11281,7 +14362,8 @@
               "bad_signatures",
               "speed_size",
               "pq_readiness",
-              "mldsa_compare"
+              "mldsa_compare",
+              "advisory_cases"
             ],
             "title": "Kind"
           },
@@ -11369,6 +14451,41 @@
             ],
             "title": "Group",
             "description": "The key of the group this card is under, when the plan is grouped."
+          },
+          "advisory": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CardAdvisory"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 5c, an advisory check only: the advisory it came from."
+          },
+          "from_otto": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Otto",
+            "description": "Phase 5c: \"From Otto\" on a check that came from an accepted proposal."
+          },
+          "remove_blocked": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remove Blocked",
+            "description": "Phase 5c: why this card has no remove button (it is undone on Advisories)."
           }
         },
         "additionalProperties": false,
@@ -11869,6 +14986,12 @@
             },
             "type": "array",
             "title": "Results"
+          },
+          "otto_note": {
+            "type": "string",
+            "title": "Otto Note",
+            "description": "Phase 5c: one sentence. Verify is unchanged and Otto proposes nothing on it yet.",
+            "default": ""
           }
         },
         "additionalProperties": false,
@@ -12104,7 +15227,7 @@
         "type": "string",
         "title": "Mode"
       },
-      "TestKind": {
+      "CatalogKind": {
         "enum": [
           "tls_versions",
           "certificate",
@@ -12113,6 +15236,20 @@
           "speed_size",
           "pq_readiness",
           "mldsa_compare"
+        ],
+        "type": "string",
+        "title": "CatalogKind"
+      },
+      "TestKind": {
+        "enum": [
+          "tls_versions",
+          "certificate",
+          "official_vectors",
+          "bad_signatures",
+          "speed_size",
+          "pq_readiness",
+          "mldsa_compare",
+          "advisory_cases"
         ],
         "type": "string",
         "title": "TestKind"

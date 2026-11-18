@@ -134,3 +134,25 @@ def test_retest_runs_in_the_background_and_shows_progress(lab):
     done = lab.lab_view(plan.id)
     assert [r["after"]["label"] for r in done["rows"]] == ["Failed", "Passed", "Passed"]
     assert "the same three locked tests" in done["subline"][0]["v"]
+
+
+def test_a_retest_that_was_stopped_before_any_result_is_not_said_to_have_run(tmp_path):
+    """Found by the third review of 18 November 2026: with a retest recorded and no result of it (the app was stopped
+    right after the click), Evidence read "the same five locked tests, run on A and then on B" over a column of "Not
+    run yet"."""
+    from conftest import make_lab
+    lab = make_lab(tmp_path)
+    try:
+        plan = demo_plan(lab)              # (the sentence does not read the first results, so nothing needs to run here)
+        with lab.db() as db:
+            db.add(RetestRow(plan_id=plan.id, baseline_version="1.4.2", version="1.4.3"))      # the click's record, and nothing after it
+            db.commit()
+        view = lab.lab_view(plan.id)
+        assert view["view"] == "before_after" and all(r["after"] is None for r in view["rows"])
+        text = "".join(p["v"] for p in view["subline"] if p["t"] != "time")
+        assert text == ("Before and after: the five locked tests ran on acme-sign 1.4.2. The retest on acme-sign 1.4.3 has no result yet: "
+                        "retest again to run them on that version.")
+        assert "and then on" not in text
+    finally:
+        lab.stop()
+

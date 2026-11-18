@@ -154,6 +154,62 @@ export type {
   CompareList,
   CompareItem,
   SharedSystem,
+  // Phase 5c
+  OttoSettingsView,
+  OttoPacksSection,
+  OttoPackCard,
+  OttoRefusedPack,
+  OttoUpdate,
+  OttoUpdateDialog,
+  OttoHarnessLine,
+  OttoAnswersLine,
+  OttoLiveSection,
+  OttoLiveSwitch,
+  OttoLiveLimit,
+  AdvisoriesView,
+  AdvisoryWaiting,
+  AdvisoryProposalCell,
+  OttoProposal,
+  OttoProposalButton,
+  OttoProposalStatus,
+  OttoProposalHistory,
+  OttoDecisionLine,
+  OttoRejectDialog,
+  OttoProposalsView,
+  OttoResultBlock,
+  OttoWaiting,
+  OttoWaitingItem,
+  OttoPlanBlock,
+  OttoRoadmapMark,
+  OttoProjectBlock,
+  OttoProjectRow,
+  ImportOtto,
+  CheckFromOtto,
+  DependencyAdvisory,
+  DependencyAdvisoryState,
+  DependencyOttoStatus,
+  FixProofRow,
+  LabeledLink,
+  AdvisoryFilterOption,
+  AdvisoryRow,
+  AdvisoryTestCell,
+  AdvisoryResultCell,
+  AdvisoryPanel,
+  AdvisoryQuote,
+  AdvisorySource,
+  AdvisoryAffected,
+  AdvisoryTestBlock,
+  AdvisoryTrial,
+  AdvisoryLedger,
+  AdvisoryLedgerEntry,
+  AdvisoryNoTest,
+  AdvisoryHere,
+  AdvisoryHereRow,
+  AdvisoryHereResult,
+  AdvisoryFix,
+  AdvisoryFixHere,
+  AdvisoryClaude,
+  AdvisoryStep,
 } from "./api.gen";
 import type {
   Session,
@@ -178,6 +234,10 @@ import type {
   CheckDetail,
   RelatedView,
   ProjectOverview,
+  OttoSettingsView,
+  AdvisoriesView,
+  OttoProposal,
+  OttoProposalsView,
 } from "./api.gen";
 
 export class ApiError extends Error {
@@ -347,6 +407,26 @@ export const api = {
   getCheck: (planId: number, checkId: string) => request<CheckDetail>(`/api/plans/${planId}/checks/${encodeURIComponent(checkId)}`),
   getRelated: (planId: number, key: string) => request<RelatedView>(`/api/plans/${planId}/related?key=${encodeURIComponent(key)}`),
   loadDemoProjects: () => request<DemoProjectsLoaded>("/api/demo-projects", { method: "POST" }),
+
+  // Phase 5c: Otto. Settings (Test packs, Live Otto) belong to the installation; Advisories and Otto's proposals to one
+  // assessment. Every call answers with the whole view as it now stands. No key is ever sent or shown.
+  getOtto: () => request<OttoSettingsView>("/api/otto"),
+  /** Looks in the updates folder on this computer; nothing is downloaded. */
+  checkPackUpdates: () => request<OttoSettingsView>("/api/otto/packs/check", { method: "POST" }),
+  /** Only the Install button of the Install update box calls this. */
+  installPack: (version: string) => request<OttoSettingsView>("/api/otto/packs/install", { method: "POST", json: { version } }),
+  /** Use live Claude on or off, and/or the spending limit per run (US dollars, as typed). */
+  setLiveOtto: (change: { on?: boolean; limit?: string }) => request<OttoSettingsView>("/api/otto/live", { method: "POST", json: change }),
+  getAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories`),
+  /** Every proposal of Otto's in this assessment, with the "Waiting for you" counts. */
+  getProposals: (planId: number) => request<OttoProposalsView>(`/api/plans/${planId}/otto/proposals`),
+  /** Otto proposes; a person decides: accept, reject (with an optional short reason), undo or reconsider one proposal.
+   * It runs nothing. The answer is the proposal as it now stands. */
+  decideProposal: (planId: number, proposalId: string, decision: "accept" | "reject" | "undo" | "reconsider", reason?: string) =>
+    request<OttoProposal>(`/api/plans/${planId}/otto/proposals/${encodeURIComponent(proposalId)}/${decision}`, {
+      method: "POST",
+      json: reason ? { reason } : {},
+    }),
 
   getCurrentImport: () => orNullOn404(request<Import>("/api/import/current")),
 
