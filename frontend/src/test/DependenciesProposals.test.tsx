@@ -91,7 +91,7 @@ const DEP: Partial<OttoProposal> = {
   link: { page: "migration/dependencies", item: "row-1" },
 };
 const proposed = proposal({ ...DEP, note: "Accept marks this library “update first”. It runs nothing and changes nothing on any system." });
-const EFFECT = "Marked “update first”: to 0.13.3.";
+const EFFECT = "Marked “update first”: python-ecdsa 0.13.2 to 0.13.3.";
 const accepted = acceptedProposal({
   ...DEP,
   status: { key: "accepted", word: "Accepted", tone: "pass" },

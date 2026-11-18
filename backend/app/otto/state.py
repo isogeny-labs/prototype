@@ -249,16 +249,18 @@ class OttoMixin:
                 design_sha: str | None = advisory["test"]["design_sha256"] if advisory["test"]["state"] == "ready" else None
                 for program in fitting if design_sha is not None else []:
                     item = checks.existing_item(self, db, plan_id, design_sha or "", program["ref"])
-                    shown, ledger = None, []
+                    shown, first, ledger = None, None, []
                     if item is not None and not item.removed:
                         row = lab_rows.get(item.id) or {}
                         shown = row.get("after") or row.get("result")
+                        # after a retest the newest result is of another version than the file names: the first run's goes with it
+                        first = row.get("result") if row.get("after") else None
                         check = added.get((advisory["id"], item.id))
                         if check is not None:
                             ledger = self._ledger_about(plan_id, check.objective_id)
                     proposal = proposed.get(otto_proposals.check_id(advisory["id"], design_sha or "", program["ref"]))
                     here.append({"program": program["label"], "item_id": item.id if item is not None and not item.removed else None,
-                                 "result": shown, "ledger": ledger, "proposal": proposal,
+                                 "result": shown, "first": first, "ledger": ledger, "proposal": proposal,
                                  "decision_ledger": (self.otto_ledger_about(plan_id, proposal["objective_id"])      # type: ignore[attr-defined]
                                                      if proposal is not None and proposal.get("objective_id") else []),
                                  # the assessment's own program (one of our demo components), not a real library

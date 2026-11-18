@@ -86,7 +86,7 @@ describe("Fixes, a library's fix from Otto: the two proof rows", () => {
     expect(text(summary())).toContain("From Otto");
   });
 
-  it("links the first row to the trial and folds the Otto ledger entries under it; the second row has neither", async () => {
+  it("links the first row to the trial and folds the Otto ledger entries under it; the second row links to where Retest is and has no ledger", async () => {
     await open(fixesWith([updateFix()]), UPDATE_FIX);
     const [onPublic, here] = proofRows();
     const link = within(onPublic!).getByTestId("proof-row-link");
@@ -97,8 +97,18 @@ describe("Fixes, a library's fix from Otto: the two proof rows", () => {
     expect(text(ledger.querySelector("summary"))).toBe("Otto ledger entries (2)");
     expect(within(ledger).getAllByTestId("advisory-ledger-entry")).toHaveLength(publicPassed.ledger!.entries.length);
     expect(text(ledger)).toContain(publicPassed.ledger!.note);
-    expect(within(here!).queryByTestId("proof-row-link")).toBeNull();
+    // "Then press Retest": the button is on Evidence, so the row's one link goes to this check's result there.
+    const retest = within(here!).getByTestId("proof-row-link");
+    expect(retest.textContent).toBe("Retest new version is on Evidence");
+    expect(retest.getAttribute("href")).toBe("#/a/101/evidence?item=test-7");
     expect(within(here!).queryByTestId("advisory-ledger")).toBeNull();
+    // What the row is about (a public copy, not the reader's own system) comes right under its sentence, before the
+    // link, at the size of the text: it qualifies the word in the chip and is never small print at the foot.
+    const note = within(here!).getByTestId("proof-row-note");
+    const sentence = within(here!).getByTestId("proof-row-text");
+    expect(sentence.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note.compareDocumentPosition(retest) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note.className).not.toMatch(/text-xs|text-slate-400|text-slate-500/);
   });
 
   it("says Not proven on public copies, with the pack's own reason, when another locked test still fails on the fixed version", async () => {

@@ -2803,6 +2803,18 @@
               }
             ],
             "title": "Finished At"
+          },
+          "ran_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ran On",
+            "description": "After a retest: which version this result is of, and what the first run read."
           }
         },
         "additionalProperties": false,

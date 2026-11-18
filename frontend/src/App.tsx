@@ -183,6 +183,22 @@ export default function App() {
       live = false;
     };
   }, [loggedIn, routePage, routeId, loadedId]);
+  // Phase 5c: Import's line about Otto counts the checks of the test packs installed now, and a pack can be installed
+  // after the file came in. So that one line is asked for again each time Import opens. It only reads.
+  useEffect(() => {
+    if (!loggedIn || routePage !== "inventory/import" || routeId === null || loadedId !== routeId) return;
+    let live = true;
+    api
+      .getAssessment(routeId)
+      .then((next) => {
+        const fresh = next.import ?? null;
+        if (live && fresh) setImp((c) => (c && c.id === fresh.id ? { ...c, otto: fresh.otto } : c));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [loggedIn, routePage, routeId, loadedId]);
   useEffect(() => {
     if (routePage === "fixes" && routeItem) setFixId(routeItem);
   }, [routePage, routeItem]);

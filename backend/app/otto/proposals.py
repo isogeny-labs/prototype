@@ -119,6 +119,32 @@ def make(kind: str, pid: str, *, title: str, why: str, lines: list[str], about: 
             "proposed_at": proposed_at, "link": {"page": HOME[kind], "item": item}, "current": True, "facts": dict(facts or {})}
 
 
+def _later_targets(row: dict | None, fixed: str) -> list[str]:
+    """The "first versions that can" among a dependency row's own "no" answers that are past the version an advisory's
+    publisher names as fixed, oldest first, each once. Empty when there is none, and a version that can't be read is
+    left out: nothing is guessed."""
+    from app.knowledge.versions import key
+    if row is None or read_version(fixed) is None:
+        return []
+    known = {str(a.get("first_version")) for a in (row.get("answers") or {}).values()
+             if isinstance(a, dict) and a.get("answer") == "no" and a.get("first_version") not in (None, "none_known")}
+    later = [v for v in known if read_version(v) is not None and not at_least(read_version(fixed), v)]     # type: ignore[arg-type]
+    return sorted(later, key=lambda v: key(read_version(v)))     # type: ignore[arg-type]
+
+
+def _later_line(row: dict | None, fixed: str) -> str:
+    """One sentence for a dependency proposal when the same row's post-quantum answers name later versions than the
+    advisory's fix: two version numbers on one row are two different questions, not a contradiction."""
+    later = _later_targets(row, fixed)
+    if not later:
+        return ""
+    if len(later) == 1:
+        return (f"This answers the advisory only. For post-quantum, this row's own answer names {later[0]} or later: an update to that "
+                f"version is past {fixed} too.")
+    return ("This answers the advisory only. For post-quantum, this row's own answers name later versions ("
+            + ", ".join(f"{v} or later" for v in later) + f"): an update to one of those is past {fixed} too.")
+
+
 def state_of(rows: list) -> str:
     return rows[-1].after if rows else "proposed"
 
@@ -233,9 +259,9 @@ class ProposalsMixin:
                              "An answer that is not, byte for byte, one of our registered demo programs is refused."]
                 else:
                     title = f"{otto.get('title') or 'A change written by Otto'} ({component['name']})"
-                    lines = [str(otto.get("summary") or "").strip(),
-                             "Written by Otto. Accepting it runs nothing: you then connect the code, and the proof reruns every locked test "
-                             "on the changed code before anything is offered for review."]
+                    lines = ["What the change would do, in Otto's words: " + str(otto.get("summary") or "").strip(),
+                             "Written by Otto. Nothing is changed yet. Accepting it runs nothing: you then connect the code, and the proof "
+                             "reruns every locked test on the changed code before anything is offered for review."]
                 out.append(make("fix", code_fix_id(fix["id"][4:] if fix["id"].startswith("fix-") else fix["id"]), title=title,
                                 why=f"The advisory check for {advisory} failed on {program}, which is your own code.",
                                 lines=lines,
@@ -277,6 +303,9 @@ class ProposalsMixin:
                     and (r["item_id"] not in newest or r["run_id"] > newest[r["item_id"]]["run_id"]):
                 newest[r["item_id"]] = r
         out = []
+        # A change to a system's plan needs a plan to change: the roadmap places a system only once its status has been
+        # measured ("Not placed yet" until then). Asked once, and only when a result could lead to a proposal.
+        placed = {s["key"] for s in self._migration_states(db, plan) if s.get("status")} if newest else set()     # type: ignore[attr-defined]
         for item_id, result in newest.items():
             item = db.get(PlanItemRow, item_id)
             spec, _ = read_spec(db.get(TestSpecRow, item.spec_hash)) if item is not None else ({}, False)
@@ -285,6 +314,8 @@ class ProposalsMixin:
             if system is None or not advisory.get("id"):
                 continue
             pid = plan_id_for(system["key"], item_id)
+            if system["key"] not in placed and pid not in (decided or set()):
+                continue        # no plan for this system yet: nothing is proposed until Measure status has placed it
             done = None
             if result["tone"] != "fail":
                 if pid not in (decided or set()):
@@ -382,6 +413,7 @@ class ProposalsMixin:
         proposal for one library, version and advisory, however many rows of the list name it (`facts.row_keys`)."""
         from app.present import otto as present_otto      # (words only; imported here to keep this module's top small)
         out: dict[str, dict] = {}
+        rows_by_key = {r["key"]: r for r in (state or {}).get("rows") or []}
         for row_key, named in self._named_by(db, plan, state, upto).items():
             for n in named:
                 fix = n["fix"]
@@ -399,6 +431,7 @@ class ProposalsMixin:
                     why=(f"Your dependency list has {n['label']}. Advisory {n['advisory']} ({n['plain_name']}) is about {n['library']}, and its "
                          f"publisher names {fix['version']} as the fixed version."),
                     lines=[str(fix.get("summary") or ""), public["line"],
+                           _later_line(rows_by_key.get(row_key), str(fix["version"])),
                            "Otto proposes to mark this library “update first”. Accepting changes nothing on any system and runs nothing."],
                     about={"library": n["library"], "version": n["version"], "fixed": fix["version"], "advisory": n["advisory"],
                            "pack": n["pack"], "public_copies": fix.get("state")},

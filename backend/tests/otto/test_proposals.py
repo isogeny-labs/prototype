@@ -594,7 +594,7 @@ def test_the_project_overview_counts_what_waits_and_what_changed_since_the_newes
     block = lab.project_overview(assessment.project_id)["otto"]
     assert block["title"] == "Otto in this project" and "Newest test pack: 2026.11.1, installed on" in block["pack_line"]
     row = next(r for r in block["rows"] if r["assessment_id"] == assessment.id)
-    assert row["waiting"] == 2 and row["waiting_text"] == "2 proposals waiting for a decision"
+    assert row["waiting"] == 2 and row["waiting_text"] == "2 proposals waiting for a decision: 2 proposed checks"     # said by kind
     assert row["since"] == ["It brought 2 proposed checks for this assessment: 2 waiting."]
     first, second = (p["id"] for p in helpers.check_proposals(lab, plan_id))
     lab.otto_decide(plan_id, first, "accept")

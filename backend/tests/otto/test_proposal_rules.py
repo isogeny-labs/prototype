@@ -89,8 +89,14 @@ def test_the_second_row_says_what_this_assessments_own_retest_showed():
     # every state of this row says plainly what a retest here runs on: a public copy, not the system the customer runs
     for row in (not_yet, passed, other, still):
         assert row["note"] == present_otto.HERE_NOTE and "public copy of the updated version" in row["note"]
-        assert "does not connect to the system you run" in row["note"] and row["note"] not in row["line"]
+        assert row["note"].startswith("This row is about a public copy, not the system you run.") and row["note"] not in row["line"]
+        assert "The app has not checked that your own system was updated" in row["note"]
     assert present_otto.public_copies_row({**fix, "state": "proven", "trial": None}, None)["note"] is None
+    # "press Retest": the button is on Evidence ("Retest new version"), so the row links to this check's result there
+    with_item = present_otto.your_system_row(fix, {"state": "not_yet", "item_id": 12, "live": False})
+    assert with_item["links"] == [{"label": "Retest new version is on Evidence", "link": {"page": "evidence", "item": "test-12"}}]
+    assert with_item["line"] == not_yet["line"]                     # the row's own words stay Kevin's
+    assert present_otto.your_system_row(fix, {"state": "not_yet", "item_id": 12, "live": True})["links"] == []
 
 
 def test_the_second_row_reads_passed_only_for_a_whole_retest():
@@ -239,6 +245,11 @@ def test_otto_proposes_update_first_and_a_person_accepts_or_rejects_it(listed):
     ecdsa, java, _ = found
     assert ecdsa["title"] == "Update python-ecdsa 0.13.2 to 0.13.3 before the move" and ecdsa["label"] == "From Otto"
     assert "Proven on public copies: Passed. 0.13.2 fails the advisory check; 0.13.3 passes." in ecdsa["lines"]
+    # Second review, 18 November 2026: the same row's post-quantum answer can name a later version than the advisory's
+    # fix (openjdk: 17.0.3 for the advisory, 24 for ML-DSA). The proposal says so, so nobody reads two targets as a clash.
+    assert ("This answers the advisory only. For post-quantum, this row's own answers name later versions (24 or later, 27 or later): "
+            "an update to one of those is past 17.0.3 too.") in java["lines"]
+    assert not any(line.startswith("This answers the advisory only.") for line in ecdsa["lines"])     # no later version is known for it
     assert any("Not proven. 17.0.2 fails the advisory check and 17.0.3 passes it" in line for line in java["lines"])
     assert ecdsa["link"]["page"] == "migration/dependencies" and ecdsa["actions"] == {"accept": None, "reject": None}
     row = _rows(before)["python-ecdsa 0.13.2"]
@@ -250,7 +261,8 @@ def test_otto_proposes_update_first_and_a_person_accepts_or_rejects_it(listed):
     after = lab.dependencies_view(plan_id)
     rows = _rows(after)
     assert rows["python-ecdsa 0.13.2"]["otto_status"]["label"] == "Update first"
-    assert "Marked “update first”: to 0.13.3. Accepted by You on" in rows["python-ecdsa 0.13.2"]["otto_status"]["lines"][0]
+    # (the line names the library and its version: it is also read on the system's box, far from the library's own row)
+    assert "Marked “update first”: python-ecdsa 0.13.2 to 0.13.3. Accepted by You on" in rows["python-ecdsa 0.13.2"]["otto_status"]["lines"][0]
     assert rows["python-ecdsa 0.13.2"]["otto_proposals"][0]["buttons"][0]["label"] == "Undo"
     assert rows["openjdk 17.0.2"]["otto_proposals"][0]["status"]["word"] == "Not added (Java moves with the platform team)"
     assert rows["openjdk 17.0.2"]["otto_status"] is None
@@ -359,21 +371,25 @@ def test_an_accepted_update_shows_on_the_system_its_entry_is_tied_to_and_never_a
     proposal = next(p for p in lab.otto_proposals(plan_id, ("dependency",)) if p["about"]["library"] == "elliptic")
     lab.otto_decide(plan_id, proposal["id"], "accept")
     box = next(s for s in lab.dependencies_view(plan_id)["systems"] if s["key"] == system)
-    assert len(box["otto_lines"]) == 1 and "Marked “update first”: to 6.5.7." in box["otto_lines"][0]
+    assert len(box["otto_lines"]) == 1 and "Marked “update first”: elliptic 6.5.6 to 6.5.7." in box["otto_lines"][0]
     assert [line["text"] for line in box["blocker_lines"]] == blockers            # the blockers the answer key grades are untouched
 
 
 # ---------------------------------------------------------------- Migration: something to fix first, from a result
 
 @pytest.fixture
-def failed_check(tmp_path, monkeypatch):
-    """The Acme Pay demo with a pack made for the test: its check accepted and run once (it fails on acme-sign 1.4.2)."""
+def failed_check(tmp_path, monkeypatch, request):
+    """The Acme Pay demo with a pack made for the test (its check fails on acme-sign 1.4.2), and the migration status
+    measured, as a plan change needs a plan. `indirect` with "not_measured" leaves the status unmeasured."""
     first, public = helpers.make_pack("2026.11.1", None, [helpers.pack_advisory()])
     lab = helpers.lab_with_packs(tmp_path, monkeypatch, {"2026.11.1.json": first}, [public])
     lab.plan = demo_plan(lab)
     lab.check_pack_updates()
     lab.install_pack("2026.11.1")
     lab.migration_view(lab.plan.id)                      # the Migration step, opened (nothing is measured by opening it)
+    if getattr(request, "param", "measured") == "measured":
+        lab.measure_migration(lab.plan.id)               # Measure status: every system has its place on the plan
+        lab.wait_until_measured(lab.plan.id, 300)
     yield lab
     lab.stop()
 
@@ -431,6 +447,36 @@ def test_a_failed_advisory_check_proposes_something_to_fix_first_on_the_programs
     shown, = next(s for s in rejected["systems"] if s["name"] == "acme-sign 1.4.2")["otto"]["proposals"]
     assert shown["status"]["word"] == "Not added (We retire this program in January)" and [b["label"] for b in shown["buttons"]] == ["Reconsider"]
     assert not any(word in json.dumps(program["otto"]).lower() for word in BANNED)
+
+
+@pytest.mark.needs_otto
+@pytest.mark.parametrize("failed_check", ["not_measured"], indirect=True)
+def test_a_plan_change_is_proposed_only_once_the_system_has_a_place_on_the_plan(failed_check):
+    """Found by the second review of 18 November 2026: with the status not measured, the Overview counted "1 proposed
+    change to the migration plan" while the Roadmap read "there is no plan". A change to a plan needs a plan: nothing is
+    proposed until Measure status has placed the system, and then the same failed result proposes it."""
+    lab, plan_id = failed_check, failed_check.plan.id
+    helpers.accept_checks(lab, plan_id)
+    item = next(t["id"] for t in lab.plan_view(plan_id)["tests"] if t["kind"] == "advisory_cases")
+    lab.run_test(plan_id, item)
+    lab.wait_until_idle(plan_id, 240)
+    assert lab.otto_proposals(plan_id, ("plan",)) == [] and lab.otto_waiting(plan_id)["plan"] == 0
+    view = lab.migration_view(plan_id)
+    assert all(s["otto"] is None for s in view["systems"])
+    assert all(row["otto"] is None for band in view["roadmap"]["bands"] for row in band["rows"])
+    lab.measure_migration(plan_id)
+    lab.wait_until_measured(plan_id, 300)
+    proposal, = lab.otto_proposals(plan_id, ("plan",))
+    assert proposal["title"] == "Fix acme-sign 1.4.2 before its signatures move to post-quantum" and lab.otto_waiting(plan_id)["plan"] == 1
+    # Fixes lists no entry for it (it is decided on Migration), and its Migration group says where it is
+    group = next(g for g in lab.fixes_view(plan_id)["groups"] if g["key"] == "migration")
+    if group["empty_text"]:
+        assert group["empty_text"].endswith("Otto proposes 1 change to the migration plan from a result: you accept or reject it on "
+                                            "Migration, under Systems.")
+    lab.otto_decide(plan_id, proposal["id"], "accept")
+    group = next(g for g in lab.fixes_view(plan_id)["groups"] if g["key"] == "migration")
+    if group["empty_text"]:
+        assert "1 change of Otto's to the plan is accepted: it is on Migration, under Systems." in group["empty_text"]
 
 
 @pytest.mark.needs_otto
@@ -494,8 +540,39 @@ def test_an_accepted_plan_change_reads_done_once_the_check_passes_and_an_undecid
     assert done["id"] == proposal["id"] and done["state"] == "accepted" and done["facts"]["done"]["version"] == "1.4.3"
     assert "passed since" in done["actions"]["undo"]
     shown = present_otto.proposal_view(done)
-    assert shown["effect"].startswith("Done: a newer result of this check passed on acme-sign 1.4.3, on ")
+    assert shown["effect"].startswith("Done: the check for CVE-2022-21449 passed on acme-sign 1.4.3, on ")      # names the check
     assert done["why"].startswith("acme-sign 1.4.2 gave the wrong answer on 2 published cases")     # still told from the failure it came from
+
+
+@pytest.mark.needs_otto
+@pytest.mark.slow
+def test_a_check_added_after_a_retest_is_not_said_to_have_run_on_the_retested_version(failed_check):
+    """Found by the second review of 18 November 2026: Evidence read "the same eight locked tests, run on A and then on
+    B" while a check accepted after the retest had run on A only."""
+    from conftest import play_back_speed
+    lab, plan_id = failed_check, failed_check.plan.id
+    play_back_speed(lab)
+    lab.run_all(plan_id)
+    lab.wait_until_idle(plan_id, 300)
+    lab.start_retest(plan_id, "1.4.3")
+    lab.wait_until_idle(plan_id, 300)
+    whole = "".join(p["v"] for p in lab.lab_view(plan_id)["subline"] if p["t"] != "time")
+    assert whole == "Before and after: the same five locked tests, run on acme-sign 1.4.2 and then on acme-sign 1.4.3. Retest finished ."
+    helpers.accept_checks(lab, plan_id)
+    item = next(t["id"] for t in lab.plan_view(plan_id)["tests"] if t["kind"] == "advisory_cases")
+    lab.run_test(plan_id, item)
+    lab.wait_until_idle(plan_id, 240)
+    view = lab.lab_view(plan_id)
+    partly = "".join(p["v"] for p in view["subline"] if p["t"] != "time")
+    assert partly == ("Before and after: five of the six locked tests were run on acme-sign 1.4.2 and then on acme-sign 1.4.3. "
+                      "Retest finished . The other one has no result after yet: retest again to run every test in the plan on "
+                      "acme-sign 1.4.3.")
+    row = next(r for r in view["rows"] if r["item_id"] == item)
+    assert row["result"]["label"] == "Failed" and row["after"] is None
+    # Advisories says the same thing: this result is of the version the row names, so it carries no line about a retest
+    shown = lab.advisories_view(plan_id)["rows"][0]
+    assert shown["result"]["label"] == "Failed" and shown["result"]["text"] is None
+    assert shown["panel"]["here"]["rows"][0]["result"]["ran_on"] is None
 
 
 @pytest.mark.needs_otto
@@ -585,6 +662,40 @@ def test_proven_here_needs_every_pass_or_fail_test_of_the_program_in_the_same_re
     monkeypatch.setattr(lab.jobs, "get", lambda key: Busy() if key[0] in missing and key[1] == "retest" else None)
     going = here()
     assert going["state"] == "running" and going["live"] is True and going["done"] == 1
+
+
+def test_a_later_version_is_named_only_when_it_can_be_read_and_is_past_the_fixed_one():
+    row = {"answers": {"mldsa": {"answer": "no", "first_version": "24"}, "hybrid": {"answer": "no", "first_version": "none_known"},
+                       "other": {"answer": "yes", "first_version": None}, "older": {"answer": "no", "first_version": "21.0.1"},
+                       "again": {"answer": "no", "first_version": "24"}}}
+    assert proposals._later_targets(row, "17.0.3") == ["21.0.1", "24"]        # oldest first, each once, only the ones that can be read
+    assert proposals._later_targets(row, "21.0.1") == ["24"] and proposals._later_targets(row, "24") == [] == proposals._later_targets(row, "25.0.1")
+    assert proposals._later_targets({"answers": {"q": {"answer": "yes", "first_version": "30"}}}, "17.0.3") == []     # not a "no": nothing to update for
+    assert proposals._later_targets(None, "17.0.3") == [] == proposals._later_targets(row, "not a version")
+    assert proposals._later_targets({"answers": {"q": {"answer": "no", "first_version": "soon"}}}, "17.0.3") == []    # never guessed
+    assert proposals._later_line(row, "21.0.1") == ("This answers the advisory only. For post-quantum, this row's own answer names 24 or "
+                                                    "later: an update to that version is past 21.0.1 too.")
+    assert proposals._later_line(row, "24") == ""
+
+
+def test_two_entries_for_the_same_update_of_a_library_name_each_other():
+    """Found by the second review of 18 November 2026: Fixes listed "Update elliptic to the fixed version (6.5.7)" and
+    Otto's "Update elliptic to 6.5.7" as two entries, with nothing to say they are one update."""
+    from app.present import fixes as present_fixes
+
+    def shown(title: str) -> dict:
+        return {"title": title, "what": {"paragraphs": [[{"t": "text", "v": "What it suggests."}]]}}
+    ottos = ({"kind": "text", "otto_fix": {"kind": "update", "library": "elliptic", "version": "6.5.7"}}, shown("Update elliptic to 6.5.7"))
+    older = ({"kind": "text", "real_library": {"name": "Elliptic", "version": "6.5.6", "fixed": "6.5.7"}},
+             shown("Update elliptic to the fixed version (6.5.7)"))
+    other = ({"kind": "text", "real_library": {"name": "python-ecdsa", "version": "0.13.2", "fixed": "0.13.3"}}, shown("Update python-ecdsa"))
+    another_version = ({"kind": "text", "real_library": {"name": "elliptic", "version": "6.5.4", "fixed": "6.5.5"}}, shown("Update elliptic (6.5.5)"))
+    present_fixes.link_same_updates([ottos, older, other, another_version])
+    said = [p[0]["v"] for p in ottos[1]["what"]["paragraphs"]]
+    assert len(said) == 2 and "“Update elliptic to the fixed version (6.5.7)”" in said[1] and said[1].endswith("It is one update, not two.")
+    back = [p[0]["v"] for p in older[1]["what"]["paragraphs"]]
+    assert len(back) == 2 and "“Update elliptic to 6.5.7”" in back[1] and "which you accept or reject there" in back[1]
+    assert len(other[1]["what"]["paragraphs"]) == 1 and len(another_version[1]["what"]["paragraphs"]) == 1      # another library, another version
 
 
 def test_the_ids_of_proposals_do_not_change_with_what_else_is_in_the_plan():

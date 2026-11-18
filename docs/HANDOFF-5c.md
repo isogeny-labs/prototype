@@ -271,6 +271,22 @@ added at every push:
   (`--mode isolated`, then `--only otto --mode isolated`); the fast set with Otto absent; `ottolab.build audit`;
   the full end-to-end suite and the final pictures; the last counts in `docs/HANDOFF.md`; ticking the line in
   `docs/ACTIVE.md`; pull request #6 ready and merged into `mvp/crypto-simple`; the report doc for Kevin.
+- **Checkpoint 6 (both reviews in; the first one's findings fixed in `da39015`, the second one's in the commit
+  after it).** The first review's seven findings and the second review's fifteen observations are listed in
+  `docs/HANDOFF.md` under the second part, each with what was done. The second review's fixes changed words and
+  three rules: a plan change is proposed only once Measure status has given the system a status; the Overview's
+  next step names proposed checks before the first run; Import reads its line about Otto again each time it
+  opens. The walk (`e2e/tests/otto.spec.ts`) presses Measure status at its first stage and takes three more
+  close-ups (the retested advisory, Evidence after the new pack, the report's table of decisions). The accuracy
+  walk for Otto measures the status before it reads the plan proposal and has one more answer
+  (`acme.plan.proposal.made_before_the_status_is_measured`; `docs/OTTO-KEY.md` lists it).
+  Checked on that code: lint, the type check and the two generated-files checks; the frontend (type check, 660
+  tests); the Otto, ledger and retest test files in the fast set.
+  **Not done yet, in this order, one long run at a time:** the full backend suite; the fast set with Otto absent;
+  accuracy in demo and in isolated mode (four keys), then `--only otto` in both; `ottolab.build audit`; the full
+  end-to-end suite with the final pictures (delete `docs/screenshots/phase5c/` first, commit only that folder,
+  restore the others); the last counts in `docs/HANDOFF.md`; ticking the line in `docs/ACTIVE.md`; pull request #6
+  ready and merged into `mvp/crypto-simple`; the report doc for Kevin.
 
 ## 4. The new criteria against the build: what is there, what is missing
 

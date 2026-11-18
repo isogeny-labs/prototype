@@ -387,6 +387,10 @@ export interface AdvisoryHereResult {
   plain: string;
   component: string | null;
   finished_at: string | null;
+  /**
+   * After a retest: which version this result is of, and what the first run read.
+   */
+  ran_on?: string | null;
 }
 export interface AdvisoryFix {
   title: string;

@@ -50,6 +50,9 @@ const ONE_WAITING: AdvisoriesView["waiting"] = {
   note: WAITING_NOTE,
 };
 
+/** Where nothing can be decided (closed, or Otto not installed) the line counts and asks for no decision. */
+const ONE_UNDECIDED: string = "1 proposed check has no decision.";
+
 const NONE_WAITING: AdvisoriesView["waiting"] = { count: 0, blocked_reason: null, line: "No proposed check is waiting for a decision.", note: WAITING_NOTE };
 
 /** What every Otto screen says when Otto's harness is not on this computer. */
@@ -390,7 +393,7 @@ export const blankNotAdded: AdvisoryRow = {
       label: "From Otto",
       state: "proven",
       lines: [
-        "Otto proposes: update acme-sign to 1.4.3 or later.",
+        "The test pack carries a fix for acme-sign, the library this advisory is about: update it to 1.4.3 or later.",
         "Update acme-sign to 1.4.3, which checks that both numbers of a signature are in range.",
         "Proven on public copies: this advisory's check passed and all 3 pass-or-fail tests read Passed.",
       ],
@@ -439,7 +442,7 @@ export const blankNotRun: AdvisoryRow = {
     fix: {
       ...blankNotAdded.panel.fix,
       lines: [
-        "Otto proposes: update acme-sign to 1.4.3 or later.",
+        "The test pack carries a fix for acme-sign, the library this advisory is about: update it to 1.4.3 or later.",
         "Update acme-sign to 1.4.3, which checks that both numbers of a signature are in range.",
         "Proven on public copies: this advisory's check passed and all 3 pass-or-fail tests read Passed.",
         "For your own code (acme-sign 1.4.2): if this advisory's check fails here, Fixes shows what can be offered. A change Otto wrote is offered only when it can be proven on this computer. Where it can't be, the fix template is offered if it answers the failure; if not, Fixes lists the failure with a plain suggestion and offers no code change.",
@@ -617,7 +620,7 @@ export const zeroNotAdded: AdvisoryRow = {
       label: "From Otto",
       state: "proven",
       lines: [
-        "Otto proposes: update elliptic to 6.5.7 or later.",
+        "The test pack carries a fix for elliptic, the library this advisory is about: update it to 6.5.7 or later.",
         "Update elliptic to 6.5.7, which checks that both numbers of a signature are in range.",
         "Proven on public copies: this advisory's check passed and all 3 pass-or-fail tests read Passed.",
       ],
@@ -775,7 +778,7 @@ export const advisoriesTwoPacks: AdvisoriesView = {
 export const advisoriesClosed: AdvisoriesView = {
   ...advisoriesTwoPacks,
   packs_line: "Test packs installed when this assessment was closed: 2026.11.1, 2026.11.2.",
-  waiting: { ...ONE_WAITING, blocked_reason: "This assessment is closed, so nothing more can be decided in it." },
+  waiting: { ...ONE_WAITING, line: ONE_UNDECIDED, blocked_reason: "This assessment is closed, so nothing more can be decided in it." },
   rows: [blankFailedBlocked(CLOSED_REASON, CHECK_LEDGER), stopsNoTest, zeroBlocked(CLOSED_REASON), looseNotOffered],
 };
 
@@ -785,6 +788,7 @@ export const advisoriesOttoMissing: AdvisoriesView = {
   otto: OTTO_MISSING,
   waiting: {
     ...ONE_WAITING,
+    line: ONE_UNDECIDED,
     blocked_reason: "Otto is not installed on this computer, so nothing can be decided: a decision is recorded in Otto's ledger.",
   },
   rows: [blankFailedNoLedger, stopsNoTest, zeroBlocked(NO_OTTO_REASON), looseNotOffered],

@@ -26,9 +26,9 @@ export function proofRow(
   return { key, label, badge: { label: word, tone } as FixProofRow["badge"], text, line: `${label}: ${word}. ${text}`, links, ledger, note };
 }
 
-/** Under the second row: what a retest here runs on (a public copy of the updated version, not the system you run). */
+/** Under the second row: what the row is about (a public copy of the updated version, not the system you run). */
 export const HERE_NOTE =
-  "A retest here reruns the same locked tests on a public copy of the updated version, on this computer. In this version the app does not connect to the system you run.";
+  "This row is about a public copy, not the system you run. A retest reruns the same locked tests on a public copy of the updated version, on this computer. The app has not checked that your own system was updated: in this version it does not connect to it.";
 
 /** The research ledger's entries behind a first row, folded under it. */
 export const researchLedger: AdvisoryLedger = {
@@ -52,7 +52,9 @@ export const publicNotProven = proofRow(
   TRIAL_LINK("CVE-2022-21449"),
   { ...researchLedger, entries: researchLedger.entries.slice(0, 1), count: 1 },
 );
-export const hereNotYet = proofRow("here", "Not yet", "neutral", "Update the library, then press Retest.");
+/** Where the retest is started: the row says "press Retest", and the button ("Retest new version") is on Evidence. */
+export const RETEST_LINK: FixProofRow["links"] = [{ label: "Retest new version is on Evidence", link: { page: "evidence", item: "test-7" } }];
+export const hereNotYet = proofRow("here", "Not yet", "neutral", "Update the library, then press Retest.", RETEST_LINK);
 export const herePassed = proofRow(
   "here",
   "Passed",

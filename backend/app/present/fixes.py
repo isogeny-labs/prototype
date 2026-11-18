@@ -224,6 +224,10 @@ TEMPLATE_WORDS = {"ecdsa-range-check": _range_check_words}
 
 # Phase 5c: a change Otto wrote (Claude, recorded or live) for an advisory whose check failed on the customer's own code.
 OTTO_LABEL = "Written by Otto"
+# What a passed proof of a code change means, in the proof's own two groups (the tables under it): a test of the server, or
+# of another program in the file, is rerun too and only has to come out as before, also when that is "Failed".
+PROOF_RULE = ("every locked test that runs the changed code passed on it, and every test that does not run it came out the same "
+              "as before")
 OTTO_PENDING_LABEL = "Not written yet"     # Live Otto is on and nobody has asked Claude yet: nothing is Otto's until it is written
 OTTO_FIX_LABEL = "From Otto"
 
@@ -239,21 +243,24 @@ def _otto_words(name: str, version: str | None, size: str, otto: dict) -> dict:
                       "the spending limit. The answer is used only if it is a clean change that gives one of our bundled demo components "
                       "byte for byte, because only those can run in this version. Otherwise it is refused and nothing is connected, "
                       "although the request was still made on your key; where the fix template answers the failure, Fixes then offers "
-                      "it in Otto's place and says why. A change that is used is offered only after every locked test passes on the "
-                      "changed code.")]
+                      "it in Otto's place and says why. A change that is used is offered only after its proof: " + PROOF_RULE + ".")]
         return {"title": f"{name}: a change for {otto['advisory']}", "available": waiting, "changes": waiting, "fixes": waiting,
                 "intro": "Otto has not written this change yet."}
     summary = str(otto.get("summary") or "").rstrip()
-    reports = f" The changed program reports version {version}." if version else ""
+    # The registry's name for the program the change gives ("acme-sign 1.4.3-otto"). The program's own version line may
+    # read differently, so this is never worded as what the program "reports".
+    registered = f" The changed code is byte for byte one of the app's registered demo programs, {name} {version}." if version else ""
     where = str(otto.get("how") or "")
     return {
         "title": f"{name}: {otto.get('title') or 'a change written by Otto'}",
-        "available": [_t(f"Otto wrote a change for {advisory}: {summary} Connect the code to put it on a branch and prove it.")],
-        "changes": [_t(f"For {advisory}: {summary}{reports} {size}.")],
-        "fixes": [_t(f"For {advisory}: {summary} The proof's tests show it: every locked test passed on the changed code.{reports} {size}.")],
+        # Claude's summary is written as if the change were in ("now rejects"): before a proof it is said as what the change would do
+        "available": [_t(f"Otto wrote a change for {advisory}. What it would change, in Otto's words: {summary} "
+                         "Nothing is changed until you accept it and connect the code: the change then goes on a branch and is proven.")],
+        "changes": [_t(f"For {advisory}. What it changes, in Otto's words: {summary}{registered} {size}.")],
+        "fixes": [_t(f"For {advisory}: {summary} The proof's tests show it: {PROOF_RULE}.{registered} {size}.")],
         "intro": (f"Written by Otto for {advisory}. Claude wrote these lines from the advisory, the cases the program got wrong and the "
                   f"program's source ({where}). What Claude writes is data: the app applied it to a copy of the code on a branch, and it "
-                  "is offered only after every locked test passed on the changed code."),
+                  f"is offered only after its proof: {PROOF_RULE}."),
     }
 
 
@@ -901,6 +908,30 @@ def applied_change_fix(fix: dict, box: dict, address: str, is_demo: bool) -> dic
 def server_change_line(line: dict) -> dict:
     """Evidence Lab's one line for that fix."""
     return {**line, "lead": "Server setting change:", "rest": "try it on a test copy, then apply"}
+
+
+def link_same_updates(pairs: list[tuple[dict, dict]]) -> None:
+    """Two entries can recommend one and the same update of a real library: the entry for its failed tests (phase 4c:
+    the publisher's fixed version, from the advisories the app knows) and Otto's proposal for a failed advisory check
+    (phase 5c, from a test pack). Each then says so and names the other (in place), so nobody reads them as two
+    updates. They stay two entries: they answer different tests, and only Otto's is a proposal to accept or reject."""
+    def same(a: object, b: object) -> bool:
+        return str(a or "").casefold() == str(b or "").casefold()
+    for state, shown in pairs:
+        o = state.get("otto_fix") or {}
+        if state.get("kind") != "text" or o.get("kind") != "update":
+            continue
+        for other, other_shown in pairs:
+            lib = other.get("real_library") or {}
+            if other is state or other.get("otto_fix") or not lib.get("fixed"):
+                continue
+            if not same(lib.get("name"), o.get("library")) or str(lib.get("fixed")) != str(o.get("version")):
+                continue
+            shown["what"]["paragraphs"].append([_t(f"The same update is recommended by the entry “{other_shown['title']}” in this list, "
+                                                   "for the other failed tests on this library. It is one update, not two.")])
+            other_shown["what"]["paragraphs"].append([_t(f"Otto proposes the same update for the advisory check that failed on this "
+                                                         f"library: “{shown['title']}” in this list, which you accept or reject there. "
+                                                         "It is one update, not two.")])
 
 
 # ------------------------------------------------------------------ the whole step

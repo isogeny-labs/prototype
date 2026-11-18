@@ -959,7 +959,13 @@ class TestLabMixin:
             else:
                 swapped = self._retest_component(retest.id) or plan.component_name
                 before, after_name = f"{swapped} {retest.baseline_version}", f"{swapped} {retest.version}"
-                subline = [{"t": "text", "v": f"Before and after: the same {n_word} locked {'test' if len(items) == 1 else 'tests'}, run on "},
+                # A test added to the plan after the retest (or one the retest never reached) has no result after: then the
+                # line counts the ones that do, and says how the others get one.
+                rest = len(items) - after_done
+                partly = not retest_live and 0 < after_done < len(items)
+                which = (f"{present.number_word(after_done)} of the {n_word} locked tests {'was' if after_done == 1 else 'were'}" if partly
+                         else f"the same {n_word} locked {'test' if len(items) == 1 else 'tests'},")
+                subline = [{"t": "text", "v": f"Before and after: {which} run on "},
                            {"t": "mono", "v": before}, {"t": "text", "v": " and then on "}, {"t": "mono", "v": after_name}]
                 if grouped:
                     subline.append({"t": "text", "v": ". Every other server and program was tested again as it is"})
@@ -969,6 +975,10 @@ class TestLabMixin:
                     subline += [{"t": "text", "v": ". Retest finished "}, {"t": "time", "v": max(after_finished)}, {"t": "text", "v": "."}]
                 else:
                     subline.append({"t": "text", "v": "."})
+                if partly:
+                    subline += [{"t": "text", "v": (f" The other {'one has' if rest == 1 else present.number_word(rest) + ' have'} no result after "
+                                                    "yet: retest again to run every test in the plan on ")},
+                                {"t": "mono", "v": after_name}, {"t": "text", "v": "."}]
                 ran_on = self._column_code(db, rows, "result"), self._column_code(db, rows, "after")
                 view, code_line = "before_after", present_fixes.code_line(*ran_on)
                 columns = {"test": "Test", **present_fixes.code_columns(f"Before: {before}", f"After: {after_name}", *ran_on)}

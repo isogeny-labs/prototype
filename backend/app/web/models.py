@@ -1984,6 +1984,7 @@ class AdvisoryHereResult(Shape):
     plain: str
     component: str | None
     finished_at: str | None
+    ran_on: str | None = Field(default=None, description="After a retest: which version this result is of, and what the first run read.")
 
 
 class AdvisoryHereRow(Shape):

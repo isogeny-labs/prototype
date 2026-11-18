@@ -83,6 +83,16 @@ function ProofRowView({ row }: { row: FixProofRow }) {
           {row.text}
         </p>
       </div>
+      {row.note ? (
+        // What the row is about (a public copy, not the system the reader runs). It qualifies the word in the chip, so it
+        // is set right under it at the size of the text, with a rule beside it: never small print under the links.
+        <p
+          data-testid="proof-row-note"
+          className="mt-2 break-words rounded-md border border-slate-700 border-l-2 border-l-sky-400/50 bg-slate-900/60 px-3 py-2 text-[13px] text-slate-200"
+        >
+          {row.note}
+        </p>
+      ) : null}
       {row.links.length > 0 ? (
         <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px]">
           {row.links.map((entry, i) => (
@@ -90,11 +100,6 @@ function ProofRowView({ row }: { row: FixProofRow }) {
               {entry.label}
             </ItemLinkView>
           ))}
-        </p>
-      ) : null}
-      {row.note ? (
-        <p data-testid="proof-row-note" className="mt-1.5 break-words text-xs text-slate-400">
-          {row.note}
         </p>
       ) : null}
       {row.ledger ? (

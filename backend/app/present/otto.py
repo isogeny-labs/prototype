@@ -153,8 +153,11 @@ PUBLIC_LABEL, HERE_LABEL = "Proven on public copies", "Proven on your system"
 NOT_YET_TEXT = "Update the library, then press Retest."
 # What stands behind the second row, said plainly wherever the row is shown in full: a retest reruns the locked tests
 # on a public copy of the updated version. The app has no connector to the system a customer runs (a later phase).
-HERE_NOTE = ("A retest here reruns the same locked tests on a public copy of the updated version, on this computer. In this version the "
-             "app does not connect to the system you run.")
+HERE_NOTE = ("This row is about a public copy, not the system you run. A retest reruns the same locked tests on a public copy of the updated "
+             "version, on this computer. The app has not checked that your own system was updated: in this version it does not connect "
+             "to it.")
+# Where the retest is started: the row's words are Kevin's ("then press Retest"), and the button is on Evidence.
+RETEST_LINK_LABEL = "Retest new version is on Evidence"
 
 
 def stamp(value: str | None) -> str:
@@ -205,9 +208,11 @@ def your_system_row(fix: dict, here: dict | None) -> dict:
     name = f"{fix.get('library')} {fix.get('version')}"
     if here.get("state") == "not_yet":
         # nothing of a retest on the fixed version has a result yet (one may be running: the row still reads "Not yet")
+        retest = ([{"label": RETEST_LINK_LABEL, "link": {"page": "evidence", "item": f"test-{here['item_id']}"}}]
+                  if here.get("item_id") is not None and not here.get("live") else [])
         return _row("here", HERE_LABEL, "Not yet", "neutral",
                     f"A retest on {name} is running. Nothing is proven until it has finished." if here.get("live") else NOT_YET_TEXT,
-                    note=HERE_NOTE)
+                    retest, note=HERE_NOTE)
     links = [{"label": "See the retest's result", "link": {"page": "evidence", "item": f"test-{here.get('item_id')}"}}]
     when = stamp(here.get("finished_at"))
     if here.get("state") in ("running", "unfinished"):
@@ -366,7 +371,9 @@ def project_block(rows: list[dict], pack: dict | None) -> dict:
         elif row.get("why"):
             since_lines.append(row["why"])
         out.append({"assessment_id": a.id, "title": a.name or f"Assessment {a.number}", "waiting": total,
-                    "waiting_text": (f"{_count(total, 'proposal')} waiting for a decision" if total else "Nothing waiting"),
+                    # (said by kind, because the lines under it speak of the newest pack's checks and updates only)
+                    "waiting_text": (f"{_count(total, 'proposal')} waiting for a decision: {waiting_by_kind(row['waiting'])}" if total
+                                     else "Nothing waiting"),
                     "link": {"page": "overview", "item": None, "group": None, "assessment_id": a.id},
                     "since": since_lines})
     return {"title": "Otto in this project",
@@ -416,9 +423,13 @@ def _effect(p: dict) -> str | None:
     if kind == "plan":
         done = facts.get("done")
         if done:
-            return (f"Done: a newer result of this check passed on {about.get('program', 'the program').split(' ')[0]} "
+            check = f"the check for {about['advisory']}" if about.get("advisory") else "its advisory check"
+            return (f"Done: {check} passed on {about.get('program', 'the program').split(' ')[0]} "
                     f"{done.get('version') or ''}".rstrip() + (f", on {stamp(done.get('at'))}." if done.get("at") else "."))
         return "On the plan: something to fix first, on the Signatures track."
+    library = " ".join(str(x) for x in (about.get("library"), about.get("version")) if x)
+    if library and about.get("fixed"):
+        return f"Marked “update first”: {library} to {about['fixed']}."
     return f"Marked “update first”: to {about.get('fixed')}." if about.get("fixed") else "Marked “update first”."
 
 
@@ -475,6 +486,21 @@ def plan_block(views: list[dict]) -> dict | None:
             "proposals": views}
 
 
+def fixes_plan_line(proposals: list[dict]) -> str | None:
+    """Fixes, in its Migration group when that group has no entry: Otto's proposed plan changes are not fixes and are
+    decided on Migration, so the group says where they are. Counts only."""
+    waiting = len([p for p in proposals if p["state"] == "proposed"])
+    accepted = len([p for p in proposals if p["state"] == "accepted"])
+    parts = []
+    if waiting:
+        parts.append(f"Otto proposes {_count(waiting, 'change')} to the migration plan from a result: you accept or reject "
+                     f"{'it' if waiting == 1 else 'each one'} on Migration, under Systems.")
+    if accepted:
+        parts.append(f"{_count(accepted, 'change')} of Otto's to the plan {'is' if accepted == 1 else 'are'} accepted: "
+                     f"{'it is' if accepted == 1 else 'they are'} on Migration, under Systems.")
+    return " ".join(parts) or None
+
+
 def roadmap_mark(views: list[dict]) -> dict | None:
     """The mark on a roadmap row whose system has a proposal of Otto's: a count of those waiting, or what was accepted."""
     if not views:
@@ -490,13 +516,22 @@ def roadmap_mark(views: list[dict]) -> dict | None:
     return {"label": PROPOSAL_LABEL, "text": text, "tone": "warn" if waiting else "neutral", "waiting": waiting}
 
 
+WAITING_WORDS = {"check": ("proposed check", "proposed checks", "advisories", "Advisories"),
+                 "fix": ("proposed fix", "proposed fixes", "fixes", "Fixes"),
+                 "plan": ("proposed change to the migration plan", "proposed changes to the migration plan", "migration/systems", "Migration"),
+                 "dependency": ("proposed dependency update", "proposed dependency updates", "migration/dependencies", "Dependencies")}
+
+
+def waiting_by_kind(counts: dict[str, int]) -> str:
+    """"1 proposed check, 2 proposed fixes": what waits, by kind, in the order every page uses."""
+    return ", ".join(f"{counts[kind]} {one if counts[kind] == 1 else many}" for kind, (one, many, _, _) in WAITING_WORDS.items()
+                     if counts.get(kind))
+
+
 def waiting_view(counts: dict[str, int]) -> dict:
     """The Overview's "Waiting for you" line: how many of Otto's proposals nobody has decided yet, each kind linking to
     the page it lives on. It counts; it decides nothing."""
-    words = {"check": ("proposed check", "proposed checks", "advisories", "Advisories"),
-             "fix": ("proposed fix", "proposed fixes", "fixes", "Fixes"),
-             "plan": ("proposed change to the migration plan", "proposed changes to the migration plan", "migration/systems", "Migration"),
-             "dependency": ("proposed dependency update", "proposed dependency updates", "migration/dependencies", "Dependencies")}
+    words = WAITING_WORDS
     items = [{"kind": kind, "count": counts.get(kind, 0),
               "text": f"{counts[kind]} {one if counts[kind] == 1 else many}", "link": {"page": page, "item": None}, "page_label": label}
              for kind, (one, many, page, label) in words.items() if counts.get(kind)]
@@ -539,7 +574,14 @@ def _fix_block(advisory: dict, fix_view: dict | None, own_programs: list[str]) -
     lines, label = [fix["reason"]], None
     if fix["kind"] == "update":
         label = FIX_LABEL
-        lines = [f"Otto proposes: update {fix['library']} to {fix['version']} or later.", fix["summary"], fix["reason"]]
+        # What the test pack carries for the library the advisory is about, with the first proof row in the words every
+        # page uses. It is a proposal (with Accept and Reject) only where it applies to this assessment: said below.
+        lines = [f"The test pack carries a fix for {fix['library']}, the library this advisory is about: update it to {fix['version']} or later.",
+                 fix["summary"], public_copies_row(fix, advisory)["line"]]
+        if fix_view is None:
+            lines.append(f"In an assessment it is a proposal, with Accept and Reject, only where it applies: on Fixes when this advisory's "
+                         f"check has failed on {fix['library']} itself, and on Dependencies when the dependency list names an affected "
+                         f"version of {fix['library']}.")
     elif advisory["reading"] and advisory["reading"].get("fixed"):
         fixed = advisory["reading"]["fixed"]
         lines = [f"The publisher names {fixed['version']} as the fixed version.", fix["reason"]]
@@ -634,9 +676,17 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
                 status = "Not run yet"
             else:
                 status = None
+            first = entry.get("first")       # the first run's result, when the one shown is a retest's
+            ran_on = None
+            if result is not None and first is not None:
+                ran_on = (f"This is the retest, on {result.get('component') or 'the retested version'}. The first run, on "
+                          f"{first.get('component') or entry['program']}, read {first['label']}.")
             here.append({"program": entry["program"], "status": status, "proposal": proposal,
                          "result": ({"label": result["label"], "tone": result["tone"], "plain": result["plain"],
-                                     "component": result.get("component"), "finished_at": result.get("finished_at")} if result else None),
+                                     "component": result.get("component"), "finished_at": result.get("finished_at"),
+                                     "ran_on": ran_on,
+                                     "short": (f"Retest on {result.get('component')}. First run on {first.get('component') or entry['program']}: "
+                                               f"{first['label']}." if ran_on and result.get("component") else None)} if result else None),
                          "checks_link": {"page": "checks", "item": f"test-{entry['item_id']}"} if entry["item_id"] is not None else None,
                          "evidence_link": {"page": "evidence", "item": f"test-{entry['item_id']}"} if result else None,
                          "ledger": {"title": "Otto ledger entries for this check", "count": len(entry["ledger"]),
@@ -651,7 +701,7 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
             # for the Result filter: Failed, Passed, or the one option for every result that is neither
             same, ran = sum(1 for r in results if r["label"] == shown["label"]), len(results)
             if len(here) == 1:
-                counted = None
+                counted = shown.get("short")          # one program: after a retest, which version this result is of
             elif ran == len(here):
                 counted = f"{same} of {ran} programs"
             else:       # some programs have no result yet: the count is of the ones that ran, and says how many have not
@@ -666,6 +716,9 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
             result_cell = {"key": "not_run", "label": "Not run yet", "tone": "neutral", "text": None}
         else:
             result_cell = {"key": "not_added", "label": "Not in the test plan", "tone": "neutral", "text": None}
+        for h in here:
+            if h["result"]:
+                h["result"].pop("short", None)       # (the table cell's words for it; the panel has the whole line)
         proposal_cell = _proposal_cell([h["proposal"] for h in here if h["proposal"] is not None])
         fits = ([h["program"] for h in here] if state == "ready" else [])
         test_block, no_test = None, None
@@ -751,7 +804,9 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
         # Otto proposes; a person decides. There is no button that decides several at once.
         "waiting": {"count": waiting, "blocked_reason": blocked,
                     "line": ((f"{waiting} proposed {'check waits' if waiting == 1 else 'checks wait'} for your decision. Open an advisory "
-                              "to accept or reject its check.") if waiting else
+                              "to accept or reject its check.") if waiting and blocked is None else
+                             # (nothing can be decided: the count is said without asking for a decision, and the reason follows it)
+                             (f"{waiting} proposed {'check has' if waiting == 1 else 'checks have'} no decision.") if waiting else
                              "No proposed check is waiting for a decision." if blocked is None else blocked),
                     "note": "Otto proposes; you decide each one by itself. Accepting adds a check to the test plan. It runs nothing."},
         "filters": {"test": [{"key": "all", "label": "Any test"}] + [{"key": k, "label": v[0]} for k, v in TEST_LABELS.items()],

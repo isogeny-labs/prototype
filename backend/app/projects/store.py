@@ -268,13 +268,14 @@ class ProjectsMixin:
         if counts["claims"] is None:
             return {"page": "inventory/import", "label": "Verify claims",
                     "text": "Check each claim in the file against the real system."}
-        if counts["tests"] is None:
-            return {"page": "checks", "label": "Open checks",
-                    "text": "Run the suggested tests on what the file names. The test plan is on Checks."}
+        # (before the first run, on purpose: a check accepted now runs with the suggested tests, in one go)
         if new_checks:
             return {"page": "advisories", "label": "Open advisories",
                     "text": (f"Otto proposes {new_checks} advisory {'check' if new_checks == 1 else 'checks'} from the installed test packs. "
                              f"Accept or reject {'it' if new_checks == 1 else 'each one'}: accepting runs nothing.")}
+        if counts["tests"] is None:
+            return {"page": "checks", "label": "Open checks",
+                    "text": "Run the suggested tests on what the file names. The test plan is on Checks."}
         if waiting.get("fix"):
             n = int(waiting["fix"])
             return {"page": "fixes", "label": "Open fixes",

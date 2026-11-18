@@ -141,7 +141,8 @@ fix, plan change or dependency update); `Not added (<reason>)`, or `Not added (n
 | `acme.fix.proposal.status_before_a_decision` | The status of Otto's proposed fix before anyone decided | a status |
 | `acme.fix.connect_before_accept` | What Connect demo code does while the proposal is not accepted | `refused` or `connected` |
 | `acme.fix.proposal.status_after_accept` | Its status after Accept | a status |
-| `acme.plan.proposal.made_after_the_failed_check` | Whether Otto proposes a change to the migration plan once an advisory check has failed on the signing program | true or false |
+| `acme.plan.proposal.made_before_the_status_is_measured` | Whether Otto proposes a change to the migration plan after the check has failed but before Measure status has run (the system has no place on the plan yet) | true or false |
+| `acme.plan.proposal.made_after_the_failed_check` | Whether Otto proposes a change to the migration plan once an advisory check has failed on the signing program and its status has been measured | true or false |
 | `acme.plan.proposal.status_after_accept` | That proposal's status after Accept | a status |
 | `acme.fix.written_by` | Who the connected change is by | `otto` or `fix_template` |
 | `acme.fix.label` | The label on the fix | a list with one label, `Written by Otto` or `From a fix template` |

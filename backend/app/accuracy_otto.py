@@ -247,6 +247,10 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             answers["acme.decision.undo_after_a_run"] = "refused" if ran is not None and ran["actions"].get("undo") else "allowed"
             fix_proposal = next((p for p in _proposed(lab, pid, "fix")), None)
             answers["acme.fix.proposal.status_before_a_decision"] = _status(lab, pid, fix_proposal["id"]) if fix_proposal else None
+            # A change to a system's plan needs a plan: nothing is proposed until Measure status has placed the system.
+            answers["acme.plan.proposal.made_before_the_status_is_measured"] = next((p for p in _proposed(lab, pid, "plan")), None) is not None
+            lab.measure_migration(pid)                       # the Measure status button
+            lab.wait_until_measured(pid, 300)
             plan_proposal = next((p for p in _proposed(lab, pid, "plan")), None)
             answers["acme.plan.proposal.made_after_the_failed_check"] = plan_proposal is not None
             if fix is not None and fix_proposal is not None:

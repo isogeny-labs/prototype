@@ -655,4 +655,37 @@ describe("Migration pages", () => {
     await waitFor(() => expect(currentPages()).toEqual(["Roadmap"]));
     expect(window.location.hash).toBe("#/a/101/migration/roadmap");
   });
+
+  it("asks again for Import's line about Otto each time Import opens, so a pack installed since is counted", async () => {
+    // Second review, 18 November 2026: after a new test pack the Advisories page listed three checks while Import
+    // still said "Otto found 2 checks", because the line had been read once, when the assessment was opened.
+    const found = (count: number) => ({
+      count,
+      label: "From Otto",
+      text: `Otto found ${count} checks that may apply: ${count} published weaknesses with a test, for acme-sign 1.4.2.`,
+      note: "Nothing runs on import. You accept or reject each proposed check on Advisories.",
+      link: { page: "advisories", item: null },
+      link_label: "Open Advisories",
+    });
+    let reads = 0;
+    at("inventory/import");
+    const fetchMock = mockApi(
+      withResults({
+        // the first two reads are from before the pack (opening the assessment, then opening Import); later ones after it
+        "GET /api/assessments/101": () => {
+          reads += 1;
+          return { body: assessmentView({ import: { ...demoImport, assessment_id: 101, otto: found(reads <= 2 ? 2 : 3) } }) };
+        },
+      }),
+    );
+    render(<App />);
+    expect(text(await screen.findByTestId("import-otto-text"))).toContain("Otto found 2 checks");
+    await waitFor(() => expect(reads).toBe(2));
+    // Leave Import and come back: the line is read again and now counts three. Only reads were made.
+    window.location.hash = "#/a/101/checks";
+    await waitFor(() => expect(screen.queryByTestId("import-otto")).toBeNull());
+    window.location.hash = "#/a/101/inventory/import";
+    await waitFor(() => expect(text(screen.getByTestId("import-otto-text"))).toContain("Otto found 3 checks"));
+    expect(calls(fetchMock).filter((c) => !c.startsWith("GET"))).toEqual([]);
+  });
 });

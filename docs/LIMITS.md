@@ -480,7 +480,10 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   No other test proposes anything, and nothing is proposed for a server (Otto's server checks are phase 5d).
   Accepting lists it on the plan as something to fix first. It changes no status, no recommendation, no roadmap
   band and no measured fact, so everything the migration answer key grades reads exactly as before. "Accept
-  updates the plan" is built as that listed line, and nothing more.
+  updates the plan" is built as that listed line, and nothing more. A plan change needs a plan: it is proposed only
+  once **Measure status** has given that system a status. A failed advisory check on a program whose status was
+  never measured proposes a fix (on Fixes) and no plan change, and no page says that one will follow. (The second
+  review found the earlier form proposing a change to a plan that the Roadmap said did not exist.)
 - **Proposals for a dependency: one rule.** A library of the dependency list is "named by an advisory" when the
   knowledge base has recognised it as the package an advisory of the installed packs is about (by its package
   address; a bare name only where the list gives no address and the knowledge base lists that name as safe), and the
@@ -500,8 +503,25 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **"Proven on your system" is a retest on a public copy.** The row's name is the owner's wording. What stands
   behind it: this assessment's own retest of the same locked tests on the fixed version, which the app runs on a
   public copy of that version in its own container. The app has no connector to the system a customer runs, and
-  the row says so in a line under it. "Passed" therefore means the fixed version passes the locked tests here,
-  not that anyone's deployed system was updated.
+  the row says so right under its sentence, at the size of the text ("This row is about a public copy, not the
+  system you run ... The app has not checked that your own system was updated"). "Passed" therefore means the
+  fixed version passes the locked tests here, not that anyone's deployed system was updated. A reader who takes
+  in only the row's name and the green word can still read more into it than it says; another name for the row
+  (for example "Proven in this assessment") is the owner's call. After such a retest the scanner file still names
+  the old version, so Verify still reads that claim as true of the file.
+- **A library's fix that passed its retest still counts as Open.** Its status word stays "Text only", by the
+  owner's rule that the app never calls other people's software fixed, and the page counts by that word. The two
+  proof rows say what was shown.
+- **Two entries for one update.** Where the Independent exam and an advisory check both fail on a real library,
+  Fixes lists the entry for the failed tests (phase 4c) and Otto's proposal. They answer different tests and only
+  Otto's is a proposal, so they stay two entries; each names the other and says "It is one update, not two."
+- **The pack does not name the other test that still fails.** For Java the first row reads "another locked test
+  still fails on 17.0.3". The shipped pack records the counts of its fix trial (1 of 4 on 17.0.3), not which test,
+  and a shipped pack is never rebuilt. A retest in the assessment names it.
+- **A check added after a retest first runs on the old version.** Run runs a test on the version the scanner file
+  names. A check accepted after a retest therefore has a first result on that version and no result after, until
+  the next retest. Evidence then counts the tests that have a result after, and Advisories says of each result
+  which version it is of.
 - **The second row is as strict as the first.** It reads "Passed" only when the advisory check and every other
   pass-or-fail test the plan holds for that library has a result in the same retest and passed. While that retest
   runs, or after it was interrupted, it stays "Not yet" and says how many tests have a result. For Java it would

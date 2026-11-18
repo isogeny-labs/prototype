@@ -47,6 +47,64 @@ def test_a_count_of_results_never_counts_a_program_that_has_no_result():
     assert _row([_here("one 1.0", 11, FAILED)])["result"]["text"] is None
 
 
+def test_a_result_after_a_retest_says_which_version_it_is_of():
+    """Found by the second review of 18 November 2026: after a retest, the row named for acme-sign 1.4.2 read "Passed",
+    which was the result on the retested version. The row now says which version, and what the first run read."""
+    after, first = {**PASSED, "component": "acme-sign 1.4.3-otto"}, {**FAILED, "component": "acme-sign 1.4.2"}
+    row = _row([{**_here("acme-sign 1.4.2", 11, after), "first": first}])
+    assert row["result"]["label"] == "Passed"
+    assert row["result"]["text"] == "Retest on acme-sign 1.4.3-otto. First run on acme-sign 1.4.2: Failed."
+    here, = row["panel"]["here"]["rows"]
+    assert here["result"]["ran_on"] == "This is the retest, on acme-sign 1.4.3-otto. The first run, on acme-sign 1.4.2, read Failed."
+    assert set(here["result"]) == {"label", "tone", "plain", "component", "finished_at", "ran_on"}
+    # a first run is of the version the row names: no such line
+    plain = _row([_here("acme-sign 1.4.2", 11, FAILED)])
+    assert plain["result"]["text"] is None and plain["panel"]["here"]["rows"][0]["result"]["ran_on"] is None
+    # with several programs the cell keeps its count; each program's own row in the panel says its version
+    two = _row([{**_here("one 1.0", 11, after), "first": first}, _here("two 1.0", 12, PASSED)])
+    assert two["result"]["text"] == "2 of 2 programs" and two["panel"]["here"]["rows"][0]["result"]["ran_on"]
+
+
+def test_the_fix_block_says_what_the_pack_carries_and_where_it_is_a_proposal():
+    """Found by the second review of 18 November 2026: the panel read "Otto proposes: update openjdk" with no Accept or
+    Reject, for a library the file did not name, and with a proof line in other words than the two rows use."""
+    entry, made = helpers.pack_advisory(fix_state="not_proven")
+    block = _row([], entry=entry, made=made)["panel"]["fix"]
+    fix = entry["fix"]
+    assert block["label"] == "From Otto" and not any(line.startswith("Otto proposes") for line in block["lines"])
+    assert block["lines"][0] == (f"The test pack carries a fix for {fix['library']}, the library this advisory is about: update it to "
+                                 f"{fix['version']} or later.")
+    # the first proof row, in the words Fixes, Evidence and the report use
+    assert present_otto.public_copies_row(fix, entry)["line"] in block["lines"] and fix["reason"] not in block["lines"]
+    assert any("only where it applies: on Fixes when this advisory's check has failed on" in line and "on Dependencies" in line
+               for line in block["lines"])
+    # where a fix of this assessment answers the check, the block links to it and leaves the general sentence out
+    linked = _row([], entry=entry, made=made, fix={"id": "fix-9", "title": "Update acme-sign to 1.4.3", "status": {"word": "Text only"}})
+    assert linked["panel"]["fix"]["here"]["line"] == "In this assessment: Update acme-sign to 1.4.3 (Text only)."
+    assert not any("only where it applies" in line for line in linked["panel"]["fix"]["lines"])
+
+
+def test_the_line_over_the_table_asks_for_no_decision_where_none_can_be_recorded():
+    """Found by the second review of 18 November 2026: with Otto not installed the page read "2 proposed checks wait for
+    your decision. Open an advisory to accept or reject" and, right under it, "nothing can be decided"."""
+    waiting = {"id": "check-1", "kind": "check", "title": "A check", "why": "", "lines": [], "state": "proposed", "decisions": [],
+               "actions": {"accept": "Otto is not installed on this computer.", "reject": "Otto is not installed on this computer."},
+               "link": {"page": "advisories", "item": "CVE-2022-21449"}, "current": True, "facts": {}}
+    entry, made = helpers.pack_advisory()
+    rows = [{"pack": PACK, "advisory": entry, "design": made, "here": [{**_here("acme-sign 1.4.2", None, None), "proposal": waiting}], "fix": None}]
+    def view(**status):
+        return present_otto.advisories_view(rows=rows, packs=[PACK], fitting=["acme-sign 1.4.2"], answers_line="Answers written for a test",
+                                            assessment_id=1, **status)["waiting"]
+    absent = view(closed=False, harness_status={"installed": False, "sentence": "Otto is not installed on this computer."})
+    assert absent["count"] == 1 and absent["line"] == "1 proposed check has no decision."
+    assert "nothing can be decided" in absent["blocked_reason"] and "accept or reject" not in absent["line"]
+    closed = view(closed=True, harness_status=STATUS)
+    assert closed["line"] == "1 proposed check has no decision." and closed["blocked_reason"].startswith("This assessment is closed")
+    open_ = view(closed=False, harness_status=STATUS)
+    assert open_["line"] == "1 proposed check waits for your decision. Open an advisory to accept or reject its check."
+    assert open_["blocked_reason"] is None
+
+
 def test_the_line_about_your_own_code_shows_only_where_there_is_such_code_with_this_check():
     def lines(here, **more):
         return " ".join(_row(here, **more)["panel"]["fix"]["lines"])
@@ -203,7 +261,11 @@ def test_the_overviews_next_step_points_to_where_a_proposal_waits():
     no_fixes = {**counts, "fixes": {"open": 0}}
     assert step(brief, no_fixes, {"has_migration": True}, {"plan": 1})["page"] == "migration/systems"
     assert step(brief, no_fixes, {"has_migration": True}, {"dependency": 1})["page"] == "migration/dependencies"
-    assert step(brief, {**counts, "tests": None}, None, {"check": 2})["page"] == "checks"
+    # Before the first run a proposed check comes first (second review, 18 November 2026): an accepted one runs with the
+    # suggested tests. With nothing proposed, the first run is the next step, as before.
+    assert step(brief, {**counts, "tests": None}, None, {"check": 2})["page"] == "advisories"
+    assert step(brief, {**counts, "tests": None}, None, {"check": 0, "fix": 0})["page"] == "checks"
+    assert step(brief, {**counts, "claims": None, "tests": None}, None, {"check": 2})["page"] == "inventory/import"     # Verify still comes first
     assert step({**brief, "status": {"key": "closed"}}, counts, None, {"check": 2})["page"] == "overview"
     words = " ".join(step(brief, no_fixes, {"has_migration": True}, {kind: 1})["text"] for kind in ("check", "fix", "plan", "dependency"))
     assert not any(banned in words.lower() for banned in ("secure", "score", "severity", "critical"))

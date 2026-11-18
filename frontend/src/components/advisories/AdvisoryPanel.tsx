@@ -30,6 +30,12 @@ function HereRow({ planId, row, onDecided }: { planId: number; row: AdvisoryHere
       {result ? (
         <div className="mt-2">
           <StatusChip label={result.label} tone={result.tone} wrap testId="advisory-here-result" />
+          {result.ran_on ? (
+            // After a retest the newest result is of another version than the one this row is named for: said first.
+            <p data-testid="advisory-here-ran-on" className="mt-1.5 break-words font-medium text-slate-100">
+              {result.ran_on}
+            </p>
+          ) : null}
           <p className="mt-1.5 break-words text-slate-200">{result.plain}</p>
           {result.component || result.finished_at ? (
             <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-slate-400">

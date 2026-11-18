@@ -250,6 +250,49 @@ describe("Advisories, the page", () => {
       expect(view.waiting.blocked_reason).not.toBe(view.waiting.line);
     }
     expect(advisoriesClosed.waiting.blocked_reason).not.toBe(advisoriesOttoMissing.waiting.blocked_reason);
+    // Where nothing can be decided the line does not ask for a decision (second review, 18 November 2026): it read
+    // "wait for your decision ... accept or reject" right above "nothing can be decided".
+    for (const view of [advisoriesClosed, advisoriesOttoMissing]) {
+      expect(view.waiting.line).toBe("1 proposed check has no decision.");
+      expect(view.waiting.line).not.toMatch(/accept or reject|your decision/);
+    }
+  });
+
+  it("after a retest says which version the result is of: in the table's row, and first in the panel's row", async () => {
+    // The row is named for the version the file lists; after a retest its newest result is of another version.
+    const RAN_ON = "This is the retest, on acme-sign 1.4.3-otto. The first run, on acme-sign 1.4.2, read Failed.";
+    const SHORT = "Retest on acme-sign 1.4.3-otto. First run on acme-sign 1.4.2: Failed.";
+    const retested = withFirstRow(advisoriesFailed, (r) => ({
+      ...r,
+      result: { ...r.result, key: "pass", label: "Passed", tone: "pass", text: SHORT },
+      panel: {
+        ...r.panel,
+        here: {
+          ...r.panel.here,
+          rows: r.panel.here.rows.map((h) => ({
+            ...h,
+            result: h.result ? { ...h.result, label: "Passed", tone: "pass" as const, component: "acme-sign 1.4.3-otto", ran_on: RAN_ON } : null,
+          })),
+        },
+      },
+    }));
+    await open(retested);
+    expect(chipOf(BLANK, "advisory-result").textContent).toBe("Passed");
+    expect(text(rowOf(BLANK))).toContain(SHORT);
+    await openRow(BLANK);
+    const row = within(hereRow());
+    const line = row.getByTestId("advisory-here-ran-on");
+    expect(line.textContent).toBe(RAN_ON);
+    // It comes right after the chip and before the reviewer's sentence, so "Passed" is never read as the named version's.
+    const chip = row.getByTestId("advisory-here-result");
+    expect(chip.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const plain = row.getByText(retested.rows[0]!.panel.here.rows[0]!.result!.plain);
+    expect(line.compareDocumentPosition(plain) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // A first run is of the version the row names: no such line.
+    cleanup();
+    await open(advisoriesFailed);
+    await openRow(BLANK);
+    expect(within(hereRow()).queryByTestId("advisory-here-ran-on")).toBeNull();
   });
 
   it.each([

@@ -71,7 +71,17 @@ class FixesMixin:
                 deps = self._dependency_state(db, plan)
                 listed = {(str(r.get("library") or r.get("name") or "").casefold(), str(r.get("version") or ""))
                           for r in (deps or {}).get("rows") or []}
-            return group_fixes(view, pairs, systems, listed)
+            view = group_fixes(view, pairs, systems, listed)
+            # Phase 5c: Otto's proposed plan changes are decided on Migration and are no entry here. Where this page's
+            # Migration group is empty, it says so with them, so it never reads as if nothing were proposed.
+            group = next((g for g in view["groups"] if g["key"] == "migration"), None)
+            if group is not None and group.get("empty_text"):
+                plans = [p for p in self._proposals(db, plan, ("plan",), fixes=[state for state, _ in pairs])      # type: ignore[attr-defined]
+                         if p["current"] or p["state"] != "proposed"]
+                line = present_otto.fixes_plan_line(plans)
+                if line:
+                    group["empty_text"] = f"{group['empty_text']} {line}"
+            return view
 
     @staticmethod
     def _answer_title(db, answer: dict) -> str:
@@ -128,6 +138,7 @@ class FixesMixin:
             shown["proposal"] = (present_otto.proposal_view(proposal, self.otto_ledger_about(plan.id, proposal.get("objective_id")))   # type: ignore[attr-defined]
                                  if proposal is not None else None)
             out.append((fix, shown))
+        present_fixes.link_same_updates(out)
         return out
 
     @staticmethod

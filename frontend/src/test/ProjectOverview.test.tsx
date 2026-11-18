@@ -74,7 +74,7 @@ const OTTO: OttoProjectBlock = {
       assessment_id: 101,
       title: "Assessment 2",
       waiting: 2,
-      waiting_text: "2 proposals waiting for a decision",
+      waiting_text: "2 proposals waiting for a decision: 1 proposed check, 1 proposed fix",
       link: link("overview", null, 101),
       since: ["It brought 1 proposed check for this assessment: 1 waiting.", "2 decisions recorded since.", "Advisory checks run since: 1 Passed."],
     },
@@ -215,7 +215,7 @@ describe("Project overview: Otto in this project (phase 5c)", () => {
         text(within(r).getByTestId("project-otto-waiting")),
       ]),
     ).toEqual([
-      ["101", "2", "Assessment 2", "#/a/101/overview", "2 proposals waiting for a decision"],
+      ["101", "2", "Assessment 2", "#/a/101/overview", "2 proposals waiting for a decision: 1 proposed check, 1 proposed fix"],
       ["100", "0", "Assessment 1", "#/a/100/overview", "Nothing waiting"],
     ]);
     // A count that waits stands out calmly, as a chip with a symbol and its words; nothing waiting is plain text.

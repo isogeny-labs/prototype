@@ -140,6 +140,9 @@ def test_otto_writes_the_change_and_a_view_asks_nothing(failed):
     assert connect["enabled"] is False and shown["actions"]["note"].startswith("Otto proposes this change. Accept the proposal first")
     text = json.dumps(shown)
     assert "Otto wrote a change for CVE-2022-21449 (Blank signature accepted)" in text and "fix template" not in text.lower()
+    # Claude's summary reads as if the change were in ("now rejects"): before any accept it is said as what it would do
+    assert "What it would change, in Otto's words:" in text and "Nothing is changed until you accept it and connect the code" in text
+    assert proposal["lines"][0].startswith("What the change would do, in Otto's words: ") and "Nothing is changed yet." in proposal["lines"][1]
     with lab.db() as db:
         assert db.scalars(select(OttoStepRow)).all() == []            # a page that is only shown writes nothing
     # the failed advisory check's result points to this fix
@@ -186,6 +189,12 @@ def test_ottos_change_takes_the_same_proof_path_and_is_offered_only_after_it(fai
         assert step.prompt and step.answer and step.claim_id.startswith("sha256:")
     shown = next(f for f in lab.fixes_view(lab.plan.id)["fixes"] if f["kind"] == "code")
     assert shown["labels"] == ["Written by Otto"] and shown["status"]["word"] == "Ready for review" and "Otto has no say in any result" in json.dumps(shown)
+    # Second review, 18 November 2026: the proof's words are its own two groups. A server test that is rerun and still
+    # reads Failed "came out the same as before"; the page no longer says that every locked test passed.
+    said = json.dumps(shown)
+    assert ("every locked test that runs the changed code passed on it, and every test that does not run it came out the same as "
+            "before") in said
+    assert "every locked test passed on the changed code" not in said
     # the Claude step is in the assessment's Otto ledger in full, and the proof run of the check is bound there
     book = assurance.Ledger(lab.settings.data_dir, lab.assessment_for(plan_id=lab.plan.id).id)
     claims = [e["payload"] for e in book.entries() if e["kind"] == "claim"]
@@ -252,6 +261,9 @@ def test_ottos_recorded_way_is_proven_on_its_own_registered_program_merged_and_r
     fix = next(f for f in lab.fix_states(lab.plan.id) if f["kind"] == "code")
     assert fix["change"]["written_by"] == "otto" and fix["change"]["built"]["matches"] == {"name": "acme-sign", "version": "1.4.3-otto"}
     assert fix["status"] == "ready" and fix["proof"]["review"]["offered"] is True and fix["proof"]["version"] == "1.4.3-otto"
+    # the program's own version line reads 1.4.3; "1.4.3-otto" is the registry's name for it, and is said as that
+    said = json.dumps(next(f for f in lab.fixes_view(lab.plan.id)["fixes"] if f["kind"] == "code"))
+    assert "byte for byte one of the app's registered demo programs, acme-sign 1.4.3-otto." in said and "reports version" not in said
     lab.open_pull_request(lab.plan.id, fix["id"], ["you"])
     lab.approve(lab.plan.id, fix["id"], "you")
     lab.merge(lab.plan.id, fix["id"])
@@ -263,6 +275,11 @@ def test_ottos_recorded_way_is_proven_on_its_own_registered_program_merged_and_r
     rows = [r for r in lab.lab_view(lab.plan.id)["rows"] if r["kind"] in ("official_vectors", "bad_signatures", "advisory_cases")]
     assert rows and all(r["result"]["label"] == "Failed" and r["after"]["label"] == "Passed" for r in rows)
     assert all(r["after"]["component"] == "acme-sign 1.4.3-otto" for r in rows)
+    # Advisories: the row is named for acme-sign 1.4.2, and its newest result is the retest's. It says which version.
+    row = lab.advisories_view(lab.plan.id)["rows"][0]
+    assert row["result"]["label"] == "Passed" and row["result"]["text"] == "Retest on acme-sign 1.4.3-otto. First run on acme-sign 1.4.2: Failed."
+    assert row["panel"]["here"]["rows"][0]["result"]["ran_on"] == ("This is the retest, on acme-sign 1.4.3-otto. The first run, on "
+                                                                   "acme-sign 1.4.2, read Failed.")
     book = assurance.Ledger(lab.settings.data_dir, lab.assessment_for(plan_id=lab.plan.id).id)
     assert book.audit() == []
 
