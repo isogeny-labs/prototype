@@ -14,27 +14,43 @@ import type {
   OttoHarnessLine,
   OttoLiveSection,
   OttoPackCard,
+  OttoProposal,
   OttoSettingsView,
   OttoUpdate,
   RelatedView,
 } from "../api";
+import { acceptedProposal, proposal, rejectedProposal } from "./proposalFixtures";
 
 /** Phase 5c (Otto in Evidence Lab): the answers the Advisories page, the Otto sections of Settings and the Otto words on
  * Evidence and Fixes are drawn from. They are the backend's own answers, copied from a run of the real routes on packs
  * made for tests (which is why a signer reads "A key made for a test" and a source "A made-up advisory for a test"):
  * every exported view equals the answer it was copied from, with the parts they share written once. The states: no pack
- * installed; a pack installed and its check not added, added but not run, and failed; two packs; a closed assessment;
- * Otto not installed on this computer. The last section holds a few states that were not among those answers; they
- * are built from them with the backend's own sentences, and say so. */
+ * installed; a pack installed and its check proposed (nobody has decided), accepted but not run, rejected with a
+ * reason, open again after an undo or a reconsider, and failed; two packs; a closed assessment; Otto not installed on
+ * this computer. Since the second part of
+ * phase 5c a check is one of Otto's proposals: every program's row carries it, with where a person's decisions stand
+ * (the proposals are built with `proposalFixtures`, from the backend's own words for these packs). The last section
+ * holds a few states that were not among those answers; they are built from them with the backend's own sentences, and
+ * say so. */
 
 // ---- Words and parts the answers share
 
-const SUBLINE: string = "Every published advisory in the installed test packs: whether it has a test, which signing programs of this assessment it fits, and the latest result of its check here, in the reviewer's words.";
+const SUBLINE: string = "Every published advisory in the installed test packs. Where one has a test that fits a signing program of this assessment, Otto proposes its check: you accept or reject it. A result shown here is the reviewer's, in its words.";
 
 /** The standing line of the Advisories page: the only place the page says "secure". */
 export const STANDING_LINE: string = "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
 
-const ADD_NOTE: string = "Adds every pack test that fits a program in this assessment and is not in the test plan yet. It runs nothing.";
+// "Waiting for you" on Advisories: Otto proposes, a person decides each one by itself. There is no button for several.
+const WAITING_NOTE: string = "Otto proposes; you decide each one by itself. Accepting adds a check to the test plan. It runs nothing.";
+
+const ONE_WAITING: AdvisoriesView["waiting"] = {
+  count: 1,
+  blocked_reason: null,
+  line: "1 proposed check waits for your decision. Open an advisory to accept or reject its check.",
+  note: WAITING_NOTE,
+};
+
+const NONE_WAITING: AdvisoriesView["waiting"] = { count: 0, blocked_reason: null, line: "No proposed check is waiting for a decision.", note: WAITING_NOTE };
 
 /** What every Otto screen says when Otto's harness is not on this computer. */
 export const NOT_INSTALLED_LINE: string = "Otto is not installed on this computer: it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the isogeny-labs/otto repository once. Advisory checks can't be added or run, because their runs could not be recorded. Everything else works as before.";
@@ -52,18 +68,24 @@ const FILTERS: AdvisoriesView["filters"] = {
     { key: "not_offered", label: "Not offered" },
     { key: "none", label: "No test yet" },
   ],
+  decision: [
+    { key: "all", label: "Any decision" },
+    { key: "proposed", label: "Proposed" },
+    { key: "accepted", label: "Added" },
+    { key: "rejected", label: "Not added" },
+  ],
   result: [
     { key: "all", label: "Any result" },
     { key: "fail", label: "Failed" },
     { key: "pass", label: "Passed" },
     { key: "warn", label: "Couldn't run or trust" },
     { key: "not_run", label: "Not run yet" },
-    { key: "not_added", label: "Not added yet" },
+    { key: "not_added", label: "Not in the test plan" },
     { key: "none", label: "No check" },
   ],
 };
 
-const COLUMNS: string[] = ["Advisory", "Published", "Fits", "Test", "Result here"];
+const COLUMNS: string[] = ["Advisory", "Published", "Fits", "Test", "Otto's proposal", "Result here"];
 
 // The publisher's own line, as every advisory of the test packs quotes it.
 const QUOTE: AdvisoryQuote = {
@@ -93,7 +115,7 @@ const RULE: string = "Passed only if every answer is right. Any wrong answer mea
 
 const QUESTION: string = "Does the program reject the signatures that advisory CVE-2022-21449 describes?";
 
-const JUDGED_SUPPORTED: string = "Otto's harness judged the trial against thresholds fixed before the first run: supported. A second author replayed it with the same numbers.";
+const JUDGED_SUPPORTED: string = "Otto's harness judged the trial against thresholds fixed before the first run: supported. It was then run again as a separate replay step of the same build, on the same computer, and gave the same numbers.";
 
 // Otto's research ledger entries of a test that is offered.
 const RESEARCH_LEDGER: AdvisoryLedger = {
@@ -142,7 +164,22 @@ const CLAUDE_TWO_STEPS: AdvisoryClaude = { title: "What Otto asked Claude", step
 
 const NO_FIX_REASON: string = "No fix is offered: there is no test for this advisory to prove one with.";
 
-const NO_TEST_HERE: AdvisoryRow["panel"]["here"] = { title: "In this assessment", rows: [], empty: "This advisory has no test, so there is nothing to run here." };
+const HERE_TITLE: string = "Otto's proposed check, in this assessment";
+
+const HERE_NOTE: string = "Otto proposes; you decide for each program by itself. Accepting adds the check to the test plan and runs nothing.";
+
+const NO_TEST_HERE: AdvisoryRow["panel"]["here"] = { title: HERE_TITLE, rows: [], note: null, empty: "This advisory has no test, so there is nothing to run here." };
+
+// The Proposal cell of an advisory that has no test, or whose test fits no program here: Otto proposes nothing.
+const NOTHING_PROPOSED: AdvisoryRow["proposal"] = { key: "none", label: "Nothing proposed", tone: "neutral", text: null };
+
+const NOT_IN_PLAN: AdvisoryRow["result"] = { key: "not_added", label: "Not in the test plan", tone: "neutral", text: null };
+
+/** Why no decision can be recorded in a closed assessment: every button's reason there. */
+export const CLOSED_REASON: string = "This assessment is closed. Start a new one to continue.";
+
+/** Why no decision can be recorded without Otto's harness: every button's reason there. */
+export const NO_OTTO_REASON: string = "Otto is not installed on this computer: it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the isogeny-labs/otto repository once. A decision on one of Otto's proposals is recorded in Otto's ledger, so nothing can be decided here.";
 
 const SENTENCE: string = "The program accepts a signature whose two numbers are zero or out of range.";
 
@@ -150,7 +187,7 @@ const AFFECTED_ACME: NonNullable<AdvisoryRow["panel"]["affected"]> = { line: "Af
 
 const AFFECTED_ELLIPTIC: NonNullable<AdvisoryRow["panel"]["affected"]> = { line: "Affected versions, in the publisher's terms: 6.5.6 and earlier", quote: QUOTE };
 
-// ---- The advisory whose check runs here: CVE-2022-21449, in each state of its check
+// ---- The advisory whose check runs here: CVE-2022-21449, in each state of Otto's proposal and of its check
 
 // Its test: ready, with its trial on public copies and its ledger entries.
 const BLANK_TEST: AdvisoryTestBlock = {
@@ -184,8 +221,8 @@ const CHECK_LEDGER: AdvisoryLedger = {
       at: "2026-11-17T19:57:06+00:00",
       what: "Lock entry: the test's fingerprint, its design and its pack, written before any run",
     },
-    { seq: 1, kind: "Recorded", id: "ea9d697236fb", at: "2026-11-17T19:57:17+00:00", what: "Run 6 (first run) bound to the locked test" },
-    { seq: 2, kind: "Record checked", id: "1b7d76ad81af", at: "2026-11-17T19:57:17+00:00", what: "The pinned checker: bound and consistent" },
+    { seq: 4, kind: "Recorded", id: "ea9d697236fb", at: "2026-11-17T19:57:17+00:00", what: "Run 6 (first run) bound to the locked test" },
+    { seq: 5, kind: "Record checked", id: "1b7d76ad81af", at: "2026-11-17T19:57:17+00:00", what: "The pinned checker: bound and consistent" },
   ],
   note: "The ledger shows that each run belongs to the test locked before it. It holds no result.",
 };
@@ -199,7 +236,127 @@ const FAILED_RESULT: NonNullable<AdvisoryHereRow["result"]> = {
   finished_at: "2026-11-17T19:57:17.753Z",
 };
 
-/** A pack is installed; its test fits acme-sign 1.4.2 and is not in the test plan yet. */
+// Otto's proposal of that check for acme-sign 1.4.2, in the backend's words for this pack. The rest of a proposal (its
+// label, its buttons, who decided and when) comes from `proposalFixtures`, state by state.
+const BLANK_WORDS: Partial<OttoProposal> = {
+  id: "check-cve-2022-21449-5e9adc9b92b9",
+  title: "Advisory check: Blank signature accepted (CVE-2022-21449) on acme-sign 1.4.2",
+  why: "The advisory is about acme-sign, and your file lists acme-sign 1.4.2. Its publisher names 1.4.3 as the fixed version.",
+  lines: [
+    "Does acme-sign 1.4.2 reject the signatures that advisory CVE-2022-21449 describes?",
+    "64 published cases from Project Wycheproof, pinned by SHA-256.",
+    "Control that must fail: A deliberately broken checker that accepts every signature. It must get every must-reject case wrong, so the selection needs at least one must-reject case.",
+    "Tried on public copies before the pack was signed: acme-sign 1.4.2 got 2 of 64 wrong, acme-sign 1.4.3 got 0 wrong, and the control that must fail did.",
+  ],
+  link: { page: "advisories", item: "CVE-2022-21449" },
+  proposed_at: "2026-11-18T05:31:28.875Z",
+};
+
+/** The entries decisions leave in the assessment's Otto ledger: the entry that names the proposal (written with the
+ * first decision on it), then each decision and the pinned checker's answer about its record (never a result). */
+function decisionLedger(decisions: { id: string; at: string; what: string }[]): AdvisoryLedger {
+  const checked = ["dda1a0012329", "0175158e8558"];
+  return {
+    title: "Otto ledger entries for these decisions",
+    count: 1 + 2 * decisions.length,
+    entries: [
+      {
+        seq: 1,
+        kind: "Opened",
+        id: "366b10921150",
+        at: decisions[0]!.at,
+        what: "Proposal entry: names what Otto proposed, written with the first decision on it",
+      },
+      ...decisions.flatMap((d, i) => [
+        { seq: 2 + 2 * i, kind: "Recorded", id: d.id, at: d.at, what: `Decision ${i + 1}: ${d.what} by You` },
+        { seq: 3 + 2 * i, kind: "Record checked", id: checked[i]!, at: d.at, what: "The pinned checker: the entry is whole and in order" },
+      ]),
+    ],
+    note: "Each decision is written to this assessment's Otto ledger with who and when. The ledger holds no result.",
+  };
+}
+
+// One decision each, as `proposalFixtures` records them: who, when and the ledger entry it left.
+const ACCEPTED = { id: "a1b2c3d4e5f6", at: "2026-11-18T10:02:00+00:00", what: "accepted" };
+const REJECTED = { id: "b2c3d4e5f6a1", at: "2026-11-18T10:03:00+00:00", what: "rejected" };
+
+const DECISION_LEDGER: AdvisoryLedger = decisionLedger([ACCEPTED]);
+
+/** Otto's proposal of the check for acme-sign 1.4.2 before anybody decided: Accept and Reject. */
+export const blankProposal: OttoProposal = proposal(BLANK_WORDS);
+
+/** The same after Accept: "Added", who decided and when, its ledger entries, and Undo (until the check has run). */
+export const blankProposalAccepted: OttoProposal = acceptedProposal({
+  ...BLANK_WORDS,
+  history: { ...acceptedProposal().history, ledger: DECISION_LEDGER },
+});
+
+/** The same after Reject with a reason: "Not added (reason)", kept on the record, with Reconsider. */
+export const blankProposalRejected: OttoProposal = rejectedProposal("Not this quarter", {
+  ...BLANK_WORDS,
+  history: { ...rejectedProposal("Not this quarter").history, ledger: decisionLedger([REJECTED]) },
+});
+
+/** The same once its accept was undone: open for a decision again, and both decisions stay on its record. */
+export const blankProposalUndone: OttoProposal = proposal({
+  ...BLANK_WORDS,
+  decided_line: "Accept undone by You on 18 November 2026, 10:04 UTC. It is open for a decision again.",
+  history: {
+    ...acceptedProposal().history,
+    count: 2,
+    rows: [
+      ...acceptedProposal().history.rows,
+      {
+        number: 2,
+        word: "Accept undone",
+        by: "You",
+        at: "2026-11-18T10:04:00Z",
+        at_text: "18 November 2026, 10:04 UTC",
+        reason: null,
+        ledger_entry: "24d77faed99e",
+        line: "2. Accept undone by You on 18 November 2026, 10:04 UTC.",
+      },
+    ],
+    ledger: decisionLedger([ACCEPTED, { id: "24d77faed99e", at: "2026-11-18T10:04:00+00:00", what: "accept undone" }]),
+  },
+});
+
+/** The same once its reject was taken up again: open for a decision again, and both decisions stay on its record. */
+export const blankProposalReconsidered: OttoProposal = proposal({
+  ...BLANK_WORDS,
+  decided_line: "Taken up again by You on 18 November 2026, 10:05 UTC. It is open for a decision again.",
+  history: {
+    ...rejectedProposal("Not this quarter").history,
+    count: 2,
+    rows: [
+      ...rejectedProposal("Not this quarter").history.rows,
+      {
+        number: 2,
+        word: "Taken up again",
+        by: "You",
+        at: "2026-11-18T10:05:00Z",
+        at_text: "18 November 2026, 10:05 UTC",
+        reason: null,
+        ledger_entry: "317cd5a4870c",
+        line: "2. Taken up again by You on 18 November 2026, 10:05 UTC.",
+      },
+    ],
+    ledger: decisionLedger([REJECTED, { id: "317cd5a4870c", at: "2026-11-18T10:05:00+00:00", what: "taken up again" }]),
+  },
+});
+
+/** The accepted proposal once its check has run: Undo is off, with the backend's reason. */
+export const blankProposalRan: OttoProposal = acceptedProposal({
+  ...BLANK_WORDS,
+  effect: "It is in the test plan, on Checks.",
+  buttons: [{ key: "undo", label: "Undo", can: false, blocked_reason: "This check has run, so it stays in the test plan." }],
+  note: null,
+  history: { ...acceptedProposal().history, ledger: DECISION_LEDGER },
+});
+
+const ADDED: AdvisoryRow["proposal"] = { key: "accepted", label: "Added", tone: "pass", text: null };
+
+/** A pack is installed; Otto proposes its check for acme-sign 1.4.2, and nobody has decided yet. */
 export const blankNotAdded: AdvisoryRow = {
   id: "CVE-2022-21449",
   name: "Blank signature accepted",
@@ -210,7 +367,8 @@ export const blankNotAdded: AdvisoryRow = {
   fits: ["acme-sign 1.4.2"],
   fits_text: "acme-sign 1.4.2",
   test: { key: "ready", label: "Test ready", tone: "pass", reason: TEST_READY_REASON },
-  result: { key: "not_added", label: "Not added yet", tone: "neutral", text: null },
+  proposal: { key: "proposed", label: "Proposed", tone: "warn", text: null },
+  result: NOT_IN_PLAN,
   search: "cve-2022-21449 blank signature accepted acme-sign acme-sign 1.4.2",
   panel: {
     sentence: SENTENCE,
@@ -222,8 +380,9 @@ export const blankNotAdded: AdvisoryRow = {
     test: BLANK_TEST,
     no_test: null,
     here: {
-      title: "In this assessment",
-      rows: [{ program: "acme-sign 1.4.2", status: "Not added yet", result: null, checks_link: null, evidence_link: null, ledger: null }],
+      title: HERE_TITLE,
+      rows: [{ program: "acme-sign 1.4.2", status: "Proposed", proposal: blankProposal, result: null, checks_link: null, evidence_link: null, ledger: null }],
+      note: HERE_NOTE,
       empty: null,
     },
     fix: {
@@ -243,9 +402,10 @@ export const blankNotAdded: AdvisoryRow = {
   },
 };
 
-/** Add new checks put the test in the plan; it has not run. */
+/** The proposal was accepted: the check is in the test plan and has not run. */
 export const blankNotRun: AdvisoryRow = {
   ...blankNotAdded,
+  proposal: ADDED,
   result: { key: "not_run", label: "Not run yet", tone: "neutral", text: null },
   panel: {
     ...blankNotAdded.panel,
@@ -255,6 +415,7 @@ export const blankNotRun: AdvisoryRow = {
         {
           program: "acme-sign 1.4.2",
           status: "Not run yet",
+          proposal: blankProposalAccepted,
           result: null,
           checks_link: { page: "checks", item: "test-6" },
           evidence_link: null,
@@ -281,15 +442,39 @@ export const blankNotRun: AdvisoryRow = {
         "Otto proposes: update acme-sign to 1.4.3 or later.",
         "Update acme-sign to 1.4.3, which checks that both numbers of a signature are in range.",
         "Proven on public copies: this advisory's check passed and all 3 pass-or-fail tests read Passed.",
-        "For your own code: if this advisory's check fails here, Fixes offers a change. A change Otto wrote is offered only when it can be proven on this computer; otherwise the fix template takes its place.",
+        "For your own code (acme-sign 1.4.2): if this advisory's check fails here, Fixes shows what can be offered. A change Otto wrote is offered only when it can be proven on this computer. Where it can't be, the fix template is offered if it answers the failure; if not, Fixes lists the failure with a plain suggestion and offers no code change.",
       ],
     },
   },
 };
 
-/** The check ran and the reviewer read Failed; Fixes holds the fix. */
+/** The proposal was rejected with a reason: it stays on the record as "Not added (reason)" and can be taken up again. */
+export const blankRejected: AdvisoryRow = {
+  ...blankNotAdded,
+  proposal: { key: "rejected", label: "Not added (Not this quarter)", tone: "neutral", text: null },
+  panel: {
+    ...blankNotAdded.panel,
+    here: {
+      ...blankNotAdded.panel.here,
+      rows: [
+        {
+          program: "acme-sign 1.4.2",
+          status: "Not added (Not this quarter)",
+          proposal: blankProposalRejected,
+          result: null,
+          checks_link: null,
+          evidence_link: null,
+          ledger: null,
+        },
+      ],
+    },
+  },
+};
+
+/** The accepted check ran and the reviewer read Failed; Fixes holds the fix. Its accept can no longer be undone. */
 export const blankFailed: AdvisoryRow = {
   ...blankNotAdded,
+  proposal: ADDED,
   result: { key: "fail", label: "Failed", tone: "fail", text: null },
   panel: {
     ...blankNotAdded.panel,
@@ -299,6 +484,7 @@ export const blankFailed: AdvisoryRow = {
         {
           program: "acme-sign 1.4.2",
           status: null,
+          proposal: blankProposalRan,
           result: FAILED_RESULT,
           checks_link: { page: "checks", item: "test-6" },
           evidence_link: { page: "evidence", item: "test-6" },
@@ -317,30 +503,24 @@ export const blankFailed: AdvisoryRow = {
   },
 };
 
-/** The same once Otto's harness is gone from this computer: the result stays, the check's ledger can't be read. */
-export const blankFailedNoLedger: AdvisoryRow = {
-  ...blankFailed,
-  panel: {
-    ...blankFailed.panel,
-    here: {
-      ...blankFailed.panel.here,
-      rows: [
-        {
-          program: "acme-sign 1.4.2",
-          status: null,
-          result: FAILED_RESULT,
-          checks_link: { page: "checks", item: "test-6" },
-          evidence_link: { page: "evidence", item: "test-6" },
-          ledger: null,
-        },
-      ],
-    },
-  },
-};
+/** The same row with every button of its proposal off for one reason (a closed assessment, or no Otto harness). */
+function blankFailedBlocked(reason: string, ledger: AdvisoryLedger | null): AdvisoryRow {
+  const row = blankFailed.panel.here.rows[0]!;
+  const blocked: OttoProposal = {
+    ...blankProposalRan,
+    buttons: [{ key: "undo", label: "Undo", can: false, blocked_reason: reason }],
+    history: { ...blankProposalRan.history, ledger: ledger === null ? null : blankProposalRan.history.ledger },
+  };
+  return { ...blankFailed, panel: { ...blankFailed.panel, here: { ...blankFailed.panel.here, rows: [{ ...row, proposal: blocked, ledger }] } } };
+}
+
+/** The same once Otto's harness is gone from this computer: the result stays, the ledgers can't be read, and no
+ * decision can be recorded. */
+export const blankFailedNoLedger: AdvisoryRow = blankFailedBlocked(NO_OTTO_REASON, null);
 
 // ---- The other advisories of the two test packs
 
-/** No test yet: no building block can show this weakness. */
+/** No test yet: no building block can show this weakness. Otto proposes nothing for it. */
 export const stopsNoTest: AdvisoryRow = {
   id: "CVE-2019-14853",
   name: "Stops on a bad signature",
@@ -351,6 +531,7 @@ export const stopsNoTest: AdvisoryRow = {
   fits: [],
   fits_text: "",
   test: { key: "none", label: "No test yet", tone: "neutral", reason: "No test yet: no building block can show this weakness." },
+  proposal: NOTHING_PROPOSED,
   result: { key: "none", label: "No check", tone: "neutral", text: null },
   search: "cve-2019-14853 stops on a bad signature acme-sign",
   panel: {
@@ -369,7 +550,23 @@ export const stopsNoTest: AdvisoryRow = {
   },
 };
 
-/** From the second pack: a ready test that fits acme-sign 1.4.2 and is not added yet. */
+/** Otto's proposal of the second pack's check for acme-sign 1.4.2. The advisory is about another library, and the
+ * proposal says why its check still applies. */
+export const zeroProposal: OttoProposal = proposal({
+  id: "check-cve-2024-42460-3ed4f0ab2c36",
+  title: "Advisory check: Missing leading zero accepted (CVE-2024-42460) on acme-sign 1.4.2",
+  why: "acme-sign 1.4.2 checks ECDSA P-256 signatures, and this test hands a program published signature cases of the kind the advisory describes. The advisory is about elliptic, not about acme-sign: no version number can say whether acme-sign has the same weakness, so the test asks the program itself.",
+  lines: [
+    "Does acme-sign 1.4.2 reject the signatures that advisory CVE-2022-21449 describes?",
+    "1 published case from Project Wycheproof, pinned by SHA-256.",
+    "Control that must fail: A deliberately broken checker that accepts every signature. It must get every must-reject case wrong, so the selection needs at least one must-reject case.",
+    "Tried on public copies before the pack was signed: elliptic 6.5.6 got 2 of 1 wrong, elliptic 6.5.7 got 0 wrong, and the control that must fail did.",
+  ],
+  link: { page: "advisories", item: "CVE-2024-42460" },
+  proposed_at: "2026-11-18T05:32:32.730Z",
+});
+
+/** From the second pack: a ready test that fits acme-sign 1.4.2. Otto proposes its check; nobody has decided yet. */
 export const zeroNotAdded: AdvisoryRow = {
   id: "CVE-2024-42460",
   name: "Missing leading zero accepted",
@@ -380,7 +577,8 @@ export const zeroNotAdded: AdvisoryRow = {
   fits: ["acme-sign 1.4.2"],
   fits_text: "acme-sign 1.4.2",
   test: { key: "ready", label: "Test ready", tone: "pass", reason: TEST_READY_REASON },
-  result: { key: "not_added", label: "Not added yet", tone: "neutral", text: null },
+  proposal: { key: "proposed", label: "Proposed", tone: "warn", text: null },
+  result: NOT_IN_PLAN,
   search: "cve-2024-42460 missing leading zero accepted elliptic acme-sign 1.4.2",
   panel: {
     sentence: SENTENCE,
@@ -399,9 +597,9 @@ export const zeroNotAdded: AdvisoryRow = {
       trial: {
         title: "How it did when tried on public copies",
         lines: [
-          "elliptic 6.5.6 (affected): 2 of 1 cases wrong.",
-          "elliptic 6.5.7 (the publisher's fixed version): 0 of 1 cases wrong.",
-          "The control that must fail (a program that accepts every signature): 1 of 1 cases wrong.",
+          "elliptic 6.5.6 (affected): 2 of 1 case wrong.",
+          "elliptic 6.5.7 (the publisher's fixed version): 0 of 1 case wrong.",
+          "The control that must fail (a program that accepts every signature): 1 of 1 case wrong.",
           JUDGED_SUPPORTED,
         ],
       },
@@ -409,8 +607,9 @@ export const zeroNotAdded: AdvisoryRow = {
     },
     no_test: null,
     here: {
-      title: "In this assessment",
-      rows: [{ program: "acme-sign 1.4.2", status: "Not added yet", result: null, checks_link: null, evidence_link: null, ledger: null }],
+      title: HERE_TITLE,
+      rows: [{ program: "acme-sign 1.4.2", status: "Proposed", proposal: zeroProposal, result: null, checks_link: null, evidence_link: null, ledger: null }],
+      note: HERE_NOTE,
       empty: null,
     },
     fix: {
@@ -430,7 +629,20 @@ export const zeroNotAdded: AdvisoryRow = {
   },
 };
 
-/** From the second pack: a test that is not offered, because its design failed its own trial. */
+/** The same row where nothing can be decided: Accept and Reject are both off, with the backend's one reason. */
+function zeroBlocked(reason: string): AdvisoryRow {
+  const row = zeroNotAdded.panel.here.rows[0]!;
+  const blocked: OttoProposal = {
+    ...zeroProposal,
+    buttons: [
+      { key: "accept", label: "Accept", can: false, blocked_reason: reason },
+      { key: "reject", label: "Reject", can: false, blocked_reason: reason },
+    ],
+  };
+  return { ...zeroNotAdded, panel: { ...zeroNotAdded.panel, here: { ...zeroNotAdded.panel.here, rows: [{ ...row, proposal: blocked }] } } };
+}
+
+/** From the second pack: a test that is not offered, because its design failed its own trial. Nothing is proposed. */
 export const looseNotOffered: AdvisoryRow = {
   id: "CVE-2024-42461",
   name: "Loose length accepted",
@@ -441,6 +653,7 @@ export const looseNotOffered: AdvisoryRow = {
   fits: [],
   fits_text: "",
   test: { key: "not_offered", label: "Not offered", tone: "warn", reason: "Not offered: the design failed its own trial." },
+  proposal: NOTHING_PROPOSED,
   result: { key: "none", label: "No check", tone: "neutral", text: null },
   search: "cve-2024-42461 loose length accepted elliptic",
   panel: {
@@ -457,10 +670,10 @@ export const looseNotOffered: AdvisoryRow = {
       trial: {
         title: "How its design did when tried on public copies",
         lines: [
-          "elliptic 6.5.6 (affected): 0 of 7 cases wrong.",
-          "elliptic 6.5.7 (the publisher's fixed version): 0 of 7 cases wrong.",
-          "The control that must fail (a program that accepts every signature): 7 of 7 cases wrong.",
-          "Otto's harness judged the trial against thresholds fixed before the first run: refuted. A second author replayed it with the same numbers.",
+          "elliptic 6.5.6 (affected): 0 of 64 cases wrong.",
+          "elliptic 6.5.7 (the publisher's fixed version): 0 of 64 cases wrong.",
+          "The control that must fail (a program that accepts every signature): 64 of 64 cases wrong.",
+          "Otto's harness judged the trial against thresholds fixed before the first run: refuted. It was then run again as a separate replay step of the same build, on the same computer, and gave the same numbers.",
         ],
       },
       ledger: RESEARCH_LEDGER_NO_TEST,
@@ -474,21 +687,20 @@ export const looseNotOffered: AdvisoryRow = {
 
 // ---- The Advisories page, state by state
 
-/** No test pack is installed. */
+/** No test pack is installed: Otto has nothing to propose. */
 export const advisoriesNoPack: AdvisoriesView = {
   title: "Advisories",
   subline: SUBLINE,
   standing_line: STANDING_LINE,
   packs_line: "No test pack is installed yet. Settings, Test packs, Check for updates.",
   packs_link: PACKS_LINK,
-  answers_line: "Answers recorded during the build",
+  answers_line: "No test pack is installed, so there are no answers here yet.",
   otto: OTTO_INSTALLED,
-  add: {
-    button: "Add new checks",
+  waiting: {
     count: 0,
-    can: false,
     blocked_reason: "No test pack is installed. Install one in Settings, under Test packs.",
-    note: ADD_NOTE,
+    line: "No test pack is installed. Install one in Settings, under Test packs.",
+    note: WAITING_NOTE,
   },
   filters: FILTERS,
   columns: COLUMNS,
@@ -497,7 +709,7 @@ export const advisoriesNoPack: AdvisoriesView = {
   assessment_id: 1,
 };
 
-/** One pack is installed; one new check can be added. */
+/** One pack is installed; Otto proposes one check, and nobody has decided yet. */
 export const advisoriesNotAdded: AdvisoriesView = {
   title: "Advisories",
   subline: SUBLINE,
@@ -506,7 +718,7 @@ export const advisoriesNotAdded: AdvisoriesView = {
   packs_link: PACKS_LINK,
   answers_line: "Answers written for a test, 17 November 2026",
   otto: OTTO_INSTALLED,
-  add: { button: "Add new checks (1)", count: 1, can: true, blocked_reason: null, note: ADD_NOTE },
+  waiting: ONE_WAITING,
   filters: FILTERS,
   columns: COLUMNS,
   rows: [blankNotAdded, stopsNoTest],
@@ -514,45 +726,68 @@ export const advisoriesNotAdded: AdvisoriesView = {
   assessment_id: 1,
 };
 
-/** After Add new checks: the check is in the plan and has not run. */
+/** After Accept: the check is in the plan and has not run. Nothing is waiting. */
 export const advisoriesAddedNotRun: AdvisoriesView = {
   ...advisoriesNotAdded,
-  add: {
-    button: "Add new checks",
-    count: 0,
-    can: false,
-    blocked_reason: "Every test of the installed packs that fits this assessment is already in the test plan.",
-    note: ADD_NOTE,
-  },
+  waiting: NONE_WAITING,
   rows: [blankNotRun, stopsNoTest],
 };
 
-/** The check ran: Failed. */
+/** After Reject with a reason: the proposal stays, as "Not added (reason)". Nothing is waiting. */
+export const advisoriesRejected: AdvisoriesView = {
+  ...advisoriesNotAdded,
+  waiting: NONE_WAITING,
+  rows: [blankRejected, stopsNoTest],
+};
+
+/** The row with its one program's proposal as it stands after a later decision (the rest of the row is unchanged). */
+function blankOpenAgain(now: OttoProposal): AdvisoryRow {
+  const row = blankNotAdded.panel.here.rows[0]!;
+  return { ...blankNotAdded, panel: { ...blankNotAdded.panel, here: { ...blankNotAdded.panel.here, rows: [{ ...row, proposal: now }] } } };
+}
+
+/** After Undo of the accept: the check is out of the test plan, and its proposal waits for a decision again. */
+export const advisoriesAfterUndo: AdvisoriesView = {
+  ...advisoriesNotAdded,
+  rows: [blankOpenAgain(blankProposalUndone), stopsNoTest],
+};
+
+/** After Reconsider of the reject: the proposal waits for a decision again. */
+export const advisoriesAfterReconsider: AdvisoriesView = {
+  ...advisoriesNotAdded,
+  rows: [blankOpenAgain(blankProposalReconsidered), stopsNoTest],
+};
+
+/** The accepted check ran: Failed. */
 export const advisoriesFailed: AdvisoriesView = {
   ...advisoriesAddedNotRun,
   rows: [blankFailed, stopsNoTest],
 };
 
-/** A second pack is installed: four advisories, one new check to add. */
+/** A second pack is installed: four advisories, and one newly proposed check waiting for a decision. */
 export const advisoriesTwoPacks: AdvisoriesView = {
   ...advisoriesNotAdded,
   packs_line: "Test packs installed: 2026.11.1, 2026.11.2.",
   rows: [blankFailed, stopsNoTest, zeroNotAdded, looseNotOffered],
 };
 
-/** The same in a closed assessment: nothing can be added. */
+/** The same in a closed assessment: nothing more can be decided, and every button says so. */
 export const advisoriesClosed: AdvisoriesView = {
   ...advisoriesTwoPacks,
   packs_line: "Test packs installed when this assessment was closed: 2026.11.1, 2026.11.2.",
-  add: { button: "Add new checks", count: 0, can: false, blocked_reason: "This assessment is closed, so nothing can be added to it.", note: ADD_NOTE },
+  waiting: { ...ONE_WAITING, blocked_reason: "This assessment is closed, so nothing more can be decided in it." },
+  rows: [blankFailedBlocked(CLOSED_REASON, CHECK_LEDGER), stopsNoTest, zeroBlocked(CLOSED_REASON), looseNotOffered],
 };
 
-/** The same on a computer without Otto's harness: nothing can be added or run. */
+/** The same on a computer without Otto's harness: a decision could not be recorded, so nothing can be decided. */
 export const advisoriesOttoMissing: AdvisoriesView = {
   ...advisoriesTwoPacks,
   otto: OTTO_MISSING,
-  add: { button: "Add new checks (1)", count: 1, can: false, blocked_reason: "Otto is not installed on this computer, so nothing can be added.", note: ADD_NOTE },
-  rows: [blankFailedNoLedger, stopsNoTest, zeroNotAdded, looseNotOffered],
+  waiting: {
+    ...ONE_WAITING,
+    blocked_reason: "Otto is not installed on this computer, so nothing can be decided: a decision is recorded in Otto's ledger.",
+  },
+  rows: [blankFailedNoLedger, stopsNoTest, zeroBlocked(NO_OTTO_REASON), looseNotOffered],
 };
 
 // ---- Settings: Test packs and Live Otto, state by state
@@ -1290,11 +1525,11 @@ export const nextStepVerify: AssessmentView["next_step"] = { page: "inventory/im
 
 // ---- Not among the samples: states the backend words in the same way, written with its own sentences
 
-/** The Overview's next step once a test of an installed pack fits this assessment and is not in its plan. */
+/** The Overview's next step once Otto proposes a check of an installed pack that nobody has decided yet. */
 export const nextStepAdvisories: AssessmentView["next_step"] = {
   page: "advisories",
   label: "Open advisories",
-  text: "1 new advisory check is ready to add from the installed test packs. Adding it runs nothing.",
+  text: "Otto proposes 1 advisory check from the installed test packs. Accept or reject it: accepting runs nothing.",
 };
 
 /** After Check for updates met files it would not take: each file with the backend's one plain reason. */

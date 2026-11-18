@@ -1,8 +1,9 @@
-import { useRef, type ReactNode, type RefObject } from "react";
-import type { MigrationOptionKey, MigrationSettingField, MigrationSystem, MigrationTrack } from "../../api";
+import { useRef, useState, type ReactNode, type RefObject } from "react";
+import { errorMessage, type MigrationOptionKey, type MigrationSettingField, type MigrationSystem, type MigrationTrack } from "../../api";
 import { ResultDetail } from "../lab/ResultDetail";
 import { ChangeBox } from "../change/ChangeBox";
-import { AlsoNoticedList, RichTextView, SourceTag, StatusView } from "../ui";
+import { ProposalCard } from "../otto/ProposalCard";
+import { AlsoNoticedList, ErrorBox, RichTextView, SourceTag, StatusView } from "../ui";
 import { OptionCard, type SaveChoice } from "./OptionCard";
 import { StatusPill } from "./parts";
 import { CLOSED_SENTENCE, useReadOnly } from "../../readOnly";
@@ -142,6 +143,47 @@ function Today({
               <ResultDetail result={today.result} busy={false} onViewFix={onViewFix} />
             </div>
           ) : null}
+        </div>
+      ) : null}
+    </Box>
+  );
+}
+
+/** Phase 5c: Otto's proposed changes to this system's plan (something to fix first, from a result). Otto proposes; a
+ * person decides on each card. A decision changes no status and no measurement: afterwards the screen reads its own
+ * view again. Every word is the view's. */
+function OttoPlan({
+  block,
+  planId,
+  onChanged,
+}: {
+  block: NonNullable<MigrationSystem["otto"]>;
+  planId: number;
+  onChanged: () => Promise<void>;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <Box testId="system-otto">
+      <h3 className={H3}>{block.title}</h3>
+      <p data-testid="system-otto-note" className="mt-0.5 text-sm text-slate-300">
+        {block.note}
+      </p>
+      <div className="mt-3 flex flex-col gap-3">
+        {block.proposals.map((proposal) => (
+          <ProposalCard
+            key={proposal.id}
+            planId={planId}
+            proposal={proposal}
+            onDecided={() => {
+              setError(null);
+              onChanged().catch((e: unknown) => setError(errorMessage(e)));
+            }}
+          />
+        ))}
+      </div>
+      {error ? (
+        <div className="mt-3">
+          <ErrorBox>{error}</ErrorBox>
         </div>
       ) : null}
     </Box>
@@ -342,6 +384,8 @@ export function SystemDetail({
         detailsRef={detailsRef}
         onViewFix={onViewFix}
       />
+      {/* Right under the tracks: what Otto proposes to fix first on one of them. */}
+      {system.otto ? <OttoPlan block={system.otto} planId={planId} onChanged={onChanged} /> : null}
       <Settings system={system} busy={busy} onChange={onSetting} />
       {system.cost ? <Cost cost={system.cost} /> : null}
       <Recommendation system={system} onSeeEvidence={seeEvidence} />

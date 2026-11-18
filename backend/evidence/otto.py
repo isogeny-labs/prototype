@@ -13,6 +13,11 @@ In order:
      advisory check that the file holds is bound in the ledger (a run that never started because Otto was not
      installed is the one exception: it could not be recorded, and it says so); every Claude step in the file
      matches its SHA-256 and has its entry in the ledger;
+     Every decision a person recorded on one of Otto's proposals (accept, reject, undo, reconsider) is in the ledger
+     with the same proposal, decision, name, time and reason, accepted by the pinned checker for decisions; the copy
+     of the proposal it was made on matches its SHA-256; the decisions on a proposal follow one another as the app
+     allows, and the proposal stands where its last decision left it; and the ledger holds no decision that the file
+     does not show. A file made before decisions were recorded has none, and is checked as before;
   5. with --previous OLDER.json: the older file's latest ledger entry is still in this chain, at the same place, so
      the history the older file held was not cut or rewritten. Entries added after the older download are not
      covered by this comparison;
@@ -53,6 +58,9 @@ NOT_RECORDED_REASON = "otto_not_installed"      # the reviewer's reason for an a
 _HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
 _HEX128 = re.compile(r"\A[0-9a-f]{128}\Z")
 OK, FAILED, NOT_CONFIRMED = 0, 1, 2
+# (the state before, the decision) -> the state after: the only steps a decision on one of Otto's proposals can be
+DECISION_STEPS = {("proposed", "accept"): "accepted", ("proposed", "reject"): "rejected",
+                  ("accepted", "undo"): "proposed", ("rejected", "reconsider"): "proposed"}
 
 
 @dataclass
@@ -291,6 +299,56 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
         if steps:
             out.lines.append(f"Claude steps: {len(steps)}, each with its prompt and answer matching its SHA-256 and its entry in the ledger, "
                              "accepted by the pinned checker.")
+        # 4b. the decisions on Otto's proposals (a file made before decisions were recorded has no such part)
+        proposals = otto.get("proposals")
+        decision_claims = {rid: c for rid, c in claims.items() if isinstance(c.get("artifact"), dict) and "decision" in c["artifact"]}
+        if proposals is None:
+            if decision_claims:
+                raise _Failed("the ledger holds decisions on Otto's proposals, and the file does not show them.")
+        else:
+            if not isinstance(proposals, list):
+                raise _Failed("the list of Otto's proposals in the file could not be read.")
+            listed, count = set(), 0
+            for proposal in proposals:
+                if not isinstance(proposal, dict):
+                    raise _Failed("the list of Otto's proposals in the file could not be read.")
+                title = _plain(proposal.get("title"))
+                state: object = "proposed"
+                for place, decision in enumerate(proposal.get("decisions") or [], start=1):
+                    if not isinstance(decision, dict):
+                        raise _Failed(f"a decision on “{title}” could not be read.")
+                    entry_id = str(decision.get("ledger_entry"))
+                    art = (decision_claims.get(entry_id) or {}).get("artifact")
+                    if art is None or entry_id in listed:
+                        raise _Failed(f"decision {place} on “{title}” has no entry of its own in the ledger.")
+                    listed.add(entry_id)
+                    same = {"proposal": proposal.get("id"), "proposal_kind": proposal.get("kind"), "decision": decision.get("decision"),
+                            "before": decision.get("before"), "after": decision.get("after"), "by": decision.get("by"), "at": decision.get("at"),
+                            "reason": decision.get("reason"), "number": decision.get("number"), "proposal_sha256": decision.get("proposal_sha256")}
+                    if any(art.get(key) != value for key, value in same.items()):
+                        raise _Failed(f"decision {place} on “{title}” is not the one the ledger holds (who, when, what or why differs).")
+                    if decision.get("number") != place or decision.get("before") != state \
+                            or DECISION_STEPS.get((str(decision.get("before")), str(decision.get("decision")))) != decision.get("after"):
+                        raise _Failed(f"the decisions on “{title}” do not follow one another as the app allows.")
+                    if _sha(decision.get("proposal")) != decision.get("proposal_sha256"):
+                        raise _Failed(f"the copy of “{title}” that decision {place} was made on does not match its SHA-256.")
+                    named = ((objectives.get(decision_claims[entry_id].get("objective_id")) or {}).get("verifier") or {}).get("params") or {}
+                    if (named.get("kind"), named.get("proposal"), named.get("proposal_kind")) != ("decision", proposal.get("id"), proposal.get("kind")):
+                        raise _Failed(f"decision {place} on “{title}” is filed under another proposal in the ledger.")
+                    if entry_id not in accepted:
+                        raise _Failed(f"the ledger entry of decision {place} on “{title}” was not accepted by the pinned checker.")
+                    state = decision["after"]
+                    count += 1
+                stands = "accepted" if proposal.get("legacy") is True and not proposal.get("decisions") else state
+                if proposal.get("state") != stands:
+                    raise _Failed(f"“{title}” does not stand where its last decision left it.")
+                if proposal.get("current") is True \
+                        and _sha({k: proposal.get(k) for k in ("id", "kind", "title", "why", "lines", "about")}) != proposal.get("fingerprint"):
+                    raise _Failed(f"“{title}” does not match its own fingerprint.")
+            if set(decision_claims) - listed:
+                raise _Failed("the ledger holds a decision on one of Otto's proposals that the file does not show.")
+            out.lines.append(f"Decisions: {count} on {sum(1 for p in proposals if p.get('decisions'))} of Otto's {len(proposals)} "
+                             f"{'proposal' if len(proposals) == 1 else 'proposals'}, each in the ledger with who and when, in an order the app allows.")
         # 5. an older download
         if previous is not None:
             older = (previous.get("otto") or {}).get("ledger") if isinstance(previous, dict) else None

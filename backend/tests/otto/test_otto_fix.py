@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 import otto_helpers as helpers
 from app.db import ChangeRow, OttoStepRow
-from app.errors import Conflict
+from app.errors import BadRequest, Conflict
 from app.otto import assurance, fixes, model
 from app.run import components
 from conftest import demo_plan, play_back_speed
@@ -82,12 +82,20 @@ def failed(tmp_path, monkeypatch):
     lab.plan = demo_plan(lab)
     lab.check_pack_updates()
     lab.install_pack("2026.11.1")
-    lab.add_new_checks(lab.plan.id)
+    helpers.accept_checks(lab, lab.plan.id)
     play_back_speed(lab)
     lab.run_all(lab.plan.id)
     lab.wait_until_idle(lab.plan.id, 300)
     yield lab
     lab.stop()
+
+
+FIX_PROPOSAL = "fix-code-otto-cve-2022-21449"
+
+
+def _accept_fix(lab) -> dict:
+    """A person accepts Otto's proposed fix (the Accept button on Fixes). It runs nothing."""
+    return lab.otto_decide(lab.plan.id, FIX_PROPOSAL, "accept")
 
 
 def _record(lab, answer: dict) -> str:
@@ -119,8 +127,17 @@ def test_otto_writes_the_change_and_a_view_asks_nothing(failed):
     fix = next(f for f in lab.fix_states(lab.plan.id) if f["kind"] == "code")
     assert fix["id"] == "fix-otto-cve-2022-21449" and fix["otto"]["advisory"] == "CVE-2022-21449" and fix["otto"]["source"] == "recorded"
     assert fix["status"] == "not_connected" and sorted(a["kind"] for a in fix["answers"]) == ["advisory_cases", "bad_signatures", "official_vectors"]
+    # Otto's change is a proposal: nobody has decided it, so Connect demo code is off and says why
+    assert fix["proposal"] == {"id": FIX_PROPOSAL, "state": "proposed"}
+    assert fix["actions"]["connect"] == "Otto proposes this change. Accept the proposal first; accepting runs nothing."
     shown = next(f for f in lab.fixes_view(lab.plan.id)["fixes"] if f["kind"] == "code")
     assert shown["labels"] == ["Written by Otto"] and shown["title"] == "acme-sign: Reject signatures whose r or s is out of range"
+    proposal = shown["proposal"]
+    assert proposal["label"] == "From Otto" and proposal["status"]["word"] == "Proposed" and proposal["kind"] == "fix"
+    assert [(b["label"], b["can"]) for b in proposal["buttons"]] == [("Accept", True), ("Reject", True)]
+    assert "failed on acme-sign 1.4.2, which is your own code" in proposal["why"]
+    connect = next(b for b in shown["actions"]["buttons"] if b["action"] == "connect")
+    assert connect["enabled"] is False and shown["actions"]["note"].startswith("Otto proposes this change. Accept the proposal first")
     text = json.dumps(shown)
     assert "Otto wrote a change for CVE-2022-21449 (Blank signature accepted)" in text and "fix template" not in text.lower()
     with lab.db() as db:
@@ -137,11 +154,25 @@ def test_otto_writes_the_change_and_a_view_asks_nothing(failed):
 def test_ottos_change_takes_the_same_proof_path_and_is_offered_only_after_it(failed):
     lab = failed
     _record(lab, GOOD)
+    # before a person accepts Otto's proposal the code is not connected: nothing is written, proven or kept
+    with pytest.raises(Conflict) as not_yet:
+        lab.connect_code(lab.plan.id)
+    assert str(not_yet.value) == "Otto proposes this change. Accept the proposal first; accepting runs nothing. The code was not connected."
+    with lab.db() as db:
+        assert db.scalars(select(ChangeRow)).all() == [] and db.scalars(select(OttoStepRow)).all() == []
+    accepted = _accept_fix(lab)
+    assert accepted["state"] == "accepted" and accepted["actions"] == {"undo": None}          # until the code is connected
+    assert not lab.jobs.busy(lab.plan.id)                                                     # accepting ran nothing
     lab.connect_code(lab.plan.id)
     lab.wait_until_idle(lab.plan.id, 300)
     lab.jobs.wait_idle(300, group=("changes", lab.plan.id))
     fix = next(f for f in lab.fix_states(lab.plan.id) if f["kind"] == "code")
     assert fix["id"] == "fix-otto-cve-2022-21449" and fix["change"]["written_by"] == "otto" and fix["change"]["proposed_by"] == "isogeny.otto/1"
+    # once the code is connected the accept stands: it led to something that ran
+    locked = lab.otto_proposal(lab.plan.id, FIX_PROPOSAL)
+    assert "The code is connected" in locked["actions"]["undo"]
+    with pytest.raises(Conflict):
+        lab.otto_decide(lab.plan.id, FIX_PROPOSAL, "undo")
     assert fix["change"]["built"]["matches"] == {"name": "acme-sign", "version": "1.4.3"}
     assert fix["status"] == "ready" and fix["proof"]["review"]["offered"] is True
     proved = {t["kind"] for t in fix["proof"]["review"]["tests"]}
@@ -166,11 +197,74 @@ def test_ottos_change_takes_the_same_proof_path_and_is_offered_only_after_it(fai
     assert fix["pull_request"] is None and fix["merge"] is None
 
 
-# A correct fix, written another way: one line differs from our own acme-sign 1.4.3.
+# A correct fix, written a third way: one line differs from our own acme-sign 1.4.3, and it is not the program Otto's
+# recorded answer gives either (that one is registered as acme-sign 1.4.3-otto).
 def _other_way() -> dict:
+    other = json.loads(json.dumps(GOOD))
+    other["edits"][0]["put"][2] = "    if r < 1 or r >= N or s < 1 or s >= N:"
+    return other
+
+
+# The same fix as Otto's recorded answer writes it: it gives exactly the registered acme-sign 1.4.3-otto.
+def _ottos_way() -> dict:
     other = json.loads(json.dumps(GOOD))
     other["edits"][0]["put"][2] = "    if not 1 <= r < N or not 1 <= s < N:"
     return other
+
+
+def test_a_rejected_fix_is_kept_as_not_added_and_can_be_taken_up_again(failed):
+    """Reject asks for an optional short reason. The proposal is not deleted: it reads "Not added (reason)", the code
+    can't be connected, and Reconsider opens it for a decision again. Nothing takes its place by itself."""
+    lab = failed
+    _record(lab, GOOD)
+    rejected = lab.otto_decide(lab.plan.id, FIX_PROPOSAL, "reject", "We ship our own patch\nthis week")
+    assert rejected["state"] == "rejected" and rejected["decisions"][-1]["reason"] == "We ship our own patch this week"
+    shown = next(f for f in lab.fixes_view(lab.plan.id)["fixes"] if f["kind"] == "code")
+    assert shown["id"] == "fix-otto-cve-2022-21449" and shown["labels"] == ["Written by Otto"]            # still Otto's, not the template
+    assert shown["proposal"]["status"]["word"] == "Not added (We ship our own patch this week)"
+    assert [b["label"] for b in shown["proposal"]["buttons"]] == ["Reconsider"]
+    assert next(b for b in shown["actions"]["buttons"] if b["action"] == "connect")["enabled"] is False
+    assert "Otto's proposal was rejected" in shown["actions"]["note"]
+    with pytest.raises(Conflict) as refused:
+        lab.connect_code(lab.plan.id)
+    assert "Otto's proposal was rejected, so its change is not added" in str(refused.value)
+    again = lab.otto_decide(lab.plan.id, FIX_PROPOSAL, "reconsider")
+    assert again["state"] == "proposed" and set(again["actions"]) == {"accept", "reject"}
+    assert [d["decision"] for d in again["decisions"]] == ["reject", "reconsider"]                        # both stay on the record
+
+
+@pytest.mark.slow
+def test_ottos_recorded_way_is_proven_on_its_own_registered_program_merged_and_retested(failed):
+    """Kevin's decision, 18 November 2026. The change as Otto's recorded answer writes it gives acme-sign 1.4.3-otto, a
+    registered demo program. So it is proposed, accepted, proven on that program, approved, merged and retested; and
+    only after the merge can a retest choose that program."""
+    lab = failed
+    _record(lab, _ottos_way())
+    before = lab.lab_view(lab.plan.id)["retest"]
+    assert [v["version"] for v in before["versions"]] == ["1.4.3", "1.4.2"] and "Only our two demo versions" in before["menu_note"]
+    with pytest.raises(BadRequest) as refused:
+        lab.start_retest(lab.plan.id, "1.4.3-otto")                       # not before its change is merged
+    assert "Only our demo versions can be chosen for a retest." in str(refused.value)
+    _accept_fix(lab)
+    lab.connect_code(lab.plan.id)
+    lab.wait_until_idle(lab.plan.id, 300)
+    lab.jobs.wait_idle(300, group=("changes", lab.plan.id))
+    fix = next(f for f in lab.fix_states(lab.plan.id) if f["kind"] == "code")
+    assert fix["change"]["written_by"] == "otto" and fix["change"]["built"]["matches"] == {"name": "acme-sign", "version": "1.4.3-otto"}
+    assert fix["status"] == "ready" and fix["proof"]["review"]["offered"] is True and fix["proof"]["version"] == "1.4.3-otto"
+    lab.open_pull_request(lab.plan.id, fix["id"], ["you"])
+    lab.approve(lab.plan.id, fix["id"], "you")
+    lab.merge(lab.plan.id, fix["id"])
+    menu = lab.lab_view(lab.plan.id)["retest"]
+    assert [v["version"] for v in menu["versions"]] == ["1.4.3-otto", "1.4.3", "1.4.2"] and "Only our three demo versions" in menu["menu_note"]
+    assert menu["versions"][0]["note"].startswith("The version your merged change gives. ")
+    lab.retest_now(lab.plan.id, fix["id"])
+    lab.wait_until_idle(lab.plan.id, 300)
+    rows = [r for r in lab.lab_view(lab.plan.id)["rows"] if r["kind"] in ("official_vectors", "bad_signatures", "advisory_cases")]
+    assert rows and all(r["result"]["label"] == "Failed" and r["after"]["label"] == "Passed" for r in rows)
+    assert all(r["after"]["component"] == "acme-sign 1.4.3-otto" for r in rows)
+    book = assurance.Ledger(lab.settings.data_dir, lab.assessment_for(plan_id=lab.plan.id).id)
+    assert book.audit() == []
 
 
 def test_a_change_that_gives_no_registered_program_is_not_offered_and_the_template_takes_its_place(failed):
@@ -230,6 +324,10 @@ def test_a_live_change_that_gives_no_registered_program_is_refused_at_the_click_
     monkeypatch.setenv(model.KEY_ENV, "made-up-key-for-tests-0123456789")
     lab.set_live_otto(on=True)
     assert next(f for f in lab.fix_states(lab.plan.id) if f["kind"] == "code")["otto"]["pending"] is True and calls == []
+    with pytest.raises(Conflict) as not_yet:                             # nobody accepted Otto's proposal: Claude is not asked
+        lab.connect_code(lab.plan.id)
+    assert "Accept the proposal first" in str(not_yet.value) and calls == []
+    assert "Have Otto write a change" in _accept_fix(lab)["title"] and calls == []                       # accepting asks nothing either
     with pytest.raises(Conflict) as refused:
         lab.connect_code(lab.plan.id)
     assert "Otto's change could not be used" in str(refused.value) and "byte for byte" in str(refused.value)
@@ -268,6 +366,9 @@ def test_live_otto_asks_claude_only_when_a_person_connects_the_code(failed, monk
     said = json.dumps(shown)
     assert shown["labels"] == ["Not written yet"] and "Written by Otto" not in said and calls == []
     assert "sends this program's source file" in said and "Otherwise it is refused and nothing is connected" in said
+    assert shown["proposal"]["status"]["word"] == "Proposed" and "nothing is written yet" in json.dumps(shown["proposal"]["lines"])
+    _accept_fix(lab)
+    assert calls == []                                                   # the accept itself asked nothing
     lab.connect_code(lab.plan.id)
     assert len(calls) == 1 and 'VERSION = \\"1.4.2\\"' in json.dumps(calls[0]["messages"])
     with lab.db() as db:
@@ -300,6 +401,7 @@ def test_after_a_live_step_the_key_is_nowhere(failed, monkeypatch, caplog, capsy
     monkeypatch.setenv(model.KEY_ENV, key)
     with caplog.at_level(logging.DEBUG):
         lab.set_live_otto(on=True)
+        _accept_fix(lab)
         lab.connect_code(lab.plan.id)
         lab.wait_until_idle(lab.plan.id, 300)
         lab.jobs.wait_idle(300, group=("changes", lab.plan.id))
@@ -330,6 +432,7 @@ def test_live_otto_that_fails_says_so_and_connects_nothing(failed, monkeypatch):
     monkeypatch.setattr(model, "_http_transport", refused)
     monkeypatch.setenv(model.KEY_ENV, "made-up-key-for-tests-0123456789")
     lab.set_live_otto(on=True, limit="0.01")           # a limit too small for even one request
+    _accept_fix(lab)
     with pytest.raises(Conflict) as limited:
         lab.connect_code(lab.plan.id)
     assert "spending limit for this run is $0.01" in str(limited.value) and "The code was not connected" in str(limited.value)

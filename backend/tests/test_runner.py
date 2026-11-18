@@ -183,8 +183,9 @@ def test_driver_subject_table_is_fixed_and_points_only_inside_the_components_fol
     spec = importlib.util.spec_from_file_location("evlab_driver", COMPONENTS_DIR / "harness" / "driver.py")
     driver = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(driver)
-    assert set(driver.SUBJECTS) == {"acme-sign-1.4.2", "acme-sign-1.4.3", "control-accept-all",
-                                    "control-slow:acme-sign-1.4.2", "control-slow:acme-sign-1.4.3"}
+    # (phase 5c: acme-sign 1.4.3-otto is the program Otto's recorded change gives, registered on 18 November 2026)
+    assert set(driver.SUBJECTS) == {"acme-sign-1.4.2", "acme-sign-1.4.3", "acme-sign-1.4.3-otto", "control-accept-all",
+                                    "control-slow:acme-sign-1.4.2", "control-slow:acme-sign-1.4.3", "control-slow:acme-sign-1.4.3-otto"}
     for parts in driver.SUBJECTS.values():
         for part in parts:
             assert Path(part).is_file() and COMPONENTS_DIR in Path(part).resolve().parents

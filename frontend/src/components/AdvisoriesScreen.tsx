@@ -1,64 +1,96 @@
-import { useEffect, useState } from "react";
-import { api, errorMessage, type AdvisoriesView } from "../api";
+import { useEffect, useRef, useState } from "react";
+import { api, errorMessage, type AdvisoriesView, type OttoProposal } from "../api";
 import { AdvisoryPanel } from "./advisories/AdvisoryPanel";
 import { AdvisoryTable } from "./advisories/AdvisoryTable";
 import { FilterSelect, PageHeader, SearchInput, TableWithPanel, Toolbar } from "./layout";
 import { ItemLinkView } from "./related";
-import { ErrorBox, PrimaryButton, Spinner } from "./ui";
+import { ErrorBox } from "./ui";
 
 interface Props {
   planId: number;
   /** An advisory to open (from a link: #/a/<id>/advisories?item=<advisory id>). */
   openItem?: string | null;
-  /** Add new checks put tests in the test plan: the app reads its copy of the plan again. */
+  /** An accepted check joins the test plan, and an undone one leaves it: the app reads its copy of the plan again. */
   onPlanChanged?: () => void;
 }
 
+/** The proposal of one program's check, wherever it sits on the page (an id is one proposal). */
+function findProposal(view: AdvisoriesView, id: string): OttoProposal | null {
+  for (const row of view.rows) {
+    for (const here of row.panel.here.rows) {
+      if (here.proposal?.id === id) return here.proposal;
+    }
+  }
+  return null;
+}
+
+/** The view with one proposal replaced by what the backend answered for it. */
+function withProposal(view: AdvisoriesView, next: OttoProposal): AdvisoriesView {
+  return {
+    ...view,
+    rows: view.rows.map((row) => ({
+      ...row,
+      panel: {
+        ...row.panel,
+        here: { ...row.panel.here, rows: row.panel.here.rows.map((here) => (here.proposal?.id === next.id ? { ...here, proposal: next } : here)) },
+      },
+    })),
+  };
+}
+
 /** Phase 5c: Advisories. Every published advisory in the installed test packs: whether it has a test, which signing
- * programs of this assessment it fits, and the latest result of its check here. One button, Add new checks, adds the
- * packs' tests to the test plan; it runs nothing. Every word, label and tone is the backend's: this page words no
- * result and decides none. */
+ * programs of this assessment it fits, where Otto's proposed check stands, and the latest result of that check here.
+ * Otto proposes; a person decides: each proposed check is accepted or rejected by itself, in the advisory's panel.
+ * There is no button that decides several at once, and a decision runs nothing. Every word, label and tone is the
+ * backend's: this page words no result and decides none. */
 export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Props) {
   const [view, setView] = useState<AdvisoriesView | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
+  const [reloadError, setReloadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [testFilter, setTestFilter] = useState("all");
+  const [decisionFilter, setDecisionFilter] = useState("all");
   const [resultFilter, setResultFilter] = useState("all");
   const [openId, setOpenId] = useState<string | null>(openItem);
+  // The newest request for the page's view: an answer that comes back after a newer one was asked for is dropped.
+  const asked = useRef(0);
 
   useEffect(() => setOpenId(openItem), [openItem]);
 
   useEffect(() => {
-    let live = true;
+    const mine = ++asked.current;
     api
       .getAdvisories(planId)
       .then((next) => {
-        if (!live) return;
+        if (asked.current !== mine) return;
         setView(next);
         setError(null);
       })
       .catch((e: unknown) => {
-        if (live) setError(errorMessage(e));
+        if (asked.current === mine) setError(errorMessage(e));
       });
     return () => {
-      live = false;
+      asked.current += 1;
     };
   }, [planId]);
 
-  async function addNewChecks() {
-    setAdding(true);
-    setAddError(null);
-    try {
-      // The answer is the whole page as it now stands.
-      setView(await api.addNewChecks(planId));
-      onPlanChanged?.();
-    } catch (e) {
-      setAddError(errorMessage(e));
-    } finally {
-      setAdding(false);
-    }
+  /** A decision was recorded. The card's own answer is shown at once; then the whole page is read again, because a
+   * decision also moves the row's cells, the waiting line and the check's place in the test plan. */
+  function decided(next: OttoProposal) {
+    const before = view ? findProposal(view, next.id) : null;
+    setView((v) => (v ? withProposal(v, next) : v));
+    setReloadError(null);
+    const mine = ++asked.current;
+    api
+      .getAdvisories(planId)
+      .then((fresh) => {
+        if (asked.current === mine) setView(fresh);
+      })
+      .catch((e: unknown) => {
+        if (asked.current === mine) setReloadError(errorMessage(e));
+      });
+    // Only an accept and its undo change the test plan.
+    if (before?.status.key === "accepted" || next.status.key === "accepted") onPlanChanged?.();
   }
 
   if (!view) {
@@ -80,11 +112,13 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
   const rows = view.rows.filter(
     (r) =>
       (testFilter === "all" || r.test.key === testFilter) &&
+      // A row whose check fits several programs can stand in more than one state: it matches each of them.
+      (decisionFilter === "all" || r.proposal.key === decisionFilter || (r.proposal.keys ?? []).includes(decisionFilter)) &&
       (resultFilter === "all" || r.result.key === resultFilter) &&
       (!needle || r.search.toLowerCase().includes(needle)),
   );
   const opened = view.rows.find((r) => r.id === openId) ?? null;
-  const add = view.add;
+  const waiting = view.waiting;
 
   return (
     <section data-testid="advisories-page" aria-label={view.title}>
@@ -121,24 +155,23 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
         ) : null}
       </ul>
 
-      <div data-testid="advisories-add" className="mb-5 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <PrimaryButton testId="add-new-checks" disabled={!add.can} busy={adding} onClick={() => void addNewChecks()}>
-            {adding ? <Spinner className="h-3.5 w-3.5" /> : null}
-            {add.button}
-          </PrimaryButton>
-          {add.blocked_reason ? (
-            <p data-testid="add-new-checks-reason" className="min-w-0 flex-1 basis-64 break-words text-sm text-slate-300">
-              {add.blocked_reason}
-            </p>
-          ) : null}
-        </div>
-        <p data-testid="add-new-checks-note" className="mt-2 text-xs text-slate-400">
-          {add.note}
+      {/* Waiting for you: how many proposed checks nobody has decided yet. It has no button, on purpose: each proposal
+          is decided by itself, in its advisory's panel. */}
+      <div data-testid="advisories-waiting" data-count={waiting.count} className="mb-5 rounded-xl border border-slate-800 bg-slate-900/40 p-4">
+        <p data-testid="advisories-waiting-line" className={`break-words text-sm ${waiting.count > 0 ? "font-medium text-slate-100" : "text-slate-200"}`}>
+          {waiting.line}
         </p>
-        {addError ? (
+        {waiting.blocked_reason && waiting.blocked_reason !== waiting.line ? (
+          <p data-testid="advisories-waiting-reason" className="mt-1 break-words text-sm text-slate-300">
+            {waiting.blocked_reason}
+          </p>
+        ) : null}
+        <p data-testid="advisories-waiting-note" className="mt-2 break-words text-xs text-slate-400">
+          {waiting.note}
+        </p>
+        {reloadError ? (
           <div className="mt-3">
-            <ErrorBox>{addError}</ErrorBox>
+            <ErrorBox>{reloadError}</ErrorBox>
           </div>
         ) : null}
       </div>
@@ -151,6 +184,13 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
           options={view.filters.test.map((o) => ({ value: o.key, label: o.label }))}
           onChange={setTestFilter}
           testId="advisories-filter-test"
+        />
+        <FilterSelect
+          label="Decision"
+          value={decisionFilter}
+          options={view.filters.decision.map((o) => ({ value: o.key, label: o.label }))}
+          onChange={setDecisionFilter}
+          testId="advisories-filter-decision"
         />
         <FilterSelect
           label="Result"
@@ -181,7 +221,7 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
             }
           />
         }
-        panel={<AdvisoryPanel planId={planId} row={opened} onClose={() => setOpenId(null)} />}
+        panel={<AdvisoryPanel planId={planId} row={opened} onClose={() => setOpenId(null)} onDecided={decided} />}
       />
     </section>
   );

@@ -571,7 +571,8 @@ class OttoPackRow(Base):
 
 
 class OttoCheckRow(Base):
-    """Phase 5c: an advisory check a person added to an assessment from a test pack (Add new checks). It ties the
+    """Phase 5c: an advisory check a person added to an assessment from a test pack (by accepting Otto's proposal on
+    Advisories; before 18 November 2026 with one button for all of them). It ties the
     plan item to the pack and the design it came from, and to its lock entry in the assessment's Otto ledger."""
     __tablename__ = "otto_checks"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

@@ -30,10 +30,27 @@ WRONG = [{"id": "r0-s0", "comment": "r = 0, s = 0", "flags": [], "expected": "in
 
 
 def _other_way() -> dict:
-    """A correct fix, written another way: one line differs from our own acme-sign 1.4.3."""
+    """A correct fix, written a third way: one line differs from our own acme-sign 1.4.3, and it is not the program
+    that Otto's recorded answer gives either (that one is registered as acme-sign 1.4.3-otto since 18 November 2026)."""
+    other = json.loads(json.dumps(GOOD))
+    other["edits"][0]["put"][2] = "    if r < 1 or r >= N or s < 1 or s >= N:"
+    return other
+
+
+def _ottos_way() -> dict:
+    """The same fix as Otto's recorded answer writes it: it gives exactly our registered acme-sign 1.4.3-otto."""
     other = json.loads(json.dumps(GOOD))
     other["edits"][0]["put"][2] = "    if not 1 <= r < N or not 1 <= s < N:"
     return other
+
+
+@pytest.fixture(autouse=True)
+def otto_is_here(monkeypatch):
+    """These tests ask the engine directly, with a stand-in for the lab, so they run where the harness is not installed
+    too. The engine asks whether it is (a decision on Otto's proposal is recorded in its ledger): here it is."""
+    from app.otto import harness
+    here = harness.OttoStatus(True, None, "isogeny-labs/otto", "a" * 40, "0.1.0", None)
+    monkeypatch.setattr(harness, "status", lambda *a, **k: here)
 
 
 def _request(mode: str, template_only: bool = False) -> dict:
@@ -117,6 +134,31 @@ def test_ottos_change_is_offered_when_it_gives_a_registered_program():
     assert again["files"] == reply["files"] and [k["outcome"] for k in lab.kept] == ["used"] and lab.asked == 0
     engine.propose_change(_request("connect"))
     assert len(lab.kept) == 1
+
+
+def test_the_change_ottos_recorded_answer_gives_is_a_registered_program_and_is_offered():
+    """Kevin's decision, 18 November 2026: the program Otto's recorded answer gives is one of our demo programs, so
+    that change can be proven. It is offered as Otto's, under its own registered name."""
+    engine, lab = _engine(recorded=_ottos_way())
+    reply = engine.propose_change(_request("view"))
+    assert reply["written_by"] == "otto" and reply["label"] == "Written by Otto" and reply.get("otto_note") is None
+    built = {"acme_sign.py": reply["files"]["acme_sign.py"].encode("utf-8")}
+    assert components.registered_version("acme-sign", built) == components.OTTO_VERSION == "1.4.3-otto"
+    assert reply["files"]["acme_sign.py"] != components.lookup("acme-sign", "1.4.3").read_text(encoding="utf-8")
+
+
+def test_without_the_harness_the_fix_template_is_the_fallback(monkeypatch):
+    """Otto's change is a proposal, and a decision on it is recorded in Otto's ledger. Where the harness is missing
+    that can't be done, so the fix template is offered in its place, and the page says why. Nothing is asked."""
+    from app.otto import harness
+    from app.otto.engine import NOT_INSTALLED_NOTE
+    missing = harness.OttoStatus(False, harness.NOT_FETCHED, "isogeny-labs/otto", "a" * 40, "0.1.0", None)
+    monkeypatch.setattr(harness, "status", lambda *a, **k: missing)
+    engine, lab = _engine(recorded=GOOD, live=GOOD, live_ready=True)
+    for mode in ("view", "connect"):
+        reply = engine.propose_change(_request(mode))
+        assert _is_template(reply) and reply["otto_note"] == NOT_INSTALLED_NOTE
+    assert lab.asked == 0 and lab.kept == [] and lab.prompts == []
 
 
 def test_a_change_that_gives_no_registered_program_is_not_offered():

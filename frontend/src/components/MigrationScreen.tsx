@@ -17,7 +17,8 @@ import { SystemDetail } from "./migration/SystemDetail";
 import { StatusPill } from "./migration/parts";
 import type { SaveChoice } from "./migration/OptionCard";
 import { DataTable, DetailPanel, FilterSelect, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "./layout";
-import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton } from "./ui";
+import { FromOttoTag } from "./otto/ProposalCard";
+import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton, StatusChip } from "./ui";
 
 const POLL_MS = 1000;
 
@@ -38,6 +39,22 @@ interface Props {
   onTab?: (tab: Tab) => void;
   /** Phase 5b: a system (or, in Dependencies, a library row) to open, from a link. */
   openItem?: string | null;
+}
+
+/** Phase 5c: a system that Otto has a proposal for says so in its row of the Systems table: the tag, and where each
+ * proposal stands, both in the view's own words. The decision buttons are in the system's panel. */
+function OttoMark({ system }: { system: MigrationSystem }) {
+  const proposals = system.otto?.proposals ?? [];
+  const first = proposals[0];
+  if (!first) return null;
+  return (
+    <span data-testid="system-otto-mark" className="mt-1.5 flex flex-wrap items-center gap-1">
+      <FromOttoTag label={first.label} testId="system-otto-label" />
+      {proposals.map((p) => (
+        <StatusChip key={p.id} label={p.status.word} tone={p.status.tone} size="sm" wrap />
+      ))}
+    </span>
+  );
 }
 
 /** The Migration step. Every word, status, number and recommendation comes from the backend. */
@@ -294,6 +311,7 @@ export function MigrationScreen({
         <>
           <span className="block text-sm font-medium text-slate-100">{s.name}</span>
           {s.plan_line ? <span className="block text-xs text-slate-400">{s.plan_line}</span> : null}
+          <OttoMark system={s} />
         </>
       ),
     },
@@ -325,6 +343,7 @@ export function MigrationScreen({
         <div className="min-w-0">
           <span className="block text-xs text-slate-400">{s.kind_label}</span>
           <span className="block text-sm font-medium text-slate-100">{s.name}</span>
+          <OttoMark system={s} />
         </div>
       ),
     },

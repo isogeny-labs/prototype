@@ -213,6 +213,12 @@ export function VerifyScreen({ imp, run, onContinue, openItem = null }: Props) {
           <>
             Each claim from {imp.filename}, checked against the real system. Checked{" "}
             <time dateTime={run.finished_at}>{formatTime(run.finished_at)}</time>.
+            {/* Phase 5c: Verify is unchanged and Otto proposes nothing on it yet. The backend's one sentence says so. */}
+            {run.otto_note ? (
+              <span data-testid="verify-otto-note" className="mt-1.5 block text-xs text-slate-500">
+                {run.otto_note}
+              </span>
+            ) : null}
           </>
         }
       />

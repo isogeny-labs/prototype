@@ -12,9 +12,10 @@ from pathlib import Path
 
 import pytest
 
-from app.config import OTTO_PACKS_DIR, OTTO_RECORDED_DIR
+import otto_helpers as helpers
+from app.config import DEMO_DIR, OTTO_PACKS_DIR, OTTO_RECORDED_DIR
 from app.otto import fixes, harness, model, packs
-from app.otto.engine import NOT_REGISTERED, OttoEngine
+from app.otto.engine import OttoEngine
 from app.run import components
 from conftest import demo_plan, make_lab
 from ottolab import build, prompts, snapshot
@@ -156,22 +157,32 @@ def test_the_newest_pack_was_built_with_the_research_scripts_as_they_are_now():
     assert len(lines) == newest["ledger"]["height"] and json.loads(lines[-1])["hash"] == newest["ledger"]["head"]
 
 
-def test_the_recorded_change_for_acme_sign_gives_no_registered_program_so_the_app_does_not_offer_it():
-    """What the build found, kept honest. The one recorded answer for Otto's own-code fix is a clean change that
-    names all three failed tests, but the program it gives differs from our own acme-sign 1.4.3 (the same check,
-    written another way). Only our registered demo programs may run, so the app can't prove this change and does
-    not offer it: the fix template takes its place and the page says why. If a new answer is ever recorded, this
-    test changes with it; an answer is never re-asked to get a different one."""
+def test_the_recorded_change_for_acme_sign_gives_the_program_registered_as_ottos():
+    """What the build found, and what Kevin decided on 18 November 2026. The one recorded answer for Otto's own-code
+    fix is a clean change that names all three failed tests. The program it gives differs from our own acme-sign
+    1.4.3 in one line (the same check, written another way), so it is registered as a demo program of its own,
+    acme-sign 1.4.3-otto: the app can then prove Otto's change, and offers it. The registered file must be exactly
+    what the recorded answer's edits make of 1.4.2, byte for byte: this test rebuilds it and compares. The recorded
+    answer itself is as it was; an answer is never asked for again to get a different one."""
     answer = next(a for a in _recorded().values() if a["step"] == "write_fix")
     source = components.lookup("acme-sign", "1.4.2").read_text(encoding="utf-8")
     assert 'Program: acme-sign 1.4.2' in answer["prompt"] and source in answer["prompt"]
     change = fixes.check_change(answer["answer"], {"acme_sign.py": source}, 3)
     assert change["answers"] == [0, 1, 2] and 'VERSION = "1.4.3"' in change["files"]["acme_sign.py"]
     built = {"acme_sign.py": change["files"]["acme_sign.py"].encode("utf-8")}
-    assert components.registered_version("acme-sign", built) is None
-    with pytest.raises(fixes.Refused) as refused:
-        OttoEngine._usable(answer["answer"], {"name": "acme-sign", "version": "1.4.2"}, {"acme_sign.py": source}, 3)
-    assert str(refused.value) == NOT_REGISTERED
+    registered = components.lookup("acme-sign", components.OTTO_VERSION)
+    assert registered is not None and registered.read_bytes() == built["acme_sign.py"]
+    assert components.registered_version("acme-sign", built) == components.OTTO_VERSION == "1.4.3-otto"
+    ours = components.lookup("acme-sign", "1.4.3").read_text(encoding="utf-8").split("\n")
+    theirs = change["files"]["acme_sign.py"].split("\n")
+    assert len(ours) == len(theirs) and sum(1 for a, b in zip(ours, theirs, strict=True) if a != b) == 1      # one line, no more
+    usable = OttoEngine._usable(answer["answer"], {"name": "acme-sign", "version": "1.4.2"}, {"acme_sign.py": source}, 3)
+    assert usable["title"] == change["title"]
+    # it is a version only a change leads to: a retest does not offer it until that change is merged
+    assert components.OTTO_VERSION not in components.versions_of("acme-sign") and components.version_note("acme-sign", components.OTTO_VERSION)
+    # the test harness knows the program, and its slowed control, by the same key (the whole list of what can run)
+    driver = (DEMO_DIR / "components" / "harness" / "driver.py").read_text(encoding="utf-8")
+    assert '"acme-sign-1.4.3-otto": [ACME_143_OTTO]' in driver and '"control-slow:acme-sign-1.4.3-otto": [SLOW, ACME_143_OTTO]' in driver
 
 
 @pytest.mark.needs_otto
@@ -189,16 +200,17 @@ def test_the_shipped_packs_install_and_their_tests_fit_the_demo(tmp_path):
         view = lab.advisories_view(plan.id)
         assert [r["id"] for r in view["rows"]] == [aid for _, ids in build.SHIP_PLAN for aid in ids]
         ready = [r for r in view["rows"] if r["test"]["key"] == "ready"]
-        assert len(ready) == view["add"]["count"] == 3 and all(r["fits"] == ["acme-sign 1.4.2"] for r in ready)
+        assert len(ready) == view["waiting"]["count"] == 3 and all(r["fits"] == ["acme-sign 1.4.2"] for r in ready)
+        assert all(r["proposal"]["label"] == "Proposed" for r in ready)
         assert all(r["test"]["label"] and r["test"]["reason"] and r["result"]["label"] for r in view["rows"])
         assert all(r["panel"]["publisher"]["text"] and r["panel"]["publisher"]["href"].startswith("https://") for r in view["rows"])
         text = " ".join(_our_words(view)).lower()
         assert not any(word in text for word in BANNED)
         assert text.count("secure") == 1 and "doesn't prove a system secure" in view["standing_line"]     # the standing line, nowhere else
         before = len(lab.plan_view(plan.id)["tests"])
-        added = lab.add_new_checks(plan.id)
+        added = helpers.accept_checks(lab, plan.id)
         tests = lab.plan_view(plan.id)["tests"]
-        assert len(tests) == before + 3 and added["add"]["count"] == 0 and not lab.jobs.busy(plan.id)
+        assert len(tests) == before + 3 and added["waiting"]["count"] == 0 and not lab.jobs.busy(plan.id)
         assert all(t["status"] != "done" for t in tests if t["kind"] == "advisory_cases")          # added, not run
         # each new card says which advisory it came from, with the way to it; no other card does
         for card in tests:
@@ -206,6 +218,8 @@ def test_the_shipped_packs_install_and_their_tests_fit_the_demo(tmp_path):
             assert card.get("advisory") == ({"label": f"From advisory {came_from}", "link": {"page": "advisories", "item": came_from}}
                                             if came_from else None)
             assert ("advisory" in card) == (came_from is not None)          # every other card is exactly as it was
+            assert card.get("from_otto") == ("From Otto" if came_from else None) and card["can_remove"] is (came_from is None)
+            assert ("from_otto" in card) == ("remove_blocked" in card) == (came_from is not None)
     finally:
         lab.stop()
 
@@ -219,7 +233,7 @@ def test_the_evidence_report_links_a_shipped_advisory_to_its_publisher_and_the_f
         plan = demo_plan(lab)
         lab.check_pack_updates()
         lab.install_pack("2026.11.1")
-        lab.add_new_checks(plan.id)
+        helpers.accept_checks(lab, plan.id)
         item = next(t["id"] for t in lab.plan_view(plan.id)["tests"] if "CVE-2022-21449" in t["title"])
         lab.run_test(plan.id, item)
         lab.wait_until_idle(plan.id, 240)

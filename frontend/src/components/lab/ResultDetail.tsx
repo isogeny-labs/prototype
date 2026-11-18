@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { EvidenceBlock, FixLine, LabResult, MeasurementResult, MetaItem } from "../../api";
 import { AdvisoriesBox } from "../AdvisoriesBox";
+import { ResultOttoBlock } from "../otto/ResultOttoBlock";
 import { ResultBadge, SecondaryButton, SourceTag, Spinner, formatTime } from "../ui";
 
 function Box({ title, tag, children }: { title: string; tag?: string | null; children: ReactNode }) {
@@ -136,8 +137,10 @@ const FIX_LINE_LOOKS: Record<FixLine["look"], string> = {
   dashed: "border-dashed border-slate-500 bg-slate-900",
 };
 
-/** The one line that points a failed result to its fix. The fix itself is only shown in the Fixes step. */
+/** The one line that points a failed result to its fix. The fix itself is only shown in the Fixes step. Since phase 5c
+ * the line of a library's fix from Otto carries that fix's two proof rows under it, word for word as Fixes shows them. */
 function FixLineView({ line, onViewFix }: { line: FixLine; onViewFix: (fixId: string) => void }) {
+  const rows = line.rows ?? [];
   return (
     <div
       data-testid="fix-line"
@@ -154,6 +157,16 @@ function FixLineView({ line, onViewFix }: { line: FixLine; onViewFix: (fixId: st
         →
       </span>
       <SecondaryButton onClick={() => onViewFix(line.fix_id)}>{line.button}</SecondaryButton>
+      {rows.length > 0 ? (
+        // On a line of their own, under the words and the button.
+        <ul data-testid="fix-line-rows" className="min-w-0 basis-full space-y-1 text-[13px] text-slate-300">
+          {rows.map((row, i) => (
+            <li key={i} data-testid="fix-line-row" className="break-words">
+              {row}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -266,6 +279,8 @@ export function ResultDetail({ result, heading, busy, onMarkReviewed, onDigDeepe
       </div>
 
       <AdvisoriesBox advisories={result.advisories} />
+
+      <ResultOttoBlock block={result.otto} />
 
       {result.fix_line ? (
         <FixLineView line={result.fix_line} onViewFix={onViewFix} />

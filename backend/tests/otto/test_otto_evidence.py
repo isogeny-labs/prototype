@@ -38,7 +38,7 @@ def _ran(tmp_path, patch):
     lab.plan = demo_plan(lab)
     lab.check_pack_updates()
     lab.install_pack("2026.11.1")
-    lab.add_new_checks(lab.plan.id)
+    helpers.accept_checks(lab, lab.plan.id)
     lab.check_item = next(t for t in lab.plan_view(lab.plan.id)["tests"] if t["kind"] == "advisory_cases")["id"]
     lab.run_test(lab.plan.id, lab.check_item)
     lab.wait_until_idle(lab.plan.id, 240)
@@ -81,7 +81,19 @@ def test_the_otto_part_is_inside_what_is_signed(ran):
     check = otto["checks"][0]
     assert check["title"] == "Advisory check: Blank signature accepted (CVE-2022-21449)" and check["item_id"] == ran.check_item
     assert check["spec"]["kind"] == "advisory_cases" and check["pack_fingerprint"] == otto["packs"][0]["fingerprint"]
-    assert otto["ledger"]["height"] == 3 == len(otto["ledger"]["lines"]) and otto["ledger"]["head"].startswith("sha256:")
+    # the lock entry, the three entries of the person's accept (the proposal named, the decision, its check), the run and its check
+    assert otto["ledger"]["height"] == 6 == len(otto["ledger"]["lines"]) and otto["ledger"]["head"].startswith("sha256:")
+    # Otto proposes, a person decides: every proposal as it stands, and the decision on it with who and when
+    accepted = next(p for p in otto["proposals"] if p["kind"] == "check")
+    assert accepted["label"] == "From Otto" and accepted["state"] == "accepted" and accepted["status"] == "Added" and accepted["why"]
+    decision, = accepted["decisions"]
+    assert (decision["decision"], decision["by"], decision["before"], decision["after"], decision["number"]) == ("accept", "You", "proposed", "accepted", 1)
+    assert decision["at"].endswith("Z") and decision["ledger_entry"].startswith("sha256:") and decision["reason"] is None
+    assert decision["proposal"]["id"] == accepted["id"] and decision["proposal_sha256"] == accepted["fingerprint"]
+    assert "one login" in otto["decisions_note"] and "A decision is not a result" in otto["decisions_note"]
+    # a proposal nobody has decided is in the file too, as that
+    waiting = [p for p in otto["proposals"] if p["state"] == "proposed"]
+    assert waiting and all(p["decisions"] == [] and p["status"] == "Proposed" for p in waiting)
     run = otto["runs"][0]
     assert run["phase"] == "first" and run["record"]["spec_hash"] == check["spec_hash"] and run["lock_entry"] == check["lock_entry"]
     assert "Advisory checks come from signed test packs made by Otto" in evidence["app"]["note"]
@@ -95,6 +107,7 @@ def test_the_otto_part_is_inside_what_is_signed(ran):
     _, report, _ = ran.evidence_file(ran.export_evidence(ran.plan.id)["id"], "html")
     page = report.decode()
     assert "8. Otto: test packs, the ledger and Claude" in page and "Advisory checks added from a test pack" in page
+    assert "proposals, and the decisions on them" in page and "Accepted by You" in page and "Nobody has decided this yet." in page
     assert "<script" not in page.lower()
 
 
@@ -108,7 +121,8 @@ def test_the_command_checks_the_file_the_pack_and_the_ledger_together(ran, tmp_p
     assert ok.returncode == 0 and ok.stdout.startswith("Evidence verified\n"), ok.stdout + ok.stderr
     for words in ("Otto: Test packs: 1 in the file, each whole and with a signature that holds from a pack key you trust.",
                   "Otto: Advisory checks: 1, each with its design in its pack and its lock entry in the ledger.",
-                  "Otto: Ledger: 3 entries in one unbroken chain; 1 runs, each bound to a test locked before it.",
+                  "Otto: Ledger: 6 entries in one unbroken chain; 1 runs, each bound to a test locked before it.",
+                  "Otto: Decisions: 1 on 1 of Otto's 2 proposals, each in the ledger with who and when, in an order the app allows.",
                   "Otto's own audit"):
         assert words in ok.stdout, ok.stdout
     # a pack signed by a key this computer does not trust: consistent, but not confirmed, and that is not a pass
@@ -134,13 +148,43 @@ def _resigned(lab, evidence: dict) -> bytes:
 @pytest.mark.needs_otto
 @pytest.mark.parametrize("name", ["a ledger line changed", "a ledger line removed", "the last ledger lines cut off", "the pack swapped",
                                   "the pack edited", "a run record changed", "a review changed", "the design swapped", "a lock entry for another test",
-                                  "a run listed that the ledger does not bind"])
+                                  "a run listed that the ledger does not bind",
+                                  "a decision under another name", "a decision at another time", "a decision with a reason added",
+                                  "a decision taken out", "a decision made up", "an accept turned into a reject",
+                                  "a proposal that stands elsewhere", "the proposal a decision was made on changed",
+                                  "the list of proposals taken out", "a proposal reworded"])
 def test_a_change_inside_the_otto_part_is_caught_even_when_the_file_is_signed_again(ran, tmp_path, name):
     _, evidence = _download(ran, ran.plan.id)
     otto = evidence["otto"]
     lines = otto["ledger"]["lines"]
+    decided = next(p for p in otto["proposals"] if p["decisions"])
     if name == "a ledger line changed":
-        lines[1] = lines[1].replace('"phase":"first"', '"phase":"retest"')
+        place = next(n for n, line in enumerate(lines) if '"phase":"first"' in line)
+        lines[place] = lines[place].replace('"phase":"first"', '"phase":"retest"')
+    elif name == "a decision under another name":
+        decided["decisions"][0]["by"] = "Someone else"
+    elif name == "a decision at another time":
+        decided["decisions"][0]["at"] = "2020-01-01T00:00:00Z"
+    elif name == "a decision with a reason added":
+        decided["decisions"][0]["reason"] = "It was never wanted"
+    elif name == "a decision taken out":
+        decided["decisions"], decided["state"], decided["status"] = [], "proposed", "Proposed"
+    elif name == "a decision made up":
+        waiting = next(p for p in otto["proposals"] if not p["decisions"])
+        made_up = {**copy.deepcopy(decided["decisions"][0]), "decision": "reject", "after": "rejected", "reason": "Not wanted",
+                   "proposal": {k: waiting[k] for k in ("id", "kind", "title", "why", "lines", "about")}, "proposal_sha256": waiting["fingerprint"]}
+        waiting["decisions"], waiting["state"], waiting["status"] = [made_up], "rejected", "Not added (Not wanted)"
+    elif name == "an accept turned into a reject":
+        decided["decisions"][0].update(decision="reject", after="rejected")
+        decided["state"] = "rejected"
+    elif name == "a proposal that stands elsewhere":
+        decided["state"], decided["status"] = "rejected", "Not added (no reason given)"
+    elif name == "the proposal a decision was made on changed":
+        decided["decisions"][0]["proposal"]["title"] = "Something else was proposed"
+    elif name == "the list of proposals taken out":
+        del otto["proposals"]
+    elif name == "a proposal reworded":
+        decided["why"] = "Because it is required by law."
     elif name == "a ledger line removed":
         del lines[1]
         otto["ledger"]["height"] -= 1
@@ -188,7 +232,7 @@ def test_previous_shows_that_nothing_was_dropped_between_two_downloads(ran_alone
     new_path.write_bytes(newer_raw)
     data_dir = str(ran.settings.data_dir)
     ok = _cli("verify", str(new_path), "--previous", str(old_path), "--data-dir", data_dir, "--pack-key", ran.pack_key)
-    assert ok.returncode == 0 and "Compared with the older file: its 3 ledger entries are still here, unchanged" in ok.stdout, ok.stdout
+    assert ok.returncode == 0 and "Compared with the older file: its 6 ledger entries are still here, unchanged" in ok.stdout, ok.stdout
     # the other way round: the "newer" file is the shorter one, so entries are missing
     back = _cli("verify", str(old_path), "--previous", str(new_path), "--data-dir", data_dir, "--pack-key", ran.pack_key)
     assert back.returncode == 1 and "history was cut or rewritten" in back.stdout
@@ -208,7 +252,8 @@ def test_without_otto_the_command_says_the_audit_was_not_run_and_that_is_not_a_p
     monkeypatch.setattr(harness, "status", lambda *a, **k: missing)
     outcome = evidence_otto.check_otto(evidence, {ran.pack_key})
     assert outcome.code == evidence_otto.NOT_CONFIRMED and "Otto's own audit of the ledger was not run" in outcome.problem
-    assert "Otto is not installed on this computer" in outcome.problem and len(outcome.lines) == 3      # the other checks were still made
+    assert "Otto is not installed on this computer" in outcome.problem and len(outcome.lines) == 4      # the other checks were still made
+    assert any(line.startswith("Decisions: 1 on 1 of Otto's") for line in outcome.lines)
 
 
 def test_the_checker_reads_the_same_signing_context_as_the_pack_builder():

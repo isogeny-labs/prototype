@@ -18,6 +18,25 @@ function TestChip({ row }: { row: AdvisoryRow }) {
   return <StatusChip label={row.test.label} tone={row.test.tone} size="sm" wrap testId="advisory-test" title={row.test.reason} />;
 }
 
+/** Where Otto's proposed check stands, exactly as the view words and tones it: "Proposed", "Added" or
+ * "Not added (reason)", and under it the counts when the check fits several programs. A reason is a person's own words
+ * and can be long: the chip wraps between words inside a box with a widest size, so a long reason makes its row taller
+ * and never the table wider (only a run of letters longer than the box itself is broken, at the box's edge). */
+function ProposalCell({ row }: { row: AdvisoryRow }) {
+  return (
+    <>
+      <span data-testid="advisory-proposal-box" className="block max-w-[8.5rem] break-words [&>span]:max-w-full [&>span>span:last-child]:min-w-0">
+        <StatusChip label={row.proposal.label} tone={row.proposal.tone} size="sm" wrap testId="advisory-proposal" />
+      </span>
+      {row.proposal.text ? (
+        <span data-testid="advisory-proposal-text" className="mt-1 block text-xs text-slate-400">
+          {row.proposal.text}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 /** The latest result of the advisory's check here, exactly as the view words and tones it. */
 function ResultCell({ row }: { row: AdvisoryRow }) {
   return (
@@ -29,7 +48,9 @@ function ResultCell({ row }: { row: AdvisoryRow }) {
 }
 
 /** Phase 5c: the advisories of the installed test packs, one row each. The column names are the view's. Beside an open
- * panel the table shows the name and, in one column, the two chips; the other columns are in the panel. */
+ * panel the table shows the name and, in one column, the three chips (its test, Otto's proposal, its result here); the
+ * other columns are in the panel. The widths are kept modest: all six columns fit at 1440 pixels wide with the sidebar
+ * and the co-pilot showing. */
 export function AdvisoryTable({
   label,
   names,
@@ -39,7 +60,8 @@ export function AdvisoryTable({
   empty,
 }: {
   label: string;
-  /** The view's column names, in order: the advisory, when it was published, what it fits, its test, its result here. */
+  /** The view's column names, in order: the advisory, when it was published, what it fits, its test, Otto's proposal,
+   * its result here. */
   names: string[];
   rows: AdvisoryRow[];
   selectedId: string | null;
@@ -49,11 +71,12 @@ export function AdvisoryTable({
 }) {
   const name = (i: number) => names[i] ?? "";
   const columns: Column<AdvisoryRow>[] = [
-    { key: "advisory", header: name(0), minWidth: 200, render: (r) => <Name row={r} /> },
-    { key: "published", header: name(1), minWidth: 132, render: (r) => <span className="whitespace-nowrap text-xs text-slate-300">{r.published_text}</span> },
-    { key: "fits", header: name(2), minWidth: 132, render: (r) => <span className="text-xs text-slate-300">{r.fits_text}</span> },
-    { key: "test", header: name(3), minWidth: 124, render: (r) => <TestChip row={r} /> },
-    { key: "result", header: name(4), minWidth: 132, render: (r) => <ResultCell row={r} /> },
+    { key: "advisory", header: name(0), minWidth: 168, render: (r) => <Name row={r} /> },
+    { key: "published", header: name(1), minWidth: 120, render: (r) => <span className="whitespace-nowrap text-xs text-slate-300">{r.published_text}</span> },
+    { key: "fits", header: name(2), minWidth: 112, render: (r) => <span className="text-xs text-slate-300">{r.fits_text}</span> },
+    { key: "test", header: name(3), minWidth: 108, render: (r) => <TestChip row={r} /> },
+    { key: "proposal", header: name(4), minWidth: 128, render: (r) => <ProposalCell row={r} /> },
+    { key: "result", header: name(5), minWidth: 120, render: (r) => <ResultCell row={r} /> },
   ];
   const compactColumns: Column<AdvisoryRow>[] = [
     { key: "advisory", header: name(0), minWidth: 150, render: (r) => <Name row={r} /> },
@@ -63,12 +86,16 @@ export function AdvisoryTable({
         <>
           <span className="block">{name(3)}</span>
           <span className="block">{name(4)}</span>
+          <span className="block">{name(5)}</span>
         </>
       ),
       minWidth: 140,
       render: (r) => (
         <div className="flex flex-col items-start gap-1.5">
           <TestChip row={r} />
+          <div>
+            <ProposalCell row={r} />
+          </div>
           <div>
             <ResultCell row={r} />
           </div>

@@ -167,7 +167,29 @@ export type {
   OttoLiveSwitch,
   OttoLiveLimit,
   AdvisoriesView,
-  AdvisoryAdd,
+  AdvisoryWaiting,
+  AdvisoryProposalCell,
+  OttoProposal,
+  OttoProposalButton,
+  OttoProposalStatus,
+  OttoProposalHistory,
+  OttoDecisionLine,
+  OttoRejectDialog,
+  OttoProposalsView,
+  OttoResultBlock,
+  OttoWaiting,
+  OttoWaitingItem,
+  OttoPlanBlock,
+  OttoRoadmapMark,
+  OttoProjectBlock,
+  OttoProjectRow,
+  ImportOtto,
+  CheckFromOtto,
+  DependencyAdvisory,
+  DependencyAdvisoryState,
+  DependencyOttoStatus,
+  FixProofRow,
+  LabeledLink,
   AdvisoryFilterOption,
   AdvisoryRow,
   AdvisoryTestCell,
@@ -214,6 +236,8 @@ import type {
   ProjectOverview,
   OttoSettingsView,
   AdvisoriesView,
+  OttoProposal,
+  OttoProposalsView,
 } from "./api.gen";
 
 export class ApiError extends Error {
@@ -394,8 +418,15 @@ export const api = {
   /** Use live Claude on or off, and/or the spending limit per run (US dollars, as typed). */
   setLiveOtto: (change: { on?: boolean; limit?: string }) => request<OttoSettingsView>("/api/otto/live", { method: "POST", json: change }),
   getAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories`),
-  /** Add new checks: adds every pack test that fits this assessment to its test plan. It runs nothing. */
-  addNewChecks: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories/add`, { method: "POST" }),
+  /** Every proposal of Otto's in this assessment, with the "Waiting for you" counts. */
+  getProposals: (planId: number) => request<OttoProposalsView>(`/api/plans/${planId}/otto/proposals`),
+  /** Otto proposes; a person decides: accept, reject (with an optional short reason), undo or reconsider one proposal.
+   * It runs nothing. The answer is the proposal as it now stands. */
+  decideProposal: (planId: number, proposalId: string, decision: "accept" | "reject" | "undo" | "reconsider", reason?: string) =>
+    request<OttoProposal>(`/api/plans/${planId}/otto/proposals/${encodeURIComponent(proposalId)}/${decision}`, {
+      method: "POST",
+      json: reason ? { reason } : {},
+    }),
 
   getCurrentImport: () => orNullOn404(request<Import>("/api/import/current")),
 

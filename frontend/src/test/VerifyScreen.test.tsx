@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { VerifyScreen } from "../components/VerifyScreen";
-import { demoImport, run, text } from "./fixtures";
+import { calls, demoImport, mockApi, run, text } from "./fixtures";
 
 function renderVerify(isDemo = true) {
   const onContinue = vi.fn();
@@ -145,5 +145,52 @@ describe("Verify screen", () => {
       expect(el.className).toContain("break-words");
       expect(el.className).not.toContain("break-all");
     }
+  });
+});
+
+describe("Verify screen: what it says about Otto (phase 5c)", () => {
+  /** The backend's one sentence: Verify is unchanged in this phase, and Otto proposes nothing on it yet. */
+  const NOTE =
+    "Otto has no proposals here yet. In this version Otto's checks are for signing programs and libraries; its checks of servers come in a later phase. Verify works as before.";
+
+  it("says once, in the backend's sentence, that Otto has no proposals here yet", () => {
+    const fetchMock = mockApi({});
+    render(<VerifyScreen imp={demoImport} run={{ ...run, otto_note: NOTE }} onContinue={vi.fn()} />);
+    const notes = screen.getAllByTestId("verify-otto-note");
+    expect(notes).toHaveLength(1);
+    expect(text(notes[0])).toBe(NOTE);
+    // It is a small muted note with the page's description: not a result, not a badge, not a button or a link.
+    expect(screen.getByTestId("page-header").contains(notes[0]!)).toBe(true);
+    expect(notes[0]!.className).not.toMatch(/amber|green|red|emerald/);
+    expect(notes[0]!.querySelector("button, a")).toBeNull();
+    expect(calls(fetchMock)).toEqual([]);
+  });
+
+  it("changes nothing else on the page: the same rows, results, buttons and standing line", () => {
+    render(<VerifyScreen imp={demoImport} run={{ ...run, otto_note: NOTE }} onContinue={vi.fn()} />);
+    expect(screen.getAllByTestId("result-row")).toHaveLength(3);
+    expect(screen.getAllByTestId("result-badge").map((el) => el.lastElementChild?.textContent)).toEqual(["False", "True", "Couldn't check"]);
+    expect(screen.getAllByRole("button").map((b) => b.textContent?.replace(/[▸▾]/g, "").trim())).toEqual([
+      "Details and evidence",
+      "Details and evidence",
+      "Details and evidence",
+      "Continue to checks",
+    ]);
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+    expect(screen.getByText("Passing these tests doesn't prove a system secure. It shows these specific checks passed.")).not.toBeNull();
+  });
+
+  it("shows no such note when the answer carries none, or an empty one", () => {
+    render(<VerifyScreen imp={demoImport} run={run} onContinue={vi.fn()} />);
+    expect(screen.queryByTestId("verify-otto-note")).toBeNull();
+    cleanup();
+    render(<VerifyScreen imp={demoImport} run={{ ...run, otto_note: "" }} onContinue={vi.fn()} />);
+    expect(screen.queryByTestId("verify-otto-note")).toBeNull();
+  });
+
+  it("shows no such note before anything was verified: the sentence comes with a Verify run", () => {
+    render(<VerifyScreen imp={demoImport} run={null} onContinue={vi.fn()} />);
+    expect(screen.getByTestId("verify-empty")).not.toBeNull();
+    expect(screen.queryByTestId("verify-otto-note")).toBeNull();
   });
 });

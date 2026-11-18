@@ -390,7 +390,7 @@ SYSTEM_CHANGE_TABLES = ("change_tries", "apply_requests", "apply_approvals", "ap
 DEPENDENCY_TABLES = ("dependency_lists", "dependency_ties")
 ASSESSMENT_TABLES = ("assessment_details", "assessment_signoffs", "import_files")   # phase 5b, tests/projects/test_rerun.py
 # Otto's records (phase 5c): tests/otto/test_customer.py::test_raw_sql_cannot_change_or_delete_ottos_records.
-OTTO_TABLES = ("otto_packs", "otto_checks", "otto_steps")
+OTTO_TABLES = ("otto_packs", "otto_checks", "otto_steps", "otto_decisions")
 
 
 def test_every_append_only_table_is_covered_by_a_test():

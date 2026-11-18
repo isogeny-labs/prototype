@@ -37,7 +37,7 @@ def spec_for(lab, plan_id: int, made: dict, program_ref: str | None = None) -> d
 
 
 def add_check(lab, plan_id: int, made: dict, program_ref: str | None = None) -> int:
-    """Lock the check and put it in the plan, the way Add new checks does (without Otto's ledger): returns the plan item id."""
+    """Lock the check and put it in the plan, the way accepting Otto's proposal does (without the decision and without Otto's ledger): returns the plan item id."""
     spec = spec_for(lab, plan_id, made, program_ref)
     with lab._plan_lock, lab.db() as db:
         last = max([i.position for i in lab._items(db, plan_id, include_removed=True)], default=-1)
@@ -46,6 +46,19 @@ def add_check(lab, plan_id: int, made: dict, program_ref: str | None = None) -> 
         db.add(item)
         db.commit()
         return item.id
+
+
+def accept_checks(lab, plan_id: int) -> dict:
+    """Accept every check Otto proposes for this assessment, one decision at a time, the way a person would with the
+    Accept button of each (there is no button that decides several). Returns the Advisories view as it then stands."""
+    for proposal in lab.otto_proposals(plan_id, ("check",)):
+        if proposal["state"] == "proposed" and proposal["current"]:
+            lab.otto_decide(plan_id, proposal["id"], "accept")
+    return lab.advisories_view(plan_id)
+
+
+def check_proposals(lab, plan_id: int) -> list[dict]:
+    return lab.otto_proposals(plan_id, ("check",))
 
 
 def result_for(lab, plan_id: int, item_id: int, which: str = "result") -> dict:

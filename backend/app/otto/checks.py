@@ -1,7 +1,7 @@
 """Putting an advisory check into an assessment's test plan (phase 5c).
 
-One function, used wherever a design becomes a locked test for a program: by Add new checks on the Advisories page,
-and by the research side's trial script when it tries a design on a public copy before a pack is signed. The check
+One function, used wherever a design becomes a locked test for a program: when a person accepts Otto's proposal on
+the Advisories page, and by the research side's trial script when it tries a design on a public copy before a pack is signed. The check
 joins the plan like a test added with "+ Add test" (origin "added"), is locked like every test, and is stamped as
 proposed by the pack, never by the rule engine or the reviewer. Nothing here runs anything.
 """

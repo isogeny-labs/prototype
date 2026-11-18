@@ -63,14 +63,12 @@ def fix_words(comp: str, fix: dict | None) -> str:
     "library", "version", "reason"}. What a trial on public copies showed is said in the pack's own words (`reason`),
     never in a sentence of this app's that the pack might not bear out."""
     name = comp.split(" ")[0]
-    if fix and fix.get("state") == "proven" and fix.get("kind") == "update":
-        return (f"Otto proposes: update {fix['library']} to {fix['version']} or later, the version its publisher names as fixed. On public copies "
-                "this check passed after the update and every other locked test still passed. Fixes has the details; then press "
-                "“Retest new version” to rerun the same tests on your version.")
-    if fix and fix.get("state") == "not_proven" and fix.get("kind") == "update":
-        reason = str(fix.get("reason") or "").strip()
-        return (f"The publisher names {fix['library']} {fix['version']} as fixed. Otto does not offer the update as a proven fix."
-                + (f" {reason}" if reason else "") + " Fixes has the details.")
+    if fix and fix.get("state") in ("proven", "not_proven") and fix.get("kind") == "update":
+        # The same row as in Fixes, word for word. Whether it is proven on your system is said where the fix is.
+        public = str(fix.get("public_line") or "").strip()
+        return (f"Otto proposes: update {fix['library']} to {fix['version']}, the version its publisher names as fixed."
+                + (f" {public}" if public else "") + " Fixes shows whether it is proven on your system: update the library, then press "
+                "“Retest new version” to rerun the same locked tests on the updated version.")
     if fix and fix.get("state") == "own_code":
         return (f"Open Fixes: it shows what can be offered for {name}. A change Otto wrote is offered only when it can be proven on "
                 "this computer. Where it can't be, the fix template is offered if it answers this failure; if not, Fixes lists the "

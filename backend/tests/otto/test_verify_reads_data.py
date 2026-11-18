@@ -164,7 +164,7 @@ def test_a_ledger_made_to_be_slow_is_refused_and_a_long_check_stops(monkeypatch)
     entries = [json.loads(line) for line in _chain([honest] + claims + [_verdict(_rid(c), _rid(honest), status="reject") for c in claims])]
     assert assurance.only_our_checker(entries) is None
     started = []
-    monkeypatch.setattr(assurance, "run_checker", lambda params, artifact: started.append(1) or "reject")
+    monkeypatch.setattr(assurance, "run_checker", lambda params, artifact, checker=None: started.append(1) or "reject")
     assert assurance.check_again(entries) == [] and len(started) == 3
     monkeypatch.setattr(assurance, "CHECK_AGAIN_SECONDS", -1)             # as if the limit had already passed
     problems = assurance.check_again(entries)
@@ -192,7 +192,7 @@ def test_the_harness_is_only_ever_asked_for_an_audit_that_runs_no_verifier(tmp_p
     If either went back to reverify=True, the harness would start whatever a ledger names."""
     _WatchedLab.asked = []
     monkeypatch.setattr(assurance.harness, "module", lambda name: SimpleNamespace(Lab=_WatchedLab, LedgerError=RuntimeError))
-    monkeypatch.setattr(assurance, "run_checker", lambda params, artifact: "accept")
+    monkeypatch.setattr(assurance, "run_checker", lambda params, artifact, checker=None: "accept")
     lines = _chain(_triple(_ours()))
     assert assurance.verify_lines(lines, tmp_path / "scratch") == [] and _WatchedLab.asked == [False]
     book = assurance.Ledger(tmp_path / "data", 1)
@@ -285,7 +285,7 @@ def ran(tmp_path_factory):
     lab.plan = demo_plan(lab)
     lab.check_pack_updates()
     lab.install_pack("2026.11.1")
-    lab.add_new_checks(lab.plan.id)
+    helpers.accept_checks(lab, lab.plan.id)
     item = next(t for t in lab.plan_view(lab.plan.id)["tests"] if t["kind"] == "advisory_cases")["id"]
     lab.run_test(lab.plan.id, item)
     lab.wait_until_idle(lab.plan.id, 240)
@@ -381,7 +381,7 @@ def test_a_ledger_that_pins_a_checker_this_version_does_not_have_is_not_confirme
 
 @pytest_needs_otto
 def test_an_entry_that_could_not_be_checked_again_is_a_problem_not_a_quiet_pass(ran, monkeypatch):
-    monkeypatch.setattr(assurance, "run_checker", lambda params, artifact: "unavailable")    # as if the checker could not be started
+    monkeypatch.setattr(assurance, "run_checker", lambda params, artifact, checker=None: "unavailable")    # as if the checker could not be started
     outcome = evidence_otto.check_otto(ran.evidence, {ran.pack_key})
     assert outcome.code == evidence_otto.FAILED and "could not be checked again" in outcome.problem
 
@@ -414,10 +414,12 @@ def test_the_one_program_that_is_started_is_this_app_s_own_checker(monkeypatch, 
 @pytest_needs_otto
 def test_a_run_of_an_advisory_check_that_the_ledger_does_not_bind_fails(ran):
     """The run is in the file's own list of tests. Its two ledger entries (the run entry and the checker's verdict)
-    and its line in the Otto part were cut out, and the ledger's length and latest entry set to match."""
+    and its line in the Otto part were cut out, and the ledger's length and latest entry set to match. (The four
+    entries before them stay: the lock entry, and the three of the person's accept.)"""
     lines = ran.evidence["otto"]["ledger"]["lines"]
-    assert len(lines) == 3 and len(ran.evidence["otto"]["runs"]) == 1
-    cut = _with_ledger(ran.evidence, lines[:1])
+    assert len(lines) == 6 and len(ran.evidence["otto"]["runs"]) == 1
+    assert [json.loads(line)["kind"] for line in lines] == ["objective", "objective", "claim", "verdict", "claim", "verdict"]
+    cut = _with_ledger(ran.evidence, lines[:4])
     cut["otto"]["runs"] = []
     outcome = evidence_otto.check_otto(cut, {ran.pack_key})
     assert outcome.code == evidence_otto.FAILED and "is in the file, but Otto's ledger does not bind it" in outcome.problem

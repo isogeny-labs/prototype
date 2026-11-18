@@ -1,6 +1,23 @@
 import type { CheckRow } from "../../api";
 import { DataTable, type Column } from "../layout";
+import { FromOttoTag } from "../otto/ProposalCard";
+import { ItemLinkView } from "../related";
 import { formatTime, ResultBadge, StatusView } from "../ui";
+
+/** Phase 5c: an advisory check came from one of Otto's proposals that a person accepted. Its row carries the tag and
+ * the advisory as a link, both in the view's words. The link opens the advisory; it does not open the row's panel. */
+export function FromOttoMark({ row }: { row: CheckRow }) {
+  const from = row.from_otto;
+  if (!from) return null;
+  return (
+    <span data-testid="check-from-otto-mark" className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
+      <FromOttoTag label={from.label} />
+      <ItemLinkView link={from.link} testId="check-from-otto">
+        {from.advisory}
+      </ItemLinkView>
+    </span>
+  );
+}
 
 function Result({ row }: { row: CheckRow }) {
   if (row.status) return <StatusView status={row.status} />;
@@ -17,6 +34,7 @@ const columns: Column<CheckRow>[] = [
       <>
         <span className="block font-medium text-slate-100">{r.name}</span>
         <span className="block text-xs text-slate-400">{r.ran_on}</span>
+        <FromOttoMark row={r} />
         {(r.same_as ?? []).length > 0 ? (
           <span data-testid="same-measurement-marker" className="mt-0.5 block text-xs text-slate-500">
             The same measurement as {(r.same_as ?? []).map((o) => o.name).join(", ")}
@@ -55,6 +73,7 @@ const compactColumns: Column<CheckRow>[] = [
         <span className="block text-xs text-slate-500">
           {r.ran_on} · {r.came_from.label}
         </span>
+        <FromOttoMark row={r} />
       </>
     ),
   },

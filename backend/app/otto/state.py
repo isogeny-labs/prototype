@@ -1,9 +1,10 @@
-"""Otto in an installation of Evidence Lab (phase 5c): test packs, the Advisories page, Add new checks, the Live
-Otto setting, and the entries each loop run leaves in the assessment's Otto ledger.
+"""Otto in an installation of Evidence Lab (phase 5c): test packs, the Advisories page, the Live Otto setting, and
+the entries each loop run leaves in the assessment's Otto ledger. (Otto's proposals, and a person's decisions on
+them, are in `proposals.py`.)
 
 Mixed into Lab. Rules kept here:
-  - A pack is data. A person installs it (in order, never removed), and a person adds its checks to an assessment.
-    Nothing is added or run by itself.
+  - A pack is data. A person installs it (in order, never removed). Otto proposes its checks for an assessment, and a
+    person accepts or rejects each one. Nothing is added or run by itself.
   - An advisory check is an ordinary locked test of the plan. The existing runner runs it and the existing reviewer
     decides it; this module only repeats the reviewer's words.
   - The lock entry is written to the assessment's Otto ledger before the check can run, and every reviewed run adds an
@@ -19,15 +20,15 @@ import threading
 from datetime import datetime
 from typing import Any, Callable
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.canonical import canonical_bytes, sha256_hex
 from app.db import (
-    AppSettingRow, AssessmentRow, ImportRow, OttoCheckRow, OttoPackRow, OttoStepRow, PlanItemRow, PlanRow, ReviewRow, RunCodeRow,
-    TestRunRow, TestSpecRow, iso,
+    AppSettingRow, AssessmentRow, ImportRow, OttoCheckRow, OttoDecisionRow, OttoPackRow, OttoStepRow, PlanItemRow, PlanRow, ReviewRow,
+    RunCodeRow, TestRunRow, TestSpecRow, iso,
 )
 from app.engine import research
-from app.errors import BadRequest, Conflict, NotFound
+from app.errors import BadRequest, Conflict
 from app.evidence.export import review_part
 from app.lab.testlab import read_spec, review_dict, run_record
 from app.otto import assurance, checks, harness, model, packs
@@ -59,7 +60,7 @@ class OttoMixin:
     assessment_for: Callable[..., AssessmentRow | None]
 
     def _init_otto(self) -> None:
-        self._otto_lock = threading.Lock()                 # one pack install, one Add new checks at a time
+        self._otto_lock = threading.Lock()                 # one pack install, one decision on a proposal at a time
         self._otto_pack_cache: dict[str, packs.Pack] = {}  # installed packs as read, by fingerprint
 
     # ---------------------------------------------------------------- installed packs
@@ -224,24 +225,6 @@ class OttoMixin:
     def _otto_checks(self, db, plan_id: int) -> list[OttoCheckRow]:
         return list(db.scalars(select(OttoCheckRow).where(OttoCheckRow.plan_id == plan_id).order_by(OttoCheckRow.id)).all())
 
-    def _to_add(self, db, plan: PlanRow, upto: datetime | None) -> list[tuple[packs.Pack, dict, dict, dict]]:
-        """Every (pack, advisory, design, program) whose check is not in the plan yet: a ready pack test that fits a
-        signing program of this assessment's file."""
-        claims = self._claims(db.get(ImportRow, plan.import_id))
-        fitting = checks.programs_that_fit(claims)
-        out = []
-        for pack, advisory in self._pack_advisories(db, upto):
-            if advisory["test"]["state"] != "ready":
-                continue
-            design = pack.design(advisory["test"]["design_sha256"])
-            if design is None:      # cannot happen for a pack that was read: a ready test always carries its design
-                continue
-            for program in fitting:
-                found = checks.existing_item(self, db, plan.id, advisory["test"]["design_sha256"], program["ref"])
-                if found is None or found.removed:
-                    out.append((pack, advisory, design, program))
-        return out
-
     def advisories_view(self, plan_id: int) -> dict:
         """Every published advisory in the installed test packs, for one assessment. It words no result and decides
         none: a result shown here is the reviewer's, exactly as Evidence Lab words it."""
@@ -310,6 +293,15 @@ class OttoMixin:
                 out.append({"id": advisory["id"], "name": name, "sub": present_otto.TEST_LABELS[advisory["test"]["state"]][0],
                             "items": linked.get(advisory["id"], [])})
         return out
+
+    def otto_found(self, db, imp: ImportRow) -> dict:
+        """Import: how many checks of the installed test packs may apply to this file, with the way to Advisories.
+        It counts pack tests and the signing programs they fit. It adds nothing and runs nothing."""
+        a = db.scalars(select(AssessmentRow).where(AssessmentRow.import_id == imp.id)).first()
+        upto = a.closed_at if a is not None else None
+        fitting = checks.programs_that_fit(self._claims(imp))
+        ready = [advisory for _, advisory in self._pack_advisories(db, upto) if advisory["test"]["state"] == "ready"]
+        return present_otto.found_line(packs=len(self._installed_packs(db, upto)), ready=len(ready), programs=[p["label"] for p in fitting])
 
     def otto_new_checks(self, plan_id: int | None) -> int:
         """How many of Otto's proposed checks in this assessment nobody has decided yet (for the Overview's next step).
@@ -415,7 +407,10 @@ class OttoMixin:
             return {"state": "own_code"}
         fix = found[1]["fix"]
         if fix["kind"] == "update" and fix["library"] == name:
-            return {"state": fix["state"], "kind": "update", "library": fix["library"], "version": fix["version"], "reason": fix["reason"]}
+            # (the first proof row only: it comes from the pack and never changes. The second row depends on later retests,
+            #  so it is said in Fixes and on Evidence's fix line, not in a result's own words.)
+            return {"state": fix["state"], "kind": "update", "library": fix["library"], "version": fix["version"], "reason": fix["reason"],
+                    "public_line": present_otto.public_copies_row(fix, found[1])["line"]}
         return None
 
     # ---------------------------------------------------------------- hooks around a run of an advisory check
@@ -497,7 +492,8 @@ class OttoMixin:
         with self.db() as db:
             added = self._otto_checks(db, plan_id)
             steps = db.scalars(select(OttoStepRow).where(OttoStepRow.plan_id == plan_id).order_by(OttoStepRow.id)).all()
-            if not added and not steps:
+            decided = db.scalar(select(func.count(OttoDecisionRow.id)).where(OttoDecisionRow.plan_id == plan_id)) or 0
+            if not added and not steps and not decided:
                 return None
             wanted = {c.pack_fingerprint for c in added}
             envelopes = [json.loads(row.envelope) for row in self._pack_rows(db) if row.fingerprint in wanted]
@@ -542,6 +538,12 @@ class OttoMixin:
                 "harness": {"repository": status["repository"], "commit": status["commit"], "version": status["version"],
                             "installed": status["installed"]},
                 "packs": envelopes, "checks": checks_out, "ledger": ledger, "runs": runs_out, "steps": steps_out,
+                # Otto proposes; a person decides: every proposal of this assessment as it stands, and every accept, reject,
+                # undo and reconsider on it, each with who and when and its entry in the ledger.
+                "proposals": self.otto_proposals_evidence(plan_id),      # type: ignore[attr-defined]
+                "decisions_note": ("Otto proposes; a person decides. A decision is recorded with who and when, in this file and in the "
+                                   "ledger. This version has one login: whoever is at the keyboard records each decision, under the name "
+                                   "shown. A decision is not a result."),
                 "note": ("The ledger binds each run of an advisory check to the test that was locked before it, and shows that the reviewer was "
                          "not the proposer. It holds no result: results are in the checks of this file, decided by the reviewer.")}
 

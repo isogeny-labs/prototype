@@ -2,7 +2,7 @@
 decisions on Otto's proposals belong to one assessment (the closed guard refuses a decision on a closed one)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends
 from pydantic import BaseModel, Field, StrictBool, StrictStr
 
 from app.web import models
@@ -20,6 +20,9 @@ class LiveOttoBody(BaseModel):
 
 class DecisionBody(BaseModel):
     reason: StrictStr | None = Field(default=None, max_length=2000)     # a reject's optional short reason (held to 300 after cleaning)
+
+
+NO_REASON = Body(default_factory=DecisionBody)      # a decision may come with no body at all: only a rejection has anything to say
 
 
 def routes(lab, require_login) -> APIRouter:
@@ -51,8 +54,8 @@ def routes(lab, require_login) -> APIRouter:
         return lab.otto_proposals_view(plan_id)
 
     @router.post("/api/plans/{plan_id}/otto/proposals/{proposal_id}/{decision}", dependencies=login, responses=shows(models.OttoProposal))
-    def decide(plan_id: int, proposal_id: str, decision: str, body: DecisionBody | None = None):
+    def decide(plan_id: int, proposal_id: str, decision: str, body: DecisionBody = NO_REASON):
         """Accept, reject (with an optional short reason), undo or reconsider one of Otto's proposals. It runs nothing."""
-        return lab.otto_decide_view(plan_id, proposal_id[:200], decision[:20], body.reason if body is not None else None)
+        return lab.otto_decide_view(plan_id, proposal_id[:200], decision[:20], body.reason)
 
     return router

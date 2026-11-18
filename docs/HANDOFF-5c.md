@@ -198,6 +198,29 @@ added at every push:
   **Not done yet at this checkpoint:** `web/models.py` and the generated types; the tests that used
   `add_new_checks`; the frontend; the Fixes view's words for a proposal; Overview, Project overview, Import, Verify
   and Checks lines; Dependencies and Migration; the evidence part and the verify command's check of decisions; docs.
+- **Checkpoint 2 (backend whole, screens in, not yet checked as a whole).** Built since checkpoint 1: the screen
+  data types for everything above (`web/models.py`, `api-schema.json`, `api.gen.ts`); the words for a proposal
+  (`present/otto.py`: `proposal_view`, the two proof rows, `waiting_view`, `project_block`, `found_line`,
+  `plan_block`, `roadmap_mark`, `named_line`, `dependency_status`, `result_block`); the Overview's "Waiting for you"
+  and next step, the Project overview's "Otto in this project", Import's "Otto found N checks that may apply",
+  Verify's one sentence, "From Otto" on Checks and on the plan's cards (an accepted Otto check has no ×: Undo on
+  Advisories takes it out until it has run); Migration (a failed advisory check on a signing program proposes
+  "Fix *program* before its signatures move to post-quantum" on its Signatures track) and Dependencies (a library
+  named by an advisory reads "Named by advisory X: measured affected / measured not affected / not yet checked",
+  and where the pack carries an update, Otto proposes it; accepted reads "Update first"); on Evidence, a result of
+  an advisory check now carries "Where this check came from" (the advisory, the design's fingerprint, the trial on
+  public copies, every decision with who and when, the ledger entries); the evidence file's `otto.proposals` and the
+  report's table of decisions; the verify command checks every decision against the ledger
+  (`backend/evidence/otto.py`, step 4b); the Otto accuracy walk accepts each check by itself and has new answers for
+  decisions. Screens: `frontend/src/components/otto/ProposalCard.tsx` (one card used on Advisories, Fixes,
+  Migration and Dependencies) and `ResultOttoBlock.tsx`; Fixes, Evidence, Checks, Overview, Project overview,
+  Import, Verify, Migration and Dependencies are done with their screen tests; **Advisories was still being
+  finished at this push.** Backend tests: `tests/otto/test_proposals.py` and `test_proposal_rules.py` are new and
+  pass; the nine failures the fast set had after checkpoint 1 are fixed (not yet rerun as a whole).
+  **Not done yet at this checkpoint:** the whole frontend suite and build; the docs (SPEC 2, 7f, 8 and 12,
+  `CLAUDE.md`, LIMITS, HANDOFF, OTTO-KEY, ENGINE, LAYOUT, README); the end-to-end walk (`e2e/tests/otto.spec.ts`
+  still presses the old **Add new checks**) and its pictures; the full checks in both modes; the independent
+  review.
 
 ## 4. The new criteria against the build: what is there, what is missing
 

@@ -1,5 +1,6 @@
-import type { AdvisoryHereRow, AdvisoryRow } from "../../api";
+import type { AdvisoryHereRow, AdvisoryRow, OttoProposal } from "../../api";
 import { DetailPanel } from "../layout";
+import { ProposalCard } from "../otto/ProposalCard";
 import { ItemLinkView, RelatedBlock, useRelated } from "../related";
 import { formatTime, StatusChip } from "../ui";
 import { BLOCK, BLOCK_TITLE, LedgerView, QuoteView, ShortHash, SourcesView, TrialView } from "./parts";
@@ -9,15 +10,25 @@ const DD = "min-w-0 break-words text-slate-200";
 /** A name and its words: one under the other in a narrow panel, side by side in a wide one. */
 const PAIR = "grid gap-x-3 gap-y-0.5 @md:grid-cols-[8.5rem_minmax(0,1fr)]";
 
-/** The advisory's check for one signing program of this assessment: where it stands, or the reviewer's result as
- * Evidence words it, with the way to the check and to its evidence. */
-function HereRow({ row }: { row: AdvisoryHereRow }) {
+/** The advisory's check for one signing program of this assessment. First Otto's proposal of it, which a person
+ * accepts or rejects (the shared proposal card: its state, who decided and when, and the buttons); then where the
+ * check stands, or the reviewer's result as Evidence words it, with the way to the check and to its evidence. */
+function HereRow({ planId, row, onDecided }: { planId: number; row: AdvisoryHereRow; onDecided: (next: OttoProposal) => void }) {
   const result = row.result;
+  const proposal = row.proposal;
+  // Before a check is in the plan the view's status is the proposal's own word, which the card already shows.
+  const status = row.status && row.status !== proposal?.status.word ? row.status : null;
   return (
-    <li data-testid="advisory-here-row" className="min-w-0 border-t border-slate-800 pt-3 first:border-t-0 first:pt-0">
+    <li data-testid="advisory-here-row" data-program={row.program} className="min-w-0 border-t border-slate-800 pt-3 first:border-t-0 first:pt-0">
       <p className="break-words font-medium text-slate-100">{row.program}</p>
+      {proposal ? (
+        <div className="mt-2">
+          {/* The program's name heads this row, so the card needs no title of its own. */}
+          <ProposalCard planId={planId} proposal={proposal} onDecided={onDecided} showTitle={false} />
+        </div>
+      ) : null}
       {result ? (
-        <div className="mt-1.5">
+        <div className="mt-2">
           <StatusChip label={result.label} tone={result.tone} wrap testId="advisory-here-result" />
           <p className="mt-1.5 break-words text-slate-200">{result.plain}</p>
           {result.component || result.finished_at ? (
@@ -27,9 +38,9 @@ function HereRow({ row }: { row: AdvisoryHereRow }) {
             </p>
           ) : null}
         </div>
-      ) : row.status ? (
-        <p data-testid="advisory-here-status" className="mt-1 text-slate-400">
-          {row.status}
+      ) : status ? (
+        <p data-testid="advisory-here-status" className="mt-1.5 break-words text-slate-400">
+          {status}
         </p>
       ) : null}
       {row.checks_link || row.evidence_link ? (
@@ -56,9 +67,21 @@ function HereRow({ row }: { row: AdvisoryHereRow }) {
 }
 
 /** Phase 5c: one advisory in the side panel, in the view's own words and order: what it says, the publisher's own
- * line and sources, its test (or why it has none), its check in this assessment, the fix, what Otto asked Claude, and
- * Related. It starts nothing and words no result. */
-export function AdvisoryPanel({ planId, row, onClose }: { planId: number; row: AdvisoryRow | null; onClose: () => void }) {
+ * line and sources, its test (or why it has none), Otto's proposed check for each program of this assessment (with
+ * Accept and Reject, each decided by itself) and that check's result, the fix, what Otto asked Claude, and Related.
+ * A decision is a person's click and runs nothing; the panel itself starts nothing and words no result. */
+export function AdvisoryPanel({
+  planId,
+  row,
+  onClose,
+  onDecided,
+}: {
+  planId: number;
+  row: AdvisoryRow | null;
+  onClose: () => void;
+  /** A decision on one of this advisory's proposals was recorded: the page reads its view again. */
+  onDecided: (next: OttoProposal) => void;
+}) {
   const related = useRelated(planId, row?.panel.related_key ?? null);
   if (!row) return null;
   const panel = row.panel;
@@ -182,10 +205,15 @@ export function AdvisoryPanel({ planId, row, onClose }: { planId: number; row: A
 
           <section data-testid="advisory-here" aria-label={panel.here.title} className={BLOCK}>
             <h3 className={BLOCK_TITLE}>{panel.here.title}</h3>
+            {panel.here.note ? (
+              <p data-testid="advisory-here-note" className="mt-1.5 break-words text-xs text-slate-400">
+                {panel.here.note}
+              </p>
+            ) : null}
             {panel.here.rows.length > 0 ? (
               <ul className="mt-2 space-y-3">
                 {panel.here.rows.map((h, i) => (
-                  <HereRow key={`${h.program}-${i}`} row={h} />
+                  <HereRow key={`${h.program}-${i}`} planId={planId} row={h} onDecided={onDecided} />
                 ))}
               </ul>
             ) : panel.here.empty ? (

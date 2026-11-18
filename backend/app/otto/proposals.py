@@ -48,6 +48,7 @@ NO_OTTO_TAIL = " A decision on one of Otto's proposals is recorded in Otto's led
 CLOSED = "This assessment is closed. Start a new one to continue."
 NOT_CURRENT = "Otto no longer proposes this here: what it was about has changed since. It stays on the record."
 LEGACY = "This check was added before decisions were recorded, so there is no accept to undo."
+DONE = "A newer result of this check has passed since, so this stays on the record as it is."
 
 
 def now_stamp() -> str:
@@ -173,7 +174,7 @@ class ProposalsMixin:
             if design is None:
                 continue
             reading = advisory["reading"] or {}
-            name, package = reading.get("plain_name") or advisory["id"], advisory["package"]["name"]
+            package = advisory["package"]["name"]
             fixed = (reading.get("fixed") or {}).get("version")
             cases = design["cases"]
             trial = (advisory["test"].get("trial") or {}).get("arms") or {}
@@ -257,9 +258,11 @@ class ProposalsMixin:
                                 facts={"fix_id": fix["id"], "code": False, "retested": here.get("state") in ("passed", "not_proven")}))
         return out
 
-    def _plan_proposals(self, db, plan: PlanRow, shown: list[dict], fixes: list[dict]) -> list[dict]:
+    def _plan_proposals(self, db, plan: PlanRow, shown: list[dict], fixes: list[dict], decided: set[str] | None = None) -> list[dict]:
         """From a fixed rule over the results: when an advisory check's newest result on a signing program of the file
-        is a failure, Otto proposes to put fixing it on that program's Signatures track, as something to fix first."""
+        is a failure, Otto proposes to put fixing it on that program's Signatures track, as something to fix first.
+        `decided`: the proposals a person has decided on. Such a one stays when a newer result of its check passes,
+        and then reads done; one nobody decided on is simply no longer proposed."""
         claims = self._claims(db.get(ImportRow, plan.import_id))
         systems = {s["target"]: s for s in self._systems(claims) if s["kind"] == "software"}
         newest: dict[int, dict] = {}
@@ -273,16 +276,33 @@ class ProposalsMixin:
             spec, _ = read_spec(db.get(TestSpecRow, item.spec_hash)) if item is not None else ({}, False)
             system = systems.get(str((spec.get("target") or {}).get("claim")))
             advisory = (spec.get("inputs") or {}).get("advisory") or {}
-            if system is None or not advisory.get("id") or result["tone"] != "fail":
+            if system is None or not advisory.get("id"):
                 continue
+            pid = plan_id_for(system["key"], item_id)
+            done = None
+            if result["tone"] != "fail":
+                if pid not in (decided or set()):
+                    continue
+                # decided earlier, and a newer result of the check passes now: it is told from the failure it came from
+                done = result
+                failed = db.scalars(select(TestRunRow).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
+                                    .where(TestRunRow.plan_item_id == item_id, ReviewRow.code == "failed")
+                                    .order_by(TestRunRow.id.desc()).limit(1)).first()
+                if failed is None:
+                    continue
+                result = {**result, "run_id": failed.id, "component": failed.component_name, "version": failed.component_version}
             review = db.scalars(select(ReviewRow).where(ReviewRow.run_id == result["run_id"])).first()
             wrong = len((review.detail or {}).get("wrong") or []) if review is not None else 0
             run = db.get(TestRunRow, result["run_id"])
             program = f"{result['component']} {result['version']}" if result.get("version") else str(result.get("component"))
             fix = next((f for f in fixes if any(a.get("item_id") == item_id for a in f.get("answers") or [])), None)
             counted = f"{wrong} published {'case' if wrong == 1 else 'cases'}" if wrong else "published cases"
+            passed_on = None
+            if done is not None:
+                done_run = db.get(TestRunRow, done["run_id"])
+                passed_on = {"version": done.get("version"), "at": done_run.finished_at if done_run is not None else None, "run_id": done["run_id"]}
             out.append(make(
-                "plan", plan_id_for(system["key"], item_id),
+                "plan", pid,
                 title=f"Fix {system['name']} before its signatures move to post-quantum",
                 why=(f"{program} gave the wrong answer on {counted} of the kind {advisory['id']} describes "
                      f"({advisory.get('plain_name') or 'an advisory'}). Moving a program that checks signatures wrongly carries the fault along."),
@@ -292,7 +312,7 @@ class ProposalsMixin:
                        "run": result["run_id"], "fix": fix["id"] if fix else None},
                 proposed_at=run.finished_at if run is not None else None, item=system["key"],
                 facts={"system_key": system["key"], "track": "signatures", "item_id": item_id, "fix_id": fix["id"] if fix else None,
-                       "advisory_id": advisory["id"], "wrong": wrong, "program": program}))
+                       "advisory_id": advisory["id"], "wrong": wrong, "program": program, "done": passed_on}))
         return out
 
     def _named_by(self, db, plan: PlanRow, state: dict | None, upto) -> dict[str, list[dict]]:
@@ -313,13 +333,9 @@ class ProposalsMixin:
                 fixed = (reading.get("fixed") or {}).get("version")
                 if advisory["package"]["name"].casefold() != library.casefold() or not fixed:
                     continue
-                known = read_version(fixed)
-                if here is None or known is None:
-                    version_note = "couldnt_tell"
-                elif at_least(here, known):
-                    continue                     # at or past the fixed version: the advisory does not name this version
-                else:
-                    version_note = "below_fixed"
+                if here is None or read_version(fixed) is None or at_least(here, str(fixed)):
+                    continue    # a version that can't be read is never guessed at; at or past the fixed version it is not named
+                version_note = "below_fixed"
                 measured = self._measured_here(db, plan, advisory, programs, shown, library, row.get("version"))
                 out.setdefault(row["key"], []).append({
                     "advisory": advisory["id"], "plain_name": reading.get("plain_name") or advisory["id"], "fixed": fixed, "pack": pack.version,
@@ -373,11 +389,14 @@ class ProposalsMixin:
                     facts={"row": n["row"], "row_key": row_key, "advisory_id": n["advisory"]}))
         return out
 
-    def _proposals(self, db, plan: PlanRow, kinds: tuple[str, ...] | None = None, fixes: list[dict] | None = None) -> list[dict]:
+    def _proposals(self, db, plan: PlanRow, kinds: tuple[str, ...] | None = None, fixes: list[dict] | None = None,
+                   dependency_state: dict | None = None) -> list[dict]:
         """Every proposal of this assessment with where it stands, in a fixed order: checks, fixes, plan changes,
-        dependency statuses. A proposal that was decided and is no longer made is kept, from its last decision's copy."""
+        dependency statuses. A proposal that was decided and is no longer made is kept, from its last decision's copy.
+        `fixes` and `dependency_state`: what the caller has already worked out, so it is not worked out twice."""
         wanted = kinds or KINDS
         upto = self._closed_at(plan.id)
+        rows = self._decision_rows(db, plan.id)
         made: list[dict] = []
         if "check" in wanted:
             made += self._check_proposals(db, plan, upto)
@@ -389,10 +408,10 @@ class ProposalsMixin:
                 made += self._fix_proposals(db, plan, fixes)
             if "plan" in wanted:
                 shown = self._shown(db, plan, self._items(db, plan.id))
-                made += self._plan_proposals(db, plan, shown, fixes)
+                made += self._plan_proposals(db, plan, shown, fixes, set(rows))
         if "dependency" in wanted:
-            made += self._dependency_proposals(db, plan, self._dependency_state(db, plan), upto)
-        rows = self._decision_rows(db, plan.id)
+            state = dependency_state if dependency_state is not None else self._dependency_state(db, plan)
+            made += self._dependency_proposals(db, plan, state, upto)
         have = {p["id"] for p in made}
         for pid, decided in rows.items():
             if pid not in have and decided[-1].kind in wanted:
@@ -424,6 +443,8 @@ class ProposalsMixin:
             return "The code is connected and the change is on its branch, so this accept stands."
         if kind == "fix" and not facts.get("code") and facts.get("retested"):
             return "A retest has run on the updated version, so this accept stands."
+        if kind == "plan" and facts.get("done"):
+            return DONE
         return None
 
     def _with_state(self, proposal: dict, rows: list, blocked: str | None) -> dict:
@@ -440,9 +461,9 @@ class ProposalsMixin:
         elif state == "accepted":
             actions["undo"] = blocked or (LEGACY if legacy else None) or gone or self._otto_locked(proposal)
         else:
-            actions["reconsider"] = blocked or gone
+            actions["reconsider"] = blocked or gone or (DONE if proposal["facts"].get("done") else None)
         history = [{"number": r.number, "decision": r.decision, "by": r.by, "at": r.at, "reason": r.reason, "before": r.before, "after": r.after,
-                    "proposal_sha256": r.proposal_sha256, "ledger_entry": r.claim_id} for r in rows]
+                    "proposal_sha256": r.proposal_sha256, "ledger_entry": r.claim_id, "proposal": r.proposal} for r in rows]
         return {**proposal, "fingerprint": fingerprint(proposal), "state": state, "legacy": legacy, "actions": actions, "decisions": history,
                 "objective_id": next((r.objective_id for r in rows if r.objective_id), None)}
 
@@ -482,6 +503,88 @@ class ProposalsMixin:
         from app.present import otto as present_otto
         p = self.otto_decide(plan_id, proposal_id, decision, reason)
         return present_otto.proposal_view(p, self.otto_ledger_about(plan_id, p.get("objective_id")))
+
+    def otto_proposals_evidence(self, plan_id: int) -> list[dict]:
+        """For the evidence file: every proposal of Otto's in this assessment, decided or not, as it stands, with every
+        decision on it (what was decided, by whom, when, the reason, the copy of the proposal it was made on with its
+        SHA-256, and its entry in the assessment's Otto ledger)."""
+        from app.present import otto as present_otto
+        out = []
+        for p in self.otto_proposals(plan_id):
+            shown = present_otto.proposal_view(p)
+            out.append({**content(p), "label": LABEL, "proposed_at": p.get("proposed_at"), "current": bool(p["current"]),
+                        "fingerprint": p["fingerprint"], "state": p["state"], "status": shown["status"]["word"], "legacy": bool(p.get("legacy")),
+                        "ledger_entry": p.get("objective_id"),
+                        "decisions": [{k: d[k] for k in ("number", "decision", "by", "at", "reason", "before", "after", "proposal_sha256",
+                                                         "ledger_entry", "proposal")} for d in p["decisions"]]})
+        return out
+
+    def otto_project_block(self, assessments: list) -> dict:
+        """The Project overview's block about Otto: for each assessment of the project, how many proposals wait for a
+        decision, and what changed since the newest test pack was installed (the checks it proposed, the decisions made
+        and the results recorded since). It counts what the pages already say; it decides nothing."""
+        from app.present import otto as present_otto
+        with self.db() as db:
+            packs = self._pack_rows(db)                # type: ignore[attr-defined]
+            last = packs[-1] if packs else None
+            plans = {a.id: db.scalars(select(PlanRow.id).where(PlanRow.import_id == a.import_id)).first() if a.import_id else None
+                     for a in assessments}
+        rows = []
+        for a in assessments:
+            plan_id = plans.get(a.id)
+            if plan_id is None:
+                rows.append({"assessment": a, "waiting": {k: 0 for k in KINDS}, "since": None, "why": "No file has been brought in yet."})
+                continue
+            proposals = self.otto_proposals(plan_id)
+            can = self._decisions_blocked(plan_id) is None
+            waiting = {k: sum(1 for p in proposals if can and p["kind"] == k and p["state"] == "proposed" and p["current"]) for k in KINDS}
+            since = None
+            if last is not None and (a.closed_at is None or _aware(a.closed_at) >= _aware(last.installed_at)):
+                brought = [p for p in proposals if p["kind"] == "check" and p["about"].get("pack") == last.version]
+                with self.db() as db:
+                    decided = [r for r in db.scalars(select(OttoDecisionRow).where(OttoDecisionRow.plan_id == plan_id)).all()
+                               if _aware(r.created_at) >= _aware(last.installed_at)]
+                    runs = db.scalars(select(TestRunRow).join(TestSpecRow, TestSpecRow.hash == TestRunRow.spec_hash)
+                                      .where(TestRunRow.plan_id == plan_id, TestSpecRow.kind == research.ADVISORY_KIND)
+                                      .order_by(TestRunRow.id)).all()
+                    newest: dict[int, TestRunRow] = {}
+                    for run in runs:
+                        if _stamp_after(run.finished_at, last.installed_at):
+                            newest[run.plan_item_id] = run
+                    labels = [r["label"] for r in (self._result(db, run) for run in newest.values()) if r]      # type: ignore[attr-defined]
+                since = {"brought": {s: sum(1 for p in brought if p["state"] == s) for s in ("proposed", "accepted", "rejected")},
+                         "decisions": len(decided), "results": labels}
+            rows.append({"assessment": a, "waiting": waiting, "since": since,
+                         "why": None if since is not None or last is None else "It was closed before this pack was installed."})
+        return present_otto.project_block(rows, {"version": last.version, "installed_at": iso(last.installed_at)} if last else None)
+
+    def otto_result_blocks(self, db, plan: PlanRow) -> dict[int, dict]:
+        """Evidence, for the results of the plan's advisory checks (by plan item): what stands behind each check. The
+        advisory and the signed pack it came from, its design's fingerprint, how its test did when it was tried on
+        public copies, every decision on Otto's proposal for it with who and when, and the entries of the check and of
+        those decisions in the assessment's Otto ledger. It repeats records and words no result. Empty for a plan with
+        no advisory check, which is every plan before a person accepted one."""
+        from app.present import otto as present_otto
+        checks_here = list(db.scalars(select(OttoCheckRow).where(OttoCheckRow.plan_id == plan.id).order_by(OttoCheckRow.id)).all())
+        if not checks_here:
+            return {}
+        upto = self._closed_at(plan.id)
+        proposals = {(p.get("facts") or {}).get("item_id"): p for p in self._proposals(db, plan, ("check",)) if p["current"]}
+        packed = {advisory["id"]: (pack, advisory) for pack, advisory in self._pack_advisories(db, upto)}
+        out: dict[int, dict] = {}
+        for check in checks_here:
+            found = packed.get(check.advisory_id)
+            proposal = proposals.get(check.plan_item_id)
+            ledger = list(self._ledger_about(plan.id, check.objective_id))      # type: ignore[attr-defined]
+            if proposal is not None:
+                ledger += self.otto_ledger_about(plan.id, proposal.get("objective_id"))
+            ledger.sort(key=lambda e: e["seq"])
+            out[check.plan_item_id] = present_otto.result_block(
+                advisory_id=check.advisory_id, plain_name=((found[1]["reading"] or {}).get("plain_name") if found else None),
+                pack_version=check.pack_version, design_sha256=check.design_sha256,
+                trial=present_otto._trial_lines(found[1]) if found else [], ledger=ledger,
+                proposal=present_otto.proposal_view(proposal) if proposal is not None else None)
+        return out
 
     def otto_ledger_about(self, plan_id: int, objective_id: str | None) -> list[dict]:
         a = self.assessment_for(plan_id=plan_id)
@@ -538,7 +641,7 @@ class ProposalsMixin:
                 db.rollback()
                 raise Conflict("The decision could not be recorded in Otto's ledger, so nothing was changed.")
             db.add(OttoDecisionRow(plan_id=plan_id, proposal_id=proposal_id, kind=proposal["kind"], decision=decision, before=before, after=after,
-                                   number=number, reason=why, by=BY, at=at, proposal={**content(proposal), "about": about},
+                                   number=number, reason=why, by=BY, at=at, proposal=content(proposal),
                                    proposal_sha256=proposal["fingerprint"], objective_id=objective, claim_id=claim))
             db.commit()
         return self.otto_proposal(plan_id, proposal_id)
@@ -598,6 +701,13 @@ def _wrong_step(state: str, decision: str) -> str:
     can = {"proposed": "It can be accepted or rejected.", "accepted": "Its accept can be undone until it has run or been applied.",
            "rejected": "It can be taken up again with Reconsider."}[state]
     return f"This proposal {said}. {can}"
+
+
+def _stamp_after(stamp: str | None, moment: datetime) -> bool:
+    try:
+        return _aware(datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))) >= _aware(moment)
+    except ValueError:
+        return False
 
 
 def _aware(value: datetime) -> datetime:

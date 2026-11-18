@@ -120,6 +120,10 @@ def fix_line(fix: dict) -> dict:
     proof has passed; while the proof runs it is "prepared", and after a proof that did not pass, "not offered"."""
     def line(lead: str, rest: str, look: str, busy: bool = False) -> dict:
         return {"fix_id": fix["id"], "lead": lead, "rest": rest, "look": look, "busy": busy, "button": VIEW_IN_FIXES}
+    if fix["kind"] != "code" and (fix.get("otto_fix") or {}).get("kind") == "update":
+        # Phase 5c: a library's fix from Otto. The same two proof rows as in Fixes, word for word.
+        o = fix["otto_fix"]
+        return {**line("From Otto:", f"update {o['library']} to {o['version']}", "dashed"), "rows": [row["line"] for row in o.get("rows") or []]}
     if fix["kind"] != "code" and fix.get("real_library"):   # phase 4c: a real library; the fix is its publisher's fixed version
         return line("Text-only suggestion:", "update to the fixed version" if fix["real_library"]["fixed"] else "no fixed version is known", "dashed")
     if fix["kind"] != "code":
@@ -792,6 +796,7 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
     `result` is the worded failed result it answers; `address` is the server it is about (None for a test of the
     signing component); `tls` is the recorded outcome of a failed "Old TLS versions" test, when it is that."""
     on_server = address is not None
+    proof_rows = None      # phase 5c: a library's fix from Otto has two proof rows in place of the one Proof line
     claims = f" The file claims {join_and(tls['claimed'])} only." if tls else ""
     source = _source(titles, "server" if on_server else "signing component", address if on_server else str(result["component"]), claims)
     if tls:
@@ -802,14 +807,17 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         # publisher's fixed version with its quoted source, and how the update did when it was tried on public copies.
         o = fix["otto_fix"]
         if o["kind"] == "update":
-            proven_words = "proven on public copies" if o["state"] == "proven" else "not proven on public copies"
             quote = o.get("quote") or {}
             lines = [f"Otto proposes: update {o['library']} to {o['version']} or later. {o['summary']}"]
             if quote.get("text"):
                 lines.append(f"The publisher's own line: \u2018{quote['text']}\u2019 ({quote.get('source')}, read on {quote.get('read_on')}).")
-            lines += [o["reason"], "Then press \u201cRetest new version\u201d to rerun the same locked tests on your own version."]
-            words = {"title": f"Update {o['library']} to {o['version']} ({proven_words})",
-                     "line": "Otto's proposed fix, and how it did on public copies",
+            # Whether it is proven is said once, in the two proof rows of the summary (public copies, your system).
+            lines += [row["line"] for row in o.get("rows") or []]
+            lines.append("To prove it here: whoever owns the software updates it; then press \u201cRetest new version\u201d, which reruns "
+                         "the same locked tests on the updated version.")
+            proof_rows = o.get("rows")
+            words = {"title": f"Update {o['library']} to {o['version']}",
+                     "line": "Otto's proposed fix, with its two proof rows",
                      "what": (f"From Otto, for advisory {o['advisory']}: update the library to the version its publisher names as fixed. "
                               "This is other people's code: the app offers no code change and no pull request for it."),
                      "suggestion": {"intro": lines, "warning": None, "where": None, "options": None, "exact": None}}
@@ -847,7 +855,9 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         "labels": [OTTO_FIX_LABEL] if (fix.get("otto_fix") or {}).get("kind") == "update" else [], "is_demo": is_demo,
         "what": {"label": "What it suggests", "paragraphs": [[_t(words["what"])]], "server_line": None},
         "proof": {"state": "none", "badge": None, "muted": None,
-                  "text": "None. This suggestion is text only: the app has not applied it or tested it."},
+                  "text": ("In the two rows below: on public copies, and on your system." if proof_rows else
+                           "None. This suggestion is text only: the app has not applied it or tested it.")},
+        "proof_rows": proof_rows,
         "pull_request": None, "approvers": {"text": approves, "options": None, "rows": None, "footnote": None},
         "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None,
         "sections": [{"key": "suggestion", "title": "The suggestion", "line": words["line"], "open": True, "suggestion": words["suggestion"]}],

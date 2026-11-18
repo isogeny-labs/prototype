@@ -277,7 +277,10 @@ class OverviewMixin:
         elif len(with_results) >= 2:
             compare = self.compare_assessments(with_results[1], with_results[0])
         shared = self._shared_systems(shown, facts)
+        # Phase 5c: proposals waiting in each assessment, and what changed since the newest test pack.
+        ordered = sorted(shown, key=lambda x: (x.closed_at is not None, -x.id))
         return {"id": project_id, "rows": rows, "compare": compare, "shared": shared,
+                "otto": self.otto_project_block(ordered),      # type: ignore[attr-defined]
                 "choices": [{"id": a.id, "title": self._title(a)} for a in sorted(shown, key=lambda x: -x.id)]}
 
     def _headline(self, a: AssessmentRow) -> dict:

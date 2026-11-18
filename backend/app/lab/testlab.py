@@ -92,6 +92,9 @@ class TestLabMixin:
     _otto_cannot_run: Callable[..., str | None]            # from OttoMixin (phase 5c), as the two below; declared for the type check only
     _otto_after_review: Callable[..., None]
     otto_result_fix: Callable[..., dict | None]
+    otto_keeps_in_plan: Callable[..., str | None]          # from ProposalsMixin (phase 5c)
+    otto_result_blocks: Callable[..., dict[int, dict]]     # from ProposalsMixin (phase 5c): where an advisory check came from
+    _merged_versions: Callable[..., list[str]]             # from ChangesMixin (phase 5c): what merged changes of the plan give
 
     def _init_testlab(self) -> None:
         self._plan_lock = threading.Lock()
@@ -373,8 +376,8 @@ class TestLabMixin:
                 # ... and since Otto's checks are proposals a person accepted: the mark "From Otto", and its remove button
                 # is off (an accepted check is undone on Advisories, until it has run).
                 kept = self.otto_keeps_in_plan(db, item.id) if came_from else None
-                card["from_otto"] = "From Otto" if kept else None
-                card["remove_blocked"] = kept
+                if kept:
+                    card.update(from_otto="From Otto", remove_blocked=kept)
                 live = job is not None and job.status != "done"
                 if live:
                     state = present.status_view(job.status, job.progress_text, job.progress_percent, self.jobs.max_parallel)
@@ -891,12 +894,18 @@ class TestLabMixin:
             # The lines are worked out AFTER the rows, so they cover every result a row shows, also one whose test
             # ended while the rows were being read.
             lines = self._fix_lines(db, plan)
+            # Phase 5c: a result of an advisory check also says where the check came from (the advisory, the trial on public
+            # copies, the decisions on Otto's proposal with who and when, the Otto ledger entries). Records only, laid on
+            # here for the same reason as the fix line: a decision can be recorded after the run.
+            came_from_otto = self.otto_result_blocks(db, plan)
             for row in rows:
                 for shown in (row["result"], row["after"]):
                     if shown is not None:
                         shown["fix_line"] = lines.get(shown["run_id"])
                         if shown["fix_line"] is not None:
                             shown["suggested_fix"] = None
+                        if row["item_id"] in came_from_otto:
+                            shown["otto"] = came_from_otto[row["item_id"]]
             address, component = self._server_address(specs), self._component_words(plan)
             n_word = present.number_word(len(items))
             choices = self._retest_choices(plan, claims)
@@ -906,14 +915,17 @@ class TestLabMixin:
                            else "A retest needs a program that has another version in this app, and this file names none.")
             else:
                 blocked = BUSY[running] if busy else self._compare_blocked(plan_id, items, missing)
-            menu = self._retest_menu(plan, choices, self._merged_versions(db, plan))
+            merged = self._merged_versions(db, plan)
+            menu = self._retest_menu(plan, choices, merged)
+            # (phase 5c: a version that only a merged change of this plan leads to is listed too, and counted)
+            n_versions = len(versions) + len([v for v in merged if v not in versions])
             only_demo = all(components.lookup(p["component"], p["version"]) for p in choices)
             tests_word = f"the same {n_word} locked {'test' if len(items) == 1 else 'tests'}"
             retest_view = {"can_start": blocked is None, "blocked_reason": blocked, "running": bool(retest_live),
                            "progress_text": (f"Retest running: {after_done} of {len(items)} tests finished." if retest_live else None),
                            "menu_title": "Choose the version to retest", "versions": menu,
                            "menu_note": (f"Choosing a version reruns {tests_word} on it and shows before and after. "
-                                         f"Only our {present.number_word(len(versions))} demo versions can be chosen here." if only_demo else
+                                         f"Only our {present.number_word(n_versions)} demo versions can be chosen here." if only_demo else
                                          f"Choosing a version reruns {tests_word} with that library moved to it, and shows before and after. "
                                          "Every other program is tested again as it is. Only the versions listed here can be chosen.")}
             any_result = len(items) > missing or self._has_migration(db, plan_id)   # a migration measurement counts too

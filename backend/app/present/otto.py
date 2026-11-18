@@ -90,7 +90,7 @@ def settings_view(*, installed: list, update, refused: list[dict], scan_line: st
                "dialog": {"title": f"Install test pack {update.version}?",
                           "lines": [pack_card(update)["line"], f"Signed by: {update.signer}.",
                                     "It adds:"] + adds +
-                                   ["Nothing in a pack runs. Installing adds no check to any assessment: you add its checks on the Advisories page.",
+                                   ["Nothing in a pack runs. Installing adds no check to any assessment: Otto proposes its checks on the Advisories page, and you accept or reject each one.",
                                     "Packs install in order and are never removed."],
                           "confirm": "Install", "cancel": "Cancel"}}
     live_ready = live_on and key_present
@@ -250,8 +250,8 @@ def proposal_view(p: dict, ledger: list[dict] | None = None) -> dict:
                    else "Added before decisions were recorded.")
     elif state == "rejected":
         word, tone = not_added(last["reason"] if last else None), "neutral"
-        decided = (f"{DECISION_WORDS['reject']} by {last['by']} on {stamp(last['at'])}."
-                   + (f" Reason: {last['reason']}" if last and last.get("reason") else " No reason was given.")) if last else None
+        decided = ((f"{DECISION_WORDS['reject']} by {last['by']} on {stamp(last['at'])}."
+                    + (f" Reason: {last['reason']}" if last.get("reason") else " No reason was given.")) if last else "")
     else:
         word, tone = "Proposed", "warn"
         decided = (f"{DECISION_WORDS[last['decision']]} by {last['by']} on {stamp(last['at'])}. It is open for a decision again."
@@ -273,7 +273,7 @@ def proposal_view(p: dict, ledger: list[dict] | None = None) -> dict:
                for d in decisions]
     return {"id": p["id"], "kind": kind, "kind_label": KIND_WORDS_PROPOSAL[kind], "label": PROPOSAL_LABEL, "title": p["title"], "why": p["why"],
             "why_label": "Why it applies" if kind == "check" else "Why Otto proposes it", "lines": p["lines"],
-            "status": {"key": state, "word": word, "tone": tone}, "decided_line": decided,
+            "status": {"key": state, "word": word, "tone": tone}, "decided_line": decided, "effect": _effect(p),
             "buttons": buttons, "note": " ".join(notes) or None,
             "reject_dialog": ({"title": "Reject this proposal?", "line": "It is not deleted: it stays on the record as “Not added”, "
                                                                              "with your reason, and can be taken up again later.",
@@ -286,6 +286,183 @@ def proposal_view(p: dict, ledger: list[dict] | None = None) -> dict:
             "link": p["link"], "proposed_at": p.get("proposed_at")}
 
 
+def result_block(*, advisory_id: str, plain_name: str | None, pack_version: str, design_sha256: str, trial: list[str],
+                 ledger: list[dict], proposal: dict | None) -> dict:
+    """Evidence, on a result of an advisory check: what stands behind the check. Which advisory and which signed pack
+    it came from, the test's design by its fingerprint, how the test did when it was tried on public copies, every
+    decision on Otto's proposal with who and when, and the Otto ledger entries of the check and of those decisions.
+    It repeats records. It words no result: the result is the test's, above it on the same panel.
+    `proposal`: its `proposal_view` (None when the installed packs no longer hold this check's proposal)."""
+    history = (proposal or {}).get("history") or {}
+    rows = list(history.get("rows") or [])
+    decided = (proposal or {}).get("decided_line") or "Added before decisions were recorded."
+    name = f"{plain_name} ({advisory_id})" if plain_name else advisory_id
+    return {"label": PROPOSAL_LABEL, "title": "Where this check came from",
+            "line": f"Otto proposed this check from the advisory “{name}”, in test pack {pack_version}. {decided}",
+            "advisory": {"label": "Open the advisory", "link": {"page": "advisories", "item": advisory_id}},
+            "design": {"title": "The test's design",
+                       "lines": [f"Design fingerprint (SHA-256): {design_sha256}",
+                                 "Its question, its control that must fail and its pass rule are in the test details, locked before the run."]},
+            "trial": {"title": "How the test did when it was tried on public copies", "lines": trial} if trial else None,
+            "decisions": {"title": "Decisions on Otto's proposal", "count": len(rows), "rows": rows, "footnote": ONE_LOGIN,
+                          "empty": None if rows else "No decision is on record: this check was added before decisions were recorded."},
+            "ledger": {"title": "Otto ledger entries for this check and its decisions", "count": len(ledger), "entries": _entries(ledger),
+                       "note": ("The lock entry was written before the check could run; each reviewed run and each decision added an "
+                                "entry. The ledger holds no result.")},
+            "note": "This says where the check came from and who decided to add it. The result comes only from the test."}
+
+
+def project_block(rows: list[dict], pack: dict | None) -> dict:
+    """The Project overview's block about Otto: proposals waiting in each assessment, and what changed since the newest
+    test pack. `rows`: {"assessment", "waiting": counts by kind, "since": facts or None, "why"}. Counts only."""
+    out = []
+    for row in rows:
+        a = row["assessment"]
+        total = sum(row["waiting"].values())
+        since_lines: list[str] = []
+        s = row["since"]
+        if s is not None:
+            b = s["brought"]
+            brought = sum(b.values())
+            if brought:
+                parts = [f"{b['proposed']} waiting" if b["proposed"] else "", f"{b['accepted']} added" if b["accepted"] else "",
+                         f"{b['rejected']} not added" if b["rejected"] else ""]
+                since_lines.append(f"It brought {_count(brought, 'proposed check')} for this assessment: " + ", ".join(x for x in parts if x) + ".")
+            else:
+                since_lines.append("It brought no check that fits this assessment's file.")
+            if s["decisions"]:
+                since_lines.append(f"{_count(s['decisions'], 'decision')} recorded since.")
+            if s["results"]:
+                tally: dict[str, int] = {}
+                for label in s["results"]:
+                    tally[label] = tally.get(label, 0) + 1
+                since_lines.append("Advisory checks run since: " + ", ".join(f"{n} {label}" for label, n in tally.items()) + ".")
+        elif row.get("why"):
+            since_lines.append(row["why"])
+        out.append({"assessment_id": a.id, "title": a.name or f"Assessment {a.number}", "waiting": total,
+                    "waiting_text": (f"{_count(total, 'proposal')} waiting for a decision" if total else "Nothing waiting"),
+                    "link": {"page": "overview", "item": None, "group": None, "assessment_id": a.id},
+                    "since": since_lines})
+    return {"title": "Otto in this project",
+            "note": "Otto proposes; a person decides. The counts below repeat what each assessment's own pages say.",
+            "pack_line": (f"Newest test pack: {pack['version']}, installed on {stamp(pack['installed_at'])}." if pack
+                          else "No test pack is installed yet, so Otto has proposed nothing."),
+            "since_title": f"What changed since pack {pack['version']}" if pack else None,
+            "rows": out}
+
+
+def found_line(*, packs: int, ready: int, programs: list[str]) -> dict:
+    """Import's line about Otto, after a file is in: how many checks of the installed test packs may apply to it.
+    A count and a link; nothing is added or run by bringing a file in."""
+    count = ready * len(programs)
+    if not packs:
+        return {"count": 0, "label": PROPOSAL_LABEL,
+                "text": "Otto has nothing to propose for this file yet: no test pack is installed.",
+                "note": "Test packs are installed in Settings. Nothing runs on import.",
+                "link": {"page": "settings", "item": None, "section": "test-packs"}, "link_label": "Open Settings"}
+    if not count:
+        why = ("no signing program in this file checks ECDSA P-256 signatures" if not programs
+               else "no advisory in the installed test packs has a test yet")
+        return {"count": 0, "label": PROPOSAL_LABEL, "text": f"Otto found no check that may apply to this file: {why}.",
+                "note": "Nothing runs on import.", "link": {"page": "advisories", "item": None}, "link_label": "Open Advisories"}
+    return {"count": count, "label": PROPOSAL_LABEL,
+            "text": (f"Otto found {count} {'check' if count == 1 else 'checks'} that may apply: {ready} published "
+                     f"{'weakness' if ready == 1 else 'weaknesses'} with a test, for {', '.join(programs)}."),
+            "note": "Nothing runs on import. You accept or reject each proposed check on Advisories.",
+            "link": {"page": "advisories", "item": None}, "link_label": "Open Advisories"}
+
+
+def _effect(p: dict) -> str | None:
+    """What an accepted proposal has led to so far, in one line (None while it is not accepted). It repeats records; a
+    "passed" in it is the reviewer's result, with its date."""
+    if p["state"] != "accepted":
+        return None
+    facts, kind, about = p.get("facts") or {}, p["kind"], p.get("about") or {}
+    if kind == "check":
+        return "It is in the test plan, on Checks." + ("" if facts.get("runs") else " It has not run yet.")
+    if kind == "fix" and facts.get("code"):
+        return ("The code is connected: the change is on its branch and takes the proof, review and merge path below." if facts.get("connected")
+                else "Next: Connect demo code. The change goes on a branch, and the proof reruns every locked test on it.")
+    if kind == "fix":
+        return ("A retest has run on the updated version: the two proof rows say what it showed." if facts.get("retested")
+                else "Next: whoever owns the software updates it; then press Retest.")
+    if kind == "plan":
+        done = facts.get("done")
+        if done:
+            return (f"Done: a newer result of this check passed on {about.get('program', 'the program').split(' ')[0]} "
+                    f"{done.get('version') or ''}".rstrip() + (f", on {stamp(done.get('at'))}." if done.get("at") else "."))
+        return "On the plan: something to fix first, on the Signatures track."
+    return f"Marked “update first”: to {about.get('fixed')}." if about.get("fixed") else "Marked “update first”."
+
+
+MEASURED_WORDS = {"affected": ("measured affected", "fail"), "not_affected": ("measured not affected", "pass"),
+                  "not_checked": ("not yet checked", "neutral")}
+NOT_CHECKED_WHY = {
+    "no_test": "This advisory has no test yet, so nothing can be measured.",
+    "not_in_file": ("No check has run on {lib} here. An advisory check runs on the signing programs your scanner file names, and this "
+                    "library is in the dependency list only."),
+    "not_added": "Otto proposes a check for it on Advisories. It is not in the test plan.",
+    "not_run": "Its check is in the test plan and has not run yet.",
+    "couldnt": "Its check could not run, or its run could not be trusted. Checks has the reason.",
+}
+
+
+def named_line(n: dict, fix_link: dict | None) -> dict:
+    """One line of a library's row on Dependencies: "Named by advisory X: measured affected", "measured not affected" or
+    "not yet checked", with its one plain sentence. "Measured" is only ever this assessment's own reviewed result of
+    that advisory's check on the same library and version; everything else reads "not yet checked", with the reason."""
+    m = n["measured"]
+    word, tone = MEASURED_WORDS[m["state"]]
+    lib = f"{n['library']} {n['version']}"
+    if m["state"] == "affected":
+        detail = f"The advisory check failed on {lib} in this assessment."
+    elif m["state"] == "not_affected":
+        detail = (f"The advisory check passed on {lib} in this assessment: the published cases chosen for this advisory got the right "
+                  "answer.")
+    else:
+        detail = NOT_CHECKED_WHY[m.get("why") or "not_in_file"].format(lib=lib)
+    return {"id": n["advisory"], "name": n["plain_name"], "line": f"Named by advisory {n['advisory']}: {word}",
+            "state": {"key": m["state"], "label": word, "tone": tone}, "detail": detail,
+            "fixed_line": f"Its publisher names {n['fixed']} as the fixed version; your list has {n['version']}.",
+            "advisory_link": {"page": "advisories", "item": n["advisory"]},
+            "evidence_link": {"page": "evidence", "item": f"test-{m['item_id']}"} if m.get("run_id") else None,
+            "fix_link": fix_link, "fix_label": "See the proposed fix" if fix_link else None}
+
+
+def dependency_status(views: list[dict]) -> dict | None:
+    """The status a library carries once a person accepted Otto's proposal for it."""
+    accepted = [v for v in views if v["status"]["key"] == "accepted"]
+    if not accepted:
+        return None
+    return {"label": "Update first", "tone": "warn", "lines": [v["effect"] + " " + (v["decided_line"] or "") for v in accepted]}
+
+
+def plan_block(views: list[dict]) -> dict | None:
+    """A system's block of Otto's proposed plan changes on Migration: each with Accept and Reject. An accepted one is
+    listed as something to fix first; it changes no status, no recommendation and no measured fact."""
+    if not views:
+        return None
+    return {"title": "From Otto: proposed changes to this system's plan",
+            "note": ("Otto proposes these from results. Accept adds one to the plan as something to fix first; Reject keeps the plan as "
+                     "it was, with your reason. Neither changes a status or a measurement."),
+            "proposals": views}
+
+
+def roadmap_mark(views: list[dict]) -> dict | None:
+    """The mark on a roadmap row whose system has a proposal of Otto's: a count of those waiting, or what was accepted."""
+    if not views:
+        return None
+    waiting = len([v for v in views if v["status"]["key"] == "proposed"])
+    accepted = [v for v in views if v["status"]["key"] == "accepted"]
+    if waiting:
+        text = f"{_count(waiting, 'proposal')} waiting for your decision"
+    elif accepted:
+        text = accepted[0]["effect"] or "Accepted"
+    else:
+        text = views[0]["status"]["word"]
+    return {"label": PROPOSAL_LABEL, "text": text, "tone": "warn" if waiting else "neutral", "waiting": waiting}
+
+
 def waiting_view(counts: dict[str, int]) -> dict:
     """The Overview's "Waiting for you" line: how many of Otto's proposals nobody has decided yet, each kind linking to
     the page it lives on. It counts; it decides nothing."""
@@ -296,7 +473,7 @@ def waiting_view(counts: dict[str, int]) -> dict:
     items = [{"kind": kind, "count": counts.get(kind, 0),
               "text": f"{counts[kind]} {one if counts[kind] == 1 else many}", "link": {"page": page, "item": None}, "page_label": label}
              for kind, (one, many, page, label) in words.items() if counts.get(kind)]
-    total = sum(i["count"] for i in items)
+    total = sum(int(counts.get(kind) or 0) for kind in words)
     return {"title": "Waiting for you", "total": total, "items": items,
             "line": (f"{total} {'proposal' if total == 1 else 'proposals'} from Otto {'waits' if total == 1 else 'wait'} for your decision."
                      if total else "Nothing from Otto is waiting for a decision."),

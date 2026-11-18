@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api, errorMessage, type AssessmentView, type OverviewFact, type OverviewGroup, type Workspace } from "../../api";
+import { api, errorMessage, type AssessmentView, type OttoWaiting, type OverviewFact, type OverviewGroup, type Workspace } from "../../api";
 import type { Page } from "../../router";
 import { PageHeader } from "../layout";
 import { ItemLinkView } from "../related";
@@ -41,6 +41,40 @@ function GroupBlock({ group }: { group: OverviewGroup }) {
         {group.fixes ? <Counts label="Fixes" counts={group.fixes} link={{ page: "fixes", group: group.key }} /> : null}
         {group.empty_text ? <p className="text-slate-400">{group.empty_text}</p> : null}
       </div>
+    </section>
+  );
+}
+
+/** Phase 5c: "Waiting for you". How many of Otto's proposals nobody has decided yet, each kind a link to the page it
+ * lives on. Every word and count is the backend's; the block opens pages and decides nothing. With nothing waiting it
+ * keeps its one calm line and shows no link. */
+function WaitingBlock({ waiting }: { waiting: OttoWaiting }) {
+  const some = waiting.total > 0;
+  return (
+    <section
+      aria-label={waiting.title}
+      data-testid="overview-waiting"
+      data-total={waiting.total}
+      className={`mb-4 rounded-xl border bg-slate-900/50 p-5 text-sm ${some ? "border-slate-600" : "border-slate-800"}`}
+    >
+      <p className="text-xs font-medium uppercase tracking-wider text-slate-500">{waiting.title}</p>
+      <p data-testid="waiting-line" className={`mt-1.5 break-words ${some ? "text-slate-100" : "text-slate-400"}`}>
+        {waiting.line}
+      </p>
+      {some && waiting.items.length > 0 ? (
+        <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+          {waiting.items.map((item) => (
+            <li key={item.kind} data-testid="waiting-item" data-kind={item.kind} data-count={item.count}>
+              <ItemLinkView link={item.link} testId="waiting-link">
+                {item.text}
+              </ItemLinkView>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p data-testid="waiting-note" className="mt-2 break-words text-xs text-slate-400">
+        {waiting.note}
+      </p>
     </section>
   );
 }
@@ -188,6 +222,9 @@ export function OverviewPage({
           onSubmit={(_n, dest) => void act(() => api.changeAssessment(assessment.id, { project_id: Number(dest) }))}
         />
       ) : null}
+
+      {/* Phase 5c: Otto's proposals that wait for a decision come first; an answer from before they existed has none. */}
+      {assessment.waiting ? <WaitingBlock waiting={assessment.waiting} /> : null}
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <section aria-label="Next step" data-testid="next-step" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">

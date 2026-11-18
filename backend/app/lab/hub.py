@@ -70,12 +70,17 @@ def import_json(i: ImportRow, settings: list[dict] | None = None) -> dict:
             "settings_title": present_migration.FILE_SETTINGS_TITLE, "settings": settings or []}
 
 
+# Phase 5c: Verify is unchanged (its trust gap is the next phase), and Otto proposes nothing on it yet. The page says so.
+VERIFY_OTTO_NOTE = ("Otto has no proposals here yet. In this version Otto's checks are for signing programs and libraries; "
+                    "its checks of servers come in a later phase. Verify works as before.")
+
+
 def run_json(r: VerifyRunRow) -> dict:
     # A row stored before phase 3a-fixes has no plain sentence or notes of its own: it gets a plain fallback.
     results = [{**res, "summary": res.get("summary") or plain.verify_fallback(res.get("result", ""), res.get("found", "")),
                 "also_noticed": res.get("also_noticed") or []} if isinstance(res, dict) else res for res in r.results or []]
     return {"id": r.id, "import_id": r.import_id, "started_at": iso(r.started_at), "finished_at": iso(r.finished_at),
-            "results": results}
+            "results": results, "otto_note": VERIFY_OTTO_NOTE}
 
 
 class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin,
@@ -361,14 +366,14 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             # Phase 5a: the import goes into its assessment (or, with none given, the "Imported without a project" project).
             placed = self.attach_import(db, row.id, assessment_id)
             db.commit()
-            return {**import_json(row, self._file_settings(db, row)), "assessment_id": placed}
+            return {**import_json(row, self._file_settings(db, row)), "assessment_id": placed, "otto": self.otto_found(db, row)}
 
     def import_json_for(self, import_id: int) -> dict:
         with self.db() as db:
             row = db.get(ImportRow, import_id)
             if row is None:
                 raise NotFound("That import does not exist.")
-            return import_json(row, self._file_settings(db, row))
+            return {**import_json(row, self._file_settings(db, row)), "otto": self.otto_found(db, row)}
 
     @staticmethod
     def _file_settings(db, imp: ImportRow) -> list[dict]:
@@ -414,7 +419,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             if row is None or row.id <= cleared:
                 raise NotFound("Nothing is imported at the moment.")
             placed = db.scalars(select(AssessmentRow.id).where(AssessmentRow.import_id == row.id)).first()
-            return {**import_json(row, self._file_settings(db, row)), "assessment_id": placed}
+            return {**import_json(row, self._file_settings(db, row)), "assessment_id": placed, "otto": self.otto_found(db, row)}
 
     def confirm_address(self, import_id: int, address: str, confirmed: bool) -> dict:
         try:

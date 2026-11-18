@@ -308,7 +308,14 @@ def _fix_entry(lab, db, fix: dict, shown: dict) -> dict:
              "proof_summary": {"state": said.get("state"), "label": (said.get("badge") or {}).get("label"), "text": said.get("text")},
              "source": {"kind": fix["source_kind"], "text": shown.get("list_source"),
                         "results": [_pick(answer, ("item_id", "kind", "run_id", "phase")) for answer in fix["answers"]]},
-             "suggestion": _suggestion(shown), "change": None, "proofs": [], "pull_request": None, "approvals": [], "merge": None}
+             "suggestion": _suggestion(shown), "change": None, "proofs": [], "pull_request": None, "approvals": [], "merge": None,
+             # Phase 5c: a library's fix from Otto has two proof rows, in the same words as on the screens ...
+             "proof_rows": [{"label": row["label"], "word": row["badge"]["label"], "text": row["text"], "line": row["line"]}
+                            for row in shown.get("proof_rows") or []] or None,
+             # ... and a fix of Otto's is a proposal: where the person's decisions on it stand (the decisions themselves,
+             # with who and when, are in the Otto part of this file)
+             "proposal": ({"id": shown["proposal"]["id"], "label": shown["proposal"]["label"], "status": shown["proposal"]["status"]["word"],
+                           "decided": shown["proposal"]["decided_line"]} if shown.get("proposal") else None)}
     change, request, merge = fix["change"], fix["pull_request"], fix["merge"]
     if change is None:
         return entry
@@ -773,6 +780,12 @@ def _fix_html(fix: dict) -> _Safe:
         # the reason behind the status, in the summary's own words (so "Proof failed" never stands beside a
         # proof that passed without saying why)
         parts.append(el("p", *([el("strong", t(f"{said.get('label')}:")), _Safe(" ")] if said.get("label") else []), t(said.get("text"))))
+    proposal = fix.get("proposal")
+    if proposal:
+        parts.append(el("p", _tag(proposal.get("label")), _Safe(" "), el("strong", t(f"{proposal.get('status')}.")), _Safe(" "),
+                        t(proposal.get("decided"))))
+    for row in fix.get("proof_rows") or []:
+        parts.append(el("p", el("strong", t(f"{row.get('label')}: {row.get('word')}.")), _Safe(" "), t(row.get("text"))))
     if suggestion:
         parts += _suggestion_html(suggestion, text_only=fix.get("status") == "Text only")
     if change:
@@ -1098,6 +1111,22 @@ def _otto_html(otto: dict | None) -> list:
                                    el("code", t(s.get("prompt_sha256"))), t(", answer SHA-256 "), el("code", t(s.get("answer_sha256"))), t("."))
                                 for s in steps], cls="meta"))
         parts.append(el("p", t("Each prompt and answer is in the JSON file in full."), cls="note"))
+    proposals = otto.get("proposals") or []
+    if proposals:
+        words = {"accept": "Accepted", "reject": "Rejected", "undo": "Accept undone", "reconsider": "Taken up again"}
+        parts.append(el("h3", t("Otto's proposals, and the decisions on them")))
+        parts.append(el("p", t(otto.get("decisions_note")), cls="note"))
+        rows = []
+        for p in proposals:
+            decisions = [el("li", t(f"{words.get(d.get('decision'), d.get('decision'))} by {d.get('by')}, "), _when(d.get("at")),
+                            *([t(f". Reason: {d.get('reason')}")] if d.get("reason") else []), t("."))
+                         for d in p.get("decisions") or []]
+            rows.append(el("tr", el("td", el("p", el("strong", t(p.get("title")))), el("p", t(p.get("why"))), cls="words"),
+                           el("td", t(p.get("kind"))), el("td", t(p.get("status"))),
+                           el("td", el("ul", *decisions, cls="meta") if decisions else t("Nobody has decided this yet."), cls="words")))
+        parts.append(el("table", el("thead", el("tr", el("th", t("What Otto proposed"), cls="words"), el("th", t("Kind")),
+                                                 el("th", t("Stands")), el("th", t("Decisions"), cls="words"))),
+                        el("tbody", *rows)))
     parts.append(el("p", t("To check the packs' signatures and the ledger together with the file's own signature: " + VERIFY_COMMAND), cls="note"))
     return parts
 

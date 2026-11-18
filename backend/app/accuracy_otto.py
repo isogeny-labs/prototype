@@ -6,11 +6,14 @@ every question and the values an answer can take):
 
   - the two shipped test packs: their order, each advisory's test and fix state, the trial figures the packs carry,
     and that a changed pack, a pack signed by an unknown key and a pack installed out of order are refused;
-  - the Acme Pay demo file: Check for updates, Install, Add new checks, Run all; the fix for the failed advisory
-    check (whether Otto's own change is offered, and what is connected), its proof, approval, merge and Retest now;
-    the second pack; the evidence file and the verify command on it and on changed copies, and --previous;
-  - the Real libraries file (isolated mode only): every advisory check on every library, the fixes Otto proposes, and
-    the three retests. In demo mode a real library's advisory check must read "Couldn't run (needs isolated mode)".
+  - the Acme Pay demo file: Check for updates, Install; Otto's proposed checks, each decided by itself (accept,
+    reject with a reason, undo, reconsider; accepting runs nothing); Run all; Otto's proposed fix for the failed
+    advisory check (refused before its accept; then accepted, connected, proven, approved, merged, Retest now);
+    Otto's proposed change to the migration plan; the second pack and the check it proposes; the evidence file with
+    every decision in it, and the verify command on it and on changed copies, and --previous;
+  - the Real libraries file (isolated mode only): every advisory check on every library, the fixes Otto proposes with
+    their two proof rows, and the three retests. In demo mode a real library's advisory check must read
+    "Couldn't run (needs isolated mode)".
 
 The answer key is written independently of the build (it is not in the repository until its author adds it) and is
 never written here. With no key, the answers are printed and nothing is graded. Otto must be installed: without the
@@ -83,6 +86,32 @@ def _own_change(fix: dict | None) -> str:
     if "No recorded answer" in note:
         return "not offered: no recorded answer"
     return "not offered: the answer was not a clean change" if note else "not asked"
+
+
+def _proposed(lab: Lab, plan_id: int, kind: str) -> list[dict]:
+    """Otto's proposals of one kind in this assessment, as the app works them out now."""
+    return [p for p in lab.otto_proposals(plan_id, (kind,)) if p["current"]]
+
+
+def _status(lab: Lab, plan_id: int, proposal_id: str) -> str:
+    """The word a screen shows for where one proposal stands ("Proposed", "Added", "Accepted", "Not added (reason)")."""
+    return next(p["status"]["word"] for p in lab.otto_proposals_view(plan_id)["proposals"] if p["id"] == proposal_id)
+
+
+def _accept_each_check(lab: Lab, plan_id: int) -> int:
+    """Accept every proposed check, one decision at a time (there is no button that decides several). Returns how many."""
+    waiting = [p for p in _proposed(lab, plan_id, "check") if p["state"] == "proposed"]
+    for proposal in waiting:
+        lab.otto_decide(plan_id, proposal["id"], "accept")
+    return len(waiting)
+
+
+def _runs(lab: Lab, plan_id: int) -> int:
+    from sqlalchemy import func
+
+    from app.db import TestRunRow
+    with lab.db() as db:
+        return int(db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_id == plan_id)) or 0)
 
 
 def _advisory_rows(lab: Lab, plan_id: int) -> dict[tuple[str, str], dict]:
@@ -169,12 +198,35 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                     answers["pack.refused.out_of_order"] = "accepted"
                 except Conflict:
                     answers["pack.refused.out_of_order"] = "refused"
-            progress("  ... Acme Pay: Check for updates, Install, Add new checks, Run all")
+            progress("  ... Acme Pay: Check for updates, Install, Otto's proposed checks (accept, reject, undo, reconsider), Run all")
             update = lab.check_pack_updates()["packs"]["update"]
             answers["acme.update_found"] = update["version"] if update else None
             lab.install_pack(found[0].version)
-            view = lab.add_new_checks(pid)
+            answers["acme.import.checks_that_may_apply"] = lab.import_json_for(imp["id"])["otto"]["count"]
+            runs_before = _runs(lab, pid)
+            proposed = _proposed(lab, pid, "check")
+            answers["acme.proposals.checks_proposed_from_first_pack"] = len(proposed)
+            answers["acme.proposals.every_check_says_why_it_applies"] = all(p["why"].strip() for p in proposed)
+            answers["acme.waiting_for_you.before_any_decision"] = lab.assessment_view(_assessment_id(lab, pid))["waiting"]["total"]
+            if len(proposed) >= 2:
+                first_id, second_id = proposed[0]["id"], proposed[1]["id"]
+                lab.otto_decide(pid, first_id, "accept")
+                answers["acme.decision.accept.status"] = _status(lab, pid, first_id)
+                lab.otto_decide(pid, second_id, "reject", "Not this quarter")
+                answers["acme.decision.reject.status"] = _status(lab, pid, second_id)
+                answers["acme.decision.reject.kept_on_record"] = any(p["id"] == second_id for p in lab.otto_proposals(pid, ("check",)))
+                lab.otto_decide(pid, first_id, "undo")
+                answers["acme.decision.undo.status"] = _status(lab, pid, first_id)
+                answers["acme.decision.undo.check_left_the_plan"] = not any(t["kind"] == "advisory_cases" for t in lab.plan_view(pid)["tests"])
+                lab.otto_decide(pid, first_id, "accept")
+                lab.otto_decide(pid, second_id, "reconsider")
+                answers["acme.decision.reconsider.status"] = _status(lab, pid, second_id)
+                lab.otto_decide(pid, second_id, "accept")
+            _accept_each_check(lab, pid)
+            view = lab.advisories_view(pid)
             answers["acme.checks_added_from_first_pack"] = sum(1 for r in view["rows"] if r["result"]["key"] == "not_run")
+            answers["acme.decision.accepting_ran_nothing"] = _runs(lab, pid) == runs_before
+            answers["acme.checks.marked_from_otto"] = sum(1 for t in lab.plan_view(pid)["tests"] if t.get("from_otto") == "From Otto")
             lab.run_all(pid)
             lab.wait_until_idle(pid, WAIT_SECONDS)
             first = _advisory_rows(lab, pid)
@@ -188,7 +240,25 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             fix = next((f for f in lab.fix_states(pid) if f["kind"] == "code"), None)
             answers["acme.fix.written_by_before_connect"] = "otto" if fix and fix.get("otto") else "fix_template" if fix else None
             answers["acme.fix.ottos_own_change"] = _own_change(fix)
-            if fix is not None:
+            # after the first run an accepted check can no longer be undone
+            ran = next((p for p in _proposed(lab, pid, "check") if p["state"] == "accepted"), None)
+            answers["acme.decision.undo_after_a_run"] = "refused" if ran is not None and ran["actions"].get("undo") else "allowed"
+            fix_proposal = next((p for p in _proposed(lab, pid, "fix")), None)
+            answers["acme.fix.proposal.status_before_a_decision"] = _status(lab, pid, fix_proposal["id"]) if fix_proposal else None
+            plan_proposal = next((p for p in _proposed(lab, pid, "plan")), None)
+            answers["acme.plan.proposal.made_after_the_failed_check"] = plan_proposal is not None
+            if fix is not None and fix_proposal is not None:
+                try:
+                    lab.connect_code(pid)
+                    answers["acme.fix.connect_before_accept"] = "connected"
+                except Conflict:
+                    answers["acme.fix.connect_before_accept"] = "refused"
+                lab.otto_decide(pid, fix_proposal["id"], "accept")
+                answers["acme.fix.proposal.status_after_accept"] = _status(lab, pid, fix_proposal["id"])
+            if plan_proposal is not None:
+                lab.otto_decide(pid, plan_proposal["id"], "accept")
+                answers["acme.plan.proposal.status_after_accept"] = _status(lab, pid, plan_proposal["id"])
+            if fix is not None and next((f for f in lab.fix_states(pid) if f["kind"] == "code"), {}).get("change") is None:
                 lab.connect_code(pid)
                 lab.wait_until_idle(pid, WAIT_SECONDS)
                 fix = next(f for f in lab.fix_states(pid) if f["kind"] == "code")
@@ -215,6 +285,9 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                         answers[f"acme.after_merge.{advisory}.program"] = (row["after"] or {}).get("component")
                         answers[f"acme.after_merge.{advisory}.same_locked_test"] = bool(
                             row["result"] and row["after"] and row["result"]["locked_test"]["fingerprint"] == row["after"]["locked_test"]["fingerprint"])
+                    if plan_proposal is not None:      # the accepted plan change reads done once the check passes on the fixed code
+                        after = lab.otto_proposal(pid, plan_proposal["id"])
+                        answers["acme.plan.proposal.done_after_the_retest"] = bool(after["facts"].get("done"))
             older_raw = lab.evidence_file(lab.export_evidence(pid)["id"], "json")[1]
             if len(found) > 1:
                 progress("  ... Acme Pay: the second pack")
@@ -223,7 +296,7 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 answers["acme.second_pack.next_step_page"] = lab.assessment_view(_assessment_id(lab, pid))["next_step"]["page"]
                 answers["acme.second_pack.checks_ready_to_add"] = lab.otto_new_checks(pid)
                 before = set(_advisory_rows(lab, pid))
-                lab.add_new_checks(pid)
+                _accept_each_check(lab, pid)
                 added = [key for key in _advisory_rows(lab, pid) if key not in before]
                 answers["acme.checks_added_from_second_pack"] = len(added)
                 lab.run_all(pid)
@@ -252,8 +325,10 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 return _verify(["verify", str(folder / "changed.json"), *data])[0]
 
             def line_changed(otto: dict) -> None:
-                otto["ledger"]["lines"][1] = otto["ledger"]["lines"][1].replace('"phase":"first"', '"phase":"retest"', 1).replace(
-                    '"advisory":"', '"advisory":"X', 1)
+                # one entry's content, changed: the first entry that names an advisory (a lock entry)
+                lines = otto["ledger"]["lines"]
+                place = next(n for n, line in enumerate(lines) if '"advisory":"' in line)
+                lines[place] = lines[place].replace('"advisory":"', '"advisory":"X', 1)
 
             def line_removed(otto: dict) -> None:
                 del otto["ledger"]["lines"][1]
@@ -263,6 +338,21 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 otto["packs"] = [json.loads(canonical_bytes(found[-1].envelope))] if len(found) > 1 else []
                 otto["packs"] = otto["packs"][:1] if len(otto["packs"]) > 1 else otto["packs"]
 
+            def decision_changed(otto: dict) -> None:
+                decided = next(p for p in otto["proposals"] if p["decisions"])
+                decided["decisions"][0]["by"] = "Someone else"
+
+            def decision_removed(otto: dict) -> None:
+                decided = next(p for p in otto["proposals"] if len(p["decisions"]) == 1)
+                decided["decisions"], decided["state"] = [], "proposed"
+
+            otto_part = json.loads(newer_raw)["evidence"]["otto"]
+            answers["evidence.decisions_in_the_file"] = sum(len(p["decisions"]) for p in otto_part["proposals"])
+            answers["evidence.every_decision_names_who_and_when"] = all(d["by"] and d["at"] for p in otto_part["proposals"] for d in p["decisions"])
+            answers["evidence.rejected_proposal_with_its_reason"] = any(d["decision"] == "reject" and d["reason"] == "Not this quarter"
+                                                                        for p in otto_part["proposals"] for d in p["decisions"])
+            answers["evidence.decision_changed_and_signed_again"] = resigned(decision_changed)
+            answers["evidence.decision_removed_and_signed_again"] = resigned(decision_removed)
             answers["evidence.ledger_line_changed_and_signed_again"] = resigned(line_changed)
             answers["evidence.ledger_line_removed_and_signed_again"] = resigned(line_removed)
             answers["evidence.pack_swapped_and_signed_again"] = resigned(pack_swapped)
@@ -282,7 +372,8 @@ def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             for pack in found:
                 lab.check_pack_updates()
                 lab.install_pack(pack.version)
-            lab.add_new_checks(pid)
+            answers["real.proposals.checks_proposed"] = len(_proposed(lab, pid, "check"))
+            _accept_each_check(lab, pid)
             if lab.mode.name != "isolated":
                 progress("  ... Real libraries, in demo mode: an advisory check on a real library must not run")
                 item = next(t["id"] for t in lab.plan_view(pid)["tests"] if t["kind"] == "advisory_cases")
@@ -302,6 +393,19 @@ def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 if "From Otto" in (fix.get("labels") or []):
                     answers[f"real.fix.{fix['title']}"] = fix["labels"]
             answers["real.fixes_from_otto"] = sorted(f["title"] for f in lab.fixes_view(pid)["fixes"] if "From Otto" in (f.get("labels") or []))
+
+            def proof_rows() -> dict[str, dict[str, str]]:
+                """{the fix's title: {"public": the first row's word, "here": the second row's word}} for Otto's library fixes."""
+                return {f["title"]: {row["key"]: row["badge"]["label"] for row in f.get("proof_rows") or []}
+                        for f in lab.fixes_view(pid)["fixes"] if f.get("proof_rows")}
+            for title, rows in proof_rows().items():
+                answers[f"real.fix.{title}.proven_on_public_copies"] = rows.get("public")
+                answers[f"real.fix.{title}.proven_on_your_system_before_a_retest"] = rows.get("here")
+            # each of Otto's fixes is a proposal: accepted here one by one, which runs nothing
+            waiting = [p for p in _proposed(lab, pid, "fix") if p["state"] == "proposed"]
+            answers["real.fix.proposals_waiting"] = len(waiting)
+            for proposal in waiting:
+                lab.otto_decide(pid, proposal["id"], "accept")
             # a failed advisory check on a program the advisory is not about: the pack holds no fix for it
             answers["real.failed_checks_with_no_fix_from_otto"] = sorted(
                 str(f.get("list_source")) for f in lab.fixes_view(pid)["fixes"]
@@ -314,6 +418,9 @@ def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                     if program.startswith(name + " "):
                         answers[f"real.retest.{name} {version}.{advisory}.result"] = (row["after"] or {}).get("label")
                         answers[f"real.retest.{name} {version}.{advisory}.wrong_cases"] = _wrong(lab, row["after"])
+                for title, rows in proof_rows().items():
+                    if title == f"Update {name} to {version}":
+                        answers[f"real.fix.{title}.proven_on_your_system_after_the_retest"] = rows.get("here")
         finally:
             lab.stop()
 

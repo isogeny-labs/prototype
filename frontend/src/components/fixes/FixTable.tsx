@@ -1,7 +1,9 @@
 import { useState } from "react";
 import type { FixDetail, FixGroup } from "../../api";
 import { DataTable, FilterSelect, GroupSection, SearchInput, Toolbar, type Column } from "../layout";
+import { FromOttoTag } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
+import { StatusChip as ToneChip } from "../ui";
 import { StatusChip } from "./parts";
 
 interface Props {
@@ -32,7 +34,8 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, group = n
   const keep = (fix: FixDetail) =>
     fix.id === selectedId ||
     ((statusFilter === "all" || fix.status.word === statusFilter) &&
-      (!needle || [fix.title, fix.list_source, fix.status.word].some((t) => t.toLowerCase().includes(needle))));
+      (!needle ||
+        [fix.title, fix.list_source, fix.status.word, fix.proposal?.status.word ?? ""].some((t) => t.toLowerCase().includes(needle))));
 
   const columns: Column<FixDetail>[] = [
     {
@@ -40,17 +43,27 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, group = n
       header: "Fix",
       minWidth: 180,
       render: (fix) => (
-        <button
-          type="button"
-          aria-current={fix.id === selectedId ? "true" : undefined}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect(fix.id);
-          }}
-          className="text-left text-sm font-medium text-slate-100 hover:text-sky-300"
-        >
-          {fix.title}
-        </button>
+        <>
+          <button
+            type="button"
+            aria-current={fix.id === selectedId ? "true" : undefined}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect(fix.id);
+            }}
+            className="text-left text-sm font-medium text-slate-100 hover:text-sky-300"
+          >
+            {fix.title}
+          </button>
+          {/* Phase 5c: a fix of Otto's is a proposal. Its tag and where a person's decisions on it stand, in the view's
+              words, under the name: so the full table and the compact one (beside an open panel) both show them. */}
+          {fix.proposal ? (
+            <span data-testid="fix-proposal-mark" className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+              <FromOttoTag label={fix.proposal.label} testId="fix-proposal-label" />
+              <ToneChip label={fix.proposal.status.word} tone={fix.proposal.status.tone} size="sm" wrap testId="fix-proposal-status" />
+            </span>
+          ) : null}
+        </>
       ),
     },
     {

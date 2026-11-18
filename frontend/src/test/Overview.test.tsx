@@ -1,11 +1,40 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { AssessmentView, OttoWaiting } from "../api";
 import App from "../App";
 import { calls, mockApi, plan, session, text } from "./fixtures";
-import { advisoriesNotAdded, nextStepAdvisories, nextStepVerify } from "./ottoFixtures";
 import { ONE_LOGIN_LINE, OVERVIEW_BLOCKS, acmeRoutes, assessmentView, closedAssessment, emptyAssessment, emptyWorkspace, openAssessment } from "./shellFixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
+
+/** The Overview's next step before the claims were verified, as the backend words it. */
+const nextStepVerify: AssessmentView["next_step"] = { page: "inventory/import", label: "Verify claims", text: "Check each claim in the file against the real system." };
+
+/** The Overview's next step while proposed checks of Otto's wait for a decision (phase 5c), as the backend words it. */
+const nextStepAdvisories: AssessmentView["next_step"] = {
+  page: "advisories",
+  label: "Open advisories",
+  text: "Otto proposes 2 advisory checks from the installed test packs. Accept or reject each one: accepting runs nothing.",
+};
+
+/** "Waiting for you" (phase 5c) as the backend sends it: Otto's proposals nobody has decided yet, by kind. */
+const WAITING: OttoWaiting = {
+  title: "Waiting for you",
+  total: 5,
+  items: [
+    { kind: "check", count: 2, text: "2 proposed checks", link: { page: "advisories", item: null }, page_label: "Advisories" },
+    { kind: "fix", count: 1, text: "1 proposed fix", link: { page: "fixes", item: null }, page_label: "Fixes" },
+    { kind: "plan", count: 1, text: "1 proposed change to the migration plan", link: { page: "migration/systems", item: null }, page_label: "Migration" },
+    { kind: "dependency", count: 1, text: "1 proposed dependency update", link: { page: "migration/dependencies", item: null }, page_label: "Dependencies" },
+  ],
+  line: "5 proposals from Otto wait for your decision.",
+  note: "Otto proposes; a person decides. Nothing is added, run or applied by itself.",
+};
+const NOTHING_WAITING: OttoWaiting = { ...WAITING, total: 0, items: [], line: "Nothing from Otto is waiting for a decision." };
+
+/** The Advisories page has its own tests. Where a test here only needs it to open, its request gets a plain refusal,
+ * which the page shows in place of its table. */
+const ADVISORIES_NOT_READ = { status: 503, body: { error: { message: "The advisories could not be read just now.", line: null, field: null } } };
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -135,19 +164,18 @@ describe("Overview next step", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/a/101/inventory/import"));
   });
 
-  it("goes to Advisories when checks of an installed test pack are ready to add (phase 5c), and adds nothing by itself", async () => {
+  it("goes to Advisories when proposed checks of Otto's wait for a decision (phase 5c), and decides nothing by itself", async () => {
     const fetchMock = await show({
       "GET /api/assessments/101": { body: assessmentView({ next_step: nextStepAdvisories }) },
-      "GET /api/plans/1/advisories": { body: advisoriesNotAdded },
+      "GET /api/plans/1/advisories": ADVISORIES_NOT_READ,
     });
     const next = screen.getByTestId("next-step");
     expect(text(next)).toContain(nextStepAdvisories.text);
     fireEvent.click(within(next).getByRole("button", { name: nextStepAdvisories.label }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/101/advisories"));
-    // The Advisories page opens with its button waiting: the next step only opened the page.
-    await screen.findByTestId("advisories-standing");
-    expect(screen.getByRole("heading", { level: 1, name: advisoriesNotAdded.title })).not.toBeNull();
-    expect((screen.getByTestId("add-new-checks") as HTMLButtonElement).disabled).toBe(false);
+    // The Advisories page opened and asked for its own view. The next step only opened the page: nothing was accepted,
+    // added or run by it.
+    await waitFor(() => expect(calls(fetchMock)).toContain("GET /api/plans/1/advisories"));
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
   });
 
@@ -177,6 +205,77 @@ describe("Overview next step", () => {
     fireEvent.click(within(box).getByRole("button", { name: "Start" }));
     await waitFor(() => expect(window.location.hash).toBe("#/a/102/overview"));
     expect(calls(fetchMock)).toContain("POST /api/projects/10/assessments");
+  });
+});
+
+describe("Overview: Waiting for you (phase 5c)", () => {
+  const waitingRoute = (waiting: OttoWaiting | null) => ({ "GET /api/assessments/101": { body: assessmentView({ waiting }) } });
+  const items = () => within(screen.getByTestId("overview-waiting")).getAllByTestId("waiting-item");
+
+  it("counts Otto's proposals nobody has decided yet, each kind a link to the page it lives on, in the backend's words", async () => {
+    const fetchMock = await show(waitingRoute(WAITING));
+    const block = screen.getByTestId("overview-waiting");
+    expect(block.getAttribute("data-total")).toBe("5");
+    expect(screen.getByRole("region", { name: "Waiting for you" })).toBe(block);
+    expect(text(within(block).getByTestId("waiting-line"))).toBe(WAITING.line);
+    expect(text(within(block).getByTestId("waiting-note"))).toBe(WAITING.note);
+    expect(items().map((li) => [li.getAttribute("data-kind"), text(li), within(li).getByRole("link").getAttribute("href")])).toEqual([
+      ["check", "2 proposed checks", "#/a/101/advisories"],
+      ["fix", "1 proposed fix", "#/a/101/fixes"],
+      ["plan", "1 proposed change to the migration plan", "#/a/101/migration/systems"],
+      ["dependency", "1 proposed dependency update", "#/a/101/migration/dependencies"],
+    ]);
+    // Looking at it sends nothing that changes anything, and it holds no button: a decision is made on its own page.
+    expect(within(block).queryAllByRole("button")).toHaveLength(0);
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("stands above the next step, which is still there and unchanged", async () => {
+    await show(waitingRoute(WAITING));
+    const block = screen.getByTestId("overview-waiting");
+    const next = screen.getByTestId("next-step");
+    expect(block.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(text(next)).toContain(openAssessment.next_step.text);
+    expect(within(next).getByRole("button", { name: openAssessment.next_step.label })).not.toBeNull();
+  });
+
+  it("a link opens the page the proposals live on and decides nothing", async () => {
+    const fetchMock = await show({ ...waitingRoute(WAITING), "GET /api/plans/1/advisories": ADVISORIES_NOT_READ });
+    fireEvent.click(within(items()[0]!).getByRole("link", { name: "2 proposed checks" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/advisories"));
+    await waitFor(() => expect(calls(fetchMock)).toContain("GET /api/plans/1/advisories"));
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("with nothing waiting it keeps its one calm line and shows no link", async () => {
+    await show(waitingRoute(NOTHING_WAITING));
+    const block = screen.getByTestId("overview-waiting");
+    expect(block.getAttribute("data-total")).toBe("0");
+    expect(text(within(block).getByTestId("waiting-line"))).toBe("Nothing from Otto is waiting for a decision.");
+    expect(within(block).queryAllByTestId("waiting-item")).toHaveLength(0);
+    expect(within(block).queryAllByRole("link")).toHaveLength(0);
+    // The next step is the page's own, whatever is or isn't waiting.
+    expect(screen.getByTestId("next-step")).not.toBeNull();
+  });
+
+  it("draws nothing when the answer carries no such block (an older answer, or none sent)", async () => {
+    await show();
+    expect(screen.queryByTestId("overview-waiting")).toBeNull();
+    expect(screen.getByTestId("next-step")).not.toBeNull();
+  });
+
+  it("draws nothing when the block is null", async () => {
+    await show(waitingRoute(null));
+    expect(screen.queryByTestId("overview-waiting")).toBeNull();
+  });
+
+  it("adds no word of its own: every word in the block is one the backend sent", async () => {
+    await show(waitingRoute(WAITING));
+    // (compared without spaces: the parts are separate elements, with no space between them in the page's text)
+    const squeezed = (words: string) => words.replace(/\s+/g, "");
+    const sent = [WAITING.title, WAITING.line, ...WAITING.items.map((i) => i.text), WAITING.note].join("");
+    expect(squeezed(text(screen.getByTestId("overview-waiting")))).toBe(squeezed(sent));
+    expect(text(screen.getByTestId("overview-waiting"))).not.toMatch(/\bscore|\bgrade|secure|time to hack/i);
   });
 });
 

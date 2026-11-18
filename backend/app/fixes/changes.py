@@ -45,8 +45,6 @@ OTTO_AUTHOR = Person("Otto (Evidence Lab)", "otto@example.invalid")   # phase 5c
 MERGE_AUTHOR = Person("Evidence Lab user", "user@example.invalid")
 PATCH_FOOTER = "Isogeny Evidence Lab (demo)"
 PROOF_CHANGED = "The stored proof no longer matches its fingerprint."
-NOT_ACCEPTED = "Otto proposes this change. Accept the proposal first; accepting runs nothing."
-NOT_ADDED = "Otto's proposal was rejected, so its change is not added. Reconsider takes it up again."
 
 
 def _sha256(data: bytes) -> str:
@@ -64,6 +62,16 @@ registered_version = components.registered_version      # the byte-for-byte chec
 # ---------------------------------------------------------------- why an action is refused right now
 # Each takes one code fix as fix_states describes it and gives a plain sentence, or None when the action is
 # allowed. The actions and the description of a fix both use these, so a button and its refusal can't disagree.
+
+def _no_connect_of_ottos(state: str) -> str | None:
+    """Connect demo code, for a change of Otto's (phase 5c): only after a person accepted Otto's proposal. `state` is
+    where the decisions on that proposal stand. Until then nothing is connected, proven or, with Live Otto on, asked."""
+    if state == "accepted":
+        return None
+    if state == "rejected":
+        return "Otto's proposal was rejected, so its change is not added. Reconsider takes it up again."
+    return "Otto proposes this change. Accept the proposal first; accepting runs nothing."
+
 
 def _no_new_proof(fix: dict) -> str | None:
     """Run proof again: after a proof that failed, was interrupted or no longer covers the plan. A pull request
@@ -414,8 +422,8 @@ class ChangesMixin:
             pid = otto_proposals.code_fix_id(fix_key)
             state = self._otto_state(db, plan.id, pid)
             fix["proposal"] = {"id": pid, "state": state}
-            if change is None and state != "accepted":
-                not_accepted = (NOT_ACCEPTED if state == "proposed" else NOT_ADDED)
+            if change is None:
+                not_accepted = _no_connect_of_ottos(state)
         fix["actions"] = {"connect": ("The demo code is already connected for this file." if change is not None
                                       else not_accepted or fix["rerun_blocked"]),
                           "run_proof_again": _no_new_proof(fix), "open_pull_request": _no_pull_request(fix), "merge": _no_merge(fix),
@@ -689,12 +697,14 @@ class ChangesMixin:
                 if registered_version(plan.component_name, files) != plan.component_version:
                     raise GitRepoError("The demo repository does not hold the demo component this file names.")
                 # A change of Otto's is connected only after a person accepted Otto's proposal. This is asked as the page
-                # showed it (nothing is asked of Claude), and before the click below can ask anything.
-                offered = self._proposal(db, plan, shown, files)
-                if offered is not None and offered[0].get("written_by") == "otto":
-                    state = self._otto_state(db, plan.id, otto_proposals.code_fix_id(offered[0]["template_id"]))
-                    if state != "accepted":
-                        raise OttoCouldNot(NOT_ACCEPTED if state == "proposed" else NOT_ADDED)
+                # showed it (nothing is asked of Claude), and before the click below can ask anything. Otto writes a change
+                # only after an advisory check failed, so a plan without such a failure is not asked twice.
+                if any(r["phase"] == "first" and r["code"] == "failed" and r["kind"] == research.ADVISORY_KIND for r in shown):
+                    offered = self._proposal(db, plan, shown, files)
+                    if offered is not None and offered[0].get("written_by") == "otto":
+                        refused = _no_connect_of_ottos(self._otto_state(db, plan.id, otto_proposals.code_fix_id(offered[0]["template_id"])))
+                        if refused:
+                            raise OttoCouldNot(refused)
                 # The person's click: with Live Otto on, this is where Otto asks Claude (once, within the spending limit).
                 proposed = self._proposal(db, plan, shown, files, mode="connect")
                 change = self._write_change(repo, base, files, proposed, plan) if proposed is not None else None
@@ -838,6 +848,11 @@ class ChangesMixin:
         repo = self._repo(fix["connection"]["folder"])
         return format_patch(repo.read_commit(change["head_commit"]), repo.files(change["base_commit"]),
                             repo.files(change["head_commit"]), PATCH_FOOTER)
+
+    def _text_fix_id(self, db, plan: PlanRow, kind: str, item_id: int) -> str:
+        """The id of the text-only fix for one failed test, by the rule `_fixes_for_failed_tests` names it with."""
+        same = len([item for item in self._items(db, plan.id) if self._kind(db, item.spec_hash) == kind])   # type: ignore[attr-defined]
+        return "fix-" + kind.replace("_", "-") + ("" if same == 1 else f"-{item_id}")
 
     @staticmethod
     def _merged_versions(db, plan: PlanRow) -> list[str]:

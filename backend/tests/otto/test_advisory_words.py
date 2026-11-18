@@ -25,7 +25,7 @@ def _view(here: list[dict], fix: dict | None = None, entry: dict | None = None, 
     if entry is None:
         entry, made = helpers.pack_advisory()
     rows = [{"pack": PACK, "advisory": entry, "design": made, "here": here, "fix": fix}]
-    return present_otto.advisories_view(rows=rows, packs=[PACK], to_add=0, fitting=[h["program"] for h in here], closed=False,
+    return present_otto.advisories_view(rows=rows, packs=[PACK], fitting=[h["program"] for h in here], closed=False,
                                         harness_status=STATUS, answers_line="Answers written for a test", assessment_id=1)
 
 
@@ -37,7 +37,7 @@ def test_a_count_of_results_never_counts_a_program_that_has_no_result():
     """One of four programs failed and three have not run: the row must not read "Failed, 1 of 4 programs"."""
     some = _row([_here("one 1.0", 11, FAILED), _here("two 1.0", 12, None), _here("three 1.0", 13, None), _here("four 1.0", None, None)])
     assert some["result"]["label"] == "Failed" and some["result"]["text"] == "1 of 1 run so far; 3 with no result yet"
-    assert [h["status"] for h in some["panel"]["here"]["rows"]] == [None, "Not run yet", "Not run yet", "Not added yet"]
+    assert [h["status"] for h in some["panel"]["here"]["rows"]] == [None, "Not run yet", "Not run yet", "Not in the test plan"]
     # every program has a result: the count is of all of them, and it counts the ones with the shown label
     every = _row([_here("one 1.0", 11, FAILED), _here("two 1.0", 12, PASSED), _here("three 1.0", 13, PASSED), _here("four 1.0", 14, PASSED)])
     assert every["result"]["label"] == "Failed" and every["result"]["text"] == "1 of 4 programs"
@@ -184,16 +184,26 @@ def test_the_pack_builder_counts_one_case_as_one_case():
     assert build.ready_reason("openjdk", arms["affected"], arms["fixed"]) == java["test"]["reason"]
 
 
-def test_the_overviews_next_step_points_to_advisories_only_when_a_check_can_be_added():
-    """It opens a page and runs nothing. The plan's own tests come first, and a closed assessment is never sent there."""
+def test_the_overviews_next_step_points_to_where_a_proposal_waits():
+    """It opens a page and runs nothing. The plan's own tests come first, and a closed assessment is never sent there.
+    A proposed check comes before a proposed fix; a plan change and a dependency update come after the open fixes."""
     from app.projects.store import ProjectsMixin
     brief = {"status": {"key": "open"}, "file": {"name": "acme-pay-cbom.json"}}
     counts = {"claims": 3, "tests": 5, "fixes": {"open": 1}}
-    one = ProjectsMixin._next_step(brief, counts, None, 1)
+    step = ProjectsMixin._next_step
+    one = step(brief, counts, None, {"check": 1})
     assert one["page"] == "advisories" and one["label"] == "Open advisories"
-    assert one["text"] == "1 new advisory check is ready to add from the installed test packs. Adding it runs nothing."
-    two = ProjectsMixin._next_step(brief, counts, None, 2)
-    assert two["text"] == "2 new advisory checks are ready to add from the installed test packs. Adding them runs nothing."
-    assert ProjectsMixin._next_step(brief, counts, None, 0)["page"] == "fixes"                  # nothing to add: as before
-    assert ProjectsMixin._next_step(brief, {**counts, "tests": None}, None, 2)["page"] == "checks"
-    assert ProjectsMixin._next_step({**brief, "status": {"key": "closed"}}, counts, None, 2)["page"] == "overview"
+    assert one["text"] == ("Otto proposes 1 advisory check from the installed test packs. Accept or reject it: accepting runs nothing.")
+    two = step(brief, counts, None, {"check": 2, "fix": 1})
+    assert two["page"] == "advisories" and "Otto proposes 2 advisory checks" in two["text"] and "each one" in two["text"]
+    fix = step(brief, counts, None, {"check": 0, "fix": 1})
+    assert fix["page"] == "fixes" and "Otto proposes a fix for a failed advisory check" in fix["text"] and "accepting runs nothing" in fix["text"]
+    assert step(brief, counts, None, {"check": 0})["page"] == "fixes"                               # nothing waiting: as before
+    assert step(brief, counts, None, None)["text"] == "Some failed tests or migration steps have a suggested fix waiting."
+    no_fixes = {**counts, "fixes": {"open": 0}}
+    assert step(brief, no_fixes, {"has_migration": True}, {"plan": 1})["page"] == "migration/systems"
+    assert step(brief, no_fixes, {"has_migration": True}, {"dependency": 1})["page"] == "migration/dependencies"
+    assert step(brief, {**counts, "tests": None}, None, {"check": 2})["page"] == "checks"
+    assert step({**brief, "status": {"key": "closed"}}, counts, None, {"check": 2})["page"] == "overview"
+    words = " ".join(step(brief, no_fixes, {"has_migration": True}, {kind: 1})["text"] for kind in ("check", "fix", "plan", "dependency"))
+    assert not any(banned in words.lower() for banned in ("secure", "score", "severity", "critical"))

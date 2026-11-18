@@ -17,6 +17,7 @@ from app.fixes import changes
 from app.run import components
 from app.present import changes as present_changes
 from app.present import fixes as present_fixes
+from app.present import otto as present_otto
 from app.ledger.fixes import group_fixes
 from app.engine import research
 from app.db import ImportRow, PlanItemRow, PlanRow, ReviewRow, TestRunRow, TestSpecRow
@@ -87,6 +88,9 @@ class FixesMixin:
         same pairs, so the words in it are the words on the screen."""
         states = self._fixes(db, plan)
         is_demo = bool(db.get(ImportRow, plan.import_id).is_demo)
+        # Phase 5c: Otto's fixes are proposals. Each one's state, decisions and buttons, worded once for every screen.
+        proposals = ({p["id"]: p for p in self._proposals(db, plan, ("fix",), fixes=states)}       # type: ignore[attr-defined]
+                     if any(fix.get("proposal") for fix in states) else {})
         answered = {fix["id"]: self._answered(db, fix) for fix in states
                     if fix["kind"] == "text" and fix["source_kind"] not in ("migration", "applied_change", "dependency")}
         server_findings = sum(1 for _, address in answered.values() if address is not None)
@@ -119,6 +123,10 @@ class FixesMixin:
                     shown = present_fixes.with_change_box(shown, box)
             shown.setdefault("change_box", None)
             shown.setdefault("advisories", None)   # phase 4c: only a text fix for a real library carries any
+            shown.setdefault("proof_rows", None)   # phase 5c: only a library's fix from Otto has the two rows
+            proposal = proposals.get((fix.get("proposal") or {}).get("id"))
+            shown["proposal"] = (present_otto.proposal_view(proposal, self.otto_ledger_about(plan.id, proposal.get("objective_id")))   # type: ignore[attr-defined]
+                                 if proposal is not None else None)
             out.append((fix, shown))
         return out
 
