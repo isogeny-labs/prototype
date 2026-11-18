@@ -17,8 +17,8 @@ import { SystemDetail } from "./migration/SystemDetail";
 import { StatusPill } from "./migration/parts";
 import type { SaveChoice } from "./migration/OptionCard";
 import { DataTable, DetailPanel, FilterSelect, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "./layout";
-import { FromOttoTag } from "./otto/ProposalCard";
-import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton, StatusChip } from "./ui";
+import { FromOttoTag, ProposalStatusChip } from "./otto/ProposalCard";
+import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton } from "./ui";
 
 const POLL_MS = 1000;
 
@@ -48,10 +48,10 @@ function OttoMark({ system }: { system: MigrationSystem }) {
   const first = proposals[0];
   if (!first) return null;
   return (
-    <span data-testid="system-otto-mark" className="mt-1.5 flex flex-wrap items-center gap-1">
+    <span data-testid="system-otto-mark" className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1">
       <FromOttoTag label={first.label} testId="system-otto-label" />
       {proposals.map((p) => (
-        <StatusChip key={p.id} label={p.status.word} tone={p.status.tone} size="sm" wrap />
+        <ProposalStatusChip key={p.id} status={p.status} />
       ))}
     </span>
   );

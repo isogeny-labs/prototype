@@ -978,13 +978,17 @@ fix `proven` only when its own trial was. The agent command (`ottolab/agent.py`)
 its action line and its target line are used. The model judge of Otto's loop is never used.
 
 **The assessment's Otto ledger** (`otto/assurance.py`): one Otto lab for each assessment, at
-`<data>/otto/assessment-<id>/`, with the pinned checker `otto/checker/recheck.py` copied in.
+`<data>/otto/assessment-<id>/`, with the two pinned checkers copied in: `otto/checker/recheck.py` (runs and Claude
+steps) and, since 18 November 2026, `otto/checker/decisions.py` (decisions on Otto's proposals). `recheck.py` is
+unchanged, so earlier ledgers and evidence files read as before.
 
 | Entry | When | What it holds |
 |---|---|---|
-| lock entry (an `objective`) | **Add new checks**, before the check can run | the locked test's fingerprint, the design's SHA-256, the pack's fingerprint and version, the advisory and the program |
+| lock entry (an `objective`) | when a person accepts Otto's proposed check, before the check can run (until 18 November 2026: **Add new checks**) | the locked test's fingerprint, the design's SHA-256, the pack's fingerprint and version, the advisory and the program |
 | run entry (a `claim`, then the checker's `verdict`) | after each reviewed run of that check: `first`, `retest` or `proof` | the test's fingerprint, the run's id, the SHA-256 of its run record and of its review, `proposed_by`, `reviewer`, the phase and what it ran on; never a result |
 | step entry (an `objective`, a `claim`, a `verdict`) | a Claude step taken in the app | the step in full, and `used` or `refused` with the reason |
+| proposal entry (an `objective`) | with the first decision on one of Otto's proposals | the proposal's id and kind (`params`: `{"kind": "decision", "proposal", "proposal_kind"}`) |
+| decision entry (a `claim`, then the checker's `verdict`) | each accept, reject, undo or reconsider | exactly `proposal`, `proposal_kind`, `proposal_sha256`, `title`, `decision`, `before`, `after`, `by`, `at`, `reason`, `number`, `about`; never a result |
 
 The checker accepts a run entry only when it names the test its lock entry locked, carries both SHA-256, was proposed
 by the pack and reviewed by someone else, and holds no result. "accept" means bound and consistent; it is never shown
@@ -992,8 +996,24 @@ as a result. The review's SHA-256 is taken over the review as the evidence file 
 (`otto/state.review_fingerprint`), so anyone can work it out again from the file. If a ledger entry can't be written,
 the run and its review are already stored and stay.
 
-**Records:** three more add-only tables: `otto_packs` (the installed packs), `otto_checks` (the plan item, the pack and
-the design it came from, and its lock entry) and `otto_steps` (every Claude step taken in the app, in full). The Live
+The decision checker accepts a decision entry only when it has exactly those fields, names the proposal its
+objective names, and takes a step the app allows from where the proposal stood (proposed to accepted or rejected;
+accepted back to proposed by undo; rejected back to proposed by reconsider); a reason stands only on a rejection.
+"accept" there means whole and in order. It is never shown as a decision or as a result.
+
+**Otto's proposals** (`otto/proposals.py`; SPEC 7f point 9). A proposal is worked out on every read and never
+stored: `{"id", "kind", "label": "From Otto", "title", "why", "lines", "about", "proposed_at", "link", "current",
+"facts"}`, to which the stored decisions add `state` (`proposed`, `accepted`, `rejected`), `decisions`, `actions`
+(each allowed button, with the reason when it is off) and `fingerprint` (the SHA-256 of the canonical `{id, kind,
+title, why, lines, about}`). Kinds and ids: `check` (`check-<advisory>-<12 hex>`), `fix` (`fix-code-<fix key>`,
+`fix-update-<plan item>`), `plan` (`plan-<12 hex>`), `dependency` (`dep-<12 hex>`). `otto_decide` writes the
+`otto_decisions` row (append-only: the decision, the state before and after, its number, the reason, who, when, a copy
+of the proposal and its SHA-256, and the ledger entries) and the ledger entries above. A rejected proposal stays; a
+decided proposal that is no longer worked out is served from its last decision's copy with `current: false`.
+
+**Records:** four more add-only tables: `otto_packs` (the installed packs), `otto_checks` (the plan item, the pack and
+the design it came from, and its lock entry), `otto_steps` (every Claude step taken in the app, in full) and
+`otto_decisions` (every decision on a proposal). The Live
 Otto switch and the spending limit are two rows of `app_settings`.
 
 **What the Advisories view says and does not say** (`present/otto.py`). A row's Result cell counts only the programs
@@ -1005,14 +1025,21 @@ A trial's replay is worded as a step of the same build on the same computer.
 
 **Views and routes** (`otto/state.py`, words in `present/otto.py`, routes in `web/otto.py`): `GET /api/otto` (Settings:
 Test packs, the two status lines and Live Otto), `POST /api/otto/packs/check`, `POST /api/otto/packs/install`
-`{version}`, `POST /api/otto/live` `{on, limit}`, `GET /api/plans/{id}/advisories` and
-`POST /api/plans/{id}/advisories/add` (refused on a closed assessment). The Related graph gains `advisory:<id>` nodes
+`{version}`, `POST /api/otto/live` `{on, limit}`, `GET /api/plans/{id}/advisories`,
+`GET /api/plans/{id}/otto/proposals` (every proposal with the "Waiting for you" counts) and
+`POST /api/plans/{id}/otto/proposals/{proposal}/{decision}` with an optional `{reason}` (`accept`, `reject`, `undo`,
+`reconsider`; refused on a closed assessment and where Otto is not installed; it runs nothing and answers with the
+proposal as it now stands). The route that added every check at once (`POST /api/plans/{id}/advisories/add`) is gone. The Related graph gains `advisory:<id>` nodes
 (the sixth line), the Overview's next step can point to Advisories, and a failed advisory check on a real library gets
 a text-only fix with `otto_fix`: the pack's fix, labelled "From Otto", when the advisory is about that library, and
 otherwise one sentence that says the pack holds no fix for this program (no label).
 
-**The evidence file** gains `otto`, inside the signed part, only when the assessment has an advisory check or a Claude
-step: `schema` (`isogeny.otto-evidence/1`), `harness` (repository, commit, version, installed), `packs` (the signed
+**The evidence file** gains `otto`, inside the signed part, only when the assessment has an advisory check, a Claude
+step or a decision on a proposal. Since 18 November 2026 it holds `proposals` (every proposal, decided or not: its
+content, `label`, `proposed_at`, `current`, `fingerprint`, `state`, `status`, `legacy`, `ledger_entry`, and
+`decisions`, each with `number`, `decision`, `by`, `at`, `reason`, `before`, `after`, `proposal_sha256`,
+`ledger_entry` and the `proposal` it was made on) and `decisions_note`; a fix entry gains `proposal` and, for a
+library's fix, `proof_rows` (`label`, `word`, `text`, `line`, `note`). The rest: `schema` (`isogeny.otto-evidence/1`), `harness` (repository, commit, version, installed), `packs` (the signed
 pack files its checks came from, whole), `checks` (for each advisory check: `item_id`, `title`, `advisory`,
 `spec_hash`, `spec`, `design_sha256`, `pack`, `pack_fingerprint`, `lock_entry`, `added_at`, `in_plan`), `ledger`
 (`height`, `head`, `root` and its `lines`, exactly as written), `runs` (every run the ledger binds: `ledger_entry`,
@@ -1029,7 +1056,10 @@ order:
    that pack, and its lock entry is in the ledger with the same fingerprints;
 3. the ledger is one unbroken hash chain, and its latest entry is the one the signed evidence names;
 4. every run the ledger binds is in the file with a record and a review that match the SHA-256 the ledger holds, and
-   every Claude step matches its SHA-256 and has its entry in the ledger;
+   every Claude step matches its SHA-256 and has its entry in the ledger; and (4b, since 18 November 2026) every
+   decision in the file has its entry in the ledger with the same fields, in an order the app allows, on the copy of
+   the proposal whose SHA-256 it names, accepted by the pinned decision checker, and no decision entry of the ledger
+   is missing from the file (a check added by an earlier build, with no decision on record, is allowed as such);
 5. with `--previous OLDER.json`, the older file's latest ledger entry is still in this chain, at the same place
    (entries added since are not covered by that comparison);
 6. Otto's own audit of the chain and the records, and the pinned checker run again on every checked entry. A

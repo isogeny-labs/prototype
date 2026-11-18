@@ -2158,6 +2158,7 @@ class FixProofRow(Shape):
     line: str = Field(description="The row in one line, the same words wherever it is shown.")
     links: list["LabeledLink"]
     ledger: AdvisoryLedger | None = Field(description="The research ledger's entries behind the first row.")
+    note: str | None = Field(default=None, description="Under the second row: what a retest here runs on (a public copy, not your system).")
 
 
 class LabeledLink(Shape):

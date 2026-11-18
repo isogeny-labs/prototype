@@ -86,6 +86,11 @@ def test_the_second_row_says_what_this_assessments_own_retest_showed():
     still = present_otto.your_system_row(fix, {"state": "not_proven", "item_id": 3, "finished_at": "2026-11-18T10:20:31Z",
                                                "check": {"code": "failed", "label": "Failed"}, "failing": 0})
     assert "the advisory check did not pass (Failed)" in still["text"]
+    # every state of this row says plainly what a retest here runs on: a public copy, not the system the customer runs
+    for row in (not_yet, passed, other, still):
+        assert row["note"] == present_otto.HERE_NOTE and "public copy of the updated version" in row["note"]
+        assert "does not connect to the system you run" in row["note"] and row["note"] not in row["line"]
+    assert present_otto.public_copies_row({**fix, "state": "proven", "trial": None}, None)["note"] is None
 
 
 def _update_fix(advisory_id: str, here: dict | None = None) -> dict:

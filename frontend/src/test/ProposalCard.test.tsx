@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { DetailPanel } from "../components/layout";
 import { ProposalCard } from "../components/otto/ProposalCard";
 import { ReadOnlyProvider } from "../readOnly";
 import { calls, mockApi, text } from "./fixtures";
@@ -124,5 +125,38 @@ describe("one of Otto's proposals", () => {
     );
     expect((screen.getByTestId("proposal-accept") as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByTestId("proposal-reject") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("Escape in the Reject box closes the box only: the panel behind it stays open, and nothing is recorded", () => {
+    const fetchMock = mockApi({});
+    const closed = vi.fn();
+    render(
+      <DetailPanel open title="An advisory" onClose={closed}>
+        <ProposalCard planId={7} proposal={proposal()} onDecided={() => {}} />
+      </DetailPanel>,
+    );
+    fireEvent.click(screen.getByTestId("proposal-reject"));
+    const cancel = within(screen.getByTestId("proposal-reject-dialog")).getByTestId("proposal-reject-cancel");
+    cancel.focus();
+    fireEvent.keyDown(cancel, { key: "Escape" });
+    expect(screen.queryByTestId("proposal-reject-dialog")).toBeNull();
+    expect(closed).not.toHaveBeenCalled();
+    expect(screen.getByTestId("otto-proposal")).not.toBeNull();
+    expect(calls(fetchMock)).toEqual([]);
+    // with no box open, Escape closes the panel as before
+    fireEvent.keyDown(screen.getByTestId("proposal-reject"), { key: "Escape" });
+    expect(closed).toHaveBeenCalledTimes(1);
+  });
+
+  it("a reason with one long unbroken run stays inside its chip's room (the chip may not grow past it)", () => {
+    mockApi({});
+    const long = "see-https://tickets.example.invalid/browse/PLATFORM-123456789/attachments/0123456789abcdef";
+    render(<ProposalCard planId={7} proposal={rejectedProposal(long)} onDecided={() => {}} />);
+    const chip = screen.getByTestId("proposal-status");
+    expect(text(chip)).toBe(`Not added (${long})`);
+    const room = chip.parentElement as HTMLElement;
+    expect(room.className).toContain("max-w-full");
+    expect(room.className).toContain("break-words");
+    expect(room.className).toContain("min-w-0");
   });
 });

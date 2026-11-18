@@ -5,28 +5,7 @@ import type { FixesView, OttoProposal } from "../api";
 import { FixesScreen } from "../components/FixesScreen";
 import { LinkProvider } from "../components/related";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
-import {
-  CODE_PROPOSAL,
-  CONNECT_NOTE,
-  HERE_LABEL,
-  NOT_ACCEPTED,
-  PUBLIC_LABEL,
-  UPDATE_FIX,
-  UPDATE_PROPOSAL,
-  codeAccepted,
-  codeProposal,
-  fixesWith,
-  herePassed,
-  hereNotYet,
-  javaFix,
-  ottoCodeFix,
-  publicNotProven,
-  publicPassed,
-  updateAccepted,
-  updateFix,
-  updateProposal,
-  updateRejected,
-} from "./fixProposalFixtures";
+import { CODE_PROPOSAL, codeAccepted, codeProposal, CONNECT_NOTE, fixesWith, HERE_LABEL, HERE_NOTE, hereNotYet, herePassed, javaFix, NOT_ACCEPTED, ottoCodeFix, PUBLIC_LABEL, publicNotProven, publicPassed, UPDATE_FIX, UPDATE_PROPOSAL, updateAccepted, updateFix, updateProposal, updateRejected } from "./fixProposalFixtures";
 import { CODE_FIX, TLS_FIX, tlsFix } from "./fixesFixtures";
 import { calls, mockApi, text } from "./fixtures";
 
@@ -99,6 +78,9 @@ describe("Fixes, a library's fix from Otto: the two proof rows", () => {
     expect(text(within(here!).getByTestId("proof-row-badge"))).toBe("Not yet");
     expect(within(here!).getByTestId("proof-row-badge").getAttribute("data-tone")).toBe("neutral");
     expect(text(within(here!).getByTestId("proof-row-text"))).toBe("Update the library, then press Retest.");
+    // the second row says plainly what a retest here runs on; the first row is the pack's trial and has no such note
+    expect(text(within(here!).getByTestId("proof-row-note"))).toBe(HERE_NOTE);
+    expect(within(onPublic!).queryByTestId("proof-row-note")).toBeNull();
     // The fix is still text only, and still labelled as Otto's.
     expect(text(inSummary().getByTestId("fix-status"))).toBe("Text only");
     expect(text(summary())).toContain("From Otto");

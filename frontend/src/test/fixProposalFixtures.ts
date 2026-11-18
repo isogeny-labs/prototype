@@ -21,9 +21,14 @@ export function proofRow(
   ledger: AdvisoryLedger | null = null,
 ): FixProofRow {
   const label = key === "public" ? PUBLIC_LABEL : HERE_LABEL;
-  // The row's chip is a word and a tone, as the backend words it.
-  return { key, label, badge: { label: word, tone } as FixProofRow["badge"], text, line: `${label}: ${word}. ${text}`, links, ledger };
+  // The row's chip is a word and a tone, as the backend words it. The second row also says what a retest here runs on.
+  const note = key === "here" ? HERE_NOTE : null;
+  return { key, label, badge: { label: word, tone } as FixProofRow["badge"], text, line: `${label}: ${word}. ${text}`, links, ledger, note };
 }
+
+/** Under the second row: what a retest here runs on (a public copy of the updated version, not the system you run). */
+export const HERE_NOTE =
+  "A retest here reruns the same locked tests on a public copy of the updated version, on this computer. In this version the app does not connect to the system you run.";
 
 /** The research ledger's entries behind a first row, folded under it. */
 export const researchLedger: AdvisoryLedger = {

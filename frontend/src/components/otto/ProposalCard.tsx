@@ -19,6 +19,17 @@ export function FromOttoTag({ label = "From Otto", testId = "from-otto" }: { lab
   );
 }
 
+/** Where one of Otto's proposals stands, as a chip: "Proposed", "Added", "Accepted" or "Not added (reason)". The reason
+ * is a person's own words, so it may hold one long unbroken run (an address, a ticket path): the chip never grows wider
+ * than the room it has, and such a run is broken at its edge. Ordinary words stay whole. */
+export function ProposalStatusChip({ status, testId }: { status: Pick<OttoProposal["status"], "word" | "tone">; testId?: string }) {
+  return (
+    <span className="inline-block min-w-0 max-w-full break-words align-middle [&>span>span:last-child]:min-w-0 [&>span]:max-w-full">
+      <StatusChip label={status.word} tone={status.tone} size="sm" wrap testId={testId} />
+    </span>
+  );
+}
+
 /** Phase 5c: one of Otto's proposals, wherever it shows (Advisories, Fixes, Migration, Dependencies). Otto proposes;
  * a person decides: Accept, Reject (with an optional short reason), Undo of an accept, Reconsider of a reject. Every
  * word, state and reason here is the backend's. A decision runs nothing; the answer is the proposal as it now stands,
@@ -72,7 +83,7 @@ export function ProposalCard({
     >
       <div className="flex flex-wrap items-center gap-2">
         <FromOttoTag label={proposal.label} testId="proposal-label" />
-        <StatusChip label={proposal.status.word} tone={proposal.status.tone} size="sm" wrap testId="proposal-status" />
+        <ProposalStatusChip status={proposal.status} testId="proposal-status" />
       </div>
       {showTitle ? (
         <p data-testid="proposal-title" className="mt-2 break-words font-medium text-slate-100">

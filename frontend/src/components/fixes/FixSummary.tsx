@@ -92,6 +92,11 @@ function ProofRowView({ row }: { row: FixProofRow }) {
           ))}
         </p>
       ) : null}
+      {row.note ? (
+        <p data-testid="proof-row-note" className="mt-1.5 break-words text-xs text-slate-400">
+          {row.note}
+        </p>
+      ) : null}
       {row.ledger ? (
         <div className="mt-2">
           <LedgerView ledger={row.ledger} />

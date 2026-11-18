@@ -275,6 +275,8 @@ export function DetailPanel({
       // Escape in a field the person is typing in (a reason, a date) must not close the panel and lose the draft.
       const t = e.target;
       if (t instanceof HTMLElement && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+      // A small dialog on top of the panel (the Reject box of a proposal) takes Escape for itself: it closes, the panel stays.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       close.current();
     }
     document.addEventListener("keydown", onKey);

@@ -202,18 +202,26 @@ come next. The rules are in [docs/SPEC.md](docs/SPEC.md), section 7f.
   adds it) and then **Advisories** in the sidebar. Each row is a real published advisory: its plain name, when it
   was published, which signing programs here it fits, and whether it has a test (**Test ready**, **No test yet** or
   **Not offered**, each with its reason). Open a row to read the publisher's own line, the test, and how the test
-  did when it was tried on public copies before the pack shipped. **Add new checks** adds every test that fits. It
-  runs nothing.
+  did when it was tried on public copies before the pack shipped. Where a test fits a signing program of your file,
+  Otto proposes its check, marked "From Otto": **Accept** adds that one check to the test plan and runs nothing;
+  **Reject** asks for an optional short reason and keeps the proposal on the record as "Not added (reason)". An
+  accept can be undone until the check has run, and a rejection can be reconsidered. Every decision is recorded with
+  who and when.
 - **Run them** on **Checks**, like any other test. Expected on the Acme Pay demo with both packs installed: three
   advisory checks. The check for CVE-2022-21449 is **Failed** on `acme-sign` 1.4.2 (3 of 77 published cases wrong);
   the other two are **Passed**. Three of the six advisories read **No test yet**, each with its reason. A result says which cases got the wrong answer. It says nothing about how serious
   an advisory is.
-- **The fix.** In **Fixes**, connect the demo code as before. The proof now reruns the advisory checks too, and
-  after the merge and **Retest now** the same locked check reads **Passed** on 1.4.3. Otto also wrote a change of
-  its own for this program, but the app does not offer it: the program it gives is one line different from our own
-  `acme-sign` 1.4.3, and only our own demo programs may run, so it can't be proven here. Fixes says so and offers
-  the fix template in its place. For a real library the fix is labelled "From Otto": its publisher's fixed version,
-  with the quoted source and whether the update was proven on public copies.
+- **The fix.** In **Fixes**, Otto proposes its own change for `acme-sign`, labelled "Written by Otto". Accept the
+  proposal first (accepting runs nothing); then **Connect demo code** proves the change on a test copy, rerunning
+  every locked test, the advisory checks among them. Open the pull request, approve, merge, and **Retest now**: the
+  same locked check reads **Passed**. (The program Otto's recorded change gives is one line different from our own
+  1.4.3, so it is registered as a demo program of its own, `acme-sign 1.4.3-otto`. Where Otto is not installed, the
+  fix template is offered instead.) For a real library the fix is labelled "From Otto": its publisher's fixed
+  version with the quoted source, and two rows, "Proven on public copies" (the trial before the pack shipped) and
+  "Proven on your system" ("Not yet" until a retest on the updated version has run here).
+- **Everywhere else.** The Overview counts what is "Waiting for you"; Import says how many checks may apply;
+  Migration and Dependencies show Otto's proposals for the plan and for libraries that an advisory names. Otto
+  proposes; a person decides; nothing runs without a click.
 - **Otto and Claude.** Otto uses Claude to read each advisory, design its test and propose its fix, and to write a
   change for your own program when an advisory check has failed on it. Nothing Claude writes is trusted by itself,
   and Claude never sets a result. What comes with the app are answers **recorded during the build**; tests,

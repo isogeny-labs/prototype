@@ -60,7 +60,7 @@ const relatedRoute = (id: string, lines: RelatedView["related"] = []): Routes =>
 });
 const RELATED: Routes = { ...relatedRoute(BLANK, relatedOfAdvisory.related), ...relatedRoute(STOPS), ...relatedRoute(ZERO), ...relatedRoute(LOOSE) };
 
-/** How often a decision told the app that the test plan changed. */
+/** How often the page told the app that a decision was recorded, so that it reads the test plan again. */
 let planChanged = 0;
 beforeEach(() => {
   planChanged = 0;
@@ -1103,8 +1103,8 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(chipOf(BLANK, "advisory-result").textContent).toBe(blankRejected.result.label);
     expect(within(hereRow()).queryByRole("link")).toBeNull();
     expect(waiting().getAttribute("data-count")).toBe("0");
-    // A reject does not change the test plan, so the app is not asked to read it again.
-    expect(planChanged).toBe(0);
+    // The app is told after every decision, once.
+    expect(planChanged).toBe(1);
   });
 
   it("Reject with no reason sends none", async () => {
@@ -1155,7 +1155,7 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(planChanged).toBe(1);
   });
 
-  it("Reconsider takes a rejected proposal up again: one request, the page read again, and the test plan untouched", async () => {
+  it("Reconsider takes a rejected proposal up again: one request, then the page is read again and the app is told", async () => {
     const reconsider = decide(blankProposal.id, "reconsider");
     const fetchMock = await openDeciding(advisoriesRejected, { route: reconsider, answer: blankProposalReconsidered, then: advisoriesAfterReconsider });
     expect(waiting().getAttribute("data-count")).toBe("0");
@@ -1176,7 +1176,7 @@ describe("Advisories, Otto proposes and a person decides", () => {
     // The reject and its reason stay on the record.
     expect(within(card()).getAllByTestId("proposal-decision").map((li) => li.textContent)).toEqual(blankProposalReconsidered.history.rows.map((r) => r.line));
     expect(text(within(card()).getByTestId("proposal-history"))).toContain("Not this quarter");
-    expect(planChanged).toBe(0);
+    expect(planChanged).toBe(1);
   });
 
   it("walks one proposal through accept, undo, reject and reconsider, one request each, and reads the page after each", async () => {
@@ -1201,8 +1201,8 @@ describe("Advisories, Otto proposes and a person decides", () => {
     await waitFor(() => expect(chipOf(BLANK, "advisory-proposal").textContent).toBe("Proposed"));
     expect(posts(fetchMock)).toEqual((["accept", "undo", "reject", "reconsider"] as const).map((d) => decide(id, d)));
     expect(reads(fetchMock)).toBe(5);
-    // Only the accept and its undo changed the test plan.
-    expect(planChanged).toBe(2);
+    // The app was told once for each decision.
+    expect(planChanged).toBe(4);
     expect(waiting().getAttribute("data-count")).toBe("1");
   });
 
@@ -1669,7 +1669,7 @@ describe("Advisories in the app", () => {
     expect(reads(fetchMock)).toBe(2);
   });
 
-  it("does not read the test plan again after a reject, which leaves the plan as it was", async () => {
+  it("reads the test plan again after a reject too: the app is told of every decision", async () => {
     go("#/a/101/advisories");
     const reject = decide(blankProposal.id, "reject");
     const fetchMock = mockApi(appRoutes(deciding(advisoriesNotAdded, [{ route: reject, answer: blankProposalRejected, then: advisoriesRejected }])));
@@ -1681,8 +1681,9 @@ describe("Advisories in the app", () => {
     fireEvent.click(button("reject"));
     fireEvent.click(screen.getByTestId("proposal-reject-confirm"));
     await waitFor(() => expect(chipOf(BLANK, "advisory-proposal").textContent).toBe(blankRejected.proposal.label));
+    await waitFor(() => expect(plans()).toBe(before + 1));
     expect(posts(fetchMock)).toEqual([reject]);
-    expect(plans()).toBe(before);
+    expect(reads(fetchMock)).toBe(2);
   });
 });
 

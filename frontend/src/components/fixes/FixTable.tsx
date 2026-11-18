@@ -1,9 +1,8 @@
 import { useState } from "react";
 import type { FixDetail, FixGroup } from "../../api";
 import { DataTable, FilterSelect, GroupSection, SearchInput, Toolbar, type Column } from "../layout";
-import { FromOttoTag } from "../otto/ProposalCard";
+import { FromOttoTag, ProposalStatusChip } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
-import { StatusChip as ToneChip } from "../ui";
 import { StatusChip } from "./parts";
 
 interface Props {
@@ -60,7 +59,7 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, group = n
           {fix.proposal ? (
             <span data-testid="fix-proposal-mark" className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
               <FromOttoTag label={fix.proposal.label} testId="fix-proposal-label" />
-              <ToneChip label={fix.proposal.status.word} tone={fix.proposal.status.tone} size="sm" wrap testId="fix-proposal-status" />
+              <ProposalStatusChip status={fix.proposal.status} testId="fix-proposal-status" />
             </span>
           ) : null}
         </>

@@ -151,6 +151,10 @@ def settings_view(*, installed: list, update, refused: list[dict], scan_line: st
 
 PUBLIC_LABEL, HERE_LABEL = "Proven on public copies", "Proven on your system"
 NOT_YET_TEXT = "Update the library, then press Retest."
+# What stands behind the second row, said plainly wherever the row is shown in full: a retest reruns the locked tests
+# on a public copy of the updated version. The app has no connector to the system a customer runs (a later phase).
+HERE_NOTE = ("A retest here reruns the same locked tests on a public copy of the updated version, on this computer. In this version the "
+             "app does not connect to the system you run.")
 
 
 def stamp(value: str | None) -> str:
@@ -162,9 +166,10 @@ def stamp(value: str | None) -> str:
     return f"{when.day} {when.strftime('%B %Y')}, {when.strftime('%H:%M')} UTC"
 
 
-def _row(key: str, label: str, word: str, tone: str, text: str, links: list[dict] | None = None, ledger: dict | None = None) -> dict:
+def _row(key: str, label: str, word: str, tone: str, text: str, links: list[dict] | None = None, ledger: dict | None = None,
+         note: str | None = None) -> dict:
     return {"key": key, "label": label, "badge": {"label": word, "tone": tone}, "text": text, "line": f"{label}: {word}. {text}",
-            "links": list(links or []), "ledger": ledger}
+            "links": list(links or []), "ledger": ledger, "note": note}
 
 
 def public_copies_row(fix: dict, advisory: dict | None) -> dict:
@@ -199,19 +204,20 @@ def your_system_row(fix: dict, here: dict | None) -> dict:
     here = here or {"state": "not_yet"}
     name = f"{fix.get('library')} {fix.get('version')}"
     if here.get("state") == "not_yet":
-        return _row("here", HERE_LABEL, "Not yet", "neutral", NOT_YET_TEXT)
+        return _row("here", HERE_LABEL, "Not yet", "neutral", NOT_YET_TEXT, note=HERE_NOTE)
     links = [{"label": "See the retest's result", "link": {"page": "evidence", "item": f"test-{here.get('item_id')}"}}]
     when = stamp(here.get("finished_at"))
     if here.get("state") == "passed":
         return _row("here", HERE_LABEL, "Passed", "pass",
-                    f"On {when} the retest on {name} passed: the advisory check and every other locked pass-or-fail test.", links)
+                    f"On {when} the retest on {name} passed: the advisory check and every other locked pass-or-fail test.", links, note=HERE_NOTE)
     if (here.get("check") or {}).get("code") == "passed":
         failing = int(here.get("failing") or 0)
         more = "another locked test still fails" if failing == 1 else f"{failing} other locked tests still fail"
         return _row("here", HERE_LABEL, "Not proven", "warn",
-                    f"On {when} the retest on {name} ran: the advisory check passed, but {more} on {fix.get('version')}.", links)
+                    f"On {when} the retest on {name} ran: the advisory check passed, but {more} on {fix.get('version')}.", links, note=HERE_NOTE)
     return _row("here", HERE_LABEL, "Not proven", "warn",
-                f"On {when} the retest on {name} ran, and the advisory check did not pass ({(here.get('check') or {}).get('label')}).", links)
+                f"On {when} the retest on {name} ran, and the advisory check did not pass ({(here.get('check') or {}).get('label')}).", links,
+                note=HERE_NOTE)
 
 
 # ---------------------------------------------------------------- Otto's proposals: a person decides

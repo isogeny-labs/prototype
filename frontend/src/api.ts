@@ -408,7 +408,7 @@ export const api = {
   getRelated: (planId: number, key: string) => request<RelatedView>(`/api/plans/${planId}/related?key=${encodeURIComponent(key)}`),
   loadDemoProjects: () => request<DemoProjectsLoaded>("/api/demo-projects", { method: "POST" }),
 
-  // Phase 5c: Otto. Settings (Test packs, Live Otto) belong to the installation; Advisories and Add new checks to one
+  // Phase 5c: Otto. Settings (Test packs, Live Otto) belong to the installation; Advisories and Otto's proposals to one
   // assessment. Every call answers with the whole view as it now stands. No key is ever sent or shown.
   getOtto: () => request<OttoSettingsView>("/api/otto"),
   /** Looks in the updates folder on this computer; nothing is downloaded. */

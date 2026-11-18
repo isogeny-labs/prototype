@@ -94,20 +94,55 @@ version.
 
 ### The Acme Pay demo file (both modes)
 
-The walk: Use demo file, Verify, Check for updates, Install the first pack, Add new checks, Run all; the fix
-(Connect demo code, the proof, Open pull request, two approvals, Merge, Retest now); the second pack (Install, Add
-new checks, Run all); Download evidence.
+The walk, since 18 November 2026 (Otto proposes, a person decides; every decision below is one click on one
+proposal, and there is no button for several at once):
+
+1. Use demo file, Verify, Check for updates, Install the first pack.
+2. Otto's proposed checks, in the order Advisories lists them. The first is accepted. The second is rejected with
+   the reason `Not this quarter`. The accept of the first is undone, and it is accepted again. The second is
+   reconsidered and then accepted. Every other proposed check is accepted. Nothing has run so far. Then Run all.
+3. Otto's proposed fix for the program's own code: Connect demo code is tried before the proposal is accepted; then
+   the proposal is accepted, the code is connected, and the fix takes its path (the proof, Open pull request, two
+   approvals, Merge, Retest now). Otto's proposed change to the migration plan is accepted before the retest.
+4. The second pack is installed; the check it proposes is accepted; Run all.
+5. The demo dependency list (`demo/dependencies-demo.cdx.json`) is added. Of Otto's proposed updates, taken in
+   alphabetical order of their titles, the first is accepted and the second is rejected with the reason
+   `Moves with the platform team`.
+6. Download evidence.
+
+The two reasons above are inputs of the walk, not results.
+
+A proposal's status is the word the screen shows: `Proposed`; `Added` (an accepted check) or `Accepted` (an accepted
+fix, plan change or dependency update); `Not added (<reason>)`, or `Not added (no reason given)`.
 
 | Question | What it asks | Values |
 | --- | --- | --- |
 | `acme.update_found` | The pack that Check for updates offers first | a version |
-| `acme.checks_added_from_first_pack` | How many advisory checks Add new checks adds from the first pack | a number |
+| `acme.import.checks_that_may_apply` | The number in Import's line "Otto found N checks that may apply", once the first pack is installed | a number |
+| `acme.proposals.checks_proposed_from_first_pack` | How many checks Otto proposes from the first pack | a number |
+| `acme.proposals.every_check_says_why_it_applies` | Whether every proposed check says why it applies to its program | true or false |
+| `acme.waiting_for_you.before_any_decision` | The count of the Overview's "Waiting for you", before any decision | a number |
+| `acme.decision.accept.status` | The first proposed check's status after Accept | a status |
+| `acme.decision.reject.status` | The second proposed check's status after Reject with the walk's reason | a status |
+| `acme.decision.reject.kept_on_record` | Whether the rejected proposal is still listed | true or false |
+| `acme.decision.undo.status` | The first check's status after Undo | a status |
+| `acme.decision.undo.check_left_the_plan` | Whether Undo took the check out of the test plan | true or false |
+| `acme.decision.reconsider.status` | The second check's status after Reconsider | a status |
+| `acme.checks_added_from_first_pack` | How many advisory checks from the first pack are in the test plan once every proposal is accepted | a number |
+| `acme.decision.accepting_ran_nothing` | Whether no test had run when all of them were accepted | true or false |
+| `acme.checks.marked_from_otto` | How many cards of the test plan are marked "From Otto" then | a number |
+| `acme.decision.undo_after_a_run` | Whether Undo is still possible on an accepted check once it has run | `refused` or `allowed` |
 | `acme.first.<advisory>.result` | The first result of that advisory's check | a result label |
 | `acme.first.<advisory>.program` | The program it ran on | for example `acme-sign 1.4.2` |
 | `acme.first.<advisory>.wrong_cases` | The case numbers it got wrong, in the reviewer's order | a list of case numbers as text |
 | `acme.wording.no_banned_words` | No result uses "secure", "score", "severity", "critical" or "time to hack" | true or false |
 | `acme.fix.ottos_own_change` | Whether the change Otto wrote for the program's own code is offered | `offered`, `not offered: the program it gives is not one of our registered demo programs`, `not offered: no recorded answer`, `not offered: the answer was not a clean change`, `not asked` or `no code fix` |
 | `acme.fix.written_by_before_connect` | Who the listed code fix is by, before the code is connected | `otto` or `fix_template` |
+| `acme.fix.proposal.status_before_a_decision` | The status of Otto's proposed fix before anyone decided | a status |
+| `acme.fix.connect_before_accept` | What Connect demo code does while the proposal is not accepted | `refused` or `connected` |
+| `acme.fix.proposal.status_after_accept` | Its status after Accept | a status |
+| `acme.plan.proposal.made_after_the_failed_check` | Whether Otto proposes a change to the migration plan once an advisory check has failed on the signing program | true or false |
+| `acme.plan.proposal.status_after_accept` | That proposal's status after Accept | a status |
 | `acme.fix.written_by` | Who the connected change is by | `otto` or `fix_template` |
 | `acme.fix.label` | The label on the fix | a list with one label, `Written by Otto` or `From a fix template` |
 | `acme.fix.ottos_step_kept_as` | How each Claude step taken at the click was kept in the assessment's ledger | a list of `used` or `refused` |
@@ -119,11 +154,31 @@ new checks, Run all); Download evidence.
 | `acme.after_merge.<advisory>.result` | The check's result after Merge and Retest now | a result label |
 | `acme.after_merge.<advisory>.program` | The program that result is for | for example `acme-sign 1.4.3` |
 | `acme.after_merge.<advisory>.same_locked_test` | Whether it is the same locked test (same fingerprint) as before the fix | true or false |
+| `acme.plan.proposal.done_after_the_retest` | Whether the accepted plan change reads as done once the check has a newer, passing result | true or false |
 | `acme.second_pack.next_step_page` | Where the Overview's next step points once the second pack is installed | a page such as `advisories` |
-| `acme.second_pack.checks_ready_to_add` | How many new checks it says are ready | a number |
-| `acme.checks_added_from_second_pack` | How many checks Add new checks adds from the second pack | a number |
+| `acme.second_pack.checks_ready_to_add` | How many proposed checks it says wait for a decision | a number |
+| `acme.checks_added_from_second_pack` | How many checks join the test plan when the second pack's proposals are accepted | a number |
 | `acme.second_pack.<advisory>.result` | The result of each check the second pack added | a result label |
 | `acme.second_pack.<advisory>.program` | The program it ran on (a new check runs first on the version the scanner file names) | for example `acme-sign 1.4.2` |
+
+### The dependency list on the Acme Pay demo (both modes)
+
+`<library>` is a library and version of the list, such as `elliptic 6.5.6`. A library is "named by an advisory" when
+an advisory of the installed packs is about that library and the version in the list is lower than the version the
+publisher names as fixed. What was measured is one of `measured affected`, `measured not affected` and
+`not yet checked`: "measured" only counts this assessment's own result of that advisory's check on the same library
+and version.
+
+| Question | What it asks | Values |
+| --- | --- | --- |
+| `acme.dependencies.named_by_an_advisory` | The libraries of the list that an advisory names, in alphabetical order | a list of libraries |
+| `acme.dependencies.<library>.named` | For each such library, each advisory with what was measured, as `<advisory>: <measured>`, in the order the page lists them | a list |
+| `acme.dependencies.updates_proposed` | The titles of the updates Otto proposes, in alphabetical order | a list of titles |
+| `acme.dependency.accept.proposal_status` | The accepted proposal's status | a status |
+| `acme.dependency.accept.library_status` | The status that library then carries on Dependencies | a label, or none |
+| `acme.dependency.reject.proposal_status` | The rejected proposal's status | a status |
+| `acme.dependency.reject.library_status` | The status that library then carries | a label, or none |
+| `acme.dependency.deciding_changed_no_blocker_and_ran_nothing` | Whether the two decisions left every blocker line as it was and ran nothing | true or false |
 
 ### The evidence file (both modes)
 
@@ -136,12 +191,28 @@ Each answer is the exit code of the verify command (`python -m evidence verify`)
 | `evidence.ledger_line_changed_and_signed_again` | One line of Otto's ledger changed, and the file signed again with the app's own key |
 | `evidence.ledger_line_removed_and_signed_again` | One ledger line removed, signed again |
 | `evidence.pack_swapped_and_signed_again` | The test pack in the file swapped for another, signed again |
+| `evidence.decision_changed_and_signed_again` | The name on one recorded decision changed, signed again |
+| `evidence.decision_removed_and_signed_again` | One proposal's only decision removed and the proposal set back to "proposed", signed again |
 | `evidence.previous_later_download` | A later download, with `--previous` naming an earlier one |
 | `evidence.previous_with_a_shorter_ledger` | The earlier download, with `--previous` naming the later one |
 
+Three more questions are about the fresh download itself, not about the verify command:
+
+| Question | What it asks | Values |
+| --- | --- | --- |
+| `evidence.decisions_in_the_file` | How many decisions the file holds, over all of Otto's proposals (the walk above says which were made) | a number |
+| `evidence.every_decision_names_who_and_when` | Whether every one of them names who decided and when | true or false |
+| `evidence.rejected_proposal_with_its_reason` | Whether the file holds the rejection of step 2 with its reason | true or false |
+
 ### The real libraries file
 
-In demo mode a real library never runs, so one question applies:
+In both modes:
+
+| Question | What it asks | Values |
+| --- | --- | --- |
+| `real.proposals.checks_proposed` | How many checks Otto proposes for this file once both packs are installed (one for each ready test and each signing library it fits) | a number |
+
+In demo mode a real library never runs, so one more question applies:
 
 | Question | What it asks | Values |
 | --- | --- | --- |
@@ -154,8 +225,12 @@ the retests are openjdk 17.0.3, python-ecdsa 0.13.3 and elliptic 6.5.7):
 | --- | --- | --- |
 | `real.first.<program>.<advisory>.result` | The first result of that advisory's check on that library | a result label |
 | `real.first.<program>.<advisory>.wrong_cases` | The case numbers it got wrong | a list of case numbers as text |
-| `real.fixes_from_otto` | The titles of the fixes labelled "From Otto", in alphabetical order | a list of titles |
+| `real.fixes_from_otto` | The titles of the fixes labelled "From Otto", in alphabetical order (a title reads "Update *library* to *version*") | a list of titles |
 | `real.fix.<title>` | The labels of each such fix | a list of labels |
+| `real.fix.<title>.proven_on_public_copies` | The word of its first proof row | `Passed` or `Not proven` |
+| `real.fix.<title>.proven_on_your_system_before_a_retest` | The word of its second proof row before any retest | `Not yet`, `Passed` or `Not proven` |
+| `real.fix.proposals_waiting` | How many of Otto's fixes wait for a decision (the walk then accepts each one) | a number |
+| `real.fix.<title>.proven_on_your_system_after_the_retest` | The word of the second row after the retest on that fix's version. It is `Passed` only if the advisory check and every other pass-or-fail test of that library passed in that retest | `Passed` or `Not proven` |
 | `real.failed_checks_with_no_fix_from_otto` | The failed advisory checks for which the pack holds no fix, because the program is not the library the advisory is about; each as Fixes lists it | a list, in alphabetical order |
 | `real.retest.<library version>.<advisory>.result` | The check's result after Retest new version | a result label |
 | `real.retest.<library version>.<advisory>.wrong_cases` | The case numbers it got wrong then | a list |
@@ -192,6 +267,8 @@ Work the key out from sources that do not depend on this build's own results for
   section) and `docs/SPEC.md` section 8 (the real libraries). An advisory check reruns a part of that exam, so its
   wrong cases are the exam's wrong cases that fall inside its list.
 - What the verify command must say about a changed file: the rules in `docs/SPEC.md` (section 7f, point 11).
+- What a decision does and what a status reads: the rules in `docs/SPEC.md` (section 7f, point 9, and section 2).
+  The decisions themselves are the walk's, listed above.
 
 `docs/SPEC.md`, `docs/LIMITS.md` and `docs/HANDOFF.md` also describe what this build measured for phase 5c (the
 packs' trial figures, the results on the Acme Pay demo). Those passages repeat the app's own answers: a key copied

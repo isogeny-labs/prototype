@@ -3,12 +3,15 @@ signature, each advisory check's design in its pack, the ledger's chain, every b
 command says when Otto is not installed where it runs."""
 import copy
 import json
+import random
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
 
+import otto_fuzz
 import otto_helpers as helpers
 from app.canonical import canonical_bytes
 from app.evidence.export import PUBLIC_KEY_FILE
@@ -213,6 +216,36 @@ def test_a_change_inside_the_otto_part_is_caught_even_when_the_file_is_signed_ag
     path.write_bytes(_resigned(ran, evidence))
     done = _cli("verify", str(path), "--data-dir", str(ran.settings.data_dir), "--pack-key", ran.pack_key)
     assert done.returncode == 1 and done.stdout.startswith("Evidence NOT verified: the Otto part: "), done.stdout
+
+
+@pytest.mark.needs_otto
+def test_damaged_lists_of_proposals_are_refused_or_read_and_never_take_long(ran, monkeypatch):
+    """Seeded fuzz of the reader the verify command gained on 18 November 2026: the list of Otto's proposals in an
+    evidence file, with the decisions on them. A damaged copy is refused with one plain sentence, or read (when the
+    damage left everything the ledger and the fingerprints bind as it was). It never raises and never takes long.
+    (Otto's own audit, the last step, is checked elsewhere and is stood in for here: this test is about the reader.)"""
+    from app.otto import assurance
+    _, evidence = _download(ran, ran.plan.id)
+    whole = evidence_otto.check_otto(copy.deepcopy(evidence), {ran.pack_key})
+    assert whole.code == evidence_otto.OK and any(line.startswith("Decisions: ") for line in whole.lines)
+    monkeypatch.setattr(assurance, "verify_lines", lambda lines, folder: [])
+    rng = random.Random(20261118)
+    refused = read = 0
+    started = time.monotonic()
+    for _ in range(400):
+        damaged = copy.deepcopy(evidence)
+        proposals = damaged["otto"]["proposals"]
+        for _ in range(rng.randint(1, 3)):
+            proposals = otto_fuzz.damage_json(rng, proposals)
+        damaged["otto"]["proposals"] = proposals
+        outcome = evidence_otto.check_otto(damaged, {ran.pack_key})
+        if outcome.code == evidence_otto.OK:
+            read += 1
+            continue
+        refused += 1
+        assert outcome.code == evidence_otto.FAILED and outcome.problem and outcome.problem.isprintable() and len(outcome.problem) <= 900
+    assert refused > read and refused + read == 400       # most damage is caught; what is not left the bound parts as they were
+    assert time.monotonic() - started < 60
 
 
 @pytest.mark.needs_otto

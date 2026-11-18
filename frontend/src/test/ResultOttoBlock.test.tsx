@@ -89,7 +89,7 @@ const block: OttoResultBlock = {
 function open(otto: OttoResultBlock | null | undefined) {
   return render(
     <LinkProvider assessmentId={4} planId={7}>
-      <ResultDetail result={{ ...vectorsResult, otto }} busy={false} />
+      <ResultDetail result={{ ...vectorsResult, otto }} busy={false} onViewFix={() => undefined} />
     </LinkProvider>,
   );
 }

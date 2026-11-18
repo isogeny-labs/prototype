@@ -310,7 +310,8 @@ def _fix_entry(lab, db, fix: dict, shown: dict) -> dict:
                         "results": [_pick(answer, ("item_id", "kind", "run_id", "phase")) for answer in fix["answers"]]},
              "suggestion": _suggestion(shown), "change": None, "proofs": [], "pull_request": None, "approvals": [], "merge": None,
              # Phase 5c: a library's fix from Otto has two proof rows, in the same words as on the screens ...
-             "proof_rows": [{"label": row["label"], "word": row["badge"]["label"], "text": row["text"], "line": row["line"]}
+             "proof_rows": [{"label": row["label"], "word": row["badge"]["label"], "text": row["text"], "line": row["line"],
+                             "note": row.get("note")}
                             for row in shown.get("proof_rows") or []] or None,
              # ... and a fix of Otto's is a proposal: where the person's decisions on it stand (the decisions themselves,
              # with who and when, are in the Otto part of this file)
@@ -786,6 +787,8 @@ def _fix_html(fix: dict) -> _Safe:
                         t(proposal.get("decided"))))
     for row in fix.get("proof_rows") or []:
         parts.append(el("p", el("strong", t(f"{row.get('label')}: {row.get('word')}.")), _Safe(" "), t(row.get("text"))))
+        if row.get("note"):     # what a retest here runs on: a public copy of the updated version, not the system you run
+            parts.append(el("p", t(row.get("note"))))
     if suggestion:
         parts += _suggestion_html(suggestion, text_only=fix.get("status") == "Text only")
     if change:

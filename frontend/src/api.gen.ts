@@ -2106,6 +2106,10 @@ export interface FixProofRow {
    * The research ledger's entries behind the first row.
    */
   ledger: AdvisoryLedger | null;
+  /**
+   * Under the second row: what a retest here runs on (a public copy, not your system).
+   */
+  note?: string | null;
 }
 /**
  * "Passed", "Not proven" or "Not yet"

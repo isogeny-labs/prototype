@@ -8080,6 +8080,18 @@
               }
             ],
             "description": "The research ledger's entries behind the first row."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Under the second row: what a retest here runs on (a public copy, not your system)."
           }
         },
         "additionalProperties": false,

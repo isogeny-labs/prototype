@@ -501,7 +501,8 @@ export default function App() {
   } else if (page === "inventory/verify" && imp) {
     content = <VerifyScreen imp={imp} run={run} onContinue={() => go("checks")} openItem={routeItem} />;
   } else if (page === "advisories" && plan) {
-    // Phase 5c: Add new checks puts tests in the plan, so the app's copy of the plan is read again after it.
+    // Phase 5c: accepting one of Otto's proposed checks puts a test in the plan (and Undo takes it out), so the app's
+    // copy of the plan is read again after every decision.
     content = <AdvisoriesScreen planId={plan.id} openItem={routeItem} onPlanChanged={() => void reloadPlan()} />;
   } else if (page === "checks" && imp) {
     content = <ChecksScreen importId={imp.id} plan={plan} onPlan={setPlan} openItem={routeItem} group={route.kind === "assessment" ? (route.group ?? null) : null} />;

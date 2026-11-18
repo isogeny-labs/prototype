@@ -10,18 +10,9 @@ interface Props {
   planId: number;
   /** An advisory to open (from a link: #/a/<id>/advisories?item=<advisory id>). */
   openItem?: string | null;
-  /** An accepted check joins the test plan, and an undone one leaves it: the app reads its copy of the plan again. */
+  /** A decision was recorded (an accepted check joins the test plan, an undone one leaves it): the app reads its copy
+   * of the plan again. */
   onPlanChanged?: () => void;
-}
-
-/** The proposal of one program's check, wherever it sits on the page (an id is one proposal). */
-function findProposal(view: AdvisoriesView, id: string): OttoProposal | null {
-  for (const row of view.rows) {
-    for (const here of row.panel.here.rows) {
-      if (here.proposal?.id === id) return here.proposal;
-    }
-  }
-  return null;
 }
 
 /** The view with one proposal replaced by what the backend answered for it. */
@@ -75,9 +66,9 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
   }, [planId]);
 
   /** A decision was recorded. The card's own answer is shown at once; then the whole page is read again, because a
-   * decision also moves the row's cells, the waiting line and the check's place in the test plan. */
+   * decision also moves the row's cells, the waiting line and the check's place in the test plan; and the app is told,
+   * so that it reads its copy of the test plan again. */
   function decided(next: OttoProposal) {
-    const before = view ? findProposal(view, next.id) : null;
     setView((v) => (v ? withProposal(v, next) : v));
     setReloadError(null);
     const mine = ++asked.current;
@@ -89,8 +80,7 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
       .catch((e: unknown) => {
         if (asked.current === mine) setReloadError(errorMessage(e));
       });
-    // Only an accept and its undo change the test plan.
-    if (before?.status.key === "accepted" || next.status.key === "accepted") onPlanChanged?.();
+    onPlanChanged?.();
   }
 
   if (!view) {

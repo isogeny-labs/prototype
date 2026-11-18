@@ -1,6 +1,6 @@
 # Limits: what is real, what is demo, what is not built
 
-Updated at the end of **phase 5c** (Otto in Evidence Lab: advisories, signed test packs, advisory checks, Otto's use of Claude). Most phases have their own section below. Phases 4d and 5a have none here; phase 4d's limits are in `docs/HANDOFF.md`, under "Known weak spots".
+Updated at the end of **phase 5c** (Otto in Evidence Lab: advisories, signed test packs, advisory checks, Otto's use of Claude; and its second part of 18 November 2026: Otto proposes and a person decides, on every tab). Most phases have their own section below. Phases 4d and 5a have none here; phase 4d's limits are in `docs/HANDOFF.md`, under "Known weak spots".
 
 ## What is real
 
@@ -62,8 +62,9 @@ Updated at the end of **phase 5c** (Otto in Evidence Lab: advisories, signed tes
   1.4.2. It is the only code that can be connected.
 - **The suggested change comes from one fix template,** for one kind of bug (the missing range check), written for
   `acme-sign`'s code. It is labelled "From a fix template" and is not written by an AI model. What it produces is
-  exactly our bundled 1.4.3. (Since phase 5c Otto writes a change of its own when an advisory check has failed. In
-  this demo that change is not offered and the template still is: see "Limits of phase 5c".)
+  exactly our bundled 1.4.3. (Since phase 5c Otto writes a change of its own when an advisory check has failed. Since
+  18 November 2026 the demo offers that change, as a proposal, and the template is the fallback where Otto is not
+  installed: see "Limits of phase 5c".)
 - **Pull requests live inside the app only.** Nothing is sent to any code host. "Merged" means the main branch of
   the app's own copy in `data/repos/` moved to a merge commit. Nothing is deployed, and no other program on this
   computer changes.
@@ -288,17 +289,23 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   states it: the app's own run on the Real libraries file is what shows it. Such a result says which case got the
   wrong answer, and nothing more. A pack's fix is for the library its advisory names, so for another library Fixes
   says that the test pack holds no fix for it, and that entry carries no "From Otto" label.
-- **Otto's own change for `acme-sign` is not offered.** The recorded answer is a clean change that names all three
-  failed tests, but the program it gives is one line different from our own `acme-sign` 1.4.3 (the same range
-  check, written another way). Only our registered demo programs may run, so the app can't prove that change.
-  Fixes offers the fix template in its place and says why: "Otto's own change is not offered here. Otto wrote one,
-  but it could not be used: the program it gives is not the same as any of our bundled demo components, byte for
-  byte, and only those can run in this version, so it can't be proven here. The fix template is offered in its
-  place." The refused step is kept in the assessment's Otto ledger when the person connects the code. So in this
-  demo no fix carries the label "Written by Otto". Tests of our own code show that label and the normal proof path
-  with an answer written for the test, whose program is byte for byte 1.4.3.
-- **Running code that Claude wrote is not in this version.** A live answer will usually not be one of our registered
-  programs. With Live Otto on, such an answer is refused at the click and nothing is connected, although the
+- **Otto's own change for `acme-sign` is offered because its program was registered by hand.** The recorded answer
+  is a clean change that names all three failed tests, and the program it gives is one line different from our own
+  `acme-sign` 1.4.3 (the same range check, written another way). Only our registered demo programs may run. In the
+  first build that program was not one of them, so the change was not offered. On 18 November 2026 Kevin decided to
+  register it as a demo program of its own, `acme-sign 1.4.3-otto`
+  (`demo/components/acme-sign-1.4.3-otto/acme_sign.py`). So the demo now shows a fix labelled "Written by Otto"
+  going the whole way: proposed, accepted, proven on that program, approved, merged, retested. What this is, and
+  what it is not: the file is exactly what the app's own change checker gives when it applies the recorded answer
+  to 1.4.2 (a test of our own code holds it to that); it is in the repository, where anyone can read its one line of
+  difference; it was added once, by a decision, not by the app. The app still decides nothing about code it has not
+  got: a live answer that differs by one character from every registered program is still refused. The program is
+  not in the general list of versions; a retest can choose it only in an assessment where its change is merged.
+- **Where Otto is not installed, the fix template stands in for Otto's change.** A decision on a proposal is
+  recorded in Otto's ledger, which the harness keeps. Without it no decision can be recorded, so Otto's change is
+  not offered and Fixes says so; the fix template is offered, as before phase 5c.
+- **Running a program that Claude wrote, and that is not registered, is not in this version.** A live answer will
+  usually not be one of our registered programs. With Live Otto on, such an answer is refused at the click and nothing is connected, although the
   request was made on the key and is paid for; the fix template is offered afterwards where it answers the
   failure. Until the click, Fixes lists that fix as "Not written yet" (never as written by Otto) and its card says
   all of this before anyone presses the button. Proving a change that is not a registered program would mean
@@ -343,8 +350,9 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Otto is version 0.1.0.** A newer version may change its record formats, and a ledger written under this one
   could then fail its audit. The pin, and an audit at every move of the pin, guard against that. There is no
   promise yet about reading older ledgers.
-- **Otto's harness starts programs with no sandbox of its own.** In this version it starts only four small scripts
-  of ours. The trial script calls the app's own lock, run and review path, so a real library still runs only in its
+- **Otto's harness starts programs with no sandbox of its own.** In this version it starts only five small scripts
+  of ours (the research agent command, the trial script, and three record checkers: one on the research side, and in
+  an assessment's folder one for runs and Claude steps and one for decisions). The trial script calls the app's own lock, run and review path, so a real library still runs only in its
   locked-down container.
 - **Otto does not run on Windows.** Its ledger locks files the Linux and macOS way. On Windows the app says Otto is
   not installed.
@@ -412,8 +420,10 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   anything is done. A fourth review found that the folder's own copy of the checker could be made to stand for
   another program; nothing from the audited folder is started now, and tests plant such folders
   (`backend/tests/otto/test_research_audit.py`).
-- **The checker in an assessment's Otto folder is made the app's own before each use.** The harness starts the file
-  in that folder when a run or a Claude step is recorded. If someone who can write to the data folder puts another
+- **The checkers in an assessment's Otto folder are made the app's own before each use.** There are two since
+  18 November 2026: `recheck.py` (runs and Claude steps; unchanged, so earlier ledgers read as before) and
+  `decisions.py` (decisions on proposals). The harness starts the file
+  in that folder when a run, a Claude step or a decision is recorded. If someone who can write to the data folder puts another
   program or a link there, the app replaces it with its own checker first. The check guards the file at that moment;
   it does not make a computer safe that someone else can write to.
 - **What the verify command binds, and its limits.** A run shown in the file must match the SHA-256 the ledger
@@ -427,9 +437,67 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   ledger.
 - **Not built, in the order planned:** Verify under a locked test and the reviewer, then Otto's server checks by
   handshake (5d); running code that Claude wrote; Otto as the assistant in the side panel, answers to Dig deeper and
-  proposals for the knowledge base; "named by an advisory" marks on the Dependencies list; moving the seven built-in
-  tests into the pack library; a timer; packs over the internet and a real release signing key; Otto's sealed
+  proposals for the knowledge base; moving the seven built-in
+  tests into the pack library; separate accounts, so that "who" is more than one name; a timer; packs over the internet and a real release signing key; Otto's sealed
   claims, its Lean proofs and its model judge.
+
+### Limits of the second part: Otto proposes, a person decides (18 November 2026)
+
+- **"Who" is one name.** The app has one login and no separate accounts. Every accept, reject, undo and reconsider
+  is recorded as made by "You", the name the app already records for approvals, with the time. It shows that a
+  person at the keyboard decided, and when; it can't show which person. Every list of decisions says so.
+- **Proposals are worked out, not stored.** Each time a page is read the app works out what Otto proposes from the
+  installed packs, the file and the results. Only a person's decisions are stored, each with a copy of the proposal
+  as it stood and that copy's SHA-256. So a proposal that was decided and that Otto would no longer make stays on
+  the record, marked as no longer proposed. A proposal that nobody decided and that no longer applies is simply no
+  longer shown: nothing records that it was once proposed. The time a proposal says it was made is worked out too
+  (the later of the pack's installation and the file's import).
+- **A decision is a record, not a result.** The second pinned checker confirms that a decision entry is whole and
+  that the step was allowed from where the proposal stood. It can't confirm who pressed the button, and its answer
+  is never shown as a decision or as a result.
+- **Undo has an end.** A check can be taken out again until it has a run; a change to your own code until the code
+  is connected; a library's update until a retest has run on the updated version; a plan change until a newer
+  result of its check has passed. After that the accept stands, and the button says why. A check that was added
+  with the earlier **Add new checks** button has no decision on record: it reads "Added before decisions were
+  recorded" and can't be undone from Advisories.
+- **A rejected fix has no stand-in.** When a person rejects Otto's change for their own code, the fix template is
+  not offered in its place: the fix reads "Not added (reason)" until someone presses **Reconsider**. The template
+  stands in only where Otto's change is not offered at all.
+- **Proposals for the migration plan: one rule.** An advisory check whose newest result on a signing program is
+  Failed proposes "Fix *program* before its signatures move to post-quantum" on that program's Signatures track.
+  No other test proposes anything, and nothing is proposed for a server (Otto's server checks are phase 5d).
+  Accepting lists it on the plan as something to fix first. It changes no status, no recommendation, no roadmap
+  band and no measured fact, so everything the migration answer key grades reads exactly as before. "Accept
+  updates the plan" is built as that listed line, and nothing more.
+- **Proposals for a dependency: one rule.** A library of the dependency list is "named by an advisory" when an
+  advisory of the installed packs is about that library and the version in the list reads as lower than the
+  publisher's fixed version. A version the app can't read is not named. Where the pack carries an update for it,
+  Otto proposes it. Accepted, the library reads "Update first", and the box of the system it is tied to says so.
+  It is never counted among the blockers, and no answer about what a library can do changes, so everything the
+  dependencies answer key grades reads exactly as before.
+- **"Measured affected" is rare by design.** "Measured" is only this assessment's own reviewed result of that
+  advisory's check on the same library and version. An advisory check runs on the signing programs the scanner
+  file names, not on a library that is only in the dependency list. On the Acme Pay demo the dependency list names
+  three such libraries (openjdk 17.0.2, python-ecdsa 0.13.2, elliptic 6.5.6) and the scanner file names none of
+  them, so all three read "not yet checked", each with that reason. The trial on public copies is not counted as a
+  measurement of your library: it is said where the fix is.
+- **"Proven on your system" is a retest on a public copy.** The row's name is the owner's wording. What stands
+  behind it: this assessment's own retest of the same locked tests on the fixed version, which the app runs on a
+  public copy of that version in its own container. The app has no connector to the system a customer runs, and
+  the row says so in a line under it. "Passed" therefore means the fixed version passes the locked tests here,
+  not that anyone's deployed system was updated.
+- **The second row is as strict as the first.** It reads "Passed" only when the advisory check and every other
+  pass-or-fail test of that library passed in the same retest. For Java it would read "Not proven" after a retest
+  on 17.0.3, because the Independent exam still fails there, as the pack's own trial found.
+- **The "next step" is a pointer, not a proposal.** Kevin's list of what Otto produces names "a next step". The
+  Overview's next step has no Accept or Reject: it opens the page that holds the next thing to do, and since this
+  part it names Otto's waiting proposals. Nothing happens by following it or by ignoring it.
+- **No button accepts everything,** by Kevin's decision. With many programs and many advisories that is many
+  clicks.
+- **A closed assessment gets no proposals to decide.** It shows the packs that were installed when it was signed
+  off and the decisions made until then; every button is off.
+- **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
+  also a rejection, before any check has run.
 
 ## Limits of phase 5b (one connected assessment; 17 November 2026)
 

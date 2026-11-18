@@ -221,6 +221,23 @@ added at every push:
   `CLAUDE.md`, LIMITS, HANDOFF, OTTO-KEY, ENGINE, LAYOUT, README); the end-to-end walk (`e2e/tests/otto.spec.ts`
   still presses the old **Add new checks**) and its pictures; the full checks in both modes; the independent
   review.
+- **Checkpoint 3 (screens whole, docs written, fast checks green).** Advisories is finished: each proposed check is
+  decided by itself in the panel (the shared card), the table has the column "Otto's proposal" and the **Decision**
+  filter, and the bulk button is gone. Three things its builder flagged are fixed: a typed reason with one long
+  unbroken run stays inside its chip (`ProposalStatusChip`), Escape in the Reject box closes the box and not the
+  panel behind it (`layout.tsx`), and one test's missing prop. A line under "Proven on your system" now says what a
+  retest runs on (a public copy of the updated version; the app does not connect to the system you run). The Otto
+  accuracy walk also adds the demo dependency list and decides two of Otto's proposed updates. A seeded fuzz test
+  covers the verify command's reading of proposals and decisions. Docs written: SPEC 2, 3, 7, 7b, 7f (points 6, 7,
+  9, 10, 11), 8, 9 and 12 (item 10), `CLAUDE.md` (product rules, safety, tests), `docs/LIMITS.md` (a new section for
+  this part), `docs/HANDOFF.md`, `docs/OTTO-KEY.md`, `docs/ENGINE.md`, `docs/LAYOUT.md`, `README.md`.
+  **Checked at this checkpoint:** every Otto backend test, slow ones included (`tests/otto --full`, all passed);
+  the fast backend set (1575 passed, 242 slow left out, 4 minutes 13 seconds); lint clean; generated files up to
+  date; frontend type check clean, 658 tests passed, build fine.
+  **Not done yet:** the end-to-end walk (`e2e/tests/otto.spec.ts` still presses the old **Add new checks**) and its
+  pictures; the layout walk at 1440 pixels with the new columns; the full backend suite; the accuracy check in both
+  modes; the run with Otto absent; the type-check baseline (one old finding whose hint text changed); the
+  independent review; the merge and the report.
 
 ## 4. The new criteria against the build: what is there, what is missing
 

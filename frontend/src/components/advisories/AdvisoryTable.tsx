@@ -21,11 +21,12 @@ function TestChip({ row }: { row: AdvisoryRow }) {
 /** Where Otto's proposed check stands, exactly as the view words and tones it: "Proposed", "Added" or
  * "Not added (reason)", and under it the counts when the check fits several programs. A reason is a person's own words
  * and can be long: the chip wraps between words inside a box with a widest size, so a long reason makes its row taller
- * and never the table wider (only a run of letters longer than the box itself is broken, at the box's edge). */
+ * and never the table wider. Words of up to about 15 letters stay whole; only a longer run without a space (an address,
+ * a ticket path) is broken, at the box's edge. */
 function ProposalCell({ row }: { row: AdvisoryRow }) {
   return (
     <>
-      <span data-testid="advisory-proposal-box" className="block max-w-[8.5rem] break-words [&>span]:max-w-full [&>span>span:last-child]:min-w-0">
+      <span data-testid="advisory-proposal-box" className="block max-w-[7.75rem] break-words [&>span]:max-w-full [&>span>span:last-child]:min-w-0">
         <StatusChip label={row.proposal.label} tone={row.proposal.tone} size="sm" wrap testId="advisory-proposal" />
       </span>
       {row.proposal.text ? (
@@ -49,8 +50,10 @@ function ResultCell({ row }: { row: AdvisoryRow }) {
 
 /** Phase 5c: the advisories of the installed test packs, one row each. The column names are the view's. Beside an open
  * panel the table shows the name and, in one column, the three chips (its test, Otto's proposal, its result here); the
- * other columns are in the panel. The widths are kept modest: all six columns fit at 1440 pixels wide with the sidebar
- * and the co-pilot showing. */
+ * other columns are in the panel. The widths are floors, kept modest: at 1440 pixels wide, with the sidebar and the
+ * co-pilot showing, the table has 797 pixels, and the six columns fit in it without sideways scrolling even with the
+ * longest date, a long program name and a long reason at once (measured in a browser; the end-to-end layout walk
+ * measures it again). */
 export function AdvisoryTable({
   label,
   names,
@@ -71,7 +74,7 @@ export function AdvisoryTable({
 }) {
   const name = (i: number) => names[i] ?? "";
   const columns: Column<AdvisoryRow>[] = [
-    { key: "advisory", header: name(0), minWidth: 168, render: (r) => <Name row={r} /> },
+    { key: "advisory", header: name(0), minWidth: 150, render: (r) => <Name row={r} /> },
     { key: "published", header: name(1), minWidth: 120, render: (r) => <span className="whitespace-nowrap text-xs text-slate-300">{r.published_text}</span> },
     { key: "fits", header: name(2), minWidth: 112, render: (r) => <span className="text-xs text-slate-300">{r.fits_text}</span> },
     { key: "test", header: name(3), minWidth: 108, render: (r) => <TestChip row={r} /> },

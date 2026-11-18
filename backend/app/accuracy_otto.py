@@ -9,8 +9,9 @@ every question and the values an answer can take):
   - the Acme Pay demo file: Check for updates, Install; Otto's proposed checks, each decided by itself (accept,
     reject with a reason, undo, reconsider; accepting runs nothing); Run all; Otto's proposed fix for the failed
     advisory check (refused before its accept; then accepted, connected, proven, approved, merged, Retest now);
-    Otto's proposed change to the migration plan; the second pack and the check it proposes; the evidence file with
-    every decision in it, and the verify command on it and on changed copies, and --previous;
+    Otto's proposed change to the migration plan; the second pack and the check it proposes; the demo dependency
+    list, the libraries an advisory names and Otto's proposed updates (one accepted, one rejected with a reason); the
+    evidence file with every decision in it, and the verify command on it and on changed copies, and --previous;
   - the Real libraries file (isolated mode only): every advisory check on every library, the fixes Otto proposes with
     their two proof rows, and the three retests. In demo mode a real library's advisory check must read
     "Couldn't run (needs isolated mode)".
@@ -40,6 +41,7 @@ from app.otto import harness, packs
 
 EXPECTED_OTTO_JSON = DEMO_DIR / "expected-otto.json"   # the fifth answer key: read-only, never written by the app
 REAL_FILE = DEMO_DIR / "real-libraries.csv"
+DEPENDENCIES_FILE = DEMO_DIR / "dependencies-demo.cdx.json"      # the Acme Pay demo's dependency list (Demo data)
 WAIT_SECONDS = 1500.0
 RETESTS = (("openjdk", "17.0.3"), ("python-ecdsa", "0.13.3"), ("elliptic", "6.5.7"))
 NO_OTTO, NO_KEY = 3, 2
@@ -305,6 +307,32 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 for key in added:
                     answers[f"acme.second_pack.{key[1]}.result"] = (rows[key]["result"] or {}).get("label")
                     answers[f"acme.second_pack.{key[1]}.program"] = (rows[key]["result"] or {}).get("component")
+            progress("  ... Acme Pay: the dependency list, the libraries an advisory names, and Otto's proposed updates")
+            lab.add_dependency_list(pid, DEPENDENCIES_FILE.name, DEPENDENCIES_FILE.read_bytes())
+
+            def libraries() -> dict[str, dict]:
+                return {row["label"]: row for group in lab.dependencies_view(pid)["groups"] for row in group["rows"]}
+
+            def blockers() -> list:
+                return [system["blocker_lines"] for system in lab.dependencies_view(pid)["systems"]]
+            listed = libraries()
+            answers["acme.dependencies.named_by_an_advisory"] = sorted(label for label, row in listed.items() if row.get("advisories"))
+            for label, row in sorted(listed.items()):
+                if row.get("advisories"):
+                    answers[f"acme.dependencies.{label}.named"] = [f"{a['id']}: {a['state']['label']}" for a in row["advisories"]]
+            updates = sorted((u for u in _proposed(lab, pid, "dependency") if u["state"] == "proposed"), key=lambda u: u["title"])
+            answers["acme.dependencies.updates_proposed"] = [u["title"] for u in updates]
+            if len(updates) >= 2:
+                blockers_before, runs_then = blockers(), _runs(lab, pid)
+                accepted, rejected = (f"{u['about']['library']} {u['about']['version']}" for u in updates[:2])
+                lab.otto_decide(pid, updates[0]["id"], "accept")
+                lab.otto_decide(pid, updates[1]["id"], "reject", "Moves with the platform team")
+                now = libraries()
+                answers["acme.dependency.accept.proposal_status"] = _status(lab, pid, updates[0]["id"])
+                answers["acme.dependency.accept.library_status"] = (now[accepted].get("otto_status") or {}).get("label")
+                answers["acme.dependency.reject.proposal_status"] = _status(lab, pid, updates[1]["id"])
+                answers["acme.dependency.reject.library_status"] = (now[rejected].get("otto_status") or {}).get("label")
+                answers["acme.dependency.deciding_changed_no_blocker_and_ran_nothing"] = blockers() == blockers_before and _runs(lab, pid) == runs_then
             progress("  ... Acme Pay: Download evidence, and the verify command on it and on changed copies")
             folder = Path(scratch) / "files"
             folder.mkdir()
