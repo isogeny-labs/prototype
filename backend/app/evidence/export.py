@@ -1127,10 +1127,11 @@ def _otto_html(otto: dict | None) -> list:
                             *([t(f". Reason: {d.get('reason')}")] if d.get("reason") else []), t("."))
                          for d in p.get("decisions") or []]
             rows.append(el("tr", el("td", el("p", el("strong", t(p.get("title")))), el("p", t(p.get("why"))), cls="words"),
-                           el("td", t(p.get("kind"))), el("td", t(p.get("status"))),
+                           # (word cells: a narrow column wraps between words, never inside "check" or "dependency")
+                           el("td", t(p.get("kind")), cls="words"), el("td", t(p.get("status")), cls="words"),
                            el("td", el("ul", *decisions, cls="meta") if decisions else t("Nobody has decided this yet."), cls="words")))
-        parts.append(el("table", el("thead", el("tr", el("th", t("What Otto proposed"), cls="words"), el("th", t("Kind")),
-                                                 el("th", t("Stands")), el("th", t("Decisions"), cls="words"))),
+        parts.append(el("table", el("thead", el("tr", el("th", t("What Otto proposed"), cls="words"), el("th", t("Kind"), cls="words"),
+                                                 el("th", t("Stands"), cls="words"), el("th", t("Decisions"), cls="words"))),
                         el("tbody", *rows)))
     parts.append(el("p", t("To check the packs' signatures and the ledger together with the file's own signature: " + VERIFY_COMMAND), cls="note"))
     return parts

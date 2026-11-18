@@ -734,7 +734,6 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await expect(proposal.getByTestId("proposal-effect")).toContainText("Done: the check for CVE-2022-21449 passed on acme-sign 1.4.3-otto");
     await expect(proposal.getByTestId("proposal-undo")).toBeDisabled();
     await shots(page, "6-00-migration-plan-change-done", { panel: true });
-    await closePanel(page);
     // Advisories: the row is named for acme-sign 1.4.2 and its newest result is the retest's. It says which version.
     advisories = await openAdvisories(page, assessment);
     await expect(advisoryRow(page, "CVE-2022-21449").getByTestId("advisory-result")).toHaveText("Passed");
