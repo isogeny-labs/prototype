@@ -876,8 +876,9 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     expect(good.stdout).toMatch(/^Evidence verified/);
     expect(good.stdout).toContain("Test packs: 2 in the file");
     expect(good.stdout).toMatch(/Decisions: 12 on \d+ of Otto's \d+ proposals, each in the ledger with who and when/);
-    // what the verify command printed, kept outside the repository for the phase report (plain text: no key, no secret)
-    fs.writeFileSync(path.join(os.tmpdir(), "evidence-lab-e2e-otto-verify-output.txt"), good.stdout);
+    // the same output says what else was checked: the packs, the checks' designs, the ledger, Claude's step, Otto's audit
+    expect(good.stdout).toContain("Otto: Ledger:");
+    expect(good.stdout).toContain("Otto's own audit");
     // one changed byte inside Otto's part is caught
     const raw = fs.readFileSync(file);
     const at = raw.indexOf(Buffer.from('"otto"')) + 60;
