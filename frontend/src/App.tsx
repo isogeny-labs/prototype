@@ -320,8 +320,12 @@ export default function App() {
     setBoxBusy(true);
     setBoxError(null);
     try {
-      await api.changeAssessment(box.assessment.id, { close: true, signed_off_by: fields.signed_off_by, note: fields.note });
+      const now = await api.changeAssessment(box.assessment.id, { close: true, signed_off_by: fields.signed_off_by, note: fields.note });
       setBox(null);
+      // The answer is the assessment as it stands now: it is shown at once, so the page reads Closed without waiting
+      // for everything else to be read again (on a large assessment that takes a few seconds more).
+      appliedReads.current += 1;
+      setAssessment(now);
       await reloadAssessment();
     } catch (e) {
       setBoxError(errorMessage(e));

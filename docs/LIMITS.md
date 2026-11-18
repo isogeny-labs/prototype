@@ -518,6 +518,10 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **The pack does not name the other test that still fails.** For Java the first row reads "another locked test
   still fails on 17.0.3". The shipped pack records the counts of its fix trial (1 of 4 on 17.0.3), not which test,
   and a shipped pack is never rebuilt. A retest in the assessment names it.
+- **The Overview builds each of its blocks afresh.** On a large assessment (eight tests, a proof, a retest, a
+  dependency list, two test packs) its data takes about a second and a half to build on the build machine, and
+  Otto's proposals are about a quarter of that. Nothing is kept between the blocks of one read. Closing such an
+  assessment shows "Closed" as soon as the close itself has answered; the rest of the page follows a moment later.
 - **A check added after a retest first runs on the old version.** Run runs a test on the version the scanner file
   names. A check accepted after a retest therefore has a first result on that version and no result after, until
   the next retest. Evidence then counts the tests that have a result after, and Advisories says of each result

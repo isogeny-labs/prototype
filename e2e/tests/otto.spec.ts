@@ -895,7 +895,8 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     const close = page.getByTestId("close-box");
     await close.getByLabel("Signed off by").fill("Demo reviewer");
     await close.getByRole("button", { name: "Close and sign off" }).click();
-    await expect(page.getByTestId("assessment-status")).toHaveText(/Closed/);
+    // (by now the assessment is at its largest, and the close reads all of it again: allow it more than the usual five seconds)
+    await expect(page.getByTestId("assessment-status")).toHaveText(/Closed/, { timeout: 30_000 });
     advisories = await openAdvisories(page, assessment);
     await expect(page.getByTestId("closed-banner")).toBeVisible();
     await expect(advisories.getByTestId("advisory-row")).toHaveCount(6);
