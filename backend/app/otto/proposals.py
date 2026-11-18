@@ -259,8 +259,10 @@ class ProposalsMixin:
                              "An answer that is not, byte for byte, one of our registered demo programs is refused."]
                 else:
                     title = f"{otto.get('title') or 'A change written by Otto'} ({component['name']})"
-                    lines = ["What the change would do, in Otto's words: " + str(otto.get("summary") or "").strip(),
-                             "Written by Otto. Nothing is changed yet. Accepting it runs nothing: you then connect the code, and the proof "
+                    # (These lines stay on the card after the change is connected and merged, so they say what the change
+                    # does and what Accept does, and nothing about where things stand: the card's own status line says that.)
+                    lines = ["What the change does, in Otto's words: " + str(otto.get("summary") or "").strip(),
+                             "Written by Otto. Accepting it runs nothing and changes nothing: you then connect the code, and the proof "
                              "reruns every locked test on the changed code before anything is offered for review."]
                 out.append(make("fix", code_fix_id(fix["id"][4:] if fix["id"].startswith("fix-") else fix["id"]), title=title,
                                 why=f"The advisory check for {advisory} failed on {program}, which is your own code.",

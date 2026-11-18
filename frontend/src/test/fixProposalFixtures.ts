@@ -154,8 +154,8 @@ export function codeProposal(over: Partial<OttoProposal> = {}): OttoProposal {
     why: "The advisory check for CVE-2022-21449 (Missing ECDSA signature range check) failed on acme-sign 1.4.2, which is your own code.",
     why_label: "Why Otto proposes it",
     lines: [
-      "The verify command now rejects a signature unless both of its numbers, r and s, are from 1 to n - 1, where n is the curve order.",
-      "Written by Otto. Accepting it runs nothing: you then connect the code, and the proof reruns every locked test on the changed code before anything is offered for review.",
+      "What the change does, in Otto's words: The verify command now rejects a signature unless both of its numbers, r and s, are from 1 to n - 1, where n is the curve order.",
+      "Written by Otto. Accepting it runs nothing and changes nothing: you then connect the code, and the proof reruns every locked test on the changed code before anything is offered for review.",
     ],
     note: "Accept records your decision. It runs nothing and changes nothing on any system.",
     link: { page: "fixes", item: CODE_FIX },

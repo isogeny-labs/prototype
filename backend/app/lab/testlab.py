@@ -963,11 +963,17 @@ class TestLabMixin:
                 # line counts the ones that do, and says how the others get one.
                 rest = len(items) - after_done
                 partly = not retest_live and 0 < after_done < len(items)
+                none_after = not retest_live and after_done == 0 and bool(items)      # a retest that was stopped before any result
+                tests_words = f"{n_word} locked {'test' if len(items) == 1 else 'tests'}"
                 which = (f"{present.number_word(after_done)} of the {n_word} locked tests {'was' if after_done == 1 else 'were'}" if partly
-                         else f"the same {n_word} locked {'test' if len(items) == 1 else 'tests'},")
+                         else f"the same {tests_words},")
                 subline = [{"t": "text", "v": f"Before and after: {which} run on "},
                            {"t": "mono", "v": before}, {"t": "text", "v": " and then on "}, {"t": "mono", "v": after_name}]
-                if grouped:
+                if none_after:
+                    subline = [{"t": "text", "v": f"Before and after: the {tests_words} ran on "}, {"t": "mono", "v": before},
+                               {"t": "text", "v": ". The retest on "}, {"t": "mono", "v": after_name},
+                               {"t": "text", "v": f" has no result yet: retest again to run {'it' if len(items) == 1 else 'them'} on that version"}]
+                if grouped and not none_after:
                     subline.append({"t": "text", "v": ". Every other server and program was tested again as it is"})
                 if retest_live:
                     subline.append({"t": "text", "v": ". Retest running."})

@@ -161,9 +161,12 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
   // The claim whose panel is open, for the file it belongs to (a new file starts with none open).
   const [opened, setOpened] = useState<{ file: number; claim: number } | null>(null);
   const linked = openItem && openItem.startsWith("claim-") ? Number(openItem.slice(6)) : null;
+  // A link to a claim opens it when the link or the file changes. Not each time the file's data is read again (an
+  // address ticked, Otto's line refreshed): a panel the person has closed stays closed.
+  const fileId = imp?.id ?? null;
   useEffect(() => {
-    if (linked !== null && imp) setOpened({ file: imp.id, claim: linked });
-  }, [linked, imp]);
+    if (linked !== null && fileId !== null) setOpened({ file: fileId, claim: linked });
+  }, [linked, fileId]);
   const openClaim = imp && opened?.file === imp.id ? (imp.claims.find((c) => c.id === opened.claim) ?? null) : null;
   const closeClaim = useCallback(() => setOpened(null), []);
 

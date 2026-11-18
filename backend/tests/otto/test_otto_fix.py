@@ -142,7 +142,10 @@ def test_otto_writes_the_change_and_a_view_asks_nothing(failed):
     assert "Otto wrote a change for CVE-2022-21449 (Blank signature accepted)" in text and "fix template" not in text.lower()
     # Claude's summary reads as if the change were in ("now rejects"): before any accept it is said as what it would do
     assert "What it would change, in Otto's words:" in text and "Nothing is changed until you accept it and connect the code" in text
-    assert proposal["lines"][0].startswith("What the change would do, in Otto's words: ") and "Nothing is changed yet." in proposal["lines"][1]
+    # (the card's lines stay as they are after the change is connected and merged, so they claim nothing about the present)
+    assert proposal["lines"][0].startswith("What the change does, in Otto's words: ")
+    assert proposal["lines"][1].startswith("Written by Otto. Accepting it runs nothing and changes nothing:")
+    assert not any("yet" in line or "now " in line.split("words: ")[0] for line in proposal["lines"])
     with lab.db() as db:
         assert db.scalars(select(OttoStepRow)).all() == []            # a page that is only shown writes nothing
     # the failed advisory check's result points to this fix
@@ -192,8 +195,10 @@ def test_ottos_change_takes_the_same_proof_path_and_is_offered_only_after_it(fai
     # Second review, 18 November 2026: the proof's words are its own two groups. A server test that is rerun and still
     # reads Failed "came out the same as before"; the page no longer says that every locked test passed.
     said = json.dumps(shown)
-    assert ("every locked test that runs the changed code passed on it, and every test that does not run it came out the same as "
-            "before") in said
+    assert ("every locked test that runs the changed code did what the proof asks of it (each pass-or-fail test passed), and every "
+            "test that does not run it came out the same as before") in said
+    # the card of the accepted proposal is still on the page: none of its lines says that nothing has changed
+    assert "Nothing is changed yet" not in json.dumps(shown["proposal"])
     assert "every locked test passed on the changed code" not in said
     # the Claude step is in the assessment's Otto ledger in full, and the proof run of the check is bound there
     book = assurance.Ledger(lab.settings.data_dir, lab.assessment_for(plan_id=lab.plan.id).id)

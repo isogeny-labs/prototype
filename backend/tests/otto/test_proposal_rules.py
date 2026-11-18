@@ -468,18 +468,13 @@ def test_a_plan_change_is_proposed_only_once_the_system_has_a_place_on_the_plan(
     lab.wait_until_measured(plan_id, 300)
     proposal, = lab.otto_proposals(plan_id, ("plan",))
     assert proposal["title"] == "Fix acme-sign 1.4.2 before its signatures move to post-quantum" and lab.otto_waiting(plan_id)["plan"] == 1
-    # Fixes lists no entry for it (it is decided on Migration), and its Migration group says where it is
-    group = next(g for g in lab.fixes_view(plan_id)["groups"] if g["key"] == "migration")
-    if group["empty_text"]:
-        assert group["empty_text"].endswith("Otto proposes 1 change to the migration plan from a result: you accept or reject it on "
-                                            "Migration, under Systems.")
-    lab.otto_decide(plan_id, proposal["id"], "accept")
-    group = next(g for g in lab.fixes_view(plan_id)["groups"] if g["key"] == "migration")
-    if group["empty_text"]:
-        assert "1 change of Otto's to the plan is accepted: it is on Migration, under Systems." in group["empty_text"]
+    # Fixes lists no entry for a plan change: it is decided on Migration (the words for an empty Migration group
+    # there are tested below, on the words themselves)
+    assert not any(f["id"] == proposal["id"] or f.get("title") == proposal["title"] for f in lab.fixes_view(plan_id)["fixes"])
 
 
 @pytest.mark.needs_otto
+@pytest.mark.parametrize("failed_check", ["not_measured"], indirect=True)       # (nothing here needs a measured status)
 def test_a_result_of_an_advisory_check_says_where_the_check_came_from_and_who_decided(failed_check):
     """Kevin, 18 November 2026: "Evidence: each result from an Otto check shows the advisory, the test design, the trial on
     public copies, the ledger entries, and the accept/reject decisions with who and when." The block repeats records;
@@ -678,6 +673,27 @@ def test_a_later_version_is_named_only_when_it_can_be_read_and_is_past_the_fixed
     assert proposals._later_line(row, "24") == ""
 
 
+def test_fixes_says_where_a_plan_change_is_decided_and_asks_for_no_decision_where_none_can_be_recorded():
+    """Fixes lists no entry for a plan change. Where its Migration group is empty it says where they are; where the
+    buttons are off (a closed assessment, Otto not installed) it counts and asks for nothing (third review, 18 November
+    2026: the same fault had just been taken out of Advisories)."""
+    def proposal(state: str, accept: str | None = None) -> dict:
+        return {"state": state, "actions": ({"accept": accept, "reject": accept} if state == "proposed" else {"undo": None})}
+    line = present_otto.fixes_plan_line
+    assert line([]) is None and line([proposal("rejected")]) is None
+    assert line([proposal("proposed")]) == ("Otto proposes 1 change to the migration plan from a result: you accept or reject it on "
+                                            "Migration, under Systems.")
+    assert line([proposal("proposed"), proposal("proposed")]).startswith("Otto proposes 2 changes to the migration plan from a result: you "
+                                                                         "accept or reject each one")
+    off = "This assessment is closed, so nothing more can be decided in it."
+    blocked = line([proposal("proposed", off)])
+    assert blocked == "1 change to the migration plan that Otto proposed from a result has no decision: it is on Migration, under Systems."
+    assert "accept or reject" not in blocked
+    assert line([proposal("accepted")]) == "1 change of Otto's to the plan is accepted: it is on Migration, under Systems."
+    both = line([proposal("proposed"), proposal("accepted"), proposal("accepted")])
+    assert both.startswith("Otto proposes 1 change") and both.endswith("2 changes of Otto's to the plan are accepted: they are on Migration, under Systems.")
+
+
 def test_two_entries_for_the_same_update_of_a_library_name_each_other():
     """Found by the second review of 18 November 2026: Fixes listed "Update elliptic to the fixed version (6.5.7)" and
     Otto's "Update elliptic to 6.5.7" as two entries, with nothing to say they are one update."""
@@ -694,7 +710,8 @@ def test_two_entries_for_the_same_update_of_a_library_name_each_other():
     said = [p[0]["v"] for p in ottos[1]["what"]["paragraphs"]]
     assert len(said) == 2 and "“Update elliptic to the fixed version (6.5.7)”" in said[1] and said[1].endswith("It is one update, not two.")
     back = [p[0]["v"] for p in older[1]["what"]["paragraphs"]]
-    assert len(back) == 2 and "“Update elliptic to 6.5.7”" in back[1] and "which you accept or reject there" in back[1]
+    assert len(back) == 2 and "“Update elliptic to 6.5.7”" in back[1] and back[1].endswith("It is one update, not two.")
+    assert "accept or reject" not in back[1]                  # it names the entry; the entry's own card has the buttons, or says why not
     assert len(other[1]["what"]["paragraphs"]) == 1 and len(another_version[1]["what"]["paragraphs"]) == 1      # another library, another version
 
 

@@ -192,7 +192,9 @@ export default function App() {
       .getAssessment(routeId)
       .then((next) => {
         const fresh = next.import ?? null;
-        if (live && fresh) setImp((c) => (c && c.id === fresh.id ? { ...c, otto: fresh.otto } : c));
+        // (only that line, and only when it differs: nothing else on the page is replaced by this read)
+        if (live && fresh)
+          setImp((c) => (c && c.id === fresh.id && JSON.stringify(c.otto) !== JSON.stringify(fresh.otto) ? { ...c, otto: fresh.otto } : c));
       })
       .catch(() => undefined);
     return () => {

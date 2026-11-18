@@ -226,8 +226,9 @@ TEMPLATE_WORDS = {"ecdsa-range-check": _range_check_words}
 OTTO_LABEL = "Written by Otto"
 # What a passed proof of a code change means, in the proof's own two groups (the tables under it): a test of the server, or
 # of another program in the file, is rerun too and only has to come out as before, also when that is "Failed".
-PROOF_RULE = ("every locked test that runs the changed code passed on it, and every test that does not run it came out the same "
-              "as before")
+# (Not "passed": the speed test reads "No slowdown beyond measured noise", and a comparison that only reports numbers only has to run.)
+PROOF_RULE = ("every locked test that runs the changed code did what the proof asks of it (each pass-or-fail test passed), and "
+              "every test that does not run it came out the same as before")
 OTTO_PENDING_LABEL = "Not written yet"     # Live Otto is on and nobody has asked Claude yet: nothing is Otto's until it is written
 OTTO_FIX_LABEL = "From Otto"
 
@@ -930,8 +931,7 @@ def link_same_updates(pairs: list[tuple[dict, dict]]) -> None:
             shown["what"]["paragraphs"].append([_t(f"The same update is recommended by the entry “{other_shown['title']}” in this list, "
                                                    "for the other failed tests on this library. It is one update, not two.")])
             other_shown["what"]["paragraphs"].append([_t(f"Otto proposes the same update for the advisory check that failed on this "
-                                                         f"library: “{shown['title']}” in this list, which you accept or reject there. "
-                                                         "It is one update, not two.")])
+                                                         f"library: “{shown['title']}” in this list. It is one update, not two.")])
 
 
 # ------------------------------------------------------------------ the whole step

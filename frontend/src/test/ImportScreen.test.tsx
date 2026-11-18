@@ -356,6 +356,20 @@ describe("Import screen, phase 5b", () => {
     renderImport(demoImport, { openItem: "claim-3" });
     expect(within(screen.getByTestId("claim-panel")).getByRole("heading", { level: 2 }).textContent).toContain("acme-sign 1.4.2");
   });
+
+  it("keeps a linked claim's panel closed once the person has closed it, also when the file's data is read again", () => {
+    // The page gets the file again whenever something on it is refreshed (an address ticked, Otto's line read again
+    // on opening Import). A link opens its claim when the link or the file changes, never on such a read.
+    const props = { demoServer: session.demo_server, onImported: vi.fn(), onImportFailed: vi.fn(), onAddressChanged: vi.fn(), onVerified: vi.fn() };
+    const { rerender } = render(<ImportScreen {...props} imp={demoImport} openItem="claim-3" />);
+    fireEvent.click(within(screen.getByTestId("claim-panel")).getByRole("button", { name: "Close details" }));
+    expect(screen.queryByTestId("claim-panel")).toBeNull();
+    rerender(<ImportScreen {...props} imp={{ ...demoImport }} openItem="claim-3" />);     // the same file, read again
+    expect(screen.queryByTestId("claim-panel")).toBeNull();
+    // another file with that link opens its claim, as before
+    rerender(<ImportScreen {...props} imp={{ ...demoImport, id: demoImport.id + 1 }} openItem="claim-3" />);
+    expect(screen.getByTestId("claim-panel")).not.toBeNull();
+  });
 });
 
 describe("Import screen: what Otto found (phase 5c)", () => {

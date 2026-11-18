@@ -489,12 +489,18 @@ def plan_block(views: list[dict]) -> dict | None:
 def fixes_plan_line(proposals: list[dict]) -> str | None:
     """Fixes, in its Migration group when that group has no entry: Otto's proposed plan changes are not fixes and are
     decided on Migration, so the group says where they are. Counts only."""
-    waiting = len([p for p in proposals if p["state"] == "proposed"])
+    open_ = [p for p in proposals if p["state"] == "proposed"]
+    waiting = len(open_)
     accepted = len([p for p in proposals if p["state"] == "accepted"])
+    # (a closed assessment, or Otto not installed: the buttons are off, so the line asks for no decision)
+    can_decide = any((p.get("actions") or {}).get("accept", "off") is None for p in open_)
     parts = []
-    if waiting:
+    if waiting and can_decide:
         parts.append(f"Otto proposes {_count(waiting, 'change')} to the migration plan from a result: you accept or reject "
                      f"{'it' if waiting == 1 else 'each one'} on Migration, under Systems.")
+    elif waiting:
+        parts.append(f"{_count(waiting, 'change')} to the migration plan that Otto proposed from a result "
+                     f"{'has' if waiting == 1 else 'have'} no decision: {'it is' if waiting == 1 else 'they are'} on Migration, under Systems.")
     if accepted:
         parts.append(f"{_count(accepted, 'change')} of Otto's to the plan {'is' if accepted == 1 else 'are'} accepted: "
                      f"{'it is' if accepted == 1 else 'they are'} on Migration, under Systems.")

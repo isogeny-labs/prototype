@@ -565,8 +565,9 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     // nothing can be connected before a person accepts the proposal
     await expect(fix.getByRole("button", { name: "Connect demo code" })).toBeDisabled();
     await expect(fix).toContainText("Otto proposes this change. Accept the proposal first; accepting runs nothing.");
-    await expect(proposal.getByTestId("proposal-lines")).toContainText("What the change would do, in Otto's words:");
-    await expect(proposal.getByTestId("proposal-lines")).toContainText("Nothing is changed yet.");
+    await expect(proposal.getByTestId("proposal-lines")).toContainText("What the change does, in Otto's words:");
+    await expect(proposal.getByTestId("proposal-lines")).toContainText("Accepting it runs nothing and changes nothing");
+    await expect(fix).toContainText("Nothing is changed until you accept it and connect the code");
     await expect(page.getByTestId("fix-row").filter({ has: page.getByTestId("fix-proposal-mark") }).getByTestId("fix-proposal-status")).toHaveText("Proposed");
     expect(await layoutProblems(page), "Fixes, Otto's proposed change").toEqual([]);
     await shots(page, "4-00-fixes-ottos-change-proposed", { panel: true });
@@ -588,7 +589,9 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await expect(page.locator('[data-testid="proof-row"][data-kind="advisory_cases"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="proof-row"][data-kind="advisory_cases"]').getByTestId("proof-check")).toHaveAttribute("data-ok", "true");
     // what the proof showed, in its own two groups: the server test is rerun, still reads Failed, and "came out the same"
-    await expect(fix).toContainText("every locked test that runs the changed code passed on it, and every test that does not run it came out the same as before");
+    await expect(fix).toContainText(
+      "every locked test that runs the changed code did what the proof asks of it (each pass-or-fail test passed), and every test that does not run it came out the same as before");
+    await expect(fix).not.toContainText("Nothing is changed");            // the change is connected: no line says otherwise
     await expect(fix).not.toContainText("every locked test passed on the changed code");
     await expect(fix).toContainText("byte for byte one of the app's registered demo programs, acme-sign 1.4.3-otto");
     await expect(fix).not.toContainText("reports version 1.4.3-otto");

@@ -75,7 +75,8 @@ class FixesMixin:
             # Phase 5c: Otto's proposed plan changes are decided on Migration and are no entry here. Where this page's
             # Migration group is empty, it says so with them, so it never reads as if nothing were proposed.
             group = next((g for g in view["groups"] if g["key"] == "migration"), None)
-            if group is not None and group.get("empty_text"):
+            # (asked only for a plan that has a check of Otto's: this view is read again while something runs)
+            if group is not None and group.get("empty_text") and self._otto_checks(db, plan.id):      # type: ignore[attr-defined]
                 plans = [p for p in self._proposals(db, plan, ("plan",), fixes=[state for state, _ in pairs])      # type: ignore[attr-defined]
                          if p["current"] or p["state"] != "proposed"]
                 line = present_otto.fixes_plan_line(plans)

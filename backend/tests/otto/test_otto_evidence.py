@@ -34,11 +34,15 @@ def _cli(*args) -> subprocess.CompletedProcess:
 
 
 def _ran(tmp_path, patch):
-    """A demo-mode Lab with a pack installed, its check added and run once (it fails on acme-sign 1.4.2)."""
+    """A demo-mode Lab with the migration status measured, a pack installed, its check added and run once (it fails on
+    acme-sign 1.4.2). With a status measured the failed check also brings a plan change that nobody has decided: a
+    change to a system's plan is proposed only once the system has a place on it."""
     first, public = helpers.make_pack("2026.11.1", None, [helpers.pack_advisory()])
     lab = helpers.lab_with_packs(tmp_path, patch, {"2026.11.1.json": first}, [public])
     lab.pack_key = public
     lab.plan = demo_plan(lab)
+    lab.measure_migration(lab.plan.id)              # Measure status, as a person presses it
+    lab.wait_until_measured(lab.plan.id, 300)
     lab.check_pack_updates()
     lab.install_pack("2026.11.1")
     helpers.accept_checks(lab, lab.plan.id)
