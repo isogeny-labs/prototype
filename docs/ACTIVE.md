@@ -19,7 +19,7 @@ _(none pinned — set one with `/goal <text>`)_
 <!-- One line per task, added as the task's first step with its draft PR:
 - [ ] <task> (<runtime>, started YYYY-MM-DD, branch <branch>, PR #<n>) -->
 
-- [ ] Phase 5c: Otto in Evidence Lab (claude, started 2026-11-17; first build checked 2026-11-18 on branch claude/trusting-goodall-m2i9g6, PR #6). On 2026-11-18 the owner set new acceptance criteria for the whole phase (Otto proposes, a person accepts or rejects; two proof rows; Otto on every tab). None of that is started. Continue from branch wip/5c-otto and read docs/HANDOFF-5c.md first. Don't merge PR #6 as it stands.
+- [ ] Phase 5c: Otto in Evidence Lab — **in progress** (claude, started 2026-11-17; second part started 2026-11-18, branch wip/5c-otto, PR #6 back to draft). The first build is checked (commit 4920e5c). In progress now: the owner's acceptance criteria of 2026-11-18 (Otto proposes, a person accepts or rejects; two proof rows; Otto on every tab), in the order of docs/HANDOFF-5c.md section 5. Don't merge PR #6 until section 2 of that page is met.
 
 ## Blocked / questions for the owner
 
