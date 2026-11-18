@@ -90,6 +90,17 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
+def free_ports(n: int) -> tuple[int, ...]:
+    """n free ports, all different. Asked one after the other, the system can hand the same free port out twice; a
+    demo file made from such ports names one address twice and is refused (it failed one run on 18 November 2026)."""
+    found: list[int] = []
+    while len(found) < n:
+        port = free_port()
+        if port not in found:
+            found.append(port)
+    return tuple(found)
+
+
 class ReachedClaude(BaseException):
     """A test tried to reach the Claude API. Not an ordinary error on purpose: Otto's client turns every ordinary
     error of a request into a plain sentence, and this one must stop the test instead."""

@@ -13,7 +13,7 @@ import pytest
 
 from app import accuracy
 from app.config import DEMO_CBOM, EXPECTED_JSON, Settings
-from conftest import free_port
+from conftest import free_port, free_ports
 
 BACKEND = Path(__file__).resolve().parents[1]
 EXPECTED = json.loads(EXPECTED_JSON.read_text(encoding="utf-8"))
@@ -209,7 +209,7 @@ def test_s1_to_s3_are_graded_and_a_missing_answer_is_a_mismatch():
 @pytest.fixture(scope="module")
 def migration_answers(tmp_path_factory):
     """The migration demo run once, in demo mode, on spare ports (no Docker, no internet)."""
-    ports = tuple(free_port() for _ in range(5))
+    ports = free_ports(5)
     settings = Settings(data_dir=tmp_path_factory.mktemp("migration-accuracy") / "data", demo_tls_port=free_port(), force_mode="demo",
                         migration_ports=ports, lab_nginx_port=free_port())
     return accuracy.collect_migration(settings)

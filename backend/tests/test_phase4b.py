@@ -12,12 +12,12 @@ from app.checks import pqtls
 from app.errors import BadRequest, Conflict, NotFound
 from app.engine.reviewer import apply_outcome, change_try_outcome, meets_promise, pq_status_of, rollback_outcome
 from app.web import models
-from conftest import csv_bytes, free_port, make_lab
+from conftest import csv_bytes, free_port, free_ports, make_lab
 from view_helpers import problems
 
 
 def _ports(n=5):
-    return tuple(free_port() for _ in range(n))
+    return free_ports(n)
 
 
 def _text(parts):
