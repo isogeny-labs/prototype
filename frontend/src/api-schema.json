@@ -10940,6 +10940,18 @@
             "type": "string",
             "title": "Installed Line"
           },
+          "unreadable_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unreadable Line",
+            "description": "Set when a pack installed by an earlier build can't be read by this version."
+          },
           "counts_line": {
             "anyOf": [
               {
@@ -10996,6 +11008,7 @@
           "intro",
           "installed",
           "installed_line",
+          "unreadable_line",
           "counts_line",
           "check",
           "checked_line",

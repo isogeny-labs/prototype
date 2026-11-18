@@ -175,6 +175,22 @@ describe("Settings, the Otto sections", () => {
 });
 
 describe("Settings, Test packs", () => {
+  it("says so plainly when a pack installed by an earlier build can't be read, and is silent otherwise", async () => {
+    const line =
+      "Test pack 2026.11.1, installed here earlier, can't be read by this version of the app: it was made by an earlier build.";
+    await open({
+      ...ottoEmpty,
+      packs: { ...ottoEmpty.packs, installed_line: "No installed test pack can be read by this version of the app.", unreadable_line: line },
+    });
+    expect(screen.getByTestId("otto-unreadable-line").textContent).toBe(line);
+    expect(screen.getByTestId("otto-installed-line").textContent).toBe("No installed test pack can be read by this version of the app.");
+  });
+
+  it("shows no such line when every installed pack reads", async () => {
+    await open(ottoEmpty);
+    expect(screen.queryByTestId("otto-unreadable-line")).toBeNull();
+  });
+
   it("Check for updates calls the API once and shows what was found", async () => {
     const fetchMock = await open(ottoEmpty, { [CHECK]: { body: ottoUpdateFound } });
     expect(packs().queryByTestId("otto-checked-line")).toBeNull();

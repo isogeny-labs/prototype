@@ -22,7 +22,7 @@ def _advisory(number: int) -> dict:
 
 
 SNAPSHOT = {"schema": snapshot.SCHEMA, "snapshot": "2026-11-17", "about": "A made-up snapshot for the tests.",
-            "advisories": [_advisory(n) for n in (1, 2, 3, 4)]}
+            "advisories": [_advisory(n) for n in (1, 2, 3, 4, 5, 6)]}
 
 READING = {"plain_name": "Out-of-range signature accepted",
            "weakness": "The program accepts a signature whose two numbers are zero or outside the allowed range.",
@@ -41,9 +41,12 @@ def _note(flags: list[str]) -> dict:
 
 
 # What each made-up advisory's answers are: 1 a design that works, 2 a design that can't catch the affected version,
-# 3 "no test fits", 4 a reading that quotes a line the publisher never wrote.
+# 3 "no test fits", 4 a reading that quotes a line the publisher never wrote, 5 a design that selects exactly the
+# cases of 1's check (the same library: the same check under a second name), 6 a design that selects exactly the cases
+# of 2's design (which failed its trial and is no check, so 6 is tried in its own right).
 NOTES = {1: _note(["InvalidSignature"]), 2: _note(["MissingZero"]),
-         3: {"decision": "no_test", "reason": "The weakness is in a part of the program the building block cannot reach."}}
+         3: {"decision": "no_test", "reason": "The weakness is in a part of the program the building block cannot reach."},
+         5: _note(["InvalidSignature"]), 6: _note(["MissingZero"])}
 FIX = {"fix": "update", "version": "1.4.3", "quote": {"source": "S1", "text": "The check was added in acme-sign 1.4.3."},
        "summary": "Update acme-sign to 1.4.3, which checks that both numbers of a signature are in range."}
 BAD_READING = {**READING, "weakness_quote": {"source": "S1", "text": "a line that is not in the advisory"}}

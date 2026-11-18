@@ -54,7 +54,8 @@ def test_the_line_about_your_own_code_shows_only_where_there_is_such_code_with_t
     assert "For your own code (acme-sign 1.4.2)" in own
     # it promises only what holds whatever the failure: Otto's change if it can be proven, else the template if it
     # answers the failure, else the reason
-    assert "only when it can be proven on this computer" in own and "if it answers the failure" in own and "Fixes says why no change is offered" in own
+    assert "only when it can be proven on this computer" in own and "if it answers the failure" in own and "offers no code change" in own
+    assert "says why" not in own             # where no template answers, Fixes has no reason of Otto's to give
     assert "takes its place" not in own                      # the template does not always answer
     # a real library is not the customer's own code: the app writes no code for other people's software
     assert "your own code" not in lines([_here("elliptic 6.5.6", 11, FAILED), _here("openjdk 17.0.2", 12, None)])
@@ -72,7 +73,7 @@ def test_the_line_about_your_own_code_shows_only_where_there_is_such_code_with_t
 def test_a_failed_check_on_your_own_code_points_to_fixes_without_promising_a_template():
     said = present_advisory.fix_words("acme-sign 1.4.2", {"state": "own_code"})
     assert said.startswith("Open Fixes") and "acme-sign" in said
-    assert "if it answers this failure" in said and "Fixes says why no change is offered" in said and "takes its place" not in said
+    assert "if it answers this failure" in said and "offers no code change" in said and "takes its place" not in said and "says why" not in said
     assert "only after every locked test passes on the changed code" in said
 
 

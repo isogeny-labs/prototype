@@ -462,7 +462,7 @@ test("isolated mode: an advisory check fails on a real library, and its fix is t
     await installPack(page, "2026.11.2");
     const advisories = await openAdvisories(page, assessment);
     await expect(advisories.getByTestId("advisory-row")).toHaveCount(6);
-    // four tests, each for every signing program in the file that checks ECDSA P-256 signatures
+    // three tests, each for every signing program in the file that checks ECDSA P-256 signatures
     await expect(advisoryRow(page, "CVE-2024-42460").locator("td").nth(2)).toContainText("elliptic 6.5.6");
     await advisories.getByTestId("add-new-checks").click();
     await expect(advisories.getByTestId("add-new-checks")).toBeDisabled();

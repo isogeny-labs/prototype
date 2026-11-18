@@ -42,7 +42,8 @@ _MODULES = ("canonical", "ledger", "records", "lab", "loop", "verifiers")
 NOT_FETCHED = ("it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the "
                "isogeny-labs/otto repository once")
 NOT_PINNED_COPY = ("the copy on this computer is not the pinned one (its fingerprint is different). Delete the folder "
-                   "backend/.otto and run ./run-demo.sh again")
+                   + ("it is kept in (the one EVIDENCE_LAB_OTTO_HOME names)" if os.environ.get(HOME_ENV) else "backend/.otto")
+                   + " and run ./run-demo.sh again")
 
 
 class OttoNotInstalled(Exception):

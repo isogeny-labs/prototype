@@ -81,6 +81,12 @@ class OttoMixin:
             out.append((row, pack))
         return out
 
+    def _unreadable_packs(self, db) -> list[str]:
+        """The versions of installed packs whose stored file this version of the app can't read (a pack made by an
+        earlier build, in a form that has changed since). They are left out everywhere, and Settings says so."""
+        readable = {row.id for row, _ in self._installed_packs(db)}
+        return [row.version for row in self._pack_rows(db) if row.id not in readable]
+
     def _pack_advisories(self, db, upto: datetime | None = None) -> list[tuple[packs.Pack, dict]]:
         """Every advisory of the installed packs, in pack order (a later pack's entry for the same id replaces an earlier one)."""
         seen: dict[str, tuple[packs.Pack, dict]] = {}
@@ -120,7 +126,9 @@ class OttoMixin:
             update, refused, line = self._scan_updates(db) if scan else (None, [], None)
             live_on, limit = self._otto_live_on(db), self._otto_limit(db)
             answers = self._answers_line(db, installed)
+            unreadable = self._unreadable_packs(db)
         return present_otto.settings_view(installed=[(iso(row.installed_at), pack) for row, pack in installed], update=update, refused=refused,
+                                          unreadable=unreadable,
                                           scan_line=line, harness_status=harness.public_status(), live_on=live_on, limit_nano=limit,
                                           key_present=model.key_present(), answers_line=answers)
 

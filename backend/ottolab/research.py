@@ -122,22 +122,63 @@ def used_step(st, lab, advisory_id: str, step: str) -> tuple[str, dict] | None:
     return None
 
 
-def same_check_as(st, advisory_id: str, design: dict) -> str | None:
-    """The other advisory whose design already selects exactly these published cases, if there is one. Two advisories
-    with the same cases would be one check under two names, and a trial on public copies could not tell their
-    weaknesses apart: where the same release fixes both, the affected version fails and the fixed one passes for
-    either. So only the first advisory gets the check."""
-    def cases_of(made: dict) -> tuple:
-        return made["cases"]["file"], made["cases"]["sha256"], tuple(sorted(made["cases"]["ids"]))
-    mine = cases_of(design)
+def package_of(advisory: dict) -> str:
+    """The library an advisory is about, as one name: its ecosystem and its package."""
+    return f"{advisory['package']['ecosystem']}/{advisory['package']['name']}"
+
+
+def cases_of(design: dict) -> tuple:
+    """The published cases a design selects, as one comparable value: the file, its SHA-256 and the sorted case ids."""
+    return design["cases"]["file"], design["cases"]["sha256"], tuple(sorted(design["cases"]["ids"]))
+
+
+def earlier_checks() -> list[dict]:
+    """The checks of the test packs built before this one, as the build command wrote them down for this run: for
+    each, its advisory, the library that advisory is about, its pack, and the published cases it uses. Data only; a
+    file that is not exactly that holds none."""
+    path = os.environ.get(ENV_EARLIER)
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8")) if path else []
+    except (OSError, ValueError):
+        return []
+    out = []
+    for item in data if isinstance(data, list) else []:
+        if isinstance(item, dict) and all(isinstance(item.get(k), str) for k in ("advisory", "package", "pack", "file", "sha256")) \
+                and isinstance(item.get("ids"), list) and all(isinstance(i, str) for i in item["ids"]):
+            out.append(item)
+    return out
+
+
+def same_check_as(st, lab, snap: dict, advisory: dict, design: dict) -> tuple[str, str] | None:
+    """Another advisory ABOUT THE SAME LIBRARY whose check already uses exactly these published cases, if there is
+    one: (its id, where that check is). Two advisories about one library with the same cases would be one check
+    under two names, and a trial on public copies could not tell their weaknesses apart: where the same release
+    fixes both, the affected version fails and the fixed one passes for either. So only the first one gets the check.
+
+    Only a check that exists counts: a test of an earlier pack, or a design of this build whose own trial held. A
+    design that was never tried, or that failed its trial, is no check, so it costs no other advisory its test. And
+    the same cases for another library are another check: its trial runs on that library's own versions."""
+    mine, library = cases_of(design), package_of(advisory)
+    for other in earlier_checks():
+        if other["advisory"] != advisory["id"] and other["package"] == library \
+                and (other["file"], other["sha256"], tuple(sorted(other["ids"]))) == mine:
+            return other["advisory"], f"test pack {other['pack']}"
     for _, claim in st.of("claim"):
         art = claim["artifact"]
         if not isinstance(art.get("step"), dict) or art["step"].get("step") != "design_test" or art.get("outcome") != "used" \
-                or art.get("advisory") == advisory_id:
+                or art.get("advisory") == advisory["id"]:
             continue
         parsed = art.get("parsed") or {}
-        if parsed.get("decision") == "test" and cases_of(parsed["design"]) == mine:
-            return str(art["advisory"])
+        if parsed.get("decision") != "test" or cases_of(parsed["design"]) != mine:
+            continue
+        other_id = str(art["advisory"])
+        try:
+            if package_of(snapshot.advisory_of(snap, other_id)) != library:
+                continue
+        except snapshot.SnapshotError:
+            continue        # an advisory of an earlier build in this lab: its check, if it shipped, is among the earlier ones
+        if any(held(st, lab, hid) for hid, _ in trials_of(st, other_id, "test", lab)):
+            return other_id, "this build"
     return None
 
 
@@ -233,7 +274,7 @@ def _write_once(lab, folder: str, name: str, data: dict) -> str:
     return rel
 
 
-def propose_test(lab, model: OttoModel, question_id: str, advisory: dict) -> str:
+def propose_test(lab, model: OttoModel, question_id: str, advisory: dict, snap: dict) -> str:
     """Read the advisory, design a test, and register its trial on public copies. Returns one plain line."""
     st = lab.state()
     aid, package = advisory["id"], advisory["package"]["name"]
@@ -254,10 +295,11 @@ def propose_test(lab, model: OttoModel, question_id: str, advisory: dict) -> str
         def checked(step) -> dict:
             made = prompts.check_design_note(step.answer, advisory, reading,
                                              {"prompt_sha256": step.prompt_sha256, "answer_sha256": step.answer_sha256})
-            twin = same_check_as(st, aid, made["design"]) if made["decision"] == "test" else None
+            twin = same_check_as(st, lab, snap, advisory, made["design"]) if made["decision"] == "test" else None
             if twin is not None:
-                raise prompts.Refused(f"The design selects exactly the published cases of the check for {twin}. That would be the same "
-                                      "check under a second name: it could not tell this advisory's weakness from that one's.")
+                raise prompts.Refused(f"The design selects exactly the published cases of the check for {twin[0]} ({twin[1]}), an advisory "
+                                      f"about the same library, {package}. That would be the same check under a second name: it could "
+                                      "not tell this advisory's weakness from that one's.")
             return made
         claim, note, record = ask(lab, model, question_id, advisory, "design_test", prompt, checked)
         if note is None:
@@ -448,7 +490,8 @@ def act(lab, model: OttoModel, snap: dict, action: str, target: str) -> str:
             # Read, design and register follow one another; each needs the checker's verdict on the step before it.
             while before != lab.ledger.head()["head"]:
                 before = lab.ledger.head()["head"]
-                lines.append(propose_test(lab, model, target, advisory) if about[1] == "test" else propose_fix(lab, model, target, advisory))
+                lines.append(propose_test(lab, model, target, advisory, snap) if about[1] == "test"
+                             else propose_fix(lab, model, target, advisory))
                 for cid, _ in step_claims(lab.state(), about[0]):
                     if not lab.state().settled(cid):
                         lab.verify(cid)          # the harness's own verify step: it runs the pinned checker
@@ -463,29 +506,33 @@ def act(lab, model: OttoModel, snap: dict, action: str, target: str) -> str:
 
 
 # The build command sets the agent command up through the environment: where the snapshot and the recorded answers
-# are, whether live calls may be made, the spending limit of this run, and a small file in which the run's spending
-# is added up across the agent's steps (each step is its own process). The API key is never among these.
-ENV_SNAPSHOT, ENV_RECORDED, ENV_LIVE, ENV_LIMIT, ENV_SPENT = (
-    "OTTOLAB_SNAPSHOT", "OTTOLAB_RECORDED", "OTTOLAB_LIVE", "OTTOLAB_LIMIT_NANO", "OTTOLAB_SPENT_FILE")
+# are, whether live calls may be made, the spending limit of this run, a small file in which the run's spending is
+# added up across the agent's steps (each step is its own process), and a file that lists the checks of the packs
+# built earlier. The API key is never among these.
+ENV_SNAPSHOT, ENV_RECORDED, ENV_LIVE, ENV_LIMIT, ENV_SPENT, ENV_EARLIER = (
+    "OTTOLAB_SNAPSHOT", "OTTOLAB_RECORDED", "OTTOLAB_LIVE", "OTTOLAB_LIMIT_NANO", "OTTOLAB_SPENT_FILE", "OTTOLAB_EARLIER_FILE")
 
 
-def _spent(path: str | None) -> tuple[int, int]:
+def _spent(path: str | None) -> tuple[int, int, int]:
+    """(what the run has spent, how many calls were answered, the most that requests with no answer could have cost)."""
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8")) if path else {}
-        return int(data.get("spent_nano") or 0), int(data.get("calls") or 0)
-    except (OSError, ValueError, TypeError):
-        return 0, 0
+        return int(data.get("spent_nano") or 0), int(data.get("calls") or 0), int(data.get("unanswered_nano") or 0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return 0, 0, 0
 
 
 def env_model() -> OttoModel:
-    """The model as the build command set it up for this run."""
+    """The model as the build command set it up for this run. Everything that counts against the run's spending
+    limit is carried from step to step: what was spent, and what requests with no answer could have cost."""
     from app.otto.model import Budget
-    spent, calls = _spent(os.environ.get(ENV_SPENT))
-    budget = Budget(limit_nano=int(os.environ.get(ENV_LIMIT) or 0), spent_nano=spent, calls=calls)
+    spent, calls, unanswered = _spent(os.environ.get(ENV_SPENT))
+    budget = Budget(limit_nano=int(os.environ.get(ENV_LIMIT) or 0), spent_nano=spent, calls=calls, unanswered_nano=unanswered)
     return OttoModel(recorded_dirs=(Path(os.environ[ENV_RECORDED]),), live=os.environ.get(ENV_LIVE) == "1", budget=budget)
 
 
 def save_spent(model: OttoModel) -> None:
     path = os.environ.get(ENV_SPENT)
     if path:
-        Path(path).write_text(json.dumps({"spent_nano": model.budget.spent_nano, "calls": model.budget.calls}), encoding="utf-8")
+        Path(path).write_text(json.dumps({"spent_nano": model.budget.spent_nano, "calls": model.budget.calls,
+                                          "unanswered_nano": model.budget.unanswered_nano}), encoding="utf-8")

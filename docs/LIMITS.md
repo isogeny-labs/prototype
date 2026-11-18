@@ -221,8 +221,8 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   none, and the accept-everything control all 77.
 - **CVE-2019-14859** ("Badly encoded signature accepted", python-ecdsa): 9 cases. 0.13.2 got 8 wrong, 0.13.3 none.
 - **CVE-2019-14853** ("Malformed signature raises unexpected error", python-ecdsa) reads **No test yet.** Its
-  recorded design picked exactly the nine cases of the check for CVE-2019-14859, so it was refused before any trial
-  as the same check under a second name (see the limits below).
+  recorded design picked exactly the nine cases of the check for CVE-2019-14859, an advisory about the same
+  library, so it was refused before any trial as the same check under a second name (see the limits below).
 - **CVE-2024-42460** ("Wrongly encoded signature accepted", elliptic): 1 case, case 6. 6.5.6 got it wrong, 6.5.7 right.
 - **CVE-2024-42461** and **CVE-2024-42459** (elliptic) read **No test yet.** Claude's design step answered that no
   test fits the building blocks of this version, and gave its reason: the first needs a longer signature from a
@@ -248,16 +248,25 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **CVE-2019-14853 has no test, because its design was a copy of another advisory's check.** The advisory is about
   the kind of error python-ecdsa raises for a malformed signature. The one building block can't show that: by the
   owner's rule an error raised by the library counts as "not accepted" (phase 4c). The recorded design therefore
-  picked the nine badly encoded signatures that the check for CVE-2019-14859 already uses. Such a check would pass
-  or fail together with that one and could not tell the two weaknesses apart, yet its name would say it measured
-  this advisory. So a design that selects exactly the cases of another advisory's check is refused before any
-  trial, the advisory reads "No test yet" with that reason, and no fix is offered for it.
-- **The packs in the repository are the second build.** The first build, earlier on 17 November 2026, shipped that
-  duplicate check as "Test ready" (four tests in all). The independent review of the phase found it; the rule
-  above was added and the research was run again from an empty ledger with the same recorded answers. The three
-  test trials that are in both builds gave the same numbers. The first build's ledger and packs are kept in this
-  branch's git history (commit `370a380`), not in the working files. Nothing had shipped: from the merge of this
-  phase on, a pack that is in the repository is never rebuilt.
+  picked the nine badly encoded signatures that the check for CVE-2019-14859, an advisory about the same library,
+  already uses. Such a check would pass or fail together with that one and could not tell the two weaknesses apart,
+  yet its name would say it measured this advisory. So the design was refused before any trial, the advisory reads
+  "No test yet" with that reason, and no fix is offered for it.
+- **What the duplicate rule does, and what it leaves.** A design is refused only when another advisory about the
+  same library has a check with exactly the same published cases: a test of an earlier pack, or a design of the
+  same build whose own trial held. The advisory that comes first keeps the check; the order is the order of the
+  snapshot. A design with one case more or one case fewer is not refused, so two checks can still overlap. The
+  same cases for another library are allowed on purpose (the same weakness in two libraries is two advisories, each
+  with its own fix), so on a program of your own two such checks would rerun the same cases under two names.
+- **The packs in the repository are the third build.** The independent reviews changed the research script twice,
+  and a pack names its scripts by fingerprint, so each time the research was run again from an empty ledger with
+  the same recorded answers. The first build (17 November 2026) shipped the duplicate check above as "Test ready"
+  (four tests in all); the second added the rule; the third (18 November 2026) corrected it as described above.
+  Every trial that is in more than one build gave the same numbers each time. The two earlier builds are kept in
+  this branch's git history (commits `370a380` and `8789c4b`), not in the working files; if the branch is squashed
+  when it is merged, they stay reachable through pull request #6. Nothing had shipped. From the merge of this
+  phase on, a pack that is in the repository is never rebuilt. Whether building again before the merge was right
+  is the owner's call: the rule in `CLAUDE.md` says "a shipped pack is never rebuilt".
 - **No shipped advisory reads "Not offered".** The plan expected one design to be tried and refuted. In the real
   build no design was refuted: for CVE-2024-42461 the design step answered "no test fits" instead, and for
   CVE-2019-14853 the design was refused before it could be tried. The refuted path is real and tested on a made-up
@@ -316,8 +325,9 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Cost.** The spending limit (2 US dollars per run until changed) stops a run before the request that could pass
   it, also a request that is sent again. It counts the worst case of that request (a full-length answer at the
   dearest price that could apply, twice where a declined request may be answered by another model), so a run can
-  stop early. A request that got no answer at all may still have been billed, so the most it could have cost counts
-  against the limit too. The price list is a config value and can go out of date; Settings shows its source and
+  stop early. A request that got no answer that can be read (a time-out, an answer cut off part-way, an answer
+  that is not what the API sends) may still have been billed, so the most it could have cost counts against the
+  limit too, and in the research command that is carried from step to step. The price list is a config value and can go out of date; Settings shows its source and
   date. One model answers every step.
 - **The live call is made with Python's standard library,** not with Anthropic's official package. Adding that
   package would be a new dependency and needs the owner's OK.
@@ -334,6 +344,17 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   locked-down container.
 - **Otto does not run on Windows.** Its ledger locks files the Linux and macOS way. On Windows the app says Otto is
   not installed.
+- **The harness's fingerprint covers the files of the pinned commit, and nothing else in its folder.** Python's own
+  cache folders (`__pycache__`), compiled `.pyc` files and links in that folder are left out, so that running Otto
+  does not change the fingerprint. Someone who can write to that folder can therefore change what runs without
+  changing the fingerprint, as they could change the app's own code. The check guards what was fetched, not a
+  computer that someone else can write to. `EVIDENCE_LAB_OTTO_HOME` lets that folder be anywhere; the same holds
+  there.
+- **A data folder that holds packs from an earlier build of this phase can't go on.** The form of a pack changed
+  during the build (a source now says where its text was read from), and the two packs were built again under the
+  same version numbers. A data folder that installed an earlier build's packs can't read them and can't install
+  the new ones after them. Settings says so in one line. Start with a new data folder: stop the app, move the folder
+  `data/` away and start the app again. A new Codespace starts with a new one.
 - **A ledger can't be rebuilt byte for byte.** Clock times are inside its hashes. So the research ledger in the
   repository is audited, never made again and compared, and a shipped pack is never rebuilt.
 - **The demo pack key can sign nothing more.** It was made when the packs were built and its private half was
@@ -371,11 +392,19 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   put the weakness into words, so its quoted line is the range check in the fixed JDK source. Some quotes are a
   raw field of an advisory record (`"fixed": "0.13.3"`). Each quote names its source and publisher, and its tag
   reads "quoted from the named source, not a result".
-- **The verify command runs nothing that a file names.** A ledger inside an evidence file is data. Before Otto's own
-  audit is given it, every entry must be of a kind this app writes and name only our own pinned checker; a file
-  whose ledger names any other checker fails the check and nothing is run. The independent review of the phase
-  found that an earlier state of the build would have started what such a file named. It was fixed before the
-  phase shipped, and tests plant such files to show that nothing runs (`backend/tests/otto/test_verify_reads_data.py`).
+- **The verify command runs nothing that a file names.** A ledger inside an evidence file is data. Otto's harness,
+  asked to check entries again, starts the verifier an entry names, and it finds that entry by its id whatever its
+  kind. So the command never asks it to. Every entry must first be in the exact form this app writes (its kind,
+  its fields, the one checker an objective may name, each pointer to an earlier entry of the right kind); the
+  harness then audits the chain and the records without running any verifier; and the app runs its own pinned
+  checker again on every checked entry. Two independent reviews of the phase found holes here before it shipped:
+  first, that the command would have started what an objective named; then, after that was closed, that an entry
+  of another kind could still pose as an objective. Both are closed, and tests plant such files to show that
+  nothing runs (`backend/tests/otto/test_verify_reads_data.py`). What this rests on: the harness's audit without
+  re-verification starts nothing. That is true of the pinned commit and must be looked at again when the pin moves.
+- **The research audit command is for our own lab.** `python -m ottolab.build audit` does ask the harness to run the
+  pinned checker again, after making sure the ledger names nothing else. Run it on the repository's own
+  `research/lab/`, or on a lab this computer built.
 - **The fifth answer key is not written yet.** `demo/expected-otto.json` is written independently of the build.
   Until it is in the repository, `python -m app.accuracy --only otto` shows the app's answers and grades nothing
   (exit code 2, which is not a pass; 3 when Otto is not installed). `docs/OTTO-KEY.md` lists its questions.

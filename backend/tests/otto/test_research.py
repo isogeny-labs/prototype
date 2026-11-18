@@ -78,6 +78,35 @@ def test_a_useless_design_comes_out_refuted_and_stays_out_of_the_pack(built):
 
 @pytest.mark.needs_otto
 @pytest.mark.slow
+def test_a_design_that_only_repeats_another_check_for_the_same_library_is_refused_before_any_trial(built):
+    """Advisory 5's design selects exactly the cases of advisory 1's check, and both are about the same library. A
+    trial could not tell the two weaknesses apart, so the design is refused: no trial is registered and no test ships."""
+    entry = _advisory(built, 5)
+    assert entry["test"]["state"] == "none" and entry["test"]["trial"] is None and entry["test"]["design_sha256"] is None
+    assert entry["test"]["reason"] == ("No test yet: The design selects exactly the published cases of the check for TEST-2026-0001 (this "
+                                       "build), an advisory about the same library, acme-sign. That would be the same check under a second "
+                                       "name: it could not tell this advisory's weakness from that one's.")
+    assert [(s["step"], s["outcome"]) for s in entry["steps"]] == [("read_advisory", "used"), ("design_test", "refused")]
+    assert entry["fix"]["state"] == "none" and "no test" in entry["fix"]["reason"]
+    st, lab = built["lab"].state(), built["lab"]
+    assert research.trials_of(st, "TEST-2026-0005", "test", lab) == []           # nothing was registered, so nothing was run
+    assert len(built["pack"].pack["tests"]) == 1                                 # one check ships, under one name
+
+
+@pytest.mark.needs_otto
+@pytest.mark.slow
+def test_a_design_is_not_refused_for_repeating_a_design_that_never_became_a_check(built):
+    """Advisory 6's design selects exactly the cases of advisory 2's design. That design failed its own trial, so it
+    is no check, and it costs advisory 6 nothing: 6 is tried in its own right (and, here, fails its trial too)."""
+    entry = _advisory(built, 6)
+    assert entry["test"]["state"] == "not_offered" and "failed its own trial" in entry["test"]["reason"]
+    assert "second name" not in entry["test"]["reason"] and entry["test"]["trial"]["outcome"] == "refuted"
+    assert [(s["step"], s["outcome"]) for s in entry["steps"]] == [("read_advisory", "used"), ("design_test", "used")]
+    assert len(research.trials_of(built["lab"].state(), "TEST-2026-0006", "test", built["lab"])) == 1
+
+
+@pytest.mark.needs_otto
+@pytest.mark.slow
 def test_no_test_and_a_refused_reading_are_said_plainly(built):
     none = _advisory(built, 3)
     assert none["test"]["state"] == "none" and none["test"]["reason"].startswith("No test yet: The weakness is in a part")

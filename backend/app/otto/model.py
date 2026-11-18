@@ -362,7 +362,11 @@ class OttoModel:
                     continue
                 raise LiveCallFailed(f"Claude could not be reached ({exc.__class__.__name__}). Nothing was changed.") from None
             except Exception as exc:     # never the error's own words: an HTTP library can name a header's value in them
-                raise LiveCallFailed(f"The request to Claude could not be made ({exc.__class__.__name__}). Nothing was changed.") from None
+                # It may have been sent before it failed (an answer cut off part-way, say), so it may have been billed.
+                self.budget.add_unanswered(self.budget.worst_case(model, prompt, attempts=2 if fallback else 1))
+                raise LiveCallFailed(f"The request to Claude did not come back whole ({exc.__class__.__name__}). It may have been "
+                                     "sent, so the most it could have cost counts against this run's limit. Nothing was "
+                                     "changed.") from None
             if status == 400 and fallback and b"fallback" in raw.lower():
                 fallback = False        # this account or model does not take the fallback option: ask once more without it
                 continue
@@ -375,10 +379,14 @@ class OttoModel:
             raise LiveCallFailed(redact(f"Claude's API answered with an error ({status}: {_error_words(raw)}). Nothing was changed.", env))
         try:
             data = json.loads(raw)
-        except ValueError:
-            raise LiveCallFailed("Claude's API gave an answer that could not be read. Nothing was changed.") from None
+        except (ValueError, RecursionError):
+            data = None
         if not isinstance(data, dict):
-            raise LiveCallFailed("Claude's API gave an answer that could not be read. Nothing was changed.")
+            # The API answered, so the request was billed, but what it used can't be read: the most it could have
+            # cost counts against this run's limit.
+            self.budget.add_unanswered(self.budget.worst_case(model, prompt, attempts=2 if fallback else 1))
+            raise LiveCallFailed("Claude's API gave an answer that could not be read. It was billed all the same, so the most it "
+                                 "could have cost counts against this run's limit. Nothing was changed.")
         tokens_in, tokens_out, cost = cost_of(model, data)
         self.budget.add(cost)           # a declined or cut-off answer was still paid for
         if data.get("stop_reason") == "refusal":

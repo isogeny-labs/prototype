@@ -255,9 +255,42 @@ def test_an_error_that_names_a_header_never_reaches_a_message(tmp_path):
     otto = _live(tmp_path, transport=transport)
     with pytest.raises(model.LiveCallFailed) as failed:
         otto.ask("write_fix", PROMPT)
-    assert str(failed.value) == "The request to Claude could not be made (ValueError). Nothing was changed."
+    assert str(failed.value).startswith("The request to Claude did not come back whole (ValueError).") and "Nothing was changed." in str(failed.value)
     assert FAKE_KEY not in str(failed.value) and FAKE_KEY not in repr(failed.value)
     assert failed.value.__cause__ is None and failed.value.__suppress_context__ is True        # nothing of the first error travels on
+
+
+def test_a_request_that_may_have_been_billed_counts_against_the_limit_whatever_went_wrong(tmp_path):
+    """Two more cases besides a time-out: an answer cut off while it was read (not a network error in Python's terms),
+    and an answer from the API that can't be read. Neither says what was used, so the most it could have cost counts."""
+    import http.client
+
+    def cut_off(body, headers, timeout):
+        raise http.client.IncompleteRead(b"{", 100)
+    otto = _live(tmp_path, transport=cut_off)
+    with pytest.raises(model.LiveCallFailed) as failed:
+        otto.ask("write_fix", PROMPT)
+    assert "may have been sent" in str(failed.value) and otto.budget.spent_nano == 0
+    most = otto.budget.worst_case(model.DEFAULT_MODEL, PROMPT, attempts=2)
+    assert otto.budget.unanswered_nano == most > 0
+
+    unreadable = _live(tmp_path, transport=lambda body, headers, timeout: (200, b"<html>not json</html>"))
+    with pytest.raises(model.LiveCallFailed) as failed:
+        unreadable.ask("write_fix", PROMPT)
+    assert "could not be read" in str(failed.value) and "billed all the same" in str(failed.value)
+    assert unreadable.budget.unanswered_nano == most and unreadable.budget.spent_nano == 0
+    # an answer that is JSON but not an object is the same case
+    listed = _live(tmp_path, transport=lambda body, headers, timeout: (200, b"[1, 2]"))
+    with pytest.raises(model.LiveCallFailed):
+        listed.ask("write_fix", PROMPT)
+    assert listed.budget.unanswered_nano == most
+    # and from then on the run's limit is that much nearer: a second request that could pass it is not sent
+    tight = _live(tmp_path, transport=cut_off, budget=model.Budget(limit_nano=most + 1))
+    with pytest.raises(model.LiveCallFailed):
+        tight.ask("write_fix", PROMPT)
+    with pytest.raises(model.SpendingLimitReached) as stopped:
+        tight.ask("write_fix", PROMPT)
+    assert "got no answer" in str(stopped.value)
 
 
 def test_where_a_model_declined_part_way_only_the_answer_after_the_switch_is_used(tmp_path):

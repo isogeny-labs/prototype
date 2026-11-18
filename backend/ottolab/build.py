@@ -72,11 +72,12 @@ def sign(pack: dict, key: Ed25519PrivateKey) -> bytes:
 
 # ---------------------------------------------------------------- the loop, on Adam's harness
 
-def run_loop(lab, snapshot_path: Path, recorded: Path, live: bool, limit_nano: int, spent_file: Path) -> str:
+def run_loop(lab, snapshot_path: Path, recorded: Path, live: bool, limit_nano: int, spent_file: Path, earlier_file: Path) -> str:
     """Adam's research loop on this lab: his harness runs, judges, replays and verifies; our agent command does the
     steps that need judgement. The model judge of his loop is never used (its command is set to one that fails)."""
     os.environ.update({research.ENV_SNAPSHOT: str(snapshot_path), research.ENV_RECORDED: str(recorded),
                        research.ENV_LIVE: "1" if live else "0", research.ENV_LIMIT: str(limit_nano), research.ENV_SPENT: str(spent_file),
+                       research.ENV_EARLIER: str(earlier_file),
                        "EVIDENCE_LAB_BACKEND": str(BACKEND), "OTTO_JUDGE_CMD": "false",
                        "PYTHONPATH": os.pathsep.join([str(BACKEND)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p])})
     agent = f"{shlex.quote(sys.executable)} -m ottolab.agent"
@@ -151,7 +152,8 @@ def _entry_words(kind: str, record: dict) -> str:
     if kind == "decision":
         return f"Otto's harness judged the trial against its frozen thresholds: {record['outcome'].replace('_', ' ')}"
     if kind == "audit":
-        return f"Replayed by a second author: {record['replayed']} runs, {len(record['mismatches'])} mismatches"
+        return (f"Replayed in a separate step under a second author's name (the same build, on the same computer): "
+                f"{record['replayed']} runs, {len(record['mismatches'])} mismatches")
     if kind == "fact":
         return ("Dead end recorded: " if record["kind"] == "dead_end" else "Fact recorded: ") + record["statement"]
     if kind == "correction":
@@ -238,7 +240,8 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
                     f"{affected.get('wrong')} of {affected.get('total')} cases wrong, {package} {fixed.get('version')} got none wrong, and the "
                     "control that must fail did."))
             elif trial["outcome"] == "supported":
-                test.update(state="not_offered", reason="Not offered: its trial on public copies did not repeat when a second author replayed it.")
+                test.update(state="not_offered", reason="Not offered: its trial on public copies did not repeat when it was run again in a "
+                                                        "separate replay step.")
             elif trial["outcome"] == "refuted":
                 test.update(state="not_offered", reason=(
                     f"Not offered: the design failed its own trial. {package} {affected.get('version')}, the affected version, got all "
@@ -285,7 +288,32 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
     return entry, design
 
 
-def assemble(lab, snap: dict, snapshot_sha256: str, version: str, ids: tuple[str, ...], previous: str | None, signer: str) -> dict:
+def checks_of(pack: dict) -> list[dict]:
+    """The checks a pack ships, as the duplicate rule compares them: for each ready test its advisory, the library
+    that advisory is about, the pack's version and the published cases it uses."""
+    about = {a["id"]: f"{a['package']['ecosystem']}/{a['package']['name']}" for a in pack["advisories"]}
+    return [{"advisory": t["design"]["advisory"], "package": about[t["design"]["advisory"]], "pack": pack["version"],
+             "file": t["design"]["cases"]["file"], "sha256": t["design"]["cases"]["sha256"], "ids": sorted(t["design"]["cases"]["ids"])}
+            for t in pack["tests"]]
+
+
+def same_check_twice(checks: list[dict]) -> str | None:
+    """Two checks for one library that use exactly the same published cases, as one plain sentence, or None. The
+    research step refuses such a design before it is tried; this is the last look before a pack is signed."""
+    seen: dict[tuple, dict] = {}
+    for check in checks:
+        key = (check["package"], check["file"], check["sha256"], tuple(sorted(check["ids"])))
+        if key in seen:
+            first = seen[key]
+            return (f"The check for {check['advisory']} uses exactly the published cases of the check for {first['advisory']} "
+                    f"(test pack {first['pack']}), and both advisories are about the same library. That would be one check under two "
+                    "names, so no pack was signed.")
+        seen[key] = check
+    return None
+
+
+def assemble(lab, snap: dict, snapshot_sha256: str, version: str, ids: tuple[str, ...], previous: str | None, signer: str,
+             earlier: list[dict] | None = None) -> dict:
     st = lab.state()
     entries, tests = [], []
     for advisory_id in ids:
@@ -293,6 +321,9 @@ def assemble(lab, snap: dict, snapshot_sha256: str, version: str, ids: tuple[str
         entries.append(entry)
         if design is not None:
             tests.append({"design": design, "design_sha256": designs.design_sha256(design)})
+    twice = same_check_twice(list(earlier or []) + checks_of({"version": version, "advisories": entries, "tests": tests}))
+    if twice is not None:
+        raise research.ResearchError(twice)
     sources = {step["source"] for entry in entries for step in entry["steps"]}
     answers = "live" if sources == {"live"} else "recorded" if sources <= {"recorded"} else "mixed"
     recorded_at = sorted(step["at"] for entry in entries for step in entry["steps"] if step["source"] == "recorded")
@@ -320,15 +351,20 @@ def _day(stamp: str) -> str:
 
 
 def build_pack(lab, snap: dict, snapshot_path: Path, version: str, ids: tuple[str, ...], previous: str | None, key: Ed25519PrivateKey,
-               signer: str, out_dir: Path, recorded: Path, live: bool, limit_nano: int, spent_file: Path) -> packs.Pack:
+               signer: str, out_dir: Path, recorded: Path, live: bool, limit_nano: int, spent_file: Path,
+               earlier: list[dict] | None = None) -> packs.Pack:
+    """`earlier`: the checks of the packs built before this one (`checks_of` each), so that a design which only repeats
+    one of them for the same library is refused, also when that pack came out of another lab."""
     snapshot_sha256 = hashlib.sha256(snapshot_path.read_bytes()).hexdigest()
     say(f"Pack {version}: {', '.join(ids)}")
+    earlier_file = spent_file.with_name(f"earlier-checks-{version}.json")
+    earlier_file.write_text(json.dumps(list(earlier or [])), encoding="utf-8")
     research_advisories(lab, snap, snapshot_sha256, ids, snapshot_path=snapshot_path, recorded=recorded, live=live, limit_nano=limit_nano,
-                        spent_file=spent_file)
+                        spent_file=spent_file, earlier_file=earlier_file)
     problems = lab.audit()
     if problems:
         raise research.ResearchError("Otto's audit of the research ledger found a problem: " + "; ".join(problems[:3]))
-    raw = sign(assemble(lab, snap, snapshot_sha256, version, ids, previous, signer), key)
+    raw = sign(assemble(lab, snap, snapshot_sha256, version, ids, previous, signer, earlier), key)
     made = packs.read_envelope(raw, {_public_hex(key): (signer, False)})   # the builder reads its own pack back exactly as the app will
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{version}.json").write_bytes(raw + b"\n")
@@ -340,8 +376,11 @@ def build_pack(lab, snap: dict, snapshot_path: Path, version: str, ids: tuple[st
 
 
 def _spent_line(spent_file: Path, limit_nano: int) -> str:
-    spent, calls = research._spent(str(spent_file))
-    return f"Claude: {calls} live {'call' if calls == 1 else 'calls'}, {model.dollars(spent)} spent of a limit of {model.dollars(limit_nano)} for this run."
+    spent, calls, unanswered = research._spent(str(spent_file))
+    maybe = (f" Up to {model.dollars(unanswered)} more may have been billed for requests that got no answer; that counted against the "
+             "limit too." if unanswered else "")
+    return (f"Claude: {calls} live {'call' if calls == 1 else 'calls'}, {model.dollars(spent)} spent of a limit of "
+            f"{model.dollars(limit_nano)} for this run.{maybe}")
 
 
 # ---------------------------------------------------------------- the commands
@@ -363,9 +402,12 @@ def ship(args) -> int:
     previous = None
     with tempfile.TemporaryDirectory(prefix="ottolab-") as scratch:
         spent_file = Path(scratch) / "spent.json"
+        earlier: list[dict] = []
         for version, ids in todo:
-            made = build_pack(lab, snap, SNAPSHOT, version, ids, previous, key, SHIP_SIGNER, PACKS, RECORDED, args.live, args.limit_nano, spent_file)
+            made = build_pack(lab, snap, SNAPSHOT, version, ids, previous, key, SHIP_SIGNER, PACKS, RECORDED, args.live, args.limit_nano,
+                              spent_file, earlier)
             previous = made.fingerprint
+            earlier = earlier + checks_of(made.pack)
         say(_spent_line(spent_file, args.limit_nano))
     packs.TRUSTED_KEYS_FILE.write_text(json.dumps({"schema": packs.KEYS_SCHEMA, "keys": [
         {"public_key": _public_hex(key), "label": SHIP_SIGNER, "made": _now()[:10]}]}, indent=1) + "\n", encoding="utf-8")
@@ -429,20 +471,51 @@ def next_pack(args) -> int:
         if args.live and not model.key_present():
             say(f"--live was given, but no API key is set on this computer ({model.KEY_ENV}). Only recorded answers are used.")
         build_pack(lab, snap, files[0], version, ids, newest.fingerprint if newest else None, _local_key(data_dir), LOCAL_SIGNER, updates,
-                   recorded, args.live, args.limit_nano, spent_file)
+                   recorded, args.live, args.limit_nano, spent_file, [check for pack in chain for check in checks_of(pack.pack)])
         say(_spent_line(spent_file, args.limit_nano))
     say("In the app: Settings, Test packs, Check for updates. The pack is shown as made on this computer.")
     return 0
 
 
+def names_only_our_checker(entries: list[dict]) -> str | None:
+    """A research ledger is a file too. Asked to check entries again, Otto's harness starts the verifier an entry
+    names, and finds that entry by its id whatever kind it is. So before it is asked: does this ledger name anything
+    to run but the research side's own pinned checker of Claude's step records? One plain phrase, or None."""
+    ours = research.file_sha256(research.PINNED / research.CHECKER)
+    kinds: dict[str, str] = {}
+    for entry in entries:
+        record = entry.get("payload") if isinstance(entry, dict) else None
+        if not isinstance(record, dict) or record.get("type") != entry.get("kind"):
+            return "an entry does not hold a record of its own kind"
+        if entry["kind"] == "objective":
+            verifier = record.get("verifier")
+            if not isinstance(verifier, dict) or set(verifier) != {"kind", "checker", "checker_sha256", "params", "timeout_seconds"} \
+                    or verifier["kind"] != "certificate" or verifier["checker"] != research.CHECKER or verifier["checker_sha256"] != ours:
+                return "an entry names something to run that is not the research side's own pinned checker"
+        elif "verifier" in record:
+            return "an entry that is not an objective carries something to run"
+        if entry["kind"] == "claim" and kinds.get(str(record.get("objective_id"))) != "objective":
+            return "a claim does not point at an earlier objective"
+        if entry["kind"] == "verdict" and (kinds.get(str(record.get("objective_id"))) != "objective"
+                                           or kinds.get(str(record.get("claim_id"))) != "claim"):
+            return "a verdict does not point at an earlier claim and its objective"
+        kinds[harness.module("canonical").digest(record)] = entry["kind"]
+    return None
+
+
 def audit(args) -> int:
+    """Otto's own audit of a research ledger, with the pinned checker run again on every checked entry. An entry that
+    could not be checked again is a problem here, never a note beside a pass."""
     lab = research.open_lab(Path(args.lab) if args.lab else LAB)
-    problems = lab.audit(reverify=True)
+    foreign = names_only_our_checker(list(lab.ledger.entries()))
+    if foreign is not None:
+        say(f"PROBLEM: {foreign}. Nothing was run.")
+        return 1
+    problems = list(lab.audit(reverify=True))
+    problems += [f"an entry could not be checked again ({note})" for note in getattr(lab, "audit_notes", []) or []]
     head = lab.ledger.head()
     for problem in problems:
         say("PROBLEM: " + problem)
-    for note in getattr(lab, "audit_notes", []):
-        say("note: " + note)
     if not problems:
         say(f"{head['height']} entries; chain intact, every decision re-derived, every pinned checker run again.")
     return 1 if problems else 0

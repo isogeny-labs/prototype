@@ -2392,6 +2392,10 @@ export interface OttoPacksSection {
    */
   installed: OttoPackCard[];
   installed_line: string;
+  /**
+   * Set when a pack installed by an earlier build can't be read by this version.
+   */
+  unreadable_line: string | null;
   counts_line: string | null;
   check: OttoCheckButton;
   /**

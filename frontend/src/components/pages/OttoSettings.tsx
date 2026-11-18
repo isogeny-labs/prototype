@@ -146,6 +146,11 @@ export function OttoSettings({ section }: { section: string | null }) {
             <p data-testid="otto-installed-line" className="font-medium text-slate-100">
               {packs.installed_line}
             </p>
+            {packs.unreadable_line ? (
+              <p data-testid="otto-unreadable-line" className="mt-1 break-words text-amber-200">
+                {packs.unreadable_line}
+              </p>
+            ) : null}
             {packs.counts_line ? (
               <p data-testid="otto-counts-line" className={`mt-0.5 ${SMALL}`}>
                 {packs.counts_line}

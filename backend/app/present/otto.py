@@ -78,8 +78,9 @@ def pack_adds(pack) -> list[str]:
 
 
 def settings_view(*, installed: list, update, refused: list[dict], scan_line: str | None, harness_status: dict, live_on: bool,
-                  limit_nano: int, key_present: bool, answers_line: str) -> dict:
+                  limit_nano: int, key_present: bool, answers_line: str, unreadable: list[str] | None = None) -> dict:
     cards = [pack_card(pack, at) for at, pack in installed]
+    unreadable = list(unreadable or [])
     newest = cards[-1] if cards else None
     box = None
     if update is not None:
@@ -108,7 +109,14 @@ def settings_view(*, installed: list, update, refused: list[dict], scan_line: st
                       "proposed fix, and how each did when it was tried on public copies. Nothing in a pack runs."),
             "installed": cards,
             "installed_line": (f"Installed: pack {newest['version']}, built {newest['built']}, signed by {newest['signer']}." if newest
-                               else "No test pack is installed yet."),
+                               else "No test pack is installed yet." if not unreadable
+                               else "No installed test pack can be read by this version of the app."),
+            # A pack that was installed by an earlier build of the app, in a form that has changed since. It is said
+            # plainly, never passed over: packs install in order, so nothing can be installed after it here.
+            "unreadable_line": ((f"Test pack {', '.join(unreadable)}, installed here earlier, can't be read by this version of the app: "
+                                 "it was made by an earlier build. Its advisories are not shown, and no other pack can be installed "
+                                 "in this data folder. To start afresh, stop the app, move the data folder away and start the app "
+                                 "again.") if unreadable else None),
             "counts_line": (f"{_count(sum(c['advisories'] for c in cards), 'advisory', 'advisories')} and "
                             f"{_count(sum(c['tests'] for c in cards), 'test')} in {_count(len(cards), 'installed pack')}." if cards else None),
             "check": {"button": "Check for updates",
@@ -187,7 +195,7 @@ def _fix_block(advisory: dict, fix_view: dict | None, own_programs: list[str]) -
     elif own_programs and advisory["test"]["state"] == "ready":
         lines.append(f"For your own code ({', '.join(own_programs)}): if this advisory's check fails here, Fixes shows what can be offered. "
                      "A change Otto wrote is offered only when it can be proven on this computer. Where it can't be, the fix template is "
-                     "offered if it answers the failure; if not, Fixes says why no change is offered.")
+                     "offered if it answers the failure; if not, Fixes lists the failure with a plain suggestion and offers no code change.")
     return {"title": "Fix", "label": label, "state": fix["state"], "lines": lines, "quote": quote, "here": link}
 
 

@@ -72,8 +72,9 @@ def fix_words(comp: str, fix: dict | None) -> str:
                 + (f" {reason}" if reason else "") + " Fixes has the details.")
     if fix and fix.get("state") == "own_code":
         return (f"Open Fixes: it shows what can be offered for {name}. A change Otto wrote is offered only when it can be proven on "
-                "this computer. Where it can't be, the fix template is offered if it answers this failure; if not, Fixes says why no "
-                "change is offered. A change is offered only after every locked test passes on the changed code.")
+                "this computer. Where it can't be, the fix template is offered if it answers this failure; if not, Fixes lists the "
+                "failure with a plain suggestion and offers no code change. A change is offered only after every locked test passes "
+                "on the changed code.")
     return f"Correct the signature check in {name} so that these cases get the right answer, then run the same tests again."
 
 

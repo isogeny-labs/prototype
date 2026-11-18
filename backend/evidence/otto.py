@@ -16,16 +16,19 @@ In order:
   5. with --previous OLDER.json: the older file's latest ledger entry is still in this chain, at the same place, so
      the history the older file held was not cut or rewritten. Entries added after the older download are not
      covered by this comparison;
-  6. Otto's own audit of the ledger, with the pinned record checker run again on every entry. This needs the pinned
-     Otto harness on this computer. Without it, steps 1 to 5 are still made, the command says that Otto's own audit
-     was not run, and it ends with the "not confirmed" code. That is not a pass.
+  6. Otto's own audit of the ledger's chain and records, and this app's pinned record checker run again on every
+     checked entry. This needs the pinned Otto harness on this computer. Without it, steps 1 to 5 are still made, the
+     command says that Otto's own audit was not run, and it ends with the "not confirmed" code. That is not a pass.
 
 What the ledger shows is binding: that each run belongs to a test locked before it and that the reviewer was not the
 proposer. It holds no result.
 
-This module reads the file as data only. Otto's audit runs the verifier each ledger entry names, so the ledger is
-handed to it only after `assurance.only_our_checker` found that it names nothing to run but this app's own pinned
-record checker. A ledger that names anything else fails here, and nothing is run.
+This module reads the file as data only, and nothing the file names is ever run. Asked to check entries again,
+Otto's harness would start the verifier an entry names (and a verifier can name a command), so the harness is never
+asked to. `assurance.only_our_checker` first holds every entry to the exact form this app writes; the harness then
+audits the chain and the records without running any verifier; and the one program that is started is this app's
+own record checker, the file that ships with the app, with the entry given to it as data. Text from the file is
+shown with anything that is not a plain printable character taken out, so it can't redraw a terminal line.
 """
 from __future__ import annotations
 
@@ -61,6 +64,12 @@ class OttoOutcome:
 
 class _Failed(Exception):
     pass
+
+
+def _plain(value: object, limit: int = 120) -> str:
+    """Text from the file as it may be printed: printable characters only, and not too long."""
+    text = "".join(ch if ch.isprintable() else "?" for ch in str(value))
+    return text if len(text) <= limit else text[:limit] + "..."
 
 
 def _sha(obj: object) -> str:
@@ -121,11 +130,11 @@ def _pack(envelope: object, trusted: set[str]) -> tuple[dict, str, bool]:
             and isinstance(signature, str) and _HEX128.match(signature)) or not isinstance(envelope["pack"], dict):
         raise _Failed("a test pack in the file has a fingerprint, key or signature that is not in the form it must have.")
     if _sha(envelope["pack"]) != fingerprint:
-        raise _Failed(f"test pack {envelope['pack'].get('version')} was changed after it was signed (its fingerprint does not match).")
+        raise _Failed(f"test pack {_plain(envelope['pack'].get('version'), 40)} was changed after it was signed (its fingerprint does not match).")
     try:
         Ed25519PublicKey.from_public_bytes(bytes.fromhex(key)).verify(bytes.fromhex(signature), PACK_CONTEXT + fingerprint.encode("ascii"))
     except (InvalidSignature, ValueError):
-        raise _Failed(f"the signature of test pack {envelope['pack'].get('version')} does not hold.") from None
+        raise _Failed(f"the signature of test pack {_plain(envelope['pack'].get('version'), 40)} does not hold.") from None
     return envelope["pack"], fingerprint, key in trusted
 
 
@@ -154,7 +163,15 @@ def _runs_in_file(evidence: dict) -> list[tuple[object, dict]]:
 
 def check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | None = None) -> OttoOutcome:
     """Check the Otto part of an evidence record whose own signature already held. `previous` is the evidence record
-    of an older download of the same assessment (or None)."""
+    of an older download of the same assessment (or None). Every line that comes back is safe to print: text from
+    the file is in it only as plain printable characters."""
+    out = _check_otto(evidence, trusted_pack_keys, previous)
+    out.lines = [_plain(line, 600) for line in out.lines]
+    out.problem = _plain(out.problem, 900) if out.problem is not None else None
+    return out
+
+
+def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | None) -> OttoOutcome:
     out = OttoOutcome()
     otto = evidence.get("otto")
     try:
@@ -166,7 +183,7 @@ def check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | Non
             pack, fingerprint, trusted = _pack(envelope, trusted_pack_keys)
             packs[fingerprint] = pack
             if not trusted:
-                untrusted.append(str(pack.get("version")))
+                untrusted.append(_plain(pack.get("version"), 40))
         out.lines.append(f"Test packs: {len(packs)} in the file, each whole and with a signature that holds"
                          + (" from a pack key you trust." if not untrusted else "."))
         # 3. the chain (needed by 2 and 4)
@@ -183,7 +200,7 @@ def check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | Non
         checks = otto.get("checks") or []
         locks = set()
         for check in checks:
-            title = str(check.get("title"))
+            title = _plain(check.get("title"))
             came_from = packs.get(check.get("pack_fingerprint"))
             if came_from is None:
                 raise _Failed(f"the pack that “{title}” came from is not in the file.")
@@ -211,28 +228,28 @@ def check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | Non
             if claim.get("objective_id") not in locks:
                 raise _Failed("the ledger binds a run to a lock entry that is not one of the file's advisory checks.")
             if run is None:
-                raise _Failed(f"the ledger binds run {art.get('run_id')}, and that run is not in the file.")
+                raise _Failed(f"the ledger binds run {_plain(art.get('run_id'), 40)}, and that run is not in the file.")
             review = {k: v for k, v in (run.get("review") or {}).items() if k != "created_at"}
             if _sha(run.get("record")) != art.get("run_sha256") or _sha(review) != art.get("review_sha256"):
-                raise _Failed(f"run {art.get('run_id')} or its review is not the one the ledger binds (a SHA-256 differs).")
+                raise _Failed(f"run {_plain(art.get('run_id'), 40)} or its review is not the one the ledger binds (a SHA-256 differs).")
             lock_params = objectives[claim["objective_id"]]["verifier"]["params"]
             if (run.get("record") or {}).get("spec_hash") != lock_params.get("test") or art.get("test") != lock_params.get("test"):
-                raise _Failed(f"run {art.get('run_id')} is not a run of the test its lock entry locked.")
+                raise _Failed(f"run {_plain(art.get('run_id'), 40)} is not a run of the test its lock entry locked.")
             if art.get("proposed_by") != PACK_ID or not art.get("reviewer") or art.get("reviewer") == art.get("proposed_by"):
-                raise _Failed(f"run {art.get('run_id')} was not reviewed by someone other than its proposer.")
+                raise _Failed(f"run {_plain(art.get('run_id'), 40)} was not reviewed by someone other than its proposer.")
             if rid not in accepted:
-                raise _Failed(f"the ledger entry of run {art.get('run_id')} was not accepted by the pinned checker.")
+                raise _Failed(f"the ledger entry of run {_plain(art.get('run_id'), 40)} was not accepted by the pinned checker.")
         if set(shown) - set(run_claims):
             raise _Failed("the file lists a run as bound that the ledger does not bind.")
         # ... and the other way round: every run of an advisory check that the file holds is bound in the ledger
         bound_runs = {art.get("run_id") for art in (c["artifact"] for c in run_claims.values())}
-        titles = {check.get("item_id"): str(check.get("title")) for check in checks}
+        titles = {check.get("item_id"): _plain(check.get("title")) for check in checks}
         for item_id, run in _runs_in_file(evidence):
             if item_id not in titles or run.get("run_id") in bound_runs:
                 continue
             if ((run.get("review") or {}).get("verdict") or {}).get("reason_code") == NOT_RECORDED_REASON:
                 continue      # it never started: without Otto it could not be recorded, and its result says so
-            raise _Failed(f"run {run.get('run_id')} of “{titles[item_id]}” is in the file, but Otto's ledger does not bind it.")
+            raise _Failed(f"run {_plain(run.get('run_id'), 40)} of “{titles[item_id]}” is in the file, but Otto's ledger does not bind it.")
         out.lines.append(f"Ledger: {len(entries)} entries in one unbroken chain; {len(run_claims)} runs, each bound to a test locked before it.")
         steps = otto.get("steps") or []
         for step in steps:
@@ -255,8 +272,9 @@ def check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | Non
                               "between the two downloads.")
             out.lines.append(f"Compared with the older file: its {height} ledger entries are still here, unchanged; "
                              f"{len(entries) - height} were added since (those are not covered by this comparison).")
-        # 6. Otto's own audit. Its harness runs the verifier each entry names, so first: does this ledger name anything
-        #    to run but our own pinned record checker? If it does, nothing is run.
+        # 6. Otto's own audit. Nothing the ledger names is run: every entry must first be in the exact form this app
+        #    writes; then the harness audits the chain and the records without running any verifier, and our own
+        #    pinned checker (the app's file, never one from the ledger) is run again on every checked entry.
         try:
             from app.otto import assurance, harness
             foreign = assurance.only_our_checker(entries)
@@ -269,13 +287,13 @@ def check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | Non
             with tempfile.TemporaryDirectory(prefix="evidence-otto-") as scratch:
                 problems = assurance.verify_lines(list(ledger.get("lines") or []), Path(scratch) / "lab")
             if problems:
-                raise _Failed("Otto's own audit of the ledger found a problem: " + "; ".join(problems[:3]))
+                raise _Failed("Otto's own audit of the ledger found a problem: " + _plain("; ".join(str(p) for p in problems[:3]), 600))
             pinned = harness.status()
-            out.lines.append(f"Otto's own audit (harness {pinned.version}, commit {str(pinned.commit)[:7]}): chain intact, the pinned checker "
-                             "run again on every entry.")
+            out.lines.append(f"Otto's own audit (harness {pinned.version}, commit {str(pinned.commit)[:7]}): chain and records intact, and "
+                             "this app's pinned checker run again on every checked entry.")
             named = otto.get("harness") or {}
             if named.get("commit") and named.get("commit") != pinned.commit:
-                out.lines.append(f"Note: the file was made with Otto commit {str(named.get('commit'))[:7]}; this computer has {str(pinned.commit)[:7]}.")
+                out.lines.append(f"Note: the file was made with Otto commit {_plain(named.get('commit'), 7)[:7]}; this computer has {str(pinned.commit)[:7]}.")
         except ImportError:
             out.code, out.problem = NOT_CONFIRMED, "Otto's own audit was not run: the app's Otto adapter is not available here."
         except Exception as exc:

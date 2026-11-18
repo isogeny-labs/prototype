@@ -1853,6 +1853,7 @@ class OttoPacksSection(Shape):
     intro: str
     installed: list[OttoPackCard] = Field(description="Oldest first. Packs are never removed.")
     installed_line: str
+    unreadable_line: str | None = Field(description="Set when a pack installed by an earlier build can't be read by this version.")
     counts_line: str | None
     check: OttoCheckButton
     checked_line: str | None = Field(description="Set after Check for updates: what was found in the updates folder.")

@@ -930,8 +930,10 @@ must-reject case is refused.
   sent. The worst case is every byte of the prompt counted as a token and a full-length answer, at the dearest price
   that could apply, for every attempt that could be billed (two where a declined request may be passed to another
   model). A request that got no answer at all may have been billed, so its worst case stays counted against the
-  limit (`unanswered_nano`). After an answer the cost is worked out from the tokens the API reports, every attempt
-  counted. Prices are whole numbers of a billionth of a dollar per token (`PRICES_NANO_PER_TOKEN`, with its source and
+  limit (`unanswered_nano`); so does an answer cut off part-way and an answer that can't be read. In the research
+  command each step is its own process, and the file `OTTOLAB_SPENT_FILE` names carries what was spent, the calls
+  and that amount from step to step. After an answer the cost is worked out from the tokens the API reports, every
+  attempt counted. Prices are whole numbers of a billionth of a dollar per token (`PRICES_NANO_PER_TOKEN`, with its source and
   date in `PRICE_SOURCE`), so every sum is exact.
 - *The key* is read from the environment at the moment of a call, sent only as that request's header, and removed
   from every text that leaves the module (`redact`). A value that is not in the form of a key (a space or a line
@@ -947,9 +949,12 @@ must-reject case is refused.
 records:
 
 - a `question` for each advisory's test and, once that test held its trial, one for its fix;
-- a design that selects exactly the published cases of another advisory's check is refused before any trial
-  (`ottolab/research.same_check_as`): its step is kept as refused, no hypothesis is registered, and the pack reads
-  "No test yet" with that reason;
+- a design that selects exactly the published cases of the check of another advisory about the same library is
+  refused before any trial (`ottolab/research.same_check_as`): its step is kept as refused, no hypothesis is
+  registered, and the pack reads "No test yet" with that reason. Only a check that exists counts: a design of this
+  build whose own trial held, or a test of an earlier pack (the build command lists those for the run in the file
+  `OTTOLAB_EARLIER_FILE` names, so a lab that never saw the earlier packs knows them too). The same cases for
+  another library are another check. `ottolab/build.same_check_twice` looks once more before a pack is signed;
 - for each Claude step an `objective`, a `claim` that holds the step in full (with what the answer came to, or why it
   was refused) and the `verdict` of the pinned checker `check_model_step.py`: the hashes match, the answer has its
   shape, and every quoted line stands in the prompt that was sent;
@@ -1027,11 +1032,21 @@ order:
    every Claude step matches its SHA-256 and has its entry in the ledger;
 5. with `--previous OLDER.json`, the older file's latest ledger entry is still in this chain, at the same place
    (entries added since are not covered by that comparison);
-6. Otto's own audit of the ledger, with the pinned checker run again on every entry. A ledger read from a file is
-   data, and Otto's audit starts the checker each entry names. So before the audit is given the ledger,
-   `otto/assurance.only_our_checker` must hold: every entry is of a kind this app writes and names only our own
-   pinned checker, with parameters of the known shape. A ledger that names anything else fails the check, and
-   nothing it names is run. A run in the file that the ledger does not bind, and every note of the audit, fails too.
+6. Otto's own audit of the chain and the records, and the pinned checker run again on every checked entry. A
+   ledger read from a file is data, and nothing it names is ever run. Asked to check entries again
+   (`audit(reverify=True)`), Otto's harness starts the verifier an entry names, and it looks that entry up by its
+   id whatever its kind; a verifier can name a command. So the harness is never asked to. Instead:
+   - `otto/assurance.only_our_checker` holds every entry to the exact form this app writes: one of the three kinds
+     (`ENTRY_KINDS`) with exactly the fields of its kind (`ENTRY_FIELDS`); an objective whose verifier is our own
+     pinned checker with nothing added; a claim that points at an earlier objective; a verdict that points at an
+     earlier claim and at that claim's own objective. Anything else fails the check, and nothing is run;
+   - the harness audits the chain and the records with `audit(reverify=False)`, which runs no verifier;
+   - `otto/assurance.check_again` runs this app's own checker (`run_checker`: the file that ships with the app, a
+     fixed command, an empty folder, a bare environment) on every entry it once accepted or rejected, and compares.
+     A different answer, or an entry that could not be checked again, fails the check.
+
+   The app's own audit of an assessment's ledger (`Ledger.audit`) goes the same way. A run in the file that the
+   ledger does not bind fails too. What is printed of the file's own text holds printable characters only.
 
 Step 6 needs the pinned harness on the computer that runs the command. Without it the first five checks are still
 made, the command says that Otto's audit was not run, and it exits with code 2. A pack signed by a key you do not

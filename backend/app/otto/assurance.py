@@ -18,20 +18,31 @@ result. Evidence Lab's own read gate still re-reviews every result each time it 
 A lab is acted on only through the harness's own functions; the ledger file is never written by this code. The only
 program the harness starts here is the pinned record checker (checker/recheck.py, copied into the lab).
 
-A ledger that comes out of a file (the verify command reads one from an evidence file) is data. Otto's audit runs
-the verifier each entry names, and a verifier can name a command. So before the harness is given such a ledger,
-`only_our_checker` makes sure it names nothing to run but this app's own pinned record checker; otherwise nothing is
-run at all.
+A ledger that comes out of a file (the verify command reads one from an evidence file) is data. Asked to check
+every entry again, Otto's harness starts the verifier that an entry names, and it looks that entry up by its id
+without asking what kind of entry it is; a verifier can name a command. So such a ledger is never checked again by
+the harness. Three things are done instead, and none of them starts anything the ledger names:
+
+  1. `only_our_checker` holds every entry to the exact form this app writes: its kind, its fields, the one checker
+     an objective may name, and each pointer to an earlier entry of the right kind;
+  2. the harness audits the chain and the records without running any verifier;
+  3. this app's own pinned record checker (the file that ships with the app, never a file or a command from the
+     ledger) is run again on every checked entry, and its answer is compared with the stored one.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import shutil
+import subprocess
+import sys
+import tempfile
 import threading
 from pathlib import Path
 
+from app.canonical import sha256_hex
 from app.otto import harness
 
 CHECKER_SOURCE = Path(__file__).with_name("checker") / "recheck.py"
@@ -40,8 +51,22 @@ CHECKER_TIMEOUT_SECONDS = 60
 AUTHOR = "evidence-lab"
 ENTRY_KINDS = ("objective", "claim", "verdict")      # the only kinds of entry an assessment's ledger holds
 PARAM_KINDS = ("run", "step")                        # what the pinned checker checks: a bound run, or a Claude step
+# The fields of each kind of entry, exactly as this app (through Otto's harness) writes them. An entry with any other
+# field is not ours: in particular nothing but an objective may carry a verifier.
+ENTRY_FIELDS = {"objective": frozenset({"type", "statement", "verifier", "author", "created_at"}),
+                "claim": frozenset({"type", "objective_id", "artifact", "cites", "author", "created_at"}),
+                "verdict": frozenset({"type", "claim_id", "objective_id", "status", "detail", "evidence", "tier", "attempt", "author",
+                                      "created_at"})}
+VERIFIER_FIELDS = frozenset({"kind", "checker", "checker_sha256", "params", "timeout_seconds"})
+VERDICT_STATUSES = ("accept", "reject", "unavailable", "invalid_spec")
+VERDICT_TIER = "V0-certificate"
 _HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
+_RECORD_ID = re.compile(r"\Asha256:[0-9a-f]{64}\Z")
 OTHER_VERSION = "the ledger was written with a record checker that is not this version's (it may come from another version of the app)"
+NOT_OUR_KIND = "the ledger holds an entry of a kind an assessment's ledger never holds"
+NOT_OUR_FORM = "the ledger holds an entry that is not in the form this app writes"
+NOT_OUR_CHECKER = "the ledger names something to run that is not this app's own pinned record checker"
+NOT_OUR_ORDER = "the ledger holds an entry that points at something other than an earlier entry of the kind it must be"
 _locks: dict[str, threading.Lock] = {}
 _locks_guard = threading.Lock()
 
@@ -150,13 +175,17 @@ class Ledger:
             return [line for line in (self.folder / "ledger.jsonl").read_text(encoding="utf-8").split("\n") if line]
 
     def audit(self) -> list[str]:
-        """Otto's own audit, with the pinned checker run again on every entry. An empty list means no problem."""
+        """Otto's own audit of the chain and the records, and this app's pinned checker run again on every checked
+        entry. An empty list means no problem. The ledger file is read as data here too: nothing it names is run."""
         if not self.exists():
             return []
         with self._guard:
             lab = self._lab()
-            problems = list(lab.audit(reverify=True))
-            return problems + [f"an entry could not be checked again ({note})" for note in getattr(lab, "audit_notes", []) or []]
+            entries = list(lab.ledger.entries())
+            foreign = only_our_checker(entries)
+            if foreign is not None:
+                return [f"{foreign}, so nothing was run"]
+            return list(lab.audit(reverify=False)) + check_again(entries)
 
     def about(self, objective_id: str) -> list[dict]:
         """The entries about one locked check, oldest first: {"seq", "kind", "id", "at", "what"}. The words only say
@@ -186,39 +215,111 @@ class Ledger:
 PHASE_WORDS = {"first": "first run", "retest": "retest", "proof": "fix proof"}
 
 
+def record_id(payload: object) -> str:
+    """The id of the record an entry holds, worked out without the harness (the SHA-256 of its canonical form)."""
+    return "sha256:" + sha256_hex(payload)
+
+
 def only_our_checker(entries: list) -> str | None:
-    """A ledger that came out of a file is data, and Otto's audit runs what its entries name. This says, in one plain
-    phrase, what such a ledger names that is not this app's own pinned record checker, or None when it names nothing
-    else. Nothing is run to find out. OTHER_VERSION is returned when the only difference is the checker's fingerprint."""
+    """A ledger that came out of a file is data. This says, in one plain phrase, what in such a ledger is not what
+    this app writes, or None when every entry is: one of the three kinds, with exactly the fields of its kind; an
+    objective that names this app's own pinned record checker and nothing else; a claim that points at an earlier
+    objective; a verdict that points at an earlier claim and at that claim's own objective. Nothing is run to find
+    out. OTHER_VERSION is returned when the only difference is the checker's fingerprint."""
     ours = _sha256(CHECKER_SOURCE)
     other_version = False
+    kinds: dict[str, str] = {}              # record id -> the kind of the entry that holds it
+    objective_of: dict[str, str] = {}       # claim id -> the objective it was made under
     for entry in entries:
-        if not isinstance(entry, dict) or entry.get("kind") not in ENTRY_KINDS or not isinstance(entry.get("payload"), dict) \
-                or entry["payload"].get("type") != entry["kind"]:
-            return "the ledger holds an entry of a kind an assessment's ledger never holds"
-        if entry["kind"] != "objective":
-            continue
-        verifier = entry["payload"].get("verifier")
-        if not isinstance(verifier, dict) or set(verifier) != {"kind", "checker", "checker_sha256", "params", "timeout_seconds"} \
-                or verifier["kind"] != "certificate" or verifier["checker"] != CHECKER \
-                or verifier["timeout_seconds"] != CHECKER_TIMEOUT_SECONDS or isinstance(verifier["timeout_seconds"], bool) \
-                or not isinstance(verifier["params"], dict) or verifier["params"].get("kind") not in PARAM_KINDS \
-                or not isinstance(verifier["checker_sha256"], str) or not _HEX64.match(verifier["checker_sha256"]):
-            return "the ledger names something to run that is not this app's own pinned record checker"
-        if verifier["checker_sha256"] != ours:
-            other_version = True
+        if not isinstance(entry, dict) or not isinstance(entry.get("payload"), dict) or not isinstance(entry.get("kind"), str) \
+                or entry["kind"] not in ENTRY_KINDS or entry["payload"].get("type") != entry["kind"]:
+            return NOT_OUR_KIND
+        kind, payload = entry["kind"], entry["payload"]
+        if set(payload) != ENTRY_FIELDS[kind]:
+            return NOT_OUR_FORM
+        try:
+            rid = record_id(payload)
+        except (TypeError, ValueError, RecursionError):
+            return NOT_OUR_FORM
+        if kind == "objective":
+            verifier = payload["verifier"]
+            if not isinstance(verifier, dict) or set(verifier) != VERIFIER_FIELDS \
+                    or verifier["kind"] != "certificate" or verifier["checker"] != CHECKER \
+                    or verifier["timeout_seconds"] != CHECKER_TIMEOUT_SECONDS or isinstance(verifier["timeout_seconds"], bool) \
+                    or not isinstance(verifier["params"], dict) or verifier["params"].get("kind") not in PARAM_KINDS \
+                    or not isinstance(verifier["checker_sha256"], str) or not _HEX64.match(verifier["checker_sha256"]):
+                return NOT_OUR_CHECKER
+            if verifier["checker_sha256"] != ours:
+                other_version = True
+        elif kind == "claim":
+            if not isinstance(payload["artifact"], dict) or payload["cites"] != []:
+                return NOT_OUR_FORM
+            if not _is_id(payload["objective_id"]) or kinds.get(payload["objective_id"]) != "objective":
+                return NOT_OUR_ORDER
+            objective_of[rid] = payload["objective_id"]
+        else:
+            if payload["status"] not in VERDICT_STATUSES or payload["tier"] != VERDICT_TIER or not isinstance(payload["evidence"], dict) \
+                    or not isinstance(payload["detail"], str) or not isinstance(payload["attempt"], int) or isinstance(payload["attempt"], bool):
+                return NOT_OUR_FORM
+            if not _is_id(payload["claim_id"]) or not _is_id(payload["objective_id"]) or kinds.get(payload["claim_id"]) != "claim" \
+                    or kinds.get(payload["objective_id"]) != "objective" or objective_of.get(payload["claim_id"]) != payload["objective_id"]:
+                return NOT_OUR_ORDER
+        if kinds.setdefault(rid, kind) != kind:
+            return NOT_OUR_ORDER
     return OTHER_VERSION if other_version else None
 
 
-def verify_lines(lines: list[str], scratch: Path) -> list[str]:
-    """Check a ledger given as its lines (from an evidence file): write it into a scratch lab with the pinned checker
-    and run Otto's own audit on it. Returns the problems found (empty when there are none). Raises OttoNotInstalled.
+def _is_id(value: object) -> bool:
+    return isinstance(value, str) and bool(_RECORD_ID.match(value))
 
-    The lines are data from a file. Unless they name nothing to run but our own pinned checker, the harness is not
-    given them and nothing is run. An entry the audit could not check again is a problem too, never a quiet pass."""
+
+def run_checker(params: dict, artifact: dict) -> str:
+    """This app's own pinned record checker, run on one entry: "accept", "reject", or "unavailable" when it gave no
+    usable answer. The program started is always the checker file that ships with the app, with a fixed command, an
+    empty folder to work in and a bare environment. Nothing in a ledger can name another program, a file or a setting."""
+    try:
+        sent = json.dumps({"params": params, "artifact": artifact}).encode("utf-8")
+        with tempfile.TemporaryDirectory(prefix="evidence-otto-check-") as empty:
+            done = subprocess.run([sys.executable, "-I", str(CHECKER_SOURCE)], input=sent, capture_output=True, cwd=empty,
+                                  timeout=CHECKER_TIMEOUT_SECONDS, env={"PATH": os.environ.get("PATH", "")}, shell=False)
+        if done.returncode != 0:
+            return "unavailable"
+        said = json.loads(done.stdout)
+        status = said.get("status") if isinstance(said, dict) else None
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError, RecursionError):
+        return "unavailable"
+    return status if status in ("accept", "reject") else "unavailable"
+
+
+def check_again(entries: list[dict]) -> list[str]:
+    """Run this app's pinned checker again on every entry it once accepted or rejected, and compare. `entries` must
+    have passed `only_our_checker` (so every pointer leads to an earlier entry of the right kind). Returns the
+    problems: a different answer, or an entry that could not be checked again (never a quiet pass)."""
+    records = {record_id(e["payload"]): e["payload"] for e in entries}
+    problems = []
+    for entry in entries:
+        verdict = entry["payload"]
+        if entry["kind"] != "verdict" or verdict["status"] not in ("accept", "reject"):
+            continue
+        claim, objective = records[verdict["claim_id"]], records[verdict["objective_id"]]
+        now = run_checker(objective["verifier"]["params"], claim["artifact"])
+        if now == "unavailable":
+            problems.append(f"entry {entry.get('seq')} could not be checked again (the pinned checker gave no usable answer)")
+        elif now != verdict["status"]:
+            problems.append(f"entry {entry.get('seq')}: the stored verdict is {verdict['status']} but the pinned checker now says {now}")
+    return problems
+
+
+def verify_lines(lines: list[str], scratch: Path) -> list[str]:
+    """Check a ledger given as its lines (from an evidence file). Returns the problems found (empty when there are
+    none). Raises OttoNotInstalled.
+
+    The lines are data from a file. Unless every entry is in the exact form this app writes, nothing is run and the
+    harness is not given them. Then Otto's harness audits the chain and the records, WITHOUT running any verifier,
+    and this app's own pinned checker is run again on every checked entry."""
     try:
         entries = [json.loads(line) for line in lines]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, RecursionError):
         return ["the ledger's lines could not be read"]
     foreign = only_our_checker(entries)
     if foreign is not None:
@@ -227,10 +328,8 @@ def verify_lines(lines: list[str], scratch: Path) -> list[str]:
     ledger_module = harness.module("ledger")
     scratch.mkdir(parents=True, exist_ok=True)
     (scratch / "ledger.jsonl").write_text("".join(line + "\n" for line in lines), encoding="utf-8")
-    shutil.copyfile(CHECKER_SOURCE, scratch / CHECKER)
     try:
-        lab = module.Lab(str(scratch))
-        problems = list(lab.audit(reverify=True))
+        problems = list(module.Lab(str(scratch)).audit(reverify=False))
     except ledger_module.LedgerError as exc:
         return [f"the chain does not hold: {exc}"]
-    return problems + [f"an entry could not be checked again ({note})" for note in getattr(lab, "audit_notes", []) or []]
+    return problems + check_again(entries)

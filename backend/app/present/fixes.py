@@ -234,8 +234,8 @@ def _otto_words(name: str, version: str | None, size: str, otto: dict) -> dict:
                    _t("'s code. That sends this program's source file and the cases it got wrong to Claude, through your key and within "
                       "the spending limit. The answer is used only if it is a clean change that gives one of our bundled demo components "
                       "byte for byte, because only those can run in this version. Otherwise it is refused and nothing is connected, "
-                      "although the request was still made on your key; Fixes then says why, and offers the fix template in its place "
-                      "where that answers the failure. A change that is used is offered only after every locked test passes on the "
+                      "although the request was still made on your key; where the fix template answers the failure, Fixes then offers "
+                      "it in Otto's place and says why. A change that is used is offered only after every locked test passes on the "
                       "changed code.")]
         return {"title": f"{name}: a change for {otto['advisory']}", "available": waiting, "changes": waiting, "fixes": waiting,
                 "intro": "Otto has not written this change yet."}

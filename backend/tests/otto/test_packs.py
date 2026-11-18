@@ -11,6 +11,7 @@ from sqlalchemy import text
 
 import otto_fuzz
 import otto_helpers as helpers
+from app.db import OttoPackRow
 from app.errors import BadRequest, Conflict
 from app.otto import model, packs
 
@@ -133,6 +134,42 @@ def test_a_signed_pack_that_is_damaged_inside_is_refused_plainly():
             outcomes["refused"] += 1
         assert time.monotonic() - start < 2.0
     assert outcomes["refused"] > 450 and outcomes["refused"] + outcomes["read"] == 600, outcomes
+
+
+def test_a_pack_installed_by_an_earlier_build_that_can_t_be_read_is_said_plainly(tmp_path, monkeypatch):
+    """A data folder can hold a pack from an earlier build whose form has changed since (here: its sources have no
+    `read_from` yet). It is left out everywhere, never half-used, and Settings says so instead of "No test pack is
+    installed yet"; nothing can be installed after it in that folder."""
+    key = Ed25519PrivateKey.generate()
+    public = helpers.public_hex(key)
+    current = json.loads(helpers.make_pack("2026.11.1", None, [helpers.pack_advisory()], key)[0])
+    older = json.loads(json.dumps(current["pack"]))
+    for source in older["advisories"][0]["sources"]:
+        del source["read_from"]
+    stored = json.loads(helpers.sign_pack(older, key))
+    with pytest.raises(packs.PackError):
+        packs.read_envelope(helpers.sign_pack(older, key), {public: (helpers.SIGNER, False)})
+    lab = helpers.lab_with_packs(tmp_path, monkeypatch, {"2026.11.1.json": helpers.sign_pack(current["pack"], key)}, [public])
+    try:
+        with lab.db() as db:
+            db.add(OttoPackRow(version="2026.11.1", fingerprint=stored["fingerprint"], public_key=public, signer=helpers.SIGNER, made_here=False,
+                               built_at=older["built_at"], envelope=json.dumps(stored)))
+            db.commit()
+        view = lab.check_pack_updates()["packs"]
+        assert view["installed"] == [] and view["installed_line"] == "No installed test pack can be read by this version of the app."
+        assert "Test pack 2026.11.1, installed here earlier, can't be read by this version of the app" in view["unreadable_line"]
+        assert "move the data folder away" in view["unreadable_line"]
+        assert view["update"] is None                     # the rebuilt 2026.11.1 in the updates folder does not follow it
+        with pytest.raises(Conflict):
+            lab.install_pack("2026.11.1")
+    finally:
+        lab.stop()
+    (tmp_path / "fresh").mkdir()
+    fresh = helpers.lab_with_packs(tmp_path / "fresh", monkeypatch, {}, [public])
+    try:
+        assert fresh.otto_view()["packs"]["unreadable_line"] is None
+    finally:
+        fresh.stop()
 
 
 def test_packs_install_in_order_and_are_never_removed(tmp_path, monkeypatch):
