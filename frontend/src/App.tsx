@@ -98,7 +98,12 @@ export default function App() {
   }, []);
 
   /** Shows a fetched assessment. Called in the same moment as a route change, so the page never blanks in between. */
+  // How many times a whole read of the assessment has been put on the screen. The Overview's own quiet re-read (below)
+  // is used only if none was since it was asked: its answer can arrive after an action's fresh read (Close and sign
+  // off pressed right after the page opened) and must not put the earlier state back.
+  const appliedReads = useRef(0);
   const applyAssessment = useCallback((data: Awaited<ReturnType<typeof fetchAssessment>>) => {
+    appliedReads.current += 1;
     setAssessment(data.view);
     setImp(data.imp);
     setRun(data.run);
@@ -173,10 +178,12 @@ export default function App() {
   useEffect(() => {
     if (!loggedIn || routePage !== "overview" || routeId === null || loadedId !== routeId) return;
     let live = true;
+    const asked = appliedReads.current;
     api
       .getAssessment(routeId)
       .then((next) => {
-        if (live) setAssessment(next);
+        // (dropped when a fresh read was shown meanwhile: this answer is then the older one)
+        if (live && appliedReads.current === asked) setAssessment(next);
       })
       .catch(() => undefined);
     return () => {

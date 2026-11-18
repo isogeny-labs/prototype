@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssessmentView, OttoWaiting } from "../api";
 import App from "../App";
 import { calls, mockApi, plan, session, text } from "./fixtures";
@@ -381,6 +381,47 @@ describe("Overview buttons", () => {
     const call = fetchMock.mock.calls.find(([u, i]) => String(u) === "/api/assessments/101" && i?.method === "POST");
     expect(JSON.parse(String(call?.[1]?.body))).toEqual({ close: true, signed_off_by: "Dana Lee", note: "Wave 1 done" });
     expect(screen.queryByRole("button", { name: "Close assessment" })).toBeNull();
+  });
+
+  it("keeps the assessment closed when the Overview's own earlier read answers late", async () => {
+    // Opening the Overview asks for the assessment again. If a person closes it right away, that first answer can
+    // arrive after the close and its fresh read (it did in an end-to-end run on 18 November 2026, and the page read
+    // "Open" again). A late answer is dropped.
+    let closed = false;
+    const inner = mockApi(
+      routes({
+        "GET /api/assessments/101": () => ({ body: closed ? { ...openAssessment, status: closedAssessment.status } : openAssessment }),
+        "POST /api/assessments/101": () => {
+          closed = true;
+          return { body: { ...openAssessment, status: closedAssessment.status } };
+        },
+      }),
+    );
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      if ((init?.method ?? "GET") === "GET" && String(input) === "/api/assessments/101" && ++reads === 2) {
+        // the Overview's own re-read: answered as things stood when it was asked, and delivered late
+        const stale = new Response(JSON.stringify(openAssessment), { status: 200, headers: { "Content-Type": "application/json" } });
+        await held;
+        return stale;
+      }
+      return inner(input, init);
+    });
+    render(<App />);
+    await screen.findByTestId("overview-page");
+    fireEvent.click(screen.getByRole("button", { name: "Close assessment" }));
+    const box = within(await screen.findByTestId("close-box"));
+    fireEvent.change(box.getByLabelText("Signed off by"), { target: { value: "Dana Lee" } });
+    fireEvent.click(box.getByRole("button", { name: "Close and sign off" }));
+    expect(await screen.findByTestId("closed-banner")).not.toBeNull();
+    expect(reads).toBeGreaterThanOrEqual(3);          // the close asked for the assessment afresh
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 30));      // the late answer has arrived by now
+    expect(screen.queryByTestId("closed-banner")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Close assessment" })).toBeNull();
+    expect(text(screen.getByTestId("assessment-status"))).toMatch(/Closed/);
   });
 
   it("shows no Close assessment button once it is closed", async () => {
