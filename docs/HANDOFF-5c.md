@@ -287,6 +287,17 @@ added at every push:
   end-to-end suite with the final pictures (delete `docs/screenshots/phase5c/` first, commit only that folder,
   restore the others); the last counts in `docs/HANDOFF.md`; ticking the line in `docs/ACTIVE.md`; pull request #6
   ready and merged into `mvp/crypto-simple`; the report doc for Kevin.
+- **Checkpoint 7 (done).** Everything in section 5 is built and checked, and the branch is merged into
+  `mvp/crypto-simple` through pull request #6. A third reviewer read the commit of the second review's fixes and
+  found four small things, fixed with tests. The last runs, each on the last commit after the last change to what
+  it covers: backend full suite 1841 passed; fast set 1567 passed (274 slow left out), and 1494 passed with 73
+  skipped and counted where Otto is absent; frontend 662 passed, type check and build clean; end-to-end 95 passed;
+  accuracy in both modes with the four keys unchanged (18/18, 47/47, 1/1 or 33/33, 186/186 or 220/220); Otto's
+  loop walked in both modes (114 and 170 answers, not graded: the fifth key is not in the repository);
+  `ottolab.build audit` clean. `docs/screenshots/phase5c/` holds the last full end-to-end run's 261 pictures.
+  `docs/HANDOFF.md` has the counts, what the three reviews found, and what the last runs turned up.
+  **What is left is Kevin's:** the points under "Yours to decide" in the report doc (they are also in
+  `docs/ACTIVE.md`, under the questions for the owner), and the fifth answer key.
 
 ## 4. The new criteria against the build: what is there, what is missing
 

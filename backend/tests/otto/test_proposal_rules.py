@@ -407,6 +407,7 @@ def _strip(view: dict) -> dict:
 
 
 @pytest.mark.needs_otto
+@pytest.mark.slow          # (about five seconds: it runs a check and measures the migration status)
 @pytest.mark.parametrize("failed_check", ["not_measured"], indirect=True)
 def test_a_failed_advisory_check_proposes_something_to_fix_first_on_the_programs_track(failed_check, monkeypatch):
     """The one rule for plan changes. Also (second review, 18 November 2026): with the status not measured, the Overview

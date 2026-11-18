@@ -36,6 +36,10 @@ SLOW_SHARED_WALKS = {
     "test_multi_target.py": "flow",
     "test_ledger.py": "measured",     # phase 5b: the Acme Pay demo verified and measured for Migration, built for that file
     "test_otto_fix.py": "failed",     # phase 5c: the Acme Pay demo with a test pack installed and every test run, built for each test
+    # phase 5c, second part: the Acme Pay demo measured, a pack installed, its check run and the evidence downloaded, built
+    # once for that file. The walk is short, but some thirty tests read it (the tamper cases of the verify command), and
+    # with them the fast set had reached five minutes on a slow day.
+    "test_otto_evidence.py": "ran",
 }
 
 
