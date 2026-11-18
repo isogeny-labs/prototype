@@ -44,6 +44,7 @@ from app.engine.research import RuleEngine
 from app.engine.reviewer import RuleReviewer
 from app.lab.testlab import TestLabMixin
 from app.otto.engine import OttoEngine
+from app.otto.proposals import ProposalsMixin
 from app.otto.state import OttoMixin
 from app.projects.store import ProjectsMixin
 from app.checks.verify import DemoContext, verify_claims
@@ -78,7 +79,7 @@ def run_json(r: VerifyRunRow) -> dict:
 
 
 class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin,
-          ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin, OttoMixin):
+          ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin, OttoMixin, ProposalsMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)

@@ -175,9 +175,29 @@ that came from a file.
 
 ## 3. What is in progress, and exactly where it stopped
 
-**Nothing is half done.** The message in section 1, point 6 arrived after the first build was pushed. No code,
-test, screenshot or doc was changed for it. The only work done after it is this checkpoint: the branch, this page,
-and the line in `docs/ACTIVE.md`.
+**The second part is being built on this branch (started 18 November 2026).** Kevin answered the five questions of
+section 6 that day; his answers are in section 6. Pull request #6 is a draft again. Progress, newest last; a line is
+added at every push:
+
+- **Checkpoint 1 (backend core, not yet green).** Built: the second pinned checker for decision entries
+  (`backend/app/otto/checker/decisions.py`, beside `recheck.py`, which is unchanged, so older ledgers and evidence
+  files read as before); `assurance.py` knows both checkers (`CHECKERS`), `record_decision`, `about_proposal`; the
+  append-only table `otto_decisions`; `backend/app/otto/proposals.py` (`ProposalsMixin`: what Otto proposes, worked
+  out on every read, for the four kinds check, fix, plan and dependency; `otto_decide` records accept, reject with a
+  reason, undo and reconsider in the database and in the assessment's Otto ledger); the routes
+  `GET /api/plans/{id}/otto/proposals` and `POST /api/plans/{id}/otto/proposals/{proposal}/{decision}`; the bulk
+  **Add new checks** is gone (`add_new_checks` and its route removed); the Advisories view carries each program's
+  proposal; a library fix carries its two proof rows (`present/otto.public_copies_row`, `your_system_row`;
+  `OttoMixin._proven_here`) and stays listed once a retest on the fixed version has a result; Otto's change is a
+  proposal that must be accepted before **Connect demo code** (`fixes/changes.py`); Otto's recorded `acme-sign`
+  program is registered as `acme-sign 1.4.3-otto` (`demo/components/acme-sign-1.4.3-otto/`, the harness driver,
+  `run/components.py` `CHANGE_VERSIONS`), and a retest may choose it once its change is merged. **The test images
+  were rebuilt** (`python -m app.prepare`): a new file under `demo/components/` changes every image's tag.
+  A smoke walk in demo mode passes: propose, accept, reject with a reason, undo, reconsider, run, Otto's change
+  accepted, connected, proven on `1.4.3-otto`, merged, retested (every signing test passes after).
+  **Not done yet at this checkpoint:** `web/models.py` and the generated types; the tests that used
+  `add_new_checks`; the frontend; the Fixes view's words for a proposal; Overview, Project overview, Import, Verify
+  and Checks lines; Dependencies and Migration; the evidence part and the verify command's check of decisions; docs.
 
 ## 4. The new criteria against the build: what is there, what is missing
 

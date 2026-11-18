@@ -32,12 +32,26 @@ MAX_OUTPUT = 64 * 1024
 WITHHELD = "[test private key withheld]"
 NOT_A_DEMO_COMPONENT = "Only our demo components can run in demo mode"
 
+OTTO_VERSION = "1.4.3-otto"
 _REGISTRY: dict[tuple[str, str], Path] = {
     ("acme-sign", "1.4.2"): DEMO_DIR / "components" / "acme-sign-1.4.2" / "acme_sign.py",
     ("acme-sign", "1.4.3"): DEMO_DIR / "components" / "acme-sign-1.4.3" / "acme_sign.py",
+    # Phase 5c (Kevin's decision, 18 November 2026): the program that Otto's recorded change for acme-sign 1.4.2 gives,
+    # registered as one of our demo programs so that Otto's own change can be proven, merged and retested on the demo.
+    # The file is exactly what the recorded answer's edits make of 1.4.2 (a test rebuilds it and compares). The program
+    # reports version 1.4.3; the registry names it 1.4.3-otto, because it is not the same file as our own 1.4.3.
+    ("acme-sign", OTTO_VERSION): DEMO_DIR / "components" / "acme-sign-1.4.3-otto" / "acme_sign.py",
 }
 # The demo versions a retest can choose between. There is no way to add software to this list from outside.
 VERSIONS: dict[str, list[str]] = {"acme-sign": ["1.4.2", "1.4.3"]}
+# Registered demo programs that only a change leads to: a retest can choose one once the change that gives it is
+# merged in that assessment (and Retest now runs it). They are not in the general list of versions to retest on.
+CHANGE_VERSIONS: dict[str, list[str]] = {"acme-sign": [OTTO_VERSION]}
+# What a screen may say about a registered version beside its name.
+VERSION_NOTES: dict[tuple[str, str], str] = {
+    ("acme-sign", OTTO_VERSION): ("acme-sign 1.4.2 with the change Otto wrote, registered as one of our demo programs. It reports version "
+                                  "1.4.3, and differs from our own acme-sign 1.4.3 in one line: the same range check, written another way."),
+}
 _PEM_PRIVATE = re.compile(r"-----BEGIN ([A-Z0-9 ]*)PRIVATE KEY-----.*?(?:-----END \1PRIVATE KEY-----|\Z)", re.DOTALL)
 
 
@@ -59,11 +73,15 @@ def kind_of(name: object, version: object) -> str | None:
 def registered_version(name: str | None, files: dict[str, bytes]) -> str | None:
     """The byte-for-byte check. Which registered version of our demo component is exactly this code (the same
     one file with the same bytes), or None. Nothing is run to find out."""
-    for version in VERSIONS.get(name or "", []):
+    for version in VERSIONS.get(name or "", []) + CHANGE_VERSIONS.get(name or "", []):
         path = lookup(name, version)
         if path is not None and files == {path.name: path.read_bytes()}:
             return version
     return None
+
+
+def version_note(name: object, version: object) -> str | None:
+    return VERSION_NOTES.get((name, version)) if isinstance(name, str) and isinstance(version, str) else None
 
 
 def versions_of(name: object) -> list[str]:

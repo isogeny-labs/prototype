@@ -30,11 +30,15 @@ from app.engine import research
 from app.errors import BadRequest, Conflict, NotFound
 from app.evidence.export import review_part
 from app.lab.testlab import read_spec, review_dict, run_record
-from app.otto import assurance, checks, designs, harness, model, packs
+from app.otto import assurance, checks, harness, model, packs
+from app.otto import proposals as otto_proposals
 from app.present import otto as present_otto
 from app.run import components
 
 LIVE_KEY, LIMIT_KEY = "otto_live", "otto_limit_nano"
+# The tests a fix is held to besides its own advisory check: the ones that say pass or fail. Speed is left out, as it is
+# in the trial on public copies (timings hold only for the computer they are measured on).
+PASS_OR_FAIL_KINDS = ("official_vectors", "bad_signatures", research.ADVISORY_KIND)
 MAX_LIMIT_NANO = 1000 * model.NANO
 
 
@@ -252,7 +256,9 @@ class OttoMixin:
             installed = self._installed_packs(db, upto)
             entries = self._pack_advisories(db, upto)
             added = {(c.advisory_id, c.plan_item_id): c for c in self._otto_checks(db, plan_id)}
-            to_add = self._to_add(db, plan, upto) if upto is None else []
+            # Otto's proposals for this file: one for each ready test and each program it fits, with where a person's
+            # decisions on it stand. (Worked out here; nothing is written by looking.)
+            proposed = {p["id"]: p for p in self._proposals(db, plan, ("check",))}     # type: ignore[attr-defined]
             rows = []
             for pack, advisory in entries:
                 here = []
@@ -266,8 +272,11 @@ class OttoMixin:
                         check = added.get((advisory["id"], item.id))
                         if check is not None:
                             ledger = self._ledger_about(plan_id, check.objective_id)
+                    proposal = proposed.get(otto_proposals.check_id(advisory["id"], design_sha or "", program["ref"]))
                     here.append({"program": program["label"], "item_id": item.id if item is not None and not item.removed else None,
-                                 "result": shown, "ledger": ledger,
+                                 "result": shown, "ledger": ledger, "proposal": proposal,
+                                 "decision_ledger": (self.otto_ledger_about(plan_id, proposal["objective_id"])      # type: ignore[attr-defined]
+                                                     if proposal is not None and proposal.get("objective_id") else []),
                                  # the assessment's own program (one of our demo components), not a real library
                                  "own_code": components.lookup(program["component"], program["version"]) is not None})
                 item_ids = {h["item_id"] for h in here if h["item_id"] is not None}
@@ -278,7 +287,7 @@ class OttoMixin:
             a = self.assessment_for(plan_id=plan_id)
             answers = self._pack_answers_line(installed)
         status = harness.public_status()
-        return present_otto.advisories_view(rows=rows, packs=[pack for _, pack in installed], to_add=len(to_add), fitting=[p["label"] for p in fitting],
+        return present_otto.advisories_view(rows=rows, packs=[pack for _, pack in installed], fitting=[p["label"] for p in fitting],
                                             closed=upto is not None, harness_status=status, answers_line=answers,
                                             assessment_id=a.id if a is not None else None)
 
@@ -303,11 +312,11 @@ class OttoMixin:
         return out
 
     def otto_new_checks(self, plan_id: int | None) -> int:
-        """How many pack tests could be added to this assessment now (for the Overview's next step). It adds nothing."""
+        """How many of Otto's proposed checks in this assessment nobody has decided yet (for the Overview's next step).
+        It adds nothing."""
         if plan_id is None or not harness.status().installed or self._closed_at(plan_id) is not None:
             return 0
-        with self.db() as db:
-            return len(self._to_add(db, self._plan(db, plan_id), None))
+        return int(self.otto_waiting(plan_id)["check"])      # type: ignore[attr-defined]
 
     def _ledger_about(self, plan_id: int, objective_id: str) -> list[dict]:
         a = self.assessment_for(plan_id=plan_id)
@@ -317,35 +326,6 @@ class OttoMixin:
             return assurance.Ledger(self.settings.data_dir, a.id).about(objective_id)
         except harness.OttoNotInstalled:
             return []
-
-    def add_new_checks(self, plan_id: int) -> dict:
-        """Add new checks: every pack test that fits a program in this assessment and is not in the test plan yet is
-        locked and added, exactly as "+ Add test" would add a test. It runs nothing. Each check's lock entry goes
-        into the assessment's Otto ledger before the check can run."""
-        status = harness.status()
-        if not status.installed:
-            raise Conflict(f"{status.sentence} Advisory checks can't be added, because their runs could not be recorded.")
-        a = self.assessment_for(plan_id=plan_id)
-        if a is None:
-            raise NotFound("That assessment does not exist.")
-        ledger = assurance.Ledger(self.settings.data_dir, a.id)
-        with self._otto_lock, self._plan_lock, self.db() as db:
-            plan = self._plan(db, plan_id)
-            todo = self._to_add(db, plan, None)
-            if not todo:
-                raise Conflict("Every test of the installed packs that fits this assessment is already in the test plan.")
-            for pack, advisory, design, program in todo:
-                item, spec_hash, _ = checks.add_design_item(self, db, plan, design, {"version": pack.version, "fingerprint": pack.fingerprint},
-                                                            checks.advisory_info(advisory), program)
-                if db.scalars(select(OttoCheckRow).where(OttoCheckRow.plan_item_id == item.id)).first() is None:
-                    objective = ledger.lock_check(title=designs.title_of(design), program=program["label"], spec_hash=spec_hash,
-                                                  design_sha256=designs.design_sha256(design), pack_fingerprint=pack.fingerprint,
-                                                  pack_version=pack.version, advisory_id=advisory["id"])
-                    db.add(OttoCheckRow(plan_id=plan_id, plan_item_id=item.id, spec_hash=spec_hash, advisory_id=advisory["id"],
-                                        design_sha256=designs.design_sha256(design), pack_version=pack.version,
-                                        pack_fingerprint=pack.fingerprint, objective_id=objective))
-            db.commit()
-        return self.advisories_view(plan_id)
 
     # ---------------------------------------------------------------- the fix a pack carries for an advisory
 
@@ -368,7 +348,8 @@ class OttoMixin:
             return None
         pack, advisory = found
         fix = advisory["fix"]
-        about = {"advisory": advisory["id"], "plain_name": (advisory["reading"] or {}).get("plain_name"), "pack": pack.version}
+        about = {"advisory": advisory["id"], "plain_name": (advisory["reading"] or {}).get("plain_name"), "pack": pack.version,
+                 "item_id": item_id}
         if fix["kind"] == "update" and program is not None and fix["library"] != program:
             # The advisory is about another library. Its publisher's fix is for that library and says nothing about this one.
             return {**about, "state": "none", "kind": "none", "library": fix["library"], "version": fix["version"], "summary": None,
@@ -378,8 +359,50 @@ class OttoMixin:
         quote = None
         if fix["quote"] is not None:
             quote = present_otto._quoted(advisory, fix["quote"])
-        return {**about, "state": fix["state"], "kind": fix["kind"], "library": fix["library"], "version": fix["version"],
-                "summary": fix["summary"], "reason": fix["reason"], "quote": quote}
+        out = {**about, "state": fix["state"], "kind": fix["kind"], "library": fix["library"], "version": fix["version"],
+               "summary": fix["summary"], "reason": fix["reason"], "quote": quote}
+        if fix["kind"] == "update":
+            # The two proof rows of a library's fix: how the update did on public copies before the pack was signed (from
+            # the pack, with the research ledger's entries), and what this assessment's own retests show.
+            here = self._proven_here(db, item, fix["library"], fix["version"])
+            out["public"] = present_otto.public_copies_row(fix, advisory)
+            out["here"] = here
+            out["rows"] = [out["public"], present_otto.your_system_row(fix, here)]
+        return out
+
+    def _proven_here(self, db, item: PlanItemRow, library: str, fixed: str) -> dict:
+        """What this assessment's own retests show about a library's fix: the newest retest of this advisory check on
+        the fixed version, read through the same gate as every result, with the other pass-or-fail tests of that
+        library in the same retest. "passed" only when the check passed there and every one of those passed too (the
+        rule a fix is called proven by on public copies); "not_proven" when a retest ran and that does not hold;
+        "not_yet" while no retest on the fixed version has a result."""
+        runs = db.scalars(select(TestRunRow).where(TestRunRow.plan_item_id == item.id, TestRunRow.phase == "retest",
+                                                   TestRunRow.component_name == library, TestRunRow.component_version == fixed)
+                          .order_by(TestRunRow.id.desc())).all()
+        for run in runs:
+            result = self._result(db, run)
+            if result is None:
+                continue
+            same = db.scalars(select(TestRunRow).where(TestRunRow.plan_id == item.plan_id, TestRunRow.phase == "retest",
+                                                       TestRunRow.retest_id == run.retest_id, TestRunRow.component_name == library,
+                                                       TestRunRow.component_version == fixed).order_by(TestRunRow.id)).all()
+            newest: dict[int, TestRunRow] = {}
+            for other in same:
+                newest[other.plan_item_id] = other
+            others = []
+            for other in newest.values():
+                row = db.get(TestSpecRow, other.spec_hash)
+                if other.plan_item_id == item.id or row is None or row.kind not in PASS_OR_FAIL_KINDS:
+                    continue
+                said = self._result(db, other)
+                if said is not None:
+                    others.append({"item_id": other.plan_item_id, "kind": row.kind, "code": said["code"], "label": said["label"]})
+            failing = [o for o in others if o["code"] != "passed"]
+            return {"state": "passed" if result["code"] == "passed" and not failing else "not_proven", "library": library, "version": fixed,
+                    "item_id": item.id, "run_id": run.id, "retest_id": run.retest_id, "finished_at": run.finished_at,
+                    "check": {"code": result["code"], "label": result["label"]}, "tests": len(others) + 1, "failing": len(failing),
+                    "others": others}
+        return {"state": "not_yet", "library": library, "version": fixed, "item_id": item.id}
 
     def otto_result_fix(self, db, spec: dict, name: str | None, version: str | None, plan_id: int | None = None) -> dict | None:
         """What the Suggested fix line of an advisory check's result may say: Otto's fix for this program, when the

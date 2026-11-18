@@ -10,24 +10,30 @@ One Otto lab per assessment, at <data>/otto/assessment-<id>/. It gets:
                     reviewed. Otto's harness then runs the pinned checker on it.
     a step entry    for each Claude step taken in the app (writing a change for the customer's own code): the full
                     prompt and answer, where the answer came from, the model, the tokens, the cost and the SHA-256.
+    a decision      for each decision a person records on one of Otto's proposals (accept, reject, undo, reconsider):
+    entry           what was proposed (by its SHA-256), what was decided, by whom and when. The first decision on a
+                    proposal opens an entry that names the proposal; each decision is a claim under it.
 
 What the ledger confirms is BINDING: that a run belongs to a test locked earlier, and that the reviewer was not the
 proposer. It holds no result and decides none; its verdict ("accept": bound and consistent) is never shown as a
 result. Evidence Lab's own read gate still re-reviews every result each time it is shown.
 
 A lab is acted on only through the harness's own functions; the ledger file is never written by this code. The only
-program the harness starts here is the pinned record checker (checker/recheck.py, copied into the lab).
+programs the harness starts here are this app's two pinned record checkers, copied into the lab: checker/recheck.py
+(runs and Claude steps) and checker/decisions.py (decisions on proposals). The second one was added later and stands
+beside the first, which is unchanged: a ledger written before it existed names only recheck.py and reads as before.
 
 A ledger that comes out of a file (the verify command reads one from an evidence file) is data. Asked to check
 every entry again, Otto's harness starts the verifier that an entry names, and it looks that entry up by its id
 without asking what kind of entry it is; a verifier can name a command. So such a ledger is never checked again by
 the harness. Three things are done instead, and none of them starts anything the ledger names:
 
-  1. `only_our_checker` holds every entry to the exact form this app writes: its kind, its fields, the one checker
-     an objective may name, and each pointer to an earlier entry of the right kind;
+  1. `only_our_checker` holds every entry to the exact form this app writes: its kind, its fields, the checker
+     an objective may name (one of this app's own two, each for its own kinds of entry), and each pointer to an
+     earlier entry of the right kind;
   2. the harness audits the chain and the records without running any verifier;
-  3. this app's own pinned record checker (the file that ships with the app, never a file or a command from the
-     ledger) is run again on every checked entry, and its answer is compared with the stored one.
+  3. this app's own pinned record checker for that kind of entry (a file that ships with the app, never a file or
+     a command from the ledger) is run again on every checked entry, and its answer is compared with the stored one.
 """
 from __future__ import annotations
 
@@ -47,10 +53,16 @@ from app.otto import harness
 
 CHECKER_SOURCE = Path(__file__).with_name("checker") / "recheck.py"
 CHECKER = "recheck.py"
+DECISION_CHECKER_SOURCE = Path(__file__).with_name("checker") / "decisions.py"
+DECISION_CHECKER = "decisions.py"
 CHECKER_TIMEOUT_SECONDS = 60
 AUTHOR = "evidence-lab"
 ENTRY_KINDS = ("objective", "claim", "verdict")      # the only kinds of entry an assessment's ledger holds
-PARAM_KINDS = ("run", "step")                        # what the pinned checker checks: a bound run, or a Claude step
+PARAM_KINDS = ("run", "step")                        # what the first pinned checker checks: a bound run, or a Claude step
+DECISION_KINDS = ("decision",)                       # what the second one checks: a decision on one of Otto's proposals
+# The only programs an objective may name, each with the file that ships with the app and the kinds of entry it
+# checks. A name from a ledger is looked up here and nowhere else: it never becomes a path.
+CHECKERS = {CHECKER: (CHECKER_SOURCE, PARAM_KINDS), DECISION_CHECKER: (DECISION_CHECKER_SOURCE, DECISION_KINDS)}
 # The fields of each kind of entry, exactly as this app (through Otto's harness) writes them. An entry with any other
 # field is not ours: in particular nothing but an objective may carry a verifier.
 ENTRY_FIELDS = {"objective": frozenset({"type", "statement", "verifier", "author", "created_at"}),
@@ -112,20 +124,21 @@ class Ledger:
             raise harness.OttoNotInstalled(NOT_OUR_FOLDER)
         if not ledger.exists():
             ledger.touch()
-        target = self.folder / CHECKER
-        ours = CHECKER_SOURCE.read_bytes()
-        if target.is_symlink() or not target.is_file() or target.read_bytes() != ours:
-            if target.is_symlink() or target.exists():
-                if target.is_dir() and not target.is_symlink():
-                    raise harness.OttoNotInstalled(NOT_OUR_FOLDER)
-                target.unlink()                 # a link is removed, never followed
-            with open(target, "xb") as fh:      # a new regular file, made here
-                fh.write(ours)
+        for name, (source, _) in CHECKERS.items():
+            target = self.folder / name
+            ours = source.read_bytes()
+            if target.is_symlink() or not target.is_file() or target.read_bytes() != ours:
+                if target.is_symlink() or target.exists():
+                    if target.is_dir() and not target.is_symlink():
+                        raise harness.OttoNotInstalled(NOT_OUR_FOLDER)
+                    target.unlink()                 # a link is removed, never followed
+                with open(target, "xb") as fh:      # a new regular file, made here
+                    fh.write(ours)
         return module.Lab(str(self.folder))
 
-    def _verifier(self, params: dict) -> dict:
+    def _verifier(self, params: dict, checker: str = CHECKER) -> dict:
         # the pin is the checker that ships with the app, which is also what _lab keeps in the folder
-        return {"kind": "certificate", "checker": CHECKER, "checker_sha256": _sha256(CHECKER_SOURCE), "params": params,
+        return {"kind": "certificate", "checker": checker, "checker_sha256": _sha256(CHECKERS[checker][0]), "params": params,
                 "timeout_seconds": CHECKER_TIMEOUT_SECONDS}
 
     def lock_check(self, *, title: str, program: str, spec_hash: str, design_sha256: str, pack_fingerprint: str, pack_version: str,
@@ -165,6 +178,27 @@ class Ledger:
             claim = lab.add({"type": "claim", "objective_id": objective, "artifact": artifact, "cites": []}, AUTHOR)
             _, verdict = lab.verify(claim)
             return claim, verdict["status"]
+
+    def record_decision(self, *, objective_id: str | None, proposal_id: str, kind: str, title: str, proposal_sha256: str, decision: str,
+                        before: str, after: str, by: str, at: str, reason: str | None, number: int, about: dict) -> tuple[str, str, str]:
+        """One decision a person recorded on one of Otto's proposals. Returns (the entry that names the proposal, the
+        decision's own entry, the checker's verdict: accept or reject). `objective_id` is the entry that names this
+        proposal, from its earlier decisions; None for its first one. The checker's verdict says the entry is whole
+        and in order. It is not the decision and never a result."""
+        with self._guard:
+            lab = self._lab()
+            if objective_id is None:
+                objective_id = lab.add({"type": "objective",
+                                        "statement": (f"Every decision a person records on Otto's proposal “{title}” names what was proposed by "
+                                                      "its SHA-256, says who decided and when, and is a step the state before it allows."),
+                                        "verifier": self._verifier({"kind": "decision", "proposal": proposal_id, "proposal_kind": kind},
+                                                                   DECISION_CHECKER)}, AUTHOR)
+            claim = lab.add({"type": "claim", "objective_id": objective_id, "cites": [],
+                             "artifact": {"proposal": proposal_id, "proposal_kind": kind, "proposal_sha256": proposal_sha256, "title": title,
+                                          "decision": decision, "before": before, "after": after, "by": by, "at": at, "reason": reason,
+                                          "number": int(number), "about": about}}, AUTHOR)
+            _, verdict = lab.verify(claim)
+            return objective_id, claim, verdict["status"]
 
     # ---------------------------------------------------------------- reading
 
@@ -231,7 +265,34 @@ class Ledger:
             return out
 
 
+    def about_proposal(self, objective_id: str) -> list[dict]:
+        """The entries about one proposal's decisions, oldest first, in the same form as `about`. The words say what
+        each entry is; the checker's answer is worded as a check of the record, never as a decision or a result."""
+        if not self.exists():
+            return []
+        with self._guard:
+            lab = self._lab()
+            st = lab.state()
+            claims = {cid for cid, c in st.of("claim") if c["objective_id"] == objective_id}
+            out = []
+            for entry in lab.ledger.entries():
+                rid, record = lab.ledger.record_id(entry), entry["payload"]
+                if rid == objective_id:
+                    what = "Proposal entry: names what Otto proposed, written with the first decision on it"
+                elif rid in claims:
+                    art = record["artifact"]
+                    what = f"Decision {art.get('number')}: {DECISION_WORDS.get(art.get('decision'), 'recorded')} by {art.get('by')}"
+                elif entry["kind"] == "verdict" and record.get("claim_id") in claims:
+                    what = ("The pinned checker: the entry is whole and in order" if record["status"] == "accept"
+                            else f"The pinned checker did not accept the entry ({record['status']})")
+                else:
+                    continue
+                out.append({"seq": entry["seq"], "kind": entry["kind"], "id": rid, "at": entry["ts"], "what": what})
+            return out
+
+
 PHASE_WORDS = {"first": "first run", "retest": "retest", "proof": "fix proof"}
+DECISION_WORDS = {"accept": "accepted", "reject": "rejected", "undo": "accept undone", "reconsider": "taken up again"}
 
 
 def record_id(payload: object) -> str:
@@ -242,10 +303,11 @@ def record_id(payload: object) -> str:
 def only_our_checker(entries: list) -> str | None:
     """A ledger that came out of a file is data. This says, in one plain phrase, what in such a ledger is not what
     this app writes, or None when every entry is: one of the three kinds, with exactly the fields of its kind; an
-    objective that names this app's own pinned record checker and nothing else; a claim that points at an earlier
-    objective; a verdict that points at an earlier claim and at that claim's own objective. Nothing is run to find
-    out. OTHER_VERSION is returned when the only difference is the checker's fingerprint."""
-    ours = _sha256(CHECKER_SOURCE)
+    objective that names one of this app's own pinned record checkers, for a kind of entry that checker checks, and
+    nothing else; a claim that points at an earlier objective; a verdict that points at an earlier claim and at that
+    claim's own objective. Nothing is run to find out. OTHER_VERSION is returned when the only difference is a
+    checker's fingerprint."""
+    ours = {name: _sha256(source) for name, (source, _) in CHECKERS.items()}
     other_version = False
     kinds: dict[str, str] = {}              # record id -> the kind of the entry that holds it
     objective_of: dict[str, str] = {}       # claim id -> the objective it was made under
@@ -266,12 +328,12 @@ def only_our_checker(entries: list) -> str | None:
         if kind == "objective":
             verifier = payload["verifier"]
             if not isinstance(verifier, dict) or set(verifier) != VERIFIER_FIELDS \
-                    or verifier["kind"] != "certificate" or verifier["checker"] != CHECKER \
+                    or verifier["kind"] != "certificate" or not isinstance(verifier["checker"], str) or verifier["checker"] not in CHECKERS \
                     or type(verifier["timeout_seconds"]) is not int or verifier["timeout_seconds"] != CHECKER_TIMEOUT_SECONDS \
-                    or not isinstance(verifier["params"], dict) or verifier["params"].get("kind") not in PARAM_KINDS \
+                    or not isinstance(verifier["params"], dict) or verifier["params"].get("kind") not in CHECKERS[verifier["checker"]][1] \
                     or not isinstance(verifier["checker_sha256"], str) or not _HEX64.match(verifier["checker_sha256"]):
                 return NOT_OUR_CHECKER
-            if verifier["checker_sha256"] != ours:
+            if verifier["checker_sha256"] != ours[verifier["checker"]]:
                 other_version = True
         elif kind == "claim":
             if not isinstance(payload["artifact"], dict) or payload["cites"] != []:
@@ -299,14 +361,18 @@ def _is_id(value: object) -> bool:
     return isinstance(value, str) and bool(_RECORD_ID.match(value))
 
 
-def run_checker(params: dict, artifact: dict) -> str:
-    """This app's own pinned record checker, run on one entry: "accept", "reject", or "unavailable" when it gave no
-    usable answer. The program started is always the checker file that ships with the app, with a fixed command, an
-    empty folder to work in and a bare environment. Nothing in a ledger can name another program, a file or a setting."""
+def run_checker(params: dict, artifact: dict, checker: str = CHECKER) -> str:
+    """One of this app's own pinned record checkers, run on one entry: "accept", "reject", or "unavailable" when it
+    gave no usable answer. `checker` is the name an entry gave; it is only looked up among this app's own two, and
+    the program started is always that checker file as it ships with the app, with a fixed command, an empty folder to
+    work in and a bare environment. Nothing in a ledger can name another program, a file or a setting."""
+    source = CHECKERS[checker][0] if isinstance(checker, str) and checker in CHECKERS else None
+    if source is None:
+        return "unavailable"
     try:
         sent = json.dumps({"params": params, "artifact": artifact}).encode("utf-8")
         with tempfile.TemporaryDirectory(prefix="evidence-otto-check-") as empty:
-            done = subprocess.run([sys.executable, "-I", str(CHECKER_SOURCE)], input=sent, capture_output=True, cwd=empty,
+            done = subprocess.run([sys.executable, "-I", str(source)], input=sent, capture_output=True, cwd=empty,
                                   timeout=CHECKER_TIMEOUT_SECONDS, env={"PATH": os.environ.get("PATH", "")}, shell=False)
         if done.returncode != 0:
             return "unavailable"
@@ -333,7 +399,7 @@ def check_again(entries: list[dict]) -> list[str]:
                             f"entry {entry.get('seq')} and those after it were not")
             break
         claim, objective = records[verdict["claim_id"]], records[verdict["objective_id"]]
-        now = run_checker(objective["verifier"]["params"], claim["artifact"])
+        now = run_checker(objective["verifier"]["params"], claim["artifact"], objective["verifier"]["checker"])
         if now == "unavailable":
             problems.append(f"entry {entry.get('seq')} could not be checked again (the pinned checker gave no usable answer)")
         elif now != verdict["status"]:

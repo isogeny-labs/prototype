@@ -34,6 +34,7 @@ from app.errors import BadRequest, Conflict, NotFound
 from app.fixes.gitrepo import GitRepo, GitRepoError, Person, count_changes, format_patch
 from app.engine.reviewer import PROOF_SCHEMA, ReviewNotAllowed
 from app.lab.testlab import BUSY, read_spec
+from app.otto import proposals as otto_proposals
 from app.otto.engine import OttoCouldNot
 
 # The fixed tick list of reviewers (SPEC 7b item 4). The app has one login, so whoever is at the keyboard
@@ -44,6 +45,8 @@ OTTO_AUTHOR = Person("Otto (Evidence Lab)", "otto@example.invalid")   # phase 5c
 MERGE_AUTHOR = Person("Evidence Lab user", "user@example.invalid")
 PATCH_FOOTER = "Isogeny Evidence Lab (demo)"
 PROOF_CHANGED = "The stored proof no longer matches its fingerprint."
+NOT_ACCEPTED = "Otto proposes this change. Accept the proposal first; accepting runs nothing."
+NOT_ADDED = "Otto's proposal was rejected, so its change is not added. Reconsider takes it up again."
 
 
 def _sha256(data: bytes) -> str:
@@ -181,6 +184,7 @@ class ChangesMixin:
 
     _fixes_for_dependencies: Callable[..., list[dict]]   # from DependenciesMixin (phase 4d); declared for the type check only
     _otto_pack_fix: Callable[..., dict | None]            # from OttoMixin (phase 5c)
+    _otto_state: Callable[..., str]                       # from ProposalsMixin (phase 5c): where a proposal stands
 
     def _init_changes(self) -> None:
         self._proof_lock = threading.Lock()  # so that a proof is reviewed once when two of its jobs finish together
@@ -336,24 +340,37 @@ class ChangesMixin:
                               "rerun_blocked": None, "connection": None, "change": None, "proofs": 0, "proof": None,
                               "pull_request": None, "merge": None, "actions": {}, "change_key": change["key"]})
         for item_id in dict.fromkeys(r["item_id"] for r in failed):
-            answers = [r for r in failed if r["item_id"] == item_id and r["run_id"] not in answered
-                       and (newest[item_id]["tone"] == "fail" or item_id in kept)]
+            mine = [r for r in failed if r["item_id"] == item_id and r["run_id"] not in answered]
+            if not mine:
+                continue
+            kind = mine[0]["kind"]
+            last = max(mine, key=lambda r: r["run_id"])
+            # Phase 5c: for a failed advisory check, the fix the test pack carries for its advisory.
+            otto_fix = self._otto_pack_fix(db, last["item_id"], last.get("component")) if kind == research.ADVISORY_KIND else None
+            # A library's fix from Otto stays listed once a retest on the fixed version has a result, so that its second
+            # proof row ("Proven on your system") can be read where the fix is: it is a fact on record, with its date.
+            retested = bool(otto_fix and otto_fix.get("kind") == "update" and (otto_fix.get("here") or {}).get("state") != "not_yet")
+            answers = mine if (newest[item_id]["tone"] == "fail" or item_id in kept or retested) else []
             if answers:
-                kind = answers[0]["kind"]
                 fix_id = "fix-" + str(kind).replace("_", "-") + ("" if len(per_kind[kind]) == 1 else f"-{item_id}")
                 # Phase 4c: a failure on a real library. The fix is its publisher's fixed version, where one is known;
                 # no code change or pull request is ever offered for other people's code.
-                last = max(answers, key=lambda r: r["run_id"])
                 library = real_libraries.library(last.get("component"), last.get("version"))
                 real = ({"name": last["component"], "version": last["version"],
                          "fixed": real_libraries.fixed_version(last["component"], last["version"])} if library else None)
+                if otto_fix is not None and otto_fix.get("kind") == "update":
+                    otto_fix["program"] = f"{last.get('component')} {last.get('version')}" if last.get("version") else str(last.get("component"))
+                proposal = None
+                if otto_fix is not None and otto_fix.get("kind") == "update":
+                    # ... and since Otto's fix is a proposal: where a person's decisions on it stand (the Fixes view words it)
+                    pid = otto_proposals.update_fix_id(item_id)
+                    proposal = {"id": pid, "state": self._otto_state(db, plan.id, pid)}
                 fixes.append({"id": fix_id, "test_kind": kind, "kind": "text", "status": "text_only",
                               "source_kind": "failed_tests", "answers": [_answer(r) for r in answers], "component": None,
                               "template_id": None, "rerun_blocked": None, "connection": None, "change": None, "proofs": 0,
                               "proof": None, "pull_request": None, "merge": None, "actions": {}, "real_library": real,
-                              # Phase 5c: for a failed advisory check, the fix the test pack carries for its advisory.
-                              "otto_fix": (self._otto_pack_fix(db, last["item_id"], last.get("component"))
-                                           if kind == research.ADVISORY_KIND else None)})
+                              "otto_fix": otto_fix, "proposal": proposal,
+                              "closed_by_retest": bool(retested and newest[item_id]["tone"] == "pass")})
         return fixes
 
     def _code_fix(self, db, plan: PlanRow, items: list, shown: list[dict], failed: list[dict]) -> dict | None:
@@ -389,7 +406,18 @@ class ChangesMixin:
         if change is not None:
             fix.update(self._change_state(db, plan, items, connection, change))
         fix["status"] = _status(fix)
-        fix["actions"] = {"connect": "The demo code is already connected for this file." if change is not None else fix["rerun_blocked"],
+        # Phase 5c: a change of Otto's is a proposal a person accepts or rejects. Until it is accepted the code is not
+        # connected (so nothing is proven, and with Live Otto on nothing is asked of Claude).
+        fix["proposal"] = None
+        not_accepted = None
+        if otto:
+            pid = otto_proposals.code_fix_id(fix_key)
+            state = self._otto_state(db, plan.id, pid)
+            fix["proposal"] = {"id": pid, "state": state}
+            if change is None and state != "accepted":
+                not_accepted = (NOT_ACCEPTED if state == "proposed" else NOT_ADDED)
+        fix["actions"] = {"connect": ("The demo code is already connected for this file." if change is not None
+                                      else not_accepted or fix["rerun_blocked"]),
                           "run_proof_again": _no_new_proof(fix), "open_pull_request": _no_pull_request(fix), "merge": _no_merge(fix),
                           "download_patch": _no_patch(fix), "retest_now": _no_retest_now(fix)}
         return fix
@@ -660,6 +688,13 @@ class ChangesMixin:
                 files = repo.files(base or "")
                 if registered_version(plan.component_name, files) != plan.component_version:
                     raise GitRepoError("The demo repository does not hold the demo component this file names.")
+                # A change of Otto's is connected only after a person accepted Otto's proposal. This is asked as the page
+                # showed it (nothing is asked of Claude), and before the click below can ask anything.
+                offered = self._proposal(db, plan, shown, files)
+                if offered is not None and offered[0].get("written_by") == "otto":
+                    state = self._otto_state(db, plan.id, otto_proposals.code_fix_id(offered[0]["template_id"]))
+                    if state != "accepted":
+                        raise OttoCouldNot(NOT_ACCEPTED if state == "proposed" else NOT_ADDED)
                 # The person's click: with Live Otto on, this is where Otto asks Claude (once, within the spending limit).
                 proposed = self._proposal(db, plan, shown, files, mode="connect")
                 change = self._write_change(repo, base, files, proposed, plan) if proposed is not None else None
@@ -803,6 +838,21 @@ class ChangesMixin:
         repo = self._repo(fix["connection"]["folder"])
         return format_patch(repo.read_commit(change["head_commit"]), repo.files(change["base_commit"]),
                             repo.files(change["head_commit"]), PATCH_FOOTER)
+
+    @staticmethod
+    def _merged_versions(db, plan: PlanRow) -> list[str]:
+        """The registered versions that merged changes of this plan give, where they are not in the general list of
+        versions a retest chooses between (phase 5c: the program a change of Otto's gives)."""
+        out = []
+        merged = db.scalars(select(ChangeRow).join(PullRequestRow, PullRequestRow.change_id == ChangeRow.id)
+                            .join(MergeRow, MergeRow.pull_request_id == PullRequestRow.id).where(ChangeRow.plan_id == plan.id)).all()
+        for change in merged:
+            matches = (change.built or {}).get("matches") or {}
+            version = matches.get("version")
+            if matches.get("name") == plan.component_name and version in components.CHANGE_VERSIONS.get(plan.component_name or "", []) \
+                    and version not in out:
+                out.append(version)
+        return out
 
     def retest_now(self, plan_id: int, fix_id: str) -> dict:
         """Retest now: exactly what Retest new version does, on the version the merged change is identical to.

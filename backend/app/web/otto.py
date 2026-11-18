@@ -1,5 +1,5 @@
-"""Phase 5c: Otto's routes. Settings (Test packs, Live Otto) belong to the installation; the Advisories page and
-Add new checks belong to one assessment (the closed guard refuses the add on a closed one)."""
+"""Phase 5c: Otto's routes. Settings (Test packs, Live Otto) belong to the installation; the Advisories page and the
+decisions on Otto's proposals belong to one assessment (the closed guard refuses a decision on a closed one)."""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
@@ -16,6 +16,10 @@ class PackInstallBody(BaseModel):
 class LiveOttoBody(BaseModel):
     on: StrictBool | None = None                                   # turn Use live Claude on or off
     limit: StrictStr | None = Field(default=None, max_length=12)   # the spending limit per run, in US dollars
+
+
+class DecisionBody(BaseModel):
+    reason: StrictStr | None = Field(default=None, max_length=2000)     # a reject's optional short reason (held to 300 after cleaning)
 
 
 def routes(lab, require_login) -> APIRouter:
@@ -42,8 +46,13 @@ def routes(lab, require_login) -> APIRouter:
     def advisories(plan_id: int):
         return lab.advisories_view(plan_id)
 
-    @router.post("/api/plans/{plan_id}/advisories/add", dependencies=login, responses=shows(models.AdvisoriesView))
-    def add_new_checks(plan_id: int):
-        return lab.add_new_checks(plan_id)
+    @router.get("/api/plans/{plan_id}/otto/proposals", dependencies=login, responses=shows(models.OttoProposalsView))
+    def proposals(plan_id: int):
+        return lab.otto_proposals_view(plan_id)
+
+    @router.post("/api/plans/{plan_id}/otto/proposals/{proposal_id}/{decision}", dependencies=login, responses=shows(models.OttoProposal))
+    def decide(plan_id: int, proposal_id: str, decision: str, body: DecisionBody | None = None):
+        """Accept, reject (with an optional short reason), undo or reconsider one of Otto's proposals. It runs nothing."""
+        return lab.otto_decide_view(plan_id, proposal_id[:200], decision[:20], body.reason if body is not None else None)
 
     return router

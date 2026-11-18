@@ -370,6 +370,11 @@ class TestLabMixin:
                 came_from = ((spec.get("inputs") or {}).get("advisory") or {}).get("id") if kind == research.ADVISORY_KIND else None
                 if came_from:
                     card["advisory"] = {"label": f"From advisory {came_from}", "link": {"page": "advisories", "item": str(came_from)}}
+                # ... and since Otto's checks are proposals a person accepted: the mark "From Otto", and its remove button
+                # is off (an accepted check is undone on Advisories, until it has run).
+                kept = self.otto_keeps_in_plan(db, item.id) if came_from else None
+                card["from_otto"] = "From Otto" if kept else None
+                card["remove_blocked"] = kept
                 live = job is not None and job.status != "done"
                 if live:
                     state = present.status_view(job.status, job.progress_text, job.progress_percent, self.jobs.max_parallel)
@@ -382,7 +387,7 @@ class TestLabMixin:
                         b = {"code": result["code"], "label": result["label"], "tone": result["tone"]}
                         card.update(status="done", status_text=b["label"], progress=None, result=b)
                 card["can_run"] = not running
-                card["can_remove"] = not live and not any(j is not None and j.status != "done" for j in reruns)
+                card["can_remove"] = not kept and not live and not any(j is not None and j.status != "done" for j in reruns)
                 tests.append(card)
             has_results = bool(db.scalar(select(func.count(ReviewRow.id)).join(TestRunRow, TestRunRow.id == ReviewRow.run_id)
                                          .where(TestRunRow.plan_id == plan_id, TestRunRow.phase.not_in(HIDDEN_ORIGINS))))
@@ -528,6 +533,9 @@ class TestLabMixin:
                 raise NotFound("That test is not in this plan.")
             if any(j is not None and j.status != "done" for j in (self.jobs.get((item_id, phase)) for phase in ("first", "retest", "proof"))):
                 raise Conflict("This test is waiting or running. Remove it when it has finished.")
+            kept = self.otto_keeps_in_plan(db, item_id)   # phase 5c: a check from one of Otto's proposals is undone on Advisories
+            if kept:
+                raise Conflict(kept)
             item.removed = True
             db.commit()
         return self.plan_view(plan_id)
@@ -898,7 +906,7 @@ class TestLabMixin:
                            else "A retest needs a program that has another version in this app, and this file names none.")
             else:
                 blocked = BUSY[running] if busy else self._compare_blocked(plan_id, items, missing)
-            menu = self._retest_menu(plan, choices)
+            menu = self._retest_menu(plan, choices, self._merged_versions(db, plan))
             only_demo = all(components.lookup(p["component"], p["version"]) for p in choices)
             tests_word = f"the same {n_word} locked {'test' if len(items) == 1 else 'tests'}"
             retest_view = {"can_start": blocked is None, "blocked_reason": blocked, "running": bool(retest_live),
@@ -1013,13 +1021,19 @@ class TestLabMixin:
         return out
 
     @staticmethod
-    def _retest_menu(plan: PlanRow, choices: list[dict]) -> list[dict]:
+    def _retest_menu(plan: PlanRow, choices: list[dict], merged: list[str] | None = None) -> list[dict]:
+        """`merged`: the registered versions that a merged change of this plan gives and that are not in the general
+        list (phase 5c: the program Otto's change gives). They are offered for the plan's own program only."""
         menu = []
         for p in choices:
             name, current, versions = p["component"], p["version"], components.versions_of(p["component"])
             demo = components.lookup(name, current) is not None
+            if demo and name == plan.component_name:
+                versions = versions + [v for v in (merged or []) if v not in versions]
             for v in sorted(versions, key=lambda v: (v == current, -versions.index(v))):
-                if demo:
+                if demo and v in (merged or []) and components.version_note(name, v):
+                    note = "The version your merged change gives. " + str(components.version_note(name, v))
+                elif demo:
                     note = ("The demo version these results are for." if v == current
                             else "The corrected demo version." if versions.index(v) > versions.index(current) else "An earlier demo version.")
                 else:
@@ -1044,7 +1058,9 @@ class TestLabMixin:
                 name = component if component is not None else (plan.component_name if plan.component_name in choices else next(iter(choices)))
                 if name not in choices:
                     raise BadRequest("That program can't be chosen for a retest of this file.", field="component")
-                if version not in components.versions_of(name):
+                # (a registered version that only a change leads to can be chosen once that change is merged in this plan)
+                allowed = components.versions_of(name) + (self._merged_versions(db, plan) if name == plan.component_name else [])
+                if version not in allowed:
                     raise BadRequest("Only our demo versions can be chosen for a retest." if components.lookup(name, choices[name]["version"])
                                      else "Only the versions listed for this library can be chosen for a retest.", field="version")
                 baseline = choices[name]["version"]

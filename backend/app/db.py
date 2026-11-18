@@ -611,6 +611,30 @@ class OttoStepRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class OttoDecisionRow(Base):
+    """Phase 5c: one decision a person recorded on one of Otto's proposals: accept, reject (with an optional short
+    reason), undo (of an accept) or reconsider (of a reject). `proposal` is what Otto proposed, as it stood at that
+    moment, and `proposal_sha256` its fingerprint. Rows are only ever added: a proposal's state is worked out from
+    them each time, and a rejected proposal is never removed."""
+    __tablename__ = "otto_decisions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    proposal_id: Mapped[str] = mapped_column(String(200))
+    kind: Mapped[str] = mapped_column(String(16))                 # check | fix | plan | dependency
+    decision: Mapped[str] = mapped_column(String(12))             # accept | reject | undo | reconsider
+    before: Mapped[str] = mapped_column(String(12))               # proposed | accepted | rejected
+    after: Mapped[str] = mapped_column(String(12))
+    number: Mapped[int] = mapped_column(Integer)                  # 1, 2, 3... among the decisions on this proposal
+    reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    by: Mapped[str] = mapped_column(String(100))                  # the name the app records for the person at the keyboard
+    at: Mapped[str] = mapped_column(String(40))                   # the time, as the ledger entry holds it
+    proposal: Mapped[dict] = mapped_column(JSON)
+    proposal_sha256: Mapped[str] = mapped_column(String(64))
+    objective_id: Mapped[str | None] = mapped_column(String(80), nullable=True)   # the ledger entry that names the proposal
+    claim_id: Mapped[str | None] = mapped_column(String(80), nullable=True)       # this decision's own ledger entry
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 NO_DELETE_TABLES = ("folders", "projects", "assessments")
 
 
@@ -619,7 +643,7 @@ APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", 
                       "change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks",
                       "dependency_lists", "dependency_ties",
                       "assessment_details", "assessment_signoffs", "import_files",   # phase 5b
-                      "otto_packs", "otto_checks", "otto_steps")                      # phase 5c
+                      "otto_packs", "otto_checks", "otto_steps", "otto_decisions")    # phase 5c
 
 
 def create_append_only_triggers(engine) -> None:

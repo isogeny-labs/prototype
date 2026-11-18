@@ -39,6 +39,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 ACME_142 = os.path.join(ROOT, "acme-sign-1.4.2", "acme_sign.py")
 ACME_143 = os.path.join(ROOT, "acme-sign-1.4.3", "acme_sign.py")
+# acme-sign 1.4.2 with the change Otto's recorded answer gives (phase 5c). It reports version 1.4.3 and differs from
+# our own 1.4.3 in one line: the same range check, written another way.
+ACME_143_OTTO = os.path.join(ROOT, "acme-sign-1.4.3-otto", "acme_sign.py")
 ACCEPT_ALL = os.path.join(ROOT, "controls", "accept_all.py")
 SLOW = os.path.join(ROOT, "controls", "slow.py")
 
@@ -46,9 +49,11 @@ SLOW = os.path.join(ROOT, "controls", "slow.py")
 SUBJECTS = {
     "acme-sign-1.4.2": [ACME_142],
     "acme-sign-1.4.3": [ACME_143],
+    "acme-sign-1.4.3-otto": [ACME_143_OTTO],
     "control-accept-all": [ACCEPT_ALL],
     "control-slow:acme-sign-1.4.2": [SLOW, ACME_142],
     "control-slow:acme-sign-1.4.3": [SLOW, ACME_143],
+    "control-slow:acme-sign-1.4.3-otto": [SLOW, ACME_143_OTTO],
 }
 COMMANDS = ("keygen", "sign", "verify", "info", "bench", "encaps", "decaps")
 CALL_COMMANDS = ("keygen", "sign", "verify", "info", "bench")  # what a plain "call" job may ask; its answer is written out

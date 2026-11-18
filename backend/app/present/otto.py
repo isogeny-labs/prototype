@@ -147,6 +147,162 @@ def settings_view(*, installed: list, update, refused: list[dict], scan_line: st
     }
 
 
+# ---------------------------------------------------------------- a library fix's two proof rows (the same words everywhere)
+
+PUBLIC_LABEL, HERE_LABEL = "Proven on public copies", "Proven on your system"
+NOT_YET_TEXT = "Update the library, then press Retest."
+
+
+def stamp(value: str | None) -> str:
+    """A time as the screens show it in a sentence: 18 November 2026, 10:02 UTC."""
+    try:
+        when = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return str(value or "")
+    return f"{when.day} {when.strftime('%B %Y')}, {when.strftime('%H:%M')} UTC"
+
+
+def _row(key: str, label: str, word: str, tone: str, text: str, links: list[dict] | None = None, ledger: dict | None = None) -> dict:
+    return {"key": key, "label": label, "badge": {"label": word, "tone": tone}, "text": text, "line": f"{label}: {word}. {text}",
+            "links": list(links or []), "ledger": ledger}
+
+
+def public_copies_row(fix: dict, advisory: dict | None) -> dict:
+    """The first proof row of a library's fix: how the update did when Otto tried it on public copies, before the pack
+    was signed. It repeats the pack's own counts; "Passed" here is the pack's "proven" (the advisory check passed on
+    the fixed version and every other locked test passed there too). `advisory`: the pack's entry, for the research
+    ledger's entries (None where only the fix is at hand)."""
+    arms = (fix.get("trial") or {}).get("arms") or {}
+    affected, fixed = str((arms.get("affected") or {}).get("version") or "the affected version"), str(fix.get("version"))
+    failing = int((arms.get("fixed") or {}).get("failing") or 0)
+    check_wrong = ((((advisory or {}).get("test") or {}).get("trial") or {}).get("arms") or {}).get("fixed", {}).get("wrong")
+    ledger = None
+    if advisory is not None and advisory.get("ledger"):
+        ledger = {"title": "Otto ledger entries", "count": len(advisory["ledger"]), "entries": _entries(advisory["ledger"]),
+                  "note": ("From Otto's research ledger, a hash chain kept with the Otto harness: the test and the fix were registered, "
+                           "tried and judged before the pack was signed.")}
+    links = [{"label": "See the trial on Advisories", "link": {"page": "advisories", "item": str(advisory["id"])}}] if advisory is not None else []
+    if fix.get("state") == "proven":
+        return _row("public", PUBLIC_LABEL, "Passed", "pass", f"{affected} fails the advisory check; {fixed} passes.", links, ledger)
+    if check_wrong in (0, None) and failing >= 1:
+        more = "another locked test still fails" if failing == 1 else f"{failing} other locked tests still fail"
+        return _row("public", PUBLIC_LABEL, "Not proven", "warn",
+                    f"{affected} fails the advisory check and {fixed} passes it, but {more} on {fixed}.", links, ledger)
+    # anything else: the pack's own sentence, never one of this app's that the pack might not bear out
+    return _row("public", PUBLIC_LABEL, "Not proven", "warn", str(fix.get("reason") or "The pack does not say why."), links, ledger)
+
+
+def your_system_row(fix: dict, here: dict | None) -> dict:
+    """The second proof row: what this assessment's own retest on the updated version shows. It repeats the
+    reviewer's results; "Passed" needs the advisory check and every other pass-or-fail test of that library to have
+    passed in the same retest, the rule the first row is held to."""
+    here = here or {"state": "not_yet"}
+    name = f"{fix.get('library')} {fix.get('version')}"
+    if here.get("state") == "not_yet":
+        return _row("here", HERE_LABEL, "Not yet", "neutral", NOT_YET_TEXT)
+    links = [{"label": "See the retest's result", "link": {"page": "evidence", "item": f"test-{here.get('item_id')}"}}]
+    when = stamp(here.get("finished_at"))
+    if here.get("state") == "passed":
+        return _row("here", HERE_LABEL, "Passed", "pass",
+                    f"On {when} the retest on {name} passed: the advisory check and every other locked pass-or-fail test.", links)
+    if (here.get("check") or {}).get("code") == "passed":
+        failing = int(here.get("failing") or 0)
+        more = "another locked test still fails" if failing == 1 else f"{failing} other locked tests still fail"
+        return _row("here", HERE_LABEL, "Not proven", "warn",
+                    f"On {when} the retest on {name} ran: the advisory check passed, but {more} on {fix.get('version')}.", links)
+    return _row("here", HERE_LABEL, "Not proven", "warn",
+                f"On {when} the retest on {name} ran, and the advisory check did not pass ({(here.get('check') or {}).get('label')}).", links)
+
+
+# ---------------------------------------------------------------- Otto's proposals: a person decides
+
+PROPOSAL_LABEL = "From Otto"
+ONE_LOGIN = "This version has one login and no separate accounts. Whoever is at the keyboard records each decision, under the name shown."
+ACCEPTED_WORDS = {"check": "Added", "fix": "Accepted", "plan": "Accepted", "dependency": "Accepted"}
+DECISION_WORDS = {"accept": "Accepted", "reject": "Rejected", "undo": "Accept undone", "reconsider": "Taken up again"}
+KIND_WORDS_PROPOSAL = {"check": "check", "fix": "fix", "plan": "plan change", "dependency": "dependency update"}
+ACCEPT_NOTES = {
+    "check": "Accept adds this check to the test plan, exactly as “+ Add test” would. It runs nothing.",
+    "fix": "Accept records your decision. It runs nothing and changes nothing on any system.",
+    "plan": "Accept adds this to the migration plan as something to fix first. It runs nothing and changes nothing on any system.",
+    "dependency": "Accept marks this library “update first”. It runs nothing and changes nothing on any system.",
+}
+UNDO_NOTES = {
+    "check": "Undo takes it out of the test plan again, until it has run.",
+    "fix": "Undo is possible until the fix has run or been applied.",
+    "plan": "Undo takes it off the plan again.",
+    "dependency": "Undo takes the mark off again.",
+}
+
+
+def not_added(reason: str | None) -> str:
+    return f"Not added ({reason})" if reason else "Not added (no reason given)"
+
+
+def proposal_view(p: dict, ledger: list[dict] | None = None) -> dict:
+    """One of Otto's proposals as a screen shows it: what Otto proposes and why, where it stands, who decided and
+    when, and the buttons. It words no result. `p` comes from ProposalsMixin; `ledger`: the entries of its decisions."""
+    state, kind, decisions = p["state"], p["kind"], p["decisions"]
+    last = decisions[-1] if decisions else None
+    if state == "accepted":
+        word, tone = ACCEPTED_WORDS[kind], "pass"
+        decided = (f"{DECISION_WORDS['accept']} by {last['by']} on {stamp(last['at'])}." if last
+                   else "Added before decisions were recorded.")
+    elif state == "rejected":
+        word, tone = not_added(last["reason"] if last else None), "neutral"
+        decided = (f"{DECISION_WORDS['reject']} by {last['by']} on {stamp(last['at'])}."
+                   + (f" Reason: {last['reason']}" if last and last.get("reason") else " No reason was given.")) if last else None
+    else:
+        word, tone = "Proposed", "warn"
+        decided = (f"{DECISION_WORDS[last['decision']]} by {last['by']} on {stamp(last['at'])}. It is open for a decision again."
+                   if last else "Nobody has decided this yet.")
+    labels = {"accept": "Accept", "reject": "Reject", "undo": "Undo", "reconsider": "Reconsider"}
+    buttons = [{"key": key, "label": labels[key], "can": p["actions"][key] is None, "blocked_reason": p["actions"][key]}
+               for key in ("accept", "reject", "undo", "reconsider") if key in p["actions"]]
+    notes = []
+    if "accept" in p["actions"]:
+        notes.append(ACCEPT_NOTES[kind])
+    if "undo" in p["actions"] and p["actions"]["undo"] is None:
+        notes.append(UNDO_NOTES[kind])
+    if not p.get("current", True):
+        notes.append("Otto no longer proposes this here: what it was about has changed since. It stays on the record.")
+    history = [{"number": d["number"], "word": DECISION_WORDS[d["decision"]], "by": d["by"], "at": d["at"], "at_text": stamp(d["at"]),
+                "reason": d.get("reason"), "ledger_entry": (d.get("ledger_entry") or "")[7:19] or None,
+                "line": (f"{d['number']}. {DECISION_WORDS[d['decision']]} by {d['by']} on {stamp(d['at'])}"
+                         + (f": {d['reason']}" if d.get("reason") else "") + ".")}
+               for d in decisions]
+    return {"id": p["id"], "kind": kind, "kind_label": KIND_WORDS_PROPOSAL[kind], "label": PROPOSAL_LABEL, "title": p["title"], "why": p["why"],
+            "why_label": "Why it applies" if kind == "check" else "Why Otto proposes it", "lines": p["lines"],
+            "status": {"key": state, "word": word, "tone": tone}, "decided_line": decided,
+            "buttons": buttons, "note": " ".join(notes) or None,
+            "reject_dialog": ({"title": "Reject this proposal?", "line": "It is not deleted: it stays on the record as “Not added”, "
+                                                                             "with your reason, and can be taken up again later.",
+                               "reason_label": "Reason (optional, one short line)", "max": 300, "confirm": "Reject", "cancel": "Cancel"}
+                              if "reject" in p["actions"] else None),
+            "history": {"title": "Decisions on this proposal", "count": len(history), "rows": history, "footnote": ONE_LOGIN,
+                        "ledger": ({"title": "Otto ledger entries for these decisions", "count": len(ledger), "entries": _entries(ledger),
+                                    "note": ("Each decision is written to this assessment's Otto ledger with who and when. The ledger "
+                                             "holds no result.")} if ledger else None)},
+            "link": p["link"], "proposed_at": p.get("proposed_at")}
+
+
+def waiting_view(counts: dict[str, int]) -> dict:
+    """The Overview's "Waiting for you" line: how many of Otto's proposals nobody has decided yet, each kind linking to
+    the page it lives on. It counts; it decides nothing."""
+    words = {"check": ("proposed check", "proposed checks", "advisories", "Advisories"),
+             "fix": ("proposed fix", "proposed fixes", "fixes", "Fixes"),
+             "plan": ("proposed change to the migration plan", "proposed changes to the migration plan", "migration/systems", "Migration"),
+             "dependency": ("proposed dependency update", "proposed dependency updates", "migration/dependencies", "Dependencies")}
+    items = [{"kind": kind, "count": counts.get(kind, 0),
+              "text": f"{counts[kind]} {one if counts[kind] == 1 else many}", "link": {"page": page, "item": None}, "page_label": label}
+             for kind, (one, many, page, label) in words.items() if counts.get(kind)]
+    total = sum(i["count"] for i in items)
+    return {"title": "Waiting for you", "total": total, "items": items,
+            "line": (f"{total} {'proposal' if total == 1 else 'proposals'} from Otto {'waits' if total == 1 else 'wait'} for your decision."
+                     if total else "Nothing from Otto is waiting for a decision."),
+            "note": "Otto proposes; a person decides. Nothing is added, run or applied by itself."}
+
+
 # ---------------------------------------------------------------- the Advisories page
 
 def _trial_lines(advisory: dict) -> list[str]:
@@ -234,9 +390,28 @@ def _notes(advisory: dict) -> dict | None:
                         "sources listed above. Information, not a result.")}
 
 
-def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list[str], closed: bool, harness_status: dict, answers_line: str,
+def _proposal_cell(views: list[dict]) -> dict:
+    """The Proposal cell of an advisory's row: where Otto's proposed check stands, or the counts when it fits several
+    programs. A count never merges two states."""
+    if not views:
+        return {"key": "none", "label": "Nothing proposed", "tone": "neutral", "text": None}
+    if len(views) == 1:
+        status = views[0]["status"]
+        return {"key": status["key"], "label": status["word"], "tone": status["tone"], "text": None}
+    counts = {key: sum(1 for v in views if v["status"]["key"] == key) for key in ("proposed", "accepted", "rejected")}
+    words = {"proposed": "proposed", "accepted": "added", "rejected": "not added"}
+    lead = next(key for key in ("proposed", "accepted", "rejected") if counts[key])
+    label = {"proposed": "Proposed", "accepted": "Added", "rejected": "Not added"}[lead]
+    same = counts[lead] == len(views)
+    return {"key": lead if same else "mixed", "label": label if same else "Mixed", "tone": "warn" if counts["proposed"] else "neutral",
+            "text": ", ".join(f"{counts[key]} {words[key]}" for key in ("proposed", "accepted", "rejected") if counts[key]),
+            "keys": [key for key in ("proposed", "accepted", "rejected") if counts[key]]}
+
+
+def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed: bool, harness_status: dict, answers_line: str,
                     assessment_id: int | None) -> dict:
     out = []
+    waiting = 0
     for row in rows:
         pack, advisory, design = row["pack"], row["advisory"], row["design"]
         reading = advisory["reading"]
@@ -246,13 +421,16 @@ def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list
         here = []
         for entry in row["here"]:
             result = entry["result"]
+            proposal = proposal_view(entry["proposal"], entry.get("decision_ledger")) if entry.get("proposal") is not None else None
+            if proposal is not None and proposal["status"]["key"] == "proposed":
+                waiting += 1
             if entry["item_id"] is None:
-                status = "Not added yet"
+                status = proposal["status"]["word"] if proposal is not None else "Not in the test plan"
             elif result is None:
                 status = "Not run yet"
             else:
                 status = None
-            here.append({"program": entry["program"], "status": status,
+            here.append({"program": entry["program"], "status": status, "proposal": proposal,
                          "result": ({"label": result["label"], "tone": result["tone"], "plain": result["plain"],
                                      "component": result.get("component"), "finished_at": result.get("finished_at")} if result else None),
                          "checks_link": {"page": "checks", "item": f"test-{entry['item_id']}"} if entry["item_id"] is not None else None,
@@ -283,7 +461,8 @@ def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list
         elif any(h["status"] == "Not run yet" for h in here):
             result_cell = {"key": "not_run", "label": "Not run yet", "tone": "neutral", "text": None}
         else:
-            result_cell = {"key": "not_added", "label": "Not added yet", "tone": "neutral", "text": None}
+            result_cell = {"key": "not_added", "label": "Not in the test plan", "tone": "neutral", "text": None}
+        proposal_cell = _proposal_cell([h["proposal"] for h in here if h["proposal"] is not None])
         fits = ([h["program"] for h in here] if state == "ready" else [])
         test_block, no_test = None, None
         if design is not None:
@@ -315,6 +494,7 @@ def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list
             "package": f"{advisory['package']['name']} ({advisory['package']['ecosystem']})", "pack": pack.version,
             "fits": fits, "fits_text": (", ".join(fits) if fits else ("No signing program in this assessment" if state == "ready" else "")),
             "test": {"key": state, "label": label, "tone": tone, "reason": advisory["test"]["reason"]},
+            "proposal": proposal_cell,
             "result": result_cell,
             "search": " ".join([advisory["id"], name, advisory["package"]["name"], *advisory["aliases"], *fits]).lower(),
             "panel": {
@@ -327,7 +507,9 @@ def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list
                 "sources": [{"label": s["label"], "title": s["title"], "publisher": s["publisher"],
                              "href": present_advisory.safe_href(s["read_from"]), "read_on": day(s["fetched"])} for s in advisory["sources"]],
                 "test": test_block, "no_test": no_test,
-                "here": {"title": "In this assessment", "rows": here,
+                "here": {"title": "Otto's proposed check, in this assessment", "rows": here,
+                         "note": ("Otto proposes; you decide for each program by itself. Accepting adds the check to the test plan and "
+                                  "runs nothing.") if here else None,
                          "empty": (None if here else
                                    "This advisory has no test, so there is nothing to run here." if state != "ready" else
                                    "No signing program in this assessment's file checks ECDSA P-256 signatures, so the test fits nothing here.")},
@@ -341,35 +523,40 @@ def advisories_view(*, rows: list[dict], packs: list, to_add: int, fitting: list
         })
     installed = bool(harness_status["installed"])
     if closed:
-        blocked = "This assessment is closed, so nothing can be added to it."
+        blocked = "This assessment is closed, so nothing more can be decided in it."
     elif not installed:
-        blocked = "Otto is not installed on this computer, so nothing can be added."      # the reason is in the Otto line
+        blocked = ("Otto is not installed on this computer, so nothing can be decided: a decision is recorded in Otto's "
+                   "ledger.")      # the reason is in the Otto line
     elif not packs:
         blocked = "No test pack is installed. Install one in Settings, under Test packs."
-    elif to_add == 0:
-        blocked = ("Every test of the installed packs that fits this assessment is already in the test plan." if fitting else
-                   "No signing program in this assessment's file checks ECDSA P-256 signatures, so no pack test fits it.")
+    elif not fitting:
+        blocked = "No signing program in this assessment's file checks ECDSA P-256 signatures, so no pack test fits it."
     else:
         blocked = None
     versions = ", ".join(p.version for p in packs)
     return {
         "title": "Advisories",
-        "subline": ("Every published advisory in the installed test packs: whether it has a test, which signing programs of this assessment "
-                    "it fits, and the latest result of its check here, in the reviewer's words."),
+        "subline": ("Every published advisory in the installed test packs. Where one has a test that fits a signing program of this "
+                    "assessment, Otto proposes its check: you accept or reject it. A result shown here is the reviewer's, in its words."),
         "standing_line": DISCLAIMER,
         "packs_line": ((f"Test packs installed when this assessment was closed: {versions}." if closed else f"Test packs installed: {versions}.")
                        if packs else "No test pack is installed yet. Settings, Test packs, Check for updates."),
         "packs_link": {"page": "settings", "item": None, "section": "test-packs"},
         "answers_line": answers_line,
         "otto": {"installed": installed, "line": harness_status["sentence"] + ("" if installed else NOT_INSTALLED_TAIL)},
-        "add": {"button": f"Add new checks ({to_add})" if to_add else "Add new checks", "count": to_add, "can": blocked is None,
-                "blocked_reason": blocked,
-                "note": "Adds every pack test that fits a program in this assessment and is not in the test plan yet. It runs nothing."},
+        # Otto proposes; a person decides. There is no button that decides several at once.
+        "waiting": {"count": waiting, "blocked_reason": blocked,
+                    "line": ((f"{waiting} proposed {'check waits' if waiting == 1 else 'checks wait'} for your decision. Open an advisory "
+                              "to accept or reject its check.") if waiting else
+                             "No proposed check is waiting for a decision." if blocked is None else blocked),
+                    "note": "Otto proposes; you decide each one by itself. Accepting adds a check to the test plan. It runs nothing."},
         "filters": {"test": [{"key": "all", "label": "Any test"}] + [{"key": k, "label": v[0]} for k, v in TEST_LABELS.items()],
+                    "decision": [{"key": "all", "label": "Any decision"}, {"key": "proposed", "label": "Proposed"},
+                                 {"key": "accepted", "label": "Added"}, {"key": "rejected", "label": "Not added"}],
                     "result": [{"key": "all", "label": "Any result"}, {"key": "fail", "label": "Failed"}, {"key": "pass", "label": "Passed"},
                                {"key": "warn", "label": "Couldn't run or trust"}, {"key": "not_run", "label": "Not run yet"},
-                               {"key": "not_added", "label": "Not added yet"}, {"key": "none", "label": "No check"}]},
-        "columns": ["Advisory", "Published", "Fits", "Test", "Result here"],
+                               {"key": "not_added", "label": "Not in the test plan"}, {"key": "none", "label": "No check"}]},
+        "columns": ["Advisory", "Published", "Fits", "Test", "Otto's proposal", "Result here"],
         "rows": out,
         "empty": None if out else ("No test pack is installed yet. In Settings, under Test packs, Check for updates looks in the updates "
                                    "folder on this computer."),

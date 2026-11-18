@@ -14,7 +14,7 @@ within the spending limit of that one request. The answer is then stored and nev
 from __future__ import annotations
 
 from app.engine import research
-from app.otto import fixes, model
+from app.otto import fixes, harness, model
 from app.run import components
 
 # Only our registered demo programs may run, so a change can be proven only if the program it gives is one of them.
@@ -22,6 +22,7 @@ NOT_REGISTERED = ("the program it gives is not the same as any of our bundled de
                   "can run in this version, so it can't be proven here.")
 
 
+NOT_INSTALLED_NOTE = ("Otto is not installed on this computer, so a decision on its proposal could not be recorded.")
 PENDING_LABEL = "Not written yet"        # Live Otto is on and nobody has asked Claude yet: nothing is labelled as Otto's
 
 
@@ -70,6 +71,11 @@ class OttoEngine:
         first = next((r for _, r in failed if r.get("kind") == research.ADVISORY_KIND and isinstance(r.get("advisory"), dict)), None)
         if first is None or asking.get("template_only") or asking.get("plan_id") is None:
             return self.rules.propose_change(question)
+        if not harness.status().installed:
+            # Otto's change is a proposal a person accepts, and that decision is recorded in Otto's ledger. Without the
+            # harness it could not be, so the fix template stays the fallback, and the page says why.
+            fallback = self.rules.propose_change(question)
+            return {**fallback, "otto_note": NOT_INSTALLED_NOTE} if fallback is not None else None
         connect = asking.get("mode") == "connect"
         try:
             proposal, note = self._otto_change(question, int(asking["plan_id"]), failed, first["advisory"], connect)
