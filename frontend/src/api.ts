@@ -7,6 +7,9 @@
 export type {
   AssistantFact,
   AssistantReply,
+  WhatIf,
+  WhatIfGroup,
+  WhatIfLine,
   AssistantGo,
   AssistantBox,
   AssistantView,

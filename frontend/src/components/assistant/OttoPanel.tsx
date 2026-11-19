@@ -19,6 +19,7 @@ import { FromOttoTag, ProposalStatusChip } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
 import { ErrorBox, PrimaryButton, SecondaryButton, Spinner, StatusChip } from "../ui";
 import { pageAfter, sendStep } from "./send";
+import { WhatIfCard } from "./WhatIfCard";
 
 const POLL_MS = 2000;
 /** How many entries of a thread so far show before "Show all". */
@@ -479,8 +480,19 @@ export function OttoPanel({
                   {exchange.reply.label}
                 </p>
               ) : null}
-              <Facts facts={exchange.reply.facts ?? []} />
-              {exchange.reply.entry && !exchange.confirmed && !exchange.stale ? <div className="mt-2.5">{card(exchange.reply.entry, false, "reply")}</div> : null}
+              {/* Phase 6e: a what-if is drawn in its four parts; its one card (the try) sits inside the second part. Its
+                  facts as plain lines are what is kept of the exchange, and are not drawn a second time here. */}
+              {exchange.reply.whatif ? (
+                <WhatIfCard
+                  whatif={exchange.reply.whatif}
+                  tryCard={exchange.reply.entry && !exchange.confirmed && !exchange.stale ? card(exchange.reply.entry, false, "reply") : null}
+                />
+              ) : (
+                <Facts facts={exchange.reply.facts ?? []} />
+              )}
+              {!exchange.reply.whatif && exchange.reply.entry && !exchange.confirmed && !exchange.stale ? (
+                <div className="mt-2.5">{card(exchange.reply.entry, false, "reply")}</div>
+              ) : null}
               {exchange.reply.entry && !exchange.confirmed && exchange.stale ? (
                 <p data-testid="otto-reply-stale" className="mt-1.5 text-xs text-slate-400">
                   Something has changed in this assessment since this answer, so its card is no longer shown. Say it again to see where it stands
