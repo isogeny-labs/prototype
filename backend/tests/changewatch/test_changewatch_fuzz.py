@@ -18,7 +18,7 @@ SEEDS = {"revert-range-check": 20261119, "allow-tls-1-0": 20261120}
 COPIES = 400
 TIME_LIMIT = 2.0
 ODD = [None, 0, -1, 1e308, True, "", "x" * 5000, [], {}, [None], {"a": {"b": []}}, "../../etc/passwd", "a\x00b", "dev/../main", ".lock",
-       {"name": "acme_sign.py", "text": "print('hi')\n"}, {"name": "acme-sign", "version": "9.9.9"}, "(?:a+)+$", "[", "\ud800"]
+       {"name": "acme_sign.py", "text": "print('hi')\n"}, {"name": "acme-sign", "version": "9.9.9"}, "a{2,1}", "[", "\ud800"]
 
 
 def _damage_bytes(rng: random.Random, data: bytes) -> bytes:
