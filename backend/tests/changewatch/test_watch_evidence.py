@@ -2,6 +2,7 @@
 the runs in the file (phase 6d)."""
 import copy
 import itertools
+import html
 import json
 import random
 import re
@@ -184,6 +185,25 @@ def test_the_report_has_part_9_with_each_change_its_tests_its_results_before_and
     assert "Earlier runs" in later and "This run did not finish, so it was not reviewed. It is no result." in later
     for word in ("secure", "score", "severity"):
         assert word not in part.lower()
+
+
+def test_the_report_lists_the_changes_entry_in_fixes_under_its_own_heading_after_the_assessments_own_fixes(made):
+    """Part 4 of the report, as the Fixes page: a suggestion for a developer's change is listed apart, with the line
+    that says it is not counted with the assessment's findings."""
+    def fixes_part(report: str) -> str:
+        start, end = report.index("4. Fixes"), report.find("9. Change watch")
+        return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", report[start:end if end > 0 else len(report)])))
+    part = fixes_part(made.ran.report)
+    heading = part.index("From a developer's change (1)")
+    assert part.index("A developer's change is not the system until someone merges it. A suggestion listed here is not counted with "
+                      "the assessment's findings.") > heading
+    entry = part.index("Revert the range check: 1 test that passed now fails")
+    assert entry > heading                                         # the entry stands under the heading, not among the others
+    own = [fix["title"] for fix in made.ran.evidence["fixes"] if fix["source"]["kind"] != "developer_change"]
+    assert own and all(part.index(title) < heading for title in own)
+    # before a change is in, and with the changes in but nothing run, there is no such entry and no such heading
+    assert "From a developer's change" not in fixes_part(made.before.report)
+    assert "From a developer's change (" not in fixes_part(made.listed.report)
 
 
 # ---------------------------------------------------------------- a change inside the part is caught
