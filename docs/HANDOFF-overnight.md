@@ -888,6 +888,74 @@ fingerprint and fails the tightened check. No such file was handed out.
    "View in Fixes" line on the failing result's own row on Checks.
 **Not in the first half:** the Watch list (its proposals, rechecks and the new pinned checker).
 
+## Step 7: phase 6e, what-if (first half built, tested, documented, walked; its separate review is the next thing)
+
+The plan's shorter first half: **the what-if facts and the try**. Built in three checkpoints, each committed with
+its tests. `docs/SPEC.md` section 2 ("What-if in the Otto panel") and `docs/LIMITS.md` ("Limits of phase 6e, first
+half") say what is built and what is not.
+
+**What you can do now.** On any page of an assessment, type into the Otto panel: "What if I update elliptic to
+6.5.7?" The answer is one card in the Fixing tab, in four parts. No AI model is asked.
+1. **What the app knows**: seven kinds of fact, each line with where it comes from and a link: where the library
+   is used (your dependency list), what the new version declares it needs against the version you have (the
+   publisher's own package file, quoted), which published advisories the update answers and which still name it
+   (the installed test packs, with the publisher's line), what the pack's own trial showed on public copies,
+   post-quantum support of both versions, the migration track it blocks today, and this assessment's own results.
+   Where the app knows nothing on a point, the line says so. Nothing is guessed.
+2. **A try on a test copy**: Evidence's own **Retest new version**, pointed at that version, as a card with its
+   Confirm step. The card says first what a retest changes. Where the page could not run that retest, the part
+   says why and has no button.
+3. One sentence: "Live Otto is off. This is what the app knows."
+4. **Hypothesis**: what the facts do not show, in the app's own sentences.
+
+**Checkpoint 1 (`c8c7637`): what a version declares it needs.** A new kind of knowledge-base entry (`declared`),
+filled for elliptic 6.5.6 and 6.5.7 and python-ecdsa 0.13.2 and 0.13.3: the publisher's own package file, the
+lines quoted, the link, the day it was read and the file's fingerprint. Java and OpenSSL read "Doesn't apply".
+`backend/app/knowledge/needs.py` compares two lists (added, removed, changed). Data only; nothing runs because of
+it. **I read those four entries myself**, from the pinned downloads the app already holds, each first checked
+against its pinned fingerprint (decision 26).
+
+**Checkpoint 2 (`61e2efd`): the facts and the sentence that asks.** `backend/app/whatif/facts.py`
+(`whatif_view`): the seven groups, the try, the sentence, the hypotheses. It reads and writes nothing. The fixed
+rule that reads the question (`_WHAT_IF` in `backend/app/assistant/commands.py`) needs a lead-in ("what if",
+"if", "suppose"), one library and one version that starts with a digit; two updates in one sentence get "I can't
+do that."
+
+**Checkpoint 3 (`953b109`, then the walk in `36ed916`): the card.** `frontend/src/components/assistant/
+WhatIfCard.tsx`. The try's button is the reply's own entry card: the same Confirm step and the same request as
+Retest new version on Evidence.
+
+**After that (this commit and the one before):** the documents; the what-if questions for the fifth answer key
+(`docs/OTTO-KEY.md`, "What-if on the real libraries file": dependencies added, removed and changed, advisories
+answered and still named, the three post-quantum answers for both versions, and in isolated mode whether the try
+is offered), with the accuracy walk asking them; and the try on a real library in a real container.
+
+**Test results for 6e:**
+- `backend/tests/whatif/`: **73 passed** in the fast set (the knowledge-base entry and its rules with 400 damaged
+  copies, the comparison of two lists, every kind of fact on the demo, the honest "not known" lines, the try and
+  its reasons, the typed sentence, that asking starts nothing and writes nothing, that the plain values the
+  accuracy check reads say what the card's lines say).
+- **In real containers** (`backend/tests/whatif/test_whatif_real.py`, slow set): **4 passed (4 min 34 s)**. A file
+  that names elliptic 6.5.6: before any test the try is off with the page's reason; after the first run it is
+  offered and the what-if shows the failed result on 6.5.6 as the assessment's own; the panel's card carries
+  exactly Retest new version's request and asking started nothing; that request sent, the retest runs on the
+  public copy of 6.5.7, and the same question then also shows its results (the official cases and the tricks
+  pass on 6.5.7).
+- Screen tests: `WhatIfCard.test.tsx` and the panel's tests, in the **852** that pass.
+- The walk (`e2e/tests/whatif.spec.ts`, port 8035, demo server 8468): **1 passed (1.2 minutes)**. Pictures, dark
+  and light: `docs/screenshots/phase6e/` (01 what the app knows, 02 the try off and the hypotheses, 03 the try
+  behind Confirm).
+
+**What is not built of 6e (the second half), plainly:**
+- A hypothesis is a sentence with nothing to press. **Turn this into a test** and **Add to Change watch** do not
+  exist, nor do hypothesis records, the Open hypotheses block, the block "Proposed from your questions" on Checks,
+  or the registration of a hypothesis test in Otto's ledger. So success step 14 is met for "what the app knows"
+  and "the try", and **not** for "every unproven point has its two buttons".
+- Claude's explanation of the facts (part 3). With Live Otto on, the part says it is not part of this version.
+- The plan's walk part in isolated mode. The backend test above runs that path instead.
+
+**What is left of 6e's first half:** one separate review, and its fixes.
+
 ## Decisions for Kevin (collected so far)
 
 1. Run the Codespace check (`docs/CODESPACE-CHECK.md`, about 30 minutes): it is the part of fix 8 that

@@ -73,8 +73,10 @@ def _link(page: str, item: object = None) -> dict:
     return {"page": page, "item": str(item) if item is not None else None, "group": None}
 
 
-def _group(key: str, lines: list[dict], none: str | None = None) -> dict:
-    return {"key": key, "title": TITLES[key], "lines": lines, "none": none if not lines else None}
+def _group(key: str, lines: list[dict], none: str | None = None, plain: dict | None = None) -> dict:
+    """`plain`: the same facts as plain values (names, ids, the answers' own words), for a check or a file. The card
+    draws the lines, never these; they say nothing the lines do not say."""
+    return {"key": key, "title": TITLES[key], "lines": lines, "none": none if not lines else None, "plain": plain or {}}
 
 
 def _source(source: Any) -> dict:
@@ -86,8 +88,8 @@ def _join(items: list[str]) -> str:
 
 
 class WhatIfMixin:
-    """Mixed into Lab (one method: every helper is a plain function of this module, because a mixin's private names are
-    shared by the whole Lab). Needs: db and, from the other mixins: _plan, _claims, _dependency_state, _pack_advisories,
+    """Mixed into Lab (two reads over one private method; every other helper is a plain function of this module,
+    because a mixin's private names are shared by the whole Lab). Needs: db and, from the other mixins: _plan, _claims, _dependency_state, _pack_advisories,
     _closed_at, lab_view, otto_live_ready."""
 
     # Declared for the type check only (nothing is assigned): from Lab and its other mixins.
@@ -103,6 +105,23 @@ class WhatIfMixin:
 
     def whatif_view(self, plan_id: int, library: object, version: object) -> dict:
         """What the app knows about updating `library` to `version` in this assessment. A read."""
+        view = self._whatif_read(plan_id, library, version)
+        for group in view["facts"]:
+            del group["plain"]             # (the card draws the lines; the plain values are for `whatif_plain`)
+        return view
+
+    def whatif_plain(self, plan_id: int, library: object, version: object) -> dict:
+        """The same read as plain values, for the accuracy check: what the card's lines say about the dependencies
+        declared, the advisories and post-quantum support, as names, ids and each answer's own word, and whether the
+        try is offered. Worked out in the same pass as the lines (`_whatif_read`), so the two cannot differ; a test
+        holds every value to the line that says it."""
+        view = self._whatif_read(plan_id, library, version)
+        plain = {group["key"]: group["plain"] for group in view["facts"]}
+        return {"library": view["library"]["label"], "version": view["version"], "have": view["have"], "known": view["known"],
+                "needs": plain["needs"], "advisories": plain["advisories"], "post_quantum": plain["post_quantum"],
+                "try_offered": view["test_copy"]["offered"]}
+
+    def _whatif_read(self, plan_id: int, library: object, version: object) -> dict:
         asked_library, asked_version = _plain(library), _plain(version)
         kb = knowledge_base()
         entry = kb.find(None, asked_library) or next((f for f in kb.files.values() if asked_library.casefold() in (f.library, f.label.casefold())), None)
@@ -170,16 +189,20 @@ def _whatif_needs(kb: Any, purl: object, name: object, label: str, have: list[st
     def unknown(found: Any) -> dict:
         return _line(f"{NEEDS_WORDS[found.answer]}. {found.reason}", None, None)
     if new_needs.answer != "declared":
-        return _group("needs", [unknown(new_needs)])
+        return _group("needs", [unknown(new_needs)], plain={"answer": NEEDS_WORDS[new_needs.answer], "declares": None, "compared": []})
     entry = new_needs.entry
     listed = [f"{n.name} {n.wants}".strip() for n in entry.needs]
+    plain: dict[str, Any] = {"answer": PACKAGE_FILE, "declares": listed, "compared": []}
     lines = []
     for old in [v for v in have if v != new_needs.version]:
         old_needs = kb.declared_needs(purl, name, old)
         if old_needs.answer != "declared":
             lines.append(_line(f"Compared with {label} {old}: {NEEDS_WORDS[old_needs.answer]}. {old_needs.reason}", None, None))
+            plain["compared"].append({"with": old, "answer": NEEDS_WORDS[old_needs.answer], "added": None, "removed": None, "changed": None})
             continue
         diff = needs_lists.compare([n.model_dump() for n in old_needs.entry.needs], [n.model_dump() for n in entry.needs])
+        plain["compared"].append({"with": old, "answer": PACKAGE_FILE, "added": [f"{a['name']} {a['wants']}".strip() for a in diff["added"]],
+                                  "removed": [r["name"] for r in diff["removed"]], "changed": [c["name"] for c in diff["changed"]]})
         parts = ([f"added: {_join([a['name'] + ' ' + a['wants'] for a in diff['added']])}"] if diff["added"] else []) + \
                 ([f"removed: {_join([r['name'] for r in diff['removed']])}"] if diff["removed"] else []) + \
                 ([f"changed: {_join([c['name'] + ' from ' + c['before'] + ' to ' + c['after'] for c in diff['changed']])}"] if diff["changed"] else [])
@@ -196,10 +219,11 @@ def _whatif_needs(kb: Any, purl: object, name: object, label: str, have: list[st
                            PACKAGE_FILE, None, _source(entry.source)))
     if entry.note:
         lines.append(_line(entry.note, PACKAGE_FILE, None, None))
-    return _group("needs", lines)
+    return _group("needs", lines, plain=plain)
 
 def _whatif_advisories(advisories: list, label: str, have: list[str], read: Any, new: str) -> dict:
     lines = []
+    plain: dict[str, list[str]] = {"answered": [], "still_named": [], "cant_say": []}
     for pack, advisory in advisories:
         reading = advisory.get("reading") or {}
         fixed = (reading.get("fixed") or {}).get("version")
@@ -208,6 +232,8 @@ def _whatif_advisories(advisories: list, label: str, have: list[str], read: Any,
         source = ({"title": f"The publisher's line, as test pack {pack.version} holds it", "url": None, "quote": quote.get("text"), "read_on": None}
                   if quote.get("text") else None)
         link = _link("advisories", advisory["id"])
+        plain["cant_say" if not fixed or read_version(fixed) is None or read is None else
+              "answered" if at_least(read, str(fixed)) else "still_named"].append(str(advisory["id"]))
         if not fixed or read_version(fixed) is None:
             lines.append(_line(f"{name}: the test pack names no fixed version the app can read, so it can't say whether {new} answers it.",
                                f"Test pack {pack.version}", link, source))
@@ -222,7 +248,7 @@ def _whatif_advisories(advisories: list, label: str, have: list[str], read: Any,
         else:
             lines.append(_line(f"{name}: its publisher names {fixed} as the fixed version. {new} is before it, so this advisory still names it.",
                                f"Test pack {pack.version}", link, source))
-    return _group("advisories", lines, f"No advisory in the installed test packs is about {label}.")
+    return _group("advisories", lines, f"No advisory in the installed test packs is about {label}.", plain)
 
 def _whatif_trial(advisories: list, label: str, new: str) -> dict:
     lines = []
@@ -242,10 +268,12 @@ def _whatif_trial(advisories: list, label: str, new: str) -> dict:
 def _whatif_post_quantum(kb: Any, purl: object, name: object, label: str, rows: list[dict], have: list[str], asked_version: str, new: str) -> dict:
     after = kb.look_up(purl, name, asked_version)
     lines = []
+    plain: dict[str, dict] = {}
     for question, words in present_deps.QUESTION_WORDS.items():
         a = after[question]
         said = f"{label} {new}: {present_deps.ANSWER_WORDS[a.answer]}"
         said += f" ({present_deps.LABEL_WORDS[a.label]})" if a.label else ""
+        plain[question] = {"question": words, "new": present_deps.ANSWER_WORDS[a.answer], "have": {}}
         before = []
         for version in [v for v in have if v != new]:
             row = next((r for r in rows if str(r.get("version")) == version), None)
@@ -253,13 +281,15 @@ def _whatif_post_quantum(kb: Any, purl: object, name: object, label: str, rows: 
                 answer = row["answers"][question]
                 label_words = present_deps.LABEL_WORDS.get(answer.get("label") or "")
                 before.append(f"{label} {version}: {present_deps.ANSWER_WORDS[answer['answer']]}" + (f" ({label_words})" if label_words else ""))
+                plain[question]["have"][version] = present_deps.ANSWER_WORDS[answer["answer"]]
             else:
                 b = kb.look_up(purl, name, version)[question]
                 before.append(f"{label} {version}: {present_deps.ANSWER_WORDS[b.answer]}" + (f" ({present_deps.LABEL_WORDS[b.label]})" if b.label else ""))
+                plain[question]["have"][version] = present_deps.ANSWER_WORDS[b.answer]
         lines.append(_line(f"{words}. {'; '.join(before + [said])}. {a.reason}", present_deps.LABEL_WORDS.get(a.label or ""),
                            _link("migration/dependencies", rows[0]["id"]) if rows else None,
                            _source(a.source) if a.source is not None else None))
-    return _group("post_quantum", lines)
+    return _group("post_quantum", lines, plain=plain)
 
 def _whatif_blocks(kb: Any, purl: object, name: object, state: dict | None, rows: list[dict], label: str, asked_version: str, new: str) -> dict:
     if state is None or not rows:

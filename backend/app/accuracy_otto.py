@@ -468,6 +468,29 @@ def _change_watch_part(lab: Lab, pid: int, answers: dict, folder: Path, data: li
     answers["evidence.change_watch.part_removed_and_signed_again"] = resigned(part_removed)
 
 
+WHAT_IFS = (("elliptic", "6.5.7"), ("python-ecdsa", "0.13.3"), ("openjdk", "17.0.3"))
+
+
+def _whatif_part(lab: Lab, pid: int, answers: dict) -> None:
+    """What-if (phase 6e) on the real libraries file, in both modes (these are reads): for each update, what the new
+    version declares it needs against the version the file names, which advisories of the installed packs the update
+    answers by the publisher's own statement, and the three post-quantum answers for both versions. The values are
+    the ones the card's lines say (`whatif_plain`, worked out in the same pass as the lines)."""
+    for name, version in WHAT_IFS:
+        said = lab.whatif_plain(pid, name, version)
+        key, needs = f"whatif.{name} {version}", said["needs"]
+        answers[f"{key}.dependencies"] = needs["answer"]
+        for compared in needs["compared"][:1]:         # against the one version the file names
+            answers[f"{key}.dependencies_added"] = compared["added"]
+            answers[f"{key}.dependencies_removed"] = compared["removed"]
+            answers[f"{key}.dependencies_changed"] = compared["changed"]
+        answers[f"{key}.advisories_answered"] = sorted(said["advisories"]["answered"])
+        answers[f"{key}.advisories_still_named"] = sorted(said["advisories"]["still_named"])
+        for question in said["post_quantum"].values():
+            answers[f"{key}.post_quantum.{question['question']}.new_version"] = question["new"]
+            answers[f"{key}.post_quantum.{question['question']}.version_you_have"] = next(iter(question["have"].values()), None)
+
+
 def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[packs.Pack], progress) -> None:
     with tempfile.TemporaryDirectory(prefix="evidence-lab-accuracy-") as scratch:
         lab = Lab(dataclasses.replace(settings, data_dir=Path(scratch) / "data"), allow_external_demo_server=True)
@@ -480,6 +503,7 @@ def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 lab.install_pack(pack.version)
             answers["real.proposals.checks_proposed"] = len(_proposed(lab, pid, "check"))
             _accept_each_check(lab, pid)
+            _whatif_part(lab, pid, answers)
             if lab.mode.name != "isolated":
                 progress("  ... Real libraries, in demo mode: an advisory check on a real library must not run")
                 item = next(t["id"] for t in lab.plan_view(pid)["tests"] if t["kind"] == "advisory_cases")
@@ -495,6 +519,8 @@ def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             for (program, advisory), row in _advisory_rows(lab, pid).items():
                 answers[f"real.first.{program}.{advisory}.result"] = (row["result"] or {}).get("label")
                 answers[f"real.first.{program}.{advisory}.wrong_cases"] = _wrong(lab, row["result"])
+            for name, version in WHAT_IFS:       # with first results in, the what-if's try is Retest new version itself
+                answers[f"real.whatif.{name} {version}.try_offered_after_the_first_run"] = lab.whatif_plain(pid, name, version)["try_offered"]
             for fix in lab.fixes_view(pid)["fixes"]:
                 if "From Otto" in (fix.get("labels") or []):
                     answers[f"real.fix.{fix['title']}"] = fix["labels"]

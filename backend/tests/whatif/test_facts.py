@@ -197,3 +197,53 @@ def test_odd_names_and_versions_get_an_answer_made_of_plain_text(acme, library, 
     view = acme.lab.whatif_view(acme.plan.id, library, version)
     models.WhatIf.model_validate(view)
     assert len(view["asked"]["library"]) <= 83 and len(view["asked"]["version"]) <= 83 and "\n" not in view["title"] and "\x00" not in json.dumps(view)
+
+
+# ---------------------------------------------------------------- the same facts as plain values (the accuracy check reads these)
+
+def test_the_plain_values_say_what_the_cards_lines_say_and_reading_them_writes_nothing(acme):
+    lab, plan = acme.lab, acme.plan
+    before = _kept(lab)
+    for (name, version), view in acme.views.items():
+        plain = lab.whatif_plain(plan.id, name, version)
+        assert (plain["library"], plain["version"], plain["have"], plain["known"]) == (view["library"]["label"], view["version"], view["have"], view["known"])
+        assert plain["try_offered"] is view["test_copy"]["offered"]
+        assert all("plain" not in group for group in view["facts"])               # the card is sent its lines, never these
+        needs, said = plain["needs"], " ".join(_texts(view, "needs"))
+        if needs["answer"] == "Package file says":
+            assert all(line["label"] == "Package file says" for line in _group(view, "needs")["lines"])
+            for compared in needs["compared"]:
+                if compared["answer"] != "Package file says":
+                    assert f"Compared with {plain['library']} {compared['with']}: {compared['answer']}." in said
+                    continue
+                for package in compared["added"] + compared["removed"] + compared["changed"]:
+                    assert package in said
+                if not (compared["added"] or compared["removed"] or compared["changed"]):
+                    assert "nothing added, nothing removed, no range changed" in said or "declares no package it needs, and neither does" in said
+            if not needs["compared"]:
+                assert all(package in said for package in needs["declares"])
+        else:
+            assert needs["declares"] is None and needs["compared"] == [] and said.startswith(f"{needs['answer']}. ")
+        # every advisory of the group is placed once, and its line says what its place says
+        lines = {line["text"].split(" ", 1)[0]: line["text"] for line in _group(view, "advisories")["lines"]}
+        placed = plain["advisories"]
+        assert sorted(placed["answered"] + placed["still_named"] + placed["cant_say"]) == sorted(lines)
+        assert all("so the update answers this advisory by the publisher's own statement" in lines[a] for a in placed["answered"])
+        assert all("so this advisory still names it." in lines[a] for a in placed["still_named"])
+        assert all("can't say whether" in lines[a] or "Couldn't tell the version you asked about." in lines[a] for a in placed["cant_say"])
+        # the three post-quantum answers, for the new version and for each version the assessment has
+        texts = _texts(view, "post_quantum")
+        assert len(plain["post_quantum"]) == len(texts) == 3
+        for answer, text_of in zip(plain["post_quantum"].values(), texts, strict=True):
+            assert text_of.startswith(f"{answer['question']}. ") and f"{plain['library']} {plain['version']}: {answer['new']}" in text_of
+            assert all(f"{plain['library']} {old}: {word}" in text_of for old, word in answer["have"].items())
+    assert _kept(lab) == before and lab.jobs.live(plan.id) == []
+
+
+def test_the_elliptic_update_answers_the_three_elliptic_advisories_of_the_installed_packs_by_the_publishers_statement(acme):
+    plain = acme.lab.whatif_plain(acme.plan.id, "elliptic", "6.5.7")
+    assert plain["advisories"]["answered"] and plain["advisories"]["still_named"] == [] and plain["advisories"]["cant_say"] == []
+    assert plain["needs"]["compared"] == [{"with": "6.5.6", "answer": "Package file says", "added": [], "removed": [], "changed": []}]
+    older = acme.lab.whatif_plain(acme.plan.id, "Elliptic", "6.5.4")           # before every fixed version: nothing is answered
+    assert older["advisories"]["answered"] == [] and sorted(older["advisories"]["still_named"]) == sorted(plain["advisories"]["answered"])
+    assert older["needs"] == {"answer": "Not in our knowledge base yet", "declares": None, "compared": []}

@@ -595,8 +595,14 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   answers and keeps nothing, and its try is off.
 - **The walk is in demo mode only.** `e2e/tests/whatif.spec.ts` shows the elliptic question on the Acme Pay demo
   (where the scanner file does not name elliptic, so the try is off with that reason) and the try behind Confirm
-  for the demo program the file names. The plan's part in isolated mode (the real-libraries file, the try running
-  on elliptic 6.5.7 in its container) has no walk yet.
+  for the demo program the file names. The plan's part in isolated mode has no walk yet. That path is run by a
+  backend test of the slow set instead, in real containers (`backend/tests/whatif/test_whatif_real.py`: a file
+  that names elliptic 6.5.6, the try offered once the tests have run, the card's own request sent, the retest on
+  the public copy of 6.5.7, and its results shown by the same question as the assessment's own).
+- **The accuracy check reads the what-if as plain values.** For the fifth answer key the walk asks three updates on
+  the real libraries file (`docs/OTTO-KEY.md`). It reads names, ids and each answer's own word from
+  `whatif_plain`, which is worked out in the same pass as the card's lines; a test holds every value to the line
+  that says it. The card itself is sent the lines only.
 
 ## Limits of phase 6d, first half (Change watch: the Changes view; 19 November 2026)
 

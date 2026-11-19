@@ -270,6 +270,30 @@ the retests are openjdk 17.0.3, python-ecdsa 0.13.3 and elliptic 6.5.7):
 | `real.retest.<library version>.<advisory>.result` | The check's result after Retest new version | a result label |
 | `real.retest.<library version>.<advisory>.wrong_cases` | The case numbers it got wrong then | a list |
 
+### What-if on the real libraries file (phase 6e)
+
+Asked on the real libraries file once both packs are installed and every proposed check is accepted, before any
+test runs. The file names elliptic 6.5.6, python-ecdsa 0.13.2 and openjdk 17.0.2. `<update>` is `elliptic 6.5.7`,
+`python-ecdsa 0.13.3` or `openjdk 17.0.3`: the question "What if I update *library* to *version*?". These are
+reads, so they are asked in both modes. The values are the ones the lines of the what-if card say.
+
+| Question | What it asks | Values |
+| --- | --- | --- |
+| `whatif.<update>.dependencies` | Whether the app holds what the new version itself declares it needs | `Package file says`, `Not in our knowledge base yet`, `Couldn't tell the version` or `Doesn't apply` |
+| `whatif.<update>.dependencies_added` | The packages the new version declares that the version in the file does not, each as "*name* *range*" (asked only where both versions have an entry) | a list |
+| `whatif.<update>.dependencies_removed` | The packages the version in the file declares that the new version does not, by name | a list |
+| `whatif.<update>.dependencies_changed` | The packages both declare with a different range, by name | a list |
+| `whatif.<update>.advisories_answered` | The advisories of the installed packs whose publisher names a fixed version at or before the new version | a sorted list of advisory ids |
+| `whatif.<update>.advisories_still_named` | The advisories of the installed packs whose fixed version is after the new version | a sorted list of advisory ids |
+| `whatif.<update>.post_quantum.<question>.new_version` | The answer for the new version to "ML-KEM-768 key exchange", "X25519MLKEM768 hybrid TLS" or "ML-DSA-65 signatures" | `Yes`, `No`, `Doesn't apply`, `Not in our knowledge base yet`, `Couldn't tell the version` or `Needs your environment` |
+| `whatif.<update>.post_quantum.<question>.version_you_have` | The same for the version the file names | the same words |
+
+In isolated mode only:
+
+| Question | What it asks | Values |
+| --- | --- | --- |
+| `real.whatif.<update>.try_offered_after_the_first_run` | Whether, once every test has run once, the what-if offers its try on a test copy (Retest new version, pointed at that version) | true or false |
+
 ## The cases each shipped advisory check uses
 
 This table is Otto's design, not a result of any run (see the note at the top: answer the `pack.*.test` questions
