@@ -450,6 +450,28 @@ the place where it is shown. Nothing in an answer can be pressed except the link
 These answers come from fixed rules, so they work the same with no API key, and in a closed assessment too. An
 answer written in free words by Claude is the second half of this phase and is not built yet.
 
+### Change watch (phase 6d, first half, 19 November 2026)
+
+**Change watch** is a page of every assessment, after Fixes. It shows what a developer's change to the connected
+demo code would do to the tests, before anyone merges it. Only its first view, **Changes**, is built.
+
+To try it on the Acme Pay demo:
+
+1. Run all tests, then on **Fixes** press **Connect demo code**, open the pull request, approve and merge it.
+2. Open **Change watch** and press **Bring in a demo change**. Pick "Revert the range check". It adds one branch
+   with one commit to the demo repository, as a push would. It runs nothing.
+3. Open the change. The panel shows the lines before and after, the tests picked for it and why, and the tests
+   left out and why.
+4. Press **Run the picked tests**. They run on the program the change gives, and each is compared with its result
+   on the code before. The change then reads "Passed before, fails now": the fix is gone again.
+5. Bring in the other demo change, "Allow TLS 1.0 for an old partner". It touches no program, so nothing is picked
+   and nothing can run. It carries one flag: the line that names TLS 1.0. A flag is something to look at, never a
+   result.
+
+These runs are kept apart. They never replace a result of the assessment's own tests. What is not built yet (the
+Watch list, the labels on Evidence and Checks, the entry in Fixes, the evidence part) is listed in
+`docs/LIMITS.md`.
+
 ### Looking for new advisories (Otto's research loop, 19 November 2026)
 
 On the **Advisories** page of an assessment there is a block called **New advisories**, with two buttons. Each one

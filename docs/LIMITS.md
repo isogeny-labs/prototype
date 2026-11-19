@@ -542,6 +542,56 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
   also a rejection, before any check has run.
 
+## Limits of phase 6d, first half (Change watch: the Changes view; 19 November 2026)
+
+- **Only the first half is built.** The Changes view: a developer's change is read, its tests are picked, they run
+  on a click, the reviewer's rule says what differs, added lines that name old cryptography are flagged. **Not
+  built:** the Watch list (watched items, their proposals and rechecks, and the new pinned checker the plan gives
+  them); the heading "From a developer's change" in Evidence and "Came from: Change watch" on Checks; the Text-only
+  entry in Fixes when a fixed weakness is back; the part of the evidence file and of the report; the Otto panel's
+  own next step for the page. Until those are in, a watch run's results are shown on Change watch only, and the
+  signed evidence file does not hold them.
+- **A change comes in by a demo button only.** Connecting a real repository host is not in this version. **Bring
+  in a demo change** writes one of two bundled changes into the assessment's own copy of the demo repository, as a
+  push would. Whatever else is in that repository is listed too (the view reads it each time), but nothing in the
+  app puts another change there.
+- **Only a change that gives one of our registered demo programs can run.** The byte-for-byte check is strict: the
+  code a change leaves must be exactly one registered program (the same one file, the same bytes), and so must the
+  code it starts from. Any other edit reads "Can't run", and nothing of it runs. So of real developer changes only
+  the two that the demo is built around can show a run: the one that undoes the merged fix, and a change that is
+  the fix itself.
+- **Picking is by file, and coarse.** Any change to the program's file picks every test that runs that program. It
+  does not look at which lines changed. A change that touches no program file picks nothing, whatever it says.
+- **"Before" is a result that may be older than the change.** It is the newest reviewed run of the same locked test
+  on exactly the code the change starts from, whatever that run was made for (the assessment's own first run, a
+  retest, the proof of a fix). The panel says where it came from. Only where there is none does the test run on
+  that code again.
+- **The status word is about the change, not about a system.** "Passed before, fails now" says that a test which
+  passed on the code before fails on the change's code. A developer's change is not the system until someone merges
+  it: the Overview's findings, every proposal and the migration plan keep reading the assessment's own results. The
+  one figure that moves is the Overview's count of runs recorded.
+- **"Can't run" has two meanings.** Nothing of the change may run (its code is not a registered program), or a
+  picked test could not run (for example an advisory check where Otto is not installed). The sentence under the
+  word says which. The plan's list of statuses has no word of its own for the second; a stop is not a result, so it
+  is never "No difference found". This is decision 20 for Kevin.
+- **A watch run of an advisory check is not bound in the assessment's Otto ledger.** Every other run of an
+  advisory check is. The ledger's pinned checker from phase 5c knows three run phases and is not changed; the plan
+  gives watch runs a pinned checker of their own, with the Watch list. Until then such a run is reviewed like every
+  run and kept in the database with its change. Decision 19 for Kevin.
+- **A flag is a word on a line, nothing more.** The list is short and fixed (SSL 3.0, TLS 1.0, TLS 1.1, SHA-1, MD5,
+  RC4, 3DES, each with the publication that retired or restricted it). A flag says the name stands on a line the
+  change adds. The app has not tested what the line does, and says so on every flag. A name in a comment is flagged
+  like any other; a name written in a way the list does not know is missed; a removed line gives no flag. At most
+  fifty flags are listed for one change.
+- **The repository reader's limits are the Fixes step's:** files at the top level only, text in UTF-8, loose
+  objects. A file that is not text, or larger than 200,000 bytes, is listed without its lines. A branch is followed
+  back at most 100 commits to find where it left the connected branch.
+- **One watch run counts at a time.** The newest run of exactly this code and exactly the tests picked now sets the
+  status. An earlier run is kept and not shown. After the test plan changes, the change reads "Not run yet" again
+  and says why.
+- **While a change's picked tests run, the plan's own tests wait** (Run all, a retest, a proof), with the reason.
+- **Speed in a watch run** is timed side by side with the code the change starts from, as in a retest.
+
 ## Limits of phase 6c, first half (six fixed questions, answered by rules; 19 November 2026)
 
 - **Six questions, and only those.** "Why did this check fail?", "What does this result show, and what doesn't
