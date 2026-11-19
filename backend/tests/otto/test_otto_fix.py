@@ -145,7 +145,11 @@ def test_otto_writes_the_change_and_a_view_asks_nothing(failed):
     # (the card's lines stay as they are after the change is connected and merged, so they claim nothing about the present)
     assert proposal["lines"][0].startswith("What it changes: ")
     assert proposal["lines"][1].startswith("Written by Otto. Accepting it runs nothing and changes nothing:")
-    assert not any("yet" in line or "now " in line.split("words: ")[0] for line in proposal["lines"])
+    # (what follows "What it changes: " is the recorded answer's own sentence, which may say "now rejects"; the words the
+    # app itself puts on the card say nothing about where things stand. Until the 5c fixes of 19 November 2026 the line
+    # read "What it changes, in Otto's words: ...", and this test split on that.)
+    own_words = [proposal["lines"][0][:len("What it changes: ")], *proposal["lines"][1:]]
+    assert own_words[0] == "What it changes: " and not any("yet" in line or "now " in line for line in own_words)
     with lab.db() as db:
         assert db.scalars(select(OttoStepRow)).all() == []            # a page that is only shown writes nothing
     # the failed advisory check's result points to this fix
