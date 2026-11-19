@@ -9,6 +9,10 @@
 - It also holds the Fixes step: each fix, and for a code change the change itself, every proof of it (the proof
   record, its fingerprint, the review and each proof run in full), the pull request, the approvals and the merge.
   The change as a ready-to-apply patch is in it only while "Download patch" is allowed (the change is offered).
+- Phase 6d: once a developer's change is in the connected repository it also holds the Change watch part: each change
+  as it was read when the file was made, and every watch run kept, with both runs of every picked test in full, the
+  watch record, its fingerprint and the reviewer's word for the change. The verify command checks that part against
+  the runs in the file (backend/evidence/changewatch.py).
 - The HTML report is static: every value is escaped, there are no scripts and no remote resources.
 
 Check a downloaded file with:  cd backend && .venv/bin/python -m evidence verify <file.json>
@@ -35,17 +39,24 @@ from app import real_libraries
 from app.canonical import canonical_bytes, sha256_hex
 from app.db import (
     ChangeRow, CodeConnectionRow, EvidenceExportRow, ImportRow, PlanItemRow, PlanRow, ProofReviewRow, ProofRow,
-    ResearchRequestRow, RetestRow, ReviewMarkRow, ReviewRow, TestRunRow, TestSpecRow, VerifyRunRow, iso,
+    ResearchRequestRow, RetestRow, ReviewMarkRow, ReviewRow, TestRunRow, TestSpecRow, VerifyRunRow, WatchReviewRow,
+    WatchRunRow, iso,
 )
 from app.errors import Conflict, NotFound
 from app.fixes.gitrepo import GitRepoError
 from app.engine.guidance import OWN_LINKS
 from app.present import advisory as present_advisory
+from app.present import changewatch as watch_words
 from app.present.results import DISCLAIMER, TITLES
 from app.lab.testlab import CODE_KEYS, DEPENDENCY_ORIGIN, RUNNER_ID, read_spec, review_dict, run_record
 from app.engine.vectors import WYCHEPROOF_SOURCE_URL
 
 EVIDENCE_SCHEMA = "isogeny.evidence/1"
+CHANGE_WATCH_SCHEMA = "isogeny.change-watch/1"
+CHANGE_WATCH_NOTE = ("A developer's change is not the system until someone merges it. The runs listed here were made for a change, on a "
+                     "person's click, on the registered demo program the change's code is, byte for byte. They are kept apart: none of "
+                     "them replaces a result of this assessment's own tests. A status word is about the change. A flag is something to "
+                     "look at, never a result.")
 SIGNING_CONTEXT = b"isogeny-evidence-lab/evidence/v1\n"
 SIGNING_KEY_FILE = "evidence-signing-key.pem"
 PUBLIC_KEY_FILE = "evidence-signing-public-key.txt"
@@ -434,6 +445,74 @@ def _changes_part(lab, db, plan) -> list[dict]:
     return out
 
 
+def _watch_change_entry(change: dict, program: dict) -> dict:
+    """One developer's change as it was read from the connected repository when the file was made."""
+    status = watch_words.status_view(change, program)
+    run = change.get("run")
+
+    def test(entry: dict) -> dict:
+        return {"item_id": entry["item_id"], "kind": entry["kind"], "title": entry["title"], "rule": entry["rule"],
+                "reason": watch_words.pick_reason(entry, program)}
+    return {"id": change["id"], "branch": change["branch"], "head_commit": change["head"], "base_commit": change["base"],
+            "commits": change["commits"], "title": change["title"], "message": change["message"], "author": change["author"],
+            "is_demo": bool(change["is_demo"]), "committed_at": change["when"], "problem": change["problem"],
+            # the fingerprint of its lines: each file it touches, before and after
+            "files": [dict(d) for d in change["digests"]],
+            "lines": [{"name": f["name"], "added": f["added"], "removed": f["removed"], "is_program": bool(f["is_program"]), "is_text": bool(f["text"])}
+                      for f in change["files"]],
+            "gives": change["gives"], "starts_from": change["starts_from"],
+            "picked": [test(entry) for entry in change["picked"]], "not_picked": [test(entry) for entry in change["not_picked"]],
+            "flags": [{"file": f["file"], "line": f["line"], "word": f["word"], "text": f["text"], "source": dict(f["source"]),
+                       "note": watch_words.flag_view(f)["note"]} for f in change["flags"]],
+            "more_flags": change["more_flags"],
+            "status": {"key": status["key"], "word": status["word"], "reason": status["reason"]},
+            # the watch run its status word comes from (its newest run of exactly this code), when there is one
+            "watch_run_id": run["id"] if run is not None else None,
+            "run_covers_picked": run.get("covers_picked") if run is not None else None}
+
+
+def _watch_run_entry(lab, db, watch: WatchRunRow) -> dict:
+    """One watch run, kept whole: both runs of every picked test in full, the watch record exactly as the reviewer was
+    given it, its fingerprint, and the stored review of it. `believed` is the read gate's answer when the file was made:
+    reviewing the stored records again gave exactly the stored review."""
+    tests = lab._watch_tests(db, watch)
+    whole = bool(tests) and all(t["before"] is not None and t["now"] is not None for t in tests)
+    stored = db.scalars(select(WatchReviewRow).where(WatchReviewRow.watch_run_id == watch.id)).first()
+    gate = lab._watch_review(db, watch, tests)
+    record = lab._watch_record(watch, tests, lab._watch_matches(db, watch)) if whole else None
+
+    def side(verdict: dict | None) -> dict | None:
+        run = db.get(TestRunRow, verdict["run_id"]) if verdict is not None else None
+        return _run_entry(lab, db, run.phase, lab._result(db, run)) if run is not None else None
+    return {"watch_run_id": watch.id, "branch": watch.branch, "base_commit": watch.base_commit, "head_commit": watch.head_commit,
+            "version": watch.version, "base_version": watch.base_version, "started_at": iso(watch.started_at),
+            "files": [dict(d) for d in watch.files], "not_picked": [dict(n) for n in watch.not_picked or []],
+            "tests": [{"item_id": t["item_id"], "kind": t["kind"], "spec_hash": t["spec_hash"], "before_made_here": bool(t["before_made_here"]),
+                       "before": side(t["before"]), "now": side(t["now"])} for t in tests],
+            "record": record, "record_sha256": sha256_hex(record) if record is not None else None,
+            "review": ({"schema": stored.detail.get("schema"), "reviewer": stored.reviewer, "record_sha256": stored.record_sha256,
+                        "status": stored.status, "code_is_ours": stored.detail.get("code_is_ours"), "counts": stored.detail.get("counts"),
+                        "tests": stored.detail.get("tests"), "reviewed_at": iso(stored.created_at)} if stored is not None else None),
+            "believed": bool(gate["believed"]) if gate is not None else None}
+
+
+def _change_watch_part(lab, db, plan, state: dict) -> dict | None:
+    """Phase 6d: Change watch as the evidence file holds it. None while no developer's change is in the connected
+    repository and no watch run was kept (so a file made before anything came in reads as it always did)."""
+    runs = db.scalars(select(WatchRunRow).where(WatchRunRow.plan_id == plan.id).order_by(WatchRunRow.id)).all()
+    if not state["changes"] and not runs:
+        return None
+    program = state["code"]["program"]
+    return {"schema": CHANGE_WATCH_SCHEMA, "note": CHANGE_WATCH_NOTE,
+            "repository": {"state": state["code"]["state"], "name": state["code"]["repository"], "branch": state["code"]["branch"]},
+            "program": program,
+            # every developer's change in the connected repository, as read when this file was made (newest first)
+            "changes": [_watch_change_entry(change, program) for change in state["changes"]] if program is not None else [],
+            # every watch run kept for this assessment, oldest first (also the earlier runs of a change, and runs of a
+            # change that is no longer in the repository)
+            "runs": [_watch_run_entry(lab, db, watch) for watch in runs]}
+
+
 def _verify_part(run: VerifyRunRow) -> dict:
     return {"started_at": iso(run.started_at), "finished_at": iso(run.finished_at),
             "results": [{"claim": (r.get("claim") or {}).get("text"), "claim_ref": (r.get("claim") or {}).get("ref"),
@@ -486,6 +565,7 @@ def _build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
     public = ensure_signing_key(lab.settings.data_dir)
     checks = _checks_part(lab, plan_id)
     otto = lab.otto_evidence(plan_id)   # phase 5c: None unless this assessment has an advisory check or a Claude step
+    watch_state = lab.change_watch_state(plan_id)   # phase 6d: read from the connected repository, as its page reads it
     with lab.db() as db:
         plan = db.get(PlanRow, plan_id)
         imp = db.get(ImportRow, plan.import_id)
@@ -557,6 +637,11 @@ def _build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
             # advisory checks came from, the assessment's Otto ledger with the hash of its latest entry, each check's
             # lock entry, every bound run, and every Claude step taken in the app.
             evidence["otto"] = otto
+        watch = _change_watch_part(lab, db, plan, watch_state)
+        if watch:
+            # Phase 6d: Change watch, inside what is signed: each developer's change, and every watch run with both
+            # runs of every picked test, the watch record and the reviewer's word for the change.
+            evidence["change_watch"] = watch
     return _clean(evidence)
 
 
@@ -1084,6 +1169,7 @@ def render_report_html(envelope: dict) -> bytes:
     body += _changes_html(e.get("changes"))
     body += _dependencies_html(e.get("dependencies"))
     body += _otto_html(e.get("otto"))
+    body += _change_watch_html(e.get("change_watch"))
     body.append(el("p", t("End of report. " + REPORT_LINE), cls="note"))
     page = (f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{html.escape(CSP, quote=True)}">\n'
@@ -1091,6 +1177,87 @@ def render_report_html(envelope: dict) -> bytes:
             f"<title>Isogeny Evidence Lab: evidence report</title>\n<style>{_STYLE}</style>\n</head>\n"
             f"<body>\n<main>\n{_join(body)}\n</main>\n</body>\n</html>\n")
     return page.encode("utf-8")
+
+
+def _change_watch_html(part: dict | None) -> list:
+    """Phase 6d: part 9 of the report. Each developer's change with the tests picked for it and why, what its watch run
+    showed before and on the change in the reviewer's own words, and its flags. It lists records; it decides nothing."""
+    if not part:
+        return []
+    out = [el("h2", t("9. Change watch")), el("p", t(part.get("note")), cls="note")]
+    repository = part.get("repository") or {}
+    if repository.get("name"):
+        out.append(el("p", t(f"Read from the app's own copy of the demo repository {repository.get('name')}, branch {repository.get('branch')}, "
+                             "when this file was made.")))
+    runs = {run.get("watch_run_id"): run for run in part.get("runs") or []}
+    shown = set()
+    for change in part.get("changes") or []:
+        status = change.get("status") or {}
+        box = [el("h3", t(change.get("title"))),
+               el("p", el("strong", t(status.get("word")), cls="badge"), _Safe(" "), t(status.get("reason") or "")),
+               el("ul", *[el("li", t(line)) for line in (
+                   f"Branch {change.get('branch')}, commit {change.get('head_commit')}",
+                   f"By {change.get('author') or 'an unknown author'}" + (" (demo data)" if change.get("is_demo") else "")
+                   + (f", {change.get('committed_at')} (UTC)" if change.get("committed_at") else ""),
+                   (f"Starts from commit {change.get('base_commit')}" if change.get("base_commit") else "Where it starts could not be read"),
+                   ("Its code is, byte for byte, " + f"{(change.get('gives') or {}).get('name')} {(change.get('gives') or {}).get('version')}"
+                    if change.get("gives") else "Its code is not one of our registered demo programs, so nothing of it runs"))], cls="meta")]
+        if change.get("files"):
+            box.append(el("h4", t("Files, with the fingerprint (SHA-256) of each before and after")))
+            box.append(el("ul", *[el("li", t(f"{f.get('name')} ({f.get('state')}): "), el("code", t(f.get("old_sha256") or "not there")),
+                                     t(" to "), el("code", t(f.get("new_sha256") or "removed"))) for f in change.get("files") or []], cls="meta"))
+        for heading, key in (("Tests picked", "picked"), ("Not picked", "not_picked")):
+            if change.get(key):
+                box.append(el("h4", t(heading)))
+                box.append(el("ul", *[el("li", t(f"{entry.get('title')}: {entry.get('reason')}")) for entry in change.get(key) or []], cls="meta"))
+        if change.get("flags"):
+            box.append(el("h4", t("Flags")))
+            box.append(el("ul", *[el("li", t(f"{f.get('file')}, line {f.get('line')}: “{f.get('text')}” names {f.get('word')}. {f.get('note')}"))
+                                  for f in change.get("flags") or []], cls="meta"))
+            if change.get("more_flags"):
+                box.append(el("p", t(f"{change.get('more_flags')} more of the same kind are not listed."), cls="note"))
+        out.append(el("div", *box, cls="result"))
+        run = runs.get(change.get("watch_run_id"))
+        if run is not None:
+            shown.add(run.get("watch_run_id"))
+            out += _watch_run_html(run, change.get("picked") or [])
+    earlier = [run for run in part.get("runs") or [] if run.get("watch_run_id") not in shown]
+    if earlier:
+        out.append(el("h3", t("Earlier runs")))
+        out.append(el("p", t("Runs that no longer set a change's status: an earlier run of a change, or a run of code that is no longer "
+                             "what the branch holds. They are kept."), cls="note"))
+        for run in earlier:
+            out += _watch_run_html(run, [])
+    return out
+
+
+def _watch_run_html(run: dict, picked: list) -> list:
+    """One watch run in the report: where it ran, the reviewer's word for the change, and both runs of every test."""
+    titles = {entry.get("item_id"): entry.get("title") for entry in picked}
+    review = run.get("review")
+    lines = [f"Run {run.get('watch_run_id')} of the picked tests, started {run.get('started_at')} (UTC), for branch {run.get('branch')}, "
+             f"commit {run.get('head_commit')}: version {run.get('version')}, compared with version {run.get('base_version')} "
+             f"(commit {run.get('base_commit')})."]
+    if review is None:
+        lines.append("This run did not finish, so it was not reviewed. It is no result.")
+    elif run.get("believed") is False:
+        lines.append("The stored review of this run no longer matches its records, so the app reads it as “Couldn't trust this run”.")
+    else:
+        lines.append(f"Reviewed by {review.get('reviewer')}: {watch_words.STATUS_WORDS.get(str(review.get('status')), review.get('status'))}. "
+                     f"Fingerprint of the watch record (SHA-256): {review.get('record_sha256')}.")
+    out: list = [el("div", *[el("p", t(line)) for line in lines], cls="result")]
+    placed = {entry.get("item_id"): entry.get("outcome") for entry in (review or {}).get("tests") or []}
+    for test in run.get("tests") or []:
+        title = titles.get(test.get("item_id")) or TITLES.get(str(test.get("kind")), test.get("kind"))
+        differs = watch_words.OUTCOME_WORDS.get(str(placed.get(test.get("item_id"))))
+        if differs and run.get("believed") is not False:
+            out.append(el("p", el("strong", t(f"{title}: ")), t(differs)))
+        for heading, key in (("before, on the code the change starts from", "before"), ("on the change", "now")):
+            if test.get(key):
+                out.append(_result_html(f"{title}: {heading}", test[key]))
+            else:
+                out.append(el("p", t(f"{title}: {heading}: no reviewed run."), cls="note"))
+    return out
 
 
 def _otto_html(otto: dict | None) -> list:

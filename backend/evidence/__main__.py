@@ -106,6 +106,19 @@ def main(argv: list[str] | None = None) -> int:
     if otto is not None and otto.code == FAILED:
         print(f"Evidence NOT verified: the Otto part: {otto.problem}")
         return FAILED
+    # Phase 6d: the Change watch part, checked against the runs in the file (also only once the signature held).
+    watch = None
+    if outcome.code in (VERIFIED, SIGNER_NOT_CONFIRMED):
+        from .changewatch import check_change_watch, needs_change_watch_part
+        if "change_watch" not in evidence and needs_change_watch_part(evidence):
+            print("Evidence NOT verified: the file lists a run made for a developer's change but has no Change watch part "
+                  "(the change, the watch run and its record).")
+            return FAILED
+        if "change_watch" in evidence:
+            watch = check_change_watch(evidence)
+            if not watch.ok:
+                print(f"Evidence NOT verified: the Change watch part: {watch.problem}")
+                return FAILED
     if outcome.ok and otto is not None and otto.code != VERIFIED:
         print("The file's own signature holds, but its Otto part could not be fully confirmed.")
     else:
@@ -118,6 +131,9 @@ def main(argv: list[str] | None = None) -> int:
     elif outcome.code == SIGNER_NOT_CONFIRMED:
         print("  No trusted key was found to compare the signer with. Give one with --public-key, or point --data-dir")
         print("  at the data folder of the app that made the file. This is not a pass.")
+    if watch is not None:
+        for line in watch.lines:
+            print(f"  Change watch: {line}")
     if otto is not None:
         for line in otto.lines:
             print(f"  Otto: {line}")
