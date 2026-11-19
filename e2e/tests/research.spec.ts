@@ -233,16 +233,19 @@ test("isolated mode: look, design and prove on public copies, the proven check i
     await expect(block(page).getByTestId("research-blocked")).toHaveText("A research run is going on. Wait for it to finish.");
     await page.screenshot({ path: path.join(SHOTS, "05-a-research-run-going-on-dark.png"), fullPage: true, animations: "disabled", scale: "css" });
     // ... until it has finished: the pack it made was installed by that same click
-    await expect(block(page).getByTestId("research-line")).toHaveText(
-      /^The research run that started on .+ finished on .+\. Test pack 2026\.11\.2, made on this computer, was installed\.$/, { timeout: 45 * 60_000 });
+    const finished = /^The research run that started on .+ finished on .+\. Test pack (\d{4}\.\d{1,2}\.\d+), made on this computer, was installed\.$/;
+    await expect(block(page).getByTestId("research-line")).toHaveText(finished, { timeout: 45 * 60_000 });
+    // (a pack made here is named by the month it is made in: 2026.11.2 in November 2026, 2026.12.1 a month later)
+    const made = finished.exec((await block(page).getByTestId("research-line").innerText()).trim())![1]!;
+    expect(made).not.toBe("2026.11.1");
     const installed = (await (await page.request.get("/api/otto")).json()).packs.installed;
-    expect(installed.map((p: any) => p.version)).toEqual(["2026.11.1", "2026.11.2"]);
+    expect(installed.map((p: any) => p.version)).toEqual(["2026.11.1", made]);
     expect(installed[1].made_here).toBe(true);
 
     // ================================================================ what was proven is proposed; what was not says why
-    await expect(found(page, PROVEN).getByTestId("found-state")).toHaveText("Proven on public copies (test pack 2026.11.2)");
+    await expect(found(page, PROVEN).getByTestId("found-state")).toHaveText(`Proven on public copies (test pack ${made})`);
     for (const id of NOT_PROVEN) {
-      await expect(found(page, id).getByTestId("found-state")).toHaveText("No test yet (test pack 2026.11.2)");
+      await expect(found(page, id).getByTestId("found-state")).toHaveText(`No test yet (test pack ${made})`);
       await expect(found(page, id).getByTestId("found-reason")).not.toBeEmpty();
     }
     await expect(block(page).getByTestId("design-and-prove")).toBeDisabled();     // nothing new is left to try
@@ -303,8 +306,8 @@ test("isolated mode: look, design and prove on public copies, the proven check i
     expect(part.lookups.looks[0].source).toBe("recorded");
     expect(part.lookups.looks[0].sent).toEqual([]);
     expect((part.lookups.looks[0].found as any[]).map((f) => f.id).sort()).toEqual([PROVEN, ...NOT_PROVEN].sort());
-    expect((part.lookups.research as any[]).map((r) => [r.what, r.pack_version])).toEqual([["started", null], ["finished", "2026.11.2"]]);
-    expect((part.packs as any[]).map((p) => p.pack.version)).toContain("2026.11.2");
+    expect((part.lookups.research as any[]).map((r) => [r.what, r.pack_version])).toEqual([["started", null], ["finished", made]]);
+    expect((part.packs as any[]).map((p) => p.pack.version)).toContain(made);
     const good = verify(file, copy.dataDir);
     expect(good.status, `the evidence file should check: ${good.stdout} ${good.stderr}`).toBe(0);
     expect(good.stdout).toMatch(/^Evidence verified/);

@@ -628,9 +628,20 @@ point 14, has the rules. What it does not do, plainly:
   that package; which ones name a version you have is worked out here from the record's version ranges. A record
   that gives its range only as source-code commits can't be matched to a version number: it reads "It could not be
   told whether it names ..." and nothing is guessed.
-- **How much is read.** At most 3 pages of an answer and 200 records for one package; a look keeps the 40 newest
-  advisories. When there were more the look says so. A record that is withdrawn, that says nothing about a version
-  of the package, or that is not in the documented shape is left out and counted ("N records were left out").
+- **How much is read.** At most 3 pages of an answer for one package (each up to 8 MB); every record on them is
+  read. A look keeps 40 advisories: first those that name a version you have (or might: where a version can't be
+  read), then the newest of the others. The cut comes after that ranking, so an older advisory that fits is not
+  pushed out by newer ones that do not. When more pages existed, or more than 40 were read, the look says which.
+  A record that is taken back by its publisher, that says nothing about a version of the package, or that is not
+  in the documented shape is left out and counted ("N records were left out"). At most 200 version ranges of one
+  record are kept for matching.
+- **One fixed address, and no other.** The request goes to `https://api.osv.dev/v1/query`. A redirect is not
+  followed: it comes back as "answered with an error (HTTP 302)".
+- **A publisher's summary that rates the advisory is not shown as its title** (a line with "severity", "CVSS",
+  "critical" or a score). The title then reads "<publisher> record <id>"; the publisher's line stays among its
+  quoted text, which is shown as the publisher's.
+- **A file in the folder of recorded advisories is data.** Each advisory in it is held to the snapshot's exact
+  shape and used byte for byte, or left out; a damaged file lists nothing and breaks no page. Links must be https.
 - **No severity.** A record's rating of how serious a weakness is, and its score, are not read and not shown.
 - **A test can be proven only for a library with pinned public copies of an affected and of the fixed version**:
   today openjdk 17.0.2 and 17.0.3, python-ecdsa 0.13.2 and 0.13.3, elliptic 6.5.6 and 6.5.7. An advisory fixed in
@@ -643,15 +654,36 @@ point 14, has the rules. What it does not do, plainly:
 - **Proving needs isolated mode.** In demo mode **Design and prove tests** is off and says why: a real library runs
   only in its own locked-down container.
 - **With Live Otto off, only the advisories of the dated snapshot have recorded answers.** A research run on any
-  other advisory then reads "No recorded answer: this needs Live Otto." for it. With Live Otto on, the run asks
+  other advisory leaves it open: it reads "Still open", with "No recorded answer: this needs Live Otto.", nothing
+  is signed about it, and it can be tried again (for example with Live Otto on). With Live Otto on, the run asks
   Claude (read, design, propose a fix) within the spending limit per run; what is sent is the advisory's published
   text. A live research run was not made during the build (no key on the build machine; no test may reach Claude).
+- **What a run settles, and what it leaves open.** Settled, and signed into the pack with its reason: a test that
+  was proven; a design that failed its trial; "no test fits"; no public copies to try on; an answer the pinned
+  checker refused. Left open, out of the pack, to be tried again: no answer for the reading or the design (no
+  recorded answer; or, with Live Otto on, a call that failed, was refused or met the spending limit), and a trial
+  on public copies that did not finish. A run that settles nothing makes no pack and says so. One thing is not
+  asked again: where the test was proven and no answer came for the publisher's fix, the pack says "No fix is
+  offered: There is no proposal for this advisory yet." and later runs leave that advisory alone.
 - **A pack made here is installed by the click that started the run**, after any built-in pack that is not
   installed yet. This is the one case where a pack is installed without a click of its own; the box says so before
   the run starts. A pack made here is signed with a key made on this computer and is trusted on this computer only.
-- **One research run at a time**, for the whole app. It can take several minutes for each advisory. If the app is
-  stopped while a run goes on, the run is lost: the block says it was interrupted, nothing was installed, and it
-  can be started again. The research ledger of runs made here is in the data folder (`otto-research-lab/`), apart
+- **A pack made here becomes the newest pack, and a built-in pack published later can then not be installed.**
+  Test packs install in one order, each naming the one before. After a run made a pack, a built-in pack that
+  follows the last built-in one is refused ("does not follow the installed pack") in that data folder. The box
+  says so before the run starts. A pack made here also takes the next version number of its month (2026.11.3
+  after the built-in 2026.11.2), so a later built-in pack could carry the same number; the two differ by signer
+  and fingerprint, which the evidence file holds. Letting a built-in pack follow the last built-in one, and
+  giving packs made here names of their own, is a decision for Kevin.
+- **A pack made here that was never installed** (made by hand with the research command, or by a run that was cut
+  off after signing) is not installed by a later click: **Design and prove tests** is off and says "Test pack ...,
+  made on this computer, is waiting to be installed. Install it first: Settings, Test packs, Check for updates."
+  The click installs only the pack its own run made, and only if that pack holds nothing but advisories of that
+  run.
+- **One research run at a time**, for the whole app (two clicks at the same moment start one run; the second is
+  refused). It can take several minutes for each advisory. A run that is still going after four hours is ended.
+  If the app is stopped while a run goes on, the run is lost: the block says it was interrupted and made no
+  pack, names the built-in packs the click had installed before it started, and it can be started again. The research ledger of runs made here is in the data folder (`otto-research-lab/`), apart
   from the shipped one in `research/lab/`, which is never written by the app.
 - **The proof is the research side's own**, as for a shipped pack: the trial on public copies and its replay by a
   second author, which is a second role of the same build on the same computer and not an outside party.
@@ -660,8 +692,9 @@ point 14, has the rules. What it does not do, plainly:
   library, the day it was published and the fingerprint of the page it was read from (not its text). Each
   research run: its start and its end, the advisories, whether Live Otto was on, and the pack it made. That pack
   is in the file whole, with its signature, whether or not one of its checks was accepted: the proof of a test is
-  in its pack. An assessment where a person only looked has an Otto part with the look and nothing else. The
-  report (the readable copy) does not show looks and runs yet; the signed file does.
+  in its pack. An assessment where a person only looked has an Otto part with the look and nothing else; its
+  Otto ledger has no entries, so the verify command has nothing to audit there and passes also on a computer
+  where Otto is not installed. The report (the readable copy) lists the looks and the runs too.
 - **The demonstration** (`backend/tools/research_demo.py`) uses the three elliptic advisories of the dated snapshot
   as a recorded source, with only the first built-in pack present, so that the recorded answers fit. It shows the
   loop end to end with no internet and no key: one advisory is proven and proposed, two read "No test yet".

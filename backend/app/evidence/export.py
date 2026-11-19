@@ -1115,6 +1115,31 @@ def _otto_html(otto: dict | None) -> list:
                                 for c in checks], cls="meta"))
     parts.append(el("p", t(f"The assessment's Otto ledger: {ledger.get('height')} entries; latest entry "), el("code", t(ledger.get("head"))),
                     t(f". {len(otto.get('runs') or [])} runs are bound to a test locked before them.")))
+    # Phase 6, the research loop: the looks for new advisories and the research runs. Records only.
+    lookups = otto.get("lookups") or {}
+    looks, runs = lookups.get("looks") or [], lookups.get("research") or []
+    if looks or runs:
+        parts.append(el("h3", t("Looks for new advisories, and research runs")))
+        parts.append(el("p", t(lookups.get("note")), cls="note"))
+        listed = []
+        for look in looks:
+            where = "OSV (osv.dev)" if look.get("source") == "osv" else "recorded answers in a folder on this computer"
+            sent = ", ".join(str(x) for x in look.get("sent") or []) or "nothing"
+            n = len(look.get("found") or [])
+            listed.append(el("li", t(f"Look {look.get('number')} by {look.get('by')}, "), _when(look.get("at")),
+                             t(f": read from {where}. Sent: {sent}. {n} published {'advisory' if n == 1 else 'advisories'} kept.")))
+        for run in runs:
+            about = ", ".join(str(x) for x in run.get("advisories") or []) or "no advisory"
+            if run.get("what") == "started":
+                first = ", ".join(str(x) for x in run.get("installed_first") or [])
+                listed.append(el("li", t(f"Research run started by {run.get('by')}, "), _when(run.get("at")),
+                                 t(f", for {about}; Live Otto {'on' if run.get('live') else 'off'}"
+                                   + (f"; built-in test packs installed first: {first}" if first else "") + ".")))
+            else:
+                ended = (f"test pack {run.get('pack_version')} was made on this computer and installed" if run.get("pack_version")
+                         else f"no test pack ({run.get('reason') or 'no reason recorded'})")
+                listed.append(el("li", t("Research run ended, "), _when(run.get("at")), t(f": {ended}.")))
+        parts.append(el("ul", *listed, cls="meta"))
     steps = otto.get("steps") or []
     if steps:
         parts.append(el("h3", t("Claude steps taken in this assessment")))

@@ -70,7 +70,7 @@ class DiscoverMixin:
     _closed_at: Callable[..., Any]
     _dependency_state: Callable[..., dict | None]
     _installed_packs: Callable[..., list]
-    _scan_updates: Callable[..., tuple]
+    _pack_rows: Callable[..., list]
     _trusted_pack_keys: Callable[..., dict]
     install_pack: Callable[..., dict]
     otto_live_ready: Callable[..., bool]
@@ -147,14 +147,24 @@ class DiscoverMixin:
         if not packages:
             raise Conflict(present_lookup.LOOK_NOTHING_TO_ASK)
         source = self._advisory_source()
+
+        def fits(found: lookup.Found) -> bool:
+            """Does this advisory name a version the assessment has (or could it: its versions are not read yet)?"""
+            mine = [lib for lib in libraries if lib["library"] == found.advisory["package"]["name"]]
+            if not (found.ranges or found.versions):
+                return bool(mine)
+            return any(lookup.names_version(found, lib["version"])["state"] != "not_affected" for lib in mine)
         try:
-            look = lookup.read_source(source, packages)
+            look = lookup.read_source(source, packages, fits=fits)
         except lookup.LookupError_ as exc:
             raise Conflict(str(exc)) from None
         found = [{"advisory": f.advisory, "ranges": f.ranges, "versions": f.versions[:200], "record_id": f.record_id} for f in look["found"]]
+        # (kept with each package: whether its answer had more pages than this version reads. `cut`: more usable
+        #  advisories were read than one look keeps; those that fit were ranked first.)
+        asked = [{**a, "more_pages": f"{a['name']} ({a['ecosystem']})" in look["more_pages"]} for a in look["asked"]]
         with self._otto_lock, self.db() as db:
             db.add(OttoLookupRow(plan_id=plan_id, at=_now(), by=self.decision_name(), source=look["source"], sent=look["sent"],
-                                 asked=look["asked"], found=found, left_out=int(look["left_out"]), cut=bool(look["cut"])))
+                                 asked=asked, found=found, left_out=int(look["left_out"]), cut=bool(look["not_listed"])))
             db.commit()
         return self.advisories_view(plan_id)      # type: ignore[attr-defined]
 
@@ -163,23 +173,40 @@ class DiscoverMixin:
     def _latest_lookup(self, db, plan_id: int) -> OttoLookupRow | None:
         return db.scalars(select(OttoLookupRow).where(OttoLookupRow.plan_id == plan_id).order_by(OttoLookupRow.id.desc()).limit(1)).first()
 
-    def _packs_by_advisory(self, db, upto=None) -> tuple[dict[str, dict], dict[str, str]]:
-        """(advisories in installed packs by id and by other name: {"version", "entry"}; advisories in a built-in pack
-        that is not installed yet: id -> that pack's version)."""
+    def _waiting_chain(self, db) -> list[packs.Pack]:
+        """The packs in the updates folders on this computer (built-in, and made here) that can be installed after the
+        installed ones, in the order they install. A pack that does not follow is not among them."""
+        keys = self._trusted_pack_keys()
+        found: list[packs.Pack] = []
+        for folder in (self.settings.otto_updates, self.settings.otto_local_updates):
+            found += packs.found_in(folder, keys)[0]
+        found.sort(key=lambda p: packs.version_key(p.version))          # (stable: at one version a built-in pack comes first)
+        rows = self._pack_rows(db)
+        have = {r.fingerprint for r in rows}
+        newest: packs.Pack | dict | None = {"version": rows[-1].version, "fingerprint": rows[-1].fingerprint} if rows else None
+        chain: list[packs.Pack] = []
+        for _ in range(50):
+            following = next((p for p in found if p.fingerprint not in have and packs.follows(p, newest) is None), None)
+            if following is None:
+                break
+            chain.append(following)
+            have.add(following.fingerprint)
+            newest = following
+        return chain
+
+    def _packs_by_advisory(self, db, upto=None) -> tuple[dict[str, dict], dict[str, dict]]:
+        """(advisories in installed packs by id and by other name: {"version", "entry"}; advisories in a pack that is
+        ready and not installed yet: id -> {"version", "made_here"})."""
         installed: dict[str, dict] = {}
         for _, pack in self._installed_packs(db, upto):
             for entry in pack.pack["advisories"]:
                 for name in (entry["id"], *entry.get("aliases", [])):
                     installed[str(name).upper()] = {"version": pack.version, "entry": entry}
-        waiting: dict[str, str] = {}
-        have = {pack.fingerprint for _, pack in self._installed_packs(db)}
-        found, _ = packs.found_in(self.settings.otto_updates, self._trusted_pack_keys())
-        for pack in sorted(found, key=lambda p: packs.version_key(p.version)):
-            if pack.fingerprint in have:
-                continue
+        waiting: dict[str, dict] = {}
+        for pack in self._waiting_chain(db):
             for entry in pack.pack["advisories"]:
                 for name in (entry["id"], *entry.get("aliases", [])):
-                    waiting.setdefault(str(name).upper(), pack.version)
+                    waiting.setdefault(str(name).upper(), {"version": pack.version, "made_here": bool(pack.made_here)})
         return installed, waiting
 
     def _lookup_rows(self, db, plan: PlanRow, row: OttoLookupRow) -> list[dict]:
@@ -210,7 +237,9 @@ class DiscoverMixin:
             else:
                 state, why = self._can_try(library, affected or unsure)
             out.append({"advisory": advisory, "library": library, "fits": fits, "state": state, "why": why,
-                        "pack": in_pack["version"] if in_pack else in_waiting, "entry": in_pack["entry"] if in_pack else None})
+                        "pack": in_pack["version"] if in_pack else (in_waiting or {}).get("version"),
+                        "pack_made_here": bool(in_waiting and in_waiting["made_here"]) if not in_pack else False,
+                        "entry": in_pack["entry"] if in_pack else None})
         return out
 
     @staticmethod
@@ -223,6 +252,8 @@ class DiscoverMixin:
         fixed = next((f["fixed"] for f in fits if f.get("fixed")), None)
         if any(f["state"] == "unread" for f in fits):
             return "new", None               # the reading step reads the fixed version from the publisher's text
+        if all(f["state"] == "cant_tell" for f in fits):
+            return "no_test", present_lookup.CANT_TELL_VERSION      # (not "no fixed version": the record may well name one)
         if fixed is None:
             return "no_test", present_lookup.NO_FIXED_VERSION
         if fixed not in have or have.index(fixed) == 0 or read_version(fixed) is None:
@@ -254,8 +285,14 @@ class DiscoverMixin:
         status = harness.status()
         if not status.installed:
             return status.sentence
-        if any(v.get("thread") is not None and v["thread"].is_alive() for v in self._research_live.values()):
+        if self._research_live:               # (registered under the lock before its thread starts, removed when its end row is written)
             return present_lookup.RESEARCH_RUNNING
+        made_here = next((pack for pack in self._waiting_chain(db) if pack.made_here), None)
+        if made_here is not None:
+            # A pack made on this computer that was never installed (made by hand with the research command, or by a
+            # run that was cut off after signing). The click installs only the pack its own run makes: this one is
+            # installed by a person, in Settings, like every pack.
+            return present_lookup.waiting_made_here(made_here.version)
         if not eligible:
             return present_lookup.RESEARCH_NOTHING
         if self.mode.name != "isolated":
@@ -265,50 +302,55 @@ class DiscoverMixin:
     def start_research(self, plan_id: int) -> dict:
         """Design and prove tests for the new advisories of the newest look, in the background. The built-in packs
         that are not installed yet are installed first, in order: a pack made here follows the newest one."""
-        with self.db() as db:
-            plan = self._plan(db, plan_id)
-            look = self._latest_lookup(db, plan_id)
-            rows = self._lookup_rows(db, plan, look) if look is not None else []
-            eligible = [r for r in rows if r["state"] == "new"]
-            blocked = self._research_blocked(db, plan_id, eligible)
-            if blocked or look is None:          # no look means nothing can be tried, which is one of the reasons above
-                raise Conflict(blocked or present_lookup.RESEARCH_NOTHING)
-            look_id = look.id
-            live, limit = self.otto_live_ready(), self._otto_limit(db)
-        installed_first = self._install_waiting_packs()
-        run_key = f"{plan_id}-{_now()}"
-        inbox = Path(self.settings.data_dir) / "otto-inbox" / run_key.replace(":", "")
-        inbox.mkdir(parents=True, exist_ok=True)
-        ids = [r["advisory"]["id"] for r in eligible]
-        snapshot = {"schema": SNAPSHOT_SCHEMA, "snapshot": _now()[:10],
-                    "about": "Advisories read by Look for new advisories. Every excerpt is a piece of the publisher's own text.",
-                    "advisories": [r["advisory"] for r in eligible]}
-        (inbox / "advisories.json").write_text(json.dumps(snapshot, indent=1, ensure_ascii=False), encoding="utf-8")
-        with self._otto_lock, self.db() as db:
-            started = OttoResearchRow(plan_id=plan_id, run_key=run_key, kind="started", at=_now(), by=self.decision_name(),
-                                      lookup_id=look_id, advisories=ids, live=bool(live), limit_nano=int(limit),
-                                      installed_first=installed_first, exit_code=None, pack_version=None, output=[])
-            db.add(started)
-            db.commit()
-            row_id = started.id
-        state: dict = {"lines": [], "thread": None}
-        self._research_live[row_id] = state
-        thread = threading.Thread(target=self._run_research, name=f"otto-research-{row_id}", daemon=True,
-                                  args=(row_id, plan_id, run_key, inbox, live, limit, look_id, ids, installed_first))
-        state["thread"] = thread
-        thread.start()
+        # One research run at a time, on this computer: from the check to the moment the run is registered, a second
+        # click (another tab, a repeated request) waits here, and then finds the first one running.
+        with self._research_lock:
+            with self.db() as db:
+                plan = self._plan(db, plan_id)
+                look = self._latest_lookup(db, plan_id)
+                rows = self._lookup_rows(db, plan, look) if look is not None else []
+                eligible = [r for r in rows if r["state"] == "new"]
+                blocked = self._research_blocked(db, plan_id, eligible)
+                if blocked or look is None:          # no look means nothing can be tried, which is one of the reasons above
+                    raise Conflict(blocked or present_lookup.RESEARCH_NOTHING)
+                look_id = look.id
+                live, limit = self.otto_live_ready(), self._otto_limit(db)
+                number = sum(1 for r in self._research_rows(db, plan_id) if r.kind == "started") + 1
+            installed_first = self._install_waiting_packs()
+            run_key = f"{plan_id}-{_now()}-{number}"          # (the count makes it this run's alone: the time is to the second)
+            inbox = Path(self.settings.data_dir) / "otto-inbox" / run_key.replace(":", "")
+            inbox.mkdir(parents=True, exist_ok=True)
+            ids = [r["advisory"]["id"] for r in eligible]
+            snapshot = {"schema": SNAPSHOT_SCHEMA, "snapshot": _now()[:10],
+                        "about": "Advisories read by Look for new advisories. Every excerpt is a piece of the publisher's own text.",
+                        "advisories": [r["advisory"] for r in eligible]}
+            (inbox / "advisories.json").write_text(json.dumps(snapshot, indent=1, ensure_ascii=False), encoding="utf-8")
+            with self._otto_lock, self.db() as db:
+                started = OttoResearchRow(plan_id=plan_id, run_key=run_key, kind="started", at=_now(), by=self.decision_name(),
+                                          lookup_id=look_id, advisories=ids, live=bool(live), limit_nano=int(limit),
+                                          installed_first=installed_first, exit_code=None, pack_version=None, output=[])
+                db.add(started)
+                db.commit()
+                row_id = started.id
+            state: dict = {"lines": [], "thread": None}
+            self._research_live[row_id] = state
+            thread = threading.Thread(target=self._run_research, name=f"otto-research-{row_id}", daemon=True,
+                                      args=(row_id, plan_id, run_key, inbox, live, limit, look_id, ids, installed_first))
+            state["thread"] = thread
+            thread.start()
         return self.advisories_view(plan_id)      # type: ignore[attr-defined]
 
     def _install_waiting_packs(self) -> list[str]:
-        """Install every built-in pack that is ready and not installed yet, oldest first. Returns their versions."""
+        """Install every built-in pack that is ready and not installed yet, oldest first. Returns their versions.
+        (A waiting pack made here blocks the run before this is reached: `_research_blocked`.)"""
         done: list[str] = []
         for _ in range(20):
             with self.db() as db:
-                update, _, _ = self._scan_updates(db)
-            if update is None or update.made_here:
+                chain = self._waiting_chain(db)
+            if not chain or chain[0].made_here:
                 break
-            self.install_pack(update.version)
-            done.append(update.version)
+            self.install_pack(chain[0].version)
+            done.append(chain[0].version)
         return done
 
     def _research_command(self, inbox: Path, live: bool, limit_nano: int) -> list[str]:
@@ -330,25 +372,45 @@ class DiscoverMixin:
             process = subprocess.Popen(self._research_command(inbox, live, limit_nano), cwd=str(BACKEND), env=env, stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", start_new_session=True)
             state["process"] = process
-            assert process.stdout is not None
-            for line in process.stdout:
-                text = "".join(ch if ch.isprintable() else " " for ch in line.rstrip("\n"))[:500]
-                if text.strip():
-                    lines.append(text)
-                    del lines[:-MAX_OUTPUT_LINES]
-            code = process.wait(timeout=RESEARCH_TIMEOUT_SECONDS)
+
+            def too_long() -> None:
+                """The time limit: a run that is still going after it is ended, with everything it started."""
+                state["timed_out"] = True
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                except (ProcessLookupError, PermissionError, OSError):
+                    pass
+            limit_timer = threading.Timer(RESEARCH_TIMEOUT_SECONDS, too_long)
+            limit_timer.daemon = True
+            limit_timer.start()
+            try:
+                assert process.stdout is not None
+                for line in process.stdout:
+                    text = "".join(ch if ch.isprintable() else " " for ch in line.rstrip("\n"))[:500]
+                    if text.strip():
+                        lines.append(text)
+                        del lines[:-MAX_OUTPUT_LINES]
+                code = process.wait(timeout=60)
+            finally:
+                limit_timer.cancel()
             if state.get("stopped"):
                 reason = present_lookup.INTERRUPTED
+            elif state.get("timed_out"):
+                reason = present_lookup.RESEARCH_TOO_LONG
             elif code == 0:
+                # The pack this run made: the one pack made here that is ready to install now (none was before the run
+                # started, or the run would not have started), and it holds only advisories of this run.
                 with self.db() as db:
-                    update, _, _ = self._scan_updates(db)
-                if update is not None and update.made_here:
-                    self.install_pack(update.version)
-                    pack_version = update.version
+                    chain = self._waiting_chain(db)
+                mine = chain[0] if chain and chain[0].made_here and {a["id"] for a in chain[0].pack["advisories"]} <= set(ids) else None
+                if mine is not None:
+                    self.install_pack(mine.version)
+                    pack_version = mine.version
                 else:
                     reason = present_lookup.RESEARCH_NO_PACK
             else:
-                reason = next((line for line in reversed(lines) if line.strip()), present_lookup.RESEARCH_STOPPED)
+                # (what the command said last: "No test pack was made: ..." when it settled nothing, or why it stopped)
+                reason = next((line.strip() for line in reversed(lines) if line.strip()), present_lookup.RESEARCH_STOPPED)[:600]
         except Exception as exc:        # (the end row must be written whatever went wrong; never the error's own words)
             reason = f"The research run stopped ({exc.__class__.__name__})."
         finally:
@@ -383,20 +445,41 @@ class DiscoverMixin:
             eligible = [r for r in rows if r["state"] == "new"]
             blocked = self._research_blocked(db, plan_id, eligible)
             closed = self._closed_at(plan_id) is not None
-            waiting_packs = sorted(set(self._packs_by_advisory(db)[1].values()), key=packs.version_key)
+            waiting_packs = [pack.version for pack in self._waiting_chain(db) if not pack.made_here]
             live, limit = self.otto_live_ready(), self._otto_limit(db)
+            left_open = self._left_open(research_state)
         source = self._advisory_source()
         return present_lookup.lookup_view(
             libraries=libraries, packages=[p.words for p in packages], skipped=skipped, recorded=isinstance(source, lookup.RecordedSource),
             closed=closed, look=({"at": look.at, "by": look.by, "source": look.source, "sent": look.sent, "asked": look.asked,
                                   "left_out": look.left_out, "cut": look.cut} if look is not None else None),
-            rows=rows, eligible=len(eligible), research_blocked=blocked, waiting_packs=waiting_packs, live=live,
+            rows=rows, eligible=len(eligible), research_blocked=blocked, waiting_packs=waiting_packs, left_open=left_open, live=live,
             limit=f"{limit / model.NANO:.2f}", isolated=self.mode.name == "isolated",
             run=({"started_at": research_state["run"].at, "advisories": research_state["run"].advisories, "live": research_state["run"].live,
                   "running": research_state["live"], "lines": research_state["lines"],
+                  "installed_first": list(research_state["run"].installed_first or []),
                   "end": ({"at": research_state["end"].at, "exit_code": research_state["end"].exit_code,
                            "pack_version": research_state["end"].pack_version, "reason": research_state["end"].reason}
                           if research_state["end"] is not None else None)} if research_state["run"] is not None else None))
+
+    @staticmethod
+    def _left_open(research_state: dict) -> dict[str, str]:
+        """What the newest finished run left for a later run, and why: advisory id -> one sentence. Read from what the
+        research command said, in lines of one exact form (`present_lookup.LEFT_PREFIX`); only for advisories that were
+        handed to that run. What the command said is data: a line in another form is not read."""
+        run, end = research_state.get("run"), research_state.get("end")
+        if run is None or end is None:
+            return {}
+        handed = {str(a) for a in run.advisories or []}
+        out: dict[str, str] = {}
+        for line in end.output or []:
+            text = str(line).strip()
+            if not text.startswith(present_lookup.LEFT_PREFIX):
+                continue
+            advisory_id, _, why = text[len(present_lookup.LEFT_PREFIX):].partition(": ")
+            if advisory_id in handed and why.strip():
+                out[advisory_id] = why.strip()[:400]
+        return out
 
     def lookups_evidence(self, plan_id: int) -> dict:
         """For the evidence file: every look of this assessment (what was asked, of which source, the fingerprint of

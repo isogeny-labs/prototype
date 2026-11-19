@@ -5,6 +5,8 @@ source is a recorded copy of the three elliptic advisories of the dated snapshot
 build fit them and no key is needed. A person looks, then presses Design and prove tests. The research command reads
 each advisory, designs a test, and tries it on elliptic 6.5.6 and 6.5.7 in their containers; what it proves is signed
 into a pack made on this computer, which the same click installs. Slow: it needs Docker and takes several minutes."""
+import re
+
 import pytest
 from sqlalchemy import func, select
 
@@ -51,21 +53,24 @@ def test_a_real_research_run_proves_a_test_on_public_copies_and_the_proven_check
         with lab.db() as db:
             end = db.scalars(select(OttoResearchRow).where(OttoResearchRow.kind == "finished")).one()
         assert end.exit_code == 0, end.output[-20:]
-        assert end.installed_first == ["2026.11.1"] and end.pack_version == "2026.11.2" and end.live is False
+        # (a pack made here is named by the month it is made in: 2026.11.2 in November 2026, 2026.12.1 a month later)
+        made = end.pack_version
+        assert end.installed_first == ["2026.11.1"] and made and re.fullmatch(r"\d{4}\.\d{1,2}\.\d+", made) and made != "2026.11.1"
+        assert end.live is False
         view = lab.advisories_view(pid)
         assert problems(view, models.AdvisoriesView, "advisories after a research run") == []
         installed = lab.otto_view()["packs"]["installed"]
-        assert [p["version"] for p in installed] == ["2026.11.1", "2026.11.2"] and installed[1]["made_here"] is True
+        assert [p["version"] for p in installed] == ["2026.11.1", made] and installed[1]["made_here"] is True
 
         # ---- what was proven is proposed; what was not says why
         rows = {r["id"]: r for r in view["lookup"]["last"]["rows"]}
-        assert rows["CVE-2024-42460"]["state"]["label"] == "Proven on public copies (test pack 2026.11.2)"
+        assert rows["CVE-2024-42460"]["state"]["label"] == f"Proven on public copies (test pack {made})"
         for other in ("CVE-2024-42459", "CVE-2024-42461"):
-            assert rows[other]["state"]["label"] == "No test yet (test pack 2026.11.2)" and rows[other]["reason"]
+            assert rows[other]["state"]["label"] == f"No test yet (test pack {made})" and rows[other]["reason"]
         listed = {r["id"]: r for r in view["rows"]}
         assert listed["CVE-2024-42460"]["test"]["key"] == "ready" and listed["CVE-2024-42460"]["new"] is not None
         proposed = lab.otto_proposals(pid, ("check",))
-        mine = [p for p in proposed if p["about"]["advisory"] == "CVE-2024-42460" and p["about"]["pack"] == "2026.11.2"]
+        mine = [p for p in proposed if p["about"]["advisory"] == "CVE-2024-42460" and p["about"]["pack"] == made]
         assert mine and all(p["state"] == "proposed" for p in mine)                 # proposed, never added: a person decides
         assert any("elliptic 6.5.6" in p["about"]["program"] for p in mine)
         # the proof is the pack's own trial on public copies: it failed on the affected copy, passed on the fixed one
@@ -76,7 +81,7 @@ def test_a_real_research_run_proves_a_test_on_public_copies_and_the_proven_check
         assert not any(t["kind"] == "advisory_cases" for t in lab.plan_view(pid)["tests"])
         # the run is on record for the evidence file, with the pack it made
         part = lab.lookups_evidence(pid)
-        assert [(r["what"], r["pack_version"]) for r in part["research"]] == [("started", None), ("finished", "2026.11.2")]
+        assert [(r["what"], r["pack_version"]) for r in part["research"]] == [("started", None), ("finished", made)]
     finally:
         lab.stop()
 

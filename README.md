@@ -469,8 +469,8 @@ first opens a box that says what it will do. Nothing is sent or started until yo
 Nobody has to install a test pack to get new checks. The two shipped packs stay as the starting set.
 
 What it covers today, plainly: libraries the app knows that are published on npm, PyPI, Go, Maven, crates.io,
-NuGet or RubyGems, and a test only where the app has public copies of an affected and a fixed version (Java,
-python-ecdsa and elliptic, in the versions pinned in the app). So most newly published advisories will read
+NuGet or RubyGems, and a test only where the app has public copies of an affected and a fixed version (of those
+libraries, today python-ecdsa and elliptic, in the versions pinned in the app). So most newly published advisories will read
 "No test yet". `docs/LIMITS.md` has the full list.
 
 **To see the whole loop with no internet and no API key** (Docker must be running, for isolated mode):
@@ -487,7 +487,13 @@ yet", each with its reason.
 
 With **Live Otto** on (Settings; it needs `ANTHROPIC_API_KEY`), a research run asks Claude to read each advisory
 and design its test, within the spending limit per run. With it off, only the answers recorded during the build
-are used, and an advisory with none reads "No recorded answer: this needs Live Otto."
+are used. An advisory with none stays open and reads "No recorded answer: this needs Live Otto."; nothing is
+signed about it, and it can be tried again.
+
+Two things to know before you press **Design and prove tests**. Test packs install in one order, and the pack a
+run makes becomes the newest one, so a built-in pack that is published later can then not be installed in that
+data folder (the box says this too). And a run that could not settle an advisory (no answer, or a trial that did
+not finish) leaves it out of the pack, so you can try it again.
 
 ## Where things are
 

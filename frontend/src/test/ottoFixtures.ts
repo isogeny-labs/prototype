@@ -1583,10 +1583,10 @@ export const ottoLiveOnNoKey: OttoSettingsView = {
   },
 };
 
-/** A pack built on this computer by the live research command: its line and its signer say so. */
+/** A pack built on this computer by the research command: its line and its signer say so. */
 export const packMadeHere: OttoPackCard = {
   ...PACK_TWO,
-  signer: "A key made on this computer by the live research command",
+  signer: "A key made on this computer by the research command",
   made_here: true,
   line: "Pack 2026.11.2, built 17 November 2026: 2 advisories, 1 test. Made on this computer.",
 };

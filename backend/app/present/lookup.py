@@ -19,20 +19,35 @@ LOOK_LABEL, RESEARCH_LABEL = "Look for new advisories", "Design and prove tests"
 LOOK_NOTHING_TO_ASK = (f"This assessment names no library the source keeps by name. It keeps packages of {ECOSYSTEM_WORDS}; "
                        "other libraries, such as OpenSSL and Java, are not kept there by name.")
 NO_FIXED_VERSION = "No test yet: the source names no fixed version, so there is nothing to prove a test against."
+CANT_TELL_VERSION = ("No test yet: it could not be told whether this advisory names the version you have, because a version could "
+                     "not be read. Nothing is guessed, so no test was designed.")
 RESEARCH_RUNNING = "A research run is going on. Wait for it to finish."
 RESEARCH_NOTHING = "No new advisory can be tried here. Look for new advisories first, or see the reason beside each one."
 RESEARCH_NEEDS_ISOLATED = ("Trying a test on public copies needs isolated mode (Docker): a real library runs only in its own "
                            "locked-down container.")
 RESEARCH_NO_PACK = "The research run ended without a test pack."
 RESEARCH_STOPPED = "The research run stopped before it finished."
-INTERRUPTED = "This run was interrupted (the app was stopped while it ran). Nothing was installed. Start it again."
+RESEARCH_TOO_LONG = "The research run took longer than this version allows (four hours) and was ended. No test pack was made by it."
+INTERRUPTED = "This run was interrupted (the app was stopped while it ran). It made no test pack. Start it again."
+# Two lines of the research command that the app reads from what the command said (the app never imports the research
+# side, so these exact beginnings are what the two share). "Left for a later run: <advisory id>: <why>": the run could
+# not settle that advisory (no answer, or a trial that did not finish), signed nothing about it, and it can be tried
+# again. "No test pack was made: ...": it settled none, so there is no pack.
+LEFT_PREFIX = "Left for a later run: "
+NO_PACK_PREFIX = "No test pack was made: "
 COVERS = ("What this covers: libraries published on " + ECOSYSTEM_WORDS + ", asked about by name at OSV (osv.dev). A test can be "
           "proven only for a library this version of the app has public copies of, in an affected and a fixed version "
-          "(today: Java, python-ecdsa and elliptic, in the versions pinned in the app), and only from published test cases "
-          "it can run today (ECDSA P-256 signature checks). Anything else reads “No test yet”, with the reason.")
+          "(of the libraries the source keeps by name, today: python-ecdsa and elliptic, in the versions pinned in the app), "
+          "and only from published test cases it can run today (ECDSA P-256 signature checks). Anything else reads “No test "
+          "yet”, with the reason.")
 STATES = {"in_pack": ("In a test pack", "neutral"), "in_waiting_pack": ("In a built-in test pack", "neutral"), "new": ("New: not tried yet", "warn"),
           "no_test": ("No test yet", "neutral"), "not_yours": ("Not about a version you have", "neutral"), "proven": ("Proven on public copies", "pass"),
-          "being_tried": ("Being tried", "warn")}
+          "being_tried": ("Being tried", "warn"), "still_open": ("Still open", "warn")}
+
+
+def waiting_made_here(version: str) -> str:
+    return (f"Test pack {version}, made on this computer, is waiting to be installed. Install it first: Settings, Test packs, "
+            "Check for updates.")
 
 
 def no_copy_of(library: str) -> str:
@@ -62,7 +77,7 @@ def _fits_line(row: dict) -> str:
     return " ".join(dict.fromkeys(said))
 
 
-def _row_view(row: dict, running_ids: set[str]) -> dict:
+def _row_view(row: dict, running_ids: set[str], left_open: dict[str, str] | None = None) -> dict:
     advisory = row["advisory"]
     source = advisory["sources"][0]
     state, reason, link = row["state"], row.get("why"), None
@@ -73,17 +88,24 @@ def _row_view(row: dict, running_ids: set[str]) -> dict:
         test = entry.get("test") or {}
         if test.get("state") == "ready":
             label, tone = f"Proven on public copies (test pack {row['pack']})", "pass"
-            reason = "It is in the list below, with its proposal."
+            reason = "It is in the list below."
         else:
             label = f"No test yet (test pack {row['pack']})"
             reason = str(test.get("reason") or "")
             if entry.get("reading") is None and entry.get("reading_refused"):
                 reason = str(entry["reading_refused"])
+    elif state == "in_waiting_pack" and row.get("pack_made_here"):
+        label = f"In test pack {row['pack']}, made on this computer, which is not installed yet"
+        reason = "Install it in Settings, under Test packs."
     elif state == "in_waiting_pack":
         label = f"In built-in test pack {row['pack']}, which is not installed yet"
         reason = "It is installed from Settings, or by Design and prove tests."
     elif state == "new" and advisory["id"] in running_ids:
         label, tone = STATES["being_tried"]
+    elif state == "new" and advisory["id"] in (left_open or {}):
+        # the last research run could not settle it: nothing was signed about it, and it can be tried again
+        label, tone = STATES["still_open"]
+        reason = f"The last research run left it open: {(left_open or {})[advisory['id']]} It can be tried again."
     return {"id": advisory["id"], "title": source["title"], "library": row["library"], "published": day(advisory["published"]),
             "fits": _fits_line(row), "state": {"key": state, "label": label, "tone": tone}, "reason": reason, "link": link,
             "publisher": source["publisher"], "url": source["url"]}
@@ -91,7 +113,7 @@ def _row_view(row: dict, running_ids: set[str]) -> dict:
 
 def lookup_view(*, libraries: list[dict], packages: list[str], skipped: list[str], recorded: bool, closed: bool, look: dict | None,
                 rows: list[dict], eligible: int, research_blocked: str | None, waiting_packs: list[str], live: bool, limit: str,
-                isolated: bool, run: dict | None) -> dict:
+                isolated: bool, run: dict | None, left_open: dict[str, str] | None = None) -> dict:
     names = join_and(packages)
     if recorded:
         look_lines = ["Reads the recorded answers in a folder on this computer about the libraries this assessment names.",
@@ -110,7 +132,7 @@ def lookup_view(*, libraries: list[dict], packages: list[str], skipped: list[str
     running_ids = set(run["advisories"]) if running and run else set()
     last = None
     if look is not None:
-        shown = [_row_view(r, running_ids) for r in rows]
+        shown = [_row_view(r, running_ids, left_open) for r in rows]
         new = sum(1 for r in rows if r["state"] == "new")
         packed = sum(1 for r in rows if r["state"] in ("in_pack", "in_waiting_pack"))
         none = sum(1 for r in rows if r["state"] == "no_test")
@@ -123,9 +145,14 @@ def lookup_view(*, libraries: list[dict], packages: list[str], skipped: list[str
         notes = []
         if look["left_out"]:
             notes.append(f"{look['left_out']} {'record was' if look['left_out'] == 1 else 'records were'} left out: not in the shape "
-                         "the source documents, or about no version of these libraries.")
+                         "the source documents, about no version of these libraries, or taken back by the publisher.")
+        more_pages = [f"{a.get('name')} ({a.get('ecosystem')})" for a in look.get("asked") or [] if isinstance(a, dict) and a.get("more_pages")]
+        if more_pages:
+            notes.append(f"The source had more pages of answers about {join_and(more_pages)} than this version reads (three). What the "
+                         "later pages hold was not read.")
         if look["cut"]:
-            notes.append("The source had more than this version reads at once: only the newest are listed.")
+            notes.append("More advisories were read than this version lists at once (40). Those that name a version you have are listed "
+                         "first, then the newest of the others.")
         last = {"line": (f"Looked on {stamp(look['at'])} by {look['by']}: {n} published {'advisory' if n == 1 else 'advisories'} about your "
                          f"libraries." + (f" {join_and(counts).capitalize()}." if counts else "")),
                 "source_line": ("Read from recorded answers in a folder on this computer. Nothing was sent." if look["source"] == "recorded"
@@ -138,13 +165,16 @@ def lookup_view(*, libraries: list[dict], packages: list[str], skipped: list[str
         "published test cases, and the test is tried on public copies in isolated mode.",
         "A test counts as proven only when it fails on the affected version, passes on the fixed version, and the control that must "
         "fail does.",
-        (f"Live Otto is on: Claude is asked to read each advisory and to design its test. What is sent: the advisory's published text. "
-         f"The most this run can cost: {limit} US dollars." if live else
-         "Live Otto is off: only answers recorded during the build are used. An advisory with no recorded answer reads “No recorded "
-         "answer: this needs Live Otto.”"),
-        ("What was found is signed into a test pack made on this computer, and that pack is installed by this click"
+        (f"Live Otto is on: Claude is asked to read each advisory, to design its test and, for a test that was proven, to name the "
+         f"publisher's fix. What is sent: the advisory's published text. The most this run can cost: {limit} US dollars." if live else
+         "Live Otto is off: only answers recorded during the build are used. An advisory with no recorded answer stays open and "
+         "reads “No recorded answer: this needs Live Otto.”"),
+        ("What the run settles is signed into a test pack made on this computer, and that pack is installed by this click"
          + (f", after the built-in test {'pack' if len(waiting_packs) == 1 else 'packs'} not installed yet ({join_and(waiting_packs)}), in order."
-            if waiting_packs else ".")),
+            if waiting_packs else ".")
+         + " An advisory the run cannot settle (no answer, or a trial that does not finish) is left out of the pack and can be tried again."),
+        ("Test packs install in one order, and a pack made here becomes the newest. In this version a built-in test pack that is "
+         "published after it can then not be installed in this data folder."),
         "Each proven check then arrives on this page as a proposal. Accepting or rejecting it stays with you: nothing is added to a "
         "test plan, and nothing of yours is run.",
         "This can take several minutes for each advisory.",
@@ -154,8 +184,10 @@ def lookup_view(*, libraries: list[dict], packages: list[str], skipped: list[str
         end = run.get("end")
         if running:
             line = f"A research run is going on, started on {stamp(run['started_at'])}."
-        elif end is None:
-            line = INTERRUPTED
+        elif end is None or end.get("reason") == INTERRUPTED:
+            first = list(run.get("installed_first") or [])
+            line = INTERRUPTED + (f" Before it started, this click installed the built-in test {'pack' if len(first) == 1 else 'packs'} "
+                                  f"{join_and(first)}." if first else "")
         elif end.get("pack_version"):
             line = (f"The research run that started on {stamp(run['started_at'])} finished on {stamp(end['at'])}. Test pack "
                     f"{end['pack_version']}, made on this computer, was installed.")

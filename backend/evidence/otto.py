@@ -79,6 +79,10 @@ class _Failed(Exception):
     pass
 
 
+class _NothingToAudit(Exception):
+    """The file's Otto ledger is empty: Otto's own audit has nothing to check."""
+
+
 def _plain(value: object, limit: int = 120) -> str:
     """Text from the file as it may be printed: printable characters only, and not too long."""
     text = " ".join("".join(ch if ch.isprintable() else "?" for ch in str(value)).split())
@@ -435,6 +439,11 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
         #    writes; then the harness audits the chain and the records without running any verifier, and our own
         #    pinned checker (the app's file, never one from the ledger) is run again on every checked entry.
         try:
+            if not entries and not list(ledger.get("lines") or []):
+                # A file whose Otto part holds no ledger entry at all (for example: looks for new advisories were made,
+                # and no check was ever accepted). The harness recorded nothing, so there is nothing for its audit to
+                # check, whether or not it is installed on this computer. The signature above covers this part.
+                raise _NothingToAudit
             from app.otto import assurance, harness
             foreign = assurance.only_our_checker(entries)
             if foreign == assurance.OTHER_VERSION:
@@ -453,6 +462,8 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
             named = otto.get("harness") or {}
             if named.get("commit") and named.get("commit") != pinned.commit:
                 out.lines.append(f"Note: the file was made with Otto commit {_plain(named.get('commit'), 7)[:7]}; this computer has {str(pinned.commit)[:7]}.")
+        except _NothingToAudit:
+            out.lines.append("Otto's ledger for this assessment has no entries, so there was nothing for Otto's own audit to check.")
         except ImportError:
             out.code, out.problem = NOT_CONFIRMED, "Otto's own audit was not run: the app's Otto adapter is not available here."
         except Exception as exc:

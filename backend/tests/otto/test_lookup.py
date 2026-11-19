@@ -16,6 +16,7 @@ from app.otto import lookup
 from conftest import ReachedTheNetwork
 from ottolab import snapshot
 
+REAL_TRANSPORT = lookup._http_transport       # (kept before the fixture that blocks the network replaces it, for one test on 127.0.0.1)
 ELLIPTIC = lookup.Package(library="elliptic", ecosystem="npm", name="elliptic")
 ECDSA = lookup.Package(library="python-ecdsa", ecosystem="PyPI", name="ecdsa")
 TODAY = "2026-11-19"
@@ -224,3 +225,154 @@ def test_fuzz_damaged_answers_are_refused_plainly_or_read_normally_and_quickly()
             assert "cvss" not in json.dumps(one.advisory).lower()
             assert lookup.names_version(one, "6.5.6")["state"] in ("affected", "not_affected", "cant_tell")
     assert time.monotonic() - started < 20
+
+
+# ---------------------------------------------------------------- after the separate review of 19 November 2026
+
+def test_an_older_advisory_that_names_your_version_is_never_pushed_out_by_newer_ones_that_do_not():
+    """One look keeps 40. The cut comes after the ranking: first what names a version the assessment has."""
+    go = lookup.Package(library="go", ecosystem="Go", name="stdlib")
+    newer = [record(f"GO-2099-{n:04d}", f"CVE-2099-{1000 + n}", ("Go", "stdlib"), "1.99.0", "1.99.1", published=f"2099-06-{1 + n % 28:02d}T00:00:00Z")
+             for n in range(45)]
+    old = record("GHSA-test-old1-aaaa", "CVE-2020-0001", ("npm", "elliptic"), "2.0.0", "6.5.7", published="2020-01-02T00:00:00Z")
+    pages = {"stdlib": [answer(*newer)], "elliptic": [answer(old)]}
+
+    def transport(body, timeout):
+        return 200, pages[json.loads(body)["package"]["name"]][0]
+
+    def fits(found) -> bool:        # what the caller works out: the file lists elliptic 6.5.6 and go 1.21.0
+        mine = {"elliptic": "6.5.6", "go": "1.21.0"}[found.advisory["package"]["name"]]
+        return lookup.names_version(found, mine)["state"] != "not_affected"
+    look = lookup.read_source(lookup.OsvSource(transport), [go, ELLIPTIC], fits=fits)
+    ids = [f.advisory["id"] for f in look["found"]]
+    assert len(ids) == lookup.MAX_KEPT and ids[0] == "CVE-2020-0001"                 # the one that fits is listed first
+    assert look["cut"] is True and look["not_listed"] == 6 and look["more_pages"] == []
+    assert ids[1:] == sorted(ids[1:], key=lambda i: next(f.advisory["published"] for f in look["found"] if f.advisory["id"] == i), reverse=True)
+    # without the ranking it would have been cut away: the 40 newest are all about Go
+    plain = lookup.read_source(lookup.OsvSource(transport), [go, ELLIPTIC])
+    assert "CVE-2020-0001" not in [f.advisory["id"] for f in plain["found"]]
+
+
+def test_every_record_of_an_answer_is_read_and_a_usable_one_is_never_counted_as_left_out():
+    many = [record(f"GHSA-test-{n:04d}-aaaa", f"CVE-2098-{1000 + n}", published=f"2098-01-01T00:{n // 60:02d}:{n % 60:02d}Z") for n in range(260)]
+    found, left_out = lookup.read_answer(answer(*many), ELLIPTIC, TODAY)
+    assert len(found) == 260 and left_out == 0
+    withdrawn = record("GHSA-test-with-aaaa", "CVE-2098-0002", withdrawn="2098-02-01T00:00:00Z")
+    assert lookup.read_answer(answer(many[0], withdrawn, {"id": 7}), ELLIPTIC, TODAY)[1] == 2        # taken back, and not a record
+    look = lookup.read_source(lookup.OsvSource(lambda body, timeout: (200, answer(*many))), [ELLIPTIC])
+    assert len(look["found"]) == lookup.MAX_KEPT and look["not_listed"] == 220 and look["left_out"] == 0 and look["cut"] is True
+    assert look["found"][0].advisory["id"] == "CVE-2098-1259"                        # the newest of them
+
+
+def test_more_pages_than_this_version_reads_is_said_for_that_package():
+    def transport(body, timeout):
+        return 200, answer(record(), token="there-is-more")
+    look = lookup.read_source(lookup.OsvSource(transport), [ELLIPTIC])
+    assert look["more_pages"] == ["elliptic (npm)"] and look["cut"] is True and look["not_listed"] == 0
+
+
+def test_a_summary_that_rates_the_advisory_is_not_shown_as_its_title():
+    for summary in ("Critical severity: signatures are not checked", "CVSS 9.8 in elliptic", "High-risk flaw in ECDSA"):
+        [made], _ = lookup.read_answer(answer(record(summary=summary)), ELLIPTIC, TODAY)
+        source = made.advisory["sources"][0]
+        assert source["title"] == "GitHub Advisory Database, reviewed record GHSA-test-0001-aaaa"
+        assert summary in source["excerpts"]                    # the publisher's own line stays among its quoted text
+    [plain], _ = lookup.read_answer(answer(record()), ELLIPTIC, TODAY)
+    assert plain.advisory["sources"][0]["title"] == "Written for a test: a signature check is missing"
+
+
+def test_a_long_run_of_blanks_in_the_text_makes_no_blank_piece_and_ranges_are_capped():
+    details = "First words." + " " * 9000 + "Last words.\n\n   \n\nAnother paragraph."
+    affected = {"package": {"ecosystem": "npm", "name": "elliptic"},
+                "ranges": [{"type": "SEMVER", "events": [e for n in range(150) for e in ({"introduced": f"{n}.0.0"}, {"fixed": f"{n}.0.1"})]}]}
+    [made], _ = lookup.read_answer(answer(record(details=details, affected=[affected, affected, affected])), ELLIPTIC, TODAY)
+    excerpts = made.advisory["sources"][0]["excerpts"]
+    assert all(e.strip() for e in excerpts) and "First words." in excerpts and "Last words." in excerpts and "Another paragraph." in excerpts
+    assert len(made.ranges) == lookup.MAX_RANGES
+    snapshot.check_snapshot({"schema": snapshot.SCHEMA, "snapshot": TODAY, "about": "x", "advisories": [made.advisory]})
+
+
+def test_a_redirect_of_the_request_is_not_followed(monkeypatch):
+    """The request goes to one fixed address. A source that answers "go elsewhere" gets no second request."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    asked: list[str] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):          # noqa: N802
+            asked.append(f"POST {self.path}")
+            self.send_response(302)
+            self.send_header("Location", f"http://127.0.0.1:{self.server.server_address[1]}/elsewhere")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def do_GET(self):           # noqa: N802
+            asked.append(f"GET {self.path}")
+            self.send_response(200)
+            self.send_header("Content-Length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            pass
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        monkeypatch.setattr(lookup, "SOURCE_URL", f"http://127.0.0.1:{server.server_address[1]}/v1/query")
+        status, _ = REAL_TRANSPORT(lookup.request_body(ELLIPTIC), 5.0)
+        assert status == 302 and asked == ["POST /v1/query"]
+        # and the reader says so in one plain sentence
+        with pytest.raises(lookup.LookupError_) as refused:
+            lookup.OsvSource(REAL_TRANSPORT).answers(ELLIPTIC)
+        assert str(refused.value) == "OSV (osv.dev) answered with an error (HTTP 302). Nothing was changed."
+        assert asked == ["POST /v1/query", "POST /v1/query"]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def _shipped_snapshot() -> dict:
+    return snapshot.read_snapshot(__import__("ottolab.build", fromlist=["SNAPSHOT"]).SNAPSHOT)
+
+
+def test_a_recorded_snapshot_entry_is_used_byte_for_byte_or_left_out():
+    shipped = _shipped_snapshot()
+    for advisory in shipped["advisories"]:
+        assert lookup.snapshot_advisory(advisory) is advisory            # held to the shape, and not changed in any way
+    good = shipped["advisories"][-1]
+
+    def damaged(**change) -> dict:
+        return {**json.loads(json.dumps(good)), **change}
+
+    def source(**change) -> list:
+        return [{**json.loads(json.dumps(good["sources"][0])), **change}]
+    for bad in (damaged(published=None), damaged(sources=[]), damaged(sources="x"), damaged(extra=1), damaged(id="lower-case"),
+                damaged(aliases=["ok-1234", 7]), damaged(package={"name": "elliptic"}), damaged(sources=source(url="javascript:alert(1)")),
+                damaged(sources=source(url="http://example.com/x")), damaged(sources=source(excerpts=[])), damaged(sources=source(excerpts=["   "])),
+                damaged(sources=source(excerpts=["x" * 4001])), damaged(sources=source(sha256="nope")), damaged(sources=source(title="")),
+                damaged(sources=source(fetched="yesterday")), {k: v for k, v in good.items() if k != "sources"}, "text", None, 7):
+        assert lookup.snapshot_advisory(bad) is None
+    # in a folder: the damaged entries are left out, the good one is listed, and nothing raises
+    mixed = {**shipped, "advisories": [damaged(published=None), damaged(sources=[]), good, damaged(sources=source(url="javascript:alert(1)"))]}
+    found = lookup.from_snapshot(mixed, [ELLIPTIC])
+    assert [f.advisory for f in found] == [good]
+
+
+def test_fuzz_a_damaged_snapshot_file_in_the_recorded_folder_is_left_out_or_read_normally(tmp_path):
+    rng = random.Random(20261120)
+    shipped = _shipped_snapshot()
+    raw = json.dumps(shipped).encode("utf-8")
+    started = time.monotonic()
+    kept = 0
+    for n in range(150):
+        damaged = fuzz.damage_bytes(rng, raw) if n % 2 else json.dumps(fuzz.damage_json(rng, shipped)).encode("utf-8")
+        for old in tmp_path.glob("*.json"):
+            old.unlink()
+        (tmp_path / "a-snapshot.json").write_bytes(damaged)
+        look = lookup.read_source(lookup.RecordedSource(tmp_path), [ELLIPTIC, ECDSA])        # never raises: a file that can't be used is left out
+        for one in look["found"]:
+            kept += 1
+            snapshot.check_snapshot({"schema": snapshot.SCHEMA, "snapshot": TODAY, "about": "x", "advisories": [one.advisory]})
+            assert all(s["url"].startswith("https://") for s in one.advisory["sources"])
+    assert kept > 0 and time.monotonic() - started < 30
+

@@ -67,7 +67,7 @@ class Settings:
 
     @property
     def otto_local_updates(self) -> Path:
-        """Packs built on this computer by the live research command (signed with this computer's own key)."""
+        """Packs built on this computer by the research command (signed with this computer's own key)."""
         return self.data_dir / "otto-updates"
 
     @property

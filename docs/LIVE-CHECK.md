@@ -51,6 +51,8 @@ anything newer than the built-in packs: most will read "No test yet", and then t
      is no pack.
    - A proven check then shows in the list below as a proposal marked **From Otto**, with **Accept** and
      **Reject**. One that was not proven says "No test yet (test pack *version*)" with the reason.
+   - An advisory the run could not settle (a call to Claude failed or met the spending limit, or its trial did
+     not finish) reads **Still open** with the reason. Nothing is signed about it, and you can try it again.
 3. Whatever the outcome, nothing of your assessment should have run, and nothing should be in the test plan that
    you did not accept.
 

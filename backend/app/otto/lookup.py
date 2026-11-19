@@ -45,8 +45,8 @@ SNAPSHOT_SCHEMA = "isogeny.advisory-snapshot/1"
 TIMEOUT_SECONDS = 20.0
 MAX_ANSWER_BYTES = 8 * 1024 * 1024
 MAX_PAGES = 3                  # an answer in more pages than this is cut short, and the look says so
-MAX_PER_PACKAGE = 200          # records of one package that are read at all
-MAX_KEPT = 40                  # advisories one look keeps (the newest first)
+MAX_KEPT = 40                  # advisories one look keeps: first those that name a version the assessment has, then the newest
+MAX_RANGES = 200               # version ranges of one record that are kept for matching
 MAX_EXCERPTS = 12
 MAX_EXCERPT_CHARS = 4000
 MAX_ADVISORY_CHARS = 16000
@@ -111,13 +111,22 @@ def package_of(library: str, purls: list[str]) -> Package | None:
 
 # ---------------------------------------------------------------- the network (one fixed address, on a person's click)
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """The request goes to the one fixed address and nowhere else: a redirect is not followed. It then comes back as
+    the HTTP status it is, which the reader says plainly."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):      # noqa: ARG002, D102
+        return None
+
+
 def _http_transport(body: bytes, timeout: float) -> tuple[int, bytes]:
     """One POST to the source: (HTTP status, answer bytes). Raises OSError when there is no answer at all."""
     request = urllib.request.Request(SOURCE_URL, data=body, method="POST",
                                      headers={"Content-Type": "application/json", "Accept": "application/json",
                                               "User-Agent": "advisory-reader"})      # a plain client name: nothing about who asks
+    opener = urllib.request.build_opener(_NoRedirect)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:   # noqa: S310 (a fixed https address)
+        with opener.open(request, timeout=timeout) as response:   # noqa: S310 (a fixed https address)
             return response.status, response.read(MAX_ANSWER_BYTES + 1)
     except urllib.error.HTTPError as exc:
         return exc.code, exc.read(64 * 1024)
@@ -239,9 +248,16 @@ def _pieces(details: str) -> list[str]:
     for paragraph in re.split(r"\n\s*\n", details):
         paragraph = paragraph.strip()
         while paragraph:
-            out.append(paragraph[:MAX_EXCERPT_CHARS])
+            piece = paragraph[:MAX_EXCERPT_CHARS].strip()
+            if piece:                                   # (a piece of nothing but blanks is no text of the publisher's)
+                out.append(piece)
             paragraph = paragraph[MAX_EXCERPT_CHARS:]
     return out
+
+
+# A publisher's one-line summary is shown as the advisory's title unless it rates the advisory: the app never says how
+# serious an advisory is, so such a line is not put where a title stands (it stays among the publisher's quoted text).
+_RATES = re.compile(r"(?i)\b(severity|cvss|critical|score|high[- ]risk|low[- ]risk|high[- ]impact|low[- ]impact)\b")
 
 
 def _publisher(record_id: str, record: dict) -> tuple[str, str | None]:
@@ -285,13 +301,13 @@ def read_answer(raw: bytes, package: Package, today: str) -> tuple[list[Found], 
     if not isinstance(records, list):
         raise LookupError_(f"The answer of {SOURCE_NAME} is not in the shape it documents.")
     found, left_out = [], 0
-    for record in records[:MAX_PER_PACKAGE]:
+    for record in records:
         made = _one(record, package, today)
         if made is None:
             left_out += 1
         else:
             found.append(made)
-    return found, left_out + max(0, len(records) - MAX_PER_PACKAGE)
+    return found, left_out
 
 
 def _one(record: object, package: Package, today: str) -> Found | None:
@@ -318,6 +334,7 @@ def _one(record: object, package: Package, today: str) -> Found | None:
         more_ranges, more_versions = _events(affected)
         ranges += more_ranges
         versions += more_versions
+    ranges, versions = ranges[:MAX_RANGES], versions[:5000]
     if not ranges and not versions:
         return None                                   # it says nothing about a version of this package
     summary = _plain(record.get("summary"), 300)
@@ -345,10 +362,11 @@ def _one(record: object, package: Package, today: str) -> Found | None:
     others = [a for a in dict.fromkeys([record_id, *aliases]) if a != advisory_id and a.upper() != advisory_id][:8]
     advisory = {"id": advisory_id, "aliases": others, "package": {"name": package.library, "ecosystem": package.ecosystem},
                 "published": published.group(1),
-                "sources": [{"title": summary or f"{publisher} record {record_id}", "publisher": publisher,
+                "sources": [{"title": summary if summary and not _RATES.search(summary) else f"{publisher} record {record_id}",
+                             "publisher": publisher,
                              "url": SOURCE_PAGE + record_id, "fetched_from": SOURCE_URL, "fetched": today, "sha256": digest,
                              "license": licence, "excerpts": kept}]}
-    if not _NAME.match(package.library) or not _NAME.match(package.ecosystem):
+    if snapshot_advisory(advisory) is None:       # (what a look keeps is always in the shape a research run takes)
         return None
     return Found(advisory=advisory, ranges=ranges, versions=versions, record_id=record_id)
 
@@ -383,24 +401,81 @@ def names_version(found: Found, version: object) -> dict:
     return {"state": "cant_tell" if unreadable else "not_affected", "fixed": None}
 
 
+_DAY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_HEX64 = re.compile(r"^[0-9a-f]{64}$")
+MAX_SOURCES = 20
+
+
+def _is_text(value: object, limit: int) -> bool:
+    return isinstance(value, str) and bool(value.strip()) and len(value) <= limit
+
+
+def _is_link(value: object) -> bool:
+    return isinstance(value, str) and value.startswith("https://") and len(value) <= 400 and not any(ch.isspace() for ch in value)
+
+
+def snapshot_advisory(advisory: object) -> dict | None:
+    """One advisory, if it is exactly what the snapshot's shape says an advisory is (the same rule the research side
+    holds an inbox file to, so what a look keeps can always be handed to a research run); None otherwise. Nothing is
+    changed: the publisher's quoted text stays byte for byte. The file is data: a damaged entry is left out, and it
+    never breaks the page that lists it. A link must be an https address."""
+    if not isinstance(advisory, dict) or set(advisory) != {"id", "aliases", "package", "published", "sources"}:
+        return None
+    if not isinstance(advisory["id"], str) or not _ID.match(advisory["id"]):
+        return None
+    aliases, package, sources = advisory["aliases"], advisory["package"], advisory["sources"]
+    if not isinstance(aliases, list) or len(aliases) > 8 or not all(isinstance(x, str) and _ALIAS.match(x) for x in aliases):
+        return None
+    if not isinstance(package, dict) or set(package) != {"name", "ecosystem"} \
+            or not all(isinstance(package[k], str) and _NAME.match(package[k]) for k in ("name", "ecosystem")):
+        return None
+    if not isinstance(advisory["published"], str) or not _DAY.match(advisory["published"]):
+        return None
+    if not isinstance(sources, list) or not 1 <= len(sources) <= MAX_SOURCES:
+        return None
+    total = 0
+    for source in sources:
+        if not isinstance(source, dict) or set(source) != {"title", "publisher", "url", "fetched_from", "fetched", "sha256", "license", "excerpts"}:
+            return None
+        if not _is_text(source["title"], 300) or not _is_text(source["publisher"], 200) or not _is_link(source["url"]) \
+                or not _is_link(source["fetched_from"]):
+            return None
+        if not isinstance(source["fetched"], str) or not _DAY.match(source["fetched"]) \
+                or not isinstance(source["sha256"], str) or not _HEX64.match(source["sha256"]):
+            return None
+        if source["license"] is not None and not _is_text(source["license"], 100):
+            return None
+        excerpts = source["excerpts"]
+        if not isinstance(excerpts, list) or not 1 <= len(excerpts) <= MAX_EXCERPTS or not all(_is_text(e, MAX_EXCERPT_CHARS) for e in excerpts):
+            return None
+        total += sum(len(e) for e in excerpts)
+    if total > MAX_ADVISORY_CHARS:
+        return None
+    return advisory
+
+
 def from_snapshot(snapshot: dict, packages: list[Package]) -> list[Found]:
-    """A recorded snapshot's advisories about these libraries, as they are (their ranges are not known: the reading
-    step reads the versions from the publisher's quoted text)."""
+    """A recorded snapshot's advisories about these libraries (their ranges are not known: the reading step reads the
+    versions from the publisher's quoted text). Each is held to the snapshot's shape; one that is not is left out."""
     wanted = {p.library for p in packages}
     out = []
-    for advisory in snapshot.get("advisories") or []:
-        if isinstance(advisory, dict) and isinstance(advisory.get("package"), dict) and advisory["package"].get("name") in wanted \
-                and isinstance(advisory.get("id"), str) and _ID.match(advisory["id"]):
-            out.append(Found(advisory=advisory, ranges=[], versions=[], record_id=advisory["id"]))
+    for advisory in (snapshot.get("advisories") or [])[:2000]:
+        made = snapshot_advisory(advisory)
+        if made is not None and made["package"]["name"] in wanted:
+            out.append(Found(advisory=made, ranges=[], versions=[], record_id=made["id"]))
     return out
 
 
-def read_source(source, packages: list[Package], now: datetime | None = None) -> dict:
-    """One look: every package asked about once. Returns {"source", "sent", "asked", "found", "left_out", "cut"}:
-    `found` is every usable advisory about these packages, newest first, each once (by its id)."""
+def read_source(source, packages: list[Package], now: datetime | None = None, fits: Callable[[Found], bool] | None = None) -> dict:
+    """One look: every package asked about once. Returns {"source", "sent", "asked", "found", "left_out", "cut",
+    "more_pages", "not_listed"}: `found` is the usable advisories about these packages this look keeps, each once (by
+    its id): first those `fits` says name a version the assessment has (worked out by the caller, on this computer),
+    then the others, the newest first within each. The cut to what is kept comes after that ranking, so an older
+    advisory that fits is never pushed out by newer ones that do not. `more_pages`: packages whose answer had more
+    pages than this version reads. `not_listed`: how many usable advisories were read and not kept."""
     today = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
     found: dict[str, Found] = {}
-    asked, left_out, cut = [], 0, False
+    asked, left_out, more_pages = [], 0, []
     for package in packages:
         pages = source.answers(package)
         count = 0
@@ -411,7 +486,7 @@ def read_source(source, packages: list[Package], now: datetime | None = None) ->
                 found.setdefault(one.advisory["id"], one)
                 count += 1
         if pages and len(pages) >= MAX_PAGES and _page_token(pages[-1]) is not None:
-            cut = True
+            more_pages.append(package.words)
         asked.append({"library": package.library, "ecosystem": package.ecosystem, "name": package.name, "records": count,
                       "sha256": [hashlib.sha256(raw).hexdigest() for raw in pages]})
     if isinstance(source, RecordedSource):
@@ -419,5 +494,8 @@ def read_source(source, packages: list[Package], now: datetime | None = None) ->
             for one in from_snapshot(snapshot, packages):
                 found.setdefault(one.advisory["id"], one)
     newest = sorted(found.values(), key=lambda f: (f.advisory["published"], f.advisory["id"]), reverse=True)
+    if fits is not None:
+        newest.sort(key=lambda f: not fits(f))          # (a stable sort: those that fit first, each group still newest first)
     return {"source": source.key, "source_words": source.words, "sent": source.sends(packages), "asked": asked,
-            "found": newest[:MAX_KEPT], "left_out": left_out, "cut": cut or len(newest) > MAX_KEPT}
+            "found": newest[:MAX_KEPT], "left_out": left_out, "cut": bool(more_pages) or len(newest) > MAX_KEPT,
+            "more_pages": more_pages, "not_listed": max(0, len(newest) - MAX_KEPT)}

@@ -187,13 +187,13 @@ The same walk now also types phase 6b's two commands (see step 4 below); that ve
 
 **Still open for 6a:** the fast set timed with the panel's tests in it; the accuracy check in both modes.
 
-## Step 3: Otto's research loop (built and committed with its documents; walk running, review started)
+## Step 3: Otto's research loop (built, documented, walk green with pictures, reviewed; the review's findings are being fixed)
 
 Commits: `07ad491` (the loop), `255ec6f` (its documents: SPEC sections 2, 3, 7f point 14 and 9; CLAUDE.md;
 LIMITS "Limits of Otto's research loop"; README; LAYOUT), `23d577e` (a run's pack, and a look by itself, are
 in the signed evidence: found while preparing the walk), `ec1d061` (a run is ended with the app).
-`docs/LIVE-CHECK.md` (Kevin's 15-minute check with the real internet and a real key) is written, not committed
-yet.
+`874f9ad` (the walk `e2e/tests/research.spec.ts`, its 19 pictures in `docs/screenshots/phase6-research/`, and
+`docs/LIVE-CHECK.md`, Kevin's 15-minute check with the real internet and a real key).
 
 What is built:
 - **Look for new advisories** (Advisories, block "New advisories"). `backend/app/otto/lookup.py` asks OSV
@@ -222,16 +222,77 @@ research run installs pack 2026.11.1, proves the test for CVE-2024-42460 on elli
 pack 2026.11.2 on this computer and installs it; the check is then proposed (nothing added, nothing of the
 assessment run), and the other two read "No test yet" with the pack's reason.** 9 min 40 s.
 
-The walk `e2e/tests/research.spec.ts` (not committed yet; ports 8032/8465 in isolated mode, 8033/8466 in demo
-mode): on its first run it passed the look, the research run, the proposal and its Accept, and stopped at a
-click of the walk's own (the test card's Run button is named after its test). Corrected; **running again now**
-(`<scratchpad>/e2e-research-2.txt`). Its pictures go to `docs/screenshots/phase6-research/`.
+The walk `e2e/tests/research.spec.ts` (ports 8032/8465 in isolated mode, 8033/8466 in demo mode): **2 passed
+(10.4 minutes)**. In isolated mode: a look (from a folder of recorded advisories), Design and prove tests, pack
+2026.11.2 made on this computer and installed by that click, CVE-2024-42460 "Proven on public copies" and proposed,
+CVE-2024-42459 and CVE-2024-42461 "No test yet" with the reason, the proven check accepted, run and Failed on
+elliptic 6.5.6, the evidence verified. In demo mode: looking works and Design and prove tests is off with its
+reason. Its pictures were taken before the panel had its text box; they are taken again with the next run.
+
+**What the separate reviewer found (report of 07:00 UTC; it ran the tests of the step and probes of its own).**
+State of each finding is kept current here.
+1. **High. A run that gets no answer still installs a pack, and that advisory can never be tried again.** With
+   Live Otto off and a truly new advisory (no recorded answer), the run ended with a pack in which the advisory
+   reads "No test yet: There is no answer for this advisory yet."; the research command then leaves it out for
+   good, also with Live Otto on later. The promised sentence "No recorded answer: this needs Live Otto." showed
+   only in the folded output. The same path, by reading: a failed live call, a refusal or the spending limit; a
+   trial that did not finish is signed as "Not offered". *State: **fixed.** An advisory a run cannot settle (no
+   answer, or a trial that did not finish) is left out of the pack, nothing is signed about it, it reads "Still
+   open" with the reason and can be tried again; a run that settles nothing makes no pack. Proven with the real
+   research command (`test_with_the_real_command_an_advisory_with_no_answer_stays_open_and_a_later_run_takes_it_up`,
+   3 seconds): left open twice, then settled once an answer exists.*
+2. **Medium. After a research run made a pack, no later built-in pack can be installed** (the packs are one chain,
+   and the pack made here is its newest link). Nothing said so. *State: **said plainly** in the box before the
+   run starts, in LIMITS and in the README. Changing it (a built-in pack follows the last built-in one; packs made
+   here get names of their own) is decision 14 for Kevin.*
+3. **Medium. Two clicks at once start two runs** (two browser tabs; the lock was created and never used).
+   *State: **fixed** (the lock is held from the check to the registration; a run's key carries its number; a test
+   starts four clicks at one moment and gets one run).*
+4. **Medium. A pack made here that waits uninstalled is mishandled**: the run installs the older one and records
+   it as its own, or the run's own pack stays waiting with no word. *State: **fixed.** The click installs only the
+   pack its own run made (and only if it holds nothing but that run's advisories). A pack made here that waits
+   turns the button off with "Test pack ..., made on this computer, is waiting to be installed. Install it first:
+   Settings, Test packs, Check for updates.", and its advisories say where they are.*
+5. **Medium. Without Otto installed, one look turns that assessment's evidence from "verified" to "not
+   confirmed"** (the verify command wants the harness for an audit of an empty ledger). *State: **fixed** (an Otto
+   ledger with no entries has nothing to audit; the file verifies with exit code 0, tested with the verifier run
+   without Otto). The readable report now lists looks and runs too.*
+6. **Medium-low. The limits of a look can hide the advisory that fits**: the 40 kept are the newest across all
+   libraries, cut before fit is worked out; a first page of 200 records is not the newest; two sentences about
+   the cut are untrue. *State: **fixed.** Every record of up to three pages is read; what names a version you have
+   is ranked first and the cut to 40 comes after; the notes say which cut happened. (Go's standard library, which
+   the Acme Pay dependency list names, has many advisories: without this the first real look could have hidden
+   the ones that fit.)*
+7. **Medium-low. A damaged file in the folder of recorded advisories breaks the page and the evidence**, and
+   that reader has no fuzz test. *State: **fixed** (each advisory of such a file is held to the snapshot's exact
+   shape and used byte for byte, or left out; a seeded fuzz test).*
+8. **Low. Eight sentences that can be untrue** (an unreadable version; "Nothing was installed." after a built-in
+   pack was; "with its proposal" where nothing is proposed; Java named among what a look covers; the box with
+   Live Otto on; the signer label of a pack made with Live Otto off; the command's last line; one SPEC example).
+   *State: **all eight reworded**, with a test of the block's sentences.*
+9. **Low. The real-run test and the walk expect pack 2026.11.2 and fail from 1 December 2026** (a pack made here
+   is named by today's month). *State: **fixed** (both read the version from the run).*
+10. **Low. Hardening**: a redirect of the request is followed; any number of ranges is kept; a text of blanks is
+    kept; a publisher's title could carry a rating; the 4-hour limit never ends a run that hangs. *State: **fixed**
+    (a redirect is not followed, tested against a local server; at most 200 ranges of a record; no blank piece;
+    a summary that rates is not shown as a title; a timer ends a run after four hours, with what it started).*
+
+Checked by the reviewer and found met: only the package name and ecosystem are sent; the answer is treated as
+data (wrong shape, oversize, deep nesting and HTTP errors get one sentence and nothing is kept; no severity is
+read); a check is proposed only from an installed pack whose test has a supported, replayed trial; looking
+proposes nothing and neither click adds to a plan or runs a test of the assessment; closed, demo mode and
+without Otto are refused with the reason; looks, runs and the run's pack are in the signed file and five kinds
+of change to them fail verify; both tables are add-only; no test reaches the network or Claude; answer keys,
+wireframes, `research/`, the checkers and the pinned scripts are untouched; nothing on screen goes beyond SPEC
+section 2. Could not be checked by anyone here: a real answer from OSV, and a live Claude run.
+
+Tests after the fixes: `tests/otto` fast set **361 passed** (83 seconds; `test_lookup.py` 23 with 8 new,
+`test_discover.py` 24 with 9 new); lint, type check and generated files clean.
 
 **Still to do for step 3:**
-1. The walk green; commit it with its pictures, `docs/LIVE-CHECK.md` and the walk's line in CLAUDE.md (that
-   line is in the working tree).
-2. The separate reviewer's report (started): fix what it finds.
-3. Check that the four answer keys still match (the accuracy check, both modes).
+1. Run the real run in containers (`tests/otto/test_discover_real.py`) and the walk (`e2e/tests/research.spec.ts`)
+   again on the fixed code, and take the walk's pictures again (the panel has its text box now).
+2. Check that the four answer keys still match (the accuracy check, both modes).
 
 What Kevin must know about step 3 (also in "Decisions for Kevin"):
 - **The read from osv.dev could not be tried from the build machine** (that address is not reachable from
@@ -278,6 +339,46 @@ filters). Lint, type check and generated files clean.
   check, its recorded answers and its ledger record. The CLAUDE.md rule changes 3, 4 and 8 of the plan (Claude's
   jobs, what a run is, when a live call is made) are therefore **not** applied yet.
 
+**What the separate reviewer of 6b found (report of 07:20 UTC, on commit `7a0898f`; it asked the committed code
+about 4,500 made-up sentences at nine stages of a demo assessment).** State of each finding is kept current here.
+1. **High. A "Which one?" option did not lead to the thing it names** (a title with a colon looped or showed
+   another suggestion's card; a reject could carry the rest of the title as its reason). *State: (a), (b) and (d)
+   fixed in `c7472a4` (titles are said without their colons, an exact title wins, and the walk now says every
+   option of every "Which one?"). Still open: (c) a title that holds a kind word ("Fix acme-sign 1.4.2 before
+   ..." is a plan change, and "fix" narrows the search to fixes), and (e) the list holds things the button is not
+   offered for and is cut at 8 without saying so.*
+2. **High. "Close the Fixing tab" does not close the tab in an open assessment**: the kept sentence is filed
+   under that thread and changes the tab's mark, so the tab is back at once with a dot. For the same reason any
+   typed sentence brings a closed tab back. *State: open.*
+3. **Medium. "approve it" counts every reviewer as missing** (it reads fields the rows do not have). *State: open.*
+4. **Medium. In a closed assessment a page-only command says a button is ready**, and "What can you do?" still
+   lists decisions and starts. *State: open.*
+5. **Medium. The card that comes back for a sentence goes stale** (it is not replaced by later reads; the server
+   refuses a stale Confirm, so nothing wrong is recorded). *State: open.*
+6. **Medium. Checks filtered by a command can be misread**: with a Result value no row has, the control shows
+   "All results" and the Test plan part is gone with no word; "Run all" still runs all tests while only some
+   are listed; on Evidence the Result filter narrows only the Encryption tests table. *State: open.*
+7. **Medium to low. A sentence with no thread is kept and shown nowhere** (typed beside the Overview, or "open
+   settings"). *State: open.*
+8. **Low to medium. "Opened Checks." with no file in, while the app shows Import.** *State: open.*
+9. **Low. Sentences read into something else** (all only move): "show open checks", "tick Dana as reviewer",
+   "apply the filter", "Otto: run all", "open the plan". *State: open.*
+10. **Low. Wording**: "filtered to Accepted" where the control says "Added"; "no check reads Retest now";
+    "There is One suggestion"; "Open where it led" drops the filter. *State: open.*
+11. **Low. Documents**: SPEC section 3 still says nothing is stored for the panel; LIMITS on short names; what is
+    kept with each sentence (name, time, open item); `assistant_say` has no closed check of its own; no
+    `docs/screenshots/phase6b/` folder (the two pictures are in `phase6a/`). *State: open.*
+12. **Tests the plan names that are thin**: Approve with some approvals given, a page-only answer in a closed
+    assessment, the reply card after its entry changed, a tab command where the read after it differs; 8 of the
+    32 lines are never asked against an assessment; 19 lines have one wording. *State: open.*
+
+Checked by the reviewer and found met: nothing happens before Confirm but moving around (all eight kinds of
+answer traced through the panel); a card for a command is the panel's own card; a button that is off gives the
+page's reason and no Confirm step; typed text is data (fixed patterns, 500 characters, stored and drawn as text);
+the table is add-only; the package only reads and no model is asked; address filters; counts in answers follow
+the pages' own rule; no "secure", score, severity or sentence about what Otto did; the documents say plainly
+that the Claude step is not built.
+
 ## Decisions for Kevin (collected so far)
 
 1. Run the Codespace check (`docs/CODESPACE-CHECK.md`, about 30 minutes): it is the part of fix 8 that
@@ -313,6 +414,21 @@ filters). Lint, type check and generated files clean.
     python-ecdsa). More names can be added; tell me which you use.
 13. `docs/LIVE-CHECK.md` is your 15-minute check with the real internet and a real key. Part 1 (the first real
     look at osv.dev) is free and needs no key.
+14. Research loop: test packs install in one order. Once a research run has made a pack on a computer, a built-in
+    pack that is published later can't be installed in that data folder, and a pack made here takes the next
+    number of its month (2026.11.3), which a later built-in pack could also carry. The box, LIMITS and the README
+    say so. Should a built-in pack be allowed to follow the last built-in one, and should packs made here get
+    names of their own (for example "2026.11.2-here.1")? That changes how packs chain, and what the verify
+    command checks, so I did not do it without you.
+15. Research loop: a pack made here that was never installed (made by hand, or by a run cut off after signing) is
+    not installed by a later click; the button is off until a person installs it in Settings. The other way
+    (the click installs it too, and the box says so) is possible. Which do you want?
+16. Phase 6c: the panel's status line stays "Live Otto is off." / "Live Otto is on.". The plan's longer line
+    ("Otto answers the fixed questions from this assessment's records. Free-form answers need Live Otto.") says
+    what Otto does, which your wording rule of 19 November rules out, and promises free-form answers that are not
+    built. How should it read once they are?
+17. Phase 6c: one sentence about each page ("What is this page for?") is new wording of mine, ten sentences in
+    `backend/app/assistant/words.py` (`PAGE_FOR`). Please read them.
 
 ## The exact next action
 
