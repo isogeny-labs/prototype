@@ -1,6 +1,7 @@
 import { vi } from "vitest";
 import type {
   Address,
+  AssistantView,
   Claim,
   EvidenceExport,
   FixLine,
@@ -128,11 +129,51 @@ export const run: VerifyRun = {
 type Reply = { status?: number; body: unknown };
 type Route = Reply | ((init: RequestInit | undefined) => Reply);
 
-/** Replaces fetch with a table of "METHOD /path" -> reply. Unknown calls fail the test loudly. */
+/** Phase 6a: what the Otto panel reads beside a page with nothing to suggest (the quiet default of `mockApi`). */
+export function quietAssistant(over: Partial<AssistantView> = {}): AssistantView {
+  return {
+    assessment_id: 101,
+    plan_id: 1,
+    title: "Otto",
+    status: { text: "Live Otto is off.", live: false, link: { label: "Settings", link: { page: "settings", item: null, section: "live-otto" } } },
+    notices: [],
+    note: "Looking at this panel runs nothing. Each button here first shows what it will do and waits for Confirm.",
+    recorded_as: {
+      title: "Who decides",
+      label: "Your name",
+      value: "",
+      recorded_as: "You",
+      typed: false,
+      line: "Recorded as You, with the time.",
+      save: "Save",
+      note: "Decisions on proposals are recorded under this name, with the time. This app has one login and does not check who is at the keyboard. Left empty, a decision is recorded as “You”. A decision already recorded keeps the name it was made under.",
+      max: 60,
+      ask_label: "Your name (asked once; kept in Settings)",
+    },
+    page: "overview",
+    page_label: "Overview",
+    thread: null,
+    tabs: [],
+    on_page: { title: "On this page", entries: [], empty: "Nothing is suggested on this page.", empty_link: null },
+    elsewhere: { title: "Elsewhere: 0 more", count: 0, lines: [], empty: "Nothing from Otto is waiting for a decision." },
+    waiting: 0,
+    busy: false,
+    ...over,
+  };
+}
+
+const ASSISTANT_READ = /^GET \/api\/assessments\/(\d+)\/assistant\?page=([^&]+)/;
+
+/** Replaces fetch with a table of "METHOD /path" -> reply. Unknown calls fail the test loudly. One read is answered
+ * even when the table does not name it: the Otto panel's own read beside a page of an assessment (phase 6a), with a
+ * panel that has nothing to suggest. A test about the panel names that read itself. */
 export function mockApi(routes: Record<string, Route>) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const key = `${init?.method ?? "GET"} ${String(input)}`;
-    const route = routes[key];
+    const panel = routes[key] ? null : ASSISTANT_READ.exec(key);
+    const route: Route | undefined = panel
+      ? { body: quietAssistant({ assessment_id: Number(panel[1]), page: decodeURIComponent(panel[2] ?? "overview") }) }
+      : routes[key];
     if (!route) throw new Error(`Unexpected request: ${key}`);
     const reply = typeof route === "function" ? route(init) : route;
     return new Response(JSON.stringify(reply.body), {
@@ -144,8 +185,18 @@ export function mockApi(routes: Record<string, Route>) {
   return fetchMock;
 }
 
+/** Every request the screens made, in order, without the Otto panel's own read (it is not part of what a page
+ * sends; tests about the panel look at `panelReads`). */
 export function calls(fetchMock: ReturnType<typeof mockApi>): string[] {
+  return allCalls(fetchMock).filter((key) => !ASSISTANT_READ.test(key));
+}
+
+export function allCalls(fetchMock: ReturnType<typeof mockApi>): string[] {
   return fetchMock.mock.calls.map(([input, init]) => `${init?.method ?? "GET"} ${String(input)}`);
+}
+
+export function panelReads(fetchMock: ReturnType<typeof mockApi>): string[] {
+  return allCalls(fetchMock).filter((key) => ASSISTANT_READ.test(key));
 }
 
 export const notFound: Reply = { status: 404, body: { error: { message: "Not found", line: null, field: null } } };

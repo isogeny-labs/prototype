@@ -113,7 +113,7 @@ describe("app shell", () => {
       ...extra,
     }) as Routes;
 
-  it("shows the wordmark, the sidebar with its pages, the demo-mode line and the co-pilot panel", async () => {
+  it("shows the wordmark, the sidebar with its pages, the demo-mode line and the Otto panel", async () => {
     at("inventory/import", 111);
     mockApi(emptyRoutes());
     render(<App />);
@@ -128,7 +128,7 @@ describe("app shell", () => {
     for (const name of ["Verify", "Advisories", "Checks", "Evidence", "Fixes", "Migration"]) expect(isOff(name), name).toBe(true);
     expect(isOff("Overview")).toBe(false);
     expect(isOff("Import")).toBe(false);
-    expect(screen.getByTestId("copilot-panel")).not.toBeNull();
+    expect(screen.getByTestId("otto-panel")).not.toBeNull();
     expect(document.body.textContent).not.toMatch(/Coming in phase 2/);
   });
 
@@ -149,23 +149,20 @@ describe("app shell", () => {
     expect(screen.queryByText(/Demo mode/)).toBeNull();
   });
 
-  it("has a collapsible co-pilot panel with the exact title, an empty state and no input", async () => {
-    // Phase 5a: the panel sits beside the pages of an assessment.
+  it("has the Otto panel beside the pages of an assessment: its title, the status line, and one way to hide it", async () => {
+    // Phase 6a: the panel is the Otto assistant. The old label and the panel's own Hide button are gone; the top bar's
+    // toggle hides and shows it (src/test/Shell.test.tsx).
     at("inventory/verify");
     mockApi(withResults());
     render(<App />);
-    const panel = await screen.findByTestId("copilot-panel");
-    expect(within(panel).getByRole("heading", { name: "Prototype assistant (no AI model connected)" })).not.toBeNull();
-    expect(within(panel).getByText(/The assistant isn't built yet/)).not.toBeNull();
-    expect(within(panel).queryByRole("textbox")).toBeNull();
-
-    const toggle = screen.getByTestId("copilot-toggle");
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    expect(within(panel).queryByText(/The assistant isn't built yet/)).toBeNull();
-    fireEvent.click(toggle);
-    expect(within(panel).getByText(/The assistant isn't built yet/)).not.toBeNull();
+    const panel = await screen.findByTestId("otto-panel");
+    expect(within(panel).getByRole("heading", { level: 2, name: "Otto" })).not.toBeNull();
+    expect(text(await within(panel).findByTestId("otto-status"))).toBe("Live Otto is off. Settings");
+    expect(within(panel).getByTestId("otto-status-link").getAttribute("href")).toBe("#/settings?section=live-otto");
+    expect(text(within(panel).getByTestId("otto-empty"))).toBe("Nothing is suggested on this page.");
+    expect(document.body.textContent).not.toMatch(/Prototype assistant|no AI model connected|The assistant isn't built yet/);
+    expect(within(panel).queryByRole("button", { name: /Hide/ })).toBeNull();
+    expect(within(panel).queryByRole("textbox")).toBeNull(); // the text box comes with phase 6b
   });
 
   it("never uses the word 'secure' as a verdict or shows a score", async () => {
@@ -252,7 +249,7 @@ describe("full flow", () => {
     goTo("Evidence");
     expect(await screen.findAllByTestId("evidence-row")).toHaveLength(5);
     expect(currentPages()).toEqual(["Evidence"]);
-    expect(screen.getByTestId("copilot-panel")).not.toBeNull();
+    expect(screen.getByTestId("otto-panel")).not.toBeNull();
 
     goTo("Checks");
     expect(await screen.findAllByTestId("test-card")).toHaveLength(5);
@@ -286,7 +283,7 @@ describe("full flow", () => {
     expect(currentPages()).toEqual(["Fixes"]);
     // With nothing asked for, the page opens on the first fix.
     expect(summary.getAttribute("data-fix-id")).toBe(CODE_FIX);
-    expect(screen.getByTestId("copilot-panel")).not.toBeNull();
+    expect(screen.getByTestId("otto-panel")).not.toBeNull();
     expect(screen.getByTestId("mode-line")).not.toBeNull();
 
     goTo("Evidence");

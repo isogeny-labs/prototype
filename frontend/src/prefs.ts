@@ -36,7 +36,35 @@ export const prefs = {
     return Number.isFinite(v) && v > 0 ? v : 440;
   },
   setPanelWidth: (v: number) => write("evidence-lab-panel-width", String(Math.round(v))),
+  // Phase 6a: the Otto panel's tabs, for one assessment in this browser. `closed`: a tab closed with its ×, with the
+  // tab's mark at that moment (it comes back when its thread has something new). `seen`: the mark of each tab when
+  // it was last open (anything newer draws a dot). Closing a tab changes nothing in the assessment.
+  ottoTabs: (assessmentId: number): OttoTabs => {
+    try {
+      const value: unknown = JSON.parse(read(`evidence-lab-otto-tabs-${assessmentId}`) ?? "{}");
+      const part = (key: string): Record<string, string> => {
+        const found = typeof value === "object" && value !== null ? (value as Record<string, unknown>)[key] : null;
+        const out: Record<string, string> = {};
+        if (typeof found === "object" && found !== null)
+          for (const [k, v] of Object.entries(found as Record<string, unknown>)) if (typeof v === "string") out[k] = v;
+        return out;
+      };
+      return { closed: part("closed"), seen: part("seen") };
+    } catch {
+      return { closed: {}, seen: {} };
+    }
+  },
+  setOttoTabs: (assessmentId: number, value: OttoTabs) => write(`evidence-lab-otto-tabs-${assessmentId}`, JSON.stringify(value)),
+  // Phase 6a: the panel asks for a name once (its first Confirm of a decision). Asked or not is kept here; the name
+  // itself is kept by the app, in Settings.
+  ottoNameAsked: () => read("evidence-lab-otto-name") === "asked",
+  setOttoNameAsked: () => write("evidence-lab-otto-name", "asked"),
 };
+
+export interface OttoTabs {
+  closed: Record<string, string>;
+  seen: Record<string, string>;
+}
 
 /** Puts the chosen look on the page: dark, light, or whatever this computer prefers. */
 export function applyTheme(theme: Theme): void {

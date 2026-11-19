@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { usePanelStamp } from "../changes";
 import {
   api,
   ApiError,
@@ -106,6 +107,8 @@ export function MigrationScreen({
     planChanged.current = onPlanChanged;
   }, [onPlanChanged]);
 
+  // Phase 6a: a decision or a start sent from the Otto panel: this page reads its view again.
+  const panelStamp = usePanelStamp();
   useEffect(() => {
     let live = true;
     api
@@ -119,7 +122,7 @@ export function MigrationScreen({
     return () => {
       live = false;
     };
-  }, [importId]);
+  }, [importId, panelStamp]);
 
   // The first answer (the GET may have made the plan) and the end of a measurement both tell the app.
   const lastBusy = useRef<boolean | null>(null);

@@ -233,19 +233,20 @@ test("evidence opens and shows raw output, with no private key in it", async () 
   expect(shownKeys.every((value) => value === "[test private key withheld]")).toBe(true);
 });
 
-test("the assistant panel has its title and can be collapsed", async () => {
-  const panel = page.getByTestId("copilot-panel");
-  const title = panel.getByRole("heading", { name: "Prototype assistant (no AI model connected)" });
-  await expect(title).toBeVisible();
-  await expect(panel.getByRole("textbox")).toHaveCount(0);
+test("the Otto panel has its title and status line, and the top bar's toggle hides and shows it", async () => {
+  // Phase 6a: the panel is the Otto assistant. Its old label and its own Hide button are gone.
+  const panel = page.getByTestId("otto-panel");
+  await expect(panel.getByRole("heading", { name: "Otto", level: 2 })).toBeVisible();
+  await expect(panel.getByTestId("otto-status")).toContainText("Live Otto is off.");
+  await expect(page.getByText("Prototype assistant (no AI model connected)")).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: /Hide/ })).toHaveCount(0);
 
-  await page.getByTestId("copilot-toggle").click();
-  await expect(page.getByTestId("copilot-toggle")).toHaveAttribute("aria-expanded", "false");
-  await expect(panel.getByText("The assistant isn't built yet")).toHaveCount(0);
+  await page.getByRole("button", { name: "Hide the assistant" }).click();
+  await expect(page.getByTestId("otto-panel")).toHaveCount(0);
   await shot(page, "07-copilot-collapsed.png", false);
 
-  await page.getByTestId("copilot-toggle").click();
-  await expect(panel.getByText("The assistant isn't built yet")).toBeVisible();
+  await page.getByRole("button", { name: "Show the assistant" }).click();
+  await expect(page.getByTestId("otto-panel").getByRole("heading", { name: "Otto", level: 2 })).toBeVisible();
 });
 
 test("Continue to checks shows the five suggested tests", async () => {

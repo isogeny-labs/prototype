@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useState } from "react";
+import { usePanelStamp } from "../changes";
 import { api, errorMessage, type FixSection, type FixesView } from "../api";
 import { ChangeBox } from "./change/ChangeBox";
 import { FixTable } from "./fixes/FixTable";
@@ -49,6 +50,8 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
     setDismissed(true);
   }, []);
 
+  // Phase 6a: a decision or a start sent from the Otto panel: this page reads its view again.
+  const panelStamp = usePanelStamp();
   useEffect(() => {
     let live = true;
     api
@@ -62,7 +65,7 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
     return () => {
       live = false;
     };
-  }, [planId]);
+  }, [planId, panelStamp]);
 
   // While a proof (or anything else) runs, ask again every second. Not while a button's own call is
   // on its way: its answer is the newer view, and an older one must not land on top of it.

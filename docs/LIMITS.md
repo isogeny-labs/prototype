@@ -542,6 +542,50 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
   also a rejection, before any check has run.
 
+## Limits of phase 6a (the Otto assistant: suggestions and three tabs; 19 November 2026)
+
+What is real:
+
+- **The panel's one read is real, and it only reads.** It is worked out on every read from the same views the pages
+  draw from, so a button in the panel can be pressed exactly when its page's button can, and reads the same reason
+  when it cannot. A test compares every table row and every file of the data folder before and after a read, and
+  another reads the panel's code and fails if it imports or calls anything that decides, runs or changes.
+- **A decision in the panel is the page's own request.** There is one decision route. A test makes the same two
+  decisions on two copies of one assessment, on the page and in the panel, and compares the database rows, the Otto
+  ledger's entries and the evidence part field for field.
+- **The name you type is really recorded.** It goes into the database row, the Otto ledger entry and the evidence
+  file of each decision made after it was typed.
+
+What is limited:
+
+- **No AI model is in the panel in this phase.** It does not take commands or questions yet (phases 6b and 6c), and
+  it has no text box. Its suggestions, next steps and "What this means" come from fixed rules.
+- **The typed name is not an identity.** The app has one login. It does not check who is at the keyboard, and says
+  so where the name is asked for and in Settings. A decision recorded before a name was typed stays "You". Approvals
+  of a pull request and of a server change still use "You" and the two demo reviewers.
+- **The name is asked for once per browser.** If you leave it empty, the field does not come back in that browser;
+  Settings, **Who decides**, is where to type it later.
+- **Closed tabs and the dot are remembered in the browser, not by the app.** In another browser, or after clearing
+  the browser's data, every tab is open again and nothing counts as seen. Nothing about tabs is in the evidence.
+- **"This thread so far" is a list, not a history of everything.** It holds decided suggestions, the reviewed result
+  of each test (the first run and, where there is one, the newest retest, as Evidence shows them) and where each fix
+  stands now. Earlier states of a fix and older runs of a test are on their pages, not in the thread.
+- **A next step is offered for the buttons listed in the spec only.** Approve, Merge pull request, Apply, Roll back,
+  Close and sign off, the "I own this system" tick, a migration option, Mark reviewed and the downloads are never
+  in the panel. Open pull request and Ask for approval are sent with the reviewers the page ticks by default; to
+  pick others, use the page.
+- **The panel knows the open item only where the page has a side panel.** On pages without one (the Overview, the
+  Roadmap's bands) it knows the page only.
+- **A page's own first read can still write.** Opening the Migration page writes each system's measurement down and
+  locks it, once, as it has since phase 4a. The panel's read does not do that in its place: beside any page it
+  writes nothing (a test opens the panel on an assessment whose pages nobody has opened and compares everything).
+- **Two sentences differ from the plan's wording.** The plan had "Otto has nothing to suggest on this page." and
+  "Bring in a scanner file to start. Otto has nothing to suggest yet." Since the 5c fixes no sentence says what Otto
+  did or has, so the panel says "Nothing is suggested on this page." and "Bring in a scanner file to start. Nothing
+  is suggested yet." This is for Kevin to confirm.
+- **The panel's read takes about a quarter of a second on the Acme Pay demo**, because it works everything out
+  again each time. While something runs it asks again every two seconds, not every second.
+
 ## Limits of the 5c fixes (19 November 2026)
 
 Six fixes after Kevin's review of phase 5c: a new Codespace starts the app, Checks in four parts, Open in new tab,

@@ -105,7 +105,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NameBody"
+                "$ref": "#/components/schemas/app__web__projects__NameBody"
               }
             }
           },
@@ -2186,6 +2186,35 @@
         }
       }
     },
+    "/api/otto/name": {
+      "post": {
+        "summary": "Decision Name",
+        "description": "Phase 6a: the name a person types once; their decisions on proposals are recorded under it from then on.",
+        "operationId": "decision_name_api_otto_name_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__web__otto__NameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OttoSettingsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/plans/{plan_id}/advisories": {
       "get": {
         "summary": "Advisories",
@@ -2294,6 +2323,64 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OttoProposal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assessments/{assessment_id}/assistant": {
+      "get": {
+        "summary": "Assistant",
+        "description": "What the panel shows beside this page of this assessment, with this item open: the open tabs, what fits the\npage, what waits elsewhere and the status line.",
+        "operationId": "assistant_api_assessments__assessment_id__assistant_get",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 60,
+              "default": "overview",
+              "title": "Page"
+            }
+          },
+          {
+            "name": "item",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Item"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantView"
                 }
               }
             }
@@ -4542,6 +4629,865 @@
           "next_step"
         ],
         "title": "AssessmentView"
+      },
+      "AssistantAction": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "verify",
+              "run",
+              "run_all",
+              "retest",
+              "connect",
+              "run_proof_again",
+              "open_pull_request",
+              "retest_now",
+              "try",
+              "ask_approval",
+              "measure_library",
+              "measure_all",
+              "measure_status",
+              "open"
+            ],
+            "title": "Type"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "import_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Id"
+          },
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id",
+            "description": "A test of the plan (Run)."
+          },
+          "fix_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix Id"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change",
+            "description": "A server change's key (Try on a test copy, Ask for approval)."
+          },
+          "row": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row",
+            "description": "A library row (Measure on a public copy)."
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "reviewers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewers",
+            "description": "The reviewers the page ticks by default."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\"open\": where it goes. Opening a page needs no Confirm."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "plan_id",
+          "import_id",
+          "item_id",
+          "fix_id",
+          "change",
+          "row",
+          "version",
+          "component",
+          "reviewers",
+          "link"
+        ],
+        "title": "AssistantAction",
+        "description": "The request of the page's own button. The browser sends it on Confirm, through the same call the page uses."
+      },
+      "AssistantBadge": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "tone"
+        ],
+        "title": "AssistantBadge"
+      },
+      "AssistantConfirm": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "names": {
+            "type": "string",
+            "title": "Names",
+            "description": "\"This is the Run all button on Checks.\""
+          },
+          "confirm": {
+            "type": "string",
+            "title": "Confirm",
+            "description": "\"Confirm\""
+          },
+          "cancel": {
+            "type": "string",
+            "title": "Cancel",
+            "description": "\"Cancel\""
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reject only: the optional reason."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "names",
+          "confirm",
+          "cancel",
+          "reason"
+        ],
+        "title": "AssistantConfirm",
+        "description": "The Confirm step: what will happen and what will not, and which button of which page it presses."
+      },
+      "AssistantDecision": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "reject",
+              "undo",
+              "reconsider"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "confirm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantConfirm"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the button is off: there is nothing to confirm."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "can",
+          "blocked_reason",
+          "confirm"
+        ],
+        "title": "AssistantDecision",
+        "description": "One button of a suggestion: the page's own button, with the page's own reason when it is off."
+      },
+      "AssistantElsewhere": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Elsewhere: 2 more\""
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantElsewhereLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty",
+            "description": "\"Nothing from Otto is waiting for a decision.\" when nothing waits anywhere."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "count",
+          "lines",
+          "empty"
+        ],
+        "title": "AssistantElsewhere"
+      },
+      "AssistantElsewhereLine": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "\"Fixes: 1 proposed fix, Update elliptic to 6.5.7\""
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "thread": {
+            "type": "string",
+            "enum": [
+              "testing",
+              "fixing",
+              "planning"
+            ],
+            "title": "Thread"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "count",
+          "link",
+          "thread"
+        ],
+        "title": "AssistantElsewhereLine"
+      },
+      "AssistantEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "suggestion",
+              "next",
+              "meaning",
+              "result",
+              "fix_step"
+            ],
+            "title": "Kind"
+          },
+          "what": {
+            "type": "string",
+            "title": "What",
+            "description": "Its line in the one table of kinds, e.g. \"next:run_all\"."
+          },
+          "thread": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "testing",
+                  "fixing",
+                  "planning"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread"
+          },
+          "mark": {
+            "type": "string",
+            "title": "Mark",
+            "description": "\"From Otto\", \"Next step\", \"What this means\", \"Result\" or \"Fix\""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At",
+            "description": "When its cause happened (ISO): the order of a thread so far."
+          },
+          "badge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantBadge"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "where": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabeledLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where it lives: \"On Advisories\", with the link."
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/LabeledLink"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoProposal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A suggestion: the proposal exactly as its page shows it."
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantDecision"
+            },
+            "type": "array",
+            "title": "Decisions"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantStep"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "open_item": {
+            "type": "boolean",
+            "title": "Open Item",
+            "description": "It is about the item that is open on the page."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "what",
+          "thread",
+          "mark",
+          "title",
+          "text",
+          "at",
+          "badge",
+          "where",
+          "links",
+          "proposal",
+          "decisions",
+          "step",
+          "open_item"
+        ],
+        "title": "AssistantEntry",
+        "description": "One entry of the panel: a suggestion (one of Otto's proposals), a next step (a button of a page) or what a\nresult means; and, in a thread so far, a reviewed result or where a fix stands."
+      },
+      "AssistantOnPage": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty"
+          },
+          "empty_link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabeledLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "entries",
+          "empty",
+          "empty_link"
+        ],
+        "title": "AssistantOnPage"
+      },
+      "AssistantReason": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Reason (optional, one short line)\""
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "max"
+        ],
+        "title": "AssistantReason"
+      },
+      "AssistantStatus": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "\"Live Otto is off.\" or \"Live Otto is on.\""
+          },
+          "live": {
+            "type": "boolean",
+            "title": "Live"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabeledLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "live",
+          "link"
+        ],
+        "title": "AssistantStatus",
+        "description": "The one line under the title: what Settings says about Live Otto, with the way there when it is off."
+      },
+      "AssistantStep": {
+        "properties": {
+          "needs": {
+            "type": "string",
+            "enum": [
+              "confirm",
+              "nothing"
+            ],
+            "title": "Needs",
+            "description": "\"nothing\": it only opens a page, at once."
+          },
+          "action": {
+            "$ref": "#/components/schemas/AssistantAction"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason",
+            "description": "The page's own reason when its button is off."
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "confirm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantConfirm"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "needs",
+          "action",
+          "can",
+          "blocked_reason",
+          "running",
+          "progress",
+          "confirm"
+        ],
+        "title": "AssistantStep"
+      },
+      "AssistantTab": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "testing",
+              "fixing",
+              "planning"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "waiting": {
+            "type": "integer",
+            "title": "Waiting",
+            "description": "How many of this thread's suggestions nobody has decided yet."
+          },
+          "mark": {
+            "type": "string",
+            "title": "Mark",
+            "description": "Changes when the thread gets a new entry: the browser keeps it for a closed tab and for the dot."
+          },
+          "so_far_title": {
+            "type": "string",
+            "title": "So Far Title"
+          },
+          "so_far": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantEntry"
+            },
+            "type": "array",
+            "title": "So Far"
+          },
+          "so_far_empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "So Far Empty"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "waiting",
+          "mark",
+          "so_far_title",
+          "so_far",
+          "so_far_empty"
+        ],
+        "title": "AssistantTab"
+      },
+      "AssistantView": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Otto\""
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssistantStatus"
+          },
+          "notices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notices",
+            "description": "The closed sentence, and what Settings says when Otto is not installed."
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "recorded_as": {
+            "$ref": "#/components/schemas/OttoName",
+            "description": "Who a decision is recorded as, and whether a name has been typed yet."
+          },
+          "page": {
+            "type": "string",
+            "title": "Page"
+          },
+          "page_label": {
+            "type": "string",
+            "title": "Page Label"
+          },
+          "thread": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "testing",
+                  "fixing",
+                  "planning"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread",
+            "description": "The tab this page selects (null on the Overview)."
+          },
+          "tabs": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantTab"
+            },
+            "type": "array",
+            "title": "Tabs",
+            "description": "At most three, and only the open ones."
+          },
+          "on_page": {
+            "$ref": "#/components/schemas/AssistantOnPage"
+          },
+          "elsewhere": {
+            "$ref": "#/components/schemas/AssistantElsewhere"
+          },
+          "waiting": {
+            "type": "integer",
+            "title": "Waiting",
+            "description": "Undecided suggestions on this page plus elsewhere."
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "Something is running: ask again in a second."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "plan_id",
+          "title",
+          "status",
+          "notices",
+          "note",
+          "recorded_as",
+          "page",
+          "page_label",
+          "thread",
+          "tabs",
+          "on_page",
+          "elsewhere",
+          "waiting",
+          "busy"
+        ],
+        "title": "AssistantView"
       },
       "Badge": {
         "properties": {
@@ -11384,20 +12330,6 @@
         ],
         "title": "MigrationView"
       },
-      "NameBody": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 200,
-            "title": "Name"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "title": "NameBody"
-      },
       "NewAssessmentBody": {
         "properties": {
           "name": {
@@ -11758,6 +12690,72 @@
           "blocked_reason"
         ],
         "title": "OttoLiveSwitch"
+      },
+      "OttoName": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Who decides\""
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Your name\""
+          },
+          "value": {
+            "type": "string",
+            "title": "Value",
+            "description": "The name a person typed; empty until then."
+          },
+          "recorded_as": {
+            "type": "string",
+            "title": "Recorded As",
+            "description": "The typed name, or \"You\"."
+          },
+          "typed": {
+            "type": "boolean",
+            "title": "Typed"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line",
+            "description": "\"Recorded as You, with the time.\""
+          },
+          "save": {
+            "type": "string",
+            "title": "Save"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          },
+          "ask_label": {
+            "type": "string",
+            "title": "Ask Label",
+            "description": "The label of the field in the Otto panel's first Confirm step."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "label",
+          "value",
+          "recorded_as",
+          "typed",
+          "line",
+          "save",
+          "note",
+          "max",
+          "ask_label"
+        ],
+        "title": "OttoName",
+        "description": "Phase 6a: who a decision on a proposal is recorded as. A name typed once, or \"You\"."
       },
       "OttoPackCard": {
         "properties": {
@@ -12547,6 +13545,17 @@
           },
           "live": {
             "$ref": "#/components/schemas/OttoLiveSection"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 6a: always sent by the current backend."
           }
         },
         "additionalProperties": false,
@@ -15414,6 +16423,34 @@
         ],
         "title": "WorkspaceProject"
       },
+      "app__web__otto__NameBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 400,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "NameBody"
+      },
+      "app__web__projects__NameBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "NameBody"
+      },
       "ClaimKind": {
         "enum": [
           "protocol_versions",
@@ -15734,6 +16771,15 @@
         ],
         "type": "string",
         "title": "ItemState"
+      },
+      "AssistantThread": {
+        "enum": [
+          "testing",
+          "fixing",
+          "planning"
+        ],
+        "type": "string",
+        "title": "AssistantThread"
       }
     }
   }

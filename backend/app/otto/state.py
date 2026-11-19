@@ -37,6 +37,7 @@ from app.present import otto as present_otto
 from app.run import components
 
 LIVE_KEY, LIMIT_KEY = "otto_live", "otto_limit_nano"
+NAME_KEY, NAME_MAX = "decision_name", 60        # phase 6a: the name a person typed once, for the decisions they record
 # The tests a fix is held to besides its own advisory check: the ones that say pass or fail. Speed is left out, as it is
 # in the trial on public copies (timings hold only for the computer they are measured on).
 PASS_OR_FAIL_KINDS = ("official_vectors", "bad_signatures", research.ADVISORY_KIND)
@@ -136,7 +137,7 @@ class OttoMixin:
         return present_otto.settings_view(installed=[(iso(row.installed_at), pack) for row, pack in installed], update=update, refused=refused,
                                           unreadable=unreadable,
                                           scan_line=line, harness_status=harness.public_status(), live_on=live_on, limit_nano=limit,
-                                          key_present=model.key_present(), answers_line=answers)
+                                          key_present=model.key_present(), answers_line=answers, name=self._typed_name())
 
     def check_pack_updates(self) -> dict:
         return self.otto_view(scan=True)
@@ -152,6 +153,36 @@ class OttoMixin:
                                envelope=canonical_bytes(update.envelope).decode("utf-8")))
             db.commit()
         return self.otto_view(scan=True)
+
+    # ---------------------------------------------------------------- who decides: a name typed once (phase 6a)
+
+    def _typed_name(self) -> str | None:
+        with self.db() as db:
+            row = db.get(AppSettingRow, NAME_KEY)
+        return row.value if row is not None and row.value else None
+
+    def decision_name(self) -> str:
+        """The name a decision on one of Otto's proposals is recorded under: the one a person typed (asked once, kept
+        in Settings), or "You" until then. The app has one login and does not check who is at the keyboard."""
+        return self._typed_name() or otto_proposals.BY
+
+    def decision_name_view(self) -> dict:
+        """For the Otto panel's Confirm step: the name decisions are recorded under now, and whether one was typed."""
+        typed = self._typed_name()
+        return present_otto.name_view(typed)
+
+    def set_decision_name(self, name: object) -> dict:
+        """Keep the name a person typed for their decisions (Settings, or the panel's first Confirm). An empty name
+        goes back to "You". It changes no decision already recorded: each keeps the name it was made under."""
+        if not isinstance(name, str):
+            raise BadRequest("Type a name.", field="name")
+        text = " ".join("".join(ch if ch.isprintable() else " " for ch in name).split())
+        if len(text) > NAME_MAX:
+            raise BadRequest(f"Keep the name to {NAME_MAX} characters or fewer.", field="name")
+        with self.db() as db:
+            _set(db, NAME_KEY, text)
+            db.commit()
+        return self.otto_view()
 
     # ---------------------------------------------------------------- Live Otto: the switch and the spending limit
 

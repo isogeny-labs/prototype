@@ -17,6 +17,7 @@ from app.config import FRONTEND_DIST, Settings, load_settings
 from app.importer.common import ImportFileError
 from app.lab.hub import BadRequest, Conflict, Lab, NotFound
 from app.present.times import MarkTimes
+from app.web import assistant as assistant_routes
 from app.web import changes, checks, dependencies, fixes, importing, migration, projects, session
 from app.web import lab as lab_routes
 from app.web import otto as otto_routes
@@ -93,6 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(fixes.routes(lab, require_login), dependencies=guarded)
     app.include_router(checks.routes(lab, require_login), dependencies=guarded)   # phase 5b
     app.include_router(otto_routes.routes(lab, require_login), dependencies=guarded)   # phase 5c
+    app.include_router(assistant_routes.routes(lab, require_login))   # phase 6a: the Otto panel's one read
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def no_such_api(rest: str):

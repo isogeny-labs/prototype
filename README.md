@@ -384,6 +384,33 @@ are skipped, with a message, when Docker is not running or the images are not pr
 is not installed, and the run says how many. No test reaches Claude's API or needs an API key. Lint, type check and
 the GitHub checks are described in [docs/LAYOUT.md](docs/LAYOUT.md).
 
+### The Otto panel (phase 6a, 19 November 2026)
+
+The panel on the right of every page of an assessment is titled **Otto**. It suggests what fits the page you are on:
+
+- **Suggestions** are Otto's proposals, marked "From Otto", with **Accept** and **Reject** (and **Undo** or
+  **Reconsider** where the page offers them). They are the same proposals the pages show.
+- **Next steps** are buttons of the page that are worth pressing now, under the button's own name (Run all, Verify
+  claims, Retest new version, Measure status and so on).
+- **What this means** repeats a result's own plain sentence, with a link to its evidence.
+
+Every button in the panel first shows what it will do and waits for **Confirm**. Confirm sends exactly what the
+page's own button sends, so a decision made in the panel is recorded like one made on the page, and the page shows it
+at once. Looking at the panel runs nothing. Approve, Merge pull request, Apply, Roll back and Close and sign off are
+never pressed from the panel: they stay on their pages.
+
+Up to three tabs collect what has happened: **Testing**, **Fixing** and **Planning**. A tab appears when its thread
+has something, shows how many suggestions wait, and can be closed with **×** (it comes back, with a dot, when there
+is something new). **Elsewhere: N more** lists what waits on other pages. The button in the top bar hides and shows
+the panel.
+
+The first time you confirm a decision, the panel asks for **your name**, once. Decisions are then recorded under it
+(leave it empty and they are recorded as "You", as before). You can change it in **Settings**, under **Who decides**.
+The app has one login and does not check who is at the keyboard.
+
+There is no AI model in the panel in this phase: with no API key, everything in it works. The status line under the
+title says whether Live Otto is on.
+
 ## Where things are
 
 - `backend/` – Python 3.12, FastAPI, SQLite. `app/` is the code (one folder per job, see

@@ -18,6 +18,7 @@ from app.db import (
 from app.errors import BadRequest, Conflict, NotFound
 from app.names import ALGORITHM_NAMES, clean_text
 from app.present import otto as present_otto
+from app.ledger import groups as G
 from app.projects.counts import assessment_counts
 
 CLOSED_SENTENCE = "This assessment is closed. Start a new one to continue."
@@ -249,6 +250,28 @@ class ProjectsMixin:
                 "counts": counts,
                 "waiting": present_otto.waiting_view(waiting),
                 "next_step": self._next_step(brief, counts, summary, waiting)}
+
+    def assessment_core(self, assessment_id: int) -> dict:
+        """The few things the Otto panel's read needs of an assessment (phase 6a): its status, its file and its plan.
+        It reads; unlike `assessment_view` it works out no counts and no blocks."""
+        with self.db() as db:
+            a = db.get(AssessmentRow, assessment_id)
+            if a is None:
+                raise NotFound("That assessment does not exist.")
+            brief = self._assessment_brief(db, a)
+            plan = db.scalars(select(PlanRow).where(PlanRow.import_id == a.import_id)).first() if a.import_id else None
+            return {**brief, "import_id": a.import_id, "plan_id": plan.id if plan is not None else None}
+
+    def next_step_from(self, core: dict, summary: dict | None, verified: bool, fixes: list[dict] | None, waiting: dict | None) -> dict:
+        """The Overview's own next step, from parts a caller has already read (the Otto panel, phase 6a): the same rule
+        and the same sentence as `assessment_view`, without reading every page's view again. `fixes`: the Fixes
+        page's list, or None when no test has run and nothing was measured. `waiting`: undecided proposals by kind."""
+        counts = {"claims": {} if verified else None,
+                  "tests": {} if summary and summary.get("has_results") else None,
+                  "fixes": ({"total": len(fixes),
+                             "open": sum(1 for f in fixes if f.get("fix_state", G.fix_state(f["status"]["word"])) == "open")}
+                            if fixes is not None else None)}
+        return self._next_step(core, counts, summary, waiting)
 
     def _can_decide(self, plan_id: int | None) -> bool:
         return plan_id is not None and self._decisions_blocked(plan_id) is None      # type: ignore[attr-defined]

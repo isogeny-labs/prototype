@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { usePanelStamp } from "../changes";
 import { api, errorMessage, type CheckGroup, type CheckRow, type ChecksView, type LabView, type PlanView } from "../api";
 import { CheckPanel } from "./checks/CheckPanel";
 import { CheckTable } from "./checks/CheckTable";
@@ -39,6 +40,8 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   const [lab, setLab] = useState<LabView | null>(null);
   const [retesting, setRetesting] = useState(false);
   const [tick, setTick] = useState(0);
+  // Phase 6a: a decision or a start sent from the Otto panel: this page reads its view again.
+  const panelStamp = usePanelStamp();
   const planId = plan?.id ?? null;
   const planStamp = plan ? `${plan.running}:${plan.tests.map((t) => `${t.id}${t.status}`).join(",")}` : "";
 
@@ -69,7 +72,7 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
     return () => {
       live = false;
     };
-  }, [planId, planStamp, tick]);
+  }, [planId, planStamp, tick, panelStamp]);
 
   // Live: ask again every second while any check waits or runs (a retest started here, on Evidence or in Fixes too).
   const live = Boolean(view?.busy) || Boolean(lab?.retest.running);

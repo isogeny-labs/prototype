@@ -218,6 +218,20 @@ class MigrationMixin:
     def migration_view_for_import(self, import_id: int) -> dict:
         return self.migration_view(self.ensure_plan(import_id)["id"])
 
+    def migration_measure_view(self, plan_id: int) -> dict:
+        """The Measure status button as the Migration page shows it, read without writing anything down (phase 6a, for
+        the Otto panel's next step). Opening the Migration page writes each system's measurement down and locks it,
+        once; this read does not: it counts the systems the file names, and takes what was measured from the records
+        there are."""
+        with self.db() as db:                                                   # type: ignore[attr-defined]
+            plan = self._plan(db, plan_id)                                      # type: ignore[attr-defined]
+            systems = self._systems(self._claims(db.get(ImportRow, plan.import_id)))        # type: ignore[attr-defined]
+            busy = self.jobs.busy(("migration", plan_id)) or self.jobs.busy(("changes", plan_id))       # type: ignore[attr-defined]
+            states = self._migration_states(db, plan)
+        return {"busy": bool(busy),
+                "measure": present_migration.measure_button(len(systems), bool(busy), sum(1 for s in states if s["job"] is None),
+                                                            any(s["code"] is not None for s in states))}
+
     def migration_view(self, plan_id: int) -> dict:
         with self._plan_lock, self.db() as db:
             self._ensure_migration_items(db, self._plan(db, plan_id))

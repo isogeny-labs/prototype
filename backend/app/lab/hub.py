@@ -43,6 +43,7 @@ from app.names import clean_text
 from app.engine.research import RuleEngine
 from app.engine.reviewer import RuleReviewer
 from app.lab.testlab import TestLabMixin
+from app.assistant.engine import CopilotEngine, RuleCopilot
 from app.otto.engine import OttoEngine
 from app.otto.proposals import ProposalsMixin
 from app.otto.state import OttoMixin
@@ -114,6 +115,8 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         # to it unchanged and is asked first only for a code change after an advisory check failed.
         self.engine = OttoEngine(RuleEngine(settings.speed_rounds, settings.speed_repeats), self)
         self.reviewer = RuleReviewer()                                             # the separate review step
+        # Phase 6a: the Otto panel. Rule-based, behind CopilotEngine; it reads and decides nothing.
+        self.copilot: CopilotEngine = RuleCopilot()
         self._init_testlab()
         self._init_changes()
         self._init_otto()
@@ -367,6 +370,10 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             placed = self.attach_import(db, row.id, assessment_id)
             db.commit()
             return {**import_json(row, self._file_settings(db, row)), "assessment_id": placed, "otto": self.otto_found(db, row)}
+
+    def assistant_view(self, assessment_id: int, page: str, item: str | None = None) -> dict:
+        """Phase 6a: what the Otto panel shows beside one page of an assessment. A read: nothing is started or stored."""
+        return self.copilot.read(self, assessment_id, page, item)
 
     def import_json_for(self, import_id: int) -> dict:
         with self.db() as db:

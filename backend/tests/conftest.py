@@ -129,6 +129,21 @@ def no_call_to_claude(monkeypatch):
     monkeypatch.setattr(model, "_http_transport", refuse)
 
 
+class ReachedTheNetwork(BaseException):
+    """A test tried to read advisories from the public source. Not an ordinary error, for the same reason."""
+
+
+@pytest.fixture(autouse=True)
+def no_read_of_the_advisory_source(monkeypatch):
+    """Phase 6, the research loop: no test ever reaches osv.dev. The reader looks its transport up at the moment of a
+    request; here it is replaced by one that fails the test. Tests read recorded answers, or give a stand-in."""
+    from app.otto import lookup
+
+    def refuse(body, timeout):
+        raise ReachedTheNetwork("a test tried to read advisories from the network; use a recorded source or a stand-in transport")
+    monkeypatch.setattr(lookup, "_http_transport", refuse)
+
+
 @pytest.fixture
 def settings(tmp_path):
     # Tests run in demo mode unless they ask for the docker_ready fixture; the speed test uses fewer pairs
@@ -360,3 +375,17 @@ def demo_flow(tmp_path_factory):
         yield SimpleNamespace(lab=lab, plan=plan, verify=verify, first=first, after=after, most_at_once=most_at_once)
     finally:
         lab.stop()
+
+
+@pytest.fixture(scope="session")
+def assistant_walk(tmp_path_factory):
+    """Phase 6a: one walk of a demo-mode Lab for the Otto panel's tests, with every page's read of the panel kept at
+    each stage (tests/assistant/assistant_walk.py). It needs Adam's Otto harness: decisions are recorded in its
+    ledger. A few seconds, once, for the tests that read it."""
+    from tests.assistant import assistant_walk as made
+    walk, lab, patches = made.make_walk(tmp_path_factory)
+    try:
+        yield walk
+    finally:
+        lab.stop()
+        patches.undo()

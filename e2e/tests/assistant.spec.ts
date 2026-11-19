@@ -1,0 +1,528 @@
+// Phase 6a end to end: the Otto assistant, the right-hand panel beside every page of an assessment. Two parts, each
+// on a copy of the app of its own (own data folder and ports), on the Acme Pay demo:
+//
+//   1  demo mode, with the answers recorded during the build: one piece of work followed through the three tabs
+//      (Testing, Fixing, Planning). Every decision and every start is made in the panel, behind Confirm; each page
+//      then shows the same, in the same word; nothing is sent before Confirm; a tab closes and comes back with a dot;
+//      the evidence file is downloaded and the verify command checks it, with the panel's decisions in it.
+//   2  without Otto and without an API key: the panel says what Settings says, lists what is proposed with its
+//      buttons off and the reason, and its next steps still work.
+//
+// Skipped with a message (part 1) when Otto is not installed on this computer. A copy of the app is started without
+// any API key, so nothing here can reach Claude. Pictures of every page with the panel, dark and light:
+// docs/screenshots/phase6a/.
+import { expect, test, type Locator, type Page, type Request } from "@playwright/test";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { BACKEND, PYTHON, REPO, enterApp, layoutProblems, openFreshAssessment, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
+
+const SHOTS = screenshotFolder("phase6a");
+const DEPENDENCIES_FILE = path.join(REPO, "demo/dependencies-demo.cdx.json");
+const RANGE_CHECK = "Advisory check: Missing ECDSA signature range check (CVE-2022-21449)";
+const ENCODED_CHECK = "Advisory check: Badly encoded signature accepted (CVE-2019-14859)";
+const REASON = "Not this quarter";
+// A time as the screens write it, for a viewer in New York: "18 November 2026, 7:46 pm EST".
+const LOCAL_TIME = /\d{1,2} (January|February|March|April|May|June|July|August|September|October|November|December) 20\d\d, \d{1,2}:\d\d [ap]m E[SD]T/;
+const BANNED = ["Otto wrote", "Otto writes", "Otto proposes", "Otto proposed", "in Otto's words", "In Otto's words", "Why Otto proposes it", "Otto found",
+                "Otto finds", "Otto has ", "Otto's proposal", "Otto asked", "Otto asks", "Otto no longer"];
+const NEVER = [/\bsecure\b/i, /\bscore\b/i, /\bseverity\b/i];
+
+const unanswered = new WeakMap<Page, number>();
+// Every request of this walk that is not a read, in order: what the buttons sent.
+const sent = new WeakMap<Page, string[]>();
+
+function watchRequests(page: Page): void {
+  unanswered.set(page, 0);
+  sent.set(page, []);
+  const toApp = (r: Request) => new URL(r.url()).pathname.startsWith("/api/");
+  const done = (r: Request) => {
+    if (toApp(r)) unanswered.set(page, Math.max(0, (unanswered.get(page) ?? 0) - 1));
+  };
+  page.on("request", (r) => {
+    if (!toApp(r)) return;
+    unanswered.set(page, (unanswered.get(page) ?? 0) + 1);
+    if (r.method() !== "GET") sent.get(page)?.push(`${r.method()} ${new URL(r.url()).pathname}`);
+  });
+  page.on("requestfinished", done);
+  page.on("requestfailed", done);
+}
+
+const changes = (page: Page): string[] => [...(sent.get(page) ?? [])];
+
+/** Waits until the page has what it asked for and has stopped changing. */
+async function settled(page: Page): Promise<void> {
+  let last = "";
+  await expect
+    .poll(async () => {
+      const now = await page.evaluate(() => `${document.documentElement.scrollHeight}/${document.querySelectorAll("main *, aside *").length}`);
+      const same = now === last && (unanswered.get(page) ?? 0) === 0;
+      last = now;
+      return same;
+    }, { timeout: 30_000, intervals: [250] })
+    .toBe(true);
+}
+
+/** A picture in the dark and the light look (what the window shows: the panel beside the page). */
+async function shots(page: Page, name: string): Promise<void> {
+  fs.mkdirSync(SHOTS, { recursive: true });
+  await settled(page);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  for (const theme of ["dark", "light"] as const) {
+    await page.evaluate((t) => {
+      document.documentElement.dataset.theme = t;
+    }, theme);
+    await page.screenshot({ path: path.join(SHOTS, `${name}-${theme}.png`), fullPage: false, animations: "disabled", scale: "css" });
+  }
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "dark";
+  });
+}
+
+function assessmentOf(page: Page): string {
+  const found = /#\/a\/(\d+)/.exec(page.url());
+  if (!found) throw new Error(`no assessment is open: ${page.url()}`);
+  return found[1];
+}
+
+async function installPack(page: Page, version: string): Promise<void> {
+  await page.goto("/#/settings?section=test-packs");
+  const packs = page.getByTestId("test-packs");
+  await expect(packs.getByTestId("otto-harness-line")).toBeVisible();
+  await packs.getByTestId("otto-check-updates").click();
+  await expect(packs.getByTestId("otto-update-line")).toContainText(version);
+  await packs.getByTestId("otto-install-update").click();
+  const installed = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/otto/packs/install" && r.request().method() === "POST");
+  await page.getByTestId("otto-install-dialog").getByTestId("otto-install-confirm").click();
+  expect((await installed).status()).toBe(200);
+  await expect(packs.locator(`[data-testid="otto-pack-card"][data-version="${version}"]`)).toBeVisible();
+}
+
+// ---- the panel
+const panelOf = (page: Page): Locator => page.getByTestId("otto-panel");
+const onPage = (page: Page): Locator => panelOf(page).getByTestId("otto-on-page");
+const tab = (page: Page, thread: string): Locator => panelOf(page).locator(`[data-testid="otto-tab"][data-thread="${thread}"]`);
+const entries = (page: Page, what: string): Locator => onPage(page).locator(`[data-testid="otto-entry"][data-what="${what}"]`);
+const entryTitled = (page: Page, what: string, title: string | RegExp): Locator =>
+  entries(page, what).filter({ has: page.getByTestId("otto-entry-title").filter({ hasText: title }) });
+
+/** Every tab that is open, in order. */
+async function openTabs(page: Page): Promise<string[]> {
+  return panelOf(page).getByTestId("otto-tab").evaluateAll((all) => all.map((t) => t.getAttribute("data-thread") ?? ""));
+}
+
+/** Presses one button of one entry and reads its Confirm step. Nothing is sent by this. */
+async function ask(page: Page, entry: Locator, button: string): Promise<Locator> {
+  const before = changes(page);
+  await entry.getByRole("button", { name: button, exact: true }).click();
+  const step = entry.getByTestId("otto-confirm");
+  await expect(step).toBeVisible();
+  await expect(step.getByTestId("otto-confirm-names")).toContainText(`This is the ${button} button on `);
+  expect(changes(page), `pressing ${button} in the panel sent nothing; only Confirm does`).toEqual(before);
+  return step;
+}
+
+/** Confirm: the one request it sends is awaited, and that it is the only one. Returns that request's address. */
+async function confirm(page: Page, step: Locator, expected: RegExp): Promise<string> {
+  const before = changes(page).length;
+  const answered = page.waitForResponse((r) => r.request().method() === "POST" && expected.test(new URL(r.url()).pathname));
+  await step.getByTestId("otto-confirm-button").click();
+  const answer = await answered;
+  expect(answer.status(), `Confirm was answered with ${answer.status()}`).toBe(200);
+  const made = changes(page).slice(before);
+  expect(made, "Confirm sent one request: the page button's own").toHaveLength(1);
+  return made[0];
+}
+
+async function words(page: Page): Promise<string> {
+  await settled(page);
+  return page.evaluate(() => document.body.innerText);
+}
+
+async function expectPlainWords(page: Page, where: string): Promise<void> {
+  const text = await words(page);
+  for (const phrase of BANNED) expect(text.includes(phrase), `${where} says “${phrase}”`).toBe(false);
+  const said = await panelOf(page).innerText();
+  for (const word of NEVER) expect(word.test(said), `the panel on ${where} says ${word}`).toBe(false);
+}
+
+async function cardStatuses(page: Page): Promise<string[]> {
+  return page.getByTestId("test-card").evaluateAll((all) => all.map((c) => c.getAttribute("data-status") ?? ""));
+}
+
+function verify(file: string, dataDir: string) {
+  return spawnSync(PYTHON, ["-m", "evidence", "verify", file, "--data-dir", dataDir], { cwd: BACKEND, encoding: "utf-8" });
+}
+
+test.describe.configure({ mode: "serial" });
+test.use({ actionTimeout: 60_000 });
+
+// ---------------------------------------------------------------- 1. one piece of work, followed through the three tabs
+
+test("demo mode: one piece of work through Testing, Fixing and Planning, decided in the panel behind Confirm; the pages show the same; the evidence verifies", async ({ browser }) => {
+  test.setTimeout(30 * 60_000);
+  let copy: Copy | null = null;
+  try {
+    copy = await startCopy(browser, 15, "demo");
+    const page = copy.page;
+    await page.setViewportSize({ width: 1440, height: 900 });
+    watchRequests(page);
+    await enterApp(page);
+    const otto = await (await page.request.get("/api/otto")).json();
+    test.skip(!otto.harness.installed, `Skipped: ${otto.harness.line} Run ./run-demo.sh once (or: cd backend && .venv/bin/python -m app.prepare --otto).`);
+    expect(otto.live.key_present, "a copy of the app is started without an API key").toBe(false);
+
+    await installPack(page, "2026.11.1");
+    // the panel sits beside the pages of an assessment, not beside Settings or Projects
+    await expect(panelOf(page)).toHaveCount(0);
+    await openFreshAssessment(page, "Otto panel walk");
+
+    // ================================================================ no file yet
+    const panel = panelOf(page);
+    await expect(panel.getByRole("heading", { name: "Otto", level: 2 })).toBeVisible();
+    await expect(panel.getByTestId("otto-status")).toHaveText("Live Otto is off. Settings");
+    await expect(panel.getByTestId("otto-status-link")).toHaveAttribute("href", "#/settings?section=live-otto");
+    await expect(panel.getByTestId("otto-empty")).toContainText("Bring in a scanner file to start. Nothing is suggested yet.");
+    await expect(panel.getByTestId("otto-tabs")).toHaveCount(0);
+    await expect(page.getByText("Prototype assistant")).toHaveCount(0);
+    await shots(page, "01-import-no-file-yet");
+
+    // ================================================================ Import: the file is in
+    const imported = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/import/demo" && r.request().method() === "POST");
+    await page.getByRole("button", { name: "Use demo file" }).click();
+    expect((await imported).status()).toBe(200);
+    const assessment = assessmentOf(page);
+    // the Testing tab is there (two checks are proposed), with how many wait
+    await expect(tab(page, "testing")).toBeVisible();
+    await expect(tab(page, "testing").getByTestId("otto-tab-count")).toContainText("2");
+    expect(await openTabs(page)).toEqual(["testing"]);
+    // what this means: the page's own line about the checks that may apply
+    await expect(entries(page, "meaning:found").getByTestId("otto-entry-title")).toHaveText("2 checks may apply: 2 published weaknesses with a test, for acme-sign 1.4.2.");
+    // the next step is the page's own button, off for the page's own reason until the address is ticked
+    const verifyStep = entries(page, "next:verify");
+    await expect(verifyStep.getByTestId("otto-entry-mark")).toHaveText("Next step");
+    await expect(verifyStep.getByRole("button", { name: "Verify claims" })).toBeDisabled();
+    await expect(verifyStep.getByTestId("otto-blocked")).toHaveText("Tick the box for each address on Import first.");
+    // elsewhere: what waits, and where it lives
+    const elsewhere = panel.getByTestId("otto-elsewhere");
+    await expect(elsewhere.getByRole("heading")).toHaveText("Elsewhere: 2 more");
+    await expect(elsewhere.getByTestId("otto-elsewhere-line")).toHaveText(/^Advisories: 2 proposed checks, Advisory check: .+ and 1 more$/);
+    await shots(page, "02-import-file-in");
+
+    // the tick stays on the page ("I own this system" is never pressed from the panel); then Verify claims, from the panel
+    await page.getByTestId("address-confirm").click();
+    await expect(verifyStep.getByRole("button", { name: "Verify claims" })).toBeEnabled();
+    let step = await ask(page, verifyStep, "Verify claims");
+    await expect(step).toContainText("It contacts only the addresses ticked on Import, with handshakes only.");
+    await expect(step.getByTestId("otto-confirm-names")).toHaveText("This is the Verify claims button on Import.");
+    // Cancel leaves everything as it was
+    const beforeCancel = changes(page);
+    await step.getByTestId("otto-cancel-button").click();
+    await expect(verifyStep.getByTestId("otto-confirm")).toHaveCount(0);
+    expect(changes(page)).toEqual(beforeCancel);
+    step = await ask(page, verifyStep, "Verify claims");
+    expect(await confirm(page, step, /\/api\/import\/\d+\/verify$/)).toMatch(/^POST \/api\/import\/\d+\/verify$/);
+    // ... and the app goes where the page's own button goes: Verify, with the results on the page
+    await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
+    await expect(page.getByTestId("result-row").first()).toBeVisible();
+    // Verify: the next step only opens a page, so it is a link and needs no Confirm
+    const toChecks = entries(page, "next:open").getByTestId("otto-step-open");
+    await expect(toChecks).toHaveText("Continue to checks");
+    await shots(page, "03-verify");
+    const beforeOpen = changes(page);
+    await toChecks.click();
+    await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
+    expect(changes(page), "opening a page sent nothing").toEqual(beforeOpen);
+
+    // ================================================================ Checks: the Testing tab, the proposed checks, Run all
+    await expect(page.getByTestId("test-card")).toHaveCount(5);
+    await expect(tab(page, "testing")).toHaveAttribute("data-selected", "true");
+    await expect(entries(page, "suggestion:check")).toHaveCount(2);
+    const range = entryTitled(page, "suggestion:check", RANGE_CHECK);
+    const encoded = entryTitled(page, "suggestion:check", ENCODED_CHECK);
+    await expect(range.getByTestId("otto-entry-mark")).toHaveText("From Otto");
+    await expect(range.getByTestId("otto-entry-badge")).toHaveText("Proposed");
+    await expect(range.getByTestId("otto-entry-where")).toHaveText("On Advisories");          // it lives on Advisories, and fits Checks too
+    await expect(range.getByTestId("otto-entry-where")).toHaveAttribute("href", `#/a/${assessment}/advisories?item=CVE-2022-21449`);
+    await expect(entries(page, "next:run_all").getByTestId("otto-entry-text")).toHaveText("5 of the 5 tests in the plan have not run yet.");
+    expect(await layoutProblems(page), "Checks with the panel full of cards").toEqual([]);
+    await expectPlainWords(page, "Checks");
+    await shots(page, "04-checks-two-proposed-checks");
+
+    // ---- Accept, in the panel: first what will happen, then Confirm
+    step = await ask(page, range, "Accept");
+    await expect(step.getByTestId("otto-confirm-lines").getByRole("listitem")).toHaveText([
+      "Adds this check to the test plan, as “+ Add test” would.", "Runs nothing.", "You can undo it until the check has run."]);
+    await expect(step.getByTestId("otto-confirm-names")).toHaveText("This is the Accept button on Advisories.");
+    await shots(page, "05-checks-accept-waits-for-confirm");
+    expect(await confirm(page, step, /\/otto\/proposals\/[^/]+\/accept$/)).toMatch(/^POST \/api\/plans\/\d+\/otto\/proposals\/check-cve-2022-21449-[0-9a-f]+\/accept$/);
+    // the card reads as the page does: "Added", who and when (in the viewer's own time zone), and Undo
+    await expect(range.getByTestId("otto-entry-badge")).toHaveText("Added");
+    await expect(range.getByTestId("otto-entry-decided")).toHaveText(new RegExp(`^Accepted by You on ${LOCAL_TIME.source}\\.$`));
+    await expect(range.getByRole("button")).toHaveText(["Undo"]);
+    // the page read its own view again, with no reload: the check is in the test plan, marked From Otto
+    await expect(page.getByTestId("test-card")).toHaveCount(6);
+    const added = page.getByTestId("test-card").filter({ hasText: RANGE_CHECK });
+    await expect(added.getByTestId("card-from-otto")).toHaveText("From Otto");
+    await expect.poll(() => cardStatuses(page)).toEqual(Array(6).fill("not_run"));       // accepting ran nothing
+    // the card now offers the next step: Run, for the check that was just added
+    await expect(entryTitled(page, "next:run", "Run").getByTestId("otto-entry-text")).toHaveText(`${RANGE_CHECK} has not run yet.`);
+    await expect(tab(page, "testing").getByTestId("otto-tab-count")).toContainText("1");
+    await shots(page, "06-checks-accepted-in-the-panel");
+
+    // ---- Reject, with a reason; then the same proposal on its own page reads the same
+    step = await ask(page, encoded, "Reject");
+    await expect(step).toContainText("It is not deleted");
+    await step.getByTestId("otto-reason").fill(REASON);
+    expect(await confirm(page, step, /\/otto\/proposals\/[^/]+\/reject$/)).toMatch(/\/reject$/);
+    await expect(encoded.getByTestId("otto-entry-badge")).toHaveText(`Not added (${REASON})`);
+    await expect(encoded.getByRole("button")).toHaveText(["Reconsider"]);
+    await expect(panel.getByTestId("otto-nothing-waiting")).toHaveText("Nothing from Otto is waiting for a decision.");
+    await stepLink(page, "Advisories").click();
+    await expect(page.locator('[data-testid="advisory-row"][data-advisory="CVE-2022-21449"]').getByTestId("advisory-proposal")).toHaveText("Added");
+    await expect(page.locator('[data-testid="advisory-row"][data-advisory="CVE-2019-14859"]').getByTestId("advisory-proposal")).toHaveText(`Not added (${REASON})`);
+    // either place can be used: the same cards are in the panel beside Advisories, with the same words
+    await expect(entryTitled(page, "suggestion:check", RANGE_CHECK).getByTestId("otto-entry-badge")).toHaveText("Added");
+    await expect(entryTitled(page, "suggestion:check", ENCODED_CHECK).getByTestId("otto-entry-badge")).toHaveText(`Not added (${REASON})`);
+    await shots(page, "07-advisories-the-same-words");
+    // Undo and Reconsider work from the panel too, each behind Confirm (the first check is accepted again right after)
+    step = await ask(page, entryTitled(page, "suggestion:check", RANGE_CHECK), "Undo");
+    expect(await confirm(page, step, /\/otto\/proposals\/[^/]+\/undo$/)).toMatch(/\/undo$/);
+    await expect(page.locator('[data-testid="advisory-row"][data-advisory="CVE-2022-21449"]').getByTestId("advisory-proposal")).toHaveText("Proposed");
+    step = await ask(page, entryTitled(page, "suggestion:check", RANGE_CHECK), "Accept");
+    await confirm(page, step, /\/otto\/proposals\/[^/]+\/accept$/);
+    await expect(page.locator('[data-testid="advisory-row"][data-advisory="CVE-2022-21449"]').getByTestId("advisory-proposal")).toHaveText("Added");
+    step = await ask(page, entryTitled(page, "suggestion:check", ENCODED_CHECK), "Reconsider");
+    expect(await confirm(page, step, /\/otto\/proposals\/[^/]+\/reconsider$/)).toMatch(/\/reconsider$/);
+    step = await ask(page, entryTitled(page, "suggestion:check", ENCODED_CHECK), "Reject");
+    await step.getByTestId("otto-reason").fill(REASON);
+    await confirm(page, step, /\/otto\/proposals\/[^/]+\/reject$/);
+
+    // ---- Run all, from the panel: the page's own button, behind Confirm
+    await stepLink(page, "Checks").click();
+    await expect(page.getByTestId("test-card")).toHaveCount(6);
+    const runAll = entries(page, "next:run_all");
+    step = await ask(page, runAll, "Run all");
+    await expect(step.getByTestId("otto-confirm-lines").getByRole("listitem").first()).toHaveText("Runs every test in the plan (6), on this computer.");
+    await expect(step.getByTestId("otto-confirm-names")).toHaveText("This is the Run all button on Checks.");
+    expect(await confirm(page, step, /\/api\/plans\/\d+\/run-all$/)).toMatch(/^POST \/api\/plans\/\d+\/run-all$/);
+    // the page shows the tests running, with no reload, and the panel says so too
+    await expect.poll(async () => (await cardStatuses(page)).some((s) => s !== "not_run"), { timeout: 30_000 }).toBe(true);
+    await expect.poll(() => cardStatuses(page), { timeout: 240_000 }).toEqual(Array(6).fill("done"));
+    await expect(added.getByTestId("result-badge")).toHaveText("Failed");
+    // once every test has a result, running is not the next step any more; the accepted check's accept now stands
+    await expect(entries(page, "next:run_all")).toHaveCount(0);
+    await expect(entries(page, "next:run")).toHaveCount(0);
+    const soFar = panel.getByTestId("otto-so-far");
+    await expect(soFar.getByRole("heading")).toHaveText("This thread so far: Testing");
+    // (the newest entries show; the decisions came before the results, so they are behind "Show all")
+    await expect(soFar.getByTestId("otto-entry")).toHaveCount(6);
+    await soFar.getByTestId("otto-so-far-all").click();
+    await expect(soFar.getByTestId("otto-entry")).toHaveCount(8);                 // two decided checks, six results
+    const told = soFar.locator('[data-testid="otto-entry"][data-kind="suggestion"]').filter({ hasText: RANGE_CHECK });
+    await expect(told.getByTestId("otto-entry-badge")).toHaveText("Added");
+    await expect(told.getByRole("button", { name: "Undo" })).toBeDisabled();
+    await expect(told.getByTestId("otto-blocked")).toHaveText("This check has run, so it stays in the test plan.");
+    await shots(page, "08-checks-after-run-all");
+
+    // ================================================================ Evidence: what each result means; the Fixing tab has opened
+    await stepLink(page, "Evidence").click();
+    await expect(page.getByTestId("evidence-row").first()).toBeVisible();
+    const meaning = entryTitled(page, "meaning:result", RANGE_CHECK);
+    await expect(meaning.getByTestId("otto-entry-mark")).toHaveText("What this means");
+    await expect(meaning.getByTestId("otto-entry-badge")).toHaveText("Failed");
+    await expect(meaning.getByTestId("otto-entry-text")).toContainText("A fix is suggested: see Fixing.");
+    await expect(meaning.getByTestId("otto-entry-link")).toHaveText(["See the evidence", "View in Fixes"]);
+    await expect(meaning.getByRole("button")).toHaveCount(0);                 // links, and nothing else
+    await expect(entries(page, "next:retest").first().getByTestId("otto-entry-title")).toHaveText("Retest new version");
+    expect(await openTabs(page)).toEqual(["testing", "fixing"]);
+    await expect(tab(page, "fixing")).toHaveAttribute("data-dot", "true");    // something new there, not seen yet
+    await expect(tab(page, "fixing").getByTestId("otto-tab-count")).toContainText("1");
+    await expect(panel.getByTestId("otto-elsewhere").getByTestId("otto-elsewhere-line")).toHaveText(/^Fixes: 1 proposed fix, /);
+    expect(await layoutProblems(page), "Evidence with the panel").toEqual([]);
+    await shots(page, "09-evidence-what-the-results-mean");
+    // with a result open in the page's own side panel, its meaning comes first in Otto's panel
+    await page.getByTestId("evidence-row").filter({ hasText: RANGE_CHECK }).first().click();
+    await expect(page.getByTestId("detail-panel")).toBeVisible();
+    await expect(onPage(page).locator('[data-testid="otto-entry"][data-open-item="true"]').first().getByTestId("otto-entry-title")).toHaveText(RANGE_CHECK);
+    expect(await layoutProblems(page), "Evidence with a result open and the panel").toEqual([]);
+    await shots(page, "10-evidence-a-result-open");
+
+    // ================================================================ Fixes: the Fixing tab; the change is accepted in the panel
+    await meaning.getByTestId("otto-entry-link").filter({ hasText: "View in Fixes" }).click();
+    await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
+    await expect(tab(page, "fixing")).toHaveAttribute("data-selected", "true");
+    await expect(tab(page, "fixing")).toHaveAttribute("data-dot", "false");
+    const fix = page.getByTestId("fix-summary");
+    await expect(fix).toContainText("Written by Otto");
+    await expect(fix.getByRole("button", { name: "Connect demo code" })).toBeDisabled();       // off until the proposal is accepted
+    const change = entries(page, "suggestion:fix");
+    await expect(change).toHaveCount(1);
+    await expect(change.getByTestId("otto-entry-where")).toHaveText("On Fixes");
+    // the page's button is off, so the panel lists it off, with the page's own reason, for the fix that is open
+    const connect = entries(page, "next:connect");
+    await expect(connect.getByRole("button", { name: "Connect demo code" })).toBeDisabled();
+    await expect(connect.getByTestId("otto-blocked")).toContainText("Accept it first");
+    await shots(page, "11-fixes-a-change-proposed");
+    step = await ask(page, change, "Accept");
+    await expect(step.getByTestId("otto-confirm-lines").getByRole("listitem")).toHaveText([
+      "Records your decision to take this fix.", "Runs nothing and changes nothing on any system.", "You can undo it until the fix has run or been applied."]);
+    expect(await confirm(page, step, /\/otto\/proposals\/fix-code-[^/]+\/accept$/)).toMatch(/\/accept$/);
+    await expect(change.getByTestId("otto-entry-badge")).toHaveText("Accepted");
+    await expect(fix.getByTestId("fix-proposal").getByTestId("proposal-status")).toHaveText("Accepted");       // the page says the same
+    await expect(fix.getByRole("button", { name: "Connect demo code" })).toBeEnabled();
+    // ---- Connect demo code, from the panel
+    step = await ask(page, connect, "Connect demo code");
+    await expect(step).toContainText("It merges nothing.");
+    expect(await confirm(page, step, /\/api\/plans\/\d+\/fixes\/connect$/)).toMatch(/\/fixes\/connect$/);
+    await expect(fix.getByTestId("fix-status")).toHaveAttribute("data-status", "ready", { timeout: 300_000 });
+    // ---- Open pull request, from the panel, with the reviewers the page ticks by default
+    const pull = entries(page, "next:open_pull_request");
+    step = await ask(page, pull, "Open pull request");
+    await expect(step).toContainText("It merges nothing: a merge needs every approval and your own click on Fixes.");
+    expect(await confirm(page, step, /\/pull-request$/)).toMatch(/\/pull-request$/);
+    await expect(fix.getByTestId("fix-status")).toHaveAttribute("data-status", "waiting");
+    // Approve and Merge pull request are never offered by the panel: they stay on their page
+    await expect(onPage(page).getByRole("button", { name: /Approve|Merge/ })).toHaveCount(0);
+    await shots(page, "12-fixes-pull-request-opened-from-the-panel");
+    // (the reviewer the page ticks by default is "You": the panel asked exactly that one, as the page's button would)
+    await expect(fix.locator('[data-testid="approval-row"]')).toHaveCount(1);
+    await fix.locator('[data-testid="approval-row"][data-reviewer="you"]').getByRole("button", { name: "Approve", exact: true }).click();
+    await expect(fix.getByTestId("fix-status")).toHaveAttribute("data-status", "ready_to_merge");
+    await fix.getByRole("button", { name: "Merge pull request" }).click();
+    await page.getByRole("button", { name: "Confirm merge" }).click();
+    await expect(fix.getByTestId("fix-status")).toHaveAttribute("data-status", "merged");
+    // ---- Retest now, from the panel: the app goes to Evidence, as the page's own button does
+    const retest = entries(page, "next:retest_now");
+    step = await ask(page, retest, "Retest now");
+    expect(await confirm(page, step, /\/fixes\/[^/]+\/retest$/)).toMatch(/\/retest$/);
+    await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
+    await expect(page.getByTestId("evidence-row").filter({ hasText: RANGE_CHECK }).first()).toContainText("Passed", { timeout: 240_000 });
+
+    // ================================================================ Migration: Measure status; then the Planning tab
+    await page.goto(`/#/a/${assessment}/migration/systems`);
+    await expect(page.getByRole("heading", { name: "Migration", level: 1 })).toBeVisible();
+    // before the status is measured there is the next step, and no Planning tab: the tab you had stays
+    expect(await openTabs(page)).toEqual(["testing", "fixing"]);
+    const measure = entries(page, "next:measure_status");
+    await expect(measure.getByTestId("otto-entry-title")).toHaveText("Measure status");
+    await shots(page, "13-systems-measure-status-as-the-next-step");
+    step = await ask(page, measure, "Measure status");
+    await expect(step).toContainText("It changes nothing on any system.");
+    expect(await confirm(page, step, /\/migration\/measure$/)).toMatch(/\/migration\/measure$/);
+    await expect(page.getByRole("button", { name: "Measure again" })).toBeEnabled({ timeout: 240_000 });
+    // (the check passed on the fixed code since, so no plan change is proposed any more: nothing opens Planning here)
+    await expect(entries(page, "next:measure_status")).toHaveCount(0);
+
+    // ================================================================ Dependencies: a library an advisory names; a tab closes and returns
+    await page.goto(`/#/a/${assessment}/migration/dependencies`);
+    // close the Fixing tab: it sends nothing, and it stays closed after a reload
+    const beforeClose = changes(page);
+    await tab(page, "fixing").getByTestId("otto-tab-close").click();
+    expect(await openTabs(page)).toEqual(["testing"]);
+    expect(changes(page), "closing a tab sent nothing").toEqual(beforeClose);
+    await page.reload();
+    await expect(tab(page, "testing")).toBeVisible();
+    expect(await openTabs(page)).toEqual(["testing"]);
+    // a dependency list is added on the page: an update is proposed for a library an advisory names, so the Fixing
+    // thread has something new, and its tab comes back by itself
+    await page.getByLabel("Choose a dependency list").setInputFiles(DEPENDENCIES_FILE);
+    await expect(page.getByTestId("dependency-row").first()).toBeVisible({ timeout: 60_000 });
+    await expect(tab(page, "fixing")).toBeVisible();
+    const update = entries(page, "suggestion:dependency");
+    await expect(update.first().getByTestId("otto-entry-where")).toHaveText("On Dependencies");
+    await expect(tab(page, "fixing")).toHaveAttribute("data-selected", "true");
+    expect(await layoutProblems(page), "Dependencies with the panel").toEqual([]);
+    await shots(page, "14-dependencies-an-update-proposed");
+    const first = update.first();
+    const title = (await first.getByTestId("otto-entry-title").innerText()).trim();
+    step = await ask(page, first, "Accept");
+    await expect(step.getByTestId("otto-confirm-lines").getByRole("listitem").first()).toHaveText("Marks this library “update first”.");
+    expect(await confirm(page, step, /\/otto\/proposals\/dep-[^/]+\/accept$/)).toMatch(/\/accept$/);
+    await expect(entryTitled(page, "suggestion:dependency", title).getByTestId("otto-entry-badge")).toHaveText("Accepted");
+    await expectPlainWords(page, "Dependencies");
+
+    // ================================================================ the Overview: its own next step, and what waits elsewhere
+    await page.goto(`/#/a/${assessment}/overview`);
+    await expect(page.getByTestId("overview-page")).toBeVisible();
+    const waiting = Number(await page.getByTestId("overview-waiting").getAttribute("data-total"));
+    const listed = await panel.getByTestId("otto-elsewhere").getAttribute("data-count");
+    expect(Number(listed ?? "0"), "Elsewhere lists what the Overview counts as waiting").toBe(waiting);
+    const next = (await page.getByTestId("next-step").getByRole("button").first().innerText()).trim();
+    await expect(entries(page, "next:open").getByTestId("otto-step-open")).toHaveText(next);
+    await shots(page, "15-overview");
+
+    // ================================================================ the evidence: signed, with the panel's decisions in it
+    await stepLink(page, "Evidence").click();
+    const created = page.waitForResponse((r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST");
+    await page.getByRole("button", { name: "Download evidence" }).click();
+    const info = await (await created).json();
+    const raw = await (await page.request.get(info.json.url)).body();
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-panel-file-")), "evidence.json");
+    fs.writeFileSync(file, raw);
+    const part = JSON.parse(raw.toString("utf-8")).evidence.otto;
+    const decisions = (part.proposals as any[]).flatMap((p) => (p.decisions as any[]).map((d) => `${p.kind}: ${d.decision}`)).sort();
+    expect(decisions).toEqual(["check: accept", "check: accept", "check: reconsider", "check: reject", "check: reject", "check: undo",
+                               "dependency: accept", "fix: accept"]);
+    // a decision made in the panel is recorded as the page's: who, when, its entry in the ledger; nothing says "panel"
+    const every = (part.proposals as any[]).flatMap((p) => p.decisions as any[]);
+    expect(every.every((d) => d.by === "You" && /^20\d\d-\d\d-\d\dT/.test(d.at) && d.ledger_entry && d.proposal_sha256)).toBe(true);
+    expect(raw.toString("utf-8")).not.toMatch(/otto-panel|from the panel|assistant/i);
+    const good = verify(file, copy.dataDir);
+    expect(good.status, `the evidence file should check: ${good.stdout} ${good.stderr}`).toBe(0);
+    expect(good.stdout).toMatch(/^Evidence verified/);
+    expect(good.stdout).toMatch(/Decisions: 8 on \d+ of the \d+ proposals, each in the ledger with who and when/);
+  } finally {
+    await stopCopy(copy);
+  }
+});
+
+// ---------------------------------------------------------------- 2. without Otto and without a key
+
+test("without Otto and without a key: the panel says so, lists what is proposed with its buttons off, and its next steps still work", async ({ browser }) => {
+  test.setTimeout(15 * 60_000);
+  let copy: Copy | null = null;
+  const empty = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-no-otto-"));
+  try {
+    copy = await startCopy(browser, 16, "demo", { EVIDENCE_LAB_OTTO_HOME: empty });
+    const page = copy.page;
+    await page.setViewportSize({ width: 1440, height: 900 });
+    watchRequests(page);
+    await enterApp(page);
+    const otto = await (await page.request.get("/api/otto")).json();
+    expect(otto.harness.installed, "this copy is started with an empty harness folder").toBe(false);
+    expect(otto.live.key_present).toBe(false);
+    await installPack(page, "2026.11.1");                      // a pack is data: it installs without Otto
+    await openFreshAssessment(page, "Otto panel walk, no Otto");
+    const imported = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/import/demo" && r.request().method() === "POST");
+    await page.getByRole("button", { name: "Use demo file" }).click();
+    expect((await imported).status()).toBe(200);
+    const panel = panelOf(page);
+    await expect(panel.getByTestId("otto-status")).toHaveText("Live Otto is off. Settings");
+    await expect(panel.getByTestId("otto-notice")).toContainText("Otto is not installed on this computer");
+    // the next steps are the pages' own buttons, and work as before
+    await page.getByTestId("address-confirm").click();
+    let step = await ask(page, entries(page, "next:verify"), "Verify claims");
+    await confirm(page, step, /\/api\/import\/\d+\/verify$/);
+    await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
+    await entries(page, "next:open").getByTestId("otto-step-open").click();
+    await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
+    // what is proposed is listed, and nothing can be decided: the page's own reason
+    const proposed = entries(page, "suggestion:check");
+    await expect(proposed).toHaveCount(2);
+    for (const card of await proposed.all()) {
+      await expect(card.getByRole("button", { name: "Accept" })).toBeDisabled();
+      await expect(card.getByRole("button", { name: "Reject" })).toBeDisabled();
+      await expect(card.getByTestId("otto-blocked")).toContainText("Otto is not installed on this computer");
+    }
+    await shots(page, "16-checks-without-otto");
+    step = await ask(page, entries(page, "next:run_all"), "Run all");
+    await confirm(page, step, /\/api\/plans\/\d+\/run-all$/);
+    await expect.poll(() => cardStatuses(page), { timeout: 240_000 }).toEqual(Array(5).fill("done"));
+    await expectPlainWords(page, "Checks, without Otto");
+  } finally {
+    await stopCopy(copy);
+    fs.rmSync(empty, { recursive: true, force: true });
+  }
+});

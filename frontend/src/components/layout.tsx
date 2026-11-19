@@ -262,6 +262,10 @@ export const ItemPageContext = createContext<ItemPage | null>(null);
  * assistant of phase 6; nothing fills it yet). It is given the open item's id. */
 export const PanelHeaderSlotContext = createContext<((item: string | null) => ReactNode) | null>(null);
 
+/** Phase 6a: every open side panel tells the app which item it shows (and that it closed), so the Otto panel knows
+ * the open item on every page, whether it was opened by its address or by a click on a row. It changes nothing. */
+export const OpenItemContext = createContext<((item: string | null) => void) | null>(null);
+
 const APP_TITLE = "Isogeny Labs";
 
 /** The item's own page: "← Back to Checks", its title as the page's heading, then the same content as the panel. The
@@ -359,6 +363,13 @@ export function DetailPanel({
   useEffect(() => {
     close.current = onClose;
   }, [onClose]);
+  const reportOpen = useContext(OpenItemContext);
+  const openItem = open ? item : null;
+  useEffect(() => {
+    if (!reportOpen || openItem === null) return;
+    reportOpen(openItem);
+    return () => reportOpen(null);
+  }, [reportOpen, openItem]);
 
   useEffect(() => {
     if (!open || asPage) return;

@@ -722,6 +722,14 @@ def system_view(state: dict, today: date, busy: bool) -> dict:
     }
 
 
+def measure_button(n: int, busy: bool, finished: int, any_measured: bool) -> dict:
+    """The Measure status button: its name, whether it can be pressed, and why not. One place, for the Migration page
+    and for the Otto panel's next step (phase 6a), so both say the same. `n`: how many systems the file names."""
+    return {"label": "Measure again" if any_measured else "Measure status", "enabled": bool(n) and not busy,
+            "blocked_reason": "A measurement is running." if busy else None if n else "The file names nothing that can be measured.",
+            "progress_text": f"Measuring: {finished} of {n} systems finished." if busy else None}
+
+
 def view(*, plan_id: int, import_id: int, is_demo: bool, filename: str, states: list[dict], busy: bool, finished: int,
          measured_at: str | None, today: date, download: dict) -> dict:
     n = len(states)
@@ -733,9 +741,7 @@ def view(*, plan_id: int, import_id: int, is_demo: bool, filename: str, states: 
     any_measured = any(s["code"] is not None for s in states)
     return {
         "plan_id": plan_id, "import_id": import_id, "is_demo": is_demo, "title": TITLE, "subline": subline, "disclaimer": DISCLAIMER, "busy": busy,
-        "measure": {"label": "Measure again" if any_measured else "Measure status", "enabled": bool(n) and not busy,
-                    "blocked_reason": "A measurement is running." if busy else None if n else "The file names nothing that can be measured.",
-                    "progress_text": f"Measuring: {finished} of {n} systems finished." if busy else None},
+        "measure": measure_button(n, busy, finished, any_measured),
         "tabs": {"systems": f"Systems · {n}", "roadmap": "Roadmap", "dependencies": "Dependencies"}, "list_title": f"Systems in the file ({n})",
         "empty_text": None if n else "This file names no server and no signing program, so there is nothing to plan a migration for.",
         "systems": [system_view(s, today, busy) for s in states],

@@ -55,6 +55,7 @@ export type DependencyState = "measured" | "not_measured" | "couldnt_check" | "c
 export type DependencyTrack = "kex" | "auth" | "signatures";
 export type GroupKey = "verification" | "encryption" | "migration" | "dependencies";
 export type ItemState = "open" | "in_progress" | "done";
+export type AssistantThread = "testing" | "fixing" | "planning";
 
 export interface AddTestBody {
   catalog_id: string;
@@ -799,6 +800,277 @@ export interface OttoWaitingItem {
   link: ItemLink;
   page_label: string;
 }
+/**
+ * The request of the page's own button. The browser sends it on Confirm, through the same call the page uses.
+ */
+export interface AssistantAction {
+  type:
+    | "verify"
+    | "run"
+    | "run_all"
+    | "retest"
+    | "connect"
+    | "run_proof_again"
+    | "open_pull_request"
+    | "retest_now"
+    | "try"
+    | "ask_approval"
+    | "measure_library"
+    | "measure_all"
+    | "measure_status"
+    | "open";
+  plan_id: number | null;
+  import_id: number | null;
+  /**
+   * A test of the plan (Run).
+   */
+  item_id: number | null;
+  fix_id: string | null;
+  /**
+   * A server change's key (Try on a test copy, Ask for approval).
+   */
+  change: string | null;
+  /**
+   * A library row (Measure on a public copy).
+   */
+  row: string | null;
+  version: string | null;
+  component: string | null;
+  /**
+   * The reviewers the page ticks by default.
+   */
+  reviewers: string[] | null;
+  /**
+   * "open": where it goes. Opening a page needs no Confirm.
+   */
+  link: ItemLink | null;
+}
+export interface AssistantBadge {
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+}
+/**
+ * The Confirm step: what will happen and what will not, and which button of which page it presses.
+ */
+export interface AssistantConfirm {
+  title: string;
+  lines: string[];
+  /**
+   * "This is the Run all button on Checks."
+   */
+  names: string;
+  /**
+   * "Confirm"
+   */
+  confirm: string;
+  /**
+   * "Cancel"
+   */
+  cancel: string;
+  /**
+   * Reject only: the optional reason.
+   */
+  reason: AssistantReason | null;
+}
+export interface AssistantReason {
+  /**
+   * "Reason (optional, one short line)"
+   */
+  label: string;
+  max: number;
+}
+/**
+ * One button of a suggestion: the page's own button, with the page's own reason when it is off.
+ */
+export interface AssistantDecision {
+  key: "accept" | "reject" | "undo" | "reconsider";
+  label: string;
+  can: boolean;
+  blocked_reason: string | null;
+  /**
+   * Null when the button is off: there is nothing to confirm.
+   */
+  confirm: AssistantConfirm | null;
+}
+export interface AssistantElsewhere {
+  /**
+   * "Elsewhere: 2 more"
+   */
+  title: string;
+  count: number;
+  lines: AssistantElsewhereLine[];
+  /**
+   * "Nothing from Otto is waiting for a decision." when nothing waits anywhere.
+   */
+  empty: string | null;
+}
+export interface AssistantElsewhereLine {
+  /**
+   * "Fixes: 1 proposed fix, Update elliptic to 6.5.7"
+   */
+  text: string;
+  count: number;
+  link: ItemLink;
+  thread: "testing" | "fixing" | "planning";
+}
+/**
+ * One entry of the panel: a suggestion (one of Otto's proposals), a next step (a button of a page) or what a
+ * result means; and, in a thread so far, a reviewed result or where a fix stands.
+ */
+export interface AssistantEntry {
+  id: string;
+  kind: "suggestion" | "next" | "meaning" | "result" | "fix_step";
+  /**
+   * Its line in the one table of kinds, e.g. "next:run_all".
+   */
+  what: string;
+  thread: ("testing" | "fixing" | "planning") | null;
+  /**
+   * "From Otto", "Next step", "What this means", "Result" or "Fix"
+   */
+  mark: string;
+  title: string;
+  text: string | null;
+  /**
+   * When its cause happened (ISO): the order of a thread so far.
+   */
+  at: string | null;
+  badge: AssistantBadge | null;
+  /**
+   * Where it lives: "On Advisories", with the link.
+   */
+  where: LabeledLink | null;
+  links: LabeledLink[];
+  /**
+   * A suggestion: the proposal exactly as its page shows it.
+   */
+  proposal: OttoProposal | null;
+  decisions: AssistantDecision[];
+  step: AssistantStep | null;
+  /**
+   * It is about the item that is open on the page.
+   */
+  open_item: boolean;
+}
+export interface LabeledLink {
+  label: string;
+  link: ItemLink;
+}
+export interface AssistantStep {
+  /**
+   * "nothing": it only opens a page, at once.
+   */
+  needs: "confirm" | "nothing";
+  action: AssistantAction;
+  can: boolean;
+  /**
+   * The page's own reason when its button is off.
+   */
+  blocked_reason: string | null;
+  running: boolean;
+  progress: string | null;
+  confirm: AssistantConfirm | null;
+}
+export interface AssistantOnPage {
+  title: string;
+  entries: AssistantEntry[];
+  empty: string | null;
+  empty_link: LabeledLink | null;
+}
+/**
+ * The one line under the title: what Settings says about Live Otto, with the way there when it is off.
+ */
+export interface AssistantStatus {
+  /**
+   * "Live Otto is off." or "Live Otto is on."
+   */
+  text: string;
+  live: boolean;
+  link: LabeledLink | null;
+}
+export interface AssistantTab {
+  key: "testing" | "fixing" | "planning";
+  label: string;
+  /**
+   * How many of this thread's suggestions nobody has decided yet.
+   */
+  waiting: number;
+  /**
+   * Changes when the thread gets a new entry: the browser keeps it for a closed tab and for the dot.
+   */
+  mark: string;
+  so_far_title: string;
+  so_far: AssistantEntry[];
+  so_far_empty: string | null;
+}
+export interface AssistantView {
+  assessment_id: number;
+  plan_id: number | null;
+  /**
+   * "Otto"
+   */
+  title: string;
+  status: AssistantStatus;
+  /**
+   * The closed sentence, and what Settings says when Otto is not installed.
+   */
+  notices: string[];
+  note: string;
+  recorded_as: OttoName;
+  page: string;
+  page_label: string;
+  /**
+   * The tab this page selects (null on the Overview).
+   */
+  thread: ("testing" | "fixing" | "planning") | null;
+  /**
+   * At most three, and only the open ones.
+   */
+  tabs: AssistantTab[];
+  on_page: AssistantOnPage;
+  elsewhere: AssistantElsewhere;
+  /**
+   * Undecided suggestions on this page plus elsewhere.
+   */
+  waiting: number;
+  /**
+   * Something is running: ask again in a second.
+   */
+  busy: boolean;
+}
+/**
+ * Who a decision is recorded as, and whether a name has been typed yet.
+ */
+export interface OttoName {
+  /**
+   * "Who decides"
+   */
+  title: string;
+  /**
+   * "Your name"
+   */
+  label: string;
+  /**
+   * The name a person typed; empty until then.
+   */
+  value: string;
+  /**
+   * The typed name, or "You".
+   */
+  recorded_as: string;
+  typed: boolean;
+  /**
+   * "Recorded as You, with the time."
+   */
+  line: string;
+  save: string;
+  note: string;
+  max: number;
+  /**
+   * The label of the field in the Otto panel's first Confirm step.
+   */
+  ask_label: string;
+}
 export interface Badge {
   code:
     | "passed"
@@ -1136,10 +1408,6 @@ export interface OttoResultBlock {
   decisions: OttoResultDecisions;
   ledger: AdvisoryLedger;
   note: string;
-}
-export interface LabeledLink {
-  label: string;
-  link: ItemLink;
 }
 export interface OttoResultDecisions {
   title: string;
@@ -2695,9 +2963,6 @@ export interface MigrationView {
   systems: MigrationSystem[];
   roadmap: MigrationRoadmap;
 }
-export interface NameBody {
-  name: string;
-}
 /**
  * Phase 5b: the New assessment box (and Rerun as new assessment). Every field may be left out.
  */
@@ -2762,6 +3027,39 @@ export interface OttoLiveSwitch {
    */
   can_turn_on: boolean;
   blocked_reason: string | null;
+}
+/**
+ * Phase 6a: who a decision on a proposal is recorded as. A name typed once, or "You".
+ */
+export interface OttoName1 {
+  /**
+   * "Who decides"
+   */
+  title: string;
+  /**
+   * "Your name"
+   */
+  label: string;
+  /**
+   * The name a person typed; empty until then.
+   */
+  value: string;
+  /**
+   * The typed name, or "You".
+   */
+  recorded_as: string;
+  typed: boolean;
+  /**
+   * "Recorded as You, with the time."
+   */
+  line: string;
+  save: string;
+  note: string;
+  max: number;
+  /**
+   * The label of the field in the Otto panel's first Confirm step.
+   */
+  ask_label: string;
 }
 export interface OttoPackCard {
   version: string;
@@ -2854,6 +3152,10 @@ export interface OttoSettingsView {
   harness: OttoHarnessLine;
   answers: OttoAnswersLine;
   live: OttoLiveSection;
+  /**
+   * Phase 6a: always sent by the current backend.
+   */
+  name?: OttoName1 | null;
 }
 export interface PackInstallBody {
   version: string;
@@ -3096,4 +3398,10 @@ export interface WorkspaceProject {
    */
   latest: AssessmentBrief | null;
   counts: AssessmentCounts;
+}
+export interface App_Web_Otto__NameBody {
+  name: string;
+}
+export interface App_Web_Projects__NameBody {
+  name: string;
 }

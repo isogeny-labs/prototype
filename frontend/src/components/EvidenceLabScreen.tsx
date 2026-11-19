@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { usePanelStamp } from "../changes";
 import {
   api,
   errorMessage,
@@ -190,6 +191,8 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
     setOpenRow(null);
     setOpenCheck(null);
   }, []);
+  // Phase 6a: a decision or a start sent from the Otto panel: this page reads its view again.
+  const panelStamp = usePanelStamp();
 
   useEffect(() => {
     let live = true;
@@ -204,7 +207,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
     return () => {
       live = false;
     };
-  }, [planId]);
+  }, [planId, panelStamp]);
 
   const labStamp = lab ? `${lab.busy}:${lab.rows.map((r) => `${r.result?.run_id ?? ""}/${r.after?.run_id ?? ""}`).join(",")}` : "";
   // Asked once the lab's own answer is in, and again whenever a result in it changes (or while something runs).

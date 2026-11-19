@@ -5,6 +5,14 @@
 // `npm run gen:api` from src/api-schema.json); they are written once, in backend/app/web/models.py.
 
 export type {
+  AssistantView,
+  AssistantTab,
+  AssistantEntry,
+  AssistantDecision,
+  AssistantConfirm,
+  AssistantStep,
+  AssistantAction,
+  AssistantThread,
   ClaimKind,
   MeasurementResult,
   LocationKind,
@@ -211,6 +219,7 @@ export type {
   AdvisoryClaude,
   AdvisoryStep,
 } from "./api.gen";
+import { notifyChanged } from "./changes";
 import { TIMES_ASK, TIMES_HEADER, withLocalTimes } from "./time";
 import type {
   Session,
@@ -239,6 +248,7 @@ import type {
   AdvisoriesView,
   OttoProposal,
   OttoProposalsView,
+  AssistantView,
 } from "./api.gen";
 
 export class ApiError extends Error {
@@ -326,6 +336,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
     throw toApiError(response.status, body);
   }
+  // Phase 6a: anything that is not a read may have changed the assessment, so the Otto panel (and, when the panel sent
+  // it, the open page) reads again. See src/changes.ts.
+  if ((options.method ?? "GET") !== "GET") notifyChanged();
   return body as T;
 }
 
@@ -421,8 +434,17 @@ export const api = {
   installPack: (version: string) => request<OttoSettingsView>("/api/otto/packs/install", { method: "POST", json: { version } }),
   /** Use live Claude on or off, and/or the spending limit per run (US dollars, as typed). */
   setLiveOtto: (change: { on?: boolean; limit?: string }) => request<OttoSettingsView>("/api/otto/live", { method: "POST", json: change }),
+  /** Phase 6a: the name a person types once; their decisions on proposals are recorded under it from then on. */
+  setDecisionName: (name: string) => request<OttoSettingsView>("/api/otto/name", { method: "POST", json: { name } }),
   getAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories`),
   /** Every proposal of Otto's in this assessment, with the "Waiting for you" counts. */
+  /** Phase 6a: what the Otto panel shows beside this page of this assessment, with this item open. A read: it runs
+   * nothing and asks Claude nothing. */
+  getAssistant: (assessmentId: number, page: string, item?: string | null) => {
+    const params = new URLSearchParams({ page });
+    if (item) params.set("item", item);
+    return request<AssistantView>(`/api/assessments/${assessmentId}/assistant?${params.toString()}`);
+  },
   getProposals: (planId: number) => request<OttoProposalsView>(`/api/plans/${planId}/otto/proposals`),
   /** Otto proposes; a person decides: accept, reject (with an optional short reason), undo or reconsider one proposal.
    * It runs nothing. The answer is the proposal as it now stands. */

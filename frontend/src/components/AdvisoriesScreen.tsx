@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { usePanelStamp } from "../changes";
 import { api, errorMessage, type AdvisoriesView, type OttoProposal } from "../api";
 import { AdvisoryPanel } from "./advisories/AdvisoryPanel";
 import { AdvisoryTable } from "./advisories/AdvisoryTable";
@@ -45,6 +46,8 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
   const [openId, setOpenId] = useState<string | null>(openItem);
   // The newest request for the page's view: an answer that comes back after a newer one was asked for is dropped.
   const asked = useRef(0);
+  // Phase 6a: a decision or a start sent from the Otto panel: this page reads its view again.
+  const panelStamp = usePanelStamp();
 
   useEffect(() => setOpenId(openItem), [openItem]);
 
@@ -63,7 +66,7 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
     return () => {
       asked.current += 1;
     };
-  }, [planId]);
+  }, [planId, panelStamp]);
 
   /** A decision was recorded. The card's own answer is shown at once; then the whole page is read again, because a
    * decision also moves the row's cells, the waiting line and the check's place in the test plan; and the app is told,

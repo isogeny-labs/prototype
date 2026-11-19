@@ -150,6 +150,12 @@ def state_of(rows: list) -> str:
     return rows[-1].after if rows else "proposed"
 
 
+def accept_stands(proposal: dict) -> str | None:
+    """Why an accept of this proposal can no longer be undone (what it led to has run or been applied), or None. The
+    one rule, also read by the Otto panel (app/assistant), which only reads."""
+    return ProposalsMixin._otto_locked(proposal)
+
+
 class ProposalsMixin:
     """Mixed into `Lab`."""
 
@@ -171,6 +177,7 @@ class ProposalsMixin:
     _pack_advisories: Callable[..., list]
     _closed_at: Callable[..., Any]
     assessment_for: Callable[..., Any]
+    decision_name: Callable[..., str]
 
     # ---------------------------------------------------------------- the stored decisions
 
@@ -689,10 +696,11 @@ class ProposalsMixin:
             about = dict(proposal["about"])
             earlier = self._decision_rows(db, plan_id).get(proposal_id, [])
             number, at = len(earlier) + 1, now_stamp()
+            by = self.decision_name()         # the name a person typed once (phase 6a), or "You"
             # Before anything is written, anywhere: the entry this decision would make, shown to the app's own pinned
             # checker. An entry it does not take is never put into the ledger, so "nothing was changed" is true.
             would_be = {"proposal": proposal_id, "proposal_kind": proposal["kind"], "proposal_sha256": proposal["fingerprint"],
-                        "title": proposal["title"], "decision": decision, "before": before, "after": after, "by": BY, "at": at, "reason": why,
+                        "title": proposal["title"], "decision": decision, "before": before, "after": after, "by": by, "at": at, "reason": why,
                         "number": number, "about": about}
             if assurance.run_checker({"kind": "decision", "proposal": proposal_id, "proposal_kind": proposal["kind"]}, would_be,
                                      assurance.DECISION_CHECKER) != "accept":
@@ -705,7 +713,7 @@ class ProposalsMixin:
             objective = next((r.objective_id for r in earlier if r.objective_id), None)
             objective, claim, verdict = ledger.record_decision(
                 objective_id=objective, proposal_id=proposal_id, kind=proposal["kind"], title=proposal["title"],
-                proposal_sha256=proposal["fingerprint"], decision=decision, before=before, after=after, by=BY, at=at, reason=why,
+                proposal_sha256=proposal["fingerprint"], decision=decision, before=before, after=after, by=by, at=at, reason=why,
                 number=number, about=about)
             if verdict != "accept":
                 # The checker took this entry a moment ago and gives no answer now (it did not run in time). The ledger
@@ -714,7 +722,7 @@ class ProposalsMixin:
                 raise Conflict("The decision was not recorded: Otto's ledger could not check its entry just now. The proposal stands as "
                                "it was; the attempt stays in the ledger, marked as not accepted. Try again.")
             db.add(OttoDecisionRow(plan_id=plan_id, proposal_id=proposal_id, kind=proposal["kind"], decision=decision, before=before, after=after,
-                                   number=number, reason=why, by=BY, at=at, proposal=content(proposal),
+                                   number=number, reason=why, by=by, at=at, proposal=content(proposal),
                                    proposal_sha256=proposal["fingerprint"], objective_id=objective, claim_id=claim))
             db.commit()
         return self.otto_proposal(plan_id, proposal_id)

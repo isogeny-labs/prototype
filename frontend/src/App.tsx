@@ -20,7 +20,7 @@ import { CloseBox, NewAssessmentBox } from "./components/pages/AssessmentBoxes";
 import { ProjectOverviewPage } from "./components/pages/ProjectOverviewPage";
 import { LinkProvider } from "./components/related";
 import { LoginScreen, SetupScreen } from "./components/AuthScreens";
-import { CopilotPanel } from "./components/CopilotPanel";
+import { OttoPanel } from "./components/assistant/OttoPanel";
 import { EvidenceLabScreen } from "./components/EvidenceLabScreen";
 import { FixesScreen } from "./components/FixesScreen";
 import { ImportScreen } from "./components/ImportScreen";
@@ -36,8 +36,9 @@ import { VerifyScreen } from "./components/VerifyScreen";
 import { setAlgorithmNames } from "./plainNames";
 import { applyTheme, prefs, type Theme } from "./prefs";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "./readOnly";
-import { ItemMissing, ItemPageContext, type ItemPage } from "./components/layout";
+import { ItemMissing, ItemPageContext, type ItemPage, OpenItemContext } from "./components/layout";
 import { PAGE_NAMES, itemPageHref, pageHref, useRoute, type Page } from "./router";
+import { usePanelStamp } from "./changes";
 
 const ANOTHER_FILE =
   "This assessment already has a file. Bringing in another file starts a new assessment in this project; this one stays open, as it is.";
@@ -241,6 +242,22 @@ export default function App() {
   useEffect(() => {
     if (routePage === "fixes" && routeItem) setFixId(routeItem);
   }, [routePage, routeItem]);
+  // Phase 6a: a decision or a start sent from the Otto panel changed the assessment: what the app itself keeps of it
+  // (its summary, the latest Verify, the test plan) is read again, and so is the sidebar's list. Each page reads its
+  // own view again by the same signal (src/changes.ts).
+  // (the item open in the page's own side panel, as the panel itself reports it: by its address or by a click on a row)
+  // Until a panel has reported on this page, the item the address names stands in (the page is still loading).
+  const [reported, setReported] = useState<{ item: string | null } | null>(null);
+  useEffect(() => setReported(null), [routePage, routeId]);
+  const setOpenItem = useCallback((item: string | null) => setReported({ item }), []);
+  const openItem = reported ? reported.item : routeItem;
+  const panelStamp = usePanelStamp();
+  useEffect(() => {
+    if (panelStamp === 0 || !loggedIn || routeId === null) return;
+    void loadAssessment(routeId);
+    void loadWorkspace();
+    // (only the panel's signal starts this read; the other values are the newest at that moment)
+  }, [panelStamp]);
 
   const importId = imp?.id ?? null;
   const reloadPlan = useCallback(async () => {
@@ -662,6 +679,7 @@ export default function App() {
                 {current ? (
                   <LinkProvider assessmentId={current.id} planId={plan?.id ?? null}>
                     <ItemPageContext.Provider value={itemPage}>
+                     <OpenItemContext.Provider value={setOpenItem}>
                       {/* The 5c fixes: an item on a page of its own ("Open in new tab"). The open panel draws itself in
                           this place, and the list it belongs to is kept, hidden, so every button works as in the panel. */}
                       {asItemPage ? (
@@ -683,6 +701,7 @@ export default function App() {
                       <div hidden={asItemPage || undefined} data-testid="page-content">
                         {content}
                       </div>
+                     </OpenItemContext.Provider>
                     </ItemPageContext.Provider>
                   </LinkProvider>
                 ) : (
@@ -692,8 +711,15 @@ export default function App() {
               {guided && current && page && page !== "overview" && !asItemPage ? <GuidedBar page={page} access={access} onGo={go} /> : null}
             </div>
           </main>
-          {/* The assistant sits beside the steps of an assessment (it is about the step on screen), not beside Projects or Settings. */}
-          {copilotShown && current ? <CopilotPanel /> : null}
+          {/* Phase 6a: the Otto assistant sits beside the pages of an assessment (it is about the page on screen), not
+              beside Projects or Settings. The top bar's toggle hides and shows it. */}
+          {copilotShown && current && page ? (
+            <ReadOnlyProvider readOnly={closed}>
+              <LinkProvider assessmentId={current.id} planId={plan?.id ?? null}>
+                <OttoPanel assessmentId={current.id} page={page} item={openItem} onGo={(next) => go(next)} />
+              </LinkProvider>
+            </ReadOnlyProvider>
+          ) : null}
         </div>
       </div>
       {box && box.kind !== "close" ? (

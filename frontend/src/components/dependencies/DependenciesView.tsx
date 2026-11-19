@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { usePanelStamp } from "../../changes";
 import { api, errorMessage, MAX_DEPENDENCY_LIST_BYTES, type DependenciesView as View, type DependencyRow } from "../../api";
 import { CLOSED_SENTENCE, useReadOnly } from "../../readOnly";
 import { DataTable, DetailPanel, FilterSelect, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "../layout";
@@ -43,6 +44,8 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
     changed.current = onChanged;
   }, [onChanged]);
 
+  // Phase 6a: a decision or a start sent from the Otto panel: this view is read again.
+  const panelStamp = usePanelStamp();
   useEffect(() => {
     let live = true;
     api
@@ -52,7 +55,7 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
     return () => {
       live = false;
     };
-  }, [importId]);
+  }, [importId, panelStamp]);
 
   // The end of a measurement can change the blockers: tell the app.
   const lastBusy = useRef<boolean | null>(null);

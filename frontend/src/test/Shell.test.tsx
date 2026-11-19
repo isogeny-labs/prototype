@@ -210,24 +210,24 @@ describe("top bar", () => {
     expect(screen.getByTestId("mode-line").textContent).toBe(session.mode_line);
   });
 
-  it("shows and hides the co-pilot panel from its toggle, and remembers the choice", async () => {
+  it("shows and hides the Otto panel from the top bar's toggle, and remembers the choice", async () => {
     // Phase 5a: the panel sits beside the pages of an assessment, not beside Projects or Settings.
     mockApi({ ...baseRoutes } as Parameters<typeof mockApi>[0]);
     render(<App />);
     await screen.findByTestId("projects-page");
-    expect(screen.queryByTestId("copilot-panel")).toBeNull();
+    expect(screen.queryByTestId("otto-panel")).toBeNull();
     window.history.replaceState(null, "", "#/a/101/overview");
     window.dispatchEvent(new HashChangeEvent("hashchange"));
     await screen.findByTestId("overview-page");
-    expect(screen.getByTestId("copilot-panel")).not.toBeNull();
+    expect(screen.getByTestId("otto-panel")).not.toBeNull();
     const toggle = screen.getByRole("button", { name: "Hide the assistant" });
     expect(toggle.getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(toggle);
-    expect(screen.queryByTestId("copilot-panel")).toBeNull();
+    expect(screen.queryByTestId("otto-panel")).toBeNull();
     expect(screen.getByRole("button", { name: "Show the assistant" }).getAttribute("aria-pressed")).toBe("false");
     expect(window.localStorage.getItem("evidence-lab-copilot")).toBe("hidden");
     fireEvent.click(screen.getByRole("button", { name: "Show the assistant" }));
-    expect(screen.getByTestId("copilot-panel")).not.toBeNull();
+    expect(screen.getByTestId("otto-panel")).not.toBeNull();
   });
 
   it("starts with the panel hidden when it was left hidden", async () => {
@@ -236,7 +236,7 @@ describe("top bar", () => {
     mockApi({ ...baseRoutes } as Parameters<typeof mockApi>[0]);
     render(<App />);
     await screen.findByTestId("overview-page");
-    expect(screen.queryByTestId("copilot-panel")).toBeNull();
+    expect(screen.queryByTestId("otto-panel")).toBeNull();
   });
 });
 

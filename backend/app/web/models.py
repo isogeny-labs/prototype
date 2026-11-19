@@ -1952,6 +1952,21 @@ class OttoLiveSection(Shape):
     price_line: str
 
 
+class OttoName(Shape):
+    """Phase 6a: who a decision on a proposal is recorded as. A name typed once, or "You"."""
+
+    title: str = Field(description='"Who decides"')
+    label: str = Field(description='"Your name"')
+    value: str = Field(description="The name a person typed; empty until then.")
+    recorded_as: str = Field(description='The typed name, or "You".')
+    typed: bool
+    line: str = Field(description='"Recorded as You, with the time."')
+    save: str
+    note: str
+    max: int
+    ask_label: str = Field(description="The label of the field in the Otto panel's first Confirm step.")
+
+
 class OttoSettingsView(Shape):
     """Settings: the Test packs section, the two status lines and the Live Otto section (phase 5c)."""
 
@@ -1959,6 +1974,7 @@ class OttoSettingsView(Shape):
     harness: OttoHarnessLine
     answers: OttoAnswersLine
     live: OttoLiveSection
+    name: OttoName | None = Field(default=None, description="Phase 6a: always sent by the current backend.")
 
 
 class AdvisoryQuote(Shape):
@@ -2388,6 +2404,148 @@ class DependencyOttoStatus(Shape):
     label: str
     tone: Tone
     lines: list[str]
+
+
+# ---- Phase 6a: the Otto panel beside every page of an assessment. One read; every word comes from the backend, and the
+# panel decides nothing: on Confirm the browser sends the request of the page's own button, which `step.action` names. ----
+
+AssistantThread = Literal["testing", "fixing", "planning"]
+
+
+class AssistantStatus(Shape):
+    """The one line under the title: what Settings says about Live Otto, with the way there when it is off."""
+
+    text: str = Field(description='"Live Otto is off." or "Live Otto is on."')
+    live: bool
+    link: LabeledLink | None
+
+
+class AssistantReason(Shape):
+    label: str = Field(description='"Reason (optional, one short line)"')
+    max: int
+
+
+class AssistantConfirm(Shape):
+    """The Confirm step: what will happen and what will not, and which button of which page it presses."""
+
+    title: str
+    lines: list[str]
+    names: str = Field(description='"This is the Run all button on Checks."')
+    confirm: str = Field(description='"Confirm"')
+    cancel: str = Field(description='"Cancel"')
+    reason: AssistantReason | None = Field(description="Reject only: the optional reason.")
+
+
+class AssistantDecision(Shape):
+    """One button of a suggestion: the page's own button, with the page's own reason when it is off."""
+
+    key: Literal["accept", "reject", "undo", "reconsider"]
+    label: str
+    can: bool
+    blocked_reason: str | None
+    confirm: AssistantConfirm | None = Field(description="Null when the button is off: there is nothing to confirm.")
+
+
+class AssistantAction(Shape):
+    """The request of the page's own button. The browser sends it on Confirm, through the same call the page uses."""
+
+    type: Literal["verify", "run", "run_all", "retest", "connect", "run_proof_again", "open_pull_request", "retest_now", "try", "ask_approval",
+                  "measure_library", "measure_all", "measure_status", "open"]
+    plan_id: int | None
+    import_id: int | None
+    item_id: int | None = Field(description="A test of the plan (Run).")
+    fix_id: str | None
+    change: str | None = Field(description="A server change's key (Try on a test copy, Ask for approval).")
+    row: str | None = Field(description="A library row (Measure on a public copy).")
+    version: str | None
+    component: str | None
+    reviewers: list[str] | None = Field(description="The reviewers the page ticks by default.")
+    link: ItemLink | None = Field(description='"open": where it goes. Opening a page needs no Confirm.')
+
+
+class AssistantStep(Shape):
+    needs: Literal["confirm", "nothing"] = Field(description='"nothing": it only opens a page, at once.')
+    action: AssistantAction
+    can: bool
+    blocked_reason: str | None = Field(description="The page's own reason when its button is off.")
+    running: bool
+    progress: str | None
+    confirm: AssistantConfirm | None
+
+
+class AssistantBadge(Shape):
+    label: str
+    tone: Tone
+
+
+class AssistantEntry(Shape):
+    """One entry of the panel: a suggestion (one of Otto's proposals), a next step (a button of a page) or what a
+    result means; and, in a thread so far, a reviewed result or where a fix stands."""
+
+    id: str
+    kind: Literal["suggestion", "next", "meaning", "result", "fix_step"]
+    what: str = Field(description='Its line in the one table of kinds, e.g. "next:run_all".')
+    thread: AssistantThread | None
+    mark: str = Field(description='"From Otto", "Next step", "What this means", "Result" or "Fix"')
+    title: str
+    text: str | None
+    at: str | None = Field(description="When its cause happened (ISO): the order of a thread so far.")
+    badge: AssistantBadge | None
+    where: LabeledLink | None = Field(description='Where it lives: "On Advisories", with the link.')
+    links: list[LabeledLink]
+    proposal: OttoProposal | None = Field(description="A suggestion: the proposal exactly as its page shows it.")
+    decisions: list[AssistantDecision]
+    step: AssistantStep | None
+    open_item: bool = Field(description="It is about the item that is open on the page.")
+
+
+class AssistantTab(Shape):
+    key: AssistantThread
+    label: str
+    waiting: int = Field(description="How many of this thread's suggestions nobody has decided yet.")
+    mark: str = Field(description="Changes when the thread gets a new entry: the browser keeps it for a closed tab and for the dot.")
+    so_far_title: str
+    so_far: list[AssistantEntry]
+    so_far_empty: str | None
+
+
+class AssistantOnPage(Shape):
+    title: str
+    entries: list[AssistantEntry]
+    empty: str | None
+    empty_link: LabeledLink | None
+
+
+class AssistantElsewhereLine(Shape):
+    text: str = Field(description='"Fixes: 1 proposed fix, Update elliptic to 6.5.7"')
+    count: int
+    link: ItemLink
+    thread: AssistantThread
+
+
+class AssistantElsewhere(Shape):
+    title: str = Field(description='"Elsewhere: 2 more"')
+    count: int
+    lines: list[AssistantElsewhereLine]
+    empty: str | None = Field(description='"Nothing from Otto is waiting for a decision." when nothing waits anywhere.')
+
+
+class AssistantView(Shape):
+    assessment_id: int
+    plan_id: int | None
+    title: str = Field(description='"Otto"')
+    status: AssistantStatus
+    notices: list[str] = Field(description="The closed sentence, and what Settings says when Otto is not installed.")
+    note: str
+    recorded_as: OttoName = Field(description="Who a decision is recorded as, and whether a name has been typed yet.")
+    page: str
+    page_label: str
+    thread: AssistantThread | None = Field(description="The tab this page selects (null on the Overview).")
+    tabs: list[AssistantTab] = Field(description="At most three, and only the open ones.")
+    on_page: AssistantOnPage
+    elsewhere: AssistantElsewhere
+    waiting: int = Field(description="Undecided suggestions on this page plus elsewhere.")
+    busy: bool = Field(description="Something is running: ask again in a second.")
 
 
 def _rebuild_all() -> None:

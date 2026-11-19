@@ -78,8 +78,20 @@ def pack_adds(pack) -> list[str]:
     return lines
 
 
+NAME_MAX = 60
+NAME_NOTE = ("Decisions on proposals are recorded under this name, with the time. This app has one login and does not check who is at the "
+             "keyboard. Left empty, a decision is recorded as “You”. A decision already recorded keeps the name it was made under.")
+
+
+def name_view(typed: str | None) -> dict:
+    """Who a decision is recorded as: the name a person typed once (Settings, or the Otto panel's first Confirm), or "You"."""
+    return {"title": "Who decides", "label": "Your name", "value": typed or "", "recorded_as": typed or "You", "typed": bool(typed),
+            "line": f"Recorded as {typed or 'You'}, with the time.", "save": "Save", "note": NAME_NOTE, "max": NAME_MAX,
+            "ask_label": "Your name (asked once; kept in Settings)"}
+
+
 def settings_view(*, installed: list, update, refused: list[dict], scan_line: str | None, harness_status: dict, live_on: bool,
-                  limit_nano: int, key_present: bool, answers_line: str, unreadable: list[str] | None = None) -> dict:
+                  limit_nano: int, key_present: bool, answers_line: str, unreadable: list[str] | None = None, name: str | None = None) -> dict:
     cards = [pack_card(pack, at) for at, pack in installed]
     unreadable = list(unreadable or [])
     newest = cards[-1] if cards else None
@@ -129,6 +141,7 @@ def settings_view(*, installed: list, update, refused: list[dict], scan_line: st
         "harness": {"installed": bool(harness_status["installed"]),
                     "line": harness_status["sentence"] + ("" if harness_status["installed"] else NOT_INSTALLED_TAIL)},
         "answers": {"line": answers_line, "live": live_ready},
+        "name": name_view(name),
         "live": {
             "title": "Live Otto",
             "key_present": key_present,

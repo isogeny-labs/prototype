@@ -18,6 +18,10 @@ class LiveOttoBody(BaseModel):
     limit: StrictStr | None = Field(default=None, max_length=12)   # the spending limit per run, in US dollars
 
 
+class NameBody(BaseModel):
+    name: StrictStr = Field(max_length=400)                        # a person's name for their decisions (held to 60 after cleaning)
+
+
 class DecisionBody(BaseModel):
     reason: StrictStr | None = Field(default=None, max_length=2000)     # a reject's optional short reason (held to 300 after cleaning)
 
@@ -44,6 +48,11 @@ def routes(lab, require_login) -> APIRouter:
     @router.post("/api/otto/live", dependencies=login, responses=shows(models.OttoSettingsView))
     def live_otto(body: LiveOttoBody):
         return lab.set_live_otto(body.on, body.limit)
+
+    @router.post("/api/otto/name", dependencies=login, responses=shows(models.OttoSettingsView))
+    def decision_name(body: NameBody):
+        """Phase 6a: the name a person types once; their decisions on proposals are recorded under it from then on."""
+        return lab.set_decision_name(body.name)
 
     @router.get("/api/plans/{plan_id}/advisories", dependencies=login, responses=shows(models.AdvisoriesView))
     def advisories(plan_id: int):
