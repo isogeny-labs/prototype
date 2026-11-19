@@ -1,0 +1,12 @@
+{
+  "schema": "evidence-lab-demo-change-1",
+  "key": "allow-tls-1-0",
+  "title": "Allow TLS 1.0 for an old partner",
+  "what_it_does": "Adds one settings file. The program is untouched.",
+  "branch": "dev/allow-tls-1-0-for-partner",
+  "message": "Allow TLS 1.0 for an old partner\n\nThe partner's gateway cannot do anything newer yet.\nThese are the settings for the connection to them.",
+  "offered": "connected",
+  "files": [
+    {"name": "partner-gateway.conf", "text": "# Settings for the connection to the partner's old gateway (demo data).\nhost = partner-gateway.example.invalid\nport = 443\nminimum_protocol = TLS 1.0\nrequest_timeout_seconds = 30\n"}
+  ]
+}
