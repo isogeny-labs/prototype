@@ -13,11 +13,14 @@ Doc "Phase 6 plan: Otto assistant".
 
 ## Where the run stands (updated after every step)
 
-Written at 15:20 UTC on 19 November 2026 (machine time). The exact next action is the section before the
-appendix. In one line: **steps 1 to 3 and the first halves of 6b, 6c, 6d and 6e are built and pushed. All but 6e
-are reviewed with their findings fixed (6d twice); 6e's separate review is running. The second halves (free
-wording and free answers through Claude, the Watch list, a hypothesis turned into a test) are not built. The long
-checks on the final commit are the last thing to do.**
+Written at 16:03 UTC on 19 November 2026 (machine time), when the run stopped. The session's usage limit was
+reached at about 15:50 UTC; Kevin then asked for a stop at a green, pushed branch, with the Change watch walk green on
+a quiet machine and pull request #7 not merged. The exact next action is the section before the appendix. In one
+line: **steps 1 to 3 and the first halves of 6b, 6c, 6d and 6e are built, tested and pushed, and all but 6e are
+reviewed with their findings fixed (6d twice). 6e's separate review was started and stopped before it reported, so
+6e is not reviewed yet. The second halves (free wording and free answers through Claude, the Watch list, a
+hypothesis turned into a test) are not built. Green at the stop: every GitHub check on the last code commit
+(`3885e19`), the fast set with Otto (1917 passed, 4 min 59 s, alone), and the Change watch walk (1 passed, alone).**
 
 | # | Success step | State |
 |---|---|---|
@@ -32,10 +35,10 @@ checks on the final commit are the last thing to do.**
 | 9, 10, 11 | The assistant: suggestions that fit the page, three tabs, decide in the panel | **Done** (phase 6a): built, reviewed, findings fixed, walk green, pictures, pushed |
 | 12 | Commands | **First half done** (6b, fixed rules only): built, tested, documented, reviewed, the review's findings fixed with tests, walked on the final code. Two small leftovers are listed in step 4 below. **The second half (free wording through Claude) is not built** |
 | 13 | Questions | **First half done** (6c, the six fixed questions by rules): built, tested, documented, reviewed ("not ready as committed": 13 findings), all 13 fixed with tests, walked on the final code. **The second half (answers in free words by Claude, with "Hypothesis") is not built**, so an unproven answer labelled Hypothesis does not exist yet |
-| 14 | What-if and hypotheses | **First half done, its review running** (6e: the what-if facts and the try): built, tested, documented, walked. "What if I update elliptic to 6.5.7?" typed into the panel gets one card: what the app knows (where the library is used, the dependencies the new version declares against the one you have, the advisories it answers, the pack's trial, post-quantum support of both versions, the track it blocks, your own results), each line with its label and link and an honest "not known" where the app knows nothing; the try on a test copy (Evidence's own Retest new version behind Confirm), proven on a real library in a real container; and what the facts do not show under Hypothesis. **Not built (the second half): the two buttons on a hypothesis (Turn this into a test, Add to Change watch) and Claude's explanation.** So "every unproven point has its two buttons" is not met |
+| 14 | What-if and hypotheses | **First half done; not reviewed yet** (6e: the what-if facts and the try): built, tested, documented, walked. "What if I update elliptic to 6.5.7?" typed into the panel gets one card: what the app knows (where the library is used, the dependencies the new version declares against the one you have, the advisories it answers, the pack's trial, post-quantum support of both versions, the track it blocks, your own results), each line with its label and link and an honest "not known" where the app knows nothing; the try on a test copy (Evidence's own Retest new version behind Confirm), proven on a real library in a real container; and what the facts do not show under Hypothesis. **Not built (the second half): the two buttons on a hypothesis (Turn this into a test, Add to Change watch) and Claude's explanation.** So "every unproven point has its two buttons" is not met. **Its separate review was started and stopped before it reported** (the session's usage limit was reached): it is the first next action |
 | 15 | Change watch | **First half done** (6d: Changes without the Watch list): built, tested, documented, walked, reviewed once (8 findings, all fixed with tests). A developer's change is listed with the tests picked for it and why; **Run the picked tests** runs them (on the page, or from the Otto panel's card behind Confirm) and the change reads, for the demo, "Passed before, fails now"; the runs show on Checks and Evidence as "Came from: Change watch"; Fixes gets a Text-only entry for the change; a line that names old cryptography is flagged; the signed evidence file and the report hold the changes and their runs, and the verify command checks them. What was built after that review (the evidence part and its verify check, the entry in Fixes, the panel's step) had **a second separate review: 7 findings, all fixed** (`80c27a5`; see "Step 6"). The entry in Fixes is now listed under its own heading and counted nowhere. **Not built: the Watch list** (the second half) |
 | 16 | Nothing without a click and Confirm; works without a key | **Holds for everything built**: 6a, the research loop, 6b, 6c and 6d work with no key (no part of the panel asks Claude in this version), with tests. Change watch starts nothing by itself: bringing a change in runs nothing, and the picked tests run only on a click |
-| 17 | Keys match in both modes, fast tests under 5 minutes, each step reviewed, committed, pushed | **Keys: match in both modes** (isolated: exit code 0 on a frozen copy of `5699057`; demo: green in the GitHub checks on every push). **Fast tests: not under five minutes on the build machine** (5 min 52 s with Otto on `e16786f`, measured alone; the set has grown by about 130 tests since, and every later timing was taken with other work running, so it says little: 8 min 54 s and 6 min 38 s on `31eaf59`). On GitHub's runner the fast set without Otto took 4 min 59 s on `27bd7f3`. **Decision 10.** Each step reviewed, fixed, committed, pushed; 6d's later pieces still need their second review |
+| 17 | Keys match in both modes, fast tests under 5 minutes, each step reviewed, committed, pushed | **Keys: match in both modes** (isolated: exit code 0 on a frozen copy of `5699057`; demo: green in the GitHub checks on every push, the last on `3885e19`). **Fast tests: 4 min 59 s with Otto on `3885e19`, measured alone: just under five minutes, at the limit** (1917 passed, 502 left out as slow), after the long shared walks moved to the slow set (decision 10; before the move 7 min 0 s, with other work running). On GitHub's runner the whole backend job on `3885e19` (lint, type check, generated files, the fast set without Otto, the demo-mode accuracy check) took 4 min 50 s and 6 min 41 s (two runs). Each step reviewed, fixed, committed, pushed, **except 6e, whose separate review did not finish** |
 | 18 | This file | Kept current |
 
 Commits on `overnight/fixes-and-phase6` since the 5c merge (`5a6b4e4`), oldest first, all pushed:
@@ -71,7 +74,9 @@ checkpoint 1** (what a library version declares it needs) · `1ea9a60` a row nev
 result · `61e2efd` **6e, checkpoint 2** (the what-if facts and the sentence that asks) · `953b109` **6e, checkpoint 3**
 (the card in the panel) · `36ed916` **6e: the walk, with its pictures** · `80c27a5` **6d: the second review's seven
 findings fixed; 6e in the documents** · `2d49dd8` **6e: the try on a real library in its container, and the what-if
-questions for the fifth key** · then this file.
+questions for the fifth key** · `e58fba2` this file · `49aa096` a test that the report lists a change's entry in
+Fixes under its own heading · `3885e19` **the fast set: the long shared walks go to the slow set** · then the Change
+watch walk's pictures, `docs/ACTIVE.md` and this file.
 
 ## The GitHub checks, and what they caught (07:45 UTC)
 
@@ -124,6 +129,13 @@ the setting the top bar's toggle keeps in the browser. The first complete run of
 | The full backend set again, with each test's name | `31eaf59` | **Running when this was written** (output: the scratch folder's `g-full.txt`). So far two failures in about 1,700 tests. (1) `tests/otto/test_otto_fix.py::test_otto_writes_the_change_and_a_view_asks_nothing`: real, and the test's fault: it still split a sentence on "in Otto's words", which step 1 removed on purpose. Fixed in `d1ccc61`; the file then passes in full (23 passed). (2) `tests/test_changes.py::test_connecting_makes_the_plans_own_copy_and_starts_the_proof_by_itself`: passes when run alone (81 s). Its fixture looks at a proof while it is still running, and four other heavy runs were going on the machine. **Read the run's own report for it when it has ended**, and run the set once more with nothing else running |
 | The GitHub checks | `90332ef` and before | Backend was **red from `ff5f30c` to `fa1e1b6`** for one reason: a new route named its parameter `{key}`, and a test holds that no route's address contains "key" (it guards the signing key). Renamed in `90332ef`. CodeQL raised one alert ("polynomial regular expression used on uncontrolled data", the same route); the pattern is gone since `0f972db` and CodeQL is neutral. **The checks on `31eaf59` and later have not been read yet** |
 | 6d after its review: the evidence part, the Fixes entry, the panel's step | `49d1f0d` | `backend/tests/changewatch` **175 passed** in the fast set (177 in full); with `backend/tests/assistant` in full **375 passed**; the evidence, fixes, ledger, projects and time tests in full **450 passed**; **845 screen tests**; lint, both type checks and the generated files clean; the walk **1 passed** (2.2 min) with the new steps. Otto's accuracy walk in demo mode: 155 answers collected, not compared (the fifth key is not written, as agreed), exit code 2 as designed |
+| 6d after its second review, and 6e: lint, both type checks and the generated files; `tests/changewatch`, `tests/assistant` and `tests/whatif` in full; the fast set with Otto; the screen tests | `80c27a5` (the working copy before the commit) | All clean; **463 passed** (2 min 44 s); the fast set **2047 passed** (7 min 0 s, with another run going); **852 screen tests** passed |
+| 6e: the try on a real library in real containers (`backend/tests/whatif/test_whatif_real.py`) | `2d49dd8` | **4 passed** (4 min 34 s) |
+| Otto's accuracy walk in demo mode (`--only otto`), with the new Change watch and what-if questions | `2d49dd8` | **190 answers collected**, none compared (the fifth key is not written, as agreed); exit code 2, as designed |
+| The separate review of 6e | `2d49dd8` | **Stopped before it reported**: the session's usage limit was reached. Nothing of it is used. It is the first next action |
+| The Change watch walk after the second review's fixes | `80c27a5`, then `3885e19` | The first run **failed** at one comparison: it read Evidence's rows by their drawn text while the fast set ran beside it, and a row that is in the page but not drawn yet reads as one unbroken line. The walk now compares the rows' own text (`3885e19`). Run again **alone** on `3885e19`: **1 passed (2.1 min)**. Its 16 pictures are retaken and committed; the Fixes picture shows the entry under "From a developer's change (1)" |
+| The fast set after the long shared walks moved to the slow set (decision 10) | `3885e19` | **1917 passed, 502 left out as slow, in 4 min 59 s with Otto, alone: just under five minutes, at the limit** |
+| The GitHub checks | `3885e19` | **All green**: Backend twice (for the push and for the pull request: 4 min 50 s and 6 min 41 s), Frontend twice, CodeQL and its three analyses |
 
 ### What the first whole fast set with Otto found (08:32 UTC)
 
@@ -885,6 +897,8 @@ author, the times and the sentences beside a status. Those are covered by the fi
 to know:** an evidence file made by one of tonight's builds between `2422941` and `36ed916` lacks the new
 fingerprint and fails the tightened check. No such file was handed out.
 
+**The walk after the second review's fixes** checks two things more: the entry sits under its own heading, and the page's count, the group's counts and the rows are what they were before the change came in. **1 passed (2.1 min)**, alone, on `3885e19`, with its pictures retaken.
+
 **What is left of 6d:**
 1. The long checks on the final commit (see "The exact next action").
 2. Small things the plan names for the first half that are **not built**: a watch run's results and flags as
@@ -958,7 +972,7 @@ is offered), with the accuracy walk asking them; and the try on a real library i
 - Claude's explanation of the facts (part 3). With Live Otto on, the part says it is not part of this version.
 - The plan's walk part in isolated mode. The backend test above runs that path instead.
 
-**What is left of 6e's first half:** one separate review, and its fixes.
+**What is left of 6e's first half:** one separate review, and its fixes. (A first review was started on `2d49dd8` and stopped before it reported, when the session's usage limit was reached.)
 
 ## Decisions for Kevin (collected so far)
 
@@ -987,11 +1001,15 @@ is offered), with the accuracy walk asking them; and the try on a real library i
    on a click). This is new for the app; your brief asked for it. Please make the first real look yourself.
 9. An item's own page ("Open in new tab") now carries the standing line also for an item of Checks, whose
    list page has none. Should the Checks list carry it too? (SPEC section 11 says every result screen.)
-10. The fast test set: three shared walks moved to the slow set, as decided, and tonight the Otto panel's
-    shared walk too (its 54 readers). The numbers are in "The long checks". On GitHub's runner the fast set takes
-    4 min 59 s without Otto: at the limit. To be safely under five minutes everywhere, either tests run in
-    parallel (pytest-xdist, a developer-only package: your OK needed) or the readers of the shared demo walk (a
-    large part of the fast set) move to the slow set too. Which do you want?
+10. The fast test set. Three shared walks moved to the slow set, as you decided, then the Otto panel's shared walk
+    (its 54 readers). With phases 6a to 6e the set had reached seven minutes on the build machine, so I moved more by
+    the same rule and with no new package: the 41 readers of the whole demo walk (`demo_flow`, about 49 seconds to
+    make; `SLOW_SESSION_WALKS` in `backend/tests/conftest.py`), three Change watch walks, and about twenty tests that
+    start a real process and wait on it or make a proof of their own. The scan for private keys keeps a short form in
+    the fast set; the accuracy check still grades the whole demo on every push; everything moved still runs with
+    `--full` and in the nightly checks. Now: 4 min 59 s with Otto, alone (just under five minutes, at the limit). If you would rather run the tests
+    in parallel (pytest-xdist, a developer-only package: your OK needed) and keep them in the fast set, the move is
+    undone in `conftest.py` and the markers.
 11. Phase 6b: on Checks the Result filter now also narrows the test plan's own cards (so that "show me failed
     checks" lists only failed checks). Before, it filtered only the rows under the plan. Is that right?
 12. Phase 6b: everyday names for libraries are a small fixed table (Java for openjdk, Python and ecdsa for
@@ -1074,7 +1092,8 @@ is offered), with the accuracy walk asking them; and the try on a real library i
 
 ## The exact next action
 
-1. **The separate review of phase 6e**, if "Step 7" above does not yet list its findings: one reviewer against
+1. **The separate review of phase 6e.** A first attempt, on `2d49dd8`, stopped before it reported (the session's
+   usage limit was reached). Start a new one on the newest commit: one reviewer against
    `docs/SPEC.md` (section 2, "What-if in the Otto panel"), `CLAUDE.md` and the plan (the Claude Doc "Phase 6 plan:
    Otto assistant", section 6e), for `backend/app/whatif/`, the `declared` entries in `knowledge/libraries/`,
    `_WHAT_IF` in `backend/app/assistant/commands.py`, `_what_if` in `answers.py`, `WhatIfCard.tsx`, the new part of
