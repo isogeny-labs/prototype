@@ -1589,6 +1589,157 @@ GroupKey = Literal["verification", "encryption", "migration", "dependencies"]
 ItemState = Literal["open", "in_progress", "done"]
 
 
+# ---------------------------------------------------------------- phase 6d: Change watch
+
+ChangeStatusKey = Literal["not_run", "running", "no_difference", "passed_before_fails_now", "failed_before_passes_now",
+                          "nothing_to_run", "cant_run", "couldnt_trust"]
+ChangeOutcome = Literal["fails_now", "passes_now", "same", "not_compared", "not_trusted"]
+
+
+class ChangeStatus(Shape):
+    """The status word of a developer's change. It is the change's, never a test result."""
+
+    key: ChangeStatusKey
+    word: str = Field(description='"Not run yet", "Running", "No difference found", "Passed before, fails now (1 test)", ...')
+    tone: Tone
+    busy: bool = Field(description="its picked tests are running: ask again in a second")
+    reason: str | None = Field(description="one sentence under the word that says why")
+
+
+class ChangeBlock(Shape):
+    before: list["DiffLine"]
+    after: list["DiffLine"]
+
+
+class ChangeFile(Shape):
+    name: str
+    what: str = Field(description='"Added", "Changed" or "Removed"')
+    counts: str | None = Field(description='"5 lines added"; null when the file is not text')
+    is_program: bool = Field(description="the file of the program under test")
+    note: str | None
+    blocks: list[ChangeBlock] = Field(description="each changed place, with the lines around it, before and after")
+
+
+class ChangeTest(Shape):
+    item_id: int
+    title: str
+    reason: str = Field(description="the rule that picked it, or left it out, in one sentence")
+    link: "ItemLink"
+
+
+class ChangeResultSide(Shape):
+    """The reviewer's word for one run, repeated: a watch run words no result of its own."""
+
+    run_id: int
+    label: str
+    tone: Tone
+    plain: str
+    ran_on: str | None
+    link: "ItemLink | None" = Field(description="where that run's evidence is shown")
+
+
+class ChangeJob(Shape):
+    status: JobStatus
+    progress_text: str | None
+    progress_percent: int | None
+
+
+class ChangeResult(Shape):
+    item_id: int
+    title: str
+    before: ChangeResultSide | None
+    before_note: str | None = Field(description="where the result before comes from")
+    now: ChangeResultSide | None
+    job: ChangeJob | None
+    differs: str | None = Field(description='"Passed before, fails now", "Failed before, passes now", "Same as before", ...; null until reviewed')
+    outcome: ChangeOutcome | None
+
+
+class ChangeSource(Shape):
+    title: str
+    url: str
+
+
+class ChangeFlag(Shape):
+    """Something to look at. Never a result."""
+
+    title: str
+    text: str
+    note: str = Field(description='"The app has not tested what this line does."')
+    source: ChangeSource
+
+
+class ChangeRunButton(Shape):
+    label: str = Field(description='"Run the picked tests", then "Run again"')
+    can: bool
+    blocked_reason: str | None
+    will_run: list[str] = Field(description="the tests the button runs, by name")
+    note: str | None
+
+
+class ChangePanel(Shape):
+    message: str
+    starts_from: str | None
+    gives: str | None = Field(description="which registered demo program the change's code is, or that it is none")
+    files: list[ChangeFile]
+    picked: list[ChangeTest]
+    not_picked: list[ChangeTest]
+    picked_empty: str | None
+    run: ChangeRunButton
+    last_run: str | None
+    results: list[ChangeResult]
+    flags: list[ChangeFlag]
+    flags_note: str | None
+    more_flags: str | None
+
+
+class ChangeRow(Shape):
+    id: str = Field(description='"change-" and the first twelve characters of its commit: it names the exact code')
+    title: str
+    branch: str
+    commit: str
+    author: str | None
+    is_demo: bool = Field(description="a bundled demo change: drawn with the Demo data label")
+    when: str | None
+    files_line: str | None
+    picked_line: str
+    status: ChangeStatus
+    flags_count: int
+    panel: ChangePanel
+
+
+class ChangeWatchCode(Shape):
+    state: Literal["no_code", "not_connected", "unreadable", "connected"]
+    line: str | None = Field(description="what to do first, or why nothing can come in here; null once connected")
+    link: "ItemLink | None"
+    connected_line: str | None
+
+
+class DemoChangeItem(Shape):
+    key: str
+    title: str
+    what_it_does: str
+    can: bool
+    blocked_reason: str | None
+
+
+class ChangeWatchMenu(Shape):
+    button: str = Field(description='"Bring in a demo change"')
+    note: str
+    items: list[DemoChangeItem]
+
+
+class ChangeWatchView(Shape):
+    plan_id: int
+    title: str = Field(description='"Change watch"')
+    subline: str
+    code: ChangeWatchCode
+    menu: ChangeWatchMenu
+    changes: list[ChangeRow] = Field(description="newest first; read from the connected repository on every ask")
+    empty: str | None
+    busy: bool = Field(description="a change's picked tests are running: ask again in a second")
+
+
 class ItemLink(Shape):
     page: str = Field(description='The page that holds the item, e.g. "evidence", "fixes", "migration/systems".')
     item: str | None = Field(description="The item to open there (a check, claim, fix, system or library id); null for the page.")

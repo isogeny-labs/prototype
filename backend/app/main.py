@@ -18,6 +18,7 @@ from app.importer.common import ImportFileError
 from app.lab.hub import BadRequest, Conflict, Lab, NotFound
 from app.present.times import MarkTimes
 from app.web import assistant as assistant_routes
+from app.web import changewatch as changewatch_routes
 from app.web import changes, checks, dependencies, fixes, importing, migration, projects, session
 from app.web import lab as lab_routes
 from app.web import otto as otto_routes
@@ -99,6 +100,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(checks.routes(lab, require_login), dependencies=guarded)   # phase 5b
     app.include_router(otto_routes.routes(lab, require_login), dependencies=guarded)   # phase 5c
     app.include_router(assistant_routes.routes(lab, require_login), dependencies=guarded)   # phase 6a: the panel's read; 6b: a typed sentence
+    app.include_router(changewatch_routes.routes(lab, require_login), dependencies=guarded)   # phase 6d: Change watch
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def no_such_api(rest: str):

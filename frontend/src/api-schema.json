@@ -2556,6 +2556,114 @@
           }
         }
       }
+    },
+    "/api/plans/{plan_id}/change-watch": {
+      "get": {
+        "summary": "Change Watch",
+        "description": "The Changes view: every developer's change in the connected demo repository, read now. It only reads.",
+        "operationId": "change_watch_api_plans__plan_id__change_watch_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeWatchView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/change-watch/demo/{key}": {
+      "post": {
+        "summary": "Bring In Demo Change",
+        "description": "Bring in a demo change (Demo data): one branch with one commit, written into this assessment's own copy of\nthe repository. It runs nothing.",
+        "operationId": "bring_in_demo_change_api_plans__plan_id__change_watch_demo__key__post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeWatchView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/change-watch/{change_id}/run": {
+      "post": {
+        "summary": "Run Picked Tests",
+        "description": "Run the picked tests (then: Run again). Sent by that button, or by its Confirm in the Otto panel.",
+        "operationId": "run_picked_tests_api_plans__plan_id__change_watch__change_id__run_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Change Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeWatchView"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6319,6 +6427,31 @@
         ],
         "title": "ChangeBadge"
       },
+      "ChangeBlock": {
+        "properties": {
+          "before": {
+            "items": {
+              "$ref": "#/components/schemas/DiffLine"
+            },
+            "type": "array",
+            "title": "Before"
+          },
+          "after": {
+            "items": {
+              "$ref": "#/components/schemas/DiffLine"
+            },
+            "type": "array",
+            "title": "After"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "before",
+          "after"
+        ],
+        "title": "ChangeBlock"
+      },
       "ChangeBody": {
         "properties": {
           "change": {
@@ -6382,6 +6515,271 @@
         ],
         "title": "ChangeButton"
       },
+      "ChangeFile": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "what": {
+            "type": "string",
+            "title": "What",
+            "description": "\"Added\", \"Changed\" or \"Removed\""
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counts",
+            "description": "\"5 lines added\"; null when the file is not text"
+          },
+          "is_program": {
+            "type": "boolean",
+            "title": "Is Program",
+            "description": "the file of the program under test"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeBlock"
+            },
+            "type": "array",
+            "title": "Blocks",
+            "description": "each changed place, with the lines around it, before and after"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "what",
+          "counts",
+          "is_program",
+          "note",
+          "blocks"
+        ],
+        "title": "ChangeFile"
+      },
+      "ChangeFlag": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "description": "\"The app has not tested what this line does.\""
+          },
+          "source": {
+            "$ref": "#/components/schemas/ChangeSource"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "text",
+          "note",
+          "source"
+        ],
+        "title": "ChangeFlag",
+        "description": "Something to look at. Never a result."
+      },
+      "ChangeJob": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_run",
+              "waiting",
+              "running",
+              "done"
+            ],
+            "title": "Status"
+          },
+          "progress_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Text"
+          },
+          "progress_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Percent"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "progress_text",
+          "progress_percent"
+        ],
+        "title": "ChangeJob"
+      },
+      "ChangePanel": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "starts_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts From"
+          },
+          "gives": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gives",
+            "description": "which registered demo program the change's code is, or that it is none"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeFile"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "picked": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeTest"
+            },
+            "type": "array",
+            "title": "Picked"
+          },
+          "not_picked": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeTest"
+            },
+            "type": "array",
+            "title": "Not Picked"
+          },
+          "picked_empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Picked Empty"
+          },
+          "run": {
+            "$ref": "#/components/schemas/ChangeRunButton"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeFlag"
+            },
+            "type": "array",
+            "title": "Flags"
+          },
+          "flags_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flags Note"
+          },
+          "more_flags": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "More Flags"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "message",
+          "starts_from",
+          "gives",
+          "files",
+          "picked",
+          "not_picked",
+          "picked_empty",
+          "run",
+          "last_run",
+          "results",
+          "flags",
+          "flags_note",
+          "more_flags"
+        ],
+        "title": "ChangePanel"
+      },
       "ChangePart": {
         "properties": {
           "title": {
@@ -6425,6 +6823,306 @@
           "after"
         ],
         "title": "ChangePart"
+      },
+      "ChangeResult": {
+        "properties": {
+          "item_id": {
+            "type": "integer",
+            "title": "Item Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeResultSide"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "before_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Note",
+            "description": "where the result before comes from"
+          },
+          "now": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeResultSide"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeJob"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "differs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Differs",
+            "description": "\"Passed before, fails now\", \"Failed before, passes now\", \"Same as before\", ...; null until reviewed"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "fails_now",
+                  "passes_now",
+                  "same",
+                  "not_compared",
+                  "not_trusted"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "item_id",
+          "title",
+          "before",
+          "before_note",
+          "now",
+          "job",
+          "differs",
+          "outcome"
+        ],
+        "title": "ChangeResult"
+      },
+      "ChangeResultSide": {
+        "properties": {
+          "run_id": {
+            "type": "integer",
+            "title": "Run Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "plain": {
+            "type": "string",
+            "title": "Plain"
+          },
+          "ran_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ran On"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "where that run's evidence is shown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "label",
+          "tone",
+          "plain",
+          "ran_on",
+          "link"
+        ],
+        "title": "ChangeResultSide",
+        "description": "The reviewer's word for one run, repeated: a watch run words no result of its own."
+      },
+      "ChangeRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "\"change-\" and the first twelve characters of its commit: it names the exact code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch"
+          },
+          "commit": {
+            "type": "string",
+            "title": "Commit"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "description": "a bundled demo change: drawn with the Demo data label"
+          },
+          "when": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "When"
+          },
+          "files_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files Line"
+          },
+          "picked_line": {
+            "type": "string",
+            "title": "Picked Line"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChangeStatus"
+          },
+          "flags_count": {
+            "type": "integer",
+            "title": "Flags Count"
+          },
+          "panel": {
+            "$ref": "#/components/schemas/ChangePanel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "branch",
+          "commit",
+          "author",
+          "is_demo",
+          "when",
+          "files_line",
+          "picked_line",
+          "status",
+          "flags_count",
+          "panel"
+        ],
+        "title": "ChangeRow"
+      },
+      "ChangeRunButton": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Run the picked tests\", then \"Run again\""
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "will_run": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Will Run",
+            "description": "the tests the button runs, by name"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "can",
+          "blocked_reason",
+          "will_run",
+          "note"
+        ],
+        "title": "ChangeRunButton"
       },
       "ChangeSectionLine": {
         "properties": {
@@ -6563,6 +7261,86 @@
         ],
         "title": "ChangeSectionText"
       },
+      "ChangeSource": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "url"
+        ],
+        "title": "ChangeSource"
+      },
+      "ChangeStatus": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "not_run",
+              "running",
+              "no_difference",
+              "passed_before_fails_now",
+              "failed_before_passes_now",
+              "nothing_to_run",
+              "cant_run",
+              "couldnt_trust"
+            ],
+            "title": "Key"
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "\"Not run yet\", \"Running\", \"No difference found\", \"Passed before, fails now (1 test)\", ..."
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "its picked tests are running: ask again in a second"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "one sentence under the word that says why"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "word",
+          "tone",
+          "busy",
+          "reason"
+        ],
+        "title": "ChangeStatus",
+        "description": "The status word of a developer's change. It is the change's, never a test result."
+      },
       "ChangeStep": {
         "properties": {
           "key": {
@@ -6604,6 +7382,35 @@
           "text"
         ],
         "title": "ChangeStep"
+      },
+      "ChangeTest": {
+        "properties": {
+          "item_id": {
+            "type": "integer",
+            "title": "Item Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "the rule that picked it, or left it out, in one sentence"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "item_id",
+          "title",
+          "reason",
+          "link"
+        ],
+        "title": "ChangeTest"
       },
       "ChangeView": {
         "properties": {
@@ -6728,6 +7535,150 @@
           "busy"
         ],
         "title": "ChangeView"
+      },
+      "ChangeWatchCode": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "no_code",
+              "not_connected",
+              "unreadable",
+              "connected"
+            ],
+            "title": "State"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line",
+            "description": "what to do first, or why nothing can come in here; null once connected"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "connected_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "state",
+          "line",
+          "link",
+          "connected_line"
+        ],
+        "title": "ChangeWatchCode"
+      },
+      "ChangeWatchMenu": {
+        "properties": {
+          "button": {
+            "type": "string",
+            "title": "Button",
+            "description": "\"Bring in a demo change\""
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DemoChangeItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "button",
+          "note",
+          "items"
+        ],
+        "title": "ChangeWatchMenu"
+      },
+      "ChangeWatchView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Change watch\""
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ChangeWatchCode"
+          },
+          "menu": {
+            "$ref": "#/components/schemas/ChangeWatchMenu"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeRow"
+            },
+            "type": "array",
+            "title": "Changes",
+            "description": "newest first; read from the connected repository on every ask"
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty"
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "a change's picked tests are running: ask again in a second"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "title",
+          "subline",
+          "code",
+          "menu",
+          "changes",
+          "empty",
+          "busy"
+        ],
+        "title": "ChangeWatchView"
       },
       "CheckBlock": {
         "properties": {
@@ -7607,6 +8558,47 @@
         },
         "type": "object",
         "title": "DecisionBody"
+      },
+      "DemoChangeItem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "what_it_does": {
+            "type": "string",
+            "title": "What It Does"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "what_it_does",
+          "can",
+          "blocked_reason"
+        ],
+        "title": "DemoChangeItem"
       },
       "DemoProjectsLoaded": {
         "properties": {
@@ -17797,6 +18789,31 @@
         ],
         "type": "string",
         "title": "ItemState"
+      },
+      "ChangeStatusKey": {
+        "enum": [
+          "not_run",
+          "running",
+          "no_difference",
+          "passed_before_fails_now",
+          "failed_before_passes_now",
+          "nothing_to_run",
+          "cant_run",
+          "couldnt_trust"
+        ],
+        "type": "string",
+        "title": "ChangeStatusKey"
+      },
+      "ChangeOutcome": {
+        "enum": [
+          "fails_now",
+          "passes_now",
+          "same",
+          "not_compared",
+          "not_trusted"
+        ],
+        "type": "string",
+        "title": "ChangeOutcome"
       },
       "AssistantThread": {
         "enum": [

@@ -55,6 +55,16 @@ export type DependencyState = "measured" | "not_measured" | "couldnt_check" | "c
 export type DependencyTrack = "kex" | "auth" | "signatures";
 export type GroupKey = "verification" | "encryption" | "migration" | "dependencies";
 export type ItemState = "open" | "in_progress" | "done";
+export type ChangeStatusKey =
+  | "not_run"
+  | "running"
+  | "no_difference"
+  | "passed_before_fails_now"
+  | "failed_before_passes_now"
+  | "nothing_to_run"
+  | "cant_run"
+  | "couldnt_trust";
+export type ChangeOutcome = "fails_now" | "passes_now" | "same" | "not_compared" | "not_trusted";
 export type AssistantThread = "testing" | "fixing" | "planning";
 
 export interface AddTestBody {
@@ -1325,6 +1335,18 @@ export interface CatalogItem {
   tag: string | null;
   description: string;
 }
+export interface ChangeBlock {
+  before: DiffLine[];
+  after: DiffLine[];
+}
+/**
+ * One line of code in a before or after block. n is the line number in that version of the file.
+ */
+export interface DiffLine {
+  n: number;
+  mark: " " | "-" | "+";
+  text: string;
+}
 export interface ChangeBody {
   change: string;
 }
@@ -1334,6 +1356,117 @@ export interface ChangeButton {
   primary: boolean;
   enabled: boolean;
   reason: string | null;
+}
+export interface ChangeFile {
+  name: string;
+  /**
+   * "Added", "Changed" or "Removed"
+   */
+  what: string;
+  /**
+   * "5 lines added"; null when the file is not text
+   */
+  counts: string | null;
+  /**
+   * the file of the program under test
+   */
+  is_program: boolean;
+  note: string | null;
+  /**
+   * each changed place, with the lines around it, before and after
+   */
+  blocks: ChangeBlock[];
+}
+/**
+ * Something to look at. Never a result.
+ */
+export interface ChangeFlag {
+  title: string;
+  text: string;
+  /**
+   * "The app has not tested what this line does."
+   */
+  note: string;
+  source: ChangeSource;
+}
+export interface ChangeSource {
+  title: string;
+  url: string;
+}
+export interface ChangeJob {
+  status: "not_run" | "waiting" | "running" | "done";
+  progress_text: string | null;
+  progress_percent: number | null;
+}
+export interface ChangePanel {
+  message: string;
+  starts_from: string | null;
+  /**
+   * which registered demo program the change's code is, or that it is none
+   */
+  gives: string | null;
+  files: ChangeFile[];
+  picked: ChangeTest[];
+  not_picked: ChangeTest[];
+  picked_empty: string | null;
+  run: ChangeRunButton;
+  last_run: string | null;
+  results: ChangeResult[];
+  flags: ChangeFlag[];
+  flags_note: string | null;
+  more_flags: string | null;
+}
+export interface ChangeTest {
+  item_id: number;
+  title: string;
+  /**
+   * the rule that picked it, or left it out, in one sentence
+   */
+  reason: string;
+  link: ItemLink;
+}
+export interface ChangeRunButton {
+  /**
+   * "Run the picked tests", then "Run again"
+   */
+  label: string;
+  can: boolean;
+  blocked_reason: string | null;
+  /**
+   * the tests the button runs, by name
+   */
+  will_run: string[];
+  note: string | null;
+}
+export interface ChangeResult {
+  item_id: number;
+  title: string;
+  before: ChangeResultSide | null;
+  /**
+   * where the result before comes from
+   */
+  before_note: string | null;
+  now: ChangeResultSide | null;
+  job: ChangeJob | null;
+  /**
+   * "Passed before, fails now", "Failed before, passes now", "Same as before", ...; null until reviewed
+   */
+  differs: string | null;
+  outcome: ("fails_now" | "passes_now" | "same" | "not_compared" | "not_trusted") | null;
+}
+/**
+ * The reviewer's word for one run, repeated: a watch run words no result of its own.
+ */
+export interface ChangeResultSide {
+  run_id: number;
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  plain: string;
+  ran_on: string | null;
+  /**
+   * where that run's evidence is shown
+   */
+  link: ItemLink | null;
 }
 export interface ChangePart {
   /**
@@ -1354,13 +1487,52 @@ export interface StrongLabel {
   strong: string;
   rest: string;
 }
+export interface ChangeRow {
+  /**
+   * "change-" and the first twelve characters of its commit: it names the exact code
+   */
+  id: string;
+  title: string;
+  branch: string;
+  commit: string;
+  author: string | null;
+  /**
+   * a bundled demo change: drawn with the Demo data label
+   */
+  is_demo: boolean;
+  when: string | null;
+  files_line: string | null;
+  picked_line: string;
+  status: ChangeStatus;
+  flags_count: number;
+  panel: ChangePanel;
+}
 /**
- * One line of code in a before or after block. n is the line number in that version of the file.
+ * The status word of a developer's change. It is the change's, never a test result.
  */
-export interface DiffLine {
-  n: number;
-  mark: " " | "-" | "+";
-  text: string;
+export interface ChangeStatus {
+  key:
+    | "not_run"
+    | "running"
+    | "no_difference"
+    | "passed_before_fails_now"
+    | "failed_before_passes_now"
+    | "nothing_to_run"
+    | "cant_run"
+    | "couldnt_trust";
+  /**
+   * "Not run yet", "Running", "No difference found", "Passed before, fails now (1 test)", ...
+   */
+  word: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  /**
+   * its picked tests are running: ask again in a second
+   */
+  busy: boolean;
+  /**
+   * one sentence under the word that says why
+   */
+  reason: string | null;
 }
 export interface ChangeSectionLine {
   place: string;
@@ -1628,6 +1800,49 @@ export interface OttoResultDecisions {
   rows: OttoDecisionLine[];
   footnote: string;
   empty: string | null;
+}
+export interface ChangeWatchCode {
+  state: "no_code" | "not_connected" | "unreadable" | "connected";
+  /**
+   * what to do first, or why nothing can come in here; null once connected
+   */
+  line: string | null;
+  link: ItemLink | null;
+  connected_line: string | null;
+}
+export interface ChangeWatchMenu {
+  /**
+   * "Bring in a demo change"
+   */
+  button: string;
+  note: string;
+  items: DemoChangeItem[];
+}
+export interface DemoChangeItem {
+  key: string;
+  title: string;
+  what_it_does: string;
+  can: boolean;
+  blocked_reason: string | null;
+}
+export interface ChangeWatchView {
+  plan_id: number;
+  /**
+   * "Change watch"
+   */
+  title: string;
+  subline: string;
+  code: ChangeWatchCode;
+  menu: ChangeWatchMenu;
+  /**
+   * newest first; read from the connected repository on every ask
+   */
+  changes: ChangeRow[];
+  empty: string | null;
+  /**
+   * a change's picked tests are running: ask again in a second
+   */
+  busy: boolean;
 }
 /**
  * The 5c fixes: one version a retest ran on, or one proof of a change, with the rows of its own runs.
