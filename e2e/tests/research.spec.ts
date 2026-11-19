@@ -159,7 +159,7 @@ test("isolated mode: look, design and prove on public copies, the proven check i
     const page = copy.page;
     await page.setViewportSize({ width: 1440, height: 900 });
     watchRequests(page);
-    await enterApp(page);
+    await enterApp(page, { ottoPanel: true });
     const otto = await (await page.request.get("/api/otto")).json();
     test.skip(!otto.harness.installed, `Skipped: ${otto.harness.line} Run ./run-demo.sh once (or: cd backend && .venv/bin/python -m app.prepare --otto).`);
     expect(otto.live.key_present, "a copy of the app is started without an API key").toBe(false);
@@ -168,7 +168,8 @@ test("isolated mode: look, design and prove on public copies, the proven check i
     await openFreshAssessment(page, "Research loop walk");
     await importFile(page, oneLibraryFile());
     // Verify runs the library in its own container, so it takes a while before the Verify page opens
-    await page.getByRole("button", { name: "Verify claims" }).click();
+    // (the page's own button: since phase 6b the Otto panel has an example chip of the same name)
+    await page.getByTestId("page-content").getByRole("button", { name: "Verify claims" }).click();
     await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible({ timeout: 300_000 });
     const assessment = assessmentOf(page);
 
@@ -299,7 +300,7 @@ test("isolated mode: look, design and prove on public copies, the proven check i
     // ================================================================ the evidence: the look, the run and the pack it made
     await page.goto(`/#/a/${assessment}/evidence`);
     const created = page.waitForResponse((r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST");
-    await page.getByRole("button", { name: "Download evidence" }).click();
+    await page.getByTestId("page-content").getByRole("button", { name: "Download evidence" }).click();
     const info = await (await created).json();
     const raw = await (await page.request.get(info.json.url)).body();
     const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-research-evidence-")), "evidence.json");
@@ -331,7 +332,7 @@ test("demo mode: looking works, and Design and prove tests is off with its reaso
     const page = copy.page;
     await page.setViewportSize({ width: 1440, height: 900 });
     watchRequests(page);
-    await enterApp(page);
+    await enterApp(page, { ottoPanel: true });
     const otto = await (await page.request.get("/api/otto")).json();
     test.skip(!otto.harness.installed, `Skipped: ${otto.harness.line} Run ./run-demo.sh once (or: cd backend && .venv/bin/python -m app.prepare --otto).`);
     await openFreshAssessment(page, "Research loop walk, demo mode");

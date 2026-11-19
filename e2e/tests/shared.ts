@@ -32,7 +32,22 @@ export function screenshotFolder(
 }
 
 /** Opens the app and gets past the password screen, whichever one this data folder shows. */
-export async function enterApp(page: Page): Promise<void> {
+/** Opens the app and logs in. `ottoPanel`: is the Otto panel shown beside the pages (the app's default)?
+ *
+ * Since phase 6 the panel repeats, under the same names, things a page shows: a next step is the page's own button
+ * ("Verify claims", "Run all"), an example chip says the same words, and a suggestion has the proposal's own Accept and
+ * Reject. A walk that is about the pages would find two of each. So a walk is given the panel only when it asks for it:
+ * the panel's own walk, the research loop's walk and the walk that measures the pages' widths beside it. The others
+ * start with the panel hidden, by the same setting the top bar's toggle keeps in the browser; a walk that presses the
+ * toggle itself keeps what it chose. */
+export async function enterApp(page: Page, options: { ottoPanel?: boolean } = {}): Promise<void> {
+  await page.addInitScript((shown: boolean) => {
+    try {
+      if (window.localStorage.getItem("evidence-lab-copilot") === null) window.localStorage.setItem("evidence-lab-copilot", shown ? "shown" : "hidden");
+    } catch {
+      /* (no storage: the app's default stands) */
+    }
+  }, options.ottoPanel ?? false);
   await page.goto("/");
   const create = page.getByRole("heading", { name: "Create your password" });
   const login = page.getByRole("heading", { name: "Log in" });

@@ -171,7 +171,7 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     const page = copy.page;
     await page.setViewportSize({ width: 1440, height: 900 });
     watchRequests(page);
-    await enterApp(page);
+    await enterApp(page, { ottoPanel: true });
     const otto = await (await page.request.get("/api/otto")).json();
     test.skip(!otto.harness.installed, `Skipped: ${otto.harness.line} Run ./run-demo.sh once (or: cd backend && .venv/bin/python -m app.prepare --otto).`);
     expect(otto.live.key_present, "a copy of the app is started without an API key").toBe(false);
@@ -692,7 +692,7 @@ test("without Otto and without a key: the panel says so, lists what is proposed 
     const page = copy.page;
     await page.setViewportSize({ width: 1440, height: 900 });
     watchRequests(page);
-    await enterApp(page);
+    await enterApp(page, { ottoPanel: true });
     const otto = await (await page.request.get("/api/otto")).json();
     expect(otto.harness.installed, "this copy is started with an empty harness folder").toBe(false);
     expect(otto.live.key_present).toBe(false);
