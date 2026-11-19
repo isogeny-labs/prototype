@@ -758,6 +758,8 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
         own = [entry["program"] for entry in row["here"] if entry["own_code"] and entry["item_id"] is not None]
         out.append({
             "id": advisory["id"], "name": name, "published": advisory["published"], "published_text": day(advisory["published"]),
+            # The 5c fixes: the tag "New" beside the name, for an advisory that first arrived with the newest installed pack.
+            "new": ({"label": "New", "title": f"Arrived with test pack {row['arrived']}"} if row.get("new") and row.get("arrived") else None),
             "package": f"{advisory['package']['name']} ({advisory['package']['ecosystem']})", "pack": pack.version,
             "fits": fits, "fits_text": (", ".join(fits) if fits else ("No signing program in this assessment" if state == "ready" else "")),
             "test": {"key": state, "label": label, "tone": tone, "reason": advisory["test"]["reason"]},

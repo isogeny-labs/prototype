@@ -2126,9 +2126,16 @@ class AdvisoryProposalCell(Shape):
     keys: list[str] = Field(default_factory=list, description="With several programs: every state among them.")
 
 
+class AdvisoryNew(Shape):
+    """The 5c fixes: the tag beside an advisory that first arrived with the most recently installed test pack."""
+    label: str = Field(description='"New"')
+    title: str = Field(description='Said on hover and to a screen reader: "Arrived with test pack 2026.11.2".')
+
+
 class AdvisoryRow(Shape):
     id: str
     name: str
+    new: AdvisoryNew | None = Field(description="Null for an advisory of an earlier pack (also one a later pack only updates).")
     published: str
     published_text: str
     package: str

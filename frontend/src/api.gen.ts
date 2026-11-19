@@ -148,6 +148,10 @@ export interface AdvisoryFilterOption {
 export interface AdvisoryRow {
   id: string;
   name: string;
+  /**
+   * Null for an advisory of an earlier pack (also one a later pack only updates).
+   */
+  new: AdvisoryNew | null;
   published: string;
   published_text: string;
   package: string;
@@ -159,6 +163,19 @@ export interface AdvisoryRow {
   result: AdvisoryResultCell;
   search: string;
   panel: AdvisoryPanel;
+}
+/**
+ * The 5c fixes: the tag beside an advisory that first arrived with the most recently installed test pack.
+ */
+export interface AdvisoryNew {
+  /**
+   * "New"
+   */
+  label: string;
+  /**
+   * Said on hover and to a screen reader: "Arrived with test pack 2026.11.2".
+   */
+  title: string;
 }
 export interface AdvisoryTestCell {
   key: "ready" | "not_offered" | "none";

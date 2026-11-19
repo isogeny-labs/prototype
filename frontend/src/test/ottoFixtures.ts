@@ -171,6 +171,11 @@ const HERE_TITLE: string = "Otto's proposed check, in this assessment";
 
 const HERE_NOTE: string = "You decide for each program by itself. Accepting adds the check to the test plan and runs nothing.";
 
+// The 5c fixes: the tag "New" beside an advisory that first arrived with the newest installed pack. With one pack
+// installed every advisory is new; once a second pack is in, only the ones it brought are.
+export const NEW_WITH_FIRST_PACK: AdvisoryRow["new"] = { label: "New", title: "Arrived with test pack 2026.11.1" };
+export const NEW_WITH_SECOND_PACK: AdvisoryRow["new"] = { label: "New", title: "Arrived with test pack 2026.11.2" };
+
 const NO_TEST_HERE: AdvisoryRow["panel"]["here"] = { title: HERE_TITLE, rows: [], note: null, empty: "This advisory has no test, so there is nothing to run here." };
 
 // The Proposal cell of an advisory that has no test, or whose test fits no program here: Otto proposes nothing.
@@ -367,6 +372,7 @@ export const blankNotAdded: AdvisoryRow = {
   published_text: "1 November 2026",
   package: "acme-sign (demo)",
   pack: "2026.11.1",
+  new: NEW_WITH_FIRST_PACK,
   fits: ["acme-sign 1.4.2"],
   fits_text: "acme-sign 1.4.2",
   test: { key: "ready", label: "Test ready", tone: "pass", reason: TEST_READY_REASON },
@@ -531,6 +537,7 @@ export const stopsNoTest: AdvisoryRow = {
   published_text: "1 November 2026",
   package: "acme-sign (demo)",
   pack: "2026.11.1",
+  new: NEW_WITH_FIRST_PACK,
   fits: [],
   fits_text: "",
   test: { key: "none", label: "No test yet", tone: "neutral", reason: "No test yet: no building block can show this weakness." },
@@ -577,6 +584,7 @@ export const zeroNotAdded: AdvisoryRow = {
   published_text: "1 November 2026",
   package: "elliptic (demo)",
   pack: "2026.11.2",
+  new: NEW_WITH_SECOND_PACK,
   fits: ["acme-sign 1.4.2"],
   fits_text: "acme-sign 1.4.2",
   test: { key: "ready", label: "Test ready", tone: "pass", reason: TEST_READY_REASON },
@@ -653,6 +661,7 @@ export const looseNotOffered: AdvisoryRow = {
   published_text: "1 November 2026",
   package: "elliptic (demo)",
   pack: "2026.11.2",
+  new: NEW_WITH_SECOND_PACK,
   fits: [],
   fits_text: "",
   test: { key: "not_offered", label: "Not offered", tone: "warn", reason: "Not offered: the design failed its own trial." },
@@ -768,10 +777,13 @@ export const advisoriesFailed: AdvisoriesView = {
 };
 
 /** A second pack is installed: four advisories, and one newly proposed check waiting for a decision. */
+/** With a second pack installed, an advisory of the first pack is no longer new: only the second pack's are. */
+const older = (row: AdvisoryRow): AdvisoryRow => ({ ...row, new: null });
+
 export const advisoriesTwoPacks: AdvisoriesView = {
   ...advisoriesNotAdded,
   packs_line: "Test packs installed: 2026.11.1, 2026.11.2.",
-  rows: [blankFailed, stopsNoTest, zeroNotAdded, looseNotOffered],
+  rows: [older(blankFailed), older(stopsNoTest), zeroNotAdded, looseNotOffered],
 };
 
 /** The same in a closed assessment: nothing more can be decided, and every button says so. */
@@ -779,7 +791,7 @@ export const advisoriesClosed: AdvisoriesView = {
   ...advisoriesTwoPacks,
   packs_line: "Test packs installed when this assessment was closed: 2026.11.1, 2026.11.2.",
   waiting: { ...ONE_WAITING, line: ONE_UNDECIDED, blocked_reason: "This assessment is closed, so nothing more can be decided in it." },
-  rows: [blankFailedBlocked(CLOSED_REASON, CHECK_LEDGER), stopsNoTest, zeroBlocked(CLOSED_REASON), looseNotOffered],
+  rows: [older(blankFailedBlocked(CLOSED_REASON, CHECK_LEDGER)), older(stopsNoTest), zeroBlocked(CLOSED_REASON), looseNotOffered],
 };
 
 /** The same on a computer without Otto's harness: a decision could not be recorded, so nothing can be decided. */
@@ -791,7 +803,7 @@ export const advisoriesOttoMissing: AdvisoriesView = {
     line: ONE_UNDECIDED,
     blocked_reason: "Otto is not installed on this computer, so nothing can be decided: a decision is recorded in Otto's ledger.",
   },
-  rows: [blankFailedNoLedger, stopsNoTest, zeroBlocked(NO_OTTO_REASON), looseNotOffered],
+  rows: [older(blankFailedNoLedger), older(stopsNoTest), zeroBlocked(NO_OTTO_REASON), looseNotOffered],
 };
 
 // ---- Settings: Test packs and Live Otto, state by state

@@ -243,6 +243,14 @@ class OttoMixin:
             # Otto's proposals for this file: one for each ready test and each program it fits, with where a person's
             # decisions on it stand. (Worked out here; nothing is written by looking.)
             proposed = {p["id"]: p for p in self._proposals(db, plan, ("check",))}     # type: ignore[attr-defined]
+            # The 5c fixes: an advisory is "New" when the pack it first arrived with is the newest one installed (for a
+            # closed assessment: the newest one installed when it was closed). One that a later pack only updates
+            # arrived earlier, so it is not new.
+            arrived: dict[str, str] = {}
+            for _, each in installed:
+                for entry in each.pack["advisories"]:
+                    arrived.setdefault(entry["id"], each.version)
+            newest = installed[-1][1].version if installed else None
             rows = []
             for pack, advisory in entries:
                 here = []
@@ -269,7 +277,8 @@ class OttoMixin:
                 answering = [f for f in fixes if any(a.get("item_id") in item_ids for a in (states.get(f["id"]) or {}).get("answers") or [])]
                 # where several programs failed this check, the link goes to a fix that Otto proposes, if there is one
                 fix = next((f for f in answering if f.get("labels")), answering[0] if answering else None)
-                rows.append({"pack": pack, "advisory": advisory, "design": pack.design(design_sha) if design_sha else None, "here": here, "fix": fix})
+                rows.append({"pack": pack, "advisory": advisory, "design": pack.design(design_sha) if design_sha else None, "here": here, "fix": fix,
+                             "arrived": arrived.get(advisory["id"]), "new": arrived.get(advisory["id"]) == newest})
             a = self.assessment_for(plan_id=plan_id)
             answers = self._pack_answers_line(installed)
         status = harness.public_status()

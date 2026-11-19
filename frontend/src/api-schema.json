@@ -2980,6 +2980,28 @@
         ],
         "title": "AdvisoryLedgerEntry"
       },
+      "AdvisoryNew": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"New\""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Said on hover and to a screen reader: \"Arrived with test pack 2026.11.2\"."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "title"
+        ],
+        "title": "AdvisoryNew",
+        "description": "The 5c fixes: the tag beside an advisory that first arrived with the most recently installed test pack."
+      },
       "AdvisoryNoTest": {
         "properties": {
           "label": {
@@ -3308,6 +3330,17 @@
             "type": "string",
             "title": "Name"
           },
+          "new": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryNew"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for an advisory of an earlier pack (also one a later pack only updates)."
+          },
           "published": {
             "type": "string",
             "title": "Published"
@@ -3357,6 +3390,7 @@
         "required": [
           "id",
           "name",
+          "new",
           "published",
           "published_text",
           "package",

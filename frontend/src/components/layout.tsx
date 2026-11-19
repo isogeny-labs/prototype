@@ -270,7 +270,10 @@ function ItemPageView({ page, item, title, subtitle, children, testId }: { page:
   const heading = useRef<HTMLHeadingElement>(null);
   const slot = useContext(PanelHeaderSlotContext);
   useEffect(() => {
-    const name = (heading.current?.textContent ?? "").trim();
+    // (the item's name without a tag drawn beside it, such as an advisory's "New")
+    const copy = heading.current?.cloneNode(true) as HTMLElement | undefined;
+    copy?.querySelectorAll("[data-title-skip]").forEach((el) => el.remove());
+    const name = (copy?.textContent ?? "").trim();
     if (name) document.title = `${name} · ${APP_TITLE}`;
     return () => {
       document.title = APP_TITLE;
