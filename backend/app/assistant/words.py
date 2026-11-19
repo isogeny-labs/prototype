@@ -7,6 +7,10 @@ from __future__ import annotations
 TITLE = "Otto"
 ON_PAGE = "On this page"
 SO_FAR = "This thread so far"
+# Why nothing new can start for a plan while its jobs run: the two sentences the server refuses such a click with, word
+# for word (`BUSY` in app/lab/testlab.py; a test holds them equal). The panel says the one that applies.
+BUSY_TESTS = "Tests are still running. Wait until they have finished."
+BUSY_PROOF = "A proof is running in Fixes. Wait until it has finished."
 CONFIRM, CANCEL = "Confirm", "Cancel"
 MARK_NEXT, MARK_MEANING, MARK_RESULT, MARK_FIX = "Next step", "What this means", "Result", "Fix"
 

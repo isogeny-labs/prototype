@@ -219,7 +219,7 @@ class RuleCopilot:
                               text=(f"{len(unrun)} of the {n} tests in the plan have not run yet." if unrun else "The tests of the plan are running."),
                               where=where,
                               step=_step({"type": "run_all", "plan_id": facts.plan_id}, can=bool(plan.get("can_run_all")) and not facts.closed,
-                                         reason=facts.closed_reason() or "Tests are running. Wait for them to finish.",
+                                         reason=facts.closed_reason() or facts.busy_reason(),
                                          running=bool(live), progress=f"{len(live)} still running" if live else None,
                                          confirm=words.step_confirm(
                                              "Run all?",
@@ -228,12 +228,19 @@ class RuleCopilot:
                                               "The runner runs each test and the separate reviewer decides its result."], "Run all", "Checks"))))
         # (a card of its own for an advisory check that has not run, for the test that is open on the page, and for the
         # one test that is left; the other tests of the plan go by Run all)
-        own = [t for t in unrun if t.get("kind") == "advisory_cases" or item == f"test-{t['id']}" or len(unrun) == 1]
+        # A card stays while its test waits or runs for the first time, and says so: it does not vanish at the click.
+        # Once the test has a result, the result is in the Testing tab.
+        first = unrun + [t for t in live if t.get("result") is None]
+        own = [t for t in first if t.get("kind") == "advisory_cases" or item == f"test-{t['id']}" or len(first) == 1]
         for t in sorted(own, key=lambda t: item != f"test-{t['id']}")[:MAX_STEPS]:
-            out.append(_entry("next:run", f"next:run:{t['id']}", mark=words.MARK_NEXT, title="Run", text=f"{t['title']} has not run yet.",
+            going = t.get("status") in ("waiting", "running")
+            out.append(_entry("next:run", f"next:run:{t['id']}", mark=words.MARK_NEXT, title="Run",
+                              text=f"{t['title']} is running." if going else f"{t['title']} has not run yet.",
                               where={"label": "On Checks", "link": _link("checks", f"test-{t['id']}")}, open_item=item == f"test-{t['id']}",
-                              step=_step({"type": "run", "plan_id": facts.plan_id, "item_id": t["id"]}, can=bool(t.get("can_run")) and not facts.closed,
-                                         reason=facts.closed_reason() or "Tests are running. Wait for them to finish.",
+                              step=_step({"type": "run", "plan_id": facts.plan_id, "item_id": t["id"]},
+                                         can=bool(t.get("can_run")) and not facts.closed and not going,
+                                         reason=facts.closed_reason() or facts.busy_reason(),
+                                         running=going, progress=_plain(t.get("status_text")) or ("Running" if going else None),
                                          confirm=words.step_confirm(
                                              "Run this test?",
                                              [f"Runs “{t['title']}” once, on this computer.",
@@ -307,6 +314,8 @@ class RuleCopilot:
             lines = ["Connects the bundled demo repository to this assessment and puts the change on a branch of its own.",
                      "Then the proof runs: every locked test again, on the changed code.", "It merges nothing."]
             pending = [line for line in (fix.get("proposal") or {}).get("lines") or [] if "Claude" in line or line.startswith("What that click sends")]
+            if pending:             # Live Otto is on and no change is written yet: this click asks Claude, so say what it can cost at most
+                pending.append(f"The most this click can spend on Claude: {facts.limit()} US dollars, the spending limit per run (Settings).")
             return _entry("next:connect", f"next:connect:{fix['id']}", mark=words.MARK_NEXT, title=label, text=title, where=where, open_item=opened,
                           step=_step({"type": "connect", "plan_id": plan_id, "fix_id": fix["id"]}, can=can, reason=reason,
                                      confirm=words.step_confirm("Connect the demo code?", lines + pending, label, "Fixes")))
@@ -332,8 +341,12 @@ class RuleCopilot:
                                           "These are the reviewers ticked by default on Fixes. To pick others, open the fix on its page.",
                                           "It merges nothing: a merge needs every approval and your own click on Fixes."], label, "Fixes")))
         if action == "retest_now":
+            # Where the Fixes page goes once its own button's request is answered: Evidence, on the result this fix
+            # came from. The panel goes to the same place.
+            came_from = ((fix.get("came_from_links") or [{}])[0].get("link") or {}).get("item")
             return _entry("next:retest_now", f"next:retest_now:{fix['id']}", mark=words.MARK_NEXT, title=label, text=title, where=where, open_item=opened,
-                          step=_step({"type": "retest_now", "plan_id": plan_id, "fix_id": fix["id"]}, can=can, reason=reason,
+                          step=_step({"type": "retest_now", "plan_id": plan_id, "fix_id": fix["id"], "link": _link("evidence", came_from)},
+                                     can=can, reason=reason,
                                      confirm=words.step_confirm(
                                          "Retest now?",
                                          ["Reruns every test in the plan on the version the merged change gives, as Retest new version does.",
@@ -434,7 +447,13 @@ class RuleCopilot:
                                   running=bool(view.get("busy")), progress=measure.get("progress_text"),
                                   confirm=words.step_confirm(
                                       "Measure status?",
-                                      ["Measures where each system of the file stands: one handshake to each server, and a look at each signing program.",
+                                      # (what the two locked measurements do, in their own method's words: engine/research.py)
+                                      ["Measures where each system the file names stands on the move to post-quantum cryptography.",
+                                       "For each server: three first messages (TLS hellos), a few full handshakes, and for the cost table "
+                                       "10 classical and 10 hybrid handshakes taken in turn. Handshakes only; no data is sent. A server "
+                                       "is measured only at localhost or at an address you confirmed.",
+                                       "For each signing program: it is asked what it signs with, signs one test message, and its bench "
+                                       "command is timed.",
                                        "It changes nothing on any system."], measure["label"], PAGE_LABELS[page])))]
 
     # ------------------------------------------------------------------ what this means: a result's own sentence
@@ -518,8 +537,10 @@ class RuleCopilot:
             if not (has_suggestion[thread] or explain[thread]):
                 continue
             entries = sorted(so_far[thread], key=lambda e: (e.get("at") is None, e.get("at") or "", e["id"]))
+            # (an entry with the word it carries now: a server change keeps one status key through Try passed, Waiting for
+            # approval and Applied, and only its word tells them apart)
             seen = "|".join(sorted([f"{p['id']}#{len(p.get('decisions') or [])}" for p in proposals if KIND_THREAD[p["kind"]] == thread]
-                                   + [e["id"] for e in entries if e["kind"] != "suggestion"]))
+                                   + [f"{e['id']}~{(e.get('badge') or {}).get('label') or ''}" for e in entries if e["kind"] != "suggestion"]))
             tabs.append({"key": thread, "label": THREAD_LABELS[thread], "waiting": waiting[thread],
                          "mark": hashlib.sha256(seen.encode("utf-8")).hexdigest()[:16],
                          "so_far_title": words.SO_FAR, "so_far": entries, "so_far_empty": None if entries else words.SO_FAR_EMPTY})
@@ -579,6 +600,15 @@ class _Facts:
 
     def closed_reason(self) -> str | None:
         return CLOSED if self.closed else None
+
+    def busy_reason(self) -> str:
+        """Why a test can't be started while this plan's jobs run: the page's own sentence. Evidence says which it is
+        (tests, or a proof in Fixes) as the reason beside Retest new version; where it says neither, tests are running."""
+        said = (self.lab().get("retest") or {}).get("blocked_reason")
+        return said if said in (words.BUSY_TESTS, words.BUSY_PROOF) else words.BUSY_TESTS
+
+    def limit(self) -> str:
+        return self._once("limit", lambda: self._lab.otto_limit_words())
 
     def plan(self) -> dict:
         return self._once("plan", lambda: self._lab.plan_view(self.plan_id))

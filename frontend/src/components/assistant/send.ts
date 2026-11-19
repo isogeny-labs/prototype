@@ -42,9 +42,10 @@ function need<T>(value: T | null | undefined): T {
   return value;
 }
 
-/** Where the page itself goes after its button's answer: Verify claims opens Verify, Retest now opens Evidence. */
-export function pageAfter(action: AssistantAction): string | null {
-  if (action.type === "verify") return "inventory/verify";
-  if (action.type === "retest_now") return "evidence";
+/** Where the page itself goes after its button's answer: Verify claims opens Verify, and Retest now opens Evidence
+ * on the result the fix came from (the read names it). */
+export function pageAfter(action: AssistantAction): { page: string; item: string | null } | null {
+  if (action.type === "verify") return { page: "inventory/verify", item: null };
+  if (action.type === "retest_now") return { page: "evidence", item: action.link?.item ?? null };
   return null;
 }

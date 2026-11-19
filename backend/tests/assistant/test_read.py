@@ -296,6 +296,106 @@ def test_next_steps_are_the_pages_own_buttons_and_can_be_pressed_when_the_page_c
         assert steps[0]["step"]["needs"] == "nothing" and steps[0]["step"]["confirm"] is None and steps[0]["what"] == "next:open"
 
 
+def test_the_confirm_step_of_measure_status_says_what_the_two_locked_measurements_do(assistant_walk):
+    """Confirm lists exactly what will happen. The measurement is more than one handshake: its own method says so."""
+    from app.engine import research
+    [step] = _steps(assistant_walk.at["ran"].pages["migration/systems"], "next:measure_status")
+    lines = " ".join(step["step"]["confirm"]["lines"])
+    assert "one handshake to each server" not in lines
+    # the server measurement, in its method's own words (hellos, full handshakes, the timing rounds of the cost table)
+    assert "three first messages (TLS hellos)" in lines and "Handshakes only; no data is sent." in lines
+    assert "Handshakes only; no data is sent." in research.PQ_METHOD and "Send three first messages (TLS 1.3 hellos)" in research.PQ_METHOD
+    assert "10 classical and 10 hybrid handshakes taken in turn" in lines
+    spec = research.RuleEngine()._pq_status([{"location_kind": "server", "location": "localhost:1", "kind": "tls_version"}], "localhost:1")
+    assert "10 classical and 10 hybrid handshakes taken in turn" in spec["method"] and spec["inputs"]["timing_rounds"] == 10
+    # the signing program: it is run (it signs a test message and its bench command is timed), not only looked at
+    assert "signs one test message" in lines and "bench command is timed" in lines and "a look at each signing program" not in lines
+    assert "localhost or at an address you confirmed" in lines and step["step"]["confirm"]["lines"][-1] == "It changes nothing on any system."
+
+
+def test_a_step_that_is_off_while_jobs_run_gives_the_servers_own_reason(assistant_walk):
+    """Rule: a button that is off says its page's own reason. While tests or a proof run, that is the sentence the
+    server refuses the click with."""
+    from app.assistant.engine import _Facts
+    from app.lab import testlab
+    assert (words.BUSY_TESTS, words.BUSY_PROOF) == (testlab.BUSY["tests"], testlab.BUSY["proof"])
+    lab, plan_id = assistant_walk.lab, assistant_walk.plan_id
+
+    def reason_when(said):
+        facts = _Facts(lab, {"plan_id": plan_id, "import_id": None}, False)
+        facts._seen["lab"] = {"retest": {"blocked_reason": said}}       # what Evidence would say beside Retest new version
+        return facts.busy_reason()
+    assert reason_when(testlab.BUSY["proof"]) == "A proof is running in Fixes. Wait until it has finished."
+    assert reason_when(testlab.BUSY["tests"]) == "Tests are still running. Wait until they have finished."
+    # Evidence gives another reason for its own button (no program to retest): for a test, tests are what is running
+    assert reason_when("A retest needs one of our demo signing components, and this file doesn't name one.") == testlab.BUSY["tests"]
+    assert reason_when(None) == testlab.BUSY["tests"] and plan_id
+
+
+def test_a_tabs_mark_follows_the_word_a_fix_carries_not_only_its_status_key(assistant_walk, monkeypatch):
+    """A server change keeps one status key ("text_only") through Try passed, Waiting for approval and Applied: only
+    its word tells them apart, and each is something new in the Fixing tab."""
+    lab = assistant_walk.lab
+    engine = lab.copilot
+    real = type(engine)._fix_steps
+
+    def with_word(word):
+        def steps(self, facts):
+            out = real(self, facts)
+            return [{**e, "badge": {**e["badge"], "label": word}} for e in out]
+        monkeypatch.setattr(type(engine), "_fix_steps", steps)
+        view = lab.assistant_view(assistant_walk.assessment_id, "fixes", None)
+        return next(t["mark"] for t in view["tabs"] if t["key"] == "fixing"), [e["id"] for t in view["tabs"] if t["key"] == "fixing" for e in t["so_far"]]
+    tried, ids_tried = with_word("Try passed")
+    waiting, ids_waiting = with_word("Waiting for approval")
+    assert ids_tried == ids_waiting and tried != waiting          # the same entries, another word: the mark moves
+    assert with_word("Try passed")[0] == tried                      # and the same word gives the same mark
+
+
+def _facts(assistant_walk, **views):
+    """The engine's facts with the views a page would give, for a state the walk does not stop in."""
+    from app.assistant.engine import _Facts
+    facts = _Facts(assistant_walk.lab, {"plan_id": assistant_walk.plan_id, "import_id": None}, False)
+    facts._seen.update(views)
+    return facts
+
+
+def test_a_run_card_stays_while_its_test_runs_and_says_so(assistant_walk):
+    """The card does not vanish at the click: it reads as running, and its button is off until the test has finished."""
+    engine = assistant_walk.lab.copilot
+    test = {"id": 7, "title": "Advisory check: Blank signature accepted (CVE-2022-21449)", "kind": "advisory_cases", "result": None,
+            "status": "not_run", "status_text": None, "can_run": True}
+    done = {"id": 3, "title": "Official test vectors", "kind": "vectors", "result": {"label": "Passed"}, "status": "done", "can_run": True}
+    [before] = engine._next_checks(_facts(assistant_walk, plan={"tests": [done, test], "can_run_all": True}, lab={}), "checks", None)
+    assert before["id"] == "next:run:7" and before["text"].endswith("has not run yet.") and before["step"]["can"] and not before["step"]["running"]
+    going = {**test, "status": "running", "status_text": "Running", "can_run": False}
+    during = [e for e in engine._next_checks(_facts(assistant_walk, plan={"tests": [done, going], "can_run_all": False, "running": True}, lab={}), "checks", None)
+              if e["what"] == "next:run"]
+    assert [e["id"] for e in during] == ["next:run:7"]                       # the same card, still there
+    step = during[0]["step"]
+    assert during[0]["text"].endswith("is running.") and step["running"] and step["progress"] == "Running"
+    assert step["can"] is False and step["confirm"] is None and step["blocked_reason"] == words.BUSY_TESTS
+    # once it has a result the card is gone: the result is in the Testing tab
+    after = {**test, "status": "done", "result": {"label": "Failed"}}
+    assert [e for e in engine._next_checks(_facts(assistant_walk, plan={"tests": [done, after], "can_run_all": True}, lab={}), "checks", None)
+            if e["what"] == "next:run"] == []
+
+
+def test_connect_demo_code_names_the_most_a_live_click_can_cost(assistant_walk):
+    """With Live Otto on and no change written yet, the click asks Claude. The Confirm step says the most it can spend."""
+    engine, lab = assistant_walk.lab.copilot, assistant_walk.lab
+    assert lab.otto_limit_words() == "2.00"                                  # the limit Settings shows until it is changed
+    asks = "Live Otto is on. When you connect the code, Claude is asked to write a change for CVE-2022-21449 in acme-sign's code."
+    fix = {"id": "fix-x", "title": "acme-sign accepts out-of-range signatures", "proposal": {"lines": [asks, "Why it is proposed: a test failed."]}}
+    button = {"action": "connect", "label": "Connect demo code", "enabled": True}
+    where = {"label": "On Fixes", "link": {"page": "fixes", "item": "fix-x", "group": None}}
+    live = engine._fix_step(_facts(assistant_walk), fix, button, None, where, True)["step"]["confirm"]["lines"]
+    assert asks in live and live[-1] == "The most this click can spend on Claude: 2.00 US dollars, the spending limit per run (Settings)."
+    # with a recorded change (nothing asks Claude) no amount is named: nothing can be spent
+    recorded = engine._fix_step(_facts(assistant_walk), {**fix, "proposal": {"lines": ["Why it is proposed: a test failed."]}}, button, None, where, True)
+    assert not any("spend" in line or "Claude" in line for line in recorded["step"]["confirm"]["lines"])
+
+
 def test_fixes_offers_connect_only_after_the_proposal_is_accepted_as_its_page_does(assistant_walk):
     before = _steps(assistant_walk.at["ran"].pages["fixes"], "next:connect")
     after = _steps(assistant_walk.at["fix_accepted"].pages["fixes"], "next:connect")

@@ -721,7 +721,7 @@ export default function App() {
           {copilotShown && current && page ? (
             <ReadOnlyProvider readOnly={closed}>
               <LinkProvider assessmentId={current.id} planId={plan?.id ?? null}>
-                <OttoPanel assessmentId={current.id} page={page} item={openItem} onGo={(next) => go(next)} />
+                <OttoPanel assessmentId={current.id} page={page} item={openItem} onGo={(next, item) => go(next, item ?? null)} />
               </LinkProvider>
             </ReadOnlyProvider>
           ) : null}

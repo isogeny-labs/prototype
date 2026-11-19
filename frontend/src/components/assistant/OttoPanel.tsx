@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, errorMessage, type AssistantDecision, type AssistantEntry, type AssistantStep, type AssistantTab, type AssistantThread, type AssistantView } from "../../api";
 import { fromPanel, useChangeStamp } from "../../changes";
 import { prefs, type OttoTabs } from "../../prefs";
@@ -20,7 +20,12 @@ interface Confirming {
   entry: string;
   /** A decision's key ("accept", "reject", "undo", "reconsider"), or "step" for a next step. */
   key: string;
+  /** Where the card is: a decided suggestion that can still be undone is listed twice (on this page, and in its thread
+   * so far), and only the card whose button was pressed shows the Confirm step. */
+  place: Place;
 }
+
+type Place = "page" | "thread";
 
 /** Phase 6a: the Otto assistant, the right-hand panel beside every page of an assessment.
  *
@@ -41,11 +46,13 @@ export function OttoPanel({
   /** The item open on the page (its side panel), if any. */
   item: string | null;
   /** Opens a page of this assessment, as the page itself does after its button's answer. */
-  onGo: (page: Page) => void;
+  onGo: (page: Page, item?: string | null) => void;
 }) {
   const [view, setView] = useState<AssistantView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  // (how many reads have come back, answered or failed: the next one is timed from there)
+  const [answered, setAnswered] = useState(0);
   const changed = useChangeStamp();
   const asked = useRef(0);
 
@@ -60,16 +67,20 @@ export function OttoPanel({
       })
       .catch((e: unknown) => {
         if (asked.current === mine) setError(errorMessage(e));
+      })
+      .finally(() => {
+        if (asked.current === mine) setAnswered((n) => n + 1);
       });
   }, [assessmentId, page, item, changed, tick]);
 
-  // While something runs, ask again (the page does the same for its own view).
+  // While something runs, ask again (the page does the same for its own view). A read that failed is asked again
+  // too: one lost answer must not leave a card saying "running" for good.
   const busy = view?.busy === true && view.assessment_id === assessmentId;
   useEffect(() => {
     if (!busy) return;
     const timer = setTimeout(() => setTick((n) => n + 1), POLL_MS);
     return () => clearTimeout(timer);
-  }, [busy, view]);
+  }, [busy, answered]);
 
   // ---- the tabs: which are closed, which one is selected, and what was last seen in each (kept in this browser)
   const [tabPrefs, setTabPrefs] = useState<OttoTabs>(() => prefs.ottoTabs(assessmentId));
@@ -86,6 +97,18 @@ export function OttoPanel({
   );
   const current = view && view.assessment_id === assessmentId ? view : null;
   const tabs = useMemo(() => (current?.tabs ?? []).filter((t) => tabPrefs.closed[t.key] !== t.mark), [current, tabPrefs]);
+  // A closed tab that came back (something new happened in its thread) is open again for good: it is not hidden a
+  // second time when its thread later reads as it did when the tab was closed (a proof that fails, runs, fails again).
+  const returned = (current?.tabs ?? []).filter((t) => t.key in tabPrefs.closed && tabPrefs.closed[t.key] !== t.mark).map((t) => t.key).join(",");
+  useEffect(() => {
+    if (!returned) return;
+    const back = returned.split(",");
+    saveTabs((now) => {
+      const closed = { ...now.closed };
+      for (const key of back) delete closed[key];
+      return { ...now, closed };
+    });
+  }, [returned, saveTabs]);
   // A tab picked by hand stays until the page changes; opening a page selects its own tab when that tab is open.
   const [picked, setPicked] = useState<AssistantThread | null>(null);
   const lastSelected = useRef<AssistantThread | null>(null);
@@ -135,8 +158,8 @@ export function OttoPanel({
     setSendError(null);
   }, [page, assessmentId]);
 
-  function ask(entry: AssistantEntry, key: string) {
-    setConfirming({ entry: entry.id, key });
+  function ask(entry: AssistantEntry, key: string, place: Place) {
+    setConfirming({ entry: entry.id, key, place });
     setReason("");
     setSendError(null);
   }
@@ -147,14 +170,14 @@ export function OttoPanel({
     setSendError(null);
   }
 
-  async function confirm(send: () => Promise<unknown>, then?: Page | null) {
+  async function confirm(send: () => Promise<unknown>, then?: { page: string; item: string | null } | null) {
     setSending(true);
     setSendError(null);
     try {
       await fromPanel(send);
       setConfirming(null);
       setReason("");
-      if (then) onGo(then);
+      if (then) onGo(then.page as Page, then.item);
     } catch (e) {
       setSendError(errorMessage(e));
     } finally {
@@ -163,17 +186,33 @@ export function OttoPanel({
   }
 
   const planId = current?.plan_id ?? null;
-  const card = (entry: AssistantEntry, compact = false) => (
+  // A Confirm step whose button a new read turned off (or whose card is gone) is closed: the card then shows the
+  // button again, off, with the page's own reason. Not while its request is on its way.
+  const pageEntries = current?.on_page.entries;
+  const threadEntries = selected?.so_far;
+  useEffect(() => {
+    if (!confirming || sending) return;
+    const entry = (confirming.place === "page" ? pageEntries : threadEntries)?.find((e) => e.id === confirming.entry);
+    const still = confirming.key === "step" ? entry?.step?.confirm : entry?.decisions.find((d) => d.key === confirming.key)?.confirm;
+    if (!still) {
+      setConfirming(null);
+      setReason("");
+    }
+  }, [confirming, sending, pageEntries, threadEntries]);
+  const card = (entry: AssistantEntry, compact = false) => {
+    const place: Place = compact ? "thread" : "page";
+    const mine = confirming?.entry === entry.id && confirming.place === place;
+    return (
     <EntryCard
       key={entry.id}
       entry={entry}
       compact={compact}
-      confirming={confirming?.entry === entry.id ? confirming.key : null}
+      confirming={mine ? confirming.key : null}
       reason={reason}
       onReason={setReason}
       sending={sending}
-      error={confirming?.entry === entry.id ? sendError : null}
-      onAsk={(key) => ask(entry, key)}
+      error={mine ? sendError : null}
+      onAsk={(key) => ask(entry, key, place)}
       onCancel={cancel}
       who={current ? { ...current.recorded_as, ask: !current.recorded_as.typed && !nameAsked } : null}
       name={name}
@@ -191,9 +230,10 @@ export function OttoPanel({
           return api.decideProposal(planId, entry.id, decision.key, why);
         });
       }}
-      onConfirmStep={(step) => void confirm(() => sendStep(step.action), pageAfter(step.action) as Page | null)}
+      onConfirmStep={(step) => void confirm(() => sendStep(step.action), pageAfter(step.action))}
     />
-  );
+    );
+  };
 
   return (
     <aside
@@ -433,10 +473,31 @@ function EntryCard({
 }) {
   const proposal = entry.proposal;
   const step = entry.step;
-  const decision = confirming && confirming !== "step" ? (entry.decisions.find((d) => d.key === confirming) ?? null) : null;
+  // (only a button that can be confirmed has a Confirm step: one a new read turned off shows as a button again, with its reason)
+  const found = confirming && confirming !== "step" ? (entry.decisions.find((d) => d.key === confirming) ?? null) : null;
+  const decision = found?.confirm ? found : null;
   const blocked = entry.decisions.filter((d) => !d.can && d.blocked_reason);
+  // When the Confirm step closes (Cancel, or its request is answered), the keyboard's place goes back to the button
+  // that opened it, where that button is still on the card. Opening the step moved it into the step.
+  const article = useRef<HTMLElement>(null);
+  const opened = useRef<string | null>(null);
+  useEffect(() => {
+    const before = opened.current;
+    opened.current = confirming;
+    if (before === null || confirming !== null) return;
+    const root = article.current;
+    const active = document.activeElement;
+    if (!root || (active !== null && active !== document.body && !root.contains(active))) return; // the person is elsewhere by now
+    const buttons =
+      before === "step"
+        ? root.querySelectorAll<HTMLButtonElement>('[data-testid="otto-step"]')
+        : root.querySelectorAll<HTMLButtonElement>('[data-testid="otto-decision"]');
+    const index = before === "step" ? 0 : Math.max(0, entry.decisions.findIndex((d) => d.key === before));
+    (buttons[index] ?? buttons[0])?.focus({ preventScroll: true });
+  }, [confirming, entry.decisions]);
   return (
     <article
+      ref={article}
       data-testid="otto-entry"
       data-entry={entry.id}
       data-kind={entry.kind}
@@ -591,9 +652,23 @@ function ConfirmStep({
   name?: string;
   onName?: (text: string) => void;
 }) {
-  const id = "otto-reason";
+  const id = useId();
+  const nameId = useId();
+  // Opening the step takes the pressed button off the card: the keyboard's place moves to the step, which says what
+  // will happen, and from there Tab reaches the field, Confirm and Cancel.
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    box.current?.focus({ preventScroll: true });
+  }, []);
   return (
-    <div data-testid="otto-confirm" role="group" aria-label={confirm.title} className="mt-2.5 rounded-lg border border-slate-600 bg-slate-950/60 p-2.5">
+    <div
+      ref={box}
+      tabIndex={-1}
+      data-testid="otto-confirm"
+      role="group"
+      aria-label={confirm.title}
+      className="mt-2.5 rounded-lg border border-slate-600 bg-slate-950/60 p-2.5 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-500"
+    >
       <p className="text-[13px] font-semibold text-slate-100">{confirm.title}</p>
       <ul data-testid="otto-confirm-lines" className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-slate-300 marker:text-slate-500">
         {confirm.lines.map((line) => (
@@ -624,11 +699,11 @@ function ConfirmStep({
       {who ? (
         who.ask ? (
           <div className="mt-2">
-            <label htmlFor="otto-name" className="block text-xs text-slate-400">
+            <label htmlFor={nameId} className="block text-xs text-slate-400">
               {who.ask_label}
             </label>
             <input
-              id="otto-name"
+              id={nameId}
               data-testid="otto-name"
               type="text"
               autoComplete="name"

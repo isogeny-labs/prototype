@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssistantEntry, AssistantView, OttoProposal, PlanView } from "../api";
@@ -36,7 +36,7 @@ type Routes = Parameters<typeof mockApi>[0];
 const read = (page: string, item?: string) => `GET /api/assessments/101/assistant?${new URLSearchParams(item ? { page, item } : { page }).toString()}`;
 const decide = (of: OttoProposal, decision: string) => `POST /api/plans/1/otto/proposals/${of.id}/${decision}`;
 
-function Panel({ page = "checks", item = null, onGo = () => {}, closed = false }: { page?: string; item?: string | null; onGo?: (page: Page) => void; closed?: boolean }) {
+function Panel({ page = "checks", item = null, onGo = () => {}, closed = false }: { page?: string; item?: string | null; onGo?: (page: Page, item?: string | null) => void; closed?: boolean }) {
   return (
     <ReadOnlyProvider readOnly={closed}>
       <LinkProvider assessmentId={101} planId={1}>
@@ -309,7 +309,7 @@ describe("a decision from the panel is the page's own request", () => {
 
 // ---------------------------------------------------------------- next steps: a button of the page, by its own name
 
-const STEPS: { what: string; title: string; page: string; label: string; action: Parameters<typeof nextStep>[3]; request: string; body: unknown; then?: string }[] = [
+const STEPS: { what: string; title: string; page: string; label: string; action: Parameters<typeof nextStep>[3]; request: string; body: unknown; then?: string; thenItem?: string }[] = [
   { what: "next:verify", title: "Verify claims", page: "inventory/import", label: "Import", action: { type: "verify", import_id: 7 }, request: "POST /api/import/7/verify", body: null, then: "inventory/verify" },
   { what: "next:run_all", title: "Run all", page: "checks", label: "Checks", action: { type: "run_all", plan_id: 1 }, request: "POST /api/plans/1/run-all", body: null },
   { what: "next:run", title: "Run", page: "checks", label: "Checks", action: { type: "run", plan_id: 1, item_id: 12 }, request: "POST /api/plans/1/tests/12/run", body: null },
@@ -317,7 +317,7 @@ const STEPS: { what: string; title: string; page: string; label: string; action:
   { what: "next:connect", title: "Connect demo code", page: "fixes", label: "Fixes", action: { type: "connect", plan_id: 1, fix_id: "fix-ecdsa-range-check" }, request: "POST /api/plans/1/fixes/connect", body: null },
   { what: "next:run_proof_again", title: "Run proof again", page: "fixes", label: "Fixes", action: { type: "run_proof_again", plan_id: 1, fix_id: "fix-ecdsa-range-check" }, request: "POST /api/plans/1/fixes/fix-ecdsa-range-check/proof", body: null },
   { what: "next:open_pull_request", title: "Open pull request", page: "fixes", label: "Fixes", action: { type: "open_pull_request", plan_id: 1, fix_id: "fix-ecdsa-range-check", reviewers: ["a", "you"] }, request: "POST /api/plans/1/fixes/fix-ecdsa-range-check/pull-request", body: { reviewers: ["a", "you"] } },
-  { what: "next:retest_now", title: "Retest now", page: "fixes", label: "Fixes", action: { type: "retest_now", plan_id: 1, fix_id: "fix-ecdsa-range-check" }, request: "POST /api/plans/1/fixes/fix-ecdsa-range-check/retest", body: null, then: "evidence" },
+  { what: "next:retest_now", title: "Retest now", page: "fixes", label: "Fixes", action: { type: "retest_now", plan_id: 1, fix_id: "fix-ecdsa-range-check", link: { page: "evidence", item: "test-4", group: null } }, request: "POST /api/plans/1/fixes/fix-ecdsa-range-check/retest", body: null, then: "evidence", thenItem: "test-4" },
   { what: "next:try", title: "Try on a test copy", page: "fixes", label: "Fixes", action: { type: "try", plan_id: 1, fix_id: "fix-tls-versions", change: "tls:server:localhost:8443" }, request: "POST /api/plans/1/changes/try", body: { change: "tls:server:localhost:8443" } },
   { what: "next:ask_approval", title: "Ask for approval", page: "fixes", label: "Fixes", action: { type: "ask_approval", plan_id: 1, fix_id: "fix-tls-versions", change: "tls:server:localhost:8443", reviewers: ["you"] }, request: "POST /api/plans/1/changes/ask-approval", body: { change: "tls:server:localhost:8443", reviewers: ["you"] } },
   { what: "next:measure_library", title: "Measure on a public copy", page: "migration/dependencies", label: "Dependencies", action: { type: "measure_library", plan_id: 1, row: "row-5" }, request: "POST /api/plans/1/dependencies/measure", body: { row: "row-5" } },
@@ -326,7 +326,7 @@ const STEPS: { what: string; title: string; page: string; label: string; action:
 ];
 
 describe("a next step", () => {
-  it.each(STEPS)("$title: the page button's own name, a Confirm step, and on Confirm that button's own request", async ({ what, title, page, label, action, request, body, then }) => {
+  it.each(STEPS)("$title: the page button's own name, a Confirm step, and on Confirm that button's own request", async ({ what, title, page, label, action, request, body, then, thenItem }) => {
     const step = nextStep(what, title, label, action);
     const onGo = vi.fn();
     const fetchMock = await open(panel(page, { on_page: onPage([step]) }), { [request]: { body: {} } }, { onGo });
@@ -343,8 +343,9 @@ describe("a next step", () => {
     fireEvent.click(screen.getByTestId("otto-confirm-button"));
     await waitFor(() => expect(calls(fetchMock)).toEqual([request]));
     expect(sent(fetchMock, request)?.body).toEqual(body);
-    // where the page itself goes after its button's answer, the panel goes too (Verify, Evidence); otherwise it stays
-    await waitFor(() => expect(onGo.mock.calls.map((c) => c[0])).toEqual(then ? [then] : []));
+    // where the page itself goes after its button's answer, the panel goes too (Verify; Evidence, on the result the fix
+    // came from, as Retest now on Fixes does); otherwise it stays
+    await waitFor(() => expect(onGo.mock.calls).toEqual(then ? [[then, thenItem ?? null]] : []));
   });
 
   it("every kind of next step the backend can send has its request here", () => {
@@ -406,17 +407,17 @@ describe("a next step", () => {
   it("a refusal is the server's own sentence, shown in the card, and the Confirm step stays", async () => {
     const step = nextStep("next:run_all", "Run all", "Checks", { type: "run_all", plan_id: 1 });
     await open(panel("checks", { on_page: onPage([step]) }), {
-      "POST /api/plans/1/run-all": { status: 409, body: { error: { message: "Tests are running. Wait for them to finish.", line: null, field: null } } },
+      "POST /api/plans/1/run-all": { status: 409, body: { error: { message: "Tests are still running. Wait until they have finished.", line: null, field: null } } },
     });
     fireEvent.click(button(entry(step.id), "Run all"));
     fireEvent.click(screen.getByTestId("otto-confirm-button"));
-    expect(text(await within(entry(step.id)).findByRole("alert"))).toContain("Tests are running. Wait for them to finish.");
+    expect(text(await within(entry(step.id)).findByRole("alert"))).toContain("Tests are still running. Wait until they have finished.");
     expect(within(entry(step.id)).getByTestId("otto-confirm")).not.toBeNull();
   });
 
   it("while something runs the card says so, and the panel asks again", async () => {
     let reads = 0;
-    const step = nextStep("next:run_all", "Run all", "Checks", { type: "run_all", plan_id: 1 }, { can: false, blocked_reason: "Tests are running. Wait for them to finish.", running: true, progress: "3 still running" });
+    const step = nextStep("next:run_all", "Run all", "Checks", { type: "run_all", plan_id: 1 }, { can: false, blocked_reason: "Tests are still running. Wait until they have finished.", running: true, progress: "3 still running" });
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mockApi({
       [read("checks")]: () => {
@@ -431,6 +432,32 @@ describe("a next step", () => {
     });
     await waitFor(() => expect(screen.queryByTestId("otto-step-running")).toBeNull());
     expect(reads).toBe(2);
+  });
+
+  it("goes on asking after a read that failed, so one lost answer does not leave the card saying it runs for good", async () => {
+    let reads = 0;
+    const step = nextStep("next:run_all", "Run all", "Checks", { type: "run_all", plan_id: 1 }, { can: false, blocked_reason: "Tests are still running. Wait until they have finished.", running: true, progress: "3 still running" });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mockApi({
+      [read("checks")]: () => {
+        reads += 1;
+        if (reads === 2) return { status: 500, body: { error: { message: "The app could not answer.", line: null, field: null } } };
+        return { body: panel("checks", { busy: reads < 3, on_page: onPage(reads < 3 ? [step] : []) }) };
+      },
+    });
+    render(<Panel page="checks" />);
+    expect(text(await screen.findByTestId("otto-step-running"))).toBe("3 still running");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2100); // the second read fails
+    });
+    await waitFor(() => expect(reads).toBe(2));
+    expect(screen.getByTestId("otto-step-running")).not.toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2100); // and the panel asks a third time
+    });
+    await waitFor(() => expect(screen.queryByTestId("otto-step-running")).toBeNull());
+    expect(reads).toBe(3);
+    vi.useRealTimers();
   });
 });
 
@@ -537,6 +564,15 @@ describe("the tabs", () => {
     act(() => notifyChanged());
     await waitFor(() => expect(tabs().map((t) => t.getAttribute("data-thread"))).toEqual(["testing", "fixing", "planning"]));
     expect(tabOf("fixing").getAttribute("data-dot")).toBe("true");
+    // it is back for good: it is no longer remembered as closed
+    await waitFor(() => expect(JSON.parse(window.localStorage.getItem("evidence-lab-otto-tabs-101") ?? "{}").closed).toEqual({}));
+
+    // and its thread reading again as it did when the tab was closed (a proof that failed, ran, and failed again)
+    // does not hide it a second time (it has no dot then: that state was seen when the tab was closed)
+    now = three();
+    act(() => notifyChanged());
+    await waitFor(() => expect(tabOf("fixing")?.getAttribute("data-dot")).toBe("false"));
+    expect(tabs().map((t) => t.getAttribute("data-thread"))).toEqual(["testing", "fixing", "planning"]);
   });
 
   it("a closed tab opens again from its line under Elsewhere", async () => {
@@ -567,6 +603,71 @@ describe("the tabs", () => {
     expect(calls(fetchMock)).toEqual([]);
     fireEvent.click(screen.getByTestId("otto-confirm-button"));
     await waitFor(() => expect(calls(fetchMock)).toEqual([decide(dependencyProposal, "undo")]));
+  });
+});
+
+// ---------------------------------------------------------------- the Confirm step itself
+
+describe("the Confirm step", () => {
+  it("shows once: a decided suggestion that is listed on the page and in its thread opens the step only on the card that was pressed", async () => {
+    const accepted: AssistantEntry = suggestion(decided(dependencyProposal, "accepted"));
+    const fetchMock = await open(panel("migration/dependencies", { on_page: onPage([accepted]), tabs: [tab("planning", { so_far: [accepted] })] }));
+    const onThePage = within(screen.getByTestId("otto-on-page")).getByTestId("otto-entry");
+    const inTheThread = within(screen.getByTestId("otto-so-far")).getByTestId("otto-entry");
+    fireEvent.click(button(inTheThread, "Undo"));
+    expect(screen.getAllByTestId("otto-confirm")).toHaveLength(1);
+    expect(within(inTheThread).getByTestId("otto-confirm")).not.toBeNull();
+    expect(button(onThePage, "Undo")).not.toBeNull(); // the other card still shows its button
+    fireEvent.click(button(onThePage, "Undo"));
+    expect(screen.getAllByTestId("otto-confirm")).toHaveLength(1); // the step moved; there is never a second Confirm
+    expect(within(onThePage).getByTestId("otto-confirm")).not.toBeNull();
+    expect(calls(fetchMock)).toEqual([]);
+  });
+
+  it("names its fields by ids of their own, so two panels of one page never share one", async () => {
+    await open(panel("checks", { on_page: onPage([suggestion(checkProposal)]) }));
+    fireEvent.click(button(entry(checkProposal.id), "Reject"));
+    const reason = screen.getByTestId("otto-reason");
+    const name = screen.getByTestId("otto-name");
+    expect(reason.id).not.toBe("");
+    expect(reason.id).not.toBe(name.id);
+    expect(document.querySelectorAll(`[id="${reason.id}"]`)).toHaveLength(1);
+    expect(screen.getByLabelText(/Reason \(optional/)).toBe(reason);
+  });
+
+  it("takes the keyboard's place when it opens, and gives it back to the button on Cancel", async () => {
+    await open(panel("checks", { on_page: onPage([suggestion(checkProposal)]) }));
+    const reject = button(entry(checkProposal.id), "Reject");
+    reject.focus();
+    fireEvent.click(reject);
+    expect(document.activeElement).toBe(screen.getByTestId("otto-confirm"));
+    fireEvent.click(screen.getByTestId("otto-cancel-button"));
+    await waitFor(() => expect(document.activeElement).toBe(button(entry(checkProposal.id), "Reject")));
+    // and for a next step the same
+    cleanup();
+    const step = nextStep("next:run_all", "Run all", "Checks", { type: "run_all", plan_id: 1 });
+    await open(panel("checks", { on_page: onPage([step]) }));
+    fireEvent.click(button(entry(step.id), "Run all"));
+    expect(document.activeElement).toBe(screen.getByTestId("otto-confirm"));
+    fireEvent.click(screen.getByTestId("otto-cancel-button"));
+    await waitFor(() => expect(document.activeElement).toBe(button(entry(step.id), "Run all")));
+  });
+
+  it("closes when a new read turns its button off: the card shows the button again, off, with the page's reason", async () => {
+    const why = "Tests are still running. Wait until they have finished.";
+    const off: OttoProposal = { ...checkProposal, buttons: checkProposal.buttons.map((b) => ({ ...b, can: false, blocked_reason: why })) };
+    let now = panel("checks", { on_page: onPage([suggestion(checkProposal)]) });
+    const fetchMock = await open(now, { [read("checks")]: () => ({ body: now }) });
+    fireEvent.click(button(entry(checkProposal.id), "Accept"));
+    expect(screen.getByTestId("otto-confirm")).not.toBeNull();
+    now = panel("checks", { on_page: onPage([suggestion(off)]) });
+    const { notifyChanged } = await import("../changes");
+    act(() => notifyChanged());
+    await waitFor(() => expect(screen.queryByTestId("otto-confirm")).toBeNull());
+    const card = entry(checkProposal.id);
+    expect(button(card, "Accept").disabled).toBe(true);
+    expect(text(within(card).getByTestId("otto-blocked"))).toBe(why);
+    expect(calls(fetchMock)).toEqual([]);
   });
 });
 

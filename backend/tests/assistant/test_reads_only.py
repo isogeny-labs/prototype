@@ -24,7 +24,7 @@ ALLOWED_NAMES = {"app.otto.proposals": {"CLOSED", "HOME", "accept_stands"}, "app
 # Every method of the Lab the package may call. Each is a read the pages themselves make (their GET routes), or a
 # read made for the panel; none starts a job, records a decision or writes a row.
 READS = {"assessment_core", "otto_live_ready", "otto_proposals", "plan_view", "lab_view", "fixes_view", "migration_measure_view",
-         "dependencies_view", "import_json_for", "latest_verify", "next_step_from", "decision_name_view"}
+         "dependencies_view", "import_json_for", "latest_verify", "next_step_from", "decision_name_view", "otto_limit_words"}
 # What a page's button calls. None of these may appear anywhere in the package.
 CHANGES = {"otto_decide", "otto_decide_view", "run_all", "run_test", "start_retest", "retest_now", "connect_code", "run_proof_again",
            "open_pull_request", "approve", "merge", "verify", "confirm_address", "measure_migration", "measure_dependencies", "try_change",
@@ -64,6 +64,10 @@ def test_the_assistants_code_calls_only_reads_of_the_lab():
             if isinstance(node, ast.Attribute):
                 assert node.attr not in CHANGES, f"{path.name}:{node.lineno} names {node.attr}, which changes an assessment"
                 assert node.attr not in ("db", "jobs", "settings"), f"{path.name}:{node.lineno} reaches for .{node.attr}"
+                # anything taken from the lab is a listed read, also when it is only named and called later
+                of_lab = (isinstance(node.value, ast.Name) and node.value.id == "lab") or \
+                         (isinstance(node.value, ast.Attribute) and node.value.attr == "_lab")
+                assert not of_lab or node.attr in READS, f"{path.name}:{node.lineno} takes lab.{node.attr}, which is not a listed read"
             if isinstance(node, ast.Name):
                 assert node.id not in ("db", "session"), f"{path.name}:{node.lineno} holds a database session"
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
