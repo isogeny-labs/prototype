@@ -126,5 +126,6 @@
       }
     }
   ],
-  "notes": "Versions are JDK feature numbers. Each JEP page's Release field was read: JEP 496 and JEP 497 say Release 24, JEP 527 says Release 27 (Status Closed / Delivered)."
+  "notes": "Versions are JDK feature numbers. Each JEP page's Release field was read: JEP 496 and JEP 497 say Release 24, JEP 527 says Release 27 (Status Closed / Delivered).",
+  "no_package_file": "A JDK is not a package with a file that declares what it needs: it is a whole runtime, built and shipped as one."
 }

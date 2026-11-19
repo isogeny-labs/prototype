@@ -36,6 +36,66 @@
       "title": "Claim",
       "type": "object"
     },
+    "Declared": {
+      "additionalProperties": false,
+      "description": "What one released version itself declares it needs (phase 6e), from the publisher's own package file.",
+      "properties": {
+        "version": {
+          "description": "One released version, written in full.",
+          "title": "Version",
+          "type": "string"
+        },
+        "needs": {
+          "description": "Empty when the package file lists none.",
+          "items": {
+            "$ref": "#/$defs/Need"
+          },
+          "maxItems": 500,
+          "title": "Needs",
+          "type": "array"
+        },
+        "file": {
+          "description": "The package file that was read, as it is named inside the package.",
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "File",
+          "type": "string"
+        },
+        "file_sha256": {
+          "description": "The SHA-256 of that file as it was read.",
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "File Sha256",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "minLength": 5,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the quoted lines cannot show, e.g. that the file has no line that lists a need.",
+          "title": "Note"
+        }
+      },
+      "required": [
+        "version",
+        "needs",
+        "file",
+        "file_sha256",
+        "source"
+      ],
+      "title": "Declared",
+      "type": "object"
+    },
     "EnvironmentOnly": {
       "additionalProperties": false,
       "properties": {
@@ -54,6 +114,31 @@
         "source"
       ],
       "title": "EnvironmentOnly",
+      "type": "object"
+    },
+    "Need": {
+      "additionalProperties": false,
+      "description": "One package a version lists as needed when it runs, exactly as its package file writes it.",
+      "properties": {
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9@][A-Za-z0-9@._/+-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "wants": {
+          "description": "The version range as written, e.g. \"^4.11.9\". Empty when the file gives none.",
+          "maxLength": 120,
+          "title": "Wants",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "wants"
+      ],
+      "title": "Need",
       "type": "object"
     },
     "Package": {
@@ -105,7 +190,8 @@
             "release_notes",
             "changelog",
             "official_docs",
-            "project_repository"
+            "project_repository",
+            "package_file"
           ],
           "title": "Kind",
           "type": "string"
@@ -237,6 +323,30 @@
       ],
       "default": null,
       "title": "Notes"
+    },
+    "declared": {
+      "description": "Phase 6e: what single versions declare they need.",
+      "items": {
+        "$ref": "#/$defs/Declared"
+      },
+      "maxItems": 200,
+      "title": "Declared",
+      "type": "array"
+    },
+    "no_package_file": {
+      "anyOf": [
+        {
+          "maxLength": 300,
+          "minLength": 10,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Phase 6e: one sentence, for a library that has no package file that declares what it needs.",
+      "title": "No Package File"
     }
   },
   "required": [
