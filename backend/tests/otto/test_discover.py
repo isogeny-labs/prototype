@@ -307,11 +307,13 @@ def test_design_and_prove_is_off_with_the_reason_until_it_can_work(lab, monkeypa
     lab.look_for_advisories(lab.plan.id)
     research = lab.advisories_view(lab.plan.id)["lookup"]["research"]
     assert research["shown"] is True and research["label"] == "Design and prove tests (2)"
-    # this Lab is in demo mode: a real library runs only in its own container
-    assert research["can"] is False and research["blocked_reason"] == words.RESEARCH_NEEDS_ISOLATED
+    # this Lab is in demo mode: a real library runs only in its own container. (Where Otto is not installed, that is
+    # said first: nothing of a research run can work without it. The GitHub checks run without Otto.)
+    off = words.RESEARCH_NEEDS_ISOLATED if harness.status().installed else harness.status().sentence
+    assert research["can"] is False and research["blocked_reason"] == off
     with pytest.raises(Conflict) as refused:
         lab.start_research(lab.plan.id)
-    assert str(refused.value) == words.RESEARCH_NEEDS_ISOLATED and _count(lab, OttoResearchRow) == 0
+    assert str(refused.value) == off and _count(lab, OttoResearchRow) == 0
     said = " ".join(research["dialog"]["lines"])
     assert research["dialog"]["title"] == "Design and prove tests for 2 advisories?"
     assert "it fails on the affected version, passes on the fixed version, and the control that must fail does" in said

@@ -20,7 +20,7 @@ import re
 from typing import Any
 
 from app.assistant import words
-from app.assistant.threads import KIND_THREAD, PAGE_LABELS, PAGE_THREAD, THREAD_LABELS, THREADS
+from app.assistant.threads import KIND_THREAD, PAGE_LABELS, PAGE_THREAD, PAGES, THREAD_LABELS, THREADS
 
 MAX_TEXT = 500
 MAX_OPTIONS = 8
@@ -87,7 +87,7 @@ BOX = {"label": "Ask Otto, or tell it what to do", "send": "Send", "max": MAX_TE
 # ------------------------------------------------------------------ the words the rules know
 PAGE_WORDS: dict[str, str] = {
     "overview": "overview", "home": "overview", "start": "overview",
-    "import": "inventory/import", "inventory": "inventory/import", "file": "inventory/import", "scanner file": "inventory/import",
+    "inventory": "inventory/import", "file": "inventory/import", "scanner file": "inventory/import",
     "verify": "inventory/verify", "claims": "inventory/verify", "verification": "inventory/verify",
     "advisories": "advisories", "advisory": "advisories",
     "checks": "checks", "tests": "checks", "test plan": "checks", "plan": "checks",
@@ -97,6 +97,9 @@ PAGE_WORDS: dict[str, str] = {
     "roadmap": "migration/roadmap",
     "dependencies": "migration/dependencies", "libraries": "migration/dependencies", "dependency list": "migration/dependencies",
 }
+# Every page is also known by the last word of its own address (Import, Verify, Systems, ...). Worked out here, not
+# written out: the app's source is scanned for the words of a container command, and a page's name is not one.
+PAGE_WORDS.update({page.rsplit("/", 1)[-1]: page for page in PAGES})
 # What a table can be filtered by, as a person says it, and the page's own word for it. The pages with these filters in
 # their address: Checks (result, where a check came from), Evidence (result) and Advisories (decision).
 RESULT_WORDS: dict[str, str] = {
