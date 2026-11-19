@@ -449,6 +449,7 @@ def test_connect_is_refused_until_every_test_has_a_result_and_nothing_runs(lab):
     assert code_fix(lab.fix_states(plan.id))["status"] == "ready"
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_each_step_is_refused_before_its_time(lab):
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -502,6 +503,7 @@ def test_each_step_is_refused_before_its_time(lab):
     assert repo_of(lab, code_fix(lab.fix_states(plan.id))).branch("main") == main
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_failed_proof_is_not_offered_and_can_be_run_again(lab):
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -586,6 +588,7 @@ def test_nothing_runs_when_the_changed_code_is_not_a_registered_component(lab, m
     assert [r["kind"] for r in code["change"]["source"]["runs"]] == ["bad_signatures"]  # it answers only the signing failure
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_an_interrupted_proof_counts_as_failed_and_can_be_run_again(lab, monkeypatch):
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -681,6 +684,7 @@ def test_an_open_pull_request_does_not_shield_a_proof_that_no_longer_covers_the_
         assert db.query(ProofRow).count() == 3 and db.query(MergeRow).count() == 1
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_proof_that_never_ran_the_failed_test_the_change_is_for_is_not_offered(lab):
     """Review finding 1. The failed test the change answers is taken out of the plan and the proof is run again.
     Every test that proof ran can pass, and still no test in it gave the program a bad signature."""
@@ -721,6 +725,7 @@ def test_a_proof_that_never_ran_the_failed_test_the_change_is_for_is_not_offered
     assert code["actions"]["run_proof_again"] is None
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_plan_without_the_speed_test_is_proved_but_not_offered(lab):
     """Review finding 4. SPEC 7b item 3: every test in the plan "plus the speed comparison"."""
     plan = small_plan(lab, without=("official_vectors", "speed_size"))
@@ -745,6 +750,7 @@ def test_a_plan_without_the_speed_test_is_proved_but_not_offered(lab):
     assert (speed["first"]["code"], speed["proof"]["code"], speed["check"]["reason"]) == ("measured", "no_slowdown", "no_slowdown")
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_finding_is_open_only_while_the_newest_result_of_its_test_fails(lab):
     """Review finding 10. The server is put right between the first run and a retest: the test that failed
     passes in the "after" column, and its finding is no longer listed as open. A code fix is listed as before."""
@@ -919,6 +925,7 @@ def tamper(lab, *statements):
         db.commit()
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_changed_proof_review_is_not_believed(lab):
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -947,6 +954,7 @@ def test_a_changed_proof_review_is_not_believed(lab):
     assert code_fix(lab.fix_states(plan.id))["proof"]["review"]["problem"] == PROOF_CHANGED
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_changing_what_a_passed_proof_stands_on_is_caught(lab):
     plan = small_plan(lab)
     ready = proved(lab, plan)
@@ -1004,6 +1012,7 @@ def test_changing_what_a_passed_proof_stands_on_is_caught(lab):
     assert lab.patch_file(plan.id, FIX) == patch
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_merge_is_refused_when_the_repository_moved(lab):
     plan = small_plan(lab)
     ready = proved(lab, plan)
@@ -1059,6 +1068,7 @@ def test_first_runs_and_retests_say_which_code_they_ran_on(lab):
     assert [a["run_id"] for a in code["answers"]] == [code["change"]["source"]["runs"][0]["run_id"], shown_now]
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_the_proof_is_reviewed_once_when_its_jobs_finish_together_and_never_while_closing(lab, monkeypatch):
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -1085,6 +1095,7 @@ def test_the_proof_is_reviewed_once_when_its_jobs_finish_together_and_never_whil
     assert code_fix(lab.fix_states(plan.id))["status"] == "ready"
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_folder_left_by_an_earlier_database_is_neither_reused_nor_removed(lab):
     plan = small_plan(lab)
     leftover = lab.settings.data_dir / "repos" / f"plan-{plan.id}" / "acme-sign.git"
@@ -1098,6 +1109,7 @@ def test_a_folder_left_by_an_earlier_database_is_neither_reused_nor_removed(lab)
             lab._repo(folder)
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_connect_needs_the_bundled_repository_to_be_there(lab, monkeypatch, tmp_path):
     plan = small_plan(lab)
     lab.run_all(plan.id)

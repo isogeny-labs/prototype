@@ -465,6 +465,7 @@ def test_the_tls_fix_on_a_server_that_is_not_ours_stays_text_only(tls_server, tm
         lab.stop()
 
 
+@pytest.mark.slow      # a long flow for one test
 def test_without_the_post_quantum_engine_nothing_can_be_tried_or_applied(tmp_path, monkeypatch):
     monkeypatch.setattr(pqtls, "available", lambda: (False, "no ML-KEM here"))
     ports = _ports()

@@ -149,7 +149,11 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   // what Evidence says before any change comes in (compared again at the end)
   await stepLink(page, "Evidence").click();
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
-  const evidenceBefore = await page.getByTestId("evidence-row").allInnerTexts();
+  await expect(page.getByTestId("evidence-row").first()).toBeVisible();
+  // (the rows' own text, whatever is drawn at this instant: `innerText` reads as one unbroken line while a row is in
+  // the page but not drawn yet, which a busy machine showed on 19 November 2026)
+  const evidenceBefore = await page.getByTestId("evidence-row").allTextContents();
+  expect(evidenceBefore.join(" ")).toContain("Attacker tricks (our short list)");
 
   // ---- a developer's change comes in: it is listed with its picked tests, and nothing has run
   await stepLink(page, "Change watch").click();
@@ -295,7 +299,7 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   // ---- these runs are kept apart: Evidence reads exactly what it read before the change came in
   await stepLink(page, "Evidence").click();
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
-  await expect.poll(async () => page.getByTestId("evidence-row").allInnerTexts()).toEqual(evidenceBefore);
+  await expect.poll(async () => page.getByTestId("evidence-row").allTextContents()).toEqual(evidenceBefore);
 
   // ---- the settings change: nothing is picked, nothing can run, and its line that names TLS 1.0 is flagged
   await stepLink(page, "Change watch").click();

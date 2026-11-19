@@ -59,7 +59,22 @@ SLOW_SHARED_WALKS = {
     "test_reads_only.py": "assistant_walk",
     "test_commands.py": "assistant_walk",
     "test_questions.py": "assistant_walk",
+    # 19 November 2026, phase 6d: three Change watch walks. The evidence file's walk is short, but some fifty tests read
+    # it (the tamper cases of the verify command and 400 damaged copies), as with test_otto_evidence.py above; the
+    # panel's and the page's walk each take three to four seconds to make. The rules of a watch run itself
+    # (test_watch_run.py, test_changes_read.py) stay in the everyday run. Run all of it with:
+    # pytest -q tests/changewatch --full (about a minute), whenever Change watch is touched.
+    "test_watch_evidence.py": "made",
+    "test_watch_panel.py": "beside",
+    "test_watch_view.py": "page",
 }
+# 19 November 2026: the whole demo, made once for the run (`demo_flow` below: Run all, then Retest on 1.4.3). It takes
+# about 49 seconds on the build machine (the published test cases twice and the speed test twice), and 41 tests in
+# eleven files read it. With the tests of phases 6a to 6e the fast set had reached seven minutes, so by the rule above
+# its readers are slow too, whatever file they are in. What they stand on is graded on every push all the same: the
+# accuracy check walks this same demo through the same path and compares its 18 answers with the answer key. The scan
+# for private keys has a short form of its own that stays in the everyday run (tests/test_secrets_scan.py).
+SLOW_SESSION_WALKS = {"demo_flow"}
 
 
 def pytest_collection_modifyitems(config, items):
@@ -69,7 +84,7 @@ def pytest_collection_modifyitems(config, items):
     checks can't fetch a private repository without a secret). Never a silent pass."""
     for item in items:
         fixtures = getattr(item, "fixturenames", ())
-        if "docker_ready" in fixtures or SLOW_SHARED_WALKS.get(item.path.name) in fixtures:
+        if "docker_ready" in fixtures or SLOW_SHARED_WALKS.get(item.path.name) in fixtures or SLOW_SESSION_WALKS.intersection(fixtures):
             item.add_marker(pytest.mark.slow)
     if not (config.getoption("--full") or config.getoption("markexpr")):
         slow = [item for item in items if item.get_closest_marker("slow")]

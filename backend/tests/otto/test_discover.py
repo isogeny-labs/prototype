@@ -352,6 +352,7 @@ def _stand_in(lab, monkeypatch, script: str) -> list[list[str]]:
     return seen
 
 
+@pytest.mark.slow      # starts the research command as a real process and waits on it (a timing test)
 @pytest.mark.needs_otto
 def test_a_research_run_is_started_by_the_click_runs_in_the_background_and_its_end_is_kept(lab, monkeypatch):
     lab.look_for_advisories(lab.plan.id)
@@ -383,6 +384,7 @@ def test_a_research_run_is_started_by_the_click_runs_in_the_background_and_its_e
     assert all(p["about"].get("advisory") == "CVE-2022-21449" for p in lab.otto_proposals(lab.plan.id, ("check",)))
 
 
+@pytest.mark.slow      # starts the research command as a real process and waits on it (a timing test)
 @pytest.mark.needs_otto
 def test_a_research_run_is_ended_with_the_app_and_never_left_behind(lab, monkeypatch, tmp_path):
     """Stopping the app ends a run that is still going, with what it started. Its end is kept and says so."""
@@ -443,6 +445,7 @@ def test_raw_sql_cannot_change_or_delete_a_look_or_a_research_run(lab, monkeypat
         assert db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar() == before
 
 
+@pytest.mark.slow      # starts the research command as a real process and waits on it (a timing test)
 @pytest.mark.needs_otto
 def test_only_one_research_run_at_a_time(lab, monkeypatch):
     lab.look_for_advisories(lab.plan.id)
@@ -468,6 +471,7 @@ def test_only_one_research_run_at_a_time(lab, monkeypatch):
 
 # ---------------------------------------------------------------- after the separate review of 19 November 2026
 
+@pytest.mark.slow      # starts the research command as a real process and waits on it (a timing test)
 @pytest.mark.needs_otto
 def test_two_clicks_at_the_same_moment_start_one_run(lab, monkeypatch):
     """Two tabs, or a request sent twice: the second waits for the first to be registered, and is then refused."""
@@ -602,6 +606,7 @@ def test_the_click_installs_the_pack_its_own_run_made_and_no_other(lab, monkeypa
         assert block["research"]["blocked_reason"] == words.waiting_made_here("2026.11.2")
 
 
+@pytest.mark.slow      # starts the research command as a real process and waits on it (a timing test)
 @pytest.mark.needs_otto
 def test_a_run_that_goes_on_past_the_time_limit_is_ended_with_what_it_started(lab, monkeypatch, tmp_path):
     from app.otto import discover
@@ -665,6 +670,7 @@ def test_a_version_that_cannot_be_read_is_said_as_that_and_not_as_no_fixed_versi
         lab.stop()
 
 
+@pytest.mark.slow      # starts the research command as a real process and waits on it (a timing test)
 @pytest.mark.needs_otto
 def test_with_the_real_command_an_advisory_with_no_answer_stays_open_and_a_later_run_takes_it_up(tmp_path, monkeypatch):
     """The research command itself (no stand-in), Live Otto off, on a new advisory nobody recorded an answer for. No

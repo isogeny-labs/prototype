@@ -45,6 +45,64 @@ def database_text(path, tables=("test_runs", "reviews", "verify_runs", "evidence
     return "\n".join(out)
 
 
+def scan(places: dict[str, str], secrets: dict[str, list[str]]) -> None:
+    """No form of any secret, and no private-key marker, in any of the places. A failure names the place, never the key."""
+    for place, text in places.items():
+        for name, forms in secrets.items():
+            for i, form in enumerate(forms):
+                assert len(form) >= 32
+                leaked = form in text   # (kept out of the assert, so a failure never prints the key)
+                assert not leaked, f"the {name} (form {i}) appears in the {place}"
+        for marker in MARKERS:
+            marked = marker in text
+            assert not marked, f"a private-key marker ({marker}) appears in the {place}"
+
+
+def test_no_private_key_after_a_short_run_in_database_evidence_report_or_logs(tmp_path, monkeypatch, capfd, caplog):
+    """The everyday form of the scan. The full one below reads the whole demo walk (Run all, then a retest), which takes
+    about 49 seconds to make, so it is in the slow set (tests/conftest.py); this one makes a short run of its own:
+    Verify, one test, a download. Then the same scan of everything stored, shown or logged, and the key files' modes.
+    (The speed test, whose key is made inside the test harness, is part of the full scan only.)"""
+    caplog.set_level(logging.DEBUG)
+    handed_over, real_run = [], components.run_component
+
+    def recording_run(path, command, payload=None, *args, **kwargs):
+        done = real_run(path, command, payload, *args, **kwargs)
+        if isinstance(done.data, dict) and isinstance(done.data.get("private_key"), str):
+            handed_over.append(done.data["private_key"])
+        return done
+
+    monkeypatch.setattr(components, "run_component", recording_run)
+    lab = make_lab(tmp_path)
+    try:
+        plan = demo_plan(lab)
+        lab.verify(plan.imp["id"])                         # the only step where a component's private key reaches the backend
+        assert len(handed_over) == 1 and len(handed_over[0]) == 64
+        failed = run_kind(lab, plan, "bad_signatures")
+        lab.mark_reviewed(failed["run_id"])
+        data_dir = lab.settings.data_dir
+        secrets = {"evidence signing key": None, "demo TLS test key": key_forms(data_dir / KEY_FILE),
+                   "component test key from Verify": [handed_over[0], handed_over[0].upper()]}
+        made = lab.export_evidence(plan.id)                # (the signing key is made with the first download)
+        secrets["evidence signing key"] = key_forms(data_dir / SIGNING_KEY_FILE)
+        evidence_json = lab.evidence_file(made["id"], "json")[1].decode("utf-8")
+        report_html = lab.evidence_file(made["id"], "html")[1].decode("utf-8")
+        captured = capfd.readouterr()
+        places = {"database": database_text(lab.settings.db_path), "evidence JSON": evidence_json, "HTML report": report_html,
+                  "captured output": captured.out + captured.err, "captured log records": caplog.text, "API session": str(lab.session_json(None)),
+                  "views": str(lab.lab_view(plan.id)) + str(lab.plan_view(plan.id)) + str(lab.latest_verify(plan.imp["id"]))}
+        assert len(places["database"]) > 10_000 and len(evidence_json) > 10_000 and len(report_html) > 5_000
+        scan(places, secrets)
+        # the Verify evidence shows that a key was used, with the key itself withheld; only the public half of the signing key is in the download
+        assert "[test private key withheld]" in places["database"] and "[test private key withheld]" in evidence_json
+        assert (data_dir / "evidence-signing-public-key.txt").read_text().strip() in evidence_json
+        for name in (SIGNING_KEY_FILE, KEY_FILE):
+            assert stat.S_IMODE((data_dir / name).stat().st_mode) == 0o600, name
+        assert stat.S_IMODE(data_dir.stat().st_mode) == 0o700
+    finally:
+        lab.stop()
+
+
 def test_no_private_key_in_database_evidence_report_or_logs(demo_flow, tmp_path, monkeypatch, capfd, caplog):
     lab, data_dir = demo_flow.lab, demo_flow.lab.settings.data_dir
     caplog.set_level(logging.DEBUG)
@@ -99,15 +157,7 @@ def test_no_private_key_in_database_evidence_report_or_logs(demo_flow, tmp_path,
     assert len(places["database"]) > 100_000 and len(evidence_json) > 50_000 and len(report_html) > 20_000
 
     # 3. Scan.
-    for place, text in places.items():
-        for name, forms in secrets.items():
-            for i, form in enumerate(forms):
-                assert len(form) >= 32
-                leaked = form in text   # (kept out of the assert, so a failure never prints the key)
-                assert not leaked, f"the {name} (form {i}) appears in the {place}"
-        for marker in MARKERS:
-            marked = marker in text
-            assert not marked, f"a private-key marker ({marker}) appears in the {place}"
+    scan(places, secrets)
     # the Verify evidence shows that a key was used, with the key itself withheld
     assert "[test private key withheld]" in places["database"] and "[test private key withheld]" in evidence_json
     # only the public half of the signing key is in the download
