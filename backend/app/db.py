@@ -305,6 +305,41 @@ class ProofReviewRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class WatchRunRow(Base):
+    """One run of the tests picked for a developer's change (phase 6d, Change watch). The change is named by its
+    branch and its two commits; no row of `changes` is written for it (that table is for the app's own changes).
+    `items`: [{"item_id", "spec_hash", "kind", "before_run_id"}] in plan order: the picked tests, each with the reviewed
+    run on exactly the code the change starts from that it is compared with (None: that test also runs on that code in
+    this watch run). Its runs are `test_runs` rows with this row's id in `retest_id`: phase "watch" on the change's
+    code, phase "watch_base" on the code before. They never stand in for a result of the assessment's own tests."""
+    __tablename__ = "watch_runs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    branch: Mapped[str] = mapped_column(String(100))
+    base_commit: Mapped[str] = mapped_column(String(40))        # the commit the change starts from
+    head_commit: Mapped[str] = mapped_column(String(40))        # the change's code
+    version: Mapped[str] = mapped_column(String(50))            # the registered demo program the change's code is; it is what runs
+    base_version: Mapped[str] = mapped_column(String(50))       # the registered demo program the code before is
+    files: Mapped[list] = mapped_column(JSON)                   # [{"name", "state", "old_sha256", "new_sha256"}]: what the change touches
+    items: Mapped[list] = mapped_column(JSON)
+    not_picked: Mapped[list] = mapped_column(JSON)              # [{"item_id", "kind", "rule"}]: the tests left out, and the rule
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class WatchReviewRow(Base):
+    """The reviewer's answer to "what differs from before?", written once, when the watch run's last test run is
+    reviewed. It sets the change's status word and nothing else. It is believed only while reviewing the stored records
+    again gives exactly this row."""
+    __tablename__ = "watch_reviews"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    watch_run_id: Mapped[int] = mapped_column(ForeignKey("watch_runs.id"), unique=True)
+    reviewer: Mapped[str] = mapped_column(String(64))
+    record_sha256: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(40))
+    detail: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 class PullRequestRow(Base):
     """A pull request inside the app, for one change, opened on one passed proof."""
     __tablename__ = "pull_requests"
@@ -704,7 +739,8 @@ APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", 
                       "assessment_details", "assessment_signoffs", "import_files",   # phase 5b
                       "otto_packs", "otto_checks", "otto_steps", "otto_decisions",    # phase 5c
                       "otto_lookups", "otto_research",                                # phase 6: the research loop
-                      "assistant_messages")                                           # phase 6b: what was said to Otto
+                      "assistant_messages",                                           # phase 6b: what was said to Otto
+                      "watch_runs", "watch_reviews")                                  # phase 6d: Change watch
 
 
 def create_append_only_triggers(engine) -> None:

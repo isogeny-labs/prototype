@@ -28,12 +28,12 @@ from app.engine import research
 from app.canonical import canonical_bytes
 from app.db import (
     ApprovalRow, ChangeRow, CodeConnectionRow, ImportRow, MergeRow, PlanItemRow, PlanRow, ProofReviewRow, ProofRow, PullRequestRow, RetestRow,
-    ReviewRow, TestRunRow, TestSpecRow, iso,
+    ReviewRow, TestRunRow, TestSpecRow, WatchRunRow, iso,
 )
 from app.errors import BadRequest, Conflict, NotFound
 from app.fixes.gitrepo import GitRepo, GitRepoError, Person, count_changes, format_patch
 from app.engine.reviewer import PROOF_SCHEMA, ReviewNotAllowed
-from app.lab.testlab import BUSY, read_spec
+from app.lab.testlab import BUSY, WATCH_PHASES, read_spec
 from app.otto import proposals as otto_proposals
 from app.otto.engine import OttoCouldNot
 
@@ -623,6 +623,15 @@ class ChangesMixin:
                 connection = db.get(CodeConnectionRow, change.connection_id)
                 code.update(source="repository", repository=connection.repository, branch=change.branch,
                             commit=change.head_commit, change_id=change.id)
+                return code
+            if a["phase"] in WATCH_PHASES:
+                # Phase 6d: a watch run records the developer's branch and the commit whose code ran: the change's own
+                # commit, or (for the run on the code before) the commit the change starts from.
+                watch = db.get(WatchRunRow, a["retest_id"])
+                connection = db.scalars(select(CodeConnectionRow).where(CodeConnectionRow.plan_id == a["plan_id"])).first()
+                if watch is not None and connection is not None:
+                    code.update(source="repository", repository=connection.repository, branch=watch.branch,
+                                commit=watch.head_commit if a["phase"] == "watch" else watch.base_commit)
                 return code
             connection = db.scalars(select(CodeConnectionRow).where(CodeConnectionRow.plan_id == a["plan_id"])).first()
             if connection is None:

@@ -395,11 +395,13 @@ OTTO_TABLES = ("otto_packs", "otto_checks", "otto_steps", "otto_decisions")
 RESEARCH_TABLES = ("otto_lookups", "otto_research")
 # What was said to Otto (phase 6b): tests/assistant/test_commands.py::test_raw_sql_cannot_change_or_delete_what_was_said.
 SAID_TABLES = ("assistant_messages",)
+# Change watch (phase 6d): tests/changewatch/test_watch_run.py::test_raw_sql_cannot_change_or_delete_a_watch_run_or_its_review.
+WATCH_TABLES = ("watch_runs", "watch_reviews")
 
 
 def test_every_append_only_table_is_covered_by_a_test():
     groups = (set(RUN_TABLES), set(FIX_TABLES), set(MIGRATION_TABLES), set(SYSTEM_CHANGE_TABLES), set(DEPENDENCY_TABLES),
-              set(ASSESSMENT_TABLES), set(OTTO_TABLES), set(RESEARCH_TABLES), set(SAID_TABLES))
+              set(ASSESSMENT_TABLES), set(OTTO_TABLES), set(RESEARCH_TABLES), set(SAID_TABLES), set(WATCH_TABLES))
     assert set().union(*groups) == set(APPEND_ONLY_TABLES)
     assert sum(len(g) for g in groups) == len(set().union(*groups))     # no table is counted twice
 

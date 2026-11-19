@@ -1,6 +1,7 @@
 """Change watch: a developer's change in the connected demo repository. Phase 6d, first part.
 
-What is here reads, and one action writes a demo change into the assessment's own copy of the repository:
+What is here reads, one action writes a demo change into the assessment's own copy of the repository, and one
+starts the tests picked for a change (the watch run):
 
 - `change_watch_state` reads the connected repository each time it is asked. Every branch that is neither the
   connected branch nor a branch of one of the app's own changes (the fix template's, Otto's) is a developer's change:
@@ -10,23 +11,38 @@ What is here reads, and one action writes a demo change into the assessment's ow
 - `bring_in_demo_change` writes one bundled demo change (`demo_changes.py`) as a push would: one branch with one
   commit by "Demo developer". It runs nothing.
 
-Everything in a repository is data. Nothing read here is executed, and nothing here starts a test: that is the watch
-run's job, on a person's click. This module words nothing either: `app/present/changewatch.py` does.
+- `run_picked_tests` is the watch run. It starts only when a person asks. After the byte-for-byte check it runs
+  the picked tests on the change's code, through the same runner and the same locked tests as every other run. "Before"
+  is each test's newest reviewed run on exactly the code the change starts from; where there is none, that test also
+  runs on that code. The separate reviewer reviews every run, and then says what differs from before
+  (`RuleReviewer.review_watch`): that sets the change's status word and nothing else. These runs are kept apart. They
+  never stand in for a result of the assessment's own tests.
+
+Everything in a repository is data. Nothing read here is executed; what runs in a watch run is the registered demo
+program the change's code is byte for byte, never a file from the repository. This module words nothing:
+`app/present/changewatch.py` does.
 """
 from __future__ import annotations
 
+import hashlib
 import time
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any, Callable
 
 from sqlalchemy import select
 
+from app.canonical import canonical_bytes
 from app.changewatch import demo_changes, flags
-from app.db import ChangeRow, CodeConnectionRow, ImportRow, MergeRow, PlanRow, PullRequestRow, TestSpecRow, iso
+from app.db import (
+    ChangeRow, CodeConnectionRow, ImportRow, MergeRow, PlanRow, PullRequestRow, ReviewRow, RunCodeRow, TestRunRow, TestSpecRow, WatchReviewRow,
+    WatchRunRow, iso,
+)
 from app.engine import research
+from app.engine.reviewer import WATCH_NO_RESULT_CODES, WATCH_SCHEMA
 from app.errors import Conflict, NotFound
 from app.fixes.gitrepo import Commit, GitRepo, GitRepoError, Person, changed_spots
-from app.lab.testlab import read_spec
+from app.lab.testlab import BUSY, WATCH_PHASES, read_spec
 from app import demo_repo
 from app.run import components
 
@@ -75,8 +91,14 @@ def _file(name: str, old: bytes | None, new: bytes | None, program_file: str | N
     return out
 
 
+def _watch_detail(review: dict) -> dict:
+    """What is stored of a watch review beside its status (and compared again at every read)."""
+    return {k: review[k] for k in ("schema", "code_is_ours", "counts", "tests")}
+
+
 class ChangeWatchMixin:
-    """Mixed into Lab. Needs: db, settings, _plan_lock and, from the other mixins: _plan, _items, _claims, _program_of, _repo."""
+    """Mixed into Lab. Needs: db, settings, jobs, reviewer, _plan_lock, _proof_lock and, from the other mixins: _plan, _items,
+    _claims, _program_of, _repo, _running, _submit, _latest_run, _verdict."""
 
     # Declared for the type check only (nothing is assigned): from Lab and its other mixins.
     db: Callable[..., Any]
@@ -86,6 +108,14 @@ class ChangeWatchMixin:
     _claims: Callable[..., list[dict]]
     _program_of: Callable[..., dict | None]
     _repo: Callable[[str], GitRepo]
+    _running: Callable[[int], str | None]
+    _submit: Callable[..., Any]
+    _verdict: Callable[..., dict | None]
+    _latest_run: Callable[..., TestRunRow | None]
+    _proof_lock: Any
+    _stopping: bool
+    jobs: Any
+    reviewer: Any
 
     # ---------------------------------------------------------------- where the code stands
 
@@ -150,7 +180,8 @@ class ChangeWatchMixin:
         """One developer's change, read from the repository. A branch that can't be read is still listed, with why."""
         out: dict[str, Any] = {"id": change_id(head), "branch": name, "head": head, "base": None, "commits": 0, "title": name, "message": "",
                                "author": None, "is_demo": False, "when": None, "files": [], "problem": None, "touches_program": False,
-                               "gives": None, "picked": [], "not_picked": [], "flags": [], "more_flags": 0, "status": "cant_run"}
+                               "gives": None, "starts_from": None, "picked": [], "not_picked": [], "flags": [], "more_flags": 0,
+                               "status": "cant_run", "digests": [], "run": None}
         try:
             history: list[Commit] = repo.history(head, MAX_COMMITS)
             tip = history[0]
@@ -173,10 +204,16 @@ class ChangeWatchMixin:
             del f["added_lines"]
         # The byte-for-byte check: which registered demo program is exactly the code this change leaves. Nothing is run to find out.
         version = components.registered_version(program["name"], new)
+        # the code the change starts from: which registered demo program it is (a watch run compares with runs on exactly it)
+        base_version = components.registered_version(program["name"], old)
         out.update(base=base, commits=start, files=files, touches_program=touched_program,
                    gives={"name": program["name"], "version": version} if version is not None else None,
+                   starts_from={"name": program["name"], "version": base_version} if base_version is not None else None,
                    picked=picked, not_picked=not_picked, flags=found[:flags.MAX_FLAGS], more_flags=max(0, len(found) - flags.MAX_FLAGS),
-                   status="nothing_to_run" if not picked else "not_run" if version is not None else "cant_run")
+                   status="nothing_to_run" if not picked else "not_run" if version is not None and base_version is not None else "cant_run",
+                   digests=[{"name": f["name"], "state": f["state"],
+                             "old_sha256": hashlib.sha256(old[f["name"]]).hexdigest() if f["name"] in old else None,
+                             "new_sha256": hashlib.sha256(new[f["name"]]).hexdigest() if f["name"] in new else None} for f in files])
         return out
 
     def _developer_changes(self, db, plan: PlanRow, code: dict) -> tuple[list[dict], bool]:
@@ -201,7 +238,9 @@ class ChangeWatchMixin:
                     continue                      # nothing on it that the connected branch does not have
             except (GitRepoError, OSError):
                 pass                              # listed below, with why it can't be read
-            out.append(self._read_change(repo, name, head, main, code["program"], tests))
+            change = self._read_change(repo, name, head, main, code["program"], tests)
+            self._with_watch_run(db, plan, change)
+            out.append(change)
             if len(out) >= MAX_CHANGES:
                 break
         out.sort(key=lambda c: (c["when"] or "", c["branch"]), reverse=True)     # newest first
@@ -234,6 +273,183 @@ class ChangeWatchMixin:
                              "repository": connection.repository if connection is not None else None,
                              "branch": connection.branch if connection is not None else None},
                     "changes": changes, "menu": self._demo_menu(code, changes)}
+
+    # ---------------------------------------------------------------- the watch run: record, review, read gate
+
+    def _watch_before(self, db, entry: dict, name: str, base_version: str, base_sha256: str) -> int | None:
+        """The newest reviewed run of this locked test on exactly the code the change starts from (the same registered
+        program, the same bytes), whatever it was run for; None when there is none, or when the newest one is no result
+        (it could not run, or can't be trusted): then the test runs on that code again."""
+        row = db.execute(select(TestRunRow.id, ReviewRow.code)
+                         .join(RunCodeRow, RunCodeRow.run_id == TestRunRow.id).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
+                         .where(TestRunRow.plan_item_id == entry["item_id"], TestRunRow.spec_hash == entry["spec_hash"],
+                                RunCodeRow.component_name == name, RunCodeRow.component_version == base_version,
+                                RunCodeRow.file_sha256 == base_sha256)
+                         .order_by(TestRunRow.id.desc()).limit(1)).first()
+        return row[0] if row is not None and row[1] not in WATCH_NO_RESULT_CODES else None
+
+    def _watch_tests(self, db, watch: WatchRunRow) -> list[dict]:
+        """For each test of a watch run, in its order: the run it is compared with and its run on the change's code,
+        each as the read gate lets it through (None where there is no reviewed run yet)."""
+        out = []
+        for entry in watch.items:
+            before = (db.get(TestRunRow, entry["before_run_id"]) if entry.get("before_run_id") is not None
+                      else self._latest_run(db, entry["item_id"], "watch_base", watch.id))
+            now = self._latest_run(db, entry["item_id"], "watch", watch.id)
+            out.append({"item_id": entry["item_id"], "kind": entry["kind"], "spec_hash": entry["spec_hash"],
+                        "before_made_here": entry.get("before_run_id") is None,
+                        "before": self._verdict(db, before) if before is not None else None,
+                        "now": self._verdict(db, now) if now is not None else None})
+        return out
+
+    def _watch_matches(self, db, watch: WatchRunRow) -> dict | None:
+        """The byte-for-byte check, made again from the repository as it is now: is the change's code still exactly the
+        registered demo program that ran? None when it is not, or when the repository can't be read."""
+        plan = db.get(PlanRow, watch.plan_id)
+        connection = db.scalars(select(CodeConnectionRow).where(CodeConnectionRow.plan_id == watch.plan_id)).first()
+        if plan is None or connection is None:
+            return None
+        try:
+            version = components.registered_version(plan.component_name, self._repo(connection.folder).files(watch.head_commit))
+        except (GitRepoError, OSError):
+            return None
+        return {"name": plan.component_name, "version": version} if version is not None else None
+
+    @staticmethod
+    def _watch_record(watch: WatchRunRow, tests: list[dict], matches: dict | None) -> dict:
+        """The watch record: what the reviewer is given and what the watch run's fingerprint is made from. Stored facts
+        only, in the form they are read back, so it comes out the same on every read."""
+        def part(verdict: dict | None) -> dict | None:
+            return {k: verdict[k] for k in ("run_sha256", "code", "reason_code", "control_outcome")} if verdict is not None else None
+        return {"schema": WATCH_SCHEMA,
+                "change": {"branch": watch.branch, "base_commit": watch.base_commit, "head_commit": watch.head_commit, "files": watch.files},
+                "matches": matches, "version": watch.version, "base_version": watch.base_version,
+                "tests": [{"item_id": t["item_id"], "kind": t["kind"], "spec_hash": t["spec_hash"],
+                           "before": part(t["before"]), "now": part(t["now"])} for t in tests]}
+
+    def _watch_run_finished(self, watch_id: int) -> None:
+        """Called by every job of a watch run once its run is reviewed. When every picked test has both its runs, the
+        watch run itself is reviewed and the answer stored, once. Nothing is written while the app is closing."""
+        with self._proof_lock, self.db() as db:
+            watch = db.get(WatchRunRow, watch_id)
+            if self._stopping or watch is None or db.scalars(select(WatchReviewRow).where(WatchReviewRow.watch_run_id == watch_id)).first():
+                return
+            tests = self._watch_tests(db, watch)
+            if any(t["before"] is None or t["now"] is None for t in tests):
+                return  # other runs of this watch run are still waiting or running
+            review = self.reviewer.review_watch(self._watch_record(watch, tests, self._watch_matches(db, watch)))
+            db.add(WatchReviewRow(watch_run_id=watch_id, reviewer=review["reviewer"], record_sha256=review["record_sha256"],
+                                  status=review["status"], detail=_watch_detail(review)))
+            db.commit()
+
+    def _watch_review(self, db, watch: WatchRunRow, tests: list[dict]) -> dict | None:
+        """The read gate for a watch run. None while it has no review. Otherwise the stored review, believed only if
+        reviewing the stored records again gives exactly it; if not, the run reads "Couldn't trust this run"."""
+        stored = db.scalars(select(WatchReviewRow).where(WatchReviewRow.watch_run_id == watch.id)).first()
+        if stored is None:
+            return None
+        try:
+            again = self.reviewer.review_watch(self._watch_record(watch, tests, self._watch_matches(db, watch)))
+            believed = ((stored.reviewer, stored.record_sha256, stored.status, canonical_bytes(stored.detail))
+                        == (again["reviewer"], again["record_sha256"], again["status"], canonical_bytes(_watch_detail(again))))
+        except Exception:
+            believed = False
+        if not believed:
+            return {"reviewed_at": iso(stored.created_at), "believed": False, "status": "couldnt_trust", "record_sha256": None,
+                    "counts": None, "tests": []}
+        return {"reviewed_at": iso(stored.created_at), "believed": True, "status": stored.status, "record_sha256": stored.record_sha256,
+                "counts": stored.detail["counts"], "tests": stored.detail["tests"]}
+
+    def _watch_state(self, db, plan: PlanRow, watch: WatchRunRow) -> dict:
+        """One watch run: each test's run before and now, its live jobs, and the review."""
+        # (the live jobs are read BEFORE the stored records, for the reason given at ChangesMixin._proof_state)
+        live = {(job.key[0], job.key[1]): job for job in self.jobs.live(plan.id) if job.key[1] in WATCH_PHASES}
+        tests = self._watch_tests(db, watch)
+        review = self._watch_review(db, watch, tests)
+        placed = {t["item_id"]: t for t in review["tests"]} if review is not None else {}
+        rows = []
+        for t in tests:
+            jobs = [live.get((t["item_id"], phase)) for phase, side in (("watch_base", "before"), ("watch", "now")) if t[side] is None]
+            job = next((j for j in jobs if j is not None), None)
+            rows.append({"item_id": t["item_id"], "kind": t["kind"], "before_made_here": t["before_made_here"],
+                         "before": {k: t["before"][k] for k in ("run_id", "code")} if t["before"] is not None else None,
+                         "now": {k: t["now"][k] for k in ("run_id", "code")} if t["now"] is not None else None,
+                         "job": {"status": job.status, "progress_text": job.progress_text, "progress_percent": job.progress_percent} if job is not None else None,
+                         "outcome": placed[t["item_id"]]["outcome"] if t["item_id"] in placed else None})
+        state = "running" if live else "interrupted" if review is None else "reviewed"
+        return {"id": watch.id, "started_at": iso(watch.started_at), "state": state, "version": watch.version, "base_version": watch.base_version,
+                "finished": sum(1 for t in tests if t["before"] is not None and t["now"] is not None), "total": len(tests),
+                "tests": rows, "review": review}
+
+    def _with_watch_run(self, db, plan: PlanRow, change: dict) -> None:
+        """Put the change's newest watch run on it, and let that run decide the status: a run counts for the change only
+        while it is a run of exactly this code and of exactly the tests picked now."""
+        if change["problem"] is not None or change["base"] is None:
+            return
+        watch = db.scalars(select(WatchRunRow).where(WatchRunRow.plan_id == plan.id, WatchRunRow.branch == change["branch"],
+                                                     WatchRunRow.head_commit == change["head"], WatchRunRow.base_commit == change["base"])
+                           .order_by(WatchRunRow.id.desc()).limit(1)).first()
+        if watch is None:
+            return
+        run = self._watch_state(db, plan, watch)
+        items = {i.id: i.spec_hash for i in self._items(db, plan.id)}
+        run["covers_picked"] = ({(e["item_id"], e["spec_hash"]) for e in watch.items}
+                                == {(t["item_id"], items.get(t["item_id"])) for t in change["picked"]})
+        change["run"] = run
+        if run["state"] == "running":
+            change["status"] = "running"
+        elif run["state"] == "reviewed" and run["covers_picked"] and change["status"] == "not_run":
+            change["status"] = run["review"]["status"]
+
+    def run_picked_tests(self, plan_id: int, change: str) -> dict:
+        """Run the picked tests (then: Run again). The one way a watch run starts, and only when a person asks.
+        First the byte-for-byte check: the changed code must be exactly one of our registered demo programs, and so must
+        the code it starts from; that registered program is what then runs. Nothing from the repository runs."""
+        with self._plan_lock, self.db() as db:
+            plan = self._plan(db, plan_id)
+            code = self._watch_code(db, plan)
+            if code["state"] != "connected":
+                raise Conflict("Connect the demo code first. Connect demo code is on Fixes.")
+            changes, readable = self._developer_changes(db, plan, code)
+            found = next((c for c in changes if c["id"] == change), None) if readable and isinstance(change, str) else None
+            if found is None:
+                raise NotFound("That change is not in the connected repository.")
+            running = self._running(plan_id)
+            if running:
+                raise Conflict(BUSY[running])
+            if found["problem"] is not None:
+                raise Conflict("This change could not be read from the repository, so nothing was run.")
+            if not found["picked"]:
+                raise Conflict("No test is picked for this change, so there is nothing to run.")
+            if found["gives"] is None:
+                raise Conflict("The changed code is not the same as one of our registered demo programs, so nothing was run.")
+            if found["starts_from"] is None:
+                raise Conflict("The code this change starts from is not one of our registered demo programs, so there is nothing to compare with. Nothing was run.")
+            name, version, base_version = code["program"]["name"], found["gives"]["version"], found["starts_from"]["version"]
+            path = components.lookup(name, base_version)
+            try:
+                base_sha256 = hashlib.sha256(path.read_bytes()).hexdigest() if path is not None else None
+            except OSError:
+                base_sha256 = None
+            if base_sha256 is None:
+                raise Conflict("The demo program this change starts from could not be read, so nothing was run.")
+            items = {i.id: i for i in self._items(db, plan.id)}
+            entries = []
+            for test in found["picked"]:
+                entry = {"item_id": test["item_id"], "spec_hash": items[test["item_id"]].spec_hash, "kind": test["kind"]}
+                entries.append({**entry, "before_run_id": self._watch_before(db, entry, name, base_version, base_sha256)})
+            watch = WatchRunRow(plan_id=plan.id, branch=found["branch"], base_commit=found["base"], head_commit=found["head"],
+                                version=version, base_version=base_version, files=found["digests"], items=entries,
+                                not_picked=[{k: t[k] for k in ("item_id", "kind", "rule")} for t in found["not_picked"]])
+            db.add(watch)
+            db.commit()
+            for entry in entries:
+                item = items[entry["item_id"]]
+                # on the change's code; the speed test compares with the code the change starts from
+                self._submit(plan, item, "watch", SimpleNamespace(id=watch.id, version=version), baseline=base_version)
+                if entry["before_run_id"] is None:      # no reviewed run on exactly the code before: it runs on that code too
+                    self._submit(plan, item, "watch_base", SimpleNamespace(id=watch.id, version=base_version), keep_baseline=False)
+        return self.change_watch_state(plan_id)
 
     # ---------------------------------------------------------------- the one action: a demo change comes in
 

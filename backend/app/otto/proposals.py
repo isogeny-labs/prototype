@@ -32,7 +32,7 @@ from app.db import ImportRow, OttoCheckRow, OttoDecisionRow, PlanItemRow, PlanRo
 from app.engine import research
 from app.errors import BadRequest, Conflict, NotFound
 from app.knowledge.versions import at_least, read_version
-from app.lab.testlab import read_spec
+from app.lab.testlab import WATCH_PHASES, read_spec
 from app.otto import assurance, checks, designs, harness
 
 LABEL = "From Otto"
@@ -220,7 +220,7 @@ class ProposalsMixin:
                 in_plan = item is not None and not item.removed
                 runs = int(db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_item_id == item.id)) or 0) if item is not None else 0
                 live = item is not None and any(job is not None and job.status != "done"
-                                                for job in (self.jobs.get((item.id, phase)) for phase in ("first", "retest", "proof")))
+                                                for job in (self.jobs.get((item.id, phase)) for phase in ("first", "retest", "proof", *WATCH_PHASES)))
                 if program["component"] == package:
                     why = (f"The advisory is about {package}, and your file lists {program['label']}."
                            + (f" Its publisher names {fixed} as the fixed version." if fixed else ""))
