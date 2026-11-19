@@ -474,7 +474,7 @@ def test_two_clicks_at_the_same_moment_start_one_run(lab, monkeypatch):
     import threading
     lab.look_for_advisories(lab.plan.id)
     _pretend_isolated(lab, monkeypatch)
-    _stand_in(lab, monkeypatch, "import time; print('started', flush=True); time.sleep(2)")
+    _stand_in(lab, monkeypatch, "import time; print('started', flush=True); time.sleep(1)")
     go, outcomes = threading.Barrier(4), []
 
     def click():

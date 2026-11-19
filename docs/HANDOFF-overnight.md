@@ -83,8 +83,9 @@ has not been made yet** (it is one of the long checks).
 | Backend `tests/assistant` and `tests/times` (with Otto) | `bc8f5e2` | **195 passed** (80 s) |
 | Screen tests | `bc8f5e2` | **820 passed** |
 | The panel's walk on the final code | `bc8f5e2` and later | **2 passed** (5.9 min), with the new steps from the 6b and 6c review fixes; pictures retaken |
-| The multi-target tests with the new panel test | | first run: 19 passed, 1 failed (the new test expected three servers with "Old TLS versions"; the file has two). Corrected; running again |
-| The whole fast backend set **with Otto**, timed | `a378bac` | **First run: 11 failed, 7 errors, 1801 passed, in 6 min 52 s.** See "What the first whole fast set with Otto found" below. Running again after the fix |
+| The multi-target tests with the new panel test (the real multi-target file: every "Which one?" option names one server's test and settles) | `634e360` | **20 passed** (76 s). First run: the new test expected three servers with "Old TLS versions"; the file has two |
+| The whole fast backend set **with Otto** | `a378bac`, then `634e360` | First run: **11 failed, 7 errors**, 1801 passed, in 6 min 52 s (see "What the first whole fast set with Otto found" below). After the fix: **1819 passed, none failed**, in **6 min 49 s**: over five minutes. The panel's walk-reading tests (54) then went to the slow set, by the project's rule; timed again, see the next row |
+| The whole fast backend set with Otto, after that move, timed | | running at the time of writing |
 | Every walk once (`cd e2e && npm test`) | | queued |
 | The full backend set (`pytest -q tests --full`) | | queued |
 
@@ -106,9 +107,15 @@ Fixed in `backend/tests/conftest.py`: the walk's patches are taken off as soon a
 only for the one test that reads it. The lesson is in CLAUDE.md's test section (the whole fast set, with and
 without Otto, before a step is called done).
 
-The same run took **6 min 52 s**, over the five minutes the fast set must stay under (part of that is the
-failing tests' own time). The run that is going now lists the slowest tests; what must move to the slow set
-follows from it.
+**The time.** After the fix the whole fast set passes with Otto (1819 tests) and takes **6 min 49 s** on the
+build machine, over the five minutes it must stay under. For comparison, on the same machine the 5c merge took
+5 min 4 s before any of tonight's work, and on GitHub's runner tonight's fast set (without Otto) takes 4 min 59 s.
+The slowest parts: the shared demo walk every result-reading test uses (47 s, as before tonight), the Otto
+panel's shared walk (41 s, new) and one panel test of 15 s. By the project's rule ("a test that reads a long demo
+walk built for its files is slow") the panel's 54 walk-reading tests are now in the slow set
+(`SLOW_SHARED_WALKS` in `backend/tests/conftest.py`); about 140 panel tests that need no walk stay in the
+everyday run. Run the others with `pytest -q tests/assistant --full` (about 80 seconds) whenever the panel is
+touched. Whether that brings this machine under five minutes is being timed now; see decision 10.
 
 ## Step 1: the 5c fixes (built, reviewed, findings fixed, committed and pushed)
 
@@ -578,8 +585,11 @@ multi-target demo file for finding 5.
    on a click). This is new for the app; your brief asked for it. Please make the first real look yourself.
 9. An item's own page ("Open in new tab") now carries the standing line also for an item of Checks, whose
    list page has none. Should the Checks list carry it too? (SPEC section 11 says every result screen.)
-10. The fast test set: three shared walks moved to the slow set, as decided. If it is over five minutes
-    again with tonight's tests, more has to move, or tests run in parallel (a new developer-only package).
+10. The fast test set: three shared walks moved to the slow set, as decided, and tonight the Otto panel's
+    shared walk too (its 54 readers). The numbers are in "The long checks". On GitHub's runner the fast set takes
+    4 min 59 s without Otto: at the limit. To be safely under five minutes everywhere, either tests run in
+    parallel (pytest-xdist, a developer-only package: your OK needed) or the readers of the shared demo walk (a
+    large part of the fast set) move to the slow set too. Which do you want?
 11. Phase 6b: on Checks the Result filter now also narrows the test plan's own cards (so that "show me failed
     checks" lists only failed checks). Before, it filtered only the rows under the plan. Is that right?
 12. Phase 6b: everyday names for libraries are a small fixed table (Java for openjdk, Python and ecdsa for

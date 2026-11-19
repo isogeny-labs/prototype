@@ -48,6 +48,17 @@ SLOW_SHARED_WALKS = {
     "test_fixes_evidence.py": "flow",
     "test_migration.py": "flow",
     "test_phase4b.py": "flow",
+    # 19 November 2026, phase 6: the Otto panel's shared walk (tests/assistant/assistant_walk.py). It takes about 40
+    # seconds to make (the Acme Pay demo verified, run, measured, with decisions and every typed sentence asked at
+    # each stage), and with it the fast set took 6 min 49 s on the build machine. By the rule above its readers are
+    # slow. What stays in the everyday run for the panel: the rules that read a sentence, the lists and the unit
+    # tests (about 120 tests that need no walk). Run the rest with: pytest -q tests/assistant --full (about 80 seconds).
+    "test_read.py": "assistant_walk",
+    "test_name.py": "assistant_walk",
+    "test_panel_decision.py": "assistant_walk",
+    "test_reads_only.py": "assistant_walk",
+    "test_commands.py": "assistant_walk",
+    "test_questions.py": "assistant_walk",
 }
 
 
