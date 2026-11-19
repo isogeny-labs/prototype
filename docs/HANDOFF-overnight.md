@@ -13,14 +13,14 @@ Doc "Phase 6 plan: Otto assistant".
 
 ## Where the run stands (updated after every step)
 
-Written at 16:03 UTC on 19 November 2026 (machine time), when the run stopped. The session's usage limit was
-reached at about 15:50 UTC; Kevin then asked for a stop at a green, pushed branch, with the Change watch walk green on
-a quiet machine and pull request #7 not merged. The exact next action is the section before the appendix. In one
-line: **steps 1 to 3 and the first halves of 6b, 6c, 6d and 6e are built, tested and pushed, and all but 6e are
-reviewed with their findings fixed (6d twice). 6e's separate review was started and stopped before it reported, so
-6e is not reviewed yet. The second halves (free wording and free answers through Claude, the Watch list, a
-hypothesis turned into a test) are not built. Green at the stop: every GitHub check on the last code commit
-(`3885e19`), the fast set with Otto (1917 passed, 4 min 59 s, alone), and the Change watch walk (1 passed, alone).**
+Written at 22:46 UTC on 19 November 2026 (machine time), at the end of a verification session that Kevin asked for:
+a fresh separate review of phase 6e, its fixes, and the three long checks on the final code. The exact next action
+is the section before the appendix. In one line: **steps 1 to 3 and the first halves of 6b, 6c, 6d and 6e are built,
+tested, reviewed with their findings fixed (6d twice, 6e on `0503ede`: 8 findings, all fixed with tests), committed
+and pushed. On the final code commit `0503ede`: the full backend set with Otto passed (2435), every walk passed once
+(102), the accuracy check in isolated mode passed (exit code 0: all four keys), and all GitHub checks are green. The
+second halves (free wording and free answers through Claude, the Watch list, a hypothesis turned into a test) are
+not built, as agreed. Pull request #7 is a draft and is not merged.**
 
 | # | Success step | State |
 |---|---|---|
@@ -38,7 +38,7 @@ hypothesis turned into a test) are not built. Green at the stop: every GitHub ch
 | 14 | What-if and hypotheses | **First half done; reviewed (8 findings, all fixed with tests)** (6e: the what-if facts and the try): built, tested, documented, walked. "What if I update elliptic to 6.5.7?" typed into the panel gets one card: what the app knows (where the library is used, the dependencies the new version declares against the one you have, the advisories it answers, the pack's trial, post-quantum support of both versions, the track it blocks, your own results), each line with its label and link and an honest "not known" where the app knows nothing; the try on a test copy (Evidence's own Retest new version behind Confirm), proven on a real library in a real container; and what the facts do not show under Hypothesis. **Not built (the second half): the two buttons on a hypothesis (Turn this into a test, Add to Change watch) and Claude's explanation.** So "every unproven point has its two buttons" is not met |
 | 15 | Change watch | **First half done** (6d: Changes without the Watch list): built, tested, documented, walked, reviewed once (8 findings, all fixed with tests). A developer's change is listed with the tests picked for it and why; **Run the picked tests** runs them (on the page, or from the Otto panel's card behind Confirm) and the change reads, for the demo, "Passed before, fails now"; the runs show on Checks and Evidence as "Came from: Change watch"; Fixes gets a Text-only entry for the change; a line that names old cryptography is flagged; the signed evidence file and the report hold the changes and their runs, and the verify command checks them. What was built after that review (the evidence part and its verify check, the entry in Fixes, the panel's step) had **a second separate review: 7 findings, all fixed** (`80c27a5`; see "Step 6"). The entry in Fixes is now listed under its own heading and counted nowhere. **Not built: the Watch list** (the second half) |
 | 16 | Nothing without a click and Confirm; works without a key | **Holds for everything built**: 6a, the research loop, 6b, 6c and 6d work with no key (no part of the panel asks Claude in this version), with tests. Change watch starts nothing by itself: bringing a change in runs nothing, and the picked tests run only on a click |
-| 17 | Keys match in both modes, fast tests under 5 minutes, each step reviewed, committed, pushed | **Keys: match in both modes** (isolated: exit code 0 on a frozen copy of `5699057`; demo: green in the GitHub checks on every push, the last on `3885e19`). **Fast tests: 4 min 59 s with Otto on `3885e19`, measured alone: just under five minutes, at the limit** (1917 passed, 502 left out as slow), after the long shared walks moved to the slow set (decision 10; before the move 7 min 0 s, with other work running). On GitHub's runner the whole backend job on `3885e19` (lint, type check, generated files, the fast set without Otto, the demo-mode accuracy check) took 4 min 50 s and 6 min 41 s (two runs). Each step reviewed, fixed, committed, pushed, **except 6e, whose separate review did not finish** |
+| 17 | Keys match in both modes, fast tests under 5 minutes, each step reviewed, committed, pushed | **Keys: match in both modes on the final code commit `0503ede`** (isolated: exit code 0, 18 of 18, 47 of 47, 33 of 33, 220 of 220; demo: green in the GitHub checks on every push). **Fast tests: 4 min 59 s with Otto, measured alone** on `3885e19` (1917 passed): just under five minutes, at the limit (decision 10). **Each step reviewed, fixed, committed, pushed**, 6e included |
 | 18 | This file | Kept current |
 
 Commits on `overnight/fixes-and-phase6` since the 5c merge (`5a6b4e4`), oldest first, all pushed:
@@ -136,6 +136,12 @@ the setting the top bar's toggle keeps in the browser. The first complete run of
 | The Change watch walk after the second review's fixes | `80c27a5`, then `3885e19` | The first run **failed** at one comparison: it read Evidence's rows by their drawn text while the fast set ran beside it, and a row that is in the page but not drawn yet reads as one unbroken line. The walk now compares the rows' own text (`3885e19`). Run again **alone** on `3885e19`: **1 passed (2.1 min)**. Its 16 pictures are retaken and committed; the Fixes picture shows the entry under "From a developer's change (1)" |
 | The fast set after the long shared walks moved to the slow set (decision 10) | `3885e19` | **1917 passed, 502 left out as slow, in 4 min 59 s with Otto, alone: just under five minutes, at the limit** |
 | The GitHub checks | `3885e19` | **All green**: Backend twice (for the push and for the pull request: 4 min 50 s and 6 min 41 s), Frontend twice, CodeQL and its three analyses |
+| 6e after its separate review: lint, both type checks, the generated files; `tests/assistant` and `tests/whatif` in full (the four tests in real containers among them); the screen tests | `0503ede` (before the commit) | All clean; **291 passed**; **852 screen tests** passed. The 14 new test cases and the card's new screen check each fail on the code before the fix |
+| **The full backend set, with Otto, every slow test too** | **`0503ede`** | **2435 passed, none failed, none skipped (45 min 15 s), alone, Docker ready** |
+| **Every walk once** (`cd e2e && npm test`) | **`0503ede`** | **102 passed, none failed or flaky (48.3 min), alone.** Its pictures were put back except the six of phase 6e (the card's wording changed with the fix) and `phase6a/08c-evidence-why-did-this-check-fail-*.png` (the retake the handoff planned), which are committed |
+| **The accuracy check in isolated mode** (`python -m app.accuracy --mode isolated`) | **`0503ede`** | **Exit code 0** (19 min 55 s, alone): first key 18 of 18, migration 47 of 47, real libraries 33 of 33 with trial counts 6 of 6 unchanged, dependencies 220 of 220. Otto is not graded (the fifth key is not written, as agreed). This replaces the last isolated run, on a frozen copy of `5699057` |
+| The GitHub checks | `0503ede` | **All green**: Backend twice, Frontend twice, CodeQL and its three analyses |
+| A note for the next session on this machine | (environment) | After a restart of the session's worker, Docker was not running and `service docker start` failed (the container may not set a limit the start script asks for). Starting the daemon by hand worked: `setsid nohup /usr/bin/dockerd > some.log 2>&1 < /dev/null &`. Its prepared images were still there |
 
 ### What the first whole fast set with Otto found (08:32 UTC)
 
@@ -906,7 +912,7 @@ fingerprint and fails the tightened check. No such file was handed out.
    "View in Fixes" line on the failing result's own row on Checks.
 **Not in the first half:** the Watch list (its proposals, rechecks and the new pinned checker).
 
-## Step 7: phase 6e, what-if (first half built, tested, documented, walked; its separate review is the next thing)
+## Step 7: phase 6e, what-if (first half built, tested, documented, walked, reviewed; the review's eight findings fixed)
 
 The plan's shorter first half: **the what-if facts and the try**. Built in three checkpoints, each committed with
 its tests. `docs/SPEC.md` section 2 ("What-if in the Otto panel") and `docs/LIMITS.md` ("Limits of phase 6e, first
@@ -1141,30 +1147,20 @@ Kevin's OK (decision 33):** one phrase of `docs/SPEC.md`.
 
 ## The exact next action
 
-1. *(Done on 19 November 2026: the separate review of phase 6e, and its eight fixes. See "Step 7".)*
-2. **The long checks on the newest commit, one at a time and with nothing else running:**
-   - the fast set with Otto, timed: `cd backend && .venv/bin/python -m pytest -q tests`, and without:
-     `EVIDENCE_LAB_OTTO_HOME=/some/empty/folder` in front. See the row "Fast tests" in the table at the top for
-     where the time stands;
-   - the full backend set: `cd backend && .venv/bin/python -m pytest tests --full -v --tb=short -rfE > FILE 2>&1`
-     (about 45 minutes alone, with Docker ready). The run on `31eaf59` had two failures, both fixed since
-     (`d1ccc61`, `1ea9a60`); no complete run has been made on a later commit;
-   - every walk once: `cd e2e && npm test` (about 55 minutes; `E2E_APP_LOG=/some/file` in front keeps the request
-     log of the walks that start their own copy). No complete run has been made since the ask-again fix
-     (`12e342b`). A complete run rewrites every picture: keep only folders retaken on purpose and put the others
-     back with `git checkout -- docs/screenshots/<folder>`. **`docs/screenshots/phase6a/08c-evidence-why-did-this-check-fail-*.png`
-     is to be retaken on purpose from that run** (since `043c5ac` a result's panel starts with its plain sentence);
-   - the accuracy check in isolated mode (`cd backend && .venv/bin/python -m app.accuracy --mode isolated`, about 25
-     minutes): last run on a frozen copy of `5699057`, exit code 0. Nothing built since goes through the four
-     graded keys; run it once more all the same before this is shown.
-3. Read the newest run of "Checks" on pull request #7 (GitHub), and correct what it shows.
-4. Then, as far as the time goes, the second halves, each with the CLAUDE.md rule changes the plan lists for it:
-   6b (free wording through Claude), 6c (an answer in free words, with "Hypothesis"), 6d (the Watch list and its
-   pinned checker), 6e (hypothesis records, Turn this into a test, Add to Change watch, Claude's explanation).
-   Each: plan, build, tests, one walk, pictures, documents, one separate review, fixes, commit, push, this file.
+1. *(Done on 19 November 2026: the separate review of phase 6e and its eight fixes, `0503ede`; see "Step 7".)*
+2. *(Done on 19 November 2026, on `0503ede`: the full backend set with Otto, every walk once, the accuracy check in
+   isolated mode. See "The long checks".)*
+3. **Kevin's part, before anything else is built:** read pull request #7 (a draft), make the 30-minute check in a
+   fresh Codespace (`docs/CODESPACE-CHECK.md`) and the 15-minute check with the real internet and his own key
+   (`docs/LIVE-CHECK.md`), answer the decisions under "Decisions for Kevin" (33 of them), and merge the pull
+   request himself if he is content. The session never merges it.
+4. Only once Kevin says so: the second halves, each with the CLAUDE.md rule changes the plan lists for it: 6b (free
+   wording through Claude), 6c (an answer in free words, with "Hypothesis"), 6d (the Watch list and its pinned
+   checker), 6e (hypothesis records, Turn this into a test, Add to Change watch, Claude's explanation). Each: plan,
+   build, tests, one walk, pictures, documents, one separate review, fixes, commit, push, this file.
 5. Two leftovers of 6b's review (step 4 above, finding 12): eight command lines are never asked against an
    assessment at the stage where their button exists, and most lines have one wording in the tests.
-6. Keep pull request #7 a draft. Never merge. Leave the line in `docs/ACTIVE.md` unticked until the run ends.
+6. Keep pull request #7 a draft until Kevin decides. Never merge it from a session.
 
 ## Appendix: the plan for step 1 as written before it was built
 
