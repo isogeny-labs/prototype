@@ -132,7 +132,14 @@ describe("Evidence Lab, results view", () => {
     expect(text(d.getByTestId("technical-summary"))).toBe(
       "Technical summary 3 of 484 official cases wrong. Headline: case 168, a signature made of zeros (r=0 and s=0) was accepted.",
     );
-    expect(detail.firstElementChild).toBe(d.getByTestId("technical-summary"));
+    // The row's plain sentence comes first: beside the open panel the table is drawn narrow, without it, so the
+    // panel carries it (word for word the sentence of the row). Then the technical summary.
+    const plain = d.getByTestId("result-plain");
+    expect(detail.firstElementChild).toBe(plain);
+    expect(text(plain)).toBe(lab.rows.find((r) => r.title === "Official test vectors")!.result!.plain);
+    expect(text(plain).length).toBeGreaterThan(20);
+    expect(plain.nextElementSibling).toBe(d.getByTestId("technical-summary"));
+    expect(within(toggle).queryByText(text(plain))).toBeNull(); // (the narrow row no longer shows it)
     expect(d.getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual([
       "What happened",
       "What this shows, and what it doesn't",

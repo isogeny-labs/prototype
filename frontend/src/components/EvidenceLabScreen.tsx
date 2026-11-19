@@ -480,6 +480,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
                 <ResultDetail
                   result={selected.after}
                   heading={current.columns?.after_heading}
+                  plain={selected.after.plain}
                   busy={busy}
                   onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
                   onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
@@ -490,6 +491,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
                 <ResultDetail
                   result={selected.result}
                   heading={current.columns?.before_heading}
+                  plain={selected.result.plain}
                   busy={busy}
                   onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
                   onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
@@ -500,6 +502,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
           ) : selected.result ? (
             <ResultDetail
               result={selected.result}
+              plain={selected.result.plain}
               busy={busy}
               onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
               onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}

@@ -404,23 +404,29 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     // asking sent the two sentences, to be kept with the assessment, and nothing else: nothing ran, nothing was decided
     const keptSentence = expect.stringMatching(/^POST \/api\/plans\/\d+\/assistant\/messages$/);
     expect(changes(page).slice(beforeAsked)).toEqual([keptSentence, keptSentence]);
-    // The facts are the result's own sentences, and each link opens where its sentence stands. The second fact is word
-    // for word the plain sentence in the Evidence table (the page is on that table now: its link stays here).
-    const sentence = async (n: number, label: string) => ((await whyFacts.nth(n).innerText()).replace(new RegExp(`\\s*${label}\\s*$`), "")).trim();
-    const plainSentence = await sentence(1, "See the Evidence table");
-    await whyFacts.nth(1).getByRole("link", { name: "See the Evidence table" }).click();
-    await expect(page).toHaveURL(new RegExp(`#/a/${assessment}/evidence$`));
-    await expect(page.getByTestId("evidence-row").filter({ hasText: RANGE_CHECK })).toContainText(plainSentence);
-    // the third is what happened: it stands in the result's own panel, which its link opens
-    const whatHappened = await sentence(2, "See the evidence");
-    await whyFacts.nth(2).getByRole("link", { name: "See the evidence" }).click();
+    // The facts are the result's own sentences, and each link opens where its sentence stands: the result's own panel.
+    // The second fact is word for word the plain sentence of the result's row; the third is what happened.
+    const sentence = async (n: number) => ((await whyFacts.nth(n).innerText()).replace(/\s*See the evidence\s*$/, "")).trim();
+    const plainSentence = await sentence(1);
+    const whatHappened = await sentence(2);
+    await expect(page.getByTestId("evidence-row").filter({ hasText: RANGE_CHECK })).toContainText(plainSentence);     // in the table, while no panel is open
+    await whyFacts.nth(1).getByRole("link", { name: "See the evidence" }).click();
     await expect(page).toHaveURL(new RegExp(`#/a/${assessment}/evidence\\?item=test-\\d+$`));
-    await expect(page.getByTestId("detail-panel")).toContainText(whatHappened);
+    // Beside the open panel the table is drawn narrow, without that sentence: the panel carries it, as its first line.
+    const opened = page.getByTestId("detail-panel");
+    await expect(opened.getByTestId("result-plain").filter({ hasText: plainSentence })).toHaveCount(1);
+    await expect(opened).toContainText(whatHappened);
+    await expect(page.getByTestId("evidence-row").filter({ hasText: RANGE_CHECK })).not.toContainText(plainSentence);
     expect(await layoutProblems(page), "Evidence with an answer in the panel").toEqual([]);
     await shots(page, "08c-evidence-why-did-this-check-fail");
-    // with the result open, "this check" is that one: the same question is answered at once
+    // with the result open, "this check" is that one: the same question is answered at once, and the link of its plain
+    // sentence stays on the open result, which shows it
     await panel.getByTestId("otto-question").first().click();
-    await expect(panel.getByTestId("otto-reply").getByTestId("otto-fact").first()).toContainText(`“${RANGE_CHECK}” reads Failed`);
+    const again = panel.getByTestId("otto-reply").getByTestId("otto-fact");
+    await expect(again.first()).toContainText(`“${RANGE_CHECK}” reads Failed`);
+    await again.nth(1).getByRole("link", { name: "See the evidence" }).click();
+    await expect(page).toHaveURL(new RegExp(`#/a/${assessment}/evidence\\?item=test-\\d+$`));
+    await expect(opened.getByTestId("result-plain").filter({ hasText: plainSentence })).toHaveCount(1);
     // where the check came from opens its advisory
     await panel.getByTestId("otto-reply").getByRole("link", { name: "Open the advisory" }).click();
     await expect(page).toHaveURL(new RegExp(`#/a/${assessment}/advisories\\?item=CVE-2022-21449$`));

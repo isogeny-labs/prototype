@@ -781,6 +781,18 @@ describe("the panel beside a page of the app", () => {
     // one read for Checks, with no item: nothing is open there (before, it first asked about Checks with the advisory)
     await new Promise((done) => setTimeout(done, 50));
     expect(panelReads(fetchMock).filter((k) => k.includes("page=checks"))).toEqual([read("checks")]);
+
+    // Coming back to Advisories by a link that names another advisory is a new visit: the panel is asked about that
+    // advisory at once. What the first visit's panel reported when it closed (nothing open) does not stand in for it.
+    const OTHER = advisoriesNotAdded.rows[1]!.id;
+    expect(OTHER).not.toBe(ITEM);
+    const before = panelReads(fetchMock).length;
+    window.location.hash = `#/a/101/advisories?item=${OTHER}`;
+    fireEvent(window, new HashChangeEvent("hashchange"));
+    await waitFor(() => expect(screen.getByTestId("advisory-panel").getAttribute("data-advisory")).toBe(OTHER));
+    await waitFor(() => expect(panelReads(fetchMock).slice(before)).toContain(read("advisories", OTHER)));
+    await new Promise((done) => setTimeout(done, 50));
+    expect(panelReads(fetchMock).slice(before)).toEqual([read("advisories", OTHER)]);
     window.history.replaceState(null, "", "#/projects");
   });
 });

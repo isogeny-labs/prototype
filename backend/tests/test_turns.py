@@ -1,4 +1,5 @@
-"""Reads take turns (app/web/turns.py): first come, first served. A request that changes something waits for nobody."""
+"""Reads take turns (app/web/turns.py): first come, first served, while reads are quick. A request that changes
+something waits for nobody, and a read that is stuck stops holding the others up after its turn."""
 from __future__ import annotations
 
 import asyncio
@@ -89,13 +90,13 @@ def test_a_request_that_changes_something_takes_no_turn_and_waits_for_none():
         await asyncio.sleep(0.02)                            # the read has its turn and is still being worked out
         # a change, a page file and a read that is not under /api all go straight through
         for scope in (_scope("/api/plans/1/run-all", "POST"), _scope("/assets/index.js"), _scope("/")):
-            await asyncio.wait_for(_ask(gate, scope), timeout=1)
+            await asyncio.wait_for(_ask(gate, scope), timeout=10)
         waiting = asyncio.create_task(_ask(gate, _scope("/api/plans/1/checks")))
         await asyncio.sleep(0.02)
         assert not slow.done() and not waiting.done()        # the second read waits for the first
         assert "/api/plans/1/checks" not in app.order
         app.hold_view["/api/plans/1/lab"].set()
-        await asyncio.wait_for(asyncio.gather(slow, waiting), timeout=1)
+        await asyncio.wait_for(asyncio.gather(slow, waiting), timeout=10)
         return app
 
     app = asyncio.run(main())
@@ -109,10 +110,10 @@ def test_the_turn_ends_when_the_answer_starts_so_a_slow_download_holds_nobody_ba
         app.hold_body["/api/evidence/1/json"] = asyncio.Event()
         download = asyncio.create_task(_ask(gate, _scope("/api/evidence/1/json")))
         await asyncio.sleep(0.02)                            # its answer has started; the body is still going out
-        after = await asyncio.wait_for(_ask(gate, _scope("/api/plans/1")), timeout=1)
+        after = await asyncio.wait_for(_ask(gate, _scope("/api/plans/1")), timeout=10)
         assert not download.done() and [m["type"] for m in after] == ["http.response.start", "http.response.body"]
         app.hold_body["/api/evidence/1/json"].set()
-        await asyncio.wait_for(download, timeout=1)
+        await asyncio.wait_for(download, timeout=10)
 
     asyncio.run(main())
 
@@ -131,12 +132,61 @@ def test_a_read_that_fails_gives_its_turn_back():
         await asyncio.sleep(0.02)
         dropped.cancel()
         app.hold_view["/api/plans/2"].set()
-        await asyncio.wait_for(first, timeout=1)
-        return await asyncio.wait_for(_ask(gate, _scope("/api/plans/4")), timeout=1), app
+        await asyncio.wait_for(first, timeout=10)
+        return await asyncio.wait_for(_ask(gate, _scope("/api/plans/4")), timeout=10), app
 
     answer, app = asyncio.run(main())
     assert [m["type"] for m in answer] == ["http.response.start", "http.response.body"]
     assert "/api/plans/3" not in app.order
+
+
+def test_a_read_that_is_stuck_holds_the_others_for_one_turn_only_and_then_they_go_side_by_side():
+    # Some reads wait for work a person started that takes long (a change being written with Live Otto on, a setting
+    # being applied). Such a read must not stop every other page from reading.
+    async def main():
+        app = _App()
+        gate = OneReadAtATime(app, limit=0.3)      # (long beside the short waits below, so a busy machine does not blur the order)
+        app.hold_view["/api/import/1/migration"] = asyncio.Event()
+        stuck = asyncio.create_task(_ask(gate, _scope("/api/import/1/migration")))
+        await asyncio.sleep(0.01)
+        waiting = [asyncio.create_task(_ask(gate, _scope(f"/api/plans/{n}"))) for n in (1, 2, 3)]
+        await asyncio.sleep(0.01)
+        assert app.order == ["/api/import/1/migration"]              # within its turn the others wait
+        await asyncio.wait_for(asyncio.gather(*waiting), timeout=10)    # after it they are answered, although it never answered
+        assert not stuck.done()
+        # while it is stuck nobody waits for a turn: reads that come now are worked out side by side, as before there were turns
+        app.most = 0
+        app.hold_view["/api/plans/7"] = asyncio.Event()
+        slow = asyncio.create_task(_ask(gate, _scope("/api/plans/7")))
+        await asyncio.sleep(0.01)
+        await asyncio.wait_for(_ask(gate, _scope("/api/plans/8")), timeout=10)      # not held up by the slow one before it
+        app.hold_view["/api/plans/7"].set()
+        await asyncio.wait_for(slow, timeout=10)
+        side_by_side = app.most
+        # once the stuck read has answered, the reads take turns again
+        app.hold_view["/api/import/1/migration"].set()
+        await asyncio.wait_for(stuck, timeout=10)
+        app.most = 0
+        await asyncio.gather(*[_ask(gate, _scope(f"/api/plans/{n}")) for n in range(10, 16)])
+        return side_by_side, app.most, app
+
+    side_by_side, in_turn, app = asyncio.run(main())
+    assert side_by_side > 1 and in_turn == 1
+    assert "/api/import/1/migration" in app.done                     # the stuck read's own answer went out whole in the end
+
+
+def test_a_quick_read_never_runs_past_its_turn():
+    # (the limit's timer is put away with the answer: a read that answered in time is not counted as stuck later)
+    async def main():
+        app = _App()
+        gate = OneReadAtATime(app, limit=0.05)
+        await _ask(gate, _scope("/api/plans/1"))
+        await asyncio.sleep(0.1)                                     # well past the limit
+        app.most = 0
+        await asyncio.gather(*[_ask(gate, _scope(f"/api/plans/{n}")) for n in range(2, 8)])
+        return app.most
+
+    assert asyncio.run(main()) == 1
 
 
 def test_each_event_loop_has_its_own_turns():
@@ -154,6 +204,8 @@ def test_each_event_loop_has_its_own_turns():
 
 
 def test_the_app_itself_answers_reads_in_turn(client):
+    # The app really has the turns, around everything else it does with a request.
+    assert client.app.user_middleware[0].cls is OneReadAtATime
     # Through the real app: a read and a change both come back as before (nothing in an answer is changed).
     assert client.get("/api/session").status_code == 200
     assert client.get("/api/no-such-thing").status_code == 404

@@ -158,8 +158,8 @@ Fixed in two places, both small:
 After both, in the same walk: the slowest read fell **from 8.8 seconds to 1.5**, and the Overview's own read
 **from 4.9 seconds to 0.8**. What it costs is said in `docs/LIMITS.md` (6a's limits): while one read is slow,
 every other read waits behind it; the app is made for one person on one computer. The reads themselves are no
-faster. **This is a change to how the server answers every page, made after the steps' own reviews; a separate
-reviewer is reading that commit now, and its report goes here.**
+faster. This is a change to how the server answers every page, made after the steps' own reviews, so a separate
+reviewer read that commit; its findings are below.
 
 **2. One fact of "Why did this check fail?" linked to a place that does not show it.** The answer's second fact
 is the result's plain sentence, and its link opened the result's panel on Evidence. That sentence stands in the
@@ -171,7 +171,34 @@ its link opens.
 
 **The request log.** `E2E_APP_LOG=/some/file` in front of a walk keeps what its copy of the app printed and
 every request its page made, with the answer and how long it took (`startCopy` in `e2e/tests/shared.ts`;
-CLAUDE.md's test section names it). Without it nothing is kept, as before.
+CLAUDE.md's test section names it). It works for walks that start their own copy of the app. Without it nothing
+is kept, as before.
+
+**What the separate reviewer of `e16786f` found (report of 10:32 UTC; read from the code and the kept request
+log, nothing run).** No deadlock, and the turn comes back on every path (an exception, a dropped request, a
+second start of an answer, another event loop). Five findings, each with its state:
+1. **The new link "See the Evidence table" showed nothing when a result's panel was already open**, which is how
+   "this check" is asked about: Evidence keeps its panel open for an address without an item, and beside a panel
+   the table is drawn narrow, without the plain sentence. *State: **fixed.** A result's own panel on Evidence now
+   starts with the result's plain sentence (the sentence its row shows while no panel is open), and the fact links
+   to the result again ("See the evidence"), like every other fact of it. A screen test holds the panel's first
+   line to the row's sentence; the walk follows the link with the result closed and with it open.*
+2. **One read that waits for a long operation stopped every read.** Some reads wait for an app-wide lock that
+   Connect demo code holds while Claude writes a change with Live Otto on (up to ten minutes), and Apply or Roll
+   back for up to twenty seconds. With turns, every other page, and even the session read, waited behind such a
+   read. *State: **fixed.** A turn ends after five seconds at most; from then until the stuck read has answered,
+   nobody waits for a turn (the reads go side by side, as before there were turns). Two tests. The module's
+   own description no longer says that nothing can stop the pages from reading.*
+3. **Coming back to a page by a link that names an item, the panel first asked without the item**: what the
+   page's panel had reported when it closed on the earlier visit stood in for the address. *State: **fixed** (a
+   report counts for one visit of a page; the screen test's return leg fails on the code before).*
+4. **One of the seven tests would have passed with the middleware not installed.** *State: **fixed** (it now
+   checks that the app carries it); the generous time limits in those tests went from 1 to 10 seconds.*
+5. **The documents said more than is true**: "the page's own reads first" (it is the order of arrival; on the
+   Overview the panel's read is answered before the page's own), "the panel asks once on a change of page" (a page
+   that opens an item by itself still gives two reads; what holds is "never with the item of the page before"),
+   and the request log works only for walks that start their own copy of the app. *State: **corrected** in
+   `docs/LIMITS.md`, `CLAUDE.md`, `docs/LAYOUT.md` and the module's own description.*
 
 ## Step 1: the 5c fixes (built, reviewed, findings fixed, committed and pushed)
 

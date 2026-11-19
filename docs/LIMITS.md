@@ -798,16 +798,28 @@ What is limited:
   is suggested yet." This is for Kevin to confirm.
 - **The panel's read takes about a quarter of a second on the Acme Pay demo**, because it works everything out
   again each time. While something runs it asks again every two seconds, not every second.
-- **Reads take turns (found by the long checks of 19 November 2026).** A page asks for several views at once, and
-  Python works several out side by side much more slowly than one after another: the same twelve views took about
-  3 seconds in a row and about 7 seconds when six ran at once (measured on four cores). With the panel beside every
-  page, a quick walk through the pages queued up behind the panel's reads, and the Overview's numbers arrived about
-  five seconds late. Since then the app answers the reads under `/api` one at a time, in the order they arrived
-  (the page's own first; `backend/app/web/turns.py`), and the panel asks once on a change of page, where it used to
-  ask twice (first with the item that was open on the page before). A request that changes something takes no turn
-  and waits for none. What it costs: while one read is slow, every other read waits behind it. The app is made for
-  one person on one computer. The reads themselves are no faster than before: after everything has run, the
-  Overview's own read takes about half a second on the Acme Pay demo.
+- **Reads take turns, while reads are quick (found by the long checks of 19 November 2026).** A page asks for
+  several views at once, and Python works several out side by side much more slowly than one after another: the
+  same twelve views took about 3 seconds in a row and about 7 seconds when six ran at once (measured on four
+  cores). With the panel beside every page, a quick walk through the pages queued up behind one another, and the
+  Overview's numbers arrived about five seconds late. Since then the app answers the reads under `/api` one at a
+  time, in the order they arrive (`backend/app/web/turns.py`). That is arrival order and nothing more: the panel's
+  read can come before the page's own. A request that changes something takes no turn and waits for none.
+  **What it costs:** a read waits behind the reads that arrived before it. A read can also be stuck for a reason
+  of its own: some reads wait for work a person started that takes long (a change being written with Live Otto
+  on, a setting being applied on a test server). So a turn ends after five seconds at most, and until the stuck
+  read has answered nobody waits for a turn; the reads then go side by side, as before. The worst a stuck read
+  costs the others is that one wait of five seconds. The app is made for one person on one computer. The reads
+  themselves are no faster than before: after everything has run, the Overview's own read takes about half a
+  second on the Acme Pay demo.
+- **The panel never asks about a page with the item of the page before.** It used to: the first read after a
+  change of page carried the item that had been open on the page left behind, and a second read corrected it. A
+  page that opens an item by itself (Systems selects the first system) still gives two reads, one without the
+  item and one with it.
+- **A result's own panel on Evidence starts with the result's plain sentence** (since the same review). Beside an
+  open panel the table is drawn narrow, without that sentence, so the sentence would otherwise leave the screen
+  when a result is opened. The panel's "Why did this check fail?" links that sentence to the result for that
+  reason.
 
 ## Limits of the 5c fixes (19 November 2026)
 

@@ -259,13 +259,10 @@ def _evidence(row: dict) -> dict:
     return _link("evidence", f"test-{row['item_id']}")
 
 
-# A result's one-line sentence stands in the Evidence table (its Result column). The result's own panel, once open,
-# does not repeat it. So that one fact links to the table, and every other fact of a result to the result.
-IN_TABLE = "See the Evidence table"
-
-
-def _plain(result: dict) -> dict:
-    return fact(result["plain"], _link("evidence"), IN_TABLE)
+def _plain(result: dict, where: dict) -> dict:
+    """A result's one plain sentence. It stands in the Evidence table and, since the table is drawn narrow beside an
+    open panel, at the top of the result's own panel too: so its link opens the result, like every other fact of it."""
+    return fact(result["plain"], where, "See the evidence")
 
 
 def _why_failed(row: dict, name: str, out: Any) -> dict:
@@ -276,7 +273,7 @@ def _why_failed(row: dict, name: str, out: Any) -> dict:
     assert result is not None
     on = f" on {result['component']}" if result.get("component") else ""
     where = _evidence(row)
-    facts = [fact(f"“{name}” reads {result['label']}{on}.", where, "See the evidence"), _plain(result)]
+    facts = [fact(f"“{name}” reads {result['label']}{on}.", where, "See the evidence"), _plain(result, where)]
     if _failed(result):
         for line in (result.get("what_happened") or [])[:3]:
             facts.append(fact(line, where, "See the evidence"))
@@ -307,7 +304,7 @@ def _shows(row: dict, name: str, out: Any) -> dict:
     lines = result.get("shows") or []
     facts += [fact(line, where, "See the evidence") for line in lines[:8]]
     if not lines:
-        facts.append(_plain(result))
+        facts.append(_plain(result, where))
     return out("answer", f"{ASK['shows']} {name}", question=ASK["shows"], label=LABEL, facts=facts, thread="testing")
 
 
