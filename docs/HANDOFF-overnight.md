@@ -13,12 +13,11 @@ Doc "Phase 6 plan: Otto assistant".
 
 ## Where the run stands (updated after every step)
 
-Written at 13:55 UTC on 19 November 2026 (machine time). The exact next action is the section before the
-appendix. In one line: **steps 1 to 3 and the first halves of 6b, 6c and 6d are built, reviewed, fixed and pushed;
-6d's first half (Change watch: the Changes view) is complete as the plan lists it, apart from the Watch list, and
-what was built after its first review (the evidence part, the entry in Fixes, the panel's step) is waiting for a
-second separate review; 6e is not started; the long checks found three things, all corrected (see "The long
-checks").**
+Written at 15:20 UTC on 19 November 2026 (machine time). The exact next action is the section before the
+appendix. In one line: **steps 1 to 3 and the first halves of 6b, 6c, 6d and 6e are built and pushed. All but 6e
+are reviewed with their findings fixed (6d twice); 6e's separate review is running. The second halves (free
+wording and free answers through Claude, the Watch list, a hypothesis turned into a test) are not built. The long
+checks on the final commit are the last thing to do.**
 
 | # | Success step | State |
 |---|---|---|
@@ -33,8 +32,8 @@ checks").**
 | 9, 10, 11 | The assistant: suggestions that fit the page, three tabs, decide in the panel | **Done** (phase 6a): built, reviewed, findings fixed, walk green, pictures, pushed |
 | 12 | Commands | **First half done** (6b, fixed rules only): built, tested, documented, reviewed, the review's findings fixed with tests, walked on the final code. Two small leftovers are listed in step 4 below. **The second half (free wording through Claude) is not built** |
 | 13 | Questions | **First half done** (6c, the six fixed questions by rules): built, tested, documented, reviewed ("not ready as committed": 13 findings), all 13 fixed with tests, walked on the final code. **The second half (answers in free words by Claude, with "Hypothesis") is not built**, so an unproven answer labelled Hypothesis does not exist yet |
-| 14 | What-if and hypotheses | **Not started** (6e) |
-| 15 | Change watch | **First half done** (6d: Changes without the Watch list): built, tested, documented, walked, reviewed once (8 findings, all fixed with tests). A developer's change is listed with the tests picked for it and why; **Run the picked tests** runs them (on the page, or from the Otto panel's card behind Confirm) and the change reads, for the demo, "Passed before, fails now"; the runs show on Checks and Evidence as "Came from: Change watch"; Fixes gets a Text-only entry for the change; a line that names old cryptography is flagged; the signed evidence file and the report hold the changes and their runs, and the verify command checks them. **Built after that review and waiting for a second one:** the evidence part and its verify check, the entry in Fixes, the panel's step. **Not built: the Watch list** (the second half) |
+| 14 | What-if and hypotheses | **First half done, its review running** (6e: the what-if facts and the try): built, tested, documented, walked. "What if I update elliptic to 6.5.7?" typed into the panel gets one card: what the app knows (where the library is used, the dependencies the new version declares against the one you have, the advisories it answers, the pack's trial, post-quantum support of both versions, the track it blocks, your own results), each line with its label and link and an honest "not known" where the app knows nothing; the try on a test copy (Evidence's own Retest new version behind Confirm), proven on a real library in a real container; and what the facts do not show under Hypothesis. **Not built (the second half): the two buttons on a hypothesis (Turn this into a test, Add to Change watch) and Claude's explanation.** So "every unproven point has its two buttons" is not met |
+| 15 | Change watch | **First half done** (6d: Changes without the Watch list): built, tested, documented, walked, reviewed once (8 findings, all fixed with tests). A developer's change is listed with the tests picked for it and why; **Run the picked tests** runs them (on the page, or from the Otto panel's card behind Confirm) and the change reads, for the demo, "Passed before, fails now"; the runs show on Checks and Evidence as "Came from: Change watch"; Fixes gets a Text-only entry for the change; a line that names old cryptography is flagged; the signed evidence file and the report hold the changes and their runs, and the verify command checks them. What was built after that review (the evidence part and its verify check, the entry in Fixes, the panel's step) had **a second separate review: 7 findings, all fixed** (`80c27a5`; see "Step 6"). The entry in Fixes is now listed under its own heading and counted nowhere. **Not built: the Watch list** (the second half) |
 | 16 | Nothing without a click and Confirm; works without a key | **Holds for everything built**: 6a, the research loop, 6b, 6c and 6d work with no key (no part of the panel asks Claude in this version), with tests. Change watch starts nothing by itself: bringing a change in runs nothing, and the picked tests run only on a click |
 | 17 | Keys match in both modes, fast tests under 5 minutes, each step reviewed, committed, pushed | **Keys: match in both modes** (isolated: exit code 0 on a frozen copy of `5699057`; demo: green in the GitHub checks on every push). **Fast tests: not under five minutes on the build machine** (5 min 52 s with Otto on `e16786f`, measured alone; the set has grown by about 130 tests since, and every later timing was taken with other work running, so it says little: 8 min 54 s and 6 min 38 s on `31eaf59`). On GitHub's runner the fast set without Otto took 4 min 59 s on `27bd7f3`. **Decision 10.** Each step reviewed, fixed, committed, pushed; 6d's later pieces still need their second review |
 | 18 | This file | Kept current |
@@ -67,7 +66,12 @@ Checks and Evidence** · `12e342b` **a read that crossed a change is asked again
 the walks found) · `31eaf59` **6d: the separate review's eight findings fixed** · `2422941` **6d: the evidence part,
 the report's part 9 and the verify command's check** · `5a07467` **6d: the Text-only entry in Fixes** · `d1ccc61` a
 slow test that still expected "in Otto's words" · `49d1f0d` **6d: the panel's step, and the walk through it, with
-its pictures** · then the documents, the questions for the fifth key, and this file.
+its pictures** · `b41f631` 6d in the documents, the questions for the fifth key, this file · `c8c7637` **6e,
+checkpoint 1** (what a library version declares it needs) · `1ea9a60` a row never shows a finished job without its
+result · `61e2efd` **6e, checkpoint 2** (the what-if facts and the sentence that asks) · `953b109` **6e, checkpoint 3**
+(the card in the panel) · `36ed916` **6e: the walk, with its pictures** · `80c27a5` **6d: the second review's seven
+findings fixed; 6e in the documents** · `2d49dd8` **6e: the try on a real library in its container, and the what-if
+questions for the fifth key** · then this file.
 
 ## The GitHub checks, and what they caught (07:45 UTC)
 
@@ -1039,37 +1043,63 @@ is offered), with the accuracy walk asking them; and the try on a real library i
     it a page could show what was there before your own click (the walks found a test plan with six tests after a
     seventh was added). Nothing that changes anything is ever sent twice.
 
+26. Phase 6e: the four new knowledge-base entries (what elliptic 6.5.6 and 6.5.7 and python-ecdsa 0.13.2 and
+    0.13.3 declare they need) were read by the build, on 19 November 2026, from the pinned downloads the app
+    already holds, each checked against its pinned fingerprint first. Nobody has compared them with the
+    publisher's files by eye. Please have someone do that once (`knowledge/libraries/elliptic.json` and
+    `python-ecdsa.json`, the part `declared`; each entry quotes the lines and links the publisher's package).
+27. Phase 6e: a hypothesis in the what-if card is a sentence with nothing to press. The brief's success step 14
+    ("every unproven point has Turn this into a test and Add to Change watch") belongs to the second half, which
+    is not built. The card says so in one line under the heading. Is that line wanted, or should the heading
+    stand alone until the buttons exist?
+28. Phase 6e: with Live Otto on, part 3 of the card reads "This is what the app knows. An explanation in plain
+    sentences is not part of this version yet." (with it off: "Live Otto is off. This is what the app knows.", as
+    the plan words it). The first sentence is mine. Is it right?
+29. Phase 6e: "the update answers this advisory" is said from the publisher's own statement (the fixed version a
+    test pack quotes) compared with the version asked about, and the line says "by the publisher's own statement".
+    The app has not tested that version for the what-if. Is that wording careful enough, or should the line only
+    name the fixed version and leave the conclusion to the reader?
+30. Phase 6e: "What if ...?" is one line of the fixed list of commands, of the kind that moves nowhere and starts
+    nothing (it answers). Typed without a lead-in ("update elliptic to 6.5.7") it is not read, because that
+    sentence names no button of the app. Should a bare "update X to Y" be read as the same question?
+31. Phase 6d, after its second review: the entry in Fixes for a developer's change is now listed under its own
+    heading, "From a developer's change (1)", with the line "A developer's change is not the system until someone
+    merges it. A suggestion listed here is not counted with the assessment's findings." Both the heading and the
+    line are my wording of the plan's rule. Please read them (the picture
+    `docs/screenshots/phase6d/03c-fixes-the-entry-for-the-change-light.png`, retaken).
+32. Phase 6d, after its second review: an evidence file made by one of tonight's builds between `2422941` and
+    `36ed916` fails the tightened verify check (it lacks a fingerprint the check now needs). No such file was
+    handed out, so nothing reads the older form. If you kept a download from a run of your own during the night,
+    make a new one.
+
 ## The exact next action
 
-1. **The second separate review of phase 6d**, if "Step 6" above does not yet list its findings: one reviewer
-   against `docs/SPEC.md`, `CLAUDE.md` and the plan (the Claude Doc "Phase 6 plan: Otto assistant", section 6d),
-   for what was built after the first review: `backend/evidence/changewatch.py` and the part it checks
-   (`_change_watch_part` in `backend/app/evidence/export.py`), the entry in Fixes
-   (`_fixes_for_developer_changes`, `developer_change_fix`), the panel's step (`_next_change_watch`, the two new
-   lines of `commands.py`), and the new part of `backend/app/accuracy_otto.py`. Fix what breaks a requirement,
-   adds something out of scope, or makes the demo less accurate; write the findings and what was done here.
-2. **The long checks on the newest commit, one at a time and with nothing else running** (every timing taken
-   tonight after `e16786f` was taken with other work going, and says little):
-   - the fast set with Otto, timed: `cd backend && .venv/bin/python -m pytest -q tests` (1958 tests), and without:
-     `EVIDENCE_LAB_OTTO_HOME=/some/empty/folder` in front;
+1. **The separate review of phase 6e**, if "Step 7" above does not yet list its findings: one reviewer against
+   `docs/SPEC.md` (section 2, "What-if in the Otto panel"), `CLAUDE.md` and the plan (the Claude Doc "Phase 6 plan:
+   Otto assistant", section 6e), for `backend/app/whatif/`, the `declared` entries in `knowledge/libraries/`,
+   `_WHAT_IF` in `backend/app/assistant/commands.py`, `_what_if` in `answers.py`, `WhatIfCard.tsx`, the new part of
+   `backend/app/accuracy_otto.py` and the documents. Fix what breaks a requirement, adds something out of scope,
+   or makes the demo less accurate; write the findings and what was done into "Step 7".
+2. **The long checks on the newest commit, one at a time and with nothing else running:**
+   - the fast set with Otto, timed: `cd backend && .venv/bin/python -m pytest -q tests`, and without:
+     `EVIDENCE_LAB_OTTO_HOME=/some/empty/folder` in front. See the row "Fast tests" in the table at the top for
+     where the time stands;
    - the full backend set: `cd backend && .venv/bin/python -m pytest tests --full -v --tb=short -rfE > FILE 2>&1`
-     (2322 tests; about 40 minutes alone, with Docker ready). The run on `31eaf59` had two failures: one is fixed
-     (`d1ccc61`); the other, `tests/test_changes.py::test_connecting_makes_the_plans_own_copy_and_starts_the_proof_by_itself`,
-     passed alone and failed once with four other heavy runs going. If it fails again with nothing else running,
-     it is real: its fixture (`fix_flow` in `tests/test_changes.py`) looks at the proof while it runs;
+     (about 45 minutes alone, with Docker ready). The run on `31eaf59` had two failures, both fixed since
+     (`d1ccc61`, `1ea9a60`); no complete run has been made on a later commit;
    - every walk once: `cd e2e && npm test` (about 55 minutes; `E2E_APP_LOG=/some/file` in front keeps the request
      log of the walks that start their own copy). No complete run has been made since the ask-again fix
      (`12e342b`). A complete run rewrites every picture: keep only folders retaken on purpose and put the others
      back with `git checkout -- docs/screenshots/<folder>`. **`docs/screenshots/phase6a/08c-evidence-why-did-this-check-fail-*.png`
      is to be retaken on purpose from that run** (since `043c5ac` a result's panel starts with its plain sentence);
    - the accuracy check in isolated mode (`cd backend && .venv/bin/python -m app.accuracy --mode isolated`, about 25
-     minutes): last run on a frozen copy of `5699057`, exit code 0. Nothing built since goes through it except the
-     new last part of Otto's walk, which is not graded; run it once more all the same before this is shown.
+     minutes): last run on a frozen copy of `5699057`, exit code 0. Nothing built since goes through the four
+     graded keys; run it once more all the same before this is shown.
 3. Read the newest run of "Checks" on pull request #7 (GitHub), and correct what it shows.
-4. Then, as far as the time goes: **6e**, at least its shorter first half (the what-if facts and the try); the
-   second halves of 6b and 6c (the Claude steps, with the CLAUDE.md rule changes the plan lists for them); the
-   Watch list of 6d. Each: plan, build, tests, one walk, pictures, documents, one separate review, fixes, commit,
-   push, this file.
+4. Then, as far as the time goes, the second halves, each with the CLAUDE.md rule changes the plan lists for it:
+   6b (free wording through Claude), 6c (an answer in free words, with "Hypothesis"), 6d (the Watch list and its
+   pinned checker), 6e (hypothesis records, Turn this into a test, Add to Change watch, Claude's explanation).
+   Each: plan, build, tests, one walk, pictures, documents, one separate review, fixes, commit, push, this file.
 5. Two leftovers of 6b's review (step 4 above, finding 12): eight command lines are never asked against an
    assessment at the stage where their button exists, and most lines have one wording in the tests.
 6. Keep pull request #7 a draft. Never merge. Leave the line in `docs/ACTIVE.md` unticked until the run ends.
