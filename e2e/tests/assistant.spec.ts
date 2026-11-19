@@ -675,7 +675,7 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     await expect(tab(page, "fixing")).toHaveCount(0);                             // still closed after the page was loaded again
     // on Checks, narrowed by the earlier command's filter, the plan says how many of its tests are listed and what Run all does
     await page.goto(`/#/a/${assessment}/checks?result=Failed`);
-    await expect(page.getByTestId("plan-narrowed")).toHaveText(/^\d+ of the plan's \d+ tests are listed \(Result: Failed\)\. Run all runs all \d+\.$/);
+    await expect(page.getByTestId("plan-narrowed")).toHaveText(/^\d+ of the plan's \d+ tests (is|are) listed \(Result: Failed\)\. Run all runs all \d+\.$/);
   } finally {
     await stopCopy(copy);
   }

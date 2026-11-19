@@ -620,7 +620,7 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **With no file in**, only the Overview and Import can be opened, so "open checks" answers "Bring in a scanner
   file first ...", and "What can you do?" lists only what moves around. The same list is shown in a closed
   assessment.
-- **Checks narrowed by a command** says so in one line in the test plan ("1 of the plan's 6 tests are listed
+- **Checks narrowed by a command** says so in one line in the test plan ("1 of the plan's 6 tests is listed
   (Result: Failed). Run all runs all 6."). The part's own heading still counts the whole plan. On Evidence the
   Result filter narrows the Encryption tests table only; the other groups list every row.
 - **Words the rules no longer take**: "open" and "added" as a decision filter ("show open checks" is not read),

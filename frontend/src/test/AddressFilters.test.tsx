@@ -104,7 +104,7 @@ describe("Checks, filtered from its address", () => {
     render(<Harness result="Failed" />);
     await screen.findAllByTestId("group-section");
     const line = await screen.findByTestId("plan-narrowed");
-    expect(line.textContent).toBe(`1 of the plan's ${plan.tests.length} tests are listed (Result: Failed). Run all runs all ${plan.tests.length}.`);
+    expect(line.textContent).toBe(`1 of the plan's ${plan.tests.length} tests is listed (Result: Failed). Run all runs all ${plan.tests.length}.`);
     // with the filter off the line is gone
     fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "all" } });
     await waitFor(() => expect(screen.queryByTestId("plan-narrowed")).toBeNull());

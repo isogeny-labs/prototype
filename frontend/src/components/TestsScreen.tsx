@@ -595,7 +595,7 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
             const first =
               listed === 0
                 ? `No test of the plan ${onlyLabel ? `reads ${onlyLabel}` : "fits the Result filter"} now${onlyLabel ? "" : filter}.`
-                : `${listed} of the plan's ${total} ${total === 1 ? "test is" : "tests are"} listed${filter}.`;
+                : `${listed} of the plan's ${total} ${total === 1 ? "test" : "tests"} ${listed === 1 ? "is" : "are"} listed${filter}.`;
             return `${first} Run all runs all ${total}.`;
           })()}
         </p>

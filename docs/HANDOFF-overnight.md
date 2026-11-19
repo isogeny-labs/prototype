@@ -46,6 +46,31 @@ back (**step 1 as first built**) · `e50d1a7` this file and 24 pictures · `cc96
 file · `874f9ad` **the research loop's walk, its pictures, and the live check list** · `c7472a4` **phase 6c,
 first half, with 6b's documents and walk** · `c819aa9` **the research loop: the review's findings fixed**.
 
+## The GitHub checks, and what they caught (07:45 UTC)
+
+The repository's own checks on GitHub ("Checks": lint, type check, generated files, the fast backend set
+**without the Otto harness**, demo-mode accuracy, frontend tests and build) run on every push to this branch.
+Looked at for the first time at 07:42 UTC, they showed the Backend job failing on the last feature commits
+(`c7472a4`, `c819aa9`) with **2 failed, 1631 passed, 146 skipped** (4 min 52 s); the Frontend job passed.
+Both failures were real and came from tonight's work; my local runs had been of single test folders, so the
+whole fast set had not run locally since phase 6a:
+- `tests/test_prepare.py::test_only_prepare_can_build_or_pull` scans the app's source for the words of a
+  container command. Phase 6b's command table held the page word "import" as a quoted key. Fixed in `27bd7f3`
+  by working the pages' own last words out of their addresses (the scan itself is unchanged).
+- `tests/otto/test_discover.py::test_design_and_prove_is_off_with_the_reason_until_it_can_work` assumed Otto is
+  installed. Fixed in `27bd7f3`: it expects the sentence that holds on the computer it runs on.
+Because the Backend job stopped at its tests, its later step (demo-mode accuracy) did not run on those commits.
+**Whoever picks this up: read the newest run of "Checks" on pull request #7 first.** The long checks below
+include the whole fast set, run locally with Otto installed.
+
+Another thing the same look turned up: since phase 6a the Otto panel repeats page buttons under their own names
+(a next step is the page's button; since 6b an example chip says the same words). The older walks click such
+buttons by name, so with the panel beside the page a click would find two. Only the panel's own walk had been
+run after phase 6a. `0697a62` and `3bac01c`: a walk now gets the panel only when it asks for it (the panel's
+walk, the research loop's walk, the walk that measures the pages' widths); the others start with it hidden, by
+the setting the top bar's toggle keeps in the browser. **A complete run of every walk on the branch as it is now
+has not been made yet** (it is one of the long checks).
+
 ## Step 1: the 5c fixes (built, reviewed, findings fixed, committed and pushed)
 
 **Test results on step 1 as first built (`dd21a67`, a frozen copy):**
@@ -432,7 +457,46 @@ used" and "What was sent", the two labels, recorded answers for the walk, the st
 the Settings line on what is sent. The CLAUDE.md rule changes 3, 7, 8 and 9 of the plan are therefore not
 applied.
 
-**Still to do for 6c's first half:** read its separate reviewer's report and fix what it finds.
+**What the separate reviewer of 6c found (report of 07:46 UTC, on commit `c7472a4`; verdict: "not ready as
+committed": the promise that nothing runs or changes holds, but an answer can state something untrue in several
+ordinary situations, and "Which one?" can still loop).** State of each finding is kept current here.
+1. **A name the rules don't know gets a false "there is none"**: with four checks failed, "why did the moon check
+   fail?" answered "No check of this assessment reads Failed now."; the same for a suggestion ("Nothing is
+   proposed"), and for question 2 in slightly other words. *State: open.*
+2. **"Did not fail" was said about a failing result** ("Slowdown found" after a retest; also for "Couldn't run"
+   and "Couldn't trust this run"): the assistant worded a result of its own. *State: open.*
+3. **"Accept waits for your Confirm, here and on its page." is untrue of the page**: there, Accept records at the
+   click. *State: open.*
+4. **"This check" is not always the open item**: with an open item that has no result, the answer was about a
+   failed check elsewhere; with a fix proof's row open, it answered with the first run's result. *State: open.*
+5. **Where several tests share a title** (the multi-target demo file: one "Old TLS versions" for each server),
+   "Which one?" never settles. *State: open.*
+6. **"Waits for a decision" where nothing can be decided** (a closed assessment, Otto not installed, a plan change
+   that is no longer proposed). *State: open.*
+7. **Evidence's count was the test plan's only** ("0 results" right after Verify, with three verified claims
+   listed). *State: open.*
+8. **Three of the ten page sentences do not match their pages** (Advisories, Fixes, Roadmap). *State: open.*
+9. **A data folder made by the 6b build breaks the panel** (its `assistant_messages` table has no `facts`
+   column). *State: open.*
+10. A title that holds a kind word: *fixed in `7017bda`* (the reviewer confirmed it gone).
+11. **The exact-title rule looks at every name, not only titles** ("accept yes" brought up the card of the fix
+    whose stored value is "written: yes"; decisions still wait for Confirm). *State: open.*
+12. **What is kept**: a question asked beside the Overview is listed in no tab; a typed reject reason that holds a
+    time in UTC words is rewritten into the viewer's zone in a kept answer. *State: open.*
+13. Small things: more than eight fits cut without a word; an advisory with several accepted checks takes the
+    first silently; "What is the fix for?" read as "What is Fixes for?"; a line that quotes Evidence as Fixes;
+    two facts without a link; "There is no page of that name" without the list; the reply's label for screen
+    readers reads "Otto's answer". *State: open.*
+
+Checked by the reviewer and found met: the reader does not crash (3,000 random strings; 33 hostile inputs of 500
+characters took 2 ms at worst) and nothing misread acts; no time mark is stored; a closed assessment keeps
+nothing; the table is add-only; the read-only promise holds (480 questions with Live Otto on and a stand-in:
+nothing changed, Claude never asked); text is drawn as text; nothing in an answer can be pressed but links; no
+"secure", score, severity or sentence about what Otto did; nothing outside SPEC section 2. These states came out
+right: a retest after a failed first run, a check that passed in the retest, rejected and undone proposals, no
+file, not verified, nothing run.
+
+**Still to do for 6c's first half:** fix these findings, with tests (none of 1 to 7 and 9 had one).
 
 ## Decisions for Kevin (collected so far)
 
