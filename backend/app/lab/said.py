@@ -37,15 +37,30 @@ class SaidMixin:
         reply = self.copilot.command(self, a.id, page, item, text)
         # What is stored keeps UTC words, like every file: a time mark is only ever written into an answer to a browser
         # (app/present/times.py). Where this answer holds a mark, the same answer is worded once more for a file.
-        kept = reply
-        if times.marked() and (times.OPEN in reply["text"] or any(times.OPEN in f["text"] for f in reply.get("facts") or [])):
+        # An answer with facts is worded twice: for a file (what is stored) and for a screen (to learn which of its
+        # times the app itself wrote: only those are shown in the viewer's zone later; a time inside a person's own
+        # typed words, such as a reason, is never touched).
+        kept, facts = reply, None
+        if reply.get("facts"):
+            if times.marked():                                  # (asked by a browser: the answer is the screen's wording)
+                shown = reply
+                with times.for_files():
+                    kept = self.copilot.command(self, a.id, page, item, text)
+            else:                                               # (asked by a script: the answer is the file's wording)
+                with times.for_screen():
+                    shown = self.copilot.command(self, a.id, page, item, text)
+            if len(shown.get("facts") or []) == len(kept.get("facts") or []):
+                facts = [{**f, "times": times.moments(s["text"])} for f, s in zip(kept["facts"], shown["facts"], strict=True)]
+            else:                                              # (the records changed between the two readings: no time is marked later)
+                facts = [{**f, "times": []} for f in kept.get("facts") or []]
+        elif times.marked() and times.OPEN in reply["text"]:
             with times.for_files():
                 kept = self.copilot.command(self, a.id, page, item, text)
         with self.db() as db:
             db.add(AssistantMessageRow(plan_id=plan_id, at=iso(datetime.now(timezone.utc)), by=self.decision_name(),      # type: ignore[attr-defined]
                                        page=page, item=(item or None) and str(item)[:200], thread=reply.get("thread"),
                                        said=" ".join(str(text).split())[:500], kind=reply["kind"], reply=kept["text"], go=reply.get("go"),
-                                       facts=kept.get("facts") or None))
+                                       facts=facts))
             db.commit()
         return reply
 
@@ -55,8 +70,9 @@ class SaidMixin:
             return []
         with self.db() as db:
             rows = db.scalars(select(AssistantMessageRow).where(AssistantMessageRow.plan_id == plan_id).order_by(AssistantMessageRow.id)).all()
-            # (the answer's own sentences were stored in UTC words; a browser gets their times marked again, so that it
-            #  writes them in the viewer's own zone. What the person typed is returned as typed.)
+            # (the answer's own sentences were stored in UTC words; a browser gets the times the app itself wrote in them
+            #  marked again, so that it writes them in the viewer's own zone. What a person typed is returned as typed.)
             return [{"id": r.id, "at": r.at, "by": r.by, "page": r.page, "thread": r.thread, "said": r.said, "kind": r.kind,
-                     "reply": times.remarked(r.reply), "go": r.go,
-                     "facts": [{**f, "text": times.remarked(str(f.get("text") or ""))} for f in r.facts or []]} for r in rows[-MAX_KEPT_SHOWN:]]
+                     "reply": r.reply, "go": r.go,
+                     "facts": [{"text": times.remarked(str(f.get("text") or ""), f.get("times")), "link": f.get("link"), "label": f.get("label")}
+                               for f in r.facts or []]} for r in rows[-MAX_KEPT_SHOWN:]]

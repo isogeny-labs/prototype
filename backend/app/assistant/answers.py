@@ -169,10 +169,11 @@ def _open_item(copilot: Any, facts: Any, said: dict, proposals: list[dict], item
         if kinds is None or p["kind"] in kinds:
             candidates.append({"names": _names_of(p), "title": p["title"], "go": {**commands.go(HOME.get(p["kind"], "overview")), **_link_of(p)},
                                "thread": KIND_THREAD[p["kind"]], "where": PAGE_LABELS[HOME.get(p["kind"], "overview")]})
+    test_names = _test_names(facts.plan())
     if kinds is None or "check" in kinds:
         for t in facts.plan().get("tests") or []:
-            candidates.append({"names": [t["title"]], "title": t["title"], "go": commands.go("checks", f"test-{t['id']}"), "thread": "testing",
-                               "where": "Checks"})
+            candidates.append({"names": [t["title"], test_names[t["id"]]], "titles": [test_names[t["id"]]], "title": test_names[t["id"]],
+                               "go": commands.go("checks", f"test-{t['id']}"), "thread": "testing", "where": "Checks"})
     if kinds is None or "fix" in kinds:
         for fix in facts.fixes().get("fixes") or []:
             candidates.append({"names": [fix["title"], fix.get("list_source") or ""], "title": fix["title"], "go": commands.go("fixes", fix["id"]),
@@ -182,8 +183,8 @@ def _open_item(copilot: Any, facts: Any, said: dict, proposals: list[dict], item
         # the whole title, word for word, whatever kind word it holds itself (looked for among everything, of any kind)
         everything = [{"names": [p["title"]], "title": p["title"], "go": {**commands.go(HOME.get(p["kind"], "overview")), **_link_of(p)},
                        "thread": KIND_THREAD[p["kind"]], "where": PAGE_LABELS[HOME.get(p["kind"], "overview")]} for p in proposals]
-        everything += [{"names": [t["title"]], "title": t["title"], "go": commands.go("checks", f"test-{t['id']}"), "thread": "testing", "where": "Checks"}
-                       for t in facts.plan().get("tests") or []]
+        everything += [{"names": [test_names[t["id"]]], "title": test_names[t["id"]], "go": commands.go("checks", f"test-{t['id']}"),
+                        "thread": "testing", "where": "Checks"} for t in facts.plan().get("tests") or []]
         everything += [{"names": [fix["title"]], "title": fix["title"], "go": commands.go("fixes", fix["id"]), "thread": "fixing", "where": "Fixes"}
                        for fix in facts.fixes().get("fixes") or []]
         whole = _once(commands.exact(rest, everything), lambda c: (c["go"]["page"], c["go"]["item"]))
@@ -334,7 +335,8 @@ def _start(copilot: Any, facts: Any, said: dict, line: dict, page: str, item: st
 def _step_names(facts: Any, key: str, entries: list[dict]) -> dict[str, list[str]]:
     """What each button's card can be called in a sentence: the test, the version, the library or the fix it is for."""
     out: dict[str, list[str]] = {}
-    tests = {f"test-{t['id']}": t["title"] for t in (facts.plan().get("tests") or [])} if key == "run" else {}
+    distinct = _test_names(facts.plan()) if key == "run" else {}
+    tests = {f"test-{t['id']}": distinct[t["id"]] for t in (facts.plan().get("tests") or [])} if key == "run" else {}
     for e in entries:
         action = e["step"]["action"]
         if key == "run":
@@ -363,8 +365,13 @@ def _say_again(line: dict, name: str) -> str:
 
 def _names_of(p: dict) -> list[str]:
     """What a suggestion can be called: its title, and what it is about (the advisory, the library, the program)."""
-    about = p.get("about") or {}
-    return [str(p.get("title") or "")] + [str(v) for v in about.values() if isinstance(v, (str, int)) and not isinstance(v, bool)]
+    return commands.names_of(p)
+
+
+def _test_names(plan: dict) -> dict[int, str]:
+    """A name for each test of the plan that no other test has (where two share a title: with its target)."""
+    headings = {g["key"]: g["heading"] for g in plan.get("groups") or []}
+    return commands.distinct([(t["id"], t["title"], headings.get(t.get("group"))) for t in plan.get("tests") or []])
 
 
 def _link_of(p: dict) -> dict:

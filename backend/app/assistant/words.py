@@ -9,17 +9,23 @@ ON_PAGE = "On this page"
 SO_FAR = "This thread so far"
 # Phase 6c: one sentence about each page, for "What is this page for?" (the assistant's own words; each says what the
 # page holds, never how well anything did).
+# One sentence about each page ("What is this page for?"): the page's own header sentence, as closely as one line can
+# say it (the pages word their headers themselves; a test holds the three that are written out in the backend equal).
 PAGE_FOR = {
     "overview": "The Overview says where this assessment stands: what was verified, what was tested, what waits for a decision, and the next step.",
-    "inventory/import": "Import brings in a scanner file (a CBOM or a CSV). A file is data: nothing in it runs. Its claims are listed here.",
-    "inventory/verify": "Verify checks each claim of the file against the real system and says True, False or Couldn't check, with the evidence.",
-    "advisories": "Advisories lists published advisories that fit this assessment's programs and libraries, and the checks proposed from them.",
-    "checks": "Checks lists every check of this assessment in four groups. The test plan is here, under Encryption tests.",
+    "inventory/import": ("Import brings in the file from your scanning tool that lists where encryption is used and how. It is read as data "
+                         "only; nothing in it is run."),
+    "inventory/verify": "Verify checks each claim from the file against the real system and says True, False or Couldn't check, with the evidence.",
+    "advisories": ("Advisories lists every published advisory in the installed test packs. Where one has a test that fits a signing program "
+                   "of this assessment, its check is proposed: you accept or reject it."),
+    "checks": "Checks lists every check in this assessment, wherever it was started. The test plan is under Encryption tests.",
     "evidence": "Evidence holds every result: what was run, what came back, what it shows and what it doesn't. The signed evidence file is downloaded here.",
-    "fixes": "Fixes lists what can be done about a failed result: a change with its proof, or a suggestion in words.",
+    "fixes": ("Fixes lists the fixes for the findings in Evidence, and what the migration plan needs done. A code change is ready for review "
+              "only after its proof has passed."),
     "migration/systems": "Systems shows where each system stands on the move to post-quantum cryptography, with its options and its plan.",
-    "migration/roadmap": "Roadmap puts the next step of each system in order.",
-    "migration/dependencies": "Dependencies lists the libraries a dependency list names, and what is known about each.",
+    "migration/roadmap": "Roadmap gives every track of every system its place, built from your choices. It updates when a choice, a setting or a measurement changes.",
+    "migration/dependencies": ("Dependencies lists the libraries your dependency list names, and which of them can do post-quantum key exchange "
+                               "and signatures."),
 }
 # Phase 6b: the text box.
 MARK_SAID = "You said"

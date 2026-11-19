@@ -153,7 +153,7 @@ class RuleCopilot:
         nothing = waiting_here == 0 and not waiting_elsewhere
 
         tabs = self._tabs(facts, proposals, suggestions, lab.assistant_messages(core["plan_id"]))
-        base["box"] = {**base["box"], "questions": questions.fitting(page, item, facts.lab().get("rows") or [], here)}
+        base["box"] = {**base["box"], "questions": questions.fitting(page, item, facts.lab(), proposals, here)}
         return {**base, "tabs": tabs,
                 "on_page": {"title": words.ON_PAGE, "entries": on_page, "empty": None if on_page else words.NOTHING_HERE, "empty_link": None},
                 "elsewhere": {"title": words.elsewhere_title(len(waiting_elsewhere)), "count": len(waiting_elsewhere), "lines": lines,

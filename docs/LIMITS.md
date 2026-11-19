@@ -556,16 +556,45 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   happened, the control, where an advisory check came from and the fix; it does not list the single cases the
   program got wrong (the link opens the result, where they are). Two kinds of sentence are the assistant's own: the
   opening line that names the item and repeats its result word, and one standing sentence for each page ("What is
-  this page for?"). Those ten page sentences are new wording, in `backend/app/assistant/words.py`.
-- **"This check" is the open item.** With no item open, "Why did this check fail?" is about the one failed check
-  if there is exactly one; with several it asks "Which one?". A check that did not fail gets its result word and
-  plain sentence ("did not fail: it reads Passed"). On Advisories an open advisory stands for its accepted check.
+  this page for?"). Those ten page sentences follow each page's own header sentence as closely as one line can
+  (`backend/app/assistant/words.py`); the Overview's and Evidence's are worded there because those pages word
+  their headers from the assessment's data.
+- **An answer never words a result of its own.** It repeats the result's word ("reads Slowdown found") and the
+  result's own sentences. Whether a result is a failure is read from the tone its page draws it in ("Failed", and
+  also "Slowdown found" after a retest); "Couldn't run" and "Couldn't trust this run" are neither a pass nor a
+  failure. Asked why a check failed that did not, the answer is its result word and plain sentence, and nothing
+  more.
+- **A name that nothing is called** gets "I can't do that. No test of the plan is called that." (or "No suggestion
+  here ..."), never "there is none". "No test of the plan reads Failed now" and "has a result yet" are said only
+  when nothing was named and that is so. They speak of the tests of the plan: Evidence also lists verified claims,
+  measurements and fix proofs, which these answers do not count.
+- **Tests that share a title** (one "Old TLS versions" for each server of a multi-target file) are named with
+  their target ("Old TLS versions on Server: localhost:8444") wherever a sentence must name exactly one; two that
+  still read the same get their number.
+- **"This check" is the open item, and nothing else.** With no item open, "Why did this check fail?" is about the
+  one failed check if there is exactly one; with several it asks "Which one?". On Advisories an open advisory
+  stands for its accepted check (with several accepted checks: "Which one?"). An open item that has no test result
+  of its own gets a sentence that says so, and the chips do not offer the question beside it: a test that has not
+  run ("has no result yet"), the row of a retest or of a fix proof on Checks ("The open row is the run of a retest
+  or of a fix proof ...": an answer is about a test's first result and its newest retest only), a claim, a fix or
+  an advisory with no check in the plan ("The open item is not a test of the plan ...").
+- **"Waits for a decision"** is counted as the Overview counts it: in a closed assessment, without Otto, or for a
+  proposal that is no longer made, nothing waits. A proposal that is no longer made says so in "Where did this
+  suggestion come from?", in its page's own words.
+- **Accepting, in the panel and on the page.** "What happens if I accept this?" ends with the difference: in the
+  panel Accept waits for Confirm; on its page the Accept button records the decision at the click.
 - **Where an answer shows.** The newest answer shows above the text box and stays there while you move around,
   until the next sentence. The panel does not switch to the tab the answer belongs to; the kept answer is listed
   in that tab under "This thread so far", with its facts as they were when asked. A fact is not refreshed later:
   the kept answer says what the records said then.
 - **What is kept** is the question, the answer's one line and its facts. Like every exchange it is not in the
-  evidence file. A closed assessment answers and keeps nothing.
+  evidence file. A closed assessment answers and keeps nothing. Stored sentences hold their times in UTC words;
+  on screen only the times the app itself wrote are shown in the viewer's zone again (a time typed inside a
+  reason stays as typed). "What should I do next?" asked beside the Overview is listed in the tab of the page its
+  next step sends to; "What is this page for?" asked beside the Overview is kept and listed in no tab.
+- **A data folder made by the 6b build of this same night** has no column for an answer's facts; the app adds it
+  when it opens the folder (`ADDED_COLUMNS` in `backend/app/db.py`). This is the first column the app ever added
+  to an existing table that way; every other change of this run was a new table.
 - **The status line is unchanged**: "Live Otto is off." with the link to Settings, or "Live Otto is on.". The plan's
   longer line ("Otto answers the fixed questions from this assessment's records. Free-form answers need Live
   Otto.") is left for the second half: it promises free-form answers that are not built, and its wording says what

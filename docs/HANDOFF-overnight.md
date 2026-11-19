@@ -462,31 +462,42 @@ committed": the promise that nothing runs or changes holds, but an answer can st
 ordinary situations, and "Which one?" can still loop).** State of each finding is kept current here.
 1. **A name the rules don't know gets a false "there is none"**: with four checks failed, "why did the moon check
    fail?" answered "No check of this assessment reads Failed now."; the same for a suggestion ("Nothing is
-   proposed"), and for question 2 in slightly other words. *State: open.*
+   proposed"), and for question 2 in slightly other words. *State: **fixed** (a name nothing is called gets "I
+   can't do that. No test of the plan is called that."; the "none" sentences are said only when true).*
 2. **"Did not fail" was said about a failing result** ("Slowdown found" after a retest; also for "Couldn't run"
-   and "Couldn't trust this run"): the assistant worded a result of its own. *State: open.*
+   and "Couldn't trust this run"): the assistant worded a result of its own. *State: **fixed** (a failure is read
+   from the tone the page draws the result in; the answer repeats the result's word and never says "did not
+   fail").*
 3. **"Accept waits for your Confirm, here and on its page." is untrue of the page**: there, Accept records at the
-   click. *State: open.*
+   click. *State: **fixed** (the answer now says the difference between the panel and the page).*
 4. **"This check" is not always the open item**: with an open item that has no result, the answer was about a
-   failed check elsewhere; with a fix proof's row open, it answered with the first run's result. *State: open.*
+   failed check elsewhere; with a fix proof's row open, it answered with the first run's result. *State: **fixed**
+   (one rule says what the open item is, for the answers and for the chips; an item with no test result of its
+   own gets a sentence that says so).*
 5. **Where several tests share a title** (the multi-target demo file: one "Old TLS versions" for each server),
-   "Which one?" never settles. *State: open.*
+   "Which one?" never settles. *State: **fixed** (such tests are named with their target, for questions and for
+   Run and Open; a unit test with two servers). **Not yet walked on the real multi-target demo file.***
 6. **"Waits for a decision" where nothing can be decided** (a closed assessment, Otto not installed, a plan change
-   that is no longer proposed). *State: open.*
+   that is no longer proposed). *State: **fixed** (counted as the Overview counts).*
 7. **Evidence's count was the test plan's only** ("0 results" right after Verify, with three verified claims
-   listed). *State: open.*
-8. **Three of the ten page sentences do not match their pages** (Advisories, Fixes, Roadmap). *State: open.*
+   listed). *State: **fixed** (the sentences speak of the tests of the plan).*
+8. **Three of the ten page sentences do not match their pages** (Advisories, Fixes, Roadmap). *State: **fixed**
+   (all ten follow the pages' own header sentences; a test holds three of them to the backend's wording).*
 9. **A data folder made by the 6b build breaks the panel** (its `assistant_messages` table has no `facts`
-   column). *State: open.*
+   column). *State: **fixed** (the column is added when such a folder is opened; a test).*
 10. A title that holds a kind word: *fixed in `7017bda`* (the reviewer confirmed it gone).
 11. **The exact-title rule looks at every name, not only titles** ("accept yes" brought up the card of the fix
-    whose stored value is "written: yes"; decisions still wait for Confirm). *State: open.*
+    whose stored value is "written: yes"; decisions still wait for Confirm). *State: **fixed** (only a title counts
+    as an exact name; ids, fingerprints and stored flags name nothing).*
 12. **What is kept**: a question asked beside the Overview is listed in no tab; a typed reject reason that holds a
-    time in UTC words is rewritten into the viewer's zone in a kept answer. *State: open.*
+    time in UTC words is rewritten into the viewer's zone in a kept answer. *State: **the second is fixed** (only
+    the times the app itself wrote are marked again). The first: "What should I do next?" is now filed under the
+    thread of the page its next step sends to; "What is this page for?" beside the Overview is still listed in no
+    tab (decision 18).*
 13. Small things: more than eight fits cut without a word; an advisory with several accepted checks takes the
     first silently; "What is the fix for?" read as "What is Fixes for?"; a line that quotes Evidence as Fixes;
     two facts without a link; "There is no page of that name" without the list; the reply's label for screen
-    readers reads "Otto's answer". *State: open.*
+    readers reads "Otto's answer". *State: **all fixed.***
 
 Checked by the reviewer and found met: the reader does not crash (3,000 random strings; 33 hostile inputs of 500
 characters took 2 ms at worst) and nothing misread acts; no time mark is stored; a closed assessment keeps
@@ -496,7 +507,10 @@ nothing changed, Claude never asked); text is drawn as text; nothing in an answe
 right: a retest after a failed first run, a check that passed in the retest, rejected and undone proposals, no
 file, not verified, nothing run.
 
-**Still to do for 6c's first half:** fix these findings, with tests (none of 1 to 7 and 9 had one).
+Tests after these fixes: backend `tests/assistant` and `tests/times` **195 passed** (12 new tests, one or more for
+each of findings 1 to 9, 11 and 12); **820 screen tests passed**; lint, type check and generated files clean.
+**Still to do:** the panel walk on this code (it has two new steps from the 6b fixes), and a walk step on the
+multi-target demo file for finding 5.
 
 ## Decisions for Kevin (collected so far)
 

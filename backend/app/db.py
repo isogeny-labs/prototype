@@ -720,9 +720,23 @@ def create_append_only_triggers(engine) -> None:
                               f"BEGIN SELECT RAISE(ABORT, '{table} are never deleted'); END;"))
 
 
+# A column that was added to a table after the table first shipped. A data folder made before then gets the column when
+# it is opened (adding a column changes no row; the add-only rules do not stand in its way).
+ADDED_COLUMNS = (("assistant_messages", "facts", "JSON"),)       # phase 6c: the facts of an answer to a fixed question
+
+
+def add_missing_columns(engine) -> None:
+    with engine.begin() as conn:
+        for table, column, kind in ADDED_COLUMNS:
+            have = {row[1] for row in conn.execute(text(f'PRAGMA table_info("{table}")'))}
+            if have and column not in have:
+                conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {kind}'))
+
+
 def make_session_factory(db_path: Path) -> sessionmaker:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False, "timeout": 30})
     Base.metadata.create_all(engine)
+    add_missing_columns(engine)
     create_append_only_triggers(engine)
     return sessionmaker(engine, expire_on_commit=False)

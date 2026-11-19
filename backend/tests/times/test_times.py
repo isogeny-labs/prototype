@@ -164,13 +164,21 @@ def test_a_browser_gets_marks_a_script_gets_utc_and_no_file_or_record_ever_holds
         assert asked.status_code == 200, asked.text
         told = [f["text"] for f in asked.json()["facts"]]
         assert asked.json()["kind"] == "answer" and any(MARK.search(t) for t in told) and not any(UTC_WORDS.search(t) for t in told)
-        kept = client.app.state.lab.assistant_messages(plan["id"])[-1]            # (as stored: read with no browser asking)
-        assert [times.remarked(f["text"]) for f in kept["facts"]] == [f["text"] for f in kept["facts"]]      # for a file it stays as stored
+        kept = client.app.state.lab.assistant_messages(plan["id"])[-1]            # (read with no browser asking: as stored)
         assert any(UTC_WORDS.search(f["text"]) for f in kept["facts"]) and "[[time:" not in json.dumps(kept)
-        assert len(kept["facts"]) == len(told)
-        for stored, shown in zip(kept["facts"], asked.json()["facts"], strict=True):
+        assert len(kept["facts"]) == len(told) and all(set(f) == {"text", "link", "label"} for f in kept["facts"])
+        # beside each stored fact: the moments the app itself wrote in it (and nothing else of the browser's wording)
+        from sqlalchemy import select as select_
+
+        from app.db import AssistantMessageRow
+        with client.app.state.lab.db() as db:
+            stored = db.scalars(select_(AssistantMessageRow).order_by(AssistantMessageRow.id.desc())).first().facts
+        assert "[[time:" not in json.dumps(stored) and any(f["times"] for f in stored)
+        for fact_, shown in zip(stored, asked.json()["facts"], strict=True):
+            assert fact_["times"] == times.moments(shown["text"])
             with times.for_screen():
-                assert times.remarked(stored["text"]) == re.sub(r":\d\dZ\]\]", ":00Z]]", shown["text"])   # the same moment, to the minute
+                assert times.remarked(fact_["text"], fact_["times"]) == shown["text"]             # the same sentence the browser got, mark for mark
+            assert times.remarked(fact_["text"], fact_["times"]) == fact_["text"]                 # and for a file: as stored
         for headers, wanted, unwanted in ((browser, MARK, UTC_WORDS), ({}, UTC_WORDS, MARK)):
             panel = client.get(f"/api/assessments/{imp['assessment_id']}/assistant", params={"page": "advisories"}, headers=headers).json()
             line = next(e for t in panel["tabs"] for e in t["so_far"] if e["kind"] == "said")

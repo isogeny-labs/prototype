@@ -281,6 +281,9 @@ def not_added(reason: str | None) -> str:
     return f"Not added ({reason})" if reason else "Not added (no reason given)"
 
 
+NO_LONGER_PROPOSED = "This is no longer proposed here: what it was about has changed since. It stays on the record."
+
+
 def proposal_view(p: dict, ledger: list[dict] | None = None) -> dict:
     """One of Otto's proposals as a screen shows it: what Otto proposes and why, where it stands, who decided and
     when, and the buttons. It words no result. `p` comes from ProposalsMixin; `ledger`: the entries of its decisions."""
@@ -307,7 +310,7 @@ def proposal_view(p: dict, ledger: list[dict] | None = None) -> dict:
     if "undo" in p["actions"] and p["actions"]["undo"] is None:
         notes.append(UNDO_NOTES[kind])
     if not p.get("current", True):
-        notes.append("This is no longer proposed here: what it was about has changed since. It stays on the record.")
+        notes.append(NO_LONGER_PROPOSED)
     history = [{"number": d["number"], "word": DECISION_WORDS[d["decision"]], "by": d["by"], "at": d["at"], "at_text": stamp(d["at"]),
                 "reason": d.get("reason"), "ledger_entry": (d.get("ledger_entry") or "")[7:19] or None,
                 "line": (f"{d['number']}. {DECISION_WORDS[d['decision']]} by {d['by']} on {stamp(d['at'])}"

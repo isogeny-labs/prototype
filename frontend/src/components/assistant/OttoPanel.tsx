@@ -466,7 +466,7 @@ export function OttoPanel({
 
           {/* Phase 6b: what was typed last and what came back for it, then the text box with its example chips. */}
           {exchange ? (
-            <section data-testid="otto-reply" data-kind={exchange.reply.kind} aria-label="Otto's answer" className="rounded-lg border border-slate-700 bg-slate-950/40 p-3">
+            <section data-testid="otto-reply" data-kind={exchange.reply.kind} aria-label="The answer" className="rounded-lg border border-slate-700 bg-slate-950/40 p-3">
               <p data-testid="otto-reply-said" className="break-words text-xs text-slate-400">
                 You said: <span className="text-slate-200">{exchange.said}</span>
               </p>
@@ -494,8 +494,8 @@ export function OttoPanel({
               ) : null}
               {exchange.reply.options.length > 0 ? (
                 <ul data-testid="otto-reply-options" className="mt-2 space-y-1.5">
-                  {exchange.reply.options.map((option) => (
-                    <li key={option.say}>
+                  {exchange.reply.options.map((option, n) => (
+                    <li key={`${n}-${option.say}`}>
                       <button
                         type="button"
                         data-testid="otto-reply-option"

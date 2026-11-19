@@ -84,24 +84,33 @@ def for_files():
 
 
 _MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
-_UTC_WORDS = re.compile(r"\b(\d{1,2}) (" + "|".join(_MONTHS) + r") (\d{4}), (\d{2}):(\d{2}) UTC\b")
 
 
-def remarked(text: str) -> str:
-    """A sentence the app stored in UTC words ("19 November 2026, 06:46 UTC"), for a reader: where a browser asked
-    for marked times, each such time becomes its mark again, so the screen writes it in the viewer's own zone; for
-    every other reader the sentence is returned as it was stored. Only for the app's own stored sentences (what the
-    assistant answered): a person's own typed words are never passed through this."""
-    if not _marked.get() or " UTC" not in text:
+_MARK = re.compile(re.escape(OPEN) + r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})Z" + re.escape(CLOSE))
+
+
+def moments(text: str) -> list[str]:
+    """The moments marked in a sentence that was worded for a browser, in order: what the app itself wrote there as a
+    time. Kept beside a stored sentence, so that later only these are written in the viewer's zone again."""
+    return [f"{m.group(1)}Z" for m in _MARK.finditer(text)]
+
+
+def remarked(text: str, written: list[str] | None) -> str:
+    """A sentence the app stored in UTC words ("19 November 2026, 06:46 UTC"), for a reader. Where a browser asked
+    for marked times, each time the app itself had written there (`written`: its moments, from `moments`) becomes its
+    mark again, so the screen writes it in the viewer's own zone. Nothing else in the sentence is touched: a time a
+    person typed (in a reason, say) stays word for word as typed, also when it happens to be written the same way.
+    For every other reader the sentence is returned as it was stored."""
+    if not _marked.get() or not written or " UTC" not in text:
         return text
-
-    def one(m: re.Match) -> str:
-        try:
-            when = datetime(int(m.group(3)), _MONTHS.index(m.group(2)) + 1, int(m.group(1)), int(m.group(4)), int(m.group(5)), tzinfo=timezone.utc)
-        except ValueError:
-            return m.group(0)
-        return mark(when) or m.group(0)
-    return _UTC_WORDS.sub(one, text)
+    out = text
+    for moment in written:
+        when = instant(moment)
+        if when is None:
+            continue
+        words_ = f"{when.day} {_MONTHS[when.month - 1]} {when.year}, {when.strftime('%H:%M')} UTC"
+        out = out.replace(words_, mark(when) or words_, 1)       # (one place for one moment, in the order they were written)
+    return out
 
 
 class MarkTimes:
@@ -120,4 +129,4 @@ class MarkTimes:
         await self.app(scope, receive, send)
 
 
-__all__ = ["HEADER", "ASKS", "OPEN", "CLOSE", "MarkTimes", "for_files", "for_screen", "instant", "mark", "marked", "remarked", "written"]
+__all__ = ["HEADER", "ASKS", "OPEN", "CLOSE", "MarkTimes", "for_files", "for_screen", "instant", "mark", "marked", "moments", "remarked", "written"]

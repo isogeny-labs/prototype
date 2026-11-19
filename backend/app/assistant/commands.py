@@ -295,8 +295,9 @@ def match(rest: str, candidates: list[dict], ignore: frozenset[str] | set[str] =
         if all(any(a in have or any(h.endswith("-" + a) or h.startswith(a + "-") for h in have) for a in _alias(t)) for t in wanted):
             out.append(c)
     if len(out) > 1:
+        # (a title only: a library's bare name, or a stored value such as "yes", is no title, and must not pick one)
         said = tokens(rest)
-        exact = [c for c in out if any(tokens(str(name)) == said for name in c["names"])]
+        exact = [c for c in out if any(tokens(str(title)) == said for title in c.get("titles", c["names"][:1]))]
         if len(exact) == 1:
             return exact
     return out
@@ -307,7 +308,29 @@ def exact(rest: str, candidates: list[dict]) -> list[dict]:
     word of the sentence is read as a kind of thing: a title may hold such a word itself ("Fix acme-sign 1.4.2 before
     its signatures move to post-quantum" is a change to the migration plan, not a fix)."""
     said = tokens(rest)
-    return [c for c in candidates if said and any(tokens(str(name)) == said for name in c["names"])]
+    return [c for c in candidates if said and any(tokens(str(title)) == said for title in c.get("titles", c["names"][:1]))]
+
+
+# What a suggestion can be called besides its title: the advisory, the program, the library and its versions it is
+# about. Never a fingerprint, an id of the app's own or a stored flag ("written: yes").
+NAMING = ("advisory", "program", "library", "version", "fixed")
+
+
+def names_of(p: dict) -> list[str]:
+    """What a suggestion can be called: its title first, then what it is about."""
+    about = p.get("about") or {}
+    return [str(p.get("title") or "")] + [str(about[k]) for k in NAMING if isinstance(about.get(k), (str, int)) and not isinstance(about.get(k), bool)]
+
+
+def distinct(named: list[tuple[Any, str, str | None]]) -> dict[Any, str]:
+    """A name for each thing that no other in the list has. `named`: (its key, its title, what tells it apart from
+    others of the same title: the heading of its target, or None). A title nobody shares stays as it is; a shared one
+    gets "on <target>"; and if two still read the same, their number, so that a sentence can always name exactly one
+    (the multi-target demo file has one "Old TLS versions" for each server)."""
+    shared = {title for _, title, _ in named if sum(1 for _, t, _ in named if t == title) > 1}
+    out = {key: (f"{title} on {apart}" if title in shared and apart else title) for key, title, apart in named}
+    still = {name for name in out.values() if sum(1 for other in out.values() if other == name) > 1}
+    return {key: (f"{name} (number {key})" if name in still else name) for key, name in out.items()}
 
 
 def which_text(shown: int, fitting: int) -> str:
