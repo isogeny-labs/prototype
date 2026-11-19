@@ -312,10 +312,10 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
         attempts = {rid for rid in decision_claims if rid not in accepted}
         if proposals is None:
             if set(decision_claims) - attempts:
-                raise _Failed("the ledger holds decisions on Otto's proposals, and the file does not show them.")
+                raise _Failed("the ledger holds decisions on proposals, and the file does not show them.")
         else:
             if not isinstance(proposals, list):
-                raise _Failed("the list of Otto's proposals in the file could not be read.")
+                raise _Failed("the list of proposals in the file could not be read.")
             # A check that was added before decisions were recorded stands as "accepted" with no decision. That is
             # allowed only for a check the file itself holds in the test plan: one such proposal for one such check.
             older_checks: dict[tuple, int] = {}
@@ -331,7 +331,7 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
             listed, count = set(), 0
             for proposal in proposals:
                 if not isinstance(proposal, dict):
-                    raise _Failed("the list of Otto's proposals in the file could not be read.")
+                    raise _Failed("the list of proposals in the file could not be read.")
                 title = _plain(proposal.get("title"))
                 state: object = "proposed"
                 for place, decision in enumerate(proposal.get("decisions") or [], start=1):
@@ -390,12 +390,12 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
                     # the copy its last decision was made on (which the ledger holds by its SHA-256)
                     raise _Failed(f"“{title}” is no longer proposed, and the file does not show it as its last decision was made on it.")
             if (set(decision_claims) - attempts) - listed:
-                raise _Failed("the ledger holds a decision on one of Otto's proposals that the file does not show.")
+                raise _Failed("the ledger holds a decision on a proposal that the file does not show.")
             if attempts:
                 out.lines.append(f"Note: the ledger holds {len(attempts)} attempted "
                                  f"{'entry' if len(attempts) == 1 else 'entries'} for a decision that the pinned checker did not accept. "
                                  "They are not decisions.")
-            out.lines.append(f"Decisions: {count} on {sum(1 for p in proposals if p.get('decisions'))} of Otto's {len(proposals)} "
+            out.lines.append(f"Decisions: {count} on {sum(1 for p in proposals if p.get('decisions'))} of the {len(proposals)} "
                              f"{'proposal' if len(proposals) == 1 else 'proposals'}, each in the ledger with who and when, in an order the app allows.")
         # 5. an older download
         if previous is not None:

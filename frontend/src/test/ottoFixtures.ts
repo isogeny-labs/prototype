@@ -35,13 +35,13 @@ import { acceptedProposal, proposal, rejectedProposal } from "./proposalFixtures
 
 // ---- Words and parts the answers share
 
-const SUBLINE: string = "Every published advisory in the installed test packs. Where one has a test that fits a signing program of this assessment, Otto proposes its check: you accept or reject it. A result shown here is the reviewer's, in its words.";
+const SUBLINE: string = "Every published advisory in the installed test packs. Where one has a test that fits a signing program of this assessment, its check is proposed: you accept or reject it. A result shown here is the reviewer's, in its words.";
 
 /** The standing line of the Advisories page: the only place the page says "secure". */
 export const STANDING_LINE: string = "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
 
 // "Waiting for you" on Advisories: Otto proposes, a person decides each one by itself. There is no button for several.
-const WAITING_NOTE: string = "Otto proposes; you decide each one by itself. Accepting adds a check to the test plan. It runs nothing.";
+const WAITING_NOTE: string = "You decide each one by itself. Accepting adds a check to the test plan. It runs nothing.";
 
 const ONE_WAITING: AdvisoriesView["waiting"] = {
   count: 1,
@@ -88,7 +88,7 @@ const FILTERS: AdvisoriesView["filters"] = {
   ],
 };
 
-const COLUMNS: string[] = ["Advisory", "Published", "Fits", "Test", "Otto's proposal", "Result here"];
+const COLUMNS: string[] = ["Advisory", "Published", "Fits", "Test", "Proposal", "Result here"];
 
 // The publisher's own line, as every advisory of the test packs quotes it.
 const QUOTE: AdvisoryQuote = {
@@ -161,15 +161,15 @@ const FIX_STEP: AdvisoryStep = {
 
 const CLAUDE_NOTE: string = "Every prompt and answer is in Otto's research ledger, with its SHA-256. What Claude writes is data: a quote must stand in the publisher's text, a design can only pick published cases, and a fix is offered only after its proof.";
 
-const CLAUDE_THREE_STEPS: AdvisoryClaude = { title: "What Otto asked Claude", steps: [READ_STEP, DESIGN_STEP, FIX_STEP], note: CLAUDE_NOTE };
+const CLAUDE_THREE_STEPS: AdvisoryClaude = { title: "What Claude was asked", steps: [READ_STEP, DESIGN_STEP, FIX_STEP], note: CLAUDE_NOTE };
 
-const CLAUDE_TWO_STEPS: AdvisoryClaude = { title: "What Otto asked Claude", steps: [READ_STEP, DESIGN_STEP], note: CLAUDE_NOTE };
+const CLAUDE_TWO_STEPS: AdvisoryClaude = { title: "What Claude was asked", steps: [READ_STEP, DESIGN_STEP], note: CLAUDE_NOTE };
 
 const NO_FIX_REASON: string = "No fix is offered: there is no test for this advisory to prove one with.";
 
 const HERE_TITLE: string = "Otto's proposed check, in this assessment";
 
-const HERE_NOTE: string = "Otto proposes; you decide for each program by itself. Accepting adds the check to the test plan and runs nothing.";
+const HERE_NOTE: string = "You decide for each program by itself. Accepting adds the check to the test plan and runs nothing.";
 
 const NO_TEST_HERE: AdvisoryRow["panel"]["here"] = { title: HERE_TITLE, rows: [], note: null, empty: "This advisory has no test, so there is nothing to run here." };
 
@@ -182,7 +182,7 @@ const NOT_IN_PLAN: AdvisoryRow["result"] = { key: "not_added", label: "Not in th
 export const CLOSED_REASON: string = "This assessment is closed. Start a new one to continue.";
 
 /** Why no decision can be recorded without Otto's harness: every button's reason there. */
-export const NO_OTTO_REASON: string = "Otto is not installed on this computer: it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the isogeny-labs/otto repository once. A decision on one of Otto's proposals is recorded in Otto's ledger, so nothing can be decided here.";
+export const NO_OTTO_REASON: string = "Otto is not installed on this computer: it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the isogeny-labs/otto repository once. A decision on a proposal is recorded in Otto's ledger, so nothing can be decided here.";
 
 const SENTENCE: string = "The program accepts a signature whose two numbers are zero or out of range.";
 
@@ -268,7 +268,7 @@ function decisionLedger(decisions: { id: string; at: string; what: string }[]): 
         kind: "Opened",
         id: "366b10921150",
         at: decisions[0]!.at,
-        what: "Proposal entry: names what Otto proposed, written with the first decision on it",
+        what: "Proposal entry: names what was proposed, written with the first decision on it",
       },
       ...decisions.flatMap((d, i) => [
         { seq: 2 + 2 * i, kind: "Recorded", id: d.id, at: d.at, what: `Decision ${i + 1}: ${d.what} by You` },
@@ -445,7 +445,7 @@ export const blankNotRun: AdvisoryRow = {
         "The test pack carries a fix for acme-sign, the library this advisory is about: update it to 1.4.3 or later.",
         "Update acme-sign to 1.4.3, which checks that both numbers of a signature are in range.",
         "Proven on public copies: this advisory's check passed and all 3 pass-or-fail tests read Passed.",
-        "For your own code (acme-sign 1.4.2): if this advisory's check fails here, Fixes shows what can be offered. A change Otto wrote is offered only when it can be proven on this computer. Where it can't be, the fix template is offered if it answers the failure; if not, Fixes lists the failure with a plain suggestion and offers no code change.",
+        "For your own code (acme-sign 1.4.2): if this advisory's check fails here, Fixes shows what can be offered. A written change is offered only when it can be proven on this computer. Where it can't be, the fix template is offered if it answers the failure; if not, Fixes lists the failure with a plain suggestion and offers no code change.",
       ],
     },
   },
@@ -862,7 +862,7 @@ const UPDATE_ONE: OttoUpdate = {
       "It adds:",
       "Blank signature accepted (CVE-2022-21449): Test ready",
       "Stops on a bad signature (CVE-2019-14853): No test yet",
-      "Nothing in a pack runs. Installing adds no check to any assessment: Otto proposes its checks on the Advisories page, and you accept or reject each one.",
+      "Nothing in a pack runs. Installing adds no check to any assessment. Its checks are proposed on the Advisories page, and you accept or reject each one.",
       ORDER_NOTE,
     ],
     confirm: "Install",
@@ -882,7 +882,7 @@ const UPDATE_TWO: OttoUpdate = {
       "It adds:",
       "Missing leading zero accepted (CVE-2024-42460): Test ready",
       "Loose length accepted (CVE-2024-42461): Not offered",
-      "Nothing in a pack runs. Installing adds no check to any assessment: Otto proposes its checks on the Advisories page, and you accept or reject each one.",
+      "Nothing in a pack runs. Installing adds no check to any assessment. Its checks are proposed on the Advisories page, and you accept or reject each one.",
       ORDER_NOTE,
     ],
     confirm: "Install",
@@ -1533,7 +1533,7 @@ export const nextStepVerify: AssessmentView["next_step"] = { page: "inventory/im
 export const nextStepAdvisories: AssessmentView["next_step"] = {
   page: "advisories",
   label: "Open advisories",
-  text: "Otto proposes 1 advisory check from the installed test packs. Accept or reject it: accepting runs nothing.",
+  text: "1 advisory check is proposed from the installed test packs. Accept or reject it: accepting runs nothing.",
 };
 
 /** After Check for updates met files it would not take: each file with the backend's one plain reason. */

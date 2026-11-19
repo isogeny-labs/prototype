@@ -137,7 +137,7 @@ def test_the_command_checks_the_file_the_pack_and_the_ledger_together(ran, tmp_p
     for words in ("Otto: Test packs: 1 in the file, each whole and with a signature that holds from a pack key you trust.",
                   "Otto: Advisory checks: 1, each with its design in its pack and its lock entry in the ledger.",
                   "Otto: Ledger: 6 entries in one unbroken chain; 1 runs, each bound to a test locked before it.",
-                  "Otto: Decisions: 1 on 1 of Otto's 2 proposals, each in the ledger with who and when, in an order the app allows.",
+                  "Otto: Decisions: 1 on 1 of the 2 proposals, each in the ledger with who and when, in an order the app allows.",
                   "Otto's own audit"):
         assert words in ok.stdout, ok.stdout
     # a pack signed by a key this computer does not trust: consistent, but not confirmed, and that is not a pass
@@ -313,7 +313,7 @@ def test_without_otto_the_command_says_the_audit_was_not_run_and_that_is_not_a_p
     outcome = evidence_otto.check_otto(evidence, {ran.pack_key})
     assert outcome.code == evidence_otto.NOT_CONFIRMED and "Otto's own audit of the ledger was not run" in outcome.problem
     assert "Otto is not installed on this computer" in outcome.problem and len(outcome.lines) == 4      # the other checks were still made
-    assert any(line.startswith("Decisions: 1 on 1 of Otto's") for line in outcome.lines)
+    assert any(line.startswith("Decisions: 1 on 1 of the") for line in outcome.lines)
 
 
 def test_the_checker_reads_the_same_signing_context_as_the_pack_builder():

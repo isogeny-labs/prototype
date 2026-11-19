@@ -572,7 +572,7 @@ class OttoMixin:
                 # Otto proposes; a person decides: every proposal of this assessment as it stands, and every accept, reject,
                 # undo and reconsider on it, each with who and when and its entry in the ledger.
                 "proposals": self.otto_proposals_evidence(plan_id),      # type: ignore[attr-defined]
-                "decisions_note": ("Otto proposes; a person decides. A decision is recorded with who and when, in this file and in the "
+                "decisions_note": ("Each proposal is decided by a person. A decision is recorded with who and when, in this file and in the "
                                    "ledger. This version has one login: whoever is at the keyboard records each decision, under the name "
                                    "shown. A decision is not a result."),
                 "note": ("The ledger binds each run of an advisory check to the test that was locked before it, and shows that the reviewer was "

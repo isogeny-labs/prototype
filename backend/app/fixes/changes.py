@@ -69,8 +69,8 @@ def _no_connect_of_ottos(state: str) -> str | None:
     if state == "accepted":
         return None
     if state == "rejected":
-        return "Otto's proposal was rejected, so its change is not added. Reconsider takes it up again."
-    return "Otto proposes this change. Accept the proposal first; accepting runs nothing."
+        return "This proposal was rejected, so its change is not added. Reconsider takes it up again."
+    return "This change is a proposal. Accept it first; accepting runs nothing."
 
 
 def _no_new_proof(fix: dict) -> str | None:

@@ -327,7 +327,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     const box = page.getByTestId("otto-install-dialog");
     await expect(box).toContainText("2026.11.1");
     await expect(box).toContainText("Nothing in a pack runs");
-    await expect(box).toContainText("Otto proposes its checks on the Advisories page, and you accept or reject each one.");
+    await expect(box).toContainText("Its checks are proposed on the Advisories page, and you accept or reject each one.");
     await expect(box.getByTestId("otto-install-confirm")).toHaveText("Install");
     await expect(box.getByTestId("otto-install-cancel")).toHaveText("Cancel");
     await shots(page, "0-02-install-update-box", { view: true });
@@ -348,7 +348,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     expect((await imported).status()).toBe(200);
     const found = page.getByTestId("import-otto");
     await expect(found).toHaveAttribute("data-count", "2");
-    await expect(found.getByTestId("import-otto-text")).toHaveText("Otto found 2 checks that may apply: 2 published weaknesses with a test, for acme-sign 1.4.2.");
+    await expect(found.getByTestId("import-otto-text")).toHaveText("2 checks may apply: 2 published weaknesses with a test, for acme-sign 1.4.2.");
     await expect(found.getByTestId("import-otto-note")).toContainText("Nothing runs on import.");
     await expect(found).toContainText("From Otto");
     await expect(found.getByRole("link", { name: "Open Advisories" })).toHaveAttribute("href", /#\/a\/\d+\/advisories$/);
@@ -360,7 +360,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
     await expect(page.getByTestId("result-row").getByTestId("result-badge")).toHaveText(["False", "True", "True"]);
     // Verify: one sentence says that Otto proposes nothing here yet
-    await expect(page.getByTestId("verify-otto-note")).toContainText("Otto has no proposals here yet.");
+    await expect(page.getByTestId("verify-otto-note")).toContainText("Nothing is proposed here yet.");
     await continueToChecks(page);
     const assessment = assessmentOf(page);
     const project = await projectOf(page, assessment);
@@ -380,7 +380,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await expect(waiting).toHaveAttribute("data-total", "2");
     await expect(waiting.getByTestId("waiting-line")).toHaveText("2 proposals from Otto wait for your decision.");
     // the next step names them before the first run: a check accepted now runs with the suggested tests
-    await expect(page.getByTestId("next-step")).toContainText("Otto proposes 2 advisory checks from the installed test packs.");
+    await expect(page.getByTestId("next-step")).toContainText("2 advisory checks are proposed from the installed test packs.");
     await expect(waiting.locator('[data-testid="waiting-item"][data-kind="check"]')).toHaveText("2 proposed checks");
     await expect(waiting.getByTestId("waiting-link")).toHaveAttribute("href", /#\/a\/\d+\/advisories$/);
     await expect(waiting.getByTestId("waiting-note")).toContainText("Otto proposes; a person decides.");
@@ -553,7 +553,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await expect(waiting).toHaveAttribute("data-total", "2");
     await expect(waiting.locator('[data-testid="waiting-item"][data-kind="fix"]')).toHaveText("1 proposed fix");
     await expect(waiting.locator('[data-testid="waiting-item"][data-kind="plan"]')).toHaveText("1 proposed change to the migration plan");
-    await expect(page.getByTestId("next-step")).toContainText("Otto proposes a fix for a failed advisory check.");
+    await expect(page.getByTestId("next-step")).toContainText("A fix is proposed for a failed advisory check.");
     await tour(page, "3-run", assessment, project);
 
     // ================================================================ 4. Otto's proposed fix: accepted, proven, approved, merged
@@ -564,8 +564,8 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await expect(proposal.getByRole("button")).toHaveText(["Accept", "Reject"]);
     // nothing can be connected before a person accepts the proposal
     await expect(fix.getByRole("button", { name: "Connect demo code" })).toBeDisabled();
-    await expect(fix).toContainText("Otto proposes this change. Accept the proposal first; accepting runs nothing.");
-    await expect(proposal.getByTestId("proposal-lines")).toContainText("What the change does, in Otto's words:");
+    await expect(fix).toContainText("This change is a proposal. Accept it first; accepting runs nothing.");
+    await expect(proposal.getByTestId("proposal-lines")).toContainText("What it changes:");
     await expect(proposal.getByTestId("proposal-lines")).toContainText("Accepting it runs nothing and changes nothing");
     await expect(fix).toContainText("Nothing is changed until you accept it and connect the code");
     await expect(page.getByTestId("fix-row").filter({ has: page.getByTestId("fix-proposal-mark") }).getByTestId("fix-proposal-status")).toHaveText("Proposed");
@@ -757,13 +757,13 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await expect(waiting.locator('[data-testid="waiting-item"][data-kind="check"]')).toHaveText("1 proposed check");
     await expect(waiting.locator('[data-testid="waiting-item"][data-kind="dependency"]')).toHaveText("1 proposed dependency update");
     const next = page.getByTestId("next-step");
-    await expect(next).toContainText("Otto proposes 1 advisory check from the installed test packs.");
+    await expect(next).toContainText("1 advisory check is proposed from the installed test packs.");
     await expect(next).toContainText("accepting runs nothing");
     await shots(page, "7-00-overview-a-new-pack-proposes");
     // Import's line is read again when Import opens: it counts the new pack's check too
     await page.goto(`/#/a/${assessment}/inventory/import`);
     await expect(page.getByTestId("import-otto").getByTestId("import-otto-text")).toHaveText(
-      "Otto found 3 checks that may apply: 3 published weaknesses with a test, for acme-sign 1.4.2.");
+      "3 checks may apply: 3 published weaknesses with a test, for acme-sign 1.4.2.");
     // the Project overview: what changed since that pack
     await page.goto(`/#/p/${project}`);
     const inProject = page.getByTestId("project-otto");
@@ -863,11 +863,11 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     const reportPage = await page.context().newPage();
     await reportPage.setViewportSize({ width: 1440, height: 900 });
     await reportPage.setContent(report, { waitUntil: "load" });
-    const table = reportPage.locator("h3", { hasText: "Otto's proposals, and the decisions on them" }).locator("xpath=following-sibling::table[1]");
+    const table = reportPage.locator("h3", { hasText: "Proposals from Otto, and the decisions on them" }).locator("xpath=following-sibling::table[1]");
     await expect(table.locator("tbody tr")).toHaveCount((part.proposals as any[]).length);
     await expect(table).toContainText(`Not added (${JAVA_REASON})`);
     await expect(table).toContainText("Accepted by You");
-    await reportPage.locator("h3", { hasText: "Otto's proposals, and the decisions on them" }).scrollIntoViewIfNeeded();
+    await reportPage.locator("h3", { hasText: "Proposals from Otto, and the decisions on them" }).scrollIntoViewIfNeeded();
     fs.mkdirSync(SHOTS, { recursive: true });
     await table.screenshot({ path: path.join(SHOTS, "8-00-report-ottos-proposals-and-decisions.png"), animations: "disabled", scale: "css" });
     await reportPage.close();
@@ -993,9 +993,9 @@ test("isolated mode: a real library's fix from Otto has two proof rows, and a re
     // what the row is about, right under its sentence: a public copy, not the system the reader runs
     await expect(here.getByTestId("proof-row-note")).toContainText("This row is about a public copy, not the system you run.");
     await expect(here.getByTestId("proof-row-note")).toContainText("The app has not checked that your own system was updated");
-    // "then press Retest": the button is on Evidence, and the row links there
-    await expect(here.getByTestId("proof-row-link")).toHaveText("Retest new version is on Evidence");
-    await expect(here.getByTestId("proof-row-link")).toHaveAttribute("href", /#\/a\/\d+\/evidence\?item=test-\d+$/);
+    // "then press Retest": the button is on Checks, under Retests by version, and the row links there
+    await expect(here.getByTestId("proof-row-link")).toHaveText("Retest new version is on Checks");
+    await expect(here.getByTestId("proof-row-link")).toHaveAttribute("href", /#\/a\/\d+\/checks\?group=encryption$/);
     // the entry for this library's other failed tests recommends the same update: each names the other
     await expect(fix).toContainText("It is one update, not two.");
     await expect(fix).not.toContainText("None. This suggestion is text only");

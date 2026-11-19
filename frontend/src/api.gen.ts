@@ -645,7 +645,7 @@ export interface AssessmentView {
    */
   blocks?: OverviewBlocks | null;
   /**
-   * Phase 5c: "Waiting for you": Otto's proposals nobody has decided yet.
+   * Phase 5c: "Waiting for you": the proposals nobody has decided yet.
    */
   waiting?: OttoWaiting | null;
 }
@@ -681,7 +681,7 @@ export interface Import {
    */
   settings?: ImportSetting[];
   /**
-   * Phase 5c: "Otto found N checks that may apply". Nothing runs on import.
+   * Phase 5c: "N checks may apply", marked From Otto. Nothing runs on import.
    */
   otto?: ImportOtto | null;
 }
@@ -712,7 +712,7 @@ export interface ImportSetting {
   text: string;
 }
 /**
- * Import: "Otto found N checks that may apply", with the way to Advisories. Nothing runs on import.
+ * Import: "N checks may apply", marked From Otto, with the way to Advisories. Nothing runs on import.
  */
 export interface ImportOtto {
   count: number;
@@ -766,7 +766,7 @@ export interface LastDownload {
   fingerprint: string;
 }
 /**
- * The Overview's "Waiting for you": Otto's proposals nobody has decided yet, each kind linking to its page.
+ * The Overview's "Waiting for you": the proposals nobody has decided yet, each kind linking to its page.
  */
 export interface OttoWaiting {
   title: string;
@@ -996,7 +996,7 @@ export interface MeasurementResult {
    */
   advisories: Advisories | null;
   /**
-   * Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result.
+   * Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result.
    */
   otto?: OttoResultBlock | null;
 }
@@ -1131,21 +1131,24 @@ export interface OttoResultDecisions {
   footnote: string;
   empty: string | null;
 }
-export interface CheckDetail {
-  check: CheckRow;
+/**
+ * The 5c fixes: one version a retest ran on, or one proof of a change, with the rows of its own runs.
+ */
+export interface CheckBlock {
   /**
-   * The newest run, worded as its page words it (null for a claim).
+   * "on-3" (the block retest 3 opened) or "proof-2".
    */
-  result: LabResult | null;
+  key: string;
   /**
-   * For a claim: its newest Verify result.
+   * "acme-sign 1.4.3", or "acme-sign 1.4.3-otto (the changed code)".
    */
-  verify: Result | null;
+  title: string;
+  line: string;
   /**
-   * Newest first.
+   * The newest block is open; older ones are folded.
    */
-  runs: CheckRun[];
-  related: RelatedLine[];
+  newest: boolean;
+  rows: CheckRow[];
 }
 export interface CheckRow {
   /**
@@ -1179,6 +1182,14 @@ export interface CheckRow {
    * Phase 5c: "From Otto" on an advisory check, with the way to its advisory.
    */
   from_otto?: CheckFromOtto | null;
+  /**
+   * The 5c fixes, in a retest's block: "tested again as it is" for a server, or a program the retest did not move.
+   */
+  mark?: string | null;
+  /**
+   * The 5c fixes: the older id of this row ("retest-12"), which still opens it while this is the newest block of its test.
+   */
+  alias?: string | null;
 }
 /**
  * Open where it started.
@@ -1242,6 +1253,22 @@ export interface CheckFromOtto {
   advisory: string;
   link: ItemLink;
 }
+export interface CheckDetail {
+  check: CheckRow;
+  /**
+   * The newest run, worded as its page words it (null for a claim).
+   */
+  result: LabResult | null;
+  /**
+   * For a claim: its newest Verify result.
+   */
+  verify: Result | null;
+  /**
+   * Newest first.
+   */
+  runs: CheckRun[];
+  related: RelatedLine[];
+}
 export interface LabResult {
   code:
     | "passed"
@@ -1295,7 +1322,7 @@ export interface LabResult {
    */
   advisories: Advisories | null;
   /**
-   * Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result.
+   * Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result.
    */
   otto?: OttoResultBlock | null;
 }
@@ -1367,10 +1394,76 @@ export interface CheckGroup {
    * Checks of another group linked from this group's foot ("Also relates to this group").
    */
   also?: SameMeasurement[];
+  /**
+   * The 5c fixes: set on the Encryption tests group only.
+   */
+  parts?: EncryptionParts | null;
 }
 export interface StartedOn {
   label: string;
   page: string;
+}
+/**
+ * The 5c fixes: Checks shows the Encryption tests group in four parts. A run shows in one part only.
+ */
+export interface EncryptionParts {
+  plan: CheckPart;
+  retests: CheckPart1;
+  proofs: CheckPart1;
+  /**
+   * Only when a server change was tried on a test copy.
+   */
+  tries: CheckPart1 | null;
+}
+/**
+ * The test plan itself (drawn from the plan view); its heading names the version the file names.
+ */
+export interface CheckPart {
+  key: "plan" | "retests" | "proofs" | "tries";
+  label: string;
+  count: number;
+  /**
+   * "8 tests", "1 version", "2 proofs", "1 try".
+   */
+  count_label: string;
+  note: string | null;
+  /**
+   * Set when the part has nothing yet: "No retest yet. ..."
+   */
+  empty_text: string | null;
+  /**
+   * Retests by version and Fix proofs: one block for each version, or each proof.
+   */
+  blocks: CheckBlock[];
+  /**
+   * Tries on a test copy: a plain list.
+   */
+  rows: CheckRow[];
+}
+/**
+ * The 5c fixes: one labelled, foldable part of the Encryption tests group on Checks, with its count.
+ */
+export interface CheckPart1 {
+  key: "plan" | "retests" | "proofs" | "tries";
+  label: string;
+  count: number;
+  /**
+   * "8 tests", "1 version", "2 proofs", "1 try".
+   */
+  count_label: string;
+  note: string | null;
+  /**
+   * Set when the part has nothing yet: "No retest yet. ..."
+   */
+  empty_text: string | null;
+  /**
+   * Retests by version and Fix proofs: one block for each version, or each proof.
+   */
+  blocks: CheckBlock[];
+  /**
+   * Tries on a test copy: a plain list.
+   */
+  rows: CheckRow[];
 }
 export interface ChecksView {
   plan_id: number;
@@ -1654,7 +1747,7 @@ export interface DependencyRow {
    */
   advisories?: DependencyAdvisory[];
   /**
-   * Phase 5c: Otto's proposals to change this library's status.
+   * Phase 5c: the proposals to change this library's status.
    */
   otto_proposals?: OttoProposal[];
   /**
@@ -2936,7 +3029,7 @@ export interface VerifyRun {
   finished_at: string;
   results: Result[];
   /**
-   * Phase 5c: one sentence. Verify is unchanged and Otto proposes nothing on it yet.
+   * Phase 5c: one sentence. Verify is unchanged and nothing is proposed on it yet.
    */
   otto_note?: string;
 }

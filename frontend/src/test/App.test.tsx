@@ -662,7 +662,7 @@ describe("Migration pages", () => {
     const found = (count: number) => ({
       count,
       label: "From Otto",
-      text: `Otto found ${count} checks that may apply: ${count} published weaknesses with a test, for acme-sign 1.4.2.`,
+      text: `${count} checks may apply: ${count} published weaknesses with a test, for acme-sign 1.4.2.`,
       note: "Nothing runs on import. You accept or reject each proposed check on Advisories.",
       link: { page: "advisories", item: null },
       link_label: "Open Advisories",
@@ -679,13 +679,13 @@ describe("Migration pages", () => {
       }),
     );
     render(<App />);
-    expect(text(await screen.findByTestId("import-otto-text"))).toContain("Otto found 2 checks");
+    expect(text(await screen.findByTestId("import-otto-text"))).toContain("2 checks may apply");
     await waitFor(() => expect(reads).toBe(2));
     // Leave Import and come back: the line is read again and now counts three. Only reads were made.
     window.location.hash = "#/a/101/checks";
     await waitFor(() => expect(screen.queryByTestId("import-otto")).toBeNull());
     window.location.hash = "#/a/101/inventory/import";
-    await waitFor(() => expect(text(screen.getByTestId("import-otto-text"))).toContain("Otto found 3 checks"));
+    await waitFor(() => expect(text(screen.getByTestId("import-otto-text"))).toContain("3 checks may apply"));
     expect(calls(fetchMock).filter((c) => !c.startsWith("GET"))).toEqual([]);
   });
 });

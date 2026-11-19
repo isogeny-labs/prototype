@@ -83,7 +83,7 @@ def test_the_page_lists_every_advisory_of_the_installed_packs(otto_lab):
     assert panel["fix"]["label"] == "From Otto" and panel["fix"]["state"] == "proven" and panel["related_key"] == "advisory:CVE-2022-21449"
     assert [s["source"] for s in panel["claude"]["steps"]] == ["recorded", "recorded", "recorded"]
     assert view["waiting"]["count"] == 1 and view["waiting"]["blocked_reason"] is None and "1 proposed check waits" in view["waiting"]["line"]
-    assert view["columns"] == ["Advisory", "Published", "Fits", "Test", "Otto's proposal", "Result here"]
+    assert view["columns"] == ["Advisory", "Published", "Fits", "Test", "Proposal", "Result here"]
     assert view["standing_line"] == "Passing these tests doesn't prove a system secure. It shows these specific checks passed."
     assert view["answers_line"] == "Answers written for a test, 17 November 2026" and view["otto"]["installed"] is True
     shown = [t for t in _texts(view) if t != view["standing_line"]]

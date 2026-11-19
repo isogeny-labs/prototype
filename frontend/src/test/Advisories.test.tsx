@@ -949,7 +949,7 @@ describe("Advisories, an advisory's panel", () => {
     // Not in the samples (their advisories have neither): the fields are filled in here to see them drawn.
     const said = {
       title: "Otto's notes on reading it",
-      kind_line: "Kind of weakness, as Otto recorded it: the affected software accepts a signature it must reject, when checking ECDSA signatures.",
+      kind_line: "Kind of weakness, as recorded: the affected software accepts a signature it must reject, when checking ECDSA signatures.",
       text: "The publisher lists Java 15 to 18 as affected.",
       caption: "Claude's words from reading the advisory (Recorded during the build, not through the API). Information, not a result.",
     };

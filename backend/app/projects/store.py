@@ -271,25 +271,25 @@ class ProjectsMixin:
         # (before the first run, on purpose: a check accepted now runs with the suggested tests, in one go)
         if new_checks:
             return {"page": "advisories", "label": "Open advisories",
-                    "text": (f"Otto proposes {new_checks} advisory {'check' if new_checks == 1 else 'checks'} from the installed test packs. "
-                             f"Accept or reject {'it' if new_checks == 1 else 'each one'}: accepting runs nothing.")}
+                    "text": (f"{new_checks} advisory {'check is' if new_checks == 1 else 'checks are'} proposed from the installed test "
+                             f"packs. Accept or reject {'it' if new_checks == 1 else 'each one'}: accepting runs nothing.")}
         if counts["tests"] is None:
             return {"page": "checks", "label": "Open checks",
                     "text": "Run the suggested tests on what the file names. The test plan is on Checks."}
         if waiting.get("fix"):
             n = int(waiting["fix"])
             return {"page": "fixes", "label": "Open fixes",
-                    "text": (f"Otto proposes {'a fix' if n == 1 else f'{n} fixes'} for a failed advisory check. Accept or reject "
+                    "text": (f"{'A fix is' if n == 1 else f'{n} fixes are'} proposed for a failed advisory check. Accept or reject "
                              f"{'it' if n == 1 else 'each one'}: accepting runs nothing.")}
         if counts["fixes"] and counts["fixes"]["open"]:
             return {"page": "fixes", "label": "Open fixes",
                     "text": "Some failed tests or migration steps have a suggested fix waiting."}
         if waiting.get("plan"):
             return {"page": "migration/systems", "label": "Open migration",
-                    "text": "Otto proposes a change to the migration plan, from a result. Accept or reject it: accepting changes no system."}
+                    "text": "A change to the migration plan is proposed, from a result. Accept or reject it: accepting changes no system."}
         if waiting.get("dependency"):
             return {"page": "migration/dependencies", "label": "Open dependencies",
-                    "text": "Otto proposes an update for a library that a published advisory names. Accept or reject it: accepting runs nothing."}
+                    "text": "An update is proposed for a library that a published advisory names. Accept or reject it: accepting runs nothing."}
         if not (summary and summary.get("has_migration")):
             return {"page": "migration/systems", "label": "Open migration",
                     "text": "Measure where each system stands on the move to post-quantum cryptography."}

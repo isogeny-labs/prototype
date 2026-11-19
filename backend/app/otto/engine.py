@@ -81,7 +81,7 @@ class OttoEngine:
             proposal, note = self._otto_change(question, int(asking["plan_id"]), failed, first["advisory"], connect)
         except model.ModelError as exc:
             if connect:
-                raise OttoCouldNot(f"Otto could not write the change: {exc}") from None
+                raise OttoCouldNot(f"The change could not be written: {exc}") from None
             proposal, note = None, str(exc)
         if proposal is not None:
             return proposal
@@ -134,9 +134,9 @@ class OttoEngine:
             change = self._usable(answer, component, files, len(failed))
         except fixes.Refused as exc:
             if asked_now:   # the person asked for Otto's change and there is none to connect: say so, connect nothing
-                raise OttoCouldNot(f"Otto's change could not be used: {exc}") from None
+                raise OttoCouldNot(f"The written change could not be used: {exc}") from None
             # The page already said this and offered the fix template in its place, so that is what is connected.
-            return None, f"Otto wrote one, but it could not be used: {exc}"
+            return None, f"One was written, but it could not be used: {exc}"
         about.update(source=source, how=how, step_id=step_id, answer_sha256=model.sha256_text(answer), title=change["title"],
                      summary=change["summary"], pending=False)
         return {"template_id": key, "title": change["title"], "branch": "fix/" + key, "label": fixes.LABEL,

@@ -1126,7 +1126,7 @@ def _otto_html(otto: dict | None) -> list:
     proposals = otto.get("proposals") or []
     if proposals:
         words = {"accept": "Accepted", "reject": "Rejected", "undo": "Accept undone", "reconsider": "Taken up again"}
-        parts.append(el("h3", t("Otto's proposals, and the decisions on them")))
+        parts.append(el("h3", t("Proposals from Otto, and the decisions on them")))
         parts.append(el("p", t(otto.get("decisions_note")), cls="note"))
         rows = []
         for p in proposals:
@@ -1137,7 +1137,7 @@ def _otto_html(otto: dict | None) -> list:
                            # (word cells: a narrow column wraps between words, never inside "check" or "dependency")
                            el("td", t(p.get("kind")), cls="words"), el("td", t(p.get("status")), cls="words"),
                            el("td", el("ul", *decisions, cls="meta") if decisions else t("Nobody has decided this yet."), cls="words")))
-        parts.append(el("table", el("thead", el("tr", el("th", t("What Otto proposed"), cls="words"), el("th", t("Kind"), cls="words"),
+        parts.append(el("table", el("thead", el("tr", el("th", t("What was proposed"), cls="words"), el("th", t("Kind"), cls="words"),
                                                  el("th", t("Stands"), cls="words"), el("th", t("Decisions"), cls="words"))),
                         el("tbody", *rows)))
     parts.append(el("p", t("To check the packs' signatures and the ledger together with the file's own signature: " + VERIFY_COMMAND), cls="note"))

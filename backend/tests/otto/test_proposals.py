@@ -217,7 +217,7 @@ def test_the_buttons_follow_the_state_and_say_why_when_they_are_off():
     rejected = present_otto.proposal_view(_stands("fix", [_Row(1, "reject", "proposed", "rejected", "Not this quarter")]))
     assert rejected["status"] == {"key": "rejected", "word": "Not added (Not this quarter)", "tone": "neutral"}
     assert rejected["decided_line"] == "Rejected by You on 18 November 2026, 10:02 UTC. Reason: Not this quarter"
-    assert [b["key"] for b in rejected["buttons"]] == ["reconsider"] and rejected["why_label"] == "Why Otto proposes it"
+    assert [b["key"] for b in rejected["buttons"]] == ["reconsider"] and rejected["why_label"] == "Why it is proposed"
     no_reason = present_otto.proposal_view(_stands("plan", [_Row(1, "reject", "proposed", "rejected")]))
     assert no_reason["status"]["word"] == "Not added (no reason given)" and "No reason was given." in no_reason["decided_line"]
 
@@ -255,16 +255,16 @@ def test_the_waiting_line_counts_each_kind_and_links_to_the_page_it_lives_on():
     assert one["line"] == "1 proposal from Otto waits for your decision." and one["items"][0]["link"]["page"] == "migration/systems"
     none = present_otto.waiting_view({})
     assert none["total"] == 0 and none["items"] == [] and none["line"] == "Nothing from Otto is waiting for a decision."
-    assert "a person decides" in none["note"]
+    assert "decided by a person" in none["note"]
 
 
 def test_imports_line_counts_checks_that_may_apply_and_says_nothing_runs():
     found = present_otto.found_line(packs=1, ready=2, programs=["acme-sign 1.4.2"])
     assert found["count"] == 2 and found["label"] == "From Otto" and found["link"] == {"page": "advisories", "item": None}
-    assert found["text"] == "Otto found 2 checks that may apply: 2 published weaknesses with a test, for acme-sign 1.4.2."
+    assert found["text"] == "2 checks may apply: 2 published weaknesses with a test, for acme-sign 1.4.2."
     assert "Nothing runs on import" in found["note"] and found["link_label"] == "Open Advisories"
     one = present_otto.found_line(packs=2, ready=1, programs=["one 1.0"])
-    assert one["text"].startswith("Otto found 1 check that may apply: 1 published weakness with a test")
+    assert one["text"].startswith("1 check may apply: 1 published weakness with a test")
     assert present_otto.found_line(packs=0, ready=0, programs=["x 1"])["link"]["page"] == "settings"
     assert "no signing program in this file" in present_otto.found_line(packs=1, ready=2, programs=[])["text"]
     assert "has a test yet" in present_otto.found_line(packs=1, ready=0, programs=["x 1"])["text"]
@@ -528,7 +528,7 @@ def test_an_entry_the_checker_did_not_accept_is_an_attempt_and_not_a_decision(la
     outcome = evidence_otto.check_otto(evidence, set())
     said = " ".join(outcome.lines)
     assert outcome.code != evidence_otto.FAILED, outcome.problem
-    assert "Decisions: 1 on 1 of Otto's" in said and "1 attempted entry for a decision that the pinned checker did not accept" in said
+    assert "Decisions: 1 on 1 of the" in said and "1 attempted entry for a decision that the pinned checker did not accept" in said
     # but it can't be passed off as a decision in the file
     forged = json.loads(json.dumps(evidence))
     target = next(p for p in forged["otto"]["proposals"] if p["id"] == second["id"])
@@ -582,7 +582,7 @@ def test_a_rejected_proposal_alone_is_in_the_evidence_with_its_reason(lab):
     assert rejected["decisions"][0]["reason"] == "Out of scope for this review" and rejected["decisions"][0]["by"] == "You"
     from evidence import otto as evidence_otto
     outcome = evidence_otto.check_otto(evidence, set())
-    assert outcome.code == evidence_otto.OK and any(line.startswith("Decisions: 1 on 1 of Otto's 2 proposals") for line in outcome.lines)
+    assert outcome.code == evidence_otto.OK and any(line.startswith("Decisions: 1 on 1 of the 2 proposals") for line in outcome.lines)
     report = lab.evidence_file(lab.export_evidence(plan_id)["id"], "html")[1].decode()
     assert "Rejected by You" in report and "Out of scope for this review" in report and "Not added (Out of scope for this review)" in report
 
@@ -603,3 +603,51 @@ def test_the_project_overview_counts_what_waits_and_what_changed_since_the_newes
     assert row["waiting"] == 0 and row["waiting_text"] == "Nothing waiting"
     assert row["since"] == ["It brought 2 proposed checks for this assessment: 1 added, 1 not added.", "2 decisions recorded since."]
     assert not any(word in json.dumps(block).lower() for word in BANNED)
+
+
+# ---------------------------------------------------------------- the 5c fixes: sentences were reworded (19 November 2026)
+
+@pytest.mark.needs_otto
+def test_a_decision_recorded_on_an_earlier_wording_keeps_the_copy_and_the_fingerprint_it_was_made_on(lab, monkeypatch):
+    """The 5c fixes reworded what a proposal says (no sentence says what Otto did). A decision recorded before that was
+    made on the proposal as it read then: it keeps that copy and that SHA-256, in the database, in the ledger and in
+    the evidence, and the proposal still stands where that decision left it. Nothing recorded is rewritten."""
+    plan_id = lab.plan.id
+    earlier = "Otto proposes to add this to the test plan, as something to run."      # a sentence of the kind the 5c build wrote
+    real = proposals.make
+
+    def as_it_read_then(kind, pid, *, lines, **more):
+        return real(kind, pid, lines=[*lines, earlier], **more)
+    monkeypatch.setattr(proposals, "make", as_it_read_then)
+    then = helpers.check_proposals(lab, plan_id)[0]
+    assert earlier in then["lines"]
+    lab.otto_decide(plan_id, then["id"], "accept")
+
+    monkeypatch.setattr(proposals, "make", real)                # the app is updated: the sentence is gone from what is proposed
+    now = lab.otto_proposal(plan_id, then["id"])
+    assert earlier not in now["lines"] and now["fingerprint"] != then["fingerprint"]
+    assert now["state"] == "accepted" and now["current"] is True and present_otto.proposal_view(now)["status"]["word"] == "Added"
+    first = now["decisions"][0]
+    assert first["proposal_sha256"] == then["fingerprint"] and earlier in first["proposal"]["lines"]
+    assert proposals.sha256_hex(first["proposal"]) == then["fingerprint"]
+    with lab.db() as db:
+        row = db.scalars(select(OttoDecisionRow).where(OttoDecisionRow.plan_id == plan_id)).one()
+        assert row.proposal == first["proposal"] and row.proposal_sha256 == then["fingerprint"]
+
+    # a later decision is made on the proposal as it reads now; the earlier one is not touched
+    lab.otto_decide(plan_id, then["id"], "undo")
+    both = lab.otto_proposal(plan_id, then["id"])["decisions"]
+    assert [d["proposal_sha256"] for d in both] == [then["fingerprint"], now["fingerprint"]]
+    assert earlier in both[0]["proposal"]["lines"] and earlier not in both[1]["proposal"]["lines"]
+
+    # the signed evidence holds both copies, and the verify command takes the file
+    lab.verify(lab.plan.imp["id"])
+    made = lab.export_evidence(plan_id)
+    evidence = json.loads(lab.evidence_file(made["id"], "json")[1])["evidence"]
+    listed = next(p for p in evidence["otto"]["proposals"] if p["id"] == then["id"])
+    assert [d["proposal_sha256"] for d in listed["decisions"]] == [then["fingerprint"], now["fingerprint"]]
+    assert earlier in listed["decisions"][0]["proposal"]["lines"] and earlier not in listed["lines"]
+    from evidence import otto as evidence_otto
+    outcome = evidence_otto.check_otto(evidence, set())
+    assert outcome.code in (evidence_otto.OK, evidence_otto.NOT_CONFIRMED), outcome.lines
+    assert any(line.startswith("Decisions: 2 on 1 of the 2 proposals") for line in outcome.lines)

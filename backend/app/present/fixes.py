@@ -238,15 +238,15 @@ def _otto_words(name: str, version: str | None, size: str, otto: dict) -> dict:
     summary (Claude's words, checked for plain text), and where the answer came from."""
     advisory = f"{otto['advisory']} ({otto.get('plain_name') or 'an advisory'})"
     if otto.get("pending"):
-        waiting = [_t("Live Otto is on. When you connect the code, Otto asks Claude to write a change for "), _m(otto["advisory"]),
+        waiting = [_t("Live Otto is on. When you connect the code, Claude is asked to write a change for "), _m(otto["advisory"]),
                    _t(" in "), _m(name),
                    _t("'s code. That sends this program's source file and the cases it got wrong to Claude, through your key and within "
                       "the spending limit. The answer is used only if it is a clean change that gives one of our bundled demo components "
                       "byte for byte, because only those can run in this version. Otherwise it is refused and nothing is connected, "
                       "although the request was still made on your key; where the fix template answers the failure, Fixes then offers "
-                      "it in Otto's place and says why. A change that is used is offered only after its proof: " + PROOF_RULE + ".")]
+                      "the template instead and says why. A change that is used is offered only after its proof: " + PROOF_RULE + ".")]
         return {"title": f"{name}: a change for {otto['advisory']}", "available": waiting, "changes": waiting, "fixes": waiting,
-                "intro": "Otto has not written this change yet."}
+                "intro": "This change is not written yet."}
     summary = str(otto.get("summary") or "").rstrip()
     # The registry's name for the program the change gives ("acme-sign 1.4.3-otto"). The program's own version line may
     # read differently, so this is never worded as what the program "reports".
@@ -255,9 +255,9 @@ def _otto_words(name: str, version: str | None, size: str, otto: dict) -> dict:
     return {
         "title": f"{name}: {otto.get('title') or 'a change written by Otto'}",
         # Claude's summary is written as if the change were in ("now rejects"): before a proof it is said as what the change would do
-        "available": [_t(f"Otto wrote a change for {advisory}. What it would change, in Otto's words: {summary} "
-                         "Nothing is changed until you accept it and connect the code: the change then goes on a branch and is proven.")],
-        "changes": [_t(f"For {advisory}. What it changes, in Otto's words: {summary}{registered} {size}.")],
+        "available": [_t(f"A change was written for {advisory}. What it would change: {summary} "
+                         "Nothing is changed until you accept it and connect the code. The change then goes on a branch and is proven.")],
+        "changes": [_t(f"For {advisory}. What it changes: {summary}{registered} {size}.")],
         "fixes": [_t(f"For {advisory}: {summary} The proof's tests show it: {PROOF_RULE}.{registered} {size}.")],
         "intro": (f"Written by Otto for {advisory}. Claude wrote these lines from the advisory, the cases the program got wrong and the "
                   f"program's source ({where}). What Claude writes is data: the app applied it to a copy of the code on a branch, and it "
@@ -816,7 +816,7 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         o = fix["otto_fix"]
         if o["kind"] == "update":
             quote = o.get("quote") or {}
-            lines = [f"Otto proposes: update {o['library']} to {o['version']} or later. {o['summary']}"]
+            lines = [f"Proposed: update {o['library']} to {o['version']} or later. {o['summary']}"]
             if quote.get("text"):
                 lines.append(f"The publisher's own line: \u2018{quote['text']}\u2019 ({quote.get('source')}, read on {quote.get('read_on')}).")
             # Whether it is proven is said once, in the two proof rows of the summary (public copies, your system).
@@ -825,13 +825,13 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
                          "the same locked tests on the updated version.")
             proof_rows = o.get("rows")
             words = {"title": f"Update {o['library']} to {o['version']}",
-                     "line": "Otto's proposed fix, with its two proof rows",
+                     "line": "The proposed fix, with its two proof rows",
                      "what": (f"From Otto, for advisory {o['advisory']}: update the library to the version its publisher names as fixed. "
                               "This is other people's code: the app offers no code change and no pull request for it."),
                      "suggestion": {"intro": lines, "warning": None, "where": None, "options": None, "exact": None}}
         else:
-            words = {"title": f"{titles[0]}: {_lower(result['label'])}", "line": "What Otto can say about a fix",
-                     "what": f"Otto has no fix to propose for advisory {o['advisory']}. {o['reason']}",
+            words = {"title": f"{titles[0]}: {_lower(result['label'])}", "line": "What can be said about a fix",
+                     "what": f"No fix is proposed for advisory {o['advisory']}. {o['reason']}",
                      "suggestion": {"intro": [result["suggested_fix"] or o["reason"]], "warning": None, "where": None, "options": None, "exact": None}}
         approves = "Whoever looks after this software, outside this app."
     elif fix.get("real_library"):
@@ -930,7 +930,7 @@ def link_same_updates(pairs: list[tuple[dict, dict]]) -> None:
                 continue
             shown["what"]["paragraphs"].append([_t(f"The same update is recommended by the entry “{other_shown['title']}” in this list, "
                                                    "for the other failed tests on this library. It is one update, not two.")])
-            other_shown["what"]["paragraphs"].append([_t(f"Otto proposes the same update for the advisory check that failed on this "
+            other_shown["what"]["paragraphs"].append([_t(f"The same update is proposed for the advisory check that failed on this "
                                                          f"library: “{shown['title']}” in this list. It is one update, not two.")])
 
 

@@ -123,7 +123,7 @@ class Import(Shape):
         default=None,
         description="Settings rows the file carries (not claims: nothing checks them). Optional: older stored answers may lack it.",
     )
-    otto: "ImportOtto | None" = Field(default=None, description='Phase 5c: "Otto found N checks that may apply". Nothing runs on import.')
+    otto: "ImportOtto | None" = Field(default=None, description='Phase 5c: "N checks may apply", marked From Otto. Nothing runs on import.')
 
 
 class ImportSetting(Shape):
@@ -162,7 +162,7 @@ class VerifyRun(Shape):
     started_at: str
     finished_at: str
     results: list[Result]
-    otto_note: str = Field(default="", description="Phase 5c: one sentence. Verify is unchanged and Otto proposes nothing on it yet.")
+    otto_note: str = Field(default="", description="Phase 5c: one sentence. Verify is unchanged and nothing is proposed on it yet.")
 
 
 # ---- Phase 2: test plan and Evidence Lab. All wording comes from the backend. ----
@@ -432,7 +432,7 @@ class LabResult(Badge):
     otto: OttoResultBlock | None = Field(
         default=None,
         description="Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, "
-                    "the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result.",
+                    "the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result.",
     )
 
 
@@ -1380,7 +1380,7 @@ class DependencyRow(Shape):
     measurement: DependencyMeasurement | None
     job: RowStatus | None
     advisories: list["DependencyAdvisory"] = Field(default_factory=list, description='Phase 5c: "Named by advisory X: ..." lines.')
-    otto_proposals: list["OttoProposal"] = Field(default_factory=list, description="Phase 5c: Otto's proposals to change this library's status.")
+    otto_proposals: list["OttoProposal"] = Field(default_factory=list, description="Phase 5c: the proposals to change this library's status.")
     otto_status: "DependencyOttoStatus | None" = Field(default=None, description="Phase 5c: the status a person accepted.")
 
 
@@ -1580,7 +1580,7 @@ class AssessmentView(AssessmentBrief):
     counts: AssessmentCounts
     next_step: NextStep
     blocks: "OverviewBlocks | None" = Field(default=None, description="Phase 5b: the Overview's blocks (null before a file).")
-    waiting: "OttoWaiting | None" = Field(default=None, description='Phase 5c: "Waiting for you": Otto\'s proposals nobody has decided yet.')
+    waiting: "OttoWaiting | None" = Field(default=None, description='Phase 5c: "Waiting for you": the proposals nobody has decided yet.')
 
 
 # ---- Phase 5b: one connected assessment. Every word comes from the page each item lives on. ----
@@ -1721,11 +1721,44 @@ class CheckRow(Shape):
     same_as: list[SameMeasurement] = Field(default_factory=list,
                                            description="Phase 5b: the same measurement made elsewhere (decisions 3 and 4); each keeps its own run.")
     from_otto: "CheckFromOtto | None" = Field(default=None, description='Phase 5c: "From Otto" on an advisory check, with the way to its advisory.')
+    mark: str | None = Field(default=None, description='The 5c fixes, in a retest\'s block: "tested again as it is" for a server, or a '
+                                                       "program the retest did not move.")
+    alias: str | None = Field(default=None, description='The 5c fixes: the older id of this row ("retest-12"), which still opens it '
+                                                        "while this is the newest block of its test.")
 
 
 class StartedOn(Shape):
     label: str
     page: str
+
+
+class CheckBlock(Shape):
+    """The 5c fixes: one version a retest ran on, or one proof of a change, with the rows of its own runs."""
+    key: str = Field(description='"on-3" (the block retest 3 opened) or "proof-2".')
+    title: str = Field(description='"acme-sign 1.4.3", or "acme-sign 1.4.3-otto (the changed code)".')
+    line: str
+    newest: bool = Field(description="The newest block is open; older ones are folded.")
+    rows: list[CheckRow]
+
+
+class CheckPart(Shape):
+    """The 5c fixes: one labelled, foldable part of the Encryption tests group on Checks, with its count."""
+    key: Literal["plan", "retests", "proofs", "tries"]
+    label: str
+    count: int
+    count_label: str = Field(description='"8 tests", "1 version", "2 proofs", "1 try".')
+    note: str | None
+    empty_text: str | None = Field(description='Set when the part has nothing yet: "No retest yet. ..."')
+    blocks: list[CheckBlock] = Field(description="Retests by version and Fix proofs: one block for each version, or each proof.")
+    rows: list[CheckRow] = Field(description="Tries on a test copy: a plain list.")
+
+
+class EncryptionParts(Shape):
+    """The 5c fixes: Checks shows the Encryption tests group in four parts. A run shows in one part only."""
+    plan: CheckPart = Field(description="The test plan itself (drawn from the plan view); its heading names the version the file names.")
+    retests: CheckPart
+    proofs: CheckPart
+    tries: CheckPart | None = Field(description="Only when a server change was tried on a test copy.")
 
 
 class CheckGroup(Shape):
@@ -1739,6 +1772,7 @@ class CheckGroup(Shape):
     rows: list[CheckRow]
     also: list[SameMeasurement] = Field(default_factory=list,
                                         description="Checks of another group linked from this group's foot (\"Also relates to this group\").")
+    parts: "EncryptionParts | None" = Field(default=None, description="The 5c fixes: set on the Encryption tests group only.")
 
 
 class LibraryEvidenceRow(Shape):
@@ -2261,7 +2295,7 @@ class OttoWaitingItem(Shape):
 
 
 class OttoWaiting(Shape):
-    """The Overview's "Waiting for you": Otto's proposals nobody has decided yet, each kind linking to its page."""
+    """The Overview's "Waiting for you": the proposals nobody has decided yet, each kind linking to its page."""
 
     title: str
     total: int
@@ -2308,7 +2342,7 @@ class OttoProjectBlock(Shape):
 
 
 class ImportOtto(Shape):
-    """Import: "Otto found N checks that may apply", with the way to Advisories. Nothing runs on import."""
+    """Import: "N checks may apply", marked From Otto, with the way to Advisories. Nothing runs on import."""
 
     count: int
     label: str

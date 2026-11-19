@@ -44,11 +44,12 @@ STEPS = {("proposed", "accept"): "accepted", ("proposed", "reject"): "rejected",
          ("accepted", "undo"): "proposed", ("rejected", "reconsider"): "proposed"}
 HOME = {"check": "advisories", "fix": "fixes", "plan": "migration/systems", "dependency": "migration/dependencies"}
 MAX_REASON = 300
-NO_OTTO_TAIL = " A decision on one of Otto's proposals is recorded in Otto's ledger, so nothing can be decided here."
+NO_OTTO_TAIL = " A decision on a proposal is recorded in Otto's ledger, so nothing can be decided here."
 CLOSED = "This assessment is closed. Start a new one to continue."
-NOT_CURRENT = "Otto no longer proposes this here: what it was about has changed since. It stays on the record."
+NOT_CURRENT = "This is no longer proposed here: what it was about has changed since. It stays on the record."
 LEGACY = "This check was added before decisions were recorded, so there is no accept to undo."
-DONE = "A newer result of this check has passed since, so this stays on the record as it is."
+DONE = "The check has passed since, so this can't be undone."
+DONE_REJECTED = "The check has passed since, so this can't be taken up again."
 
 
 def now_stamp() -> str:
@@ -253,7 +254,7 @@ class ProposalsMixin:
                 advisory = f"{otto['advisory']} ({otto.get('plain_name') or 'an advisory'})"
                 if otto.get("pending"):
                     title = f"Have Otto write a change for {otto['advisory']} in {component['name']}"
-                    lines = ["Live Otto is on: nothing is written yet. When you connect the code, Otto asks Claude to write the change, once, "
+                    lines = ["Live Otto is on: nothing is written yet. When you connect the code, Claude is asked to write the change, once, "
                              "within the spending limit.",
                              "What that click sends: the advisory text, the source file of the failing program and the cases it got wrong.",
                              "An answer that is not, byte for byte, one of our registered demo programs is refused."]
@@ -261,7 +262,7 @@ class ProposalsMixin:
                     title = f"{otto.get('title') or 'A change written by Otto'} ({component['name']})"
                     # (These lines stay on the card after the change is connected and merged, so they say what the change
                     # does and what Accept does, and nothing about where things stand: the card's own status line says that.)
-                    lines = ["What the change does, in Otto's words: " + str(otto.get("summary") or "").strip(),
+                    lines = ["What it changes: " + str(otto.get("summary") or "").strip(),
                              "Written by Otto. Accepting it runs nothing and changes nothing: you then connect the code, and the proof "
                              "reruns every locked test on the changed code before anything is offered for review."]
                 out.append(make("fix", code_fix_id(fix["id"][4:] if fix["id"].startswith("fix-") else fix["id"]), title=title,
@@ -345,8 +346,9 @@ class ProposalsMixin:
                 title=f"Fix {system['name']} before its signatures move to post-quantum",
                 why=(f"{program} gave the wrong answer on {counted} of the kind {advisory['id']} describes "
                      f"({advisory.get('plain_name') or 'an advisory'}). Moving a program that checks signatures wrongly carries the fault along."),
-                lines=["Otto proposes to add this to the migration plan, on the Signatures track, as something to fix first.",
-                       "Accepting changes nothing on any system and runs nothing. It is taken off again when a newer result of this check passes."],
+                lines=["Proposed for the migration plan: something to fix first, on the Signatures track.",
+                       "Accepting changes nothing on any system and runs nothing.",
+                       "When a newer result of this check passes, it comes off the to-do list. It stays in the history."],
                 about={"system": system["key"], "track": "signatures", "advisory": advisory["id"], "program": program, "item": item_id,
                        "run": result["run_id"], "fix": fix["id"] if fix else None},
                 proposed_at=run.finished_at if run is not None else None, item=system["key"],
@@ -434,7 +436,7 @@ class ProposalsMixin:
                          f"publisher names {fix['version']} as the fixed version."),
                     lines=[str(fix.get("summary") or ""), public["line"],
                            _later_line(rows_by_key.get(row_key), str(fix["version"])),
-                           "Otto proposes to mark this library “update first”. Accepting changes nothing on any system and runs nothing."],
+                           "Proposed: mark this library “update first”. Accepting changes nothing on any system and runs nothing."],
                     about={"library": n["library"], "version": n["version"], "fixed": fix["version"], "advisory": n["advisory"],
                            "pack": n["pack"], "public_copies": fix.get("state")},
                     proposed_at=(state or {}).get("list", {}).get("at"), item=n["row"],
@@ -518,7 +520,7 @@ class ProposalsMixin:
         elif state == "accepted":
             actions["undo"] = blocked or (LEGACY if legacy else None) or gone or self._otto_locked(proposal)
         else:
-            actions["reconsider"] = blocked or gone or (DONE if proposal["facts"].get("done") else None)
+            actions["reconsider"] = blocked or gone or (DONE_REJECTED if proposal["facts"].get("done") else None)
         history = [{"number": r.number, "decision": r.decision, "by": r.by, "at": r.at, "reason": r.reason, "before": r.before, "after": r.after,
                     "proposal_sha256": r.proposal_sha256, "ledger_entry": r.claim_id, "proposal": r.proposal} for r in rows]
         return {**proposal, "fingerprint": fingerprint(proposal), "state": state, "legacy": legacy, "actions": actions, "decisions": history,
@@ -765,8 +767,8 @@ class ProposalsMixin:
         proposal_id = check_id(check.advisory_id, check.design_sha256, str((spec.get("target") or {}).get("claim")))
         if self._otto_state(db, check.plan_id, proposal_id) != "accepted":
             return None
-        return ("This check came from one of Otto's proposals. Until it has run, Undo on Advisories takes it out of the test plan; "
-                "once it has run, it stays.")
+        return ("This check came from an accepted proposal. Until it has run, Undo on Advisories takes it out of the test plan. "
+                "Once it has run, it stays.")
 
 
 def _kind_of_id(proposal_id: str) -> str | None:

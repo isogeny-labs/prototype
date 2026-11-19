@@ -66,7 +66,7 @@ const overview: ProjectOverview = {
  * since the newest test pack was installed. */
 const OTTO: OttoProjectBlock = {
   title: "Otto in this project",
-  note: "Otto proposes; a person decides. The counts below repeat what each assessment's own pages say.",
+  note: "Each proposal is decided by a person. The counts below repeat what each assessment's own pages say.",
   pack_line: "Newest test pack: 2026.11.2, installed on 18 November 2026, 10:02 UTC.",
   since_title: "What changed since pack 2026.11.2",
   rows: [
@@ -90,7 +90,7 @@ const OTTO: OttoProjectBlock = {
 };
 const OTTO_NO_PACK: OttoProjectBlock = {
   ...OTTO,
-  pack_line: "No test pack is installed yet, so Otto has proposed nothing.",
+  pack_line: "No test pack is installed yet, so nothing is proposed.",
   since_title: null,
   rows: OTTO.rows.map((r) => ({ ...r, waiting: 0, waiting_text: "Nothing waiting", since: [] })),
 };
@@ -251,7 +251,7 @@ describe("Project overview: Otto in this project (phase 5c)", () => {
 
   it("with no test pack installed it says so, and shows no heading and no line about a pack", async () => {
     await show(withOtto(OTTO_NO_PACK));
-    expect(text(within(block()).getByTestId("project-otto-pack"))).toBe("No test pack is installed yet, so Otto has proposed nothing.");
+    expect(text(within(block()).getByTestId("project-otto-pack"))).toBe("No test pack is installed yet, so nothing is proposed.");
     expect(text(block())).not.toContain("What changed since");
     expect(within(block()).queryAllByTestId("project-otto-since")).toHaveLength(0);
     expect(ottoRows().map((r) => text(within(r).getByTestId("project-otto-waiting")))).toEqual(["Nothing waiting", "Nothing waiting"]);

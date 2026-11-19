@@ -71,8 +71,8 @@ def import_json(i: ImportRow, settings: list[dict] | None = None) -> dict:
 
 
 # Phase 5c: Verify is unchanged (its trust gap is the next phase), and Otto proposes nothing on it yet. The page says so.
-VERIFY_OTTO_NOTE = ("Otto has no proposals here yet. In this version Otto's checks are for signing programs and libraries; "
-                    "its checks of servers come in a later phase. Verify works as before.")
+VERIFY_OTTO_NOTE = ("Nothing is proposed here yet. In this version the proposed checks are for signing programs and libraries; "
+                    "checks of servers come in a later phase. Verify works as before.")
 
 
 def run_json(r: VerifyRunRow) -> dict:

@@ -129,7 +129,7 @@ def test_otto_writes_the_change_and_a_view_asks_nothing(failed):
     assert fix["status"] == "not_connected" and sorted(a["kind"] for a in fix["answers"]) == ["advisory_cases", "bad_signatures", "official_vectors"]
     # Otto's change is a proposal: nobody has decided it, so Connect demo code is off and says why
     assert fix["proposal"] == {"id": FIX_PROPOSAL, "state": "proposed"}
-    assert fix["actions"]["connect"] == "Otto proposes this change. Accept the proposal first; accepting runs nothing."
+    assert fix["actions"]["connect"] == "This change is a proposal. Accept it first; accepting runs nothing."
     shown = next(f for f in lab.fixes_view(lab.plan.id)["fixes"] if f["kind"] == "code")
     assert shown["labels"] == ["Written by Otto"] and shown["title"] == "acme-sign: Reject signatures whose r or s is out of range"
     proposal = shown["proposal"]
@@ -137,13 +137,13 @@ def test_otto_writes_the_change_and_a_view_asks_nothing(failed):
     assert [(b["label"], b["can"]) for b in proposal["buttons"]] == [("Accept", True), ("Reject", True)]
     assert "failed on acme-sign 1.4.2, which is your own code" in proposal["why"]
     connect = next(b for b in shown["actions"]["buttons"] if b["action"] == "connect")
-    assert connect["enabled"] is False and shown["actions"]["note"].startswith("Otto proposes this change. Accept the proposal first")
+    assert connect["enabled"] is False and shown["actions"]["note"].startswith("This change is a proposal. Accept it first")
     text = json.dumps(shown)
-    assert "Otto wrote a change for CVE-2022-21449 (Blank signature accepted)" in text and "fix template" not in text.lower()
+    assert "A change was written for CVE-2022-21449 (Blank signature accepted)" in text and "fix template" not in text.lower()
     # Claude's summary reads as if the change were in ("now rejects"): before any accept it is said as what it would do
-    assert "What it would change, in Otto's words:" in text and "Nothing is changed until you accept it and connect the code" in text
+    assert "What it would change:" in text and "Nothing is changed until you accept it and connect the code" in text
     # (the card's lines stay as they are after the change is connected and merged, so they claim nothing about the present)
-    assert proposal["lines"][0].startswith("What the change does, in Otto's words: ")
+    assert proposal["lines"][0].startswith("What it changes: ")
     assert proposal["lines"][1].startswith("Written by Otto. Accepting it runs nothing and changes nothing:")
     assert not any("yet" in line or "now " in line.split("words: ")[0] for line in proposal["lines"])
     with lab.db() as db:
@@ -163,7 +163,7 @@ def test_ottos_change_takes_the_same_proof_path_and_is_offered_only_after_it(fai
     # before a person accepts Otto's proposal the code is not connected: nothing is written, proven or kept
     with pytest.raises(Conflict) as not_yet:
         lab.connect_code(lab.plan.id)
-    assert str(not_yet.value) == "Otto proposes this change. Accept the proposal first; accepting runs nothing. The code was not connected."
+    assert str(not_yet.value) == "This change is a proposal. Accept it first; accepting runs nothing. The code was not connected."
     with lab.db() as db:
         assert db.scalars(select(ChangeRow)).all() == [] and db.scalars(select(OttoStepRow)).all() == []
     accepted = _accept_fix(lab)
@@ -238,10 +238,10 @@ def test_a_rejected_fix_is_kept_as_not_added_and_can_be_taken_up_again(failed):
     assert shown["proposal"]["status"]["word"] == "Not added (We ship our own patch this week)"
     assert [b["label"] for b in shown["proposal"]["buttons"]] == ["Reconsider"]
     assert next(b for b in shown["actions"]["buttons"] if b["action"] == "connect")["enabled"] is False
-    assert "Otto's proposal was rejected" in shown["actions"]["note"]
+    assert "This proposal was rejected" in shown["actions"]["note"]
     with pytest.raises(Conflict) as refused:
         lab.connect_code(lab.plan.id)
-    assert "Otto's proposal was rejected, so its change is not added" in str(refused.value)
+    assert "This proposal was rejected, so its change is not added" in str(refused.value)
     again = lab.otto_decide(lab.plan.id, FIX_PROPOSAL, "reconsider")
     assert again["state"] == "proposed" and set(again["actions"]) == {"accept", "reject"}
     assert [d["decision"] for d in again["decisions"]] == ["reject", "reconsider"]                        # both stay on the record
@@ -352,7 +352,7 @@ def test_a_live_change_that_gives_no_registered_program_is_refused_at_the_click_
     assert "Have Otto write a change" in _accept_fix(lab)["title"] and calls == []                       # accepting asks nothing either
     with pytest.raises(Conflict) as refused:
         lab.connect_code(lab.plan.id)
-    assert "Otto's change could not be used" in str(refused.value) and "byte for byte" in str(refused.value)
+    assert "The written change could not be used" in str(refused.value) and "byte for byte" in str(refused.value)
     assert "The code was not connected" in str(refused.value) and calls == [1]
     with lab.db() as db:
         step = db.scalars(select(OttoStepRow)).one()

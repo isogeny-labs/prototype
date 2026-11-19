@@ -49,7 +49,7 @@ VERSIONS: dict[str, list[str]] = {"acme-sign": ["1.4.2", "1.4.3"]}
 CHANGE_VERSIONS: dict[str, list[str]] = {"acme-sign": [OTTO_VERSION]}
 # What a screen may say about a registered version beside its name.
 VERSION_NOTES: dict[tuple[str, str], str] = {
-    ("acme-sign", OTTO_VERSION): ("acme-sign 1.4.2 with the change Otto wrote, registered as one of our demo programs. It reports version "
+    ("acme-sign", OTTO_VERSION): ("acme-sign 1.4.2 with the change written for CVE-2022-21449, registered as one of our demo programs. It reports version "
                                   "1.4.3, and differs from our own acme-sign 1.4.3 in one line: the same range check, written another way."),
 }
 _PEM_PRIVATE = re.compile(r"-----BEGIN ([A-Z0-9 ]*)PRIVATE KEY-----.*?(?:-----END \1PRIVATE KEY-----|\Z)", re.DOTALL)

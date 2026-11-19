@@ -66,11 +66,11 @@ def fix_words(comp: str, fix: dict | None) -> str:
     if fix and fix.get("state") in ("proven", "not_proven") and fix.get("kind") == "update":
         # The same row as in Fixes, word for word. Whether it is proven on your system is said where the fix is.
         public = str(fix.get("public_line") or "").strip()
-        return (f"Otto proposes: update {fix['library']} to {fix['version']}, the version its publisher names as fixed."
+        return (f"Proposed: update {fix['library']} to {fix['version']}, the version its publisher names as fixed."
                 + (f" {public}" if public else "") + " Fixes shows whether it is proven on your system: update the library, then press "
                 "“Retest new version” to rerun the same locked tests on the updated version.")
     if fix and fix.get("state") == "own_code":
-        return (f"Open Fixes: it shows what can be offered for {name}. A change Otto wrote is offered only when it can be proven on "
+        return (f"Open Fixes: it shows what can be offered for {name}. A written change is offered only when it can be proven on "
                 "this computer. Where it can't be, the fix template is offered if it answers this failure; if not, Fixes lists the "
                 "failure with a plain suggestion and offers no code change. A change is offered only after every locked test passes "
                 "on the changed code.")

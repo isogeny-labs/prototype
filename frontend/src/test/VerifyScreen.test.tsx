@@ -151,9 +151,9 @@ describe("Verify screen", () => {
 describe("Verify screen: what it says about Otto (phase 5c)", () => {
   /** The backend's one sentence: Verify is unchanged in this phase, and Otto proposes nothing on it yet. */
   const NOTE =
-    "Otto has no proposals here yet. In this version Otto's checks are for signing programs and libraries; its checks of servers come in a later phase. Verify works as before.";
+    "Nothing is proposed here yet. In this version the proposed checks are for signing programs and libraries; checks of servers come in a later phase. Verify works as before.";
 
-  it("says once, in the backend's sentence, that Otto has no proposals here yet", () => {
+  it("says once, in the backend's sentence, that Nothing is proposed here yet", () => {
     const fetchMock = mockApi({});
     render(<VerifyScreen imp={demoImport} run={{ ...run, otto_note: NOTE }} onContinue={vi.fn()} />);
     const notes = screen.getAllByTestId("verify-otto-note");

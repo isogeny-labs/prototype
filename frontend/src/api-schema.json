@@ -4479,7 +4479,7 @@
                 "type": "null"
               }
             ],
-            "description": "Phase 5c: \"Waiting for you\": Otto's proposals nobody has decided yet."
+            "description": "Phase 5c: \"Waiting for you\": the proposals nobody has decided yet."
           }
         },
         "additionalProperties": false,
@@ -5069,6 +5069,47 @@
         ],
         "title": "ChangeView"
       },
+      "CheckBlock": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "\"on-3\" (the block retest 3 opened) or \"proof-2\"."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"acme-sign 1.4.3\", or \"acme-sign 1.4.3-otto (the changed code)\"."
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "newest": {
+            "type": "boolean",
+            "title": "Newest",
+            "description": "The newest block is open; older ones are folded."
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "line",
+          "newest",
+          "rows"
+        ],
+        "title": "CheckBlock",
+        "description": "The 5c fixes: one version a retest ran on, or one proof of a change, with the rows of its own runs."
+      },
       "CheckDetail": {
         "properties": {
           "check": {
@@ -5209,6 +5250,17 @@
             "type": "array",
             "title": "Also",
             "description": "Checks of another group linked from this group's foot (\"Also relates to this group\")."
+          },
+          "parts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EncryptionParts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The 5c fixes: set on the Encryption tests group only."
           }
         },
         "additionalProperties": false,
@@ -5224,6 +5276,86 @@
           "rows"
         ],
         "title": "CheckGroup"
+      },
+      "CheckPart": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "plan",
+              "retests",
+              "proofs",
+              "tries"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "count_label": {
+            "type": "string",
+            "title": "Count Label",
+            "description": "\"8 tests\", \"1 version\", \"2 proofs\", \"1 try\"."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text",
+            "description": "Set when the part has nothing yet: \"No retest yet. ...\""
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/CheckBlock"
+            },
+            "type": "array",
+            "title": "Blocks",
+            "description": "Retests by version and Fix proofs: one block for each version, or each proof."
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRow"
+            },
+            "type": "array",
+            "title": "Rows",
+            "description": "Tries on a test copy: a plain list."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "count",
+          "count_label",
+          "note",
+          "empty_text",
+          "blocks",
+          "rows"
+        ],
+        "title": "CheckPart",
+        "description": "The 5c fixes: one labelled, foldable part of the Encryption tests group on Checks, with its count."
       },
       "CheckResult": {
         "properties": {
@@ -5369,6 +5501,30 @@
               }
             ],
             "description": "Phase 5c: \"From Otto\" on an advisory check, with the way to its advisory."
+          },
+          "mark": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mark",
+            "description": "The 5c fixes, in a retest's block: \"tested again as it is\" for a server, or a program the retest did not move."
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias",
+            "description": "The 5c fixes: the older id of this row (\"retest-12\"), which still opens it while this is the newest block of its test."
           }
         },
         "additionalProperties": false,
@@ -6928,7 +7084,7 @@
             },
             "type": "array",
             "title": "Otto Proposals",
-            "description": "Phase 5c: Otto's proposals to change this library's status."
+            "description": "Phase 5c: the proposals to change this library's status."
           },
           "otto_status": {
             "anyOf": [
@@ -7104,6 +7260,41 @@
         ],
         "title": "DiffLine",
         "description": "One line of code in a before or after block. n is the line number in that version of the file."
+      },
+      "EncryptionParts": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/CheckPart",
+            "description": "The test plan itself (drawn from the plan view); its heading names the version the file names."
+          },
+          "retests": {
+            "$ref": "#/components/schemas/CheckPart"
+          },
+          "proofs": {
+            "$ref": "#/components/schemas/CheckPart"
+          },
+          "tries": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckPart"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only when a server change was tried on a test copy."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan",
+          "retests",
+          "proofs",
+          "tries"
+        ],
+        "title": "EncryptionParts",
+        "description": "The 5c fixes: Checks shows the Encryption tests group in four parts. A run shows in one part only."
       },
       "Evidence": {
         "properties": {
@@ -8642,7 +8833,7 @@
                 "type": "null"
               }
             ],
-            "description": "Phase 5c: \"Otto found N checks that may apply\". Nothing runs on import."
+            "description": "Phase 5c: \"N checks may apply\", marked From Otto. Nothing runs on import."
           }
         },
         "additionalProperties": false,
@@ -8694,7 +8885,7 @@
           "link_label"
         ],
         "title": "ImportOtto",
-        "description": "Import: \"Otto found N checks that may apply\", with the way to Advisories. Nothing runs on import."
+        "description": "Import: \"N checks may apply\", marked From Otto, with the way to Advisories. Nothing runs on import."
       },
       "ImportSetting": {
         "properties": {
@@ -8985,7 +9176,7 @@
                 "type": "null"
               }
             ],
-            "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result."
+            "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result."
           }
         },
         "additionalProperties": false,
@@ -9868,7 +10059,7 @@
                 "type": "null"
               }
             ],
-            "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result."
+            "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result."
           }
         },
         "additionalProperties": false,
@@ -12432,7 +12623,7 @@
           "note"
         ],
         "title": "OttoWaiting",
-        "description": "The Overview's \"Waiting for you\": Otto's proposals nobody has decided yet, each kind linking to its page."
+        "description": "The Overview's \"Waiting for you\": the proposals nobody has decided yet, each kind linking to its page."
       },
       "OttoWaitingItem": {
         "properties": {
@@ -14990,7 +15181,7 @@
           "otto_note": {
             "type": "string",
             "title": "Otto Note",
-            "description": "Phase 5c: one sentence. Verify is unchanged and Otto proposes nothing on it yet.",
+            "description": "Phase 5c: one sentence. Verify is unchanged and nothing is proposed on it yet.",
             "default": ""
           }
         },

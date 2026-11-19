@@ -166,7 +166,7 @@ def test_a_change_that_gives_no_registered_program_is_not_offered():
     with the reason, and a click connects the template: the page had said so before the click."""
     engine, lab = _engine(recorded=_other_way())
     shown = engine.propose_change(_request("view"))
-    assert _is_template(shown) and shown["otto_note"] == f"Otto wrote one, but it could not be used: {NOT_REGISTERED}"
+    assert _is_template(shown) and shown["otto_note"] == f"One was written, but it could not be used: {NOT_REGISTERED}"
     assert "byte for byte" in shown["otto_note"] and lab.kept == []
     connected = engine.propose_change(_request("connect"))
     assert _is_template(connected) and connected["otto_note"] == shown["otto_note"]
@@ -225,7 +225,7 @@ def test_a_live_answer_that_cannot_be_used_is_refused_at_the_click_and_then_the_
     assert engine.propose_change(_request("view"))["otto"]["pending"] is True
     with pytest.raises(OttoCouldNot) as refused:
         engine.propose_change(_request("connect"))      # the person asked for Otto's change and there is none to connect
-    assert str(refused.value) == f"Otto's change could not be used: {NOT_REGISTERED}"
+    assert str(refused.value) == f"The written change could not be used: {NOT_REGISTERED}"
     assert [(k["source"], k["outcome"], k["refusal"]) for k in lab.kept] == [("live", "refused", NOT_REGISTERED)] and lab.asked == 1
     shown = engine.propose_change(_request("view"))
     assert _is_template(shown) and "byte for byte" in shown["otto_note"]
@@ -237,7 +237,7 @@ def test_a_live_call_that_fails_says_so_at_the_click_and_keeps_nothing():
     engine, lab = _engine(live=model.LiveCallFailed("Claude answered with an error (401)."), live_ready=True)
     with pytest.raises(OttoCouldNot) as failed:
         engine.propose_change(_request("connect"))
-    assert str(failed.value) == "Otto could not write the change: Claude answered with an error (401)." and lab.kept == []
+    assert str(failed.value) == "The change could not be written: Claude answered with an error (401)." and lab.kept == []
 
 
 def test_the_fix_template_is_asked_about_alone_and_a_plan_without_an_advisory_check_never_reaches_otto():
