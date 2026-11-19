@@ -58,6 +58,17 @@ def routes(lab, require_login) -> APIRouter:
     def advisories(plan_id: int):
         return lab.advisories_view(plan_id)
 
+    @router.post("/api/plans/{plan_id}/advisories/look", dependencies=login, responses=shows(models.AdvisoriesView))
+    def look_for_advisories(plan_id: int):
+        """Phase 6: Look for new advisories. One read of the public source about this assessment's libraries (package
+        names only are sent). It runs nothing and proposes nothing."""
+        return lab.look_for_advisories(plan_id)
+
+    @router.post("/api/plans/{plan_id}/advisories/research", dependencies=login, responses=shows(models.AdvisoriesView))
+    def design_and_prove(plan_id: int):
+        """Phase 6: Design and prove tests, for the new advisories of the newest look, in the background."""
+        return lab.start_research(plan_id)
+
     @router.get("/api/plans/{plan_id}/otto/proposals", dependencies=login, responses=shows(models.OttoProposalsView))
     def proposals(plan_id: int):
         return lab.otto_proposals_view(plan_id)

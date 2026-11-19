@@ -437,6 +437,11 @@ export const api = {
   /** Phase 6a: the name a person types once; their decisions on proposals are recorded under it from then on. */
   setDecisionName: (name: string) => request<OttoSettingsView>("/api/otto/name", { method: "POST", json: { name } }),
   getAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories`),
+  /** Phase 6, Otto's research loop: one read of the public source about this assessment's libraries (package names
+   * only are sent). It runs nothing and proposes nothing. Answers with the page's view as it now stands. */
+  lookForAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories/look`, { method: "POST" }),
+  /** Design and prove tests for the new advisories of the newest look, in the background. */
+  startResearch: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories/research`, { method: "POST" }),
   /** Every proposal of Otto's in this assessment, with the "Waiting for you" counts. */
   /** Phase 6a: what the Otto panel shows beside this page of this assessment, with this item open. A read: it runs
    * nothing and asks Claude nothing. */

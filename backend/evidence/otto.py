@@ -397,6 +397,29 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
                                  "They are not decisions.")
             out.lines.append(f"Decisions: {count} on {sum(1 for p in proposals if p.get('decisions'))} of the {len(proposals)} "
                              f"{'proposal' if len(proposals) == 1 else 'proposals'}, each in the ledger with who and when, in an order the app allows.")
+        # Phase 6, the research loop: the looks for new advisories and the research runs of this assessment. They are
+        # records (what was asked, the fingerprint of each answer, how a run ended); the proof of a test is in its pack.
+        looks = otto.get("lookups")
+        if looks is not None:
+            if not isinstance(looks, dict) or not isinstance(looks.get("looks"), list) or not isinstance(looks.get("research"), list):
+                raise _Failed("the record of the looks for new advisories is not in the form this version writes.")
+            for look in looks["looks"]:
+                asked = look.get("asked") if isinstance(look, dict) else None
+                if not isinstance(asked, list) or not all(isinstance(a, dict) and isinstance(a.get("sha256"), list)
+                                                          and all(isinstance(h, str) and _HEX64.fullmatch(h) for h in a["sha256"]) for a in asked):
+                    raise _Failed("a look for new advisories does not hold the fingerprint of each answer it read.")
+                if look.get("source") == "osv" and not all(isinstance(x, str) and len(x) <= 300 for x in look.get("sent") or []):
+                    raise _Failed("a look for new advisories does not say plainly what was sent.")
+            made_here = {_plain(p.get("version"), 40) for p in packs.values()}
+            for run in looks["research"]:
+                if not isinstance(run, dict) or run.get("what") not in ("started", "finished"):
+                    raise _Failed("a research run in the file is not in the form this version writes.")
+                if run.get("pack_version") is not None and _plain(run.get("pack_version"), 40) not in made_here:
+                    raise _Failed(f"a research run names test pack {_plain(run.get('pack_version'), 40)}, which is not in the file.")
+            if looks["looks"] or looks["research"]:
+                finished = sum(1 for run in looks["research"] if run.get("what") == "finished")
+                out.lines.append(f"Looks for new advisories: {len(looks['looks'])}, each with what was asked and the fingerprint of each "
+                                 f"answer; research runs: {finished} finished, each pack they made is in the file.")
         # 5. an older download
         if previous is not None:
             older = (previous.get("otto") or {}).get("ledger") if isinstance(previous, dict) else None

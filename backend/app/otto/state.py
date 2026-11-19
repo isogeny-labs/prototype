@@ -191,6 +191,11 @@ class OttoMixin:
         row = db.get(AppSettingRow, LIVE_KEY)
         return row is not None and row.value == "on"
 
+    def otto_limit_words(self) -> str:
+        """The spending limit per run, as Settings shows it ("2.00"). A read: nothing is written and Claude is not asked."""
+        with self.db() as db:
+            return f"{self._otto_limit(db) / model.NANO:.2f}"
+
     @staticmethod
     def _otto_limit(db) -> int:
         row = db.get(AppSettingRow, LIMIT_KEY)
@@ -313,9 +318,12 @@ class OttoMixin:
             a = self.assessment_for(plan_id=plan_id)
             answers = self._pack_answers_line(installed)
         status = harness.public_status()
-        return present_otto.advisories_view(rows=rows, packs=[pack for _, pack in installed], fitting=[p["label"] for p in fitting],
+        view = present_otto.advisories_view(rows=rows, packs=[pack for _, pack in installed], fitting=[p["label"] for p in fitting],
                                             closed=upto is not None, harness_status=status, answers_line=answers,
                                             assessment_id=a.id if a is not None else None)
+        # Phase 6, Otto's research loop: the block "New advisories" (Look for new advisories; Design and prove tests).
+        view["lookup"] = self.lookup_view(plan_id)        # type: ignore[attr-defined]
+        return view
 
     def otto_relations(self, plan_id: int) -> list[dict]:
         """For the Related block: every advisory of the installed packs with the plan's checks that came from it."""
@@ -612,6 +620,8 @@ class OttoMixin:
                 # Otto proposes; a person decides: every proposal of this assessment as it stands, and every accept, reject,
                 # undo and reconsider on it, each with who and when and its entry in the ledger.
                 "proposals": self.otto_proposals_evidence(plan_id),      # type: ignore[attr-defined]
+                # Phase 6, Otto's research loop: every look for new advisories and every research run of this assessment.
+                "lookups": self.lookups_evidence(plan_id),               # type: ignore[attr-defined]
                 "decisions_note": ("Each proposal is decided by a person. A decision is recorded with who and when, in this file and in the "
                                    "ledger. This version has one login: whoever is at the keyboard records each decision, under the name "
                                    "shown. A decision is not a result."),

@@ -2185,6 +2185,80 @@ class AdvisoryWaiting(Shape):
     note: str
 
 
+class LookupDialog(Shape):
+    """The box a button opens first: what will be sent or started, and what will not."""
+
+    title: str
+    lines: list[str]
+    confirm: str
+    cancel: str
+
+
+class LookupButton(Shape):
+    label: str
+    can: bool
+    blocked_reason: str | None
+    dialog: LookupDialog
+
+
+class LookupRowState(Shape):
+    key: Literal["in_pack", "in_waiting_pack", "new", "no_test", "not_yours"]
+    label: str
+    tone: Tone
+
+
+class LookupRow(Shape):
+    """One published advisory a look found, with where it stands. Information from the publisher, never a result."""
+
+    id: str
+    title: str = Field(description="The publisher's own title.")
+    library: str
+    published: str
+    fits: str = Field(description="What it says about the versions this assessment has.")
+    state: LookupRowState
+    reason: str | None = Field(description='Why there is no test yet, or where the advisory is now.')
+    link: ItemLink | None = Field(description="Its row on this page, once a test pack holds it.")
+    publisher: str
+    url: str
+
+
+class LookupLast(Shape):
+    line: str
+    source_line: str
+    notes: list[str]
+    rows: list[LookupRow]
+    empty: str | None
+
+
+class LookupProgress(Shape):
+    line: str
+    running: bool
+    title: str
+    lines: list[str] = Field(description="What the research command said, newest last.")
+
+
+class LookupResearch(Shape):
+    label: str
+    can: bool
+    blocked_reason: str | None
+    shown: bool = Field(description="False until a look has been made.")
+    dialog: LookupDialog
+    progress: LookupProgress | None
+
+
+class AdvisoryLookup(Shape):
+    """Phase 6, Otto's research loop: the block "New advisories" of the Advisories page."""
+
+    title: str
+    intro: str
+    covers: str
+    libraries_line: str
+    look: LookupButton
+    last: LookupLast | None
+    research: LookupResearch
+    busy: bool = Field(description="A research run is going on: ask again in a few seconds.")
+
+
 class AdvisoriesView(Shape):
     """The Advisories page of an assessment (phase 5c). It words no result and decides none."""
 
@@ -2201,6 +2275,7 @@ class AdvisoriesView(Shape):
     rows: list[AdvisoryRow]
     empty: str | None
     assessment_id: int | None
+    lookup: AdvisoryLookup | None = Field(default=None, description="Phase 6: the block New advisories. Always sent by the current backend.")
 
 
 # ---- Phase 5c, second part: Otto proposes, a person decides. Every word comes from the backend. ----
@@ -2460,7 +2535,8 @@ class AssistantAction(Shape):
     version: str | None
     component: str | None
     reviewers: list[str] | None = Field(description="The reviewers the page ticks by default.")
-    link: ItemLink | None = Field(description='"open": where it goes. Opening a page needs no Confirm.')
+    link: ItemLink | None = Field(description='"open": where it goes; opening a page needs no Confirm. "retest_now": where the page itself '
+                                              "goes once its request is answered (Evidence, on the result the fix came from).")
 
 
 class AssistantStep(Shape):

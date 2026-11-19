@@ -636,6 +636,45 @@ class OttoDecisionRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class OttoLookupRow(Base):
+    """Phase 6, Otto's research loop: one look for new advisories. What was asked (package names only), of which
+    source, the fingerprint of each answer, and every advisory that came back, as data. Rows are only ever added."""
+    __tablename__ = "otto_lookups"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    at: Mapped[str] = mapped_column(String(40))
+    by: Mapped[str] = mapped_column(String(100))                  # the name the app records for the person at the keyboard
+    source: Mapped[str] = mapped_column(String(20))               # osv | recorded
+    sent: Mapped[list] = mapped_column(JSON)                      # exactly what was sent: package names, or nothing
+    asked: Mapped[list] = mapped_column(JSON)                     # [{library, ecosystem, name, records, sha256: [...]}]
+    found: Mapped[list] = mapped_column(JSON)                     # [{advisory (the snapshot's shape), ranges, versions, record_id}]
+    left_out: Mapped[int] = mapped_column(Integer, default=0)
+    cut: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class OttoResearchRow(Base):
+    """Phase 6, Otto's research loop: a research run started by a person ("Design and prove tests"). Two rows for a
+    run, each only ever added: `started`, and `finished` with how it ended, what it said and the pack it made."""
+    __tablename__ = "otto_research"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    run_key: Mapped[str] = mapped_column(String(80))
+    kind: Mapped[str] = mapped_column(String(12))                 # started | finished
+    at: Mapped[str] = mapped_column(String(40))
+    by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    lookup_id: Mapped[int] = mapped_column(Integer)
+    advisories: Mapped[list] = mapped_column(JSON)                # the ids that were handed to the research step
+    live: Mapped[bool] = mapped_column(Boolean, default=False)    # was Live Otto on (could Claude be asked)?
+    limit_nano: Mapped[int] = mapped_column(Integer, default=0)
+    installed_first: Mapped[list] = mapped_column(JSON)           # built-in packs the click installed before the run
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pack_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    output: Mapped[list] = mapped_column(JSON)                    # what the research command said, line by line
+    reason: Mapped[str | None] = mapped_column(String(600), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 NO_DELETE_TABLES = ("folders", "projects", "assessments")
 
 
@@ -644,7 +683,8 @@ APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", 
                       "change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks",
                       "dependency_lists", "dependency_ties",
                       "assessment_details", "assessment_signoffs", "import_files",   # phase 5b
-                      "otto_packs", "otto_checks", "otto_steps", "otto_decisions")    # phase 5c
+                      "otto_packs", "otto_checks", "otto_steps", "otto_decisions",    # phase 5c
+                      "otto_lookups", "otto_research")                                # phase 6: the research loop
 
 
 def create_append_only_triggers(engine) -> None:

@@ -44,6 +44,7 @@ from app.engine.research import RuleEngine
 from app.engine.reviewer import RuleReviewer
 from app.lab.testlab import TestLabMixin
 from app.assistant.engine import CopilotEngine, RuleCopilot
+from app.otto.discover import DiscoverMixin
 from app.otto.engine import OttoEngine
 from app.otto.proposals import ProposalsMixin
 from app.otto.state import OttoMixin
@@ -85,7 +86,7 @@ def run_json(r: VerifyRunRow) -> dict:
 
 
 class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin,
-          ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin, OttoMixin, ProposalsMixin):
+          ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin, OttoMixin, ProposalsMixin, DiscoverMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -120,6 +121,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         self._init_testlab()
         self._init_changes()
         self._init_otto()
+        self._init_discover()       # phase 6: Look for new advisories, and the research run it can start
         try:
             # The evidence signing key: made once, on first start, kept in the data folder (mode 0600).
             ensure_signing_key(settings.data_dir)

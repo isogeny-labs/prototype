@@ -2244,6 +2244,66 @@
         }
       }
     },
+    "/api/plans/{plan_id}/advisories/look": {
+      "post": {
+        "summary": "Look For Advisories",
+        "description": "Phase 6: Look for new advisories. One read of the public source about this assessment's libraries (package\nnames only are sent). It runs nothing and proposes nothing.",
+        "operationId": "look_for_advisories_api_plans__plan_id__advisories_look_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvisoriesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/advisories/research": {
+      "post": {
+        "summary": "Design And Prove",
+        "description": "Phase 6: Design and prove tests, for the new advisories of the newest look, in the background.",
+        "operationId": "design_and_prove_api_plans__plan_id__advisories_research_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvisoriesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/plans/{plan_id}/otto/proposals": {
       "get": {
         "summary": "Proposals",
@@ -2594,6 +2654,17 @@
               }
             ],
             "title": "Assessment Id"
+          },
+          "lookup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryLookup"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 6: the block New advisories. Always sent by the current backend."
           }
         },
         "additionalProperties": false,
@@ -3066,6 +3137,61 @@
           "what"
         ],
         "title": "AdvisoryLedgerEntry"
+      },
+      "AdvisoryLookup": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "intro": {
+            "type": "string",
+            "title": "Intro"
+          },
+          "covers": {
+            "type": "string",
+            "title": "Covers"
+          },
+          "libraries_line": {
+            "type": "string",
+            "title": "Libraries Line"
+          },
+          "look": {
+            "$ref": "#/components/schemas/LookupButton"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LookupLast"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "research": {
+            "$ref": "#/components/schemas/LookupResearch"
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "A research run is going on: ask again in a few seconds."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "intro",
+          "covers",
+          "libraries_line",
+          "look",
+          "last",
+          "research",
+          "busy"
+        ],
+        "title": "AdvisoryLookup",
+        "description": "Phase 6, Otto's research loop: the block \"New advisories\" of the Advisories page."
       },
       "AdvisoryNew": {
         "properties": {
@@ -4767,7 +4893,7 @@
                 "type": "null"
               }
             ],
-            "description": "\"open\": where it goes. Opening a page needs no Confirm."
+            "description": "\"open\": where it goes; opening a page needs no Confirm. \"retest_now\": where the page itself goes once its request is answered (Evidence, on the result the fix came from)."
           }
         },
         "additionalProperties": false,
@@ -10819,6 +10945,319 @@
           "note"
         ],
         "title": "LockedTestView"
+      },
+      "LookupButton": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "dialog": {
+            "$ref": "#/components/schemas/LookupDialog"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "can",
+          "blocked_reason",
+          "dialog"
+        ],
+        "title": "LookupButton"
+      },
+      "LookupDialog": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "confirm": {
+            "type": "string",
+            "title": "Confirm"
+          },
+          "cancel": {
+            "type": "string",
+            "title": "Cancel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "confirm",
+          "cancel"
+        ],
+        "title": "LookupDialog",
+        "description": "The box a button opens first: what will be sent or started, and what will not."
+      },
+      "LookupLast": {
+        "properties": {
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "source_line": {
+            "type": "string",
+            "title": "Source Line"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/LookupRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "source_line",
+          "notes",
+          "rows",
+          "empty"
+        ],
+        "title": "LookupLast"
+      },
+      "LookupProgress": {
+        "properties": {
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines",
+            "description": "What the research command said, newest last."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "running",
+          "title",
+          "lines"
+        ],
+        "title": "LookupProgress"
+      },
+      "LookupResearch": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "shown": {
+            "type": "boolean",
+            "title": "Shown",
+            "description": "False until a look has been made."
+          },
+          "dialog": {
+            "$ref": "#/components/schemas/LookupDialog"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LookupProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "can",
+          "blocked_reason",
+          "shown",
+          "dialog",
+          "progress"
+        ],
+        "title": "LookupResearch"
+      },
+      "LookupRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "The publisher's own title."
+          },
+          "library": {
+            "type": "string",
+            "title": "Library"
+          },
+          "published": {
+            "type": "string",
+            "title": "Published"
+          },
+          "fits": {
+            "type": "string",
+            "title": "Fits",
+            "description": "What it says about the versions this assessment has."
+          },
+          "state": {
+            "$ref": "#/components/schemas/LookupRowState"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why there is no test yet, or where the advisory is now."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its row on this page, once a test pack holds it."
+          },
+          "publisher": {
+            "type": "string",
+            "title": "Publisher"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "library",
+          "published",
+          "fits",
+          "state",
+          "reason",
+          "link",
+          "publisher",
+          "url"
+        ],
+        "title": "LookupRow",
+        "description": "One published advisory a look found, with where it stands. Information from the publisher, never a result."
+      },
+      "LookupRowState": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "in_pack",
+              "in_waiting_pack",
+              "new",
+              "no_test",
+              "not_yours"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "tone"
+        ],
+        "title": "LookupRowState"
       },
       "MeasurementResult": {
         "properties": {

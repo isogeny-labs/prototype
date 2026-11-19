@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { usePanelStamp } from "../changes";
+import { NewAdvisories } from "./advisories/NewAdvisories";
 import { api, errorMessage, type AdvisoriesView, type OttoProposal } from "../api";
 import { AdvisoryPanel } from "./advisories/AdvisoryPanel";
 import { AdvisoryTable } from "./advisories/AdvisoryTable";
@@ -67,6 +68,23 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
       asked.current += 1;
     };
   }, [planId, panelStamp]);
+
+  // Phase 6: while a research run goes on, ask again every few seconds (its progress, and at its end the new pack's
+  // advisories and proposals).
+  const researching = view?.lookup?.busy === true;
+  useEffect(() => {
+    if (!researching) return;
+    const mine = asked.current;
+    const timer = setTimeout(() => {
+      api
+        .getAdvisories(planId)
+        .then((next) => {
+          if (asked.current === mine) setView(next);
+        })
+        .catch(() => undefined);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [researching, view, planId]);
 
   /** A decision was recorded. The card's own answer is shown at once; then the whole page is read again, because a
    * decision also moves the row's cells, the waiting line and the check's place in the test plan; and the app is told,
@@ -168,6 +186,19 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
           </div>
         ) : null}
       </div>
+
+      {/* Phase 6, Otto's research loop: look for newly published advisories, and prove a test for each on public copies. */}
+      {view.lookup ? (
+        <NewAdvisories
+          planId={planId}
+          lookup={view.lookup}
+          onView={(next) => {
+            asked.current += 1; // (an older read of the page must not land on top of this answer)
+            setView(next);
+            onPlanChanged?.();
+          }}
+        />
+      ) : null}
 
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} label="Search advisories" placeholder="Search advisories" testId="advisories-search" />

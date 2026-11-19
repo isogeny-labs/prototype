@@ -255,7 +255,8 @@ def _publisher(record_id: str, record: dict) -> tuple[str, str | None]:
 def _events(affected: dict) -> tuple[list[dict], list[str]]:
     """The version ranges and the single versions one `affected` entry of a record names, as plain text."""
     ranges: list[dict] = []
-    for r in affected.get("ranges") if isinstance(affected.get("ranges"), list) else []:
+    raw_ranges, raw_versions = affected.get("ranges"), affected.get("versions")
+    for r in raw_ranges if isinstance(raw_ranges, list) else []:
         if not isinstance(r, dict) or r.get("type") not in ("SEMVER", "ECOSYSTEM") or not isinstance(r.get("events"), list):
             continue        # a range of commits says nothing about a version number
         current: dict | None = None
@@ -271,7 +272,7 @@ def _events(affected: dict) -> tuple[list[dict], list[str]]:
             elif current is not None and isinstance(event.get("last_affected"), str):
                 current["last_affected"] = event["last_affected"][:80]
                 current = None
-    listed = [v[:80] for v in (affected.get("versions") if isinstance(affected.get("versions"), list) else [])[:5000] if isinstance(v, str)]
+    listed = [v[:80] for v in (raw_versions if isinstance(raw_versions, list) else [])[:5000] if isinstance(v, str)]
     return ranges, listed
 
 
@@ -299,16 +300,18 @@ def _one(record: object, package: Package, today: str) -> Found | None:
     record_id = record["id"]
     if record.get("withdrawn"):
         return None                                   # the publisher took it back
-    aliases = [a for a in (record.get("aliases") if isinstance(record.get("aliases"), list) else []) if isinstance(a, str) and _ALIAS.match(a)]
+    raw_aliases, raw_published, raw_affected = record.get("aliases"), record.get("published"), record.get("affected")
+    aliases = [a for a in (raw_aliases if isinstance(raw_aliases, list) else []) if isinstance(a, str) and _ALIAS.match(a)]
     cve = next((a for a in aliases if _CVE.match(a)), None)
     advisory_id = cve or record_id.upper()
     if not _ID.match(advisory_id):
         return None
-    published = _STAMP.match(record.get("published") if isinstance(record.get("published"), str) else "")
+    published = _STAMP.match(raw_published if isinstance(raw_published, str) else "")
     if published is None:
         return None
-    ranges, versions = [], []
-    for affected in record.get("affected") if isinstance(record.get("affected"), list) else []:
+    ranges: list[dict] = []
+    versions: list[str] = []
+    for affected in raw_affected if isinstance(raw_affected, list) else []:
         about = affected.get("package") if isinstance(affected, dict) else None
         if not isinstance(about, dict) or about.get("ecosystem") != package.ecosystem or str(about.get("name", "")).lower() != package.name.lower():
             continue
@@ -329,7 +332,8 @@ def _one(record: object, package: Package, today: str) -> Found | None:
             excerpts.append(f'"fixed": "{r["fixed"]}"')
         if r["last_affected"]:
             excerpts.append(f'"last_affected": "{r["last_affected"]}"')
-    kept, total = [], 0
+    kept: list[str] = []
+    total = 0
     for excerpt in dict.fromkeys(excerpts):
         if len(kept) >= MAX_EXCERPTS or total + len(excerpt) > MAX_ADVISORY_CHARS:
             break

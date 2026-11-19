@@ -49,6 +49,9 @@ class Settings:
     # folder of Claude's recorded answers. None means the ones shipped in the repository (research/packs, research/recorded).
     otto_updates_dir: Path | None = None       # EVIDENCE_LAB_OTTO_UPDATES
     otto_recorded_dir: Path | None = None      # EVIDENCE_LAB_OTTO_RECORDED
+    # Phase 6, Otto's research loop: "Look for new advisories" reads the public source (OSV) unless this names a folder
+    # of recorded answers on this computer (tests, the walks, a demo with no internet). Then nothing is sent anywhere.
+    advisory_source_dir: Path | None = None    # EVIDENCE_LAB_ADVISORY_SOURCE
 
     @property
     def db_path(self) -> Path:
@@ -89,11 +92,13 @@ def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int 
     if force_mode not in (None, "demo", "isolated"):
         raise SystemExit("EVIDENCE_LAB_MODE must be demo, isolated or auto")
     updates, recorded = os.environ.get("EVIDENCE_LAB_OTTO_UPDATES"), os.environ.get("EVIDENCE_LAB_OTTO_RECORDED")
+    advisory_source = os.environ.get("EVIDENCE_LAB_ADVISORY_SOURCE")
     return Settings(data_dir=Path(data_dir).resolve(), demo_tls_port=demo_tls_port,
                     max_jobs=_env_int("EVIDENCE_LAB_MAX_JOBS", 4, 1, 16), force_mode=force_mode,
                     speed_rounds=_env_int("EVIDENCE_LAB_SPEED_ROUNDS", 40, 2, 50),
                     otto_updates_dir=Path(updates).resolve() if updates else None,
-                    otto_recorded_dir=Path(recorded).resolve() if recorded else None)
+                    otto_recorded_dir=Path(recorded).resolve() if recorded else None,
+                    advisory_source_dir=Path(advisory_source).resolve() if advisory_source else None)
 
 
 def _env_int(name: str, default: int, low: int, high: int) -> int:

@@ -101,6 +101,10 @@ export interface AdvisoriesView {
   rows: AdvisoryRow[];
   empty: string | null;
   assessment_id: number | null;
+  /**
+   * Phase 6: the block New advisories. Always sent by the current backend.
+   */
+  lookup?: AdvisoryLookup | null;
 }
 export interface ItemLink {
   /**
@@ -440,6 +444,96 @@ export interface AdvisoryStep {
   line: string;
   prompt_sha256: string;
   answer_sha256: string;
+}
+/**
+ * Phase 6, Otto's research loop: the block "New advisories" of the Advisories page.
+ */
+export interface AdvisoryLookup {
+  title: string;
+  intro: string;
+  covers: string;
+  libraries_line: string;
+  look: LookupButton;
+  last: LookupLast | null;
+  research: LookupResearch;
+  /**
+   * A research run is going on: ask again in a few seconds.
+   */
+  busy: boolean;
+}
+export interface LookupButton {
+  label: string;
+  can: boolean;
+  blocked_reason: string | null;
+  dialog: LookupDialog;
+}
+/**
+ * The box a button opens first: what will be sent or started, and what will not.
+ */
+export interface LookupDialog {
+  title: string;
+  lines: string[];
+  confirm: string;
+  cancel: string;
+}
+export interface LookupLast {
+  line: string;
+  source_line: string;
+  notes: string[];
+  rows: LookupRow[];
+  empty: string | null;
+}
+/**
+ * One published advisory a look found, with where it stands. Information from the publisher, never a result.
+ */
+export interface LookupRow {
+  id: string;
+  /**
+   * The publisher's own title.
+   */
+  title: string;
+  library: string;
+  published: string;
+  /**
+   * What it says about the versions this assessment has.
+   */
+  fits: string;
+  state: LookupRowState;
+  /**
+   * Why there is no test yet, or where the advisory is now.
+   */
+  reason: string | null;
+  /**
+   * Its row on this page, once a test pack holds it.
+   */
+  link: ItemLink | null;
+  publisher: string;
+  url: string;
+}
+export interface LookupRowState {
+  key: "in_pack" | "in_waiting_pack" | "new" | "no_test" | "not_yours";
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+}
+export interface LookupResearch {
+  label: string;
+  can: boolean;
+  blocked_reason: string | null;
+  /**
+   * False until a look has been made.
+   */
+  shown: boolean;
+  dialog: LookupDialog;
+  progress: LookupProgress | null;
+}
+export interface LookupProgress {
+  line: string;
+  running: boolean;
+  title: string;
+  /**
+   * What the research command said, newest last.
+   */
+  lines: string[];
 }
 export interface AlgorithmName {
   technical: string;
@@ -841,7 +935,7 @@ export interface AssistantAction {
    */
   reviewers: string[] | null;
   /**
-   * "open": where it goes. Opening a page needs no Confirm.
+   * "open": where it goes; opening a page needs no Confirm. "retest_now": where the page itself goes once its request is answered (Evidence, on the result the fix came from).
    */
   link: ItemLink | null;
 }

@@ -1,0 +1,313 @@
+"""Phase 6, Otto's research loop: Look for new advisories, and Design and prove tests (app/otto/discover.py).
+
+A look reads published advisories about the assessment's libraries from a public source (here: recorded answers in a
+folder, or a stand-in for the network) and says where each one stands. It runs nothing and proposes nothing. A
+research run is started by a second click; what it proves is signed into a test pack made on this computer, which
+that same click installs. The real run, on public copies in containers, is the slow test at the end."""
+import json
+import sys
+import time
+from types import SimpleNamespace
+
+import pytest
+from sqlalchemy import func, select, text
+
+import otto_helpers as helpers
+from app.accuracy_otto import DEPENDENCIES_FILE
+from app.db import OttoLookupRow, OttoResearchRow, TestRunRow
+from app.errors import Conflict
+from app.otto import harness, lookup
+from app.present import lookup as words
+from app.web import models
+from conftest import demo_plan
+from tests.view_helpers import problems
+
+BANNED = ("secure", "score", "severity", "critical", "cvss")
+
+
+def _record(record_id, cve, package, introduced, fixed, summary, published="2099-01-02T10:11:12Z") -> dict:
+    """A record in OSV's documented shape. Written for a test: it is not a published advisory."""
+    return {"id": record_id, "summary": summary, "details": "Written for a test.\n\nA signature that is not genuine is accepted.",
+            "aliases": [cve] if cve else [], "published": published, "modified": published,
+            "database_specific": {"severity": "CRITICAL"}, "severity": [{"type": "CVSS_V3", "score": "CVSS:3.1/AV:N"}],
+            "affected": [{"package": {"ecosystem": package[0], "name": package[1]},
+                          "ranges": [{"type": "SEMVER", "events": [{"introduced": introduced}, *([{"fixed": fixed}] if fixed else [])]}]}]}
+
+
+ELLIPTIC = [
+    _record("GHSA-test-0001-aaaa", "CVE-2099-0001", ("npm", "elliptic"), "2.0.0", "6.5.7", "Written for a test: fixed in a version the app has"),
+    _record("GHSA-test-0002-bbbb", "CVE-2099-0002", ("npm", "elliptic"), "0", "6.6.1", "Written for a test: fixed in a version the app has no copy of",
+            published="2099-03-01T00:00:00Z"),
+    _record("GHSA-test-0003-cccc", "CVE-2099-0003", ("npm", "elliptic"), "7.0.0", "7.0.1", "Written for a test: about versions you do not have"),
+    _record("GHSA-test-0004-dddd", "CVE-2022-21449", ("npm", "elliptic"), "0", "6.5.7", "Written for a test: its id is in an installed pack"),
+    _record("GHSA-test-0005-eeee", "CVE-2099-0005", ("npm", "elliptic"), "0", None, "Written for a test: no fixed version is named"),
+]
+ECDSA = [_record("PYSEC-2099-12", None, ("PyPI", "ecdsa"), "0", "0.13.3", "Written for a test: about python-ecdsa")]
+
+
+def _answer(records) -> bytes:
+    return json.dumps({"vulns": records}).encode("utf-8")
+
+
+@pytest.fixture
+def lab(tmp_path, monkeypatch):
+    """A demo-mode Lab with one installed pack, the Acme Pay file, the demo dependency list, and a folder of recorded
+    answers as the advisory source."""
+    source = tmp_path / "advisory-source"
+    source.mkdir()
+    (source / "npm__elliptic.json").write_bytes(_answer(ELLIPTIC))
+    (source / "PyPI__ecdsa.json").write_bytes(_answer(ECDSA))
+    first, public = helpers.make_pack("2026.11.1", None, [helpers.pack_advisory()])
+    made = helpers.lab_with_packs(tmp_path, monkeypatch, {"2026.11.1.json": first}, [public], advisory_source_dir=source)
+    made.plan = demo_plan(made)
+    made.check_pack_updates()
+    made.install_pack("2026.11.1")
+    made.add_dependency_list(made.plan.id, DEPENDENCIES_FILE.name, DEPENDENCIES_FILE.read_bytes())
+    yield made
+    made.stop()
+
+
+def _count(lab, row) -> int:
+    with lab.db() as db:
+        return int(db.scalar(select(func.count(row.id))) or 0)
+
+
+def _texts(value) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        return [t for v in value.values() for t in _texts(v)]
+    if isinstance(value, list):
+        return [t for v in value for t in _texts(v)]
+    return []
+
+
+# ---------------------------------------------------------------- before a look
+
+def test_before_any_look_the_block_says_what_a_look_will_do_and_nothing_was_asked(lab):
+    view = lab.advisories_view(lab.plan.id)
+    assert problems(view, models.AdvisoriesView, "advisories") == []
+    block = view["lookup"]
+    assert block["title"] == "New advisories" and block["last"] is None and block["busy"] is False
+    assert "elliptic 6.5.6" in block["libraries_line"] and "python-ecdsa 0.13.2" in block["libraries_line"]
+    look = block["look"]
+    assert look["label"] == "Look for new advisories" and look["can"] is True and look["blocked_reason"] is None
+    said = " ".join(look["dialog"]["lines"])
+    # the source here is a folder of recorded answers: nothing is sent, and the box says so
+    assert "Nothing is sent anywhere." in said and "Reading is free: Claude is not asked, nothing runs, and nothing is proposed by looking." in said
+    assert "Not asked about: " in said and "openssl" in said and "openjdk" in said
+    assert (look["dialog"]["confirm"], look["dialog"]["cancel"]) == ("Look", "Cancel")
+    assert block["research"]["shown"] is False and block["research"]["progress"] is None
+    assert "No test yet" in block["covers"] and "OSV (osv.dev)" in block["covers"]
+    assert _count(lab, OttoLookupRow) == 0
+
+
+def test_with_the_public_source_the_box_names_exactly_what_is_sent_and_only_that_is_sent(lab, monkeypatch):
+    object.__setattr__(lab.settings, "advisory_source_dir", None)        # (no folder of recorded answers: the public source)
+    sent = []
+
+    def transport(body, timeout):
+        asked = json.loads(body)
+        sent.append(asked)
+        return 200, _answer({"elliptic": ELLIPTIC, "ecdsa": ECDSA}.get(asked["package"]["name"], []))
+    monkeypatch.setattr(lookup, "_http_transport", transport)
+    lines = lab.advisories_view(lab.plan.id)["lookup"]["look"]["dialog"]["lines"]
+    assert lines[0].startswith("Asks OSV (osv.dev), a public database of published advisories")
+    assert lines[1] == "What is sent: these package names, and nothing else: ecdsa (PyPI), elliptic (npm) and stdlib (Go)."
+    assert "No version, no address and no file leaves this computer." in lines[2]
+    assert sent == []                                    # reading the page asked nothing
+    block = lab.look_for_advisories(lab.plan.id)["lookup"]
+    assert sent == [{"package": {"name": "ecdsa", "ecosystem": "PyPI"}}, {"package": {"name": "elliptic", "ecosystem": "npm"}},
+                    {"package": {"name": "stdlib", "ecosystem": "Go"}}]
+    assert block["last"]["source_line"] == "Read from OSV (osv.dev). Sent: ecdsa (PyPI), elliptic (npm) and stdlib (Go), and nothing else."
+    # nothing of the assessment but those names is in what was sent
+    whole = json.dumps(sent)
+    for private in ("6.5.6", "0.13.2", "localhost", "acme", "Acme"):
+        assert private not in whole
+
+
+# ---------------------------------------------------------------- a look
+
+def test_a_look_says_where_each_advisory_stands_and_why_there_is_no_test_yet(lab):
+    runs_before = _count(lab, TestRunRow)
+    proposals_before = lab.otto_proposals(lab.plan.id)
+    view = lab.look_for_advisories(lab.plan.id)
+    assert problems(view, models.AdvisoriesView, "advisories after a look") == []
+    last = view["lookup"]["last"]
+    rows = {r["id"]: r for r in last["rows"]}
+    assert set(rows) == {"CVE-2099-0002", "CVE-2022-21449", "CVE-2099-0001", "CVE-2099-0003", "CVE-2099-0005", "PYSEC-2099-12"}
+    assert last["rows"][0]["id"] == "CVE-2099-0002"                         # the newest first
+    # fixed in a version the app has a public copy of, and an older copy too: it can be tried
+    new = rows["CVE-2099-0001"]
+    assert new["state"] == {"key": "new", "label": "New: not tried yet", "tone": "warn"} and new["reason"] is None
+    assert new["fits"] == "Names elliptic 6.5.6, which your dependency list lists; fixed in 6.5.7."
+    assert new["title"] == "Written for a test: fixed in a version the app has" and new["publisher"] == "GitHub Advisory Database"
+    assert new["url"] == "https://osv.dev/vulnerability/GHSA-test-0001-aaaa" and new["library"] == "elliptic"
+    assert rows["PYSEC-2099-12"]["state"]["key"] == "new" and "python-ecdsa 0.13.2" in rows["PYSEC-2099-12"]["fits"]
+    # fixed in a version the app has no public copy of: no test is designed, and it says why
+    none = rows["CVE-2099-0002"]
+    assert none["state"]["key"] == "no_test" and none["state"]["label"] == "No test yet"
+    assert none["reason"] == ("No test yet: a test is proven against the fixed version, elliptic 6.6.1, and this version of the app has no "
+                              "public copy of it (it has elliptic 6.5.6 and elliptic 6.5.7), so none was designed.")
+    assert rows["CVE-2099-0005"]["reason"] == words.NO_FIXED_VERSION
+    # about versions the assessment does not have
+    assert rows["CVE-2099-0003"]["state"]["key"] == "not_yours"
+    assert rows["CVE-2099-0003"]["fits"] == "elliptic 6.5.6, which your dependency list lists, is not among the versions it names."
+    # its id is in an installed test pack already: it links to its row on this page
+    packed = rows["CVE-2022-21449"]
+    assert packed["state"]["key"] == "in_pack" and "test pack 2026.11.1" in packed["state"]["label"]
+    assert packed["link"] == {"page": "advisories", "item": "CVE-2022-21449"}
+    assert last["line"].startswith("Looked on ") and "6 published advisories about your libraries." in last["line"]
+    assert "2 are new and can be tried here" in last["line"] and "2 have no test yet" in last["line"]
+    assert last["source_line"] == "Read from recorded answers in a folder on this computer. Nothing was sent."
+    # looking ran nothing, proposed nothing, and asked Claude nothing (the suite's stand-in would have failed the test)
+    assert _count(lab, TestRunRow) == runs_before and lab.otto_proposals(lab.plan.id) == proposals_before
+    assert _count(lab, OttoLookupRow) == 1 and _count(lab, OttoResearchRow) == 0
+    # how serious an advisory is, is nowhere on the page
+    for said in _texts(view["lookup"]):
+        assert not any(word in said.lower() for word in BANNED), said
+
+
+def test_a_look_is_kept_add_only_and_the_evidence_part_holds_what_was_asked_and_found(lab):
+    lab.look_for_advisories(lab.plan.id)
+    lab.look_for_advisories(lab.plan.id)
+    assert _count(lab, OttoLookupRow) == 2
+    with lab.db() as db:
+        with pytest.raises(Exception, match="append-only"):
+            db.execute(text("update otto_lookups set source = 'x'"))
+            db.commit()
+    part = lab.lookups_evidence(lab.plan.id)
+    assert [look["number"] for look in part["looks"]] == [1, 2] and part["research"] == []
+    one = part["looks"][0]
+    assert one["source"] == "recorded" and one["sent"] == [] and one["by"] == "You"
+    assert [a["library"] for a in one["asked"]] == ["python-ecdsa", "elliptic", "go-stdlib"]
+    assert all(len(sha) == 64 for a in one["asked"] for sha in a["sha256"])
+    assert {f["id"] for f in one["found"]} == {"CVE-2099-0001", "CVE-2099-0002", "CVE-2099-0003", "CVE-2022-21449", "CVE-2099-0005", "PYSEC-2099-12"}
+    assert not any(word in json.dumps(part).lower() for word in BANNED)
+
+
+def test_an_assessment_that_names_no_library_the_source_keeps_cannot_look_and_says_why(tmp_path, monkeypatch):
+    first, public = helpers.make_pack("2026.11.1", None, [helpers.pack_advisory()])
+    lab = helpers.lab_with_packs(tmp_path, monkeypatch, {"2026.11.1.json": first}, [public])
+    try:
+        plan = demo_plan(lab)                 # the Acme Pay file alone: a demo program and a server, no known library
+        block = lab.advisories_view(plan.id)["lookup"]
+        assert block["look"]["can"] is False and block["look"]["blocked_reason"] == words.LOOK_NOTHING_TO_ASK
+        assert block["libraries_line"] == "This assessment names no library the app knows."
+        with pytest.raises(Conflict) as refused:
+            lab.look_for_advisories(plan.id)
+        assert str(refused.value) == words.LOOK_NOTHING_TO_ASK
+    finally:
+        lab.stop()
+
+
+def test_a_source_that_cannot_be_read_changes_nothing_and_says_so(lab, monkeypatch):
+    object.__setattr__(lab.settings, "advisory_source_dir", None)
+    monkeypatch.setattr(lookup, "_http_transport", lambda body, timeout: (_ for _ in ()).throw(OSError("no route")))
+    with pytest.raises(Conflict) as refused:
+        lab.look_for_advisories(lab.plan.id)
+    assert str(refused.value) == "OSV (osv.dev) could not be reached (OSError). Nothing was changed."
+    assert _count(lab, OttoLookupRow) == 0
+
+
+# ---------------------------------------------------------------- Design and prove tests: when it can be pressed
+
+def test_design_and_prove_is_off_with_the_reason_until_it_can_work(lab, monkeypatch):
+    lab.look_for_advisories(lab.plan.id)
+    research = lab.advisories_view(lab.plan.id)["lookup"]["research"]
+    assert research["shown"] is True and research["label"] == "Design and prove tests (2)"
+    # this Lab is in demo mode: a real library runs only in its own container
+    assert research["can"] is False and research["blocked_reason"] == words.RESEARCH_NEEDS_ISOLATED
+    with pytest.raises(Conflict) as refused:
+        lab.start_research(lab.plan.id)
+    assert str(refused.value) == words.RESEARCH_NEEDS_ISOLATED and _count(lab, OttoResearchRow) == 0
+    said = " ".join(research["dialog"]["lines"])
+    assert research["dialog"]["title"] == "Design and prove tests for 2 advisories?"
+    assert "it fails on the affected version, passes on the fixed version, and the control that must fail does" in said
+    assert "Live Otto is off: only answers recorded during the build are used." in said and "No recorded answer: this needs Live Otto." in said
+    assert "that pack is installed by this click" in said and "Accepting or rejecting it stays with you" in said
+    # without Otto: the sentence Settings shows
+    missing = harness.OttoStatus(False, harness.NOT_FETCHED, "isogeny-labs/otto", "a" * 40, "0.1.0", None)
+    monkeypatch.setattr(harness, "status", lambda *a, **k: missing)
+    assert lab.advisories_view(lab.plan.id)["lookup"]["research"]["blocked_reason"] == missing.sentence
+
+
+def test_a_closed_assessment_can_neither_look_nor_start_a_run(lab):
+    lab.look_for_advisories(lab.plan.id)
+    lab.update_assessment(lab.assessment_for(plan_id=lab.plan.id).id, {"close": True, "signed_off_by": "A tester"})
+    block = lab.advisories_view(lab.plan.id)["lookup"]
+    assert block["look"]["can"] is False and block["look"]["blocked_reason"] == words.CLOSED_SENTENCE
+    assert block["research"]["can"] is False and block["research"]["blocked_reason"] == words.CLOSED_SENTENCE
+    assert block["last"] is not None            # what was found before closing is still shown
+
+
+# ---------------------------------------------------------------- a research run (the command is a stand-in here)
+
+def _pretend_isolated(lab, monkeypatch):
+    monkeypatch.setattr(lab, "mode", SimpleNamespace(name="isolated"))
+
+
+def _stand_in(lab, monkeypatch, script: str) -> list[list[str]]:
+    """Replace the research command by a small script (the real one needs Docker; it has the slow test below)."""
+    seen: list[list[str]] = []
+    real = lab._research_command
+
+    def command(inbox, live, limit_nano):
+        seen.append(real(inbox, live, limit_nano))
+        return [sys.executable, "-c", script, str(inbox)]
+    monkeypatch.setattr(lab, "_research_command", command)
+    return seen
+
+
+@pytest.mark.needs_otto
+def test_a_research_run_is_started_by_the_click_runs_in_the_background_and_its_end_is_kept(lab, monkeypatch):
+    lab.look_for_advisories(lab.plan.id)
+    _pretend_isolated(lab, monkeypatch)
+    seen = _stand_in(lab, monkeypatch, "import sys, json; d = json.load(open(sys.argv[1] + '/advisories.json')); "
+                                       "print('read', [a['id'] for a in d['advisories']]); print('Stopped: written for a test'); sys.exit(1)")
+    view = lab.start_research(lab.plan.id)
+    assert problems(view, models.AdvisoriesView, "advisories while a run goes on") == []
+    assert view["lookup"]["busy"] in (True, False)          # (a stand-in this short may already have ended)
+    lab.wait_until_research_done(60)
+    block = lab.advisories_view(lab.plan.id)["lookup"]
+    progress = block["research"]["progress"]
+    assert block["busy"] is False and progress["running"] is False
+    assert progress["lines"] == ["read ['CVE-2099-0001', 'PYSEC-2099-12']", "Stopped: written for a test"] or \
+        progress["lines"] == ["read ['PYSEC-2099-12', 'CVE-2099-0001']", "Stopped: written for a test"]
+    assert progress["line"].endswith("without a test pack: Stopped: written for a test")
+    # only the advisories that can be tried were handed over, in the snapshot's own shape, and the command is the research side's
+    assert seen[0][1:5] == ["-m", "ottolab.build", "next", "--inbox"] and "--live" not in seen[0]
+    assert seen[0][seen[0].index("--limit") + 1] == "2.00"
+    with lab.db() as db:
+        rows = list(db.scalars(select(OttoResearchRow).order_by(OttoResearchRow.id)))
+    assert [(r.kind, r.exit_code, r.pack_version) for r in rows] == [("started", None, None), ("finished", 1, None)]
+    assert sorted(rows[0].advisories) == ["CVE-2099-0001", "PYSEC-2099-12"] and rows[0].live is False and rows[0].installed_first == []
+    part = lab.lookups_evidence(lab.plan.id)["research"]
+    assert [(r["what"], r["exit_code"]) for r in part] == [("started", None), ("finished", 1)]
+    # the advisories are still new: nothing was proposed, and nothing of the assessment ran
+    states = {r["id"]: r["state"]["key"] for r in block["last"]["rows"]}
+    assert states["CVE-2099-0001"] == "new" and states["PYSEC-2099-12"] == "new"
+    assert all(p["about"].get("advisory") == "CVE-2022-21449" for p in lab.otto_proposals(lab.plan.id, ("check",)))
+
+
+@pytest.mark.needs_otto
+def test_only_one_research_run_at_a_time(lab, monkeypatch):
+    lab.look_for_advisories(lab.plan.id)
+    _pretend_isolated(lab, monkeypatch)
+    _stand_in(lab, monkeypatch, "import time; print('started'); time.sleep(3)")
+    lab.start_research(lab.plan.id)
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and not lab.advisories_view(lab.plan.id)["lookup"]["research"]["progress"]["lines"]:
+            time.sleep(0.05)
+        block = lab.advisories_view(lab.plan.id)["lookup"]
+        assert block["busy"] is True and block["research"]["progress"]["running"] is True
+        assert block["research"]["can"] is False and block["research"]["blocked_reason"] == words.RESEARCH_RUNNING
+        rows = {r["id"]: r["state"]["label"] for r in block["last"]["rows"]}
+        assert rows["CVE-2099-0001"] == "Being tried"
+        with pytest.raises(Conflict) as refused:
+            lab.start_research(lab.plan.id)
+        assert str(refused.value) == words.RESEARCH_RUNNING
+    finally:
+        lab.wait_until_research_done(60)
+    assert lab.advisories_view(lab.plan.id)["lookup"]["research"]["progress"]["line"].endswith(words.RESEARCH_NO_PACK)
