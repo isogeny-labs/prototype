@@ -589,9 +589,13 @@ point 14, has the rules. What it does not do, plainly:
   from the shipped one in `research/lab/`, which is never written by the app.
 - **The proof is the research side's own**, as for a shipped pack: the trial on public copies and its replay by a
   second author, which is a second role of the same build on the same computer and not an outside party.
-- **What a look found is not kept as a list of its own.** The evidence file holds each look (when, by whom, the
-  source, the names sent, how many were found and left out) and each research run with the pack it made; the
-  advisories themselves are in the pack, where a test was tried for them.
+- **What the evidence file holds about a look and a run.** Each look: when, by whom, the source, the names sent,
+  the fingerprint of each answer, how many records were left out, and for each advisory found its id, its
+  library, the day it was published and the fingerprint of the page it was read from (not its text). Each
+  research run: its start and its end, the advisories, whether Live Otto was on, and the pack it made. That pack
+  is in the file whole, with its signature, whether or not one of its checks was accepted: the proof of a test is
+  in its pack. An assessment where a person only looked has an Otto part with the look and nothing else. The
+  report (the readable copy) does not show looks and runs yet; the signed file does.
 - **The demonstration** (`backend/tools/research_demo.py`) uses the three elliptic advisories of the dated snapshot
   as a recorded source, with only the first built-in pack present, so that the recorded answers fit. It shows the
   loop end to end with no internet and no key: one advisory is proven and proposed, two read "No test yet".

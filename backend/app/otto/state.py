@@ -568,14 +568,19 @@ class OttoMixin:
         signed files, whole), the assessment's ledger with the hash of its latest entry, each advisory check's links
         into the ledger, and every Claude step taken in the app. None when the assessment has nothing of Otto's."""
         a = self.assessment_for(plan_id=plan_id)
+        # Phase 6, Otto's research loop: every look for new advisories and every research run of this assessment.
+        lookups = self.lookups_evidence(plan_id)                 # type: ignore[attr-defined]
+        made_by_runs = {str(run["pack_version"]) for run in lookups["research"] if run.get("pack_version")}
         with self.db() as db:
             added = self._otto_checks(db, plan_id)
             steps = db.scalars(select(OttoStepRow).where(OttoStepRow.plan_id == plan_id).order_by(OttoStepRow.id)).all()
             decided = db.scalar(select(func.count(OttoDecisionRow.id)).where(OttoDecisionRow.plan_id == plan_id)) or 0
-            if not added and not steps and not decided:
+            if not added and not steps and not decided and not lookups["looks"] and not lookups["research"]:
                 return None
+            # the packs this assessment's checks came from, and every pack a research run of this assessment made
+            # (the proof of what that run found is in its pack, whether or not a check of it was accepted)
             wanted = {c.pack_fingerprint for c in added}
-            envelopes = [json.loads(row.envelope) for row in self._pack_rows(db) if row.fingerprint in wanted]
+            envelopes = [json.loads(row.envelope) for row in self._pack_rows(db) if row.fingerprint in wanted or row.version in made_by_runs]
             checks_out = []
             for c in added:
                 row = db.get(TestSpecRow, c.spec_hash)
@@ -620,8 +625,7 @@ class OttoMixin:
                 # Otto proposes; a person decides: every proposal of this assessment as it stands, and every accept, reject,
                 # undo and reconsider on it, each with who and when and its entry in the ledger.
                 "proposals": self.otto_proposals_evidence(plan_id),      # type: ignore[attr-defined]
-                # Phase 6, Otto's research loop: every look for new advisories and every research run of this assessment.
-                "lookups": self.lookups_evidence(plan_id),               # type: ignore[attr-defined]
+                "lookups": lookups,
                 "decisions_note": ("Each proposal is decided by a person. A decision is recorded with who and when, in this file and in the "
                                    "ledger. This version has one login: whoever is at the keyboard records each decision, under the name "
                                    "shown. A decision is not a result."),

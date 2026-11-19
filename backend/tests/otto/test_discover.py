@@ -186,6 +186,81 @@ def test_a_look_is_kept_add_only_and_the_evidence_part_holds_what_was_asked_and_
     assert not any(word in json.dumps(part).lower() for word in BANNED)
 
 
+def _verify(tmp_path, lab, name: str):
+    """Download the evidence and check it with the verify command, as a customer would."""
+    import subprocess
+    from pathlib import Path
+    made = lab.export_evidence(lab.plan.id)
+    _, raw, _ = lab.evidence_file(made["id"], "json")
+    file = tmp_path / name
+    file.write_bytes(raw)
+    done = subprocess.run([sys.executable, "-m", "evidence", "verify", str(file), "--data-dir", str(lab.settings.data_dir)],
+                          cwd=Path(__file__).resolve().parents[2], capture_output=True, text=True, timeout=120)
+    return json.loads(raw)["evidence"], done
+
+
+@pytest.mark.needs_otto
+def test_a_look_alone_is_in_the_signed_evidence_and_the_verify_command_checks_it(tmp_path, monkeypatch):
+    """An assessment where a person only looked (no check added, no decision) still has the look in its evidence."""
+    source = tmp_path / "advisory-source"
+    source.mkdir()
+    (source / "npm__elliptic.json").write_bytes(_answer(ELLIPTIC))
+    (source / "PyPI__ecdsa.json").write_bytes(_answer(ECDSA))
+    lab = helpers.lab_with_packs(tmp_path, monkeypatch, {}, [], advisory_source_dir=source)
+    try:
+        lab.plan = demo_plan(lab)
+        lab.add_dependency_list(lab.plan.id, DEPENDENCIES_FILE.name, DEPENDENCIES_FILE.read_bytes())
+        lab.verify(lab.plan.imp["id"])
+        assert lab.otto_evidence(lab.plan.id) is None                 # nothing of Otto's yet: no Otto part
+        lab.look_for_advisories(lab.plan.id)
+        evidence, done = _verify(tmp_path, lab, "looked.json")
+        part = evidence["otto"]
+        assert part["checks"] == [] and part["packs"] == [] and len(part["lookups"]["looks"]) == 1 and part["lookups"]["research"] == []
+        assert done.returncode == 0, done.stdout + done.stderr
+        assert "Looks for new advisories: 1, each with what was asked and the fingerprint of each answer; research runs: 0 finished" in done.stdout
+    finally:
+        lab.stop()
+
+
+@pytest.mark.needs_otto
+def test_a_research_runs_pack_is_in_the_evidence_whether_or_not_a_check_of_it_was_accepted(lab, monkeypatch, tmp_path):
+    """The proof of what a run found is in the pack it made. So that pack is in the file, signature and all, as soon as
+    the run is on record; and a file whose run names a pack that is not in it does not check."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from app.db import OttoPackRow
+    from app.otto import packs
+    from evidence import otto as evidence_otto
+    key = Ed25519PrivateKey.generate()                                 # stands for the key made on this computer
+    (lab.settings.data_dir / packs.LOCAL_KEY_FILE).write_text(helpers.public_hex(key) + "\n", encoding="ascii")
+    with lab.db() as db:
+        first = db.scalars(select(OttoPackRow)).one().fingerprint
+    second, _ = helpers.make_pack("2026.11.2", first, [helpers.pack_advisory("CVE-2099-0001", "Made for a test", "elliptic")], key=key)
+    made = lab.settings.otto_local_updates
+    lab.verify(lab.plan.imp["id"])
+    lab.look_for_advisories(lab.plan.id)
+    demo_mode = lab.mode
+    _pretend_isolated(lab, monkeypatch)
+    # (a stand-in for the research command that leaves a signed pack in the data folder's updates, as the real one does)
+    _stand_in(lab, monkeypatch, "import pathlib; d = pathlib.Path(%r); d.mkdir(parents=True, exist_ok=True); "
+                                "(d / '2026.11.2.json').write_bytes(bytes.fromhex(%r)); print('Wrote test pack 2026.11.2')" % (str(made), second.hex()))
+    lab.start_research(lab.plan.id)
+    lab.wait_until_research_done(60)
+    with lab.db() as db:
+        end = db.scalars(select(OttoResearchRow).where(OttoResearchRow.kind == "finished")).one()
+    assert (end.exit_code, end.pack_version) == (0, "2026.11.2"), (end.output, end.reason)
+    monkeypatch.setattr(lab, "mode", demo_mode)                        # (the download says which mode the app is in)
+    evidence, done = _verify(tmp_path, lab, "after-a-run.json")
+    part = evidence["otto"]
+    assert part["checks"] == []                                        # nobody accepted anything
+    assert [p["pack"]["version"] for p in part["packs"]] == ["2026.11.2"]
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "research runs: 1 finished, each pack they made is in the file." in done.stdout
+    # the same record without the pack: the run's proof is missing, and the check says so
+    without = evidence_otto.check_otto({**evidence, "otto": {**part, "packs": []}}, evidence_otto.pack_keys(lab.settings.data_dir))
+    assert without.code != evidence_otto.OK and "names test pack 2026.11.2, which is not in the file" in (without.problem or "")
+
+
 def test_an_assessment_that_names_no_library_the_source_keeps_cannot_look_and_says_why(tmp_path, monkeypatch):
     first, public = helpers.make_pack("2026.11.1", None, [helpers.pack_advisory()])
     lab = helpers.lab_with_packs(tmp_path, monkeypatch, {"2026.11.1.json": first}, [public])
