@@ -875,7 +875,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     expect(good.status, `the evidence file should check: ${good.stdout} ${good.stderr}`).toBe(0);
     expect(good.stdout).toMatch(/^Evidence verified/);
     expect(good.stdout).toContain("Test packs: 2 in the file");
-    expect(good.stdout).toMatch(/Decisions: 12 on \d+ of Otto's \d+ proposals, each in the ledger with who and when/);
+    expect(good.stdout).toMatch(/Decisions: 12 on \d+ of the \d+ proposals, each in the ledger with who and when/);
     // the same output says what else was checked: the packs, the checks' designs, the ledger, Claude's step, Otto's audit
     expect(good.stdout).toContain("Otto: Ledger:");
     expect(good.stdout).toContain("Otto's own audit");

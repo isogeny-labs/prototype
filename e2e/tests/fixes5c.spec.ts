@@ -124,7 +124,9 @@ async function openInNewTab(page: Page, panel: Locator, backTo: string): Promise
   // the sidebar and the top bar stay; the list is not shown; the way back names the page
   await expect(tab.getByTestId("sidebar").first()).toBeVisible();
   await expect(tab.getByTestId("page-content")).toBeHidden();
-  await expect(tab.getByTestId("item-page-back")).toHaveText(`← Back to ${backTo}`);
+  // (the item's own page; the "not here" notice the app keeps ready behind it is never shown while the item is drawn)
+  await expect(tab.getByTestId("item-page").getByTestId("item-page-back")).toHaveText(`← Back to ${backTo}`);
+  await expect(tab.getByTestId("item-page-missing")).toBeHidden();
   await expect(tab.getByTestId("item-page").getByRole("button", { name: "Close details" })).toHaveCount(0);
   return tab;
 }
@@ -320,14 +322,16 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await tab.goto("about:blank");
     await tab.goto(address);
     await expect(tab.getByTestId("item-page").getByRole("heading", { level: 1 })).toHaveText(RANGE_CHECK);
-    await tab.getByTestId("item-page-back").click();
+    await tab.getByTestId("item-page").getByTestId("item-page-back").click();
     await expect(tab.getByTestId("item-page")).toHaveCount(0);
     await expect(tab.getByTestId("detail-panel").getByRole("heading", { level: 2 })).toHaveText(RANGE_CHECK);
     await expect(tab.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
     // an item that is not there says so, with the way back
     await tab.goto(`/#/a/${assessment}/checks?item=test-999999&view=page`);
-    await expect(tab.getByTestId("item-page-missing")).toContainText("This item is not here");
-    await expect(tab.getByTestId("item-page-back")).toHaveAttribute("href", `#/a/${assessment}/checks`);
+    const missing = tab.getByTestId("item-page-missing").filter({ visible: true });
+    await expect(missing).toHaveCount(1);
+    await expect(missing).toContainText("This item is not here");
+    await expect(missing.getByTestId("item-page-back")).toHaveAttribute("href", `#/a/${assessment}/checks`);
     await shots(tab, "09-an-item-that-is-not-there");
     await tab.close();
 
