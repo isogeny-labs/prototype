@@ -13,7 +13,7 @@ Doc "Phase 6 plan: Otto assistant".
 
 ## Where the run stands (updated after every step)
 
-Written at 05:45 UTC on 19 November 2026 (machine time), in the middle of the run. The exact next action is
+Written at 06:35 UTC on 19 November 2026 (machine time), in the middle of the run. The exact next action is
 the section before the appendix.
 
 | # | Success step | State |
@@ -24,10 +24,10 @@ the section before the appendix.
 | 4 | No sentence says what Otto did | **Built** (fixes 4 and 5), with a wording test; seven more sentences reworded after the review |
 | 5 | Times in the viewer's own time zone; files keep UTC | **Built** (fix 6) |
 | 6 | "New" tag on advisories of the newest pack | **Built** (fix 7) |
-| 7 | "Look for new advisories" reads a public source and finds what fits | **Built and committed** (step 3, first part). The read from osv.dev itself could not be tried from the build machine |
-| 8 | Otto designs a test and proves it on public copies after a click; only then a proposal | **Built and committed**; the real run in containers is a slow test, **running now** in the full suite. Walk, pictures and separate review **still to do** |
-| 9, 10, 11 | The assistant: suggestions that fit the page, three tabs, decide in the panel | **Built, committed, reviewed, review findings fixed** (phase 6a). Its walk was reworked after the review and **has to be run to green** |
-| 12 | Commands | Not started (6b) |
+| 7 | "Look for new advisories" reads a public source and finds what fits | **Built and committed** (step 3). The read from osv.dev itself could not be tried from the build machine: `docs/LIVE-CHECK.md`, Part 1, is Kevin's first real look |
+| 8 | Otto designs a test and proves it on public copies after a click; only then a proposal | **Built and committed.** The real run in containers passes (9 min 40 s). Its walk reached the proposal and its Accept on the first try and is **running again now**; pictures and the separate review (started) are still open |
+| 9, 10, 11 | The assistant: suggestions that fit the page, three tabs, decide in the panel | **Done** (phase 6a): built, reviewed, findings fixed, walk green (2 of 2), 38 pictures, committed and pushed |
+| 12 | Commands | **First half built, tested, committed and pushed** (6b, fixed rules only). Its documents are written (not committed yet), its two commands are in the walk (**running now**), and its separate review has started. The second half (free wording through Claude) is not built |
 | 13 | Questions | Not started (6c) |
 | 14 | What-if and hypotheses | Not started (6e) |
 | 15 | Change watch | Not started (6d) |
@@ -40,7 +40,9 @@ Commits on `overnight/fixes-and-phase6` since the 5c merge (`5a6b4e4`), oldest f
 `8526aac` docs and the new walk · `4d43bab`, `dbbe95a` two things the walks found · `dd21a67` one file put
 back (**step 1 as first built**) · `e50d1a7` this file and 24 pictures · `cc96b18` **phase 6a** ·
 `a19bb0f`, `ea1329a` **step 1, the review's findings fixed** · `07ad491` **the research loop, first part** ·
-`77c001a` **phase 6a, the review's findings fixed**.
+`77c001a` **phase 6a, the review's findings fixed** · `255ec6f` the research loop's documents and this file ·
+`23d577e` the research loop: evidence fix · `f20042a` **phase 6a: the walk green, with its pictures** ·
+`ec1d061` the research loop: a run is ended with the app · `7a0898f` **phase 6b, first half**.
 
 ## Step 1: the 5c fixes (built, reviewed, findings fixed, committed and pushed)
 
@@ -96,9 +98,25 @@ read is fine and no walk failed on it. For a later fix: read the migration state
 `tests/otto/test_otto_evidence.py`). They run only in the full set, which is running now on a frozen copy
 of the work as it stood at 05:17 (see "The exact next action").
 
+**The backend full set** (`pytest -q tests --full`), run once on a frozen copy of the work as of 05:17 while
+other test runs were going on at the same time: **1933 passed, 15 failed, 7 errors, in 36 min 45 s.** What they
+were:
+- Two tests that keep lists up to date (the add-only tables; the routes that take a JSON body) had not heard of
+  tonight's additions. Fixed (`ec1d061`, and again for 6b in `7a0898f`).
+- The real research run (`tests/otto/test_discover_real.py`) and, after it, 17 tests of `tests/otto/`
+  (`test_shipped.py`, `test_proposal_rules.py`, one of `test_otto_fix.py`) and one Docker test
+  (`tests/test_isolated_flow.py`). **Run by themselves on the same frozen copy, the real research run and
+  `test_shipped.py` pass: 11 passed in 9 min 40 s.** The saved output of the full run holds only its last 80
+  lines, so the reason those tests failed in it is not on record. The likely cause is the other test runs on the
+  machine at that time (one harness copy and Docker were shared). **This must be settled by one more full run on
+  a quiet machine, with its whole output kept.**
+- Found on the way and fixed (`ec1d061`): a research run that was still going when the app stopped was left
+  behind and went on working. Stopping the app now ends it.
+
 **Still open for step 1:**
-1. The backend full set (`pytest -q tests --full`): **running now** on a frozen copy
-   (`<scratchpad>/snap1`, output in `<scratchpad>/full-snap1.txt`). Fix what fails.
+1. The backend full set once more, on a quiet machine, with the whole output kept
+   (`cd backend && .venv/bin/python -m pytest -q tests --full > FILE 2>&1`): about 45 minutes with the real
+   research run in it. Nothing else may run tests or Docker meanwhile.
 2. The backend fast set, timed on a quiet machine (must be under 5 minutes).
 3. The accuracy check, four keys, demo mode and isolated mode, on the branch as it is now.
 4. `--only otto --mode isolated`, compared with the same run on the 5c build (worktree `base-5c` at
@@ -118,9 +136,9 @@ Fix 8 (a new Codespace), what was proven and what was not:
   `git-lfs:1`) and commit the lock file GitHub writes; `backend/tests/test_devcontainer.py` then needs its
   pattern changed.
 
-## Step 2: phase 6a, the Otto assistant (built, committed, reviewed, findings fixed; the walk must still run green)
+## Step 2: phase 6a, the Otto assistant (built, reviewed, findings fixed, walk green, committed and pushed)
 
-Commits: `cc96b18` (the phase), `77c001a` (the review's findings).
+Commits: `cc96b18` (the phase), `77c001a` (the review's findings), `f20042a` (the walk and its pictures).
 
 What is built:
 - **Backend** `backend/app/assistant/` (`threads.py`, `words.py`, `engine.py`) behind `CopilotEngine`; one
@@ -144,8 +162,8 @@ reviewer found no path that breaks the panel's rules: the read only reads, nothi
 and each Confirm request equals the page's.
 1. *Measure status: the Confirm step said less than what is sent* ("one handshake to each server"). Fixed:
    it lists what the two locked measurements do, in their own method's words. Backend test.
-2. *The end-to-end proof was missing, and Planning was not in it.* The walk is reworked (see below). **It
-   has not been run since: this is the next thing to do for 6a.**
+2. *The end-to-end proof was missing, and Planning was not in it.* Fixed: the walk is reworked and green
+   (see below).
 3. *Retest now went to Evidence with nothing open.* Fixed: it lands on the result the fix came from, as the
    page's button does. Screen test.
 4. *The Fixing tab's "something new" mark missed a server change's steps, and a returned tab could vanish.*
@@ -159,24 +177,23 @@ and each Confirm request equals the page's.
   the most the click can spend; **not done:** eleven of the thirteen next-step screen tests compare with a
   typed request, not with the real page component (the two that do are Run and Run all).
 
-**The walk** `e2e/tests/assistant.spec.ts`, as reworked (uncommitted until it is green): the name is typed
-at the first Confirm ("A tester") and every decision is recorded under it; Measure status is pressed from
-the panel right after Run all, the Planning tab opens with a plan change, it is accepted in the panel and
-the Systems page and the Roadmap say the same; Retest now lands on the result; after the retest the plan
-change reads done; the evidence holds nine decisions. Pictures `01` to `18`, dark and light, go to
-`docs/screenshots/phase6a/` (delete that folder first: it holds pictures of the earlier walk).
-Run it with `cd frontend && npm run build`, then
-`cd e2e && npx playwright test tests/assistant.spec.ts --trace off` (nothing else may use ports 8010/8443).
-Expect a few expectations of the walk itself to need a correction on its first run.
+**The walk** `e2e/tests/assistant.spec.ts`, reworked after the review, is green (`f20042a`): **2 passed in 3.5
+minutes.** A name is typed at the first Confirm ("A tester") and every decision is recorded under it; Measure
+status is pressed from the panel right after Run all, the Planning tab opens with a plan change, it is accepted in
+the panel, and Systems and the Roadmap say the same; Retest now lands on the result the fix came from; after the
+retest the plan change reads done; the evidence verifies with nine decisions in it. The panel's one read took
+under 400 ms late in the walk. **38 pictures**, dark and light, in `docs/screenshots/phase6a/` (`01` to `19`).
+The same walk now also types phase 6b's two commands (see step 4 below); that version is running now.
 
-**Still open for 6a:** the walk green and its pictures committed; the fast set timed with the panel's tests
-in it (their shared walk takes about 25 to 35 seconds); the accuracy check in both modes.
+**Still open for 6a:** the fast set timed with the panel's tests in it; the accuracy check in both modes.
 
-## Step 3: Otto's research loop (first part built and committed; walk, review and pictures still to do)
+## Step 3: Otto's research loop (built and committed with its documents; walk running, review started)
 
-Commit: `07ad491`. Its documents are written but **not committed yet** (SPEC sections 2, 3, 7f point 14 and
-9; CLAUDE.md; LIMITS "Limits of Otto's research loop"; README; LAYOUT), together with a one-line change
-(the request to the source names its client as plain "advisory-reader").
+Commits: `07ad491` (the loop), `255ec6f` (its documents: SPEC sections 2, 3, 7f point 14 and 9; CLAUDE.md;
+LIMITS "Limits of Otto's research loop"; README; LAYOUT), `23d577e` (a run's pack, and a look by itself, are
+in the signed evidence: found while preparing the walk), `ec1d061` (a run is ended with the app).
+`docs/LIVE-CHECK.md` (Kevin's 15-minute check with the real internet and a real key) is written, not committed
+yet.
 
 What is built:
 - **Look for new advisories** (Advisories, block "New advisories"). `backend/app/otto/lookup.py` asks OSV
@@ -198,19 +215,23 @@ What is built:
   for new advisories").
 
 Test results: `tests/otto/test_lookup.py` 15 passed (with a seeded fuzz test); `tests/otto/test_discover.py`
-10 passed; `NewAdvisories.test.tsx` and `Advisories.test.tsx` 93 passed; lint and type check clean. The
-real run in containers, `tests/otto/test_discover_real.py`, is in the full set that is **running now**.
+15 passed; `NewAdvisories.test.tsx` and `Advisories.test.tsx` 93 passed; lint and type check clean. **The real
+run in containers, `tests/otto/test_discover_real.py`, passes: with only the first built-in pack present and the
+three elliptic advisories of the dated snapshot as a recorded source, a look finds three new advisories; the
+research run installs pack 2026.11.1, proves the test for CVE-2024-42460 on elliptic 6.5.6 and 6.5.7, signs
+pack 2026.11.2 on this computer and installs it; the check is then proposed (nothing added, nothing of the
+assessment run), and the other two read "No test yet" with the pack's reason.** 9 min 40 s.
+
+The walk `e2e/tests/research.spec.ts` (not committed yet; ports 8032/8465 in isolated mode, 8033/8466 in demo
+mode): on its first run it passed the look, the research run, the proposal and its Accept, and stopped at a
+click of the walk's own (the test card's Run button is named after its test). Corrected; **running again now**
+(`<scratchpad>/e2e-research-2.txt`). Its pictures go to `docs/screenshots/phase6-research/`.
 
 **Still to do for step 3:**
-1. Read the real run's result in the full set; fix what it shows.
-2. An end-to-end walk `e2e/tests/research.spec.ts` with pictures: in isolated mode, on a folder prepared
-   like `research_demo.py` does (a copy of the app started with `EVIDENCE_LAB_OTTO_UPDATES` and
-   `EVIDENCE_LAB_ADVISORY_SOURCE`): Look, Design and prove tests, the proposal, Accept, Run, the result, the
-   evidence verified. In demo mode: Look, and the second button off with its reason.
-3. The separate reviewer against SPEC, CLAUDE.md and the plan; fix what it finds.
-4. Check that the Otto panel still reads Advisories correctly (the view got a new part), and that the four
-   answer keys still match.
-5. Commit the documents, the walk and the pictures; push.
+1. The walk green; commit it with its pictures, `docs/LIVE-CHECK.md` and the walk's line in CLAUDE.md (that
+   line is in the working tree).
+2. The separate reviewer's report (started): fix what it finds.
+3. Check that the four answer keys still match (the accuracy check, both modes).
 
 What Kevin must know about step 3 (also in "Decisions for Kevin"):
 - **The read from osv.dev could not be tried from the build machine** (that address is not reachable from
@@ -222,6 +243,40 @@ What Kevin must know about step 3 (also in "Decisions for Kevin"):
 - Java, OpenSSL and BoringSSL are not asked about: OSV keeps them nowhere by name.
 - With Live Otto off only the advisories of the dated snapshot have recorded answers; any other advisory
   needs Live Otto (a key, and up to the spending limit per run). No live run was made during the build.
+
+## Step 4: phase 6b, commands (first half built, tested, committed and pushed; documents, walk and review open)
+
+Commit: `7a0898f`. The plan's "shorter first half": fixed rules only, without the Claude step for free wording.
+
+What is built:
+- **The one list of commands** as data, and the fixed rules that read a sentence
+  (`backend/app/assistant/commands.py`); what is answered (`answers.py`): where to go, or a card of phase 6a
+  with its Confirm step, "Which one?", or "I can't do that." with what can be said on the page. Both only read.
+- **Two routes**: `GET /api/assessments/{id}/assistant/answer` (a read; a closed assessment uses it) and
+  `POST /api/plans/{plan_id}/assistant/messages` (the same answer, and the exchange kept in
+  `assistant_messages`, add-only, written by `backend/app/lab/said.py`).
+- **The text box** at the foot of the panel with up to three chips, the answer area, the card with its Confirm
+  step, "Which one?" options and examples (`OttoPanel.tsx`).
+- **Filters in the address**: Result (Checks, Evidence), Came from (Checks), Decision (Advisories). On Checks the
+  Result filter also narrows the test plan's cards.
+- Documents (in the working tree, **not committed yet**): SPEC section 2 "Commands in the Otto panel", sections
+  3 and 9; CLAUDE.md (the rule-based rule, what is kept, the Tests rule); LIMITS "Limits of phase 6b, first
+  half"; README "Telling Otto what to do"; LAYOUT.
+
+Test results: `backend/tests/assistant/`: **119 passed** (74 for commands: every line of the list from several
+wordings, the answers at each stage of the shared walk, a seeded fuzz of the reader, asking changes nothing,
+what is kept, the routes). Frontend: **808 screen tests passed** (12 for the text box, 5 for the address
+filters). Lint, type check and generated files clean.
+
+**Still to do for 6b's first half:**
+1. The walk: `e2e/tests/assistant.spec.ts` now types "show me failed checks" (after Run all) and "accept the
+   Java fix" (on Dependencies), in the working tree. **Running now** (`<scratchpad>/e2e-6a-8.txt`). Two new
+   pictures: `08b-...` and `17b-...`.
+2. The separate reviewer's report (started): fix what it finds.
+3. Commit the documents and the walk; push.
+- **Not built (the second half):** passing a sentence the rules can't read to Claude with Live Otto on, its
+  check, its recorded answers and its ledger record. The CLAUDE.md rule changes 3, 4 and 8 of the plan (Claude's
+  jobs, what a run is, when a live call is made) are therefore **not** applied yet.
 
 ## Decisions for Kevin (collected so far)
 
@@ -252,20 +307,29 @@ What Kevin must know about step 3 (also in "Decisions for Kevin"):
    list page has none. Should the Checks list carry it too? (SPEC section 11 says every result screen.)
 10. The fast test set: three shared walks moved to the slow set, as decided. If it is over five minutes
     again with tonight's tests, more has to move, or tests run in parallel (a new developer-only package).
+11. Phase 6b: on Checks the Result filter now also narrows the test plan's own cards (so that "show me failed
+    checks" lists only failed checks). Before, it filtered only the rows under the plan. Is that right?
+12. Phase 6b: everyday names for libraries are a small fixed table (Java for openjdk, Python and ecdsa for
+    python-ecdsa). More names can be added; tell me which you use.
+13. `docs/LIVE-CHECK.md` is your 15-minute check with the real internet and a real key. Part 1 (the first real
+    look at osv.dev) is free and needs no key.
 
 ## The exact next action
 
-1. Read the full backend set's result (`<scratchpad>/full-snap1.txt`; it ran on the work as of 05:17).
-   Fix what fails on the branch, with the real research run first (`tests/otto/test_discover_real.py`).
-2. Build the frontend and run `e2e/tests/assistant.spec.ts` until it passes (the command is under step 2);
-   commit the walk and its pictures (`docs/screenshots/phase6a/`; restore other picture folders the run
-   rewrote with `git checkout -- docs/screenshots/<folder>`).
-3. Commit step 3's documents. Write the walk for step 3 and run it; pictures to
-   `docs/screenshots/phase6-research/`. Start the separate reviewer for step 3; fix its findings; commit; push.
-4. The long checks on the branch as it is then, one at a time on a quiet machine: the fast set (timed), the
-   accuracy check in demo and in isolated mode, `--only otto --mode isolated` against the 5c build.
-5. Then 6b, 6c, 6d and 6e, each at least its shorter first half; the 15-minute live check list
-   (`docs/LIVE-CHECK.md`, not written yet) with the first real look at osv.dev as its first item.
+1. Read the two walks' results (`<scratchpad>/e2e-research-2.txt`, then `<scratchpad>/e2e-6a-8.txt`). Correct
+   what fails (so far each failure was an expectation of the walk itself) and run that walk again:
+   `cd frontend && npm run build`, then `cd e2e && npx playwright test tests/research.spec.ts --trace off`
+   (about 15 minutes, Docker) or `tests/assistant.spec.ts` (about 4 minutes).
+2. Commit: the research walk with its pictures (`docs/screenshots/phase6-research/`), `docs/LIVE-CHECK.md` and
+   CLAUDE.md's walk line; then the 6b documents and the assistant walk with its two new pictures. Restore other
+   picture folders a run rewrote with `git checkout -- docs/screenshots/<folder>`. Push.
+3. Read the two reviewers' reports (step 3, and 6b's first half) when they arrive; fix what breaks a
+   requirement; commit; push.
+4. The long checks on the branch as it is then, **one at a time and with nothing else running**: the full
+   backend set with its whole output kept; the fast set (timed); the accuracy check in demo and in isolated
+   mode; `--only otto --mode isolated` against the 5c build; one complete run of every walk (`cd e2e && npm test`).
+5. Then 6c, 6d and 6e, each at least its shorter first half (6c: the six fixed questions; 6d: Changes without
+   the Watch list; 6e: the what-if facts and the try), and 6b's second half.
 6. Keep pull request #7 a draft. Never merge. Leave the line in `docs/ACTIVE.md` unticked until the run ends.
 
 ## Appendix: the plan for step 1 as written before it was built
