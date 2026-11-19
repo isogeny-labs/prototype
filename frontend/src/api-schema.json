@@ -6896,6 +6896,8 @@
                   "fails_now",
                   "passes_now",
                   "same",
+                  "slower_now",
+                  "not_slower",
                   "not_compared",
                   "not_trusted"
                 ]
@@ -18821,6 +18823,8 @@
           "fails_now",
           "passes_now",
           "same",
+          "slower_now",
+          "not_slower",
           "not_compared",
           "not_trusted"
         ],

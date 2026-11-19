@@ -184,7 +184,9 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   await expect(tricks.getByTestId("change-result-before")).toContainText("acme-sign 1.4.3");
   await expect(tricks.getByTestId("change-result-now").getByTestId("result-badge")).toHaveText("Failed");
   await expect(tricks.getByTestId("change-result-now")).toContainText("acme-sign 1.4.2");
-  await expect(results.filter({ hasText: "Speed and size" })).toHaveAttribute("data-outcome", "same");
+  // (the speed test is placed by its run on the change alone, which timed the change side by side with the code before)
+  await expect(results.filter({ hasText: "Speed and size" })).toHaveAttribute("data-outcome", "not_slower");
+  await expect(results.filter({ hasText: "Speed and size" }).getByTestId("change-result-differs")).toHaveText("No slowdown against the code before");
   await expect(row("Revert the range check")).toHaveAttribute("data-status", "passed_before_fails_now");
   await page.waitForLoadState("networkidle");
   expect(await layoutProblems(page), "Change watch after a run").toEqual([]);

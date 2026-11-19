@@ -108,6 +108,7 @@ class ChangeWatchMixin:
     _claims: Callable[..., list[dict]]
     _program_of: Callable[..., dict | None]
     _repo: Callable[[str], GitRepo]
+    _bundled_files: Callable[..., dict | None]
     _running: Callable[[int], str | None]
     _submit: Callable[..., Any]
     _verdict: Callable[..., dict | None]
@@ -119,20 +120,23 @@ class ChangeWatchMixin:
 
     # ---------------------------------------------------------------- where the code stands
 
-    @staticmethod
-    def _watch_program(plan: PlanRow) -> dict | None:
-        """The plan's own program, when it is one of our demo programs whose code can be connected."""
+    def _watch_program(self, plan: PlanRow) -> dict | None:
+        """The plan's own program, when its code can be connected: one of our demo programs, and exactly the one the
+        bundled demo repository holds (the same rule as Connect demo code on Fixes)."""
         path = components.lookup(plan.component_name, plan.component_version)
-        if path is None or demo_repo.bundled(plan.component_name) is None:
+        if path is None or demo_repo.bundled(plan.component_name) is None or self._bundled_files(plan) is None:
             return None
         return {"name": plan.component_name, "version": plan.component_version, "file": path.name}
 
     def _watch_code(self, db, plan: PlanRow) -> dict:
         """{"state": "no_code" | "not_connected" | "connected", "program", "connection", "merged"}."""
-        program = self._watch_program(plan)
         connection = db.scalars(select(CodeConnectionRow).where(CodeConnectionRow.plan_id == plan.id)).first()
         if connection is None:
+            program = self._watch_program(plan)
             return {"state": "no_code" if program is None else "not_connected", "program": program, "connection": None, "merged": False}
+        path = components.lookup(connection.component_name, connection.component_version)
+        program = ({"name": connection.component_name, "version": connection.component_version, "file": path.name}
+                   if path is not None else None)
         merged = db.scalars(select(MergeRow).join(PullRequestRow, MergeRow.pull_request_id == PullRequestRow.id)
                             .where(PullRequestRow.plan_id == plan.id)).first() is not None
         if program is None:      # (connected for a program we name: the registry has not lost it since)
@@ -363,7 +367,11 @@ class ChangeWatchMixin:
     def _watch_state(self, db, plan: PlanRow, watch: WatchRunRow) -> dict:
         """One watch run: each test's run before and now, its live jobs, and the review."""
         # (the live jobs are read BEFORE the stored records, for the reason given at ChangesMixin._proof_state)
-        live = {(job.key[0], job.key[1]): job for job in self.jobs.live(plan.id) if job.key[1] in WATCH_PHASES}
+        # A job is known by its test and its phase, not by its watch run. No watch run starts while another's jobs are
+        # live, so live watch jobs belong to the plan's newest watch run and to no other.
+        newest = db.scalar(select(WatchRunRow.id).where(WatchRunRow.plan_id == plan.id).order_by(WatchRunRow.id.desc()).limit(1))
+        live = ({(job.key[0], job.key[1]): job for job in self.jobs.live(plan.id) if job.key[1] in WATCH_PHASES}
+                if watch.id == newest else {})
         tests = self._watch_tests(db, watch)
         review = self._watch_review(db, watch, tests)
         placed = {t["item_id"]: t for t in review["tests"]} if review is not None else {}

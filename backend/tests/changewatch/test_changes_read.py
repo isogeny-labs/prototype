@@ -103,6 +103,28 @@ def test_a_file_that_names_no_program_of_ours_has_no_code_to_connect(tmp_path):
         lab.stop()
 
 
+def test_a_file_that_names_another_version_than_the_demo_repository_holds_has_no_code_to_connect(tmp_path):
+    """The bundled demo repository holds acme-sign 1.4.2. For a file that names 1.4.3 (a registered program too) Fixes
+    refuses to connect it, so Change watch must not send the person there with "Connect the demo code first"."""
+    from app.lab.hub import DEMO_CBOM
+    lab = make_lab(tmp_path)
+    try:
+        imp = lab.import_file("acme-pay-1.4.3.json", DEMO_CBOM.read_bytes().replace(b"1.4.2", b"1.4.3"))
+        plan = lab.ensure_plan(imp["id"])
+        with lab.db() as db:        # (the file names a program of ours, in a version the registry has)
+            row = lab._plan(db, plan["id"])
+            assert (row.component_name, row.component_version) == ("acme-sign", "1.4.3") and components.lookup("acme-sign", "1.4.3") is not None
+        state = lab.change_watch_state(plan["id"])
+        assert state["code"] == {"state": "no_code", "program": None, "merged": False, "repository": None, "branch": None}
+        assert all(m["blocked"] == "no_code" for m in state["menu"])
+        page = lab.change_watch_view(plan["id"])
+        assert page["code"]["line"] == "This assessment has no code that can be connected, so no developer's change can come in here."
+        assert page["code"]["link"] is None and page["changes"] == [] and page["busy"] is False
+        assert "no code that can be connected" in refusal(lambda: lab.bring_in_demo_change(plan["id"], "allow-tls-1-0"))
+    finally:
+        lab.stop()
+
+
 # ---------------------------------------------------------------- connected: the app's own change is not a developer's
 
 def test_the_fix_templates_own_branch_is_not_listed_as_a_developers_change(watch):
@@ -325,6 +347,13 @@ def test_a_flag_comes_only_from_a_line_the_change_adds():
     ("hashlib.md5(x)", ["MD5"]), ("cmd5", []), ("RC4-SHA", ["RC4"]), ("src4", []), ("arcfour128", ["RC4"]),
     ("DES-EDE3-CBC", ["3DES"]), ("ciphers = 3DES", ["3DES"]), ("Triple DES", ["3DES"]), ("description", []), ("nodes", []),
     ("SSLv3", ["SSL 3.0"]), ("ssl3", ["SSL 3.0"]), ("SSL 3.0 is off", ["SSL 3.0"]), ("ssl30x", []),
+    # a newer version written with dashes or underscores, or a date after the name, is not the old one (the review of 6d)
+    ('ssl_policy = "ELBSecurityPolicy-TLS-1-2-2017-01"', []), ("min-tls-1-3-only = true", []), ("TLS_1_2", []), ("tls-1-2", []), ("TLSv1.1.1", []),
+    ('ssl_policy = "ELBSecurityPolicy-TLS-1-0-2015-04"', ["TLS 1.0"]), ("tls-1-0", ["TLS 1.0"]), ("TLS-1-1", ["TLS 1.1"]), ("tls1_1", ["TLS 1.1"]),
+    ("openssl 3.0", []), ("openssl-3.0.2", []), ("libssl3", []), ("ssl_3_0", ["SSL 3.0"]),
+    # words that only look like a name on the list
+    ("retry on up to 3 destinations", []), ("keep 3 desks free", []), ("tdeadline = 30", []), ("triple description", []),
+    ("git sha 1a2b3c", []), ("arc4random()", []), ("the triple-des cipher", ["3DES"]), ("sha 1", ["SHA-1"]), ("hmac-md5", ["MD5"]), ("rc 4", ["RC4"]),
 ])
 def test_how_the_names_on_the_list_are_found(line, words):
     assert [f["word"] for f in flags.named_in("f", [(1, line)])] == words

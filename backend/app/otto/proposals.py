@@ -218,7 +218,9 @@ class ProposalsMixin:
             for program in fitting:
                 item = checks.existing_item(self, db, plan.id, digest, program["ref"])
                 in_plan = item is not None and not item.removed
-                runs = int(db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_item_id == item.id)) or 0) if item is not None else 0
+                # (its own runs: a run made for a developer's change, phase 6d, is kept apart and is not the check's run)
+                runs = int(db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_item_id == item.id,
+                                                                             TestRunRow.phase.not_in(WATCH_PHASES))) or 0) if item is not None else 0
                 live = item is not None and any(job is not None and job.status != "done"
                                                 for job in (self.jobs.get((item.id, phase)) for phase in ("first", "retest", "proof", *WATCH_PHASES)))
                 if program["component"] == package:
@@ -333,7 +335,8 @@ class ProposalsMixin:
                 # decided earlier, and a newer result of the check passes now: it is told from the failure it came from
                 done = result
                 failed = db.scalars(select(TestRunRow).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
-                                    .where(TestRunRow.plan_item_id == item_id, ReviewRow.code == "failed")
+                                    .where(TestRunRow.plan_item_id == item_id, ReviewRow.code == "failed",
+                                           TestRunRow.phase.not_in(WATCH_PHASES))
                                     .order_by(TestRunRow.id.desc()).limit(1)).first()
                 if failed is None:
                     continue
@@ -611,7 +614,8 @@ class ProposalsMixin:
                     decided = [r for r in db.scalars(select(OttoDecisionRow).where(OttoDecisionRow.plan_id == plan_id)).all()
                                if _aware(r.created_at) >= _aware(last.installed_at)]
                     runs = db.scalars(select(TestRunRow).join(TestSpecRow, TestSpecRow.hash == TestRunRow.spec_hash)
-                                      .where(TestRunRow.plan_id == plan_id, TestSpecRow.kind == research.ADVISORY_KIND)
+                                      .where(TestRunRow.plan_id == plan_id, TestSpecRow.kind == research.ADVISORY_KIND,
+                                             TestRunRow.phase.not_in(WATCH_PHASES))
                                       .order_by(TestRunRow.id)).all()
                     newest: dict[int, TestRunRow] = {}
                     for run in runs:
@@ -759,7 +763,7 @@ class ProposalsMixin:
         item = db.get(PlanItemRow, proposal["facts"].get("item_id")) if proposal["facts"].get("item_id") is not None else None
         if item is None or item.plan_id != plan.id:
             raise Conflict("That check is not in the test plan.")
-        if db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_item_id == item.id)):
+        if db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_item_id == item.id, TestRunRow.phase.not_in(WATCH_PHASES))):
             raise Conflict("This check has run, so it stays in the test plan.")
         item.removed = True
 

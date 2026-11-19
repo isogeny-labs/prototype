@@ -111,10 +111,12 @@ def test_the_reviewer_says_what_differs_and_that_sets_the_changes_status_word(ra
     assert ran.done["status"] == "passed_before_fails_now" and run["state"] == "reviewed" and run["covers_picked"] is True
     review = run["review"]
     assert review["believed"] is True and review["status"] == "passed_before_fails_now" and len(review["record_sha256"]) == 64
-    assert review["counts"] == {"tests": 2, "not_trusted": 0, "not_compared": 0, "fails_now": 1, "passes_now": 0, "same": 1}
+    assert review["counts"] == {"tests": 2, "not_trusted": 0, "not_compared": 0, "fails_now": 1, "passes_now": 0, "same": 0,
+                                "slower_now": 0, "not_slower": 1}
     by_kind = {t["kind"]: t for t in run["tests"]}
     assert (by_kind["bad_signatures"]["before"]["code"], by_kind["bad_signatures"]["now"]["code"], by_kind["bad_signatures"]["outcome"]) == ("passed", "failed", "fails_now")
-    assert (by_kind["speed_size"]["now"]["code"], by_kind["speed_size"]["outcome"]) == ("no_slowdown", "same")
+    # the speed test is placed by its run on the change alone: that run timed the change side by side with the code before
+    assert (by_kind["speed_size"]["now"]["code"], by_kind["speed_size"]["outcome"]) == ("no_slowdown", "not_slower")
     assert all(t["before_made_here"] is False and t["job"] is None for t in run["tests"]) and (run["finished"], run["total"]) == (2, 2)
     with ran.lab.db() as db:
         stored = db.scalars(select(WatchReviewRow).where(WatchReviewRow.watch_run_id == run["id"])).one()
@@ -220,6 +222,36 @@ def test_raw_sql_cannot_change_or_delete_a_watch_run_or_its_review(ran, table):
         assert db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar() == before
 
 
+def test_before_is_the_newest_reviewed_run_on_exactly_the_code_the_change_starts_from(ran):
+    """Several runs of "Attacker tricks" are there by now: its first run (on 1.4.2), the proof's run (on 1.4.3) and the
+    watch runs (on 1.4.2, the newest of all). After a retest on 1.4.3 the next watch run must compare with that
+    retest's run: the newest reviewed one on exactly the code the change starts from, whatever it was run for."""
+    lab, plan = ran.lab, ran.plan
+    lab.start_retest(plan.id, "1.4.3")
+    lab.wait_until_idle(plan.id, 120)
+    change = one(lab.change_watch_state(plan.id), REVERT)
+    lab.run_picked_tests(plan.id, change["id"])
+    lab.wait_until_idle(plan.id, 120)
+    done = one(lab.change_watch_state(plan.id), REVERT)
+    assert done["status"] == "passed_before_fails_now"
+    for test in done["run"]["tests"]:
+        with lab.db() as db:
+            before = db.get(TestRunRow, test["before"]["run_id"])
+            code = db.scalars(select(RunCodeRow).where(RunCodeRow.run_id == before.id)).one()
+            candidates = db.scalars(select(TestRunRow).join(RunCodeRow, RunCodeRow.run_id == TestRunRow.id)
+                                    .where(TestRunRow.plan_item_id == test["item_id"], RunCodeRow.component_version == "1.4.3")
+                                    .order_by(TestRunRow.id)).all()
+            newer_on_other_code = db.scalars(select(TestRunRow).join(RunCodeRow, RunCodeRow.run_id == TestRunRow.id)
+                                             .where(TestRunRow.plan_item_id == test["item_id"], RunCodeRow.component_version == "1.4.2",
+                                                    TestRunRow.id > before.id, TestRunRow.id < test["now"]["run_id"])).all()
+        assert (before.phase, code.component_version) == ("retest", "1.4.3") and test["before_made_here"] is False
+        assert [r.phase for r in candidates] == ["proof", "retest"] and before.id == candidates[-1].id
+        assert newer_on_other_code == []         # (nothing ran in between; the watch runs on 1.4.2 before the retest are older)
+    with lab.db() as db:                         # and runs on the change's own code (1.4.2), however new, were never taken as "before"
+        watch_runs = [r.id for r in db.scalars(select(TestRunRow).where(TestRunRow.phase == "watch")).all()]
+    assert not {t["before"]["run_id"] for t in done["run"]["tests"]} & set(watch_runs)
+
+
 # ---------------------------------------------------------------- other changes, and what is refused
 
 @pytest.fixture(scope="module")
@@ -252,6 +284,56 @@ def test_a_developers_own_fix_reads_failed_before_passes_now_against_the_first_r
     # the plan's own result is still the first one
     row = next(r for r in lab.lab_view(plan.id)["rows"] if r["kind"] == "bad_signatures")
     assert row["result"]["code"] == "failed" and row["after"] is None
+
+
+def test_while_one_changes_tests_run_every_other_change_keeps_what_its_own_run_found(connected):
+    """Two changes pick the same tests of the plan. While the second one's run is going, a job of each of those tests is
+    live: the first change must still read what its own finished run found, never "Running" (the review of 6d)."""
+    lab, plan, repo = connected.lab, connected.plan, connected.repo
+    first = one(lab.change_watch_state(plan.id), "dev/own-fix")
+    assert first["status"] == "failed_before_passes_now" and first["run"]["state"] == "reviewed"       # (its run finished in the test above)
+    repo.branch_from("dev/other-fix", repo.branch("main"), {"acme_sign.py": V143}, "The same fix by someone else", Person("C", "c@example.invalid"),
+                     int(time.time()))
+    other = one(lab.change_watch_state(plan.id), "dev/other-fix")
+    started = lab.run_picked_tests(plan.id, other["id"])
+    assert one(started, "dev/other-fix")["status"] == "running"
+    still = one(started, "dev/own-fix")
+    assert still["status"] == "failed_before_passes_now" and still["run"] == first["run"]
+    assert all(t["job"] is None for t in still["run"]["tests"])
+    page = lab.change_watch_view(plan.id)
+    shown = {c["branch"]: c for c in page["changes"]}
+    assert page["busy"] is True and shown["dev/other-fix"]["status"]["busy"] is True
+    assert shown["dev/own-fix"]["status"]["word"] == "Failed before, passes now (1 test)" and shown["dev/own-fix"]["status"]["busy"] is False
+    # neither can be started meanwhile, and the page says why
+    assert {shown[b]["panel"]["run"]["can"] for b in ("dev/own-fix", "dev/other-fix")} == {False}
+    assert shown["dev/own-fix"]["panel"]["run"]["blocked_reason"] == BUSY["watch"]
+    # the test plan's own card says the same as its Remove button: a test with a live job of a watch run can't be removed
+    card = next(t for t in lab.plan_view(plan.id)["tests"] if t["kind"] == "bad_signatures")
+    assert card["can_remove"] is False
+    assert refusal(lambda: lab.remove_test(plan.id, card["id"])) == "This test is waiting or running. Remove it when it has finished."
+    lab.wait_until_idle(plan.id, 120)
+    after = lab.change_watch_state(plan.id)
+    assert one(after, "dev/other-fix")["status"] == "failed_before_passes_now" and one(after, "dev/own-fix")["run"] == first["run"]
+    assert next(t for t in lab.plan_view(plan.id)["tests"] if t["kind"] == "bad_signatures")["can_remove"] is True
+    assert lab.change_watch_view(plan.id)["busy"] is False
+
+
+def test_the_page_keeps_asking_while_anything_else_runs_for_the_assessment(connected):
+    """Run is off with the reason while a test of the plan runs. The page must ask again until it has finished, or the
+    button would stay off (the review of 6d): the view says so with `busy`."""
+    lab, plan = connected.lab, connected.plan
+    card = next(t for t in lab.plan_view(plan.id)["tests"] if t["kind"] == "bad_signatures")
+    lab.run_test(plan.id, card["id"])
+    page = lab.change_watch_view(plan.id)
+    change = next(c for c in page["changes"] if c["branch"] == "dev/own-fix")
+    assert page["busy"] is True and change["status"]["busy"] is False
+    assert (change["panel"]["run"]["can"], change["panel"]["run"]["blocked_reason"]) == (False, BUSY["tests"])
+    lab.wait_until_idle(plan.id, 120)
+    page = lab.change_watch_view(plan.id)
+    change = next(c for c in page["changes"] if c["branch"] == "dev/own-fix")
+    assert page["busy"] is False and change["panel"]["run"]["can"] is True and change["panel"]["run"]["blocked_reason"] is None
+    # the rerun of the first result changed nothing for the change: its "before" was a reviewed run on exactly that code
+    assert change["status"]["key"] == "failed_before_passes_now"
 
 
 def test_what_cannot_run_is_refused_with_the_reason_and_nothing_is_written(connected):
@@ -331,10 +413,10 @@ def _run(code, control="as_expected"):
     return {"run_sha256": "ab" * 32, "code": code, "reason_code": None, "control_outcome": control}
 
 
-def _record(tests, matches=True):
+def _record(tests, matches=True, kind="bad_signatures"):
     return {"schema": "isogeny.watch-run/1", "change": {"branch": "dev/x", "base_commit": "a" * 40, "head_commit": "b" * 40, "files": []},
             "matches": {"name": "acme-sign", "version": "1.4.2"} if matches else None, "version": "1.4.2", "base_version": "1.4.3",
-            "tests": [{"item_id": n + 1, "kind": "bad_signatures", "spec_hash": "c" * 64, "before": b, "now": a} for n, (b, a) in enumerate(tests)]}
+            "tests": [{"item_id": n + 1, "kind": kind, "spec_hash": "c" * 64, "before": b, "now": a} for n, (b, a) in enumerate(tests)]}
 
 
 @pytest.mark.parametrize("before,now,outcome,status", [
@@ -342,10 +424,6 @@ def _record(tests, matches=True):
     (_run("failed"), _run("passed"), "passes_now", "failed_before_passes_now"),
     (_run("passed"), _run("passed"), "same", "no_difference"),
     (_run("failed"), _run("failed"), "same", "no_difference"),
-    (_run("measured"), _run("no_slowdown"), "same", "no_difference"),
-    (_run("no_slowdown"), _run("slowdown"), "fails_now", "passed_before_fails_now"),
-    (_run("measured"), _run("slowdown"), "fails_now", "passed_before_fails_now"),
-    (_run("slowdown"), _run("no_slowdown"), "passes_now", "failed_before_passes_now"),
     (_run("passed"), _run("couldnt_run", "not_run"), "not_compared", "cant_run"),            # a stop is not a result
     (_run("couldnt_run", "not_run"), _run("failed"), "not_compared", "cant_run"),
     (None, _run("failed"), "not_compared", "cant_run"),
@@ -358,6 +436,26 @@ def test_the_watch_rule_places_each_test(before, now, outcome, status):
     review = RuleReviewer().review_watch(_record([(before, now)]))
     assert review["tests"][0]["outcome"] == outcome and review["status"] == status and review["status"] in WATCH_STATUSES
     assert review["counts"][outcome] == 1 and review["counts"]["tests"] == 1 and review["reviewer"] == RuleReviewer.engine_id
+
+
+@pytest.mark.parametrize("before,now,outcome,status", [
+    # the run on the change is timed side by side with the code before: its own verdict is the comparison
+    (_run("measured"), _run("no_slowdown"), "not_slower", "no_difference"),
+    (_run("no_slowdown"), _run("no_slowdown"), "not_slower", "no_difference"),
+    (_run("no_slowdown"), _run("slowdown"), "slower_now", "passed_before_fails_now"),
+    (_run("measured"), _run("slowdown"), "slower_now", "passed_before_fails_now"),
+    # a slowdown the code before had against something older says nothing about this change
+    (_run("slowdown"), _run("no_slowdown"), "not_slower", "no_difference"),
+    (_run("slowdown"), _run("slowdown"), "slower_now", "passed_before_fails_now"),
+    (None, _run("no_slowdown"), "not_slower", "no_difference"),                              # (its "before" is not needed)
+    (_run("couldnt_trust"), _run("no_slowdown"), "not_slower", "no_difference"),
+    (_run("no_slowdown"), _run("couldnt_run", "not_run"), "not_compared", "cant_run"),
+    (_run("no_slowdown"), None, "not_compared", "cant_run"),
+    (_run("no_slowdown"), _run("no_slowdown", "not_as_expected"), "not_trusted", "couldnt_trust"),    # the slowed control was not flagged
+])
+def test_the_watch_rule_places_the_speed_test_by_its_run_on_the_change_alone(before, now, outcome, status):
+    review = RuleReviewer().review_watch(_record([(before, now)], kind="speed_size"))
+    assert review["tests"][0]["outcome"] == outcome and review["status"] == status and review["counts"][outcome] == 1
 
 
 def test_the_most_telling_outcome_among_the_tests_is_the_status_and_code_that_is_not_ours_is_never_trusted():

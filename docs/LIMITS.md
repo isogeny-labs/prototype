@@ -547,10 +547,13 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Only the first half is built.** The Changes view: a developer's change is read, its tests are picked, they run
   on a click, the reviewer's rule says what differs, added lines that name old cryptography are flagged. **Not
   built:** the Watch list (watched items, their proposals and rechecks, and the new pinned checker the plan gives
-  them); the heading "From a developer's change" in Evidence and "Came from: Change watch" on Checks; the Text-only
-  entry in Fixes when a fixed weakness is back; the part of the evidence file and of the report; the Otto panel's
-  own next step for the page. Until those are in, a watch run's results are shown on Change watch only, and the
-  signed evidence file does not hold them.
+  them); the Text-only entry in Fixes when a fixed weakness is back; the part of the evidence file and of the
+  report; the Otto panel's own next step for the page.
+- **The signed evidence file lists a watch run, and no more than that yet.** Since the run's rows are on Checks,
+  the file's list of checks has them too: what ran, on what code ("acme-sign 1.4.2, the change on dev/..., commit
+  ..."), the reviewer's word and the run's fingerprint. The run's own record, the change it belongs to, the
+  reviewer's word for the change and the flags are not in the file until its Change watch part is built. The file
+  verifies as before.
 - **A change comes in by a demo button only.** Connecting a real repository host is not in this version. **Bring
   in a demo change** writes one of two bundled changes into the assessment's own copy of the demo repository, as a
   push would. Whatever else is in that repository is listed too (the view reads it each time), but nothing in the
@@ -582,15 +585,29 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   RC4, 3DES, each with the publication that retired or restricted it). A flag says the name stands on a line the
   change adds. The app has not tested what the line does, and says so on every flag. A name in a comment is flagged
   like any other; a name written in a way the list does not know is missed; a removed line gives no flag. At most
-  fifty flags are listed for one change.
+  fifty flags are listed for one change. The rule reads the name with what follows it, so a newer version written
+  with dashes ("TLS-1-2-2017-01") or a word that only begins like a name ("3 destinations", "description") is not
+  flagged. It can still be wrong both ways: "use ssl 3 times" is flagged, and an old name spelled out in words
+  ("the first TLS version") is not.
 - **The repository reader's limits are the Fixes step's:** files at the top level only, text in UTF-8, loose
   objects. A file that is not text, or larger than 200,000 bytes, is listed without its lines. A branch is followed
   back at most 100 commits to find where it left the connected branch.
 - **One watch run counts at a time.** The newest run of exactly this code and exactly the tests picked now sets the
   status. An earlier run is kept and not shown. After the test plan changes, the change reads "Not run yet" again
-  and says why.
-- **While a change's picked tests run, the plan's own tests wait** (Run all, a retest, a proof), with the reason.
-- **Speed in a watch run** is timed side by side with the code the change starts from, as in a retest.
+  and says why. Two changes can pick the same tests: while one change's tests run, every other change keeps what
+  its own run found.
+- **While a change's picked tests run, the plan's own tests wait** (Run all, a retest, a proof), with the reason,
+  and a test with a run going can't be removed from the plan. The page asks again every second while anything runs
+  for the assessment, and says so when a read fails.
+- **Speed in a watch run** is timed side by side with the code the change starts from, as in a retest. That one run
+  is the comparison: "Slowdown found" counts with the tests that fail now; anything else that is a result reads "No
+  slowdown against the code before". What the code before measured against something older is not compared.
+- **A watch run is no run of the assessment for Otto either.** No proposal is made, changed or moved by it, the
+  Project overview's line about advisory checks does not count it, and an accepted check can still be undone as if
+  it had not run.
+- **A file that names another version than the demo repository holds has no code to connect.** The bundled demo
+  repository holds acme-sign 1.4.2. For a file that names 1.4.3 the page says that no code can be connected, as
+  Fixes would refuse.
 
 ## Limits of phase 6c, first half (six fixed questions, answered by rules; 19 November 2026)
 
@@ -862,6 +879,12 @@ What is limited:
   costs the others is that one wait of five seconds. The app is made for one person on one computer. The reads
   themselves are no faster than before: after everything has run, the Overview's own read takes about half a
   second on the Acme Pay demo.
+- **A read that crossed a change is asked again.** Because a read can now be on its way for a while, it can land
+  after the answer to a change a person made in the meantime, holding what was there before the change. The
+  complete run of every walk showed it once: a test plan that listed six tests after a seventh was added, until
+  the page was opened again. Since then the browser asks such a read again (at most twice) before it gives it to
+  the page (`frontend/src/api.ts`). A request that changes something is never sent twice. What this does not
+  cover: a change made in another browser tab, which the open page learns of only when it reads again.
 - **The panel never asks about a page with the item of the page before.** It used to: the first read after a
   change of page carried the item that had been open on the page left behind, and a second read corrected it. A
   page that opens an item by itself (Systems selects the first system) still gives two reads, one without the

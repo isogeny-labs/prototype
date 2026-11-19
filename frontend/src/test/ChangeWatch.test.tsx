@@ -339,6 +339,63 @@ describe("Change watch, the table and a change's panel", () => {
     expect(calls(fetchMock).length).toBe(settled); // and stopped asking once nothing runs
   });
 
+  it("a read that fails while the tests run is said on the page, and the page asks again until they have finished", async () => {
+    let reads = 0;
+    await open(
+      withRows(running),
+      {
+        [VIEW]: () => {
+          reads += 1;
+          if (reads === 2 || reads === 3) return { status: 503, body: { detail: "The app is busy. Try again." } };
+          return { body: reads >= 4 ? withRows(ran) : withRows(running) };
+        },
+      },
+      { openItem: revert.id },
+    );
+    expect(screen.queryByTestId("change-watch-stale")).toBeNull();
+    const stale = await screen.findByTestId("change-watch-stale", undefined, { timeout: 3000 });
+    expect(text(stale)).toContain("This page could not be read again, so it may be behind. It asks again every second.");
+    expect(text(stale)).toContain("The app is busy. Try again.");
+    expect(text(panel().getByTestId("change-panel-status"))).toBe("Running"); // (what was read last stays, with the line above it)
+    await waitFor(() => expect(text(panel().getByTestId("change-panel-status"))).toBe("Passed before, fails now (1 test)"), { timeout: 5000 });
+    expect(screen.queryByTestId("change-watch-stale")).toBeNull();
+  }, 10_000);
+
+  it("keeps asking while anything else runs for the assessment, so Run comes back on when that has finished", async () => {
+    // (the server says so with `busy`: no change of the page is running, but a retest is, and Run is off meanwhile)
+    const blocked: ChangeRow = { ...revert, panel: { ...revert.panel, run: { ...revert.panel.run, can: false, blocked_reason: "A retest is running. Wait until it has finished." } } };
+    let reads = 0;
+    await open({ ...withRows(blocked), busy: true }, { [VIEW]: () => ({ body: ++reads >= 3 ? withRows(revert) : { ...withRows(blocked), busy: true } }) }, { openItem: revert.id });
+    expect((panel().getByTestId("change-run-button") as HTMLButtonElement).disabled).toBe(true);
+    expect(text(panel().getByTestId("change-run-blocked"))).toBe("A retest is running. Wait until it has finished.");
+    await waitFor(() => expect((panel().getByTestId("change-run-button") as HTMLButtonElement).disabled).toBe(false), { timeout: 4000 });
+  });
+
+  it("the speed test's line says what its run on the change found against the code before", async () => {
+    const speed: ChangeRow = {
+      ...ran,
+      status: { key: "no_difference", word: "No difference found", tone: "neutral", busy: false, reason: "No picked test that passed on the code before fails on this change, and none that failed passes." },
+      panel: {
+        ...ran.panel,
+        results: [
+          {
+            item_id: 5,
+            title: "Speed and size",
+            before: side(8, "No slowdown beyond measured noise", "pass", "No slowdown was measured.", "acme-sign 1.4.3", "proof-5-in-1"),
+            before_note: "From the proof of a fix.",
+            now: side(10, "No slowdown beyond measured noise", "pass", "No slowdown was measured.", "acme-sign 1.4.2", "watch-5-in-1"),
+            job: null,
+            differs: "No slowdown against the code before",
+            outcome: "not_slower",
+          },
+        ],
+      },
+    };
+    await open(withRows(speed), {}, { openItem: speed.id });
+    expect(panel().getByTestId("change-result").getAttribute("data-outcome")).toBe("not_slower");
+    expect(text(panel().getByTestId("change-result-differs"))).toBe("No slowdown against the code before");
+  });
+
   it("after a run it repeats the reviewer's word and plain sentence for before and now, with the way to the evidence", async () => {
     await open(withRows(ran), {}, { openItem: ran.id });
     const result = within(panel().getByTestId("change-result"));

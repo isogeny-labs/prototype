@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Callable
 
 from app.db import PlanRow, TestRunRow
+from app.engine import research
 from app.lab.testlab import BUSY
 from app.present import changewatch as words
 
@@ -60,13 +61,14 @@ class ChangeWatchViewMixin:
         for row in (run or {}).get("tests") or []:
             before_run = db.get(TestRunRow, row["before"]["run_id"]) if row["before"] is not None else None
             results.append({
-                "item_id": row["item_id"], "title": titles.get(row["item_id"]) or row["kind"],
+                # (a test that has left the plan since is still named by what it is)
+                "item_id": row["item_id"], "title": titles.get(row["item_id"]) or research.title_of(row["kind"]),
                 "before": self._watch_side(db, row["before"], self._run_link(before_run)),
                 "before_note": (words_or_none(row, before_run)),
                 "now": self._watch_side(db, row["now"], self._run_link(db.get(TestRunRow, row["now"]["run_id"]) if row["now"] is not None else None)),
                 "job": row["job"], "differs": words.OUTCOME_WORDS.get(row["outcome"]) if row["outcome"] else None,
                 "outcome": row["outcome"]})
-        status = words.status_view(change)
+        status = words.status_view(change, program)
         files = [words.file_view(f) for f in change["files"]]
         touched = ", ".join(f"{f['name']} ({f['what'].lower()})" for f in files) or None
         flags = [words.flag_view(f) for f in change["flags"]]
@@ -88,7 +90,7 @@ class ChangeWatchViewMixin:
                             "link": {"page": "checks", "item": f"test-{t['item_id']}", "group": None}} for t in change["picked"]],
                 "not_picked": [{"item_id": t["item_id"], "title": t["title"], "reason": words.pick_reason(t, program),
                                 "link": {"page": "checks", "item": f"test-{t['item_id']}", "group": None}} for t in change["not_picked"]],
-                "picked_empty": words.NOTHING_PICKED if not change["picked"] and not change.get("problem") else None,
+                "picked_empty": words.nothing_picked(change, program) if not change["picked"] and not change.get("problem") else None,
                 "run": words.run_view(change, program, picked_titles, blocked),
                 "last_run": (words.when_words(run["started_at"]) if run is not None else None),
                 "results": results,
@@ -115,7 +117,8 @@ class ChangeWatchViewMixin:
                                 "blocked_reason": words.MENU_BLOCKED.get(m["blocked"]) if m["blocked"] else None} for m in state["menu"]]},
             "changes": changes,
             "empty": words.EMPTY if code["state"] == "connected" and not changes else None,
-            "busy": any(c["status"]["busy"] for c in changes),
+            # (the page asks again while anything runs for this plan: until it has finished, Run is off with the reason)
+            "busy": any(c["status"]["busy"] for c in changes) or (running is not None and bool(changes)),
         }
 
 

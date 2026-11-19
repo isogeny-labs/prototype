@@ -976,9 +976,13 @@ class RuleReviewer:
           - "fails_now": the run before did not fail and the run on the change does;
           - "passes_now": the run before failed and the run on the change does not;
           - "same": neither of the above.
+        Speed and size is placed by its run on the change alone. That run times the change's code side by side with the
+        code it starts from, so its own verdict is the comparison: "Slowdown found" places it as "slower_now", anything
+        else that is a result as "not_slower". (The run before compared the code before with something older, which says
+        nothing about this change.)
         The change's status is then: "couldnt_trust" if the changed code is not byte for byte one of our registered
         demo programs (the caller made the comparison and passes the fact) or any test is "not_trusted"; else "cant_run"
-        if any test is "not_compared"; else "passed_before_fails_now" if any test fails now; else
+        if any test is "not_compared"; else "passed_before_fails_now" if any test fails now or is slower now; else
         "failed_before_passes_now" if any test passes now; else "no_difference". With no test at all: "cant_run"."""
         def control_ok(run: dict) -> bool:
             return run.get("code") == "couldnt_run" or run.get("control_outcome") == "as_expected"
@@ -989,11 +993,14 @@ class RuleReviewer:
         tests = []
         for test in record.get("tests") or []:
             before, now = test.get("before"), test.get("now")
-            runs = [r for r in (before, now) if isinstance(r, dict)]
+            timed = test.get("kind") == SPEED_KIND
+            runs = [r for r in ((now,) if timed else (before, now)) if isinstance(r, dict)]
             if any(r.get("code") == "couldnt_trust" or not control_ok(r) for r in runs):
                 outcome = "not_trusted"
-            elif len(runs) < 2 or any(r.get("code") in WATCH_NO_RESULT_CODES or not r.get("code") for r in runs):
+            elif len(runs) < (1 if timed else 2) or any(r.get("code") in WATCH_NO_RESULT_CODES or not r.get("code") for r in runs):
                 outcome = "not_compared"
+            elif timed:
+                outcome = "slower_now" if now.get("code") == "slowdown" else "not_slower"
             elif fails(now) and not fails(before):
                 outcome = "fails_now"
             elif fails(before) and not fails(now):
@@ -1003,7 +1010,8 @@ class RuleReviewer:
             tests.append({"item_id": test.get("item_id"), "kind": test.get("kind"), "outcome": outcome,
                           "before": before.get("code") if isinstance(before, dict) else None,
                           "now": now.get("code") if isinstance(now, dict) else None})
-        counts = {name: sum(1 for t in tests if t["outcome"] == name) for name in ("not_trusted", "not_compared", "fails_now", "passes_now", "same")}
+        counts = {name: sum(1 for t in tests if t["outcome"] == name)
+                  for name in ("not_trusted", "not_compared", "fails_now", "passes_now", "same", "slower_now", "not_slower")}
         matches = record.get("matches")
         code_is_ours = (isinstance(matches, dict) and bool(matches.get("name")) and bool(matches.get("version"))
                         and matches.get("version") == record.get("version"))
@@ -1011,7 +1019,7 @@ class RuleReviewer:
             status = "couldnt_trust"
         elif not tests or counts["not_compared"]:
             status = "cant_run"
-        elif counts["fails_now"]:
+        elif counts["fails_now"] or counts["slower_now"]:
             status = "passed_before_fails_now"
         elif counts["passes_now"]:
             status = "failed_before_passes_now"

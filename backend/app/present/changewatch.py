@@ -30,7 +30,8 @@ STATUS_WORDS = {"not_run": "Not run yet", "running": "Running", "no_difference":
                 "nothing_to_run": "Nothing to run", "cant_run": "Can't run", "couldnt_trust": "Couldn't trust this run"}
 STATUS_TONES = {"not_run": "neutral", "running": "neutral", "no_difference": "neutral", "passed_before_fails_now": "fail",
                 "failed_before_passes_now": "pass", "nothing_to_run": "neutral", "cant_run": "neutral", "couldnt_trust": "warn"}
-OUTCOME_WORDS = {"fails_now": "Passed before, fails now", "passes_now": "Failed before, passes now", "same": "Same as before",
+OUTCOME_WORDS = {"fails_now": "Passed before, fails now", "passes_now": "Failed before, passes now", "same": "No difference found",
+                 "slower_now": "Slower than the code before", "not_slower": "No slowdown against the code before",
                  "not_compared": "Not compared: a run could not run", "not_trusted": "Not compared: a run can't be trusted"}
 FILE_WORDS = {"added": "Added", "changed": "Changed", "removed": "Removed"}
 NOT_OURS = "The changed code is not the same as one of our registered demo programs, so nothing of it runs."
@@ -38,6 +39,13 @@ BASE_NOT_OURS = "The code this change starts from is not one of our registered d
 PROBLEMS = {"no_start": "This branch does not start from the connected branch, so it can't be compared with it.",
             "unreadable": "This branch could not be read from the repository."}
 NOTHING_PICKED = "This change edits no file of a program under test, so no test is picked."
+
+
+def nothing_picked(change: dict, program: dict) -> str:
+    """Why no test is picked: the change touches no program file, or it does and no test of the plan runs that program."""
+    if change.get("touches_program"):
+        return f"This change edits {program.get('file') or 'the program'}, but no test of the plan runs {program['name']}, so no test is picked."
+    return NOTHING_PICKED
 
 
 def _count(n: int, one: str, many: str | None = None) -> str:
@@ -86,29 +94,32 @@ def flag_view(flag: dict) -> dict:
             "note": NOT_TESTED, "source": flag["source"]}
 
 
-def status_view(change: dict) -> dict:
+def status_view(change: dict, program: dict | None = None) -> dict:
     """The change's status word, with one sentence under it that says why."""
     key = change["status"]
     run, review = change.get("run"), (change.get("run") or {}).get("review")
     counts = (review or {}).get("counts") or {}
     word, reason = STATUS_WORDS[key], None
     if key == "running" and run is not None:
-        reason = f"{run['finished']} of {_count(run['total'], 'test')} have run."
+        reason = f"{run['finished']} of {_count(run['total'], 'test')} {'has' if run['total'] == 1 else 'have'} run."
     elif key == "passed_before_fails_now":
-        n = counts.get("fails_now", 0)
-        word = f"{word} ({_count(n, 'test')})"
-        reason = f"{_count(n, 'test')} passed on the code before and {'fails' if n == 1 else 'fail'} on this change."
+        n, slower = counts.get("fails_now", 0), counts.get("slower_now", 0)
+        word = f"{word} ({_count(n + slower, 'test')})"
+        parts = ([f"{_count(n, 'test')} passed on the code before and {'fails' if n == 1 else 'fail'} on this change."] if n else [])
+        # (the speed test's run on the change times it side by side with the code before: the reviewer's own word for that run)
+        parts += (["The speed test reads “Slowdown found” on this change, timed against the code before."] if slower else [])
+        reason = " ".join(parts)
     elif key == "failed_before_passes_now":
         n = counts.get("passes_now", 0)
         word = f"{word} ({_count(n, 'test')})"
         reason = f"{_count(n, 'test')} failed on the code before and {'passes' if n == 1 else 'pass'} on this change."
     elif key == "no_difference":
-        reason = "Every picked test reads the same on this change as on the code before."
+        reason = "No picked test that passed on the code before fails on this change, and none that failed passes."
     elif key == "couldnt_trust":
         reason = ("A control did not behave as expected in at least one run, or a stored record no longer matches its fingerprint, "
                   "so nothing is said about this change.")
     elif key == "nothing_to_run":
-        reason = NOTHING_PICKED
+        reason = nothing_picked(change, program) if program is not None else NOTHING_PICKED
     elif key == "cant_run":
         if change.get("problem"):
             reason = PROBLEMS[change["problem"]]
@@ -133,7 +144,7 @@ def run_view(change: dict, program: dict, titles: list[str], blocked: str | None
     key, run = change["status"], change.get("run")
     reason = blocked
     if reason is None and key in ("nothing_to_run", "cant_run") and not (key == "cant_run" and change.get("gives") and change.get("starts_from") and not change.get("problem")):
-        reason = status_view(change)["reason"]
+        reason = status_view(change, program)["reason"]
     note = None
     if change.get("gives") and change.get("starts_from") and titles:
         note = (f"Runs {_join(titles)} on {program['name']} {change['gives']['version']}: the registered demo program this change's code is, byte for "

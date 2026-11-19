@@ -1593,7 +1593,7 @@ ItemState = Literal["open", "in_progress", "done"]
 
 ChangeStatusKey = Literal["not_run", "running", "no_difference", "passed_before_fails_now", "failed_before_passes_now",
                           "nothing_to_run", "cant_run", "couldnt_trust"]
-ChangeOutcome = Literal["fails_now", "passes_now", "same", "not_compared", "not_trusted"]
+ChangeOutcome = Literal["fails_now", "passes_now", "same", "slower_now", "not_slower", "not_compared", "not_trusted"]
 
 
 class ChangeStatus(Shape):

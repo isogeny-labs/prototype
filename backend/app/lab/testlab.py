@@ -371,7 +371,8 @@ class TestLabMixin:
                 spec, _, row = specs[item.id]
                 kind = row.kind if row else spec.get("kind")
                 job = self.jobs.get((item.id, "first"))
-                reruns = (self.jobs.get((item.id, "retest")), self.jobs.get((item.id, "proof")))
+                # (a retest, a proof or, since phase 6d, a run for a developer's change that is still going)
+                reruns = tuple(self.jobs.get((item.id, phase)) for phase in ("retest", "proof", *WATCH_PHASES))
                 card = {"id": item.id, "kind": kind, "title": research.title_of(kind, spec), "origin": item.origin,
                         "tag": research.MLDSA_LABEL if kind == "mldsa_compare" else None,
                         "description": (spec.get("card") or {}).get("description", ""), "why": (spec.get("card") or {}).get("why", ""),
@@ -746,7 +747,7 @@ class TestLabMixin:
         try:
             # Phase 5c: a reviewed run of an advisory check is bound to its locked test in the assessment's Otto ledger.
             # (Phase 6d: not a watch run's. The ledger's pinned checker knows the phases of 5c only, and it is not
-            # changed; a watch run is kept with its change, in the database and in the signed evidence.)
+            # changed; a watch run is kept with its change in the database, and Checks lists it under Change watch.)
             if a["phase"] not in WATCH_PHASES:
                 self._otto_after_review(run_id)
         except Exception as exc:  # the run and its review are already stored: a ledger problem never loses them

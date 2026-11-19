@@ -1,18 +1,28 @@
-"""Phase 6d: seeded runs of damaged copies through the two new readers. The only allowed outcomes are a plain refusal
+"""Phase 6d: seeded runs of damaged copies through the new readers. The only allowed outcomes are a plain refusal
 or a normal read, each within a time limit. No new package: random only.
 
 - the reader of a bundled demo change (`demo_changes.read_change`): damaged copies of the two files in demo/changes/;
-- the reader of the word list for the flags (`flags.read_words`), and the flag rule on odd lines.
+- the reader of the word list for the flags (`flags.read_words`), and the flag rule on odd lines;
+- Change watch's read of the connected repository (`change_watch_state` and the page's view): a repository with one
+  file damaged or gone at a time.
 """
 import json
 import random
 import re
+import shutil
 import time
 
 import pytest
 
+from app import demo_repo
 from app.changewatch import demo_changes, flags
+from app.db import CodeConnectionRow
 from app.engine.guidance import OLD_CRYPTOGRAPHY
+from app.fixes.gitrepo import GitRepo, Person
+from app.present.changewatch import STATUS_WORDS
+from app.run import components
+from app.web.models import ChangeWatchView
+from conftest import demo_plan, make_lab
 
 SEEDS = {"revert-range-check": 20261119, "allow-tls-1-0": 20261120}
 COPIES = 400
@@ -147,3 +157,83 @@ def test_damaged_word_lists_are_read_or_refused_plainly_and_the_rule_reads_odd_l
         with pytest.raises(ValueError):
             flags.read_words(bad)
     assert isinstance(flags.read_words(OLD_CRYPTOGRAPHY)[0][1][0], re.Pattern)
+
+
+# ---------------------------------------------------------------- the connected repository, damaged
+
+@pytest.fixture(scope="module")
+def connected_by_hand(tmp_path_factory):
+    """An assessment with its demo code connected, made the short way for this file: the bundled demo repository is
+    copied into the app's own repos folder and the connection is written as Connect demo code writes it (that button
+    needs every test run first, which is not what this file is about). Three developer's changes are in it."""
+    lab = make_lab(tmp_path_factory.mktemp("change-watch-fuzz"))
+    try:
+        plan = demo_plan(lab)
+        folder = lab.settings.data_dir / "repos" / "fuzz" / "acme-sign.git"
+        folder.parent.mkdir(parents=True)
+        shutil.copytree(demo_repo.bundled("acme-sign"), folder)
+        repo = GitRepo(folder)
+        main = repo.branch("main")
+        with lab.db() as db:
+            db.add(CodeConnectionRow(plan_id=plan.id, repository="acme-sign", branch="main", base_commit=main, is_demo=True,
+                                     folder=folder.relative_to(lab.settings.data_dir).as_posix(), component_name="acme-sign", component_version="1.4.2"))
+            db.commit()
+        someone = Person("A developer", "dev@example.invalid")
+        v142, v143 = (components.lookup("acme-sign", v).read_bytes() for v in ("1.4.2", "1.4.3"))
+        repo.branch_from("dev/fix", main, {"acme_sign.py": v143}, "Check the range of r and s", someone, 1794400000)
+        repo.branch_from("dev/conf", main, {"acme_sign.py": v142, "gateway.conf": b"minimum_protocol = TLS 1.0\n"}, "Allow TLS 1.0", someone, 1794400100)
+        first = repo.branch_from("dev/two-commits", main, {"acme_sign.py": v142, "a.txt": b"one\n"}, "Add a note", someone, 1794400200)
+        repo.commit("dev/two-commits", {"acme_sign.py": v142, "a.txt": b"one\ntwo\n"}, "Add to the note", someone, 1794400300, first)
+        yield lab, plan, repo
+    finally:
+        lab.stop()
+
+
+def test_a_repository_with_one_file_damaged_or_gone_is_read_or_said_plainly_and_never_stops_the_page(connected_by_hand):
+    lab, plan, repo = connected_by_hand
+    whole = lab.change_watch_state(plan.id)
+    assert whole["code"]["state"] == "connected" and sorted(c["branch"] for c in whole["changes"]) == ["dev/conf", "dev/fix", "dev/two-commits"]
+    assert all(c["problem"] is None for c in whole["changes"])
+    files = sorted(p for p in repo.path.rglob("*") if p.is_file())
+    assert len(files) > 12
+    rng = random.Random(20261122)
+    outcomes = {"as before": 0, "repository unreadable": 0, "a change unreadable": 0, "read differently": 0}
+    for _ in range(150):
+        target = rng.choice(files)
+        original, mode = target.read_bytes(), target.stat().st_mode
+        target.chmod(0o644)
+        op = rng.randrange(4)
+        if op == 0:
+            target.unlink()
+        else:
+            target.write_bytes(_damage_bytes(rng, original) if op < 3 else b"")
+        start = time.monotonic()
+        try:
+            state = lab.change_watch_state(plan.id)
+            page = lab.change_watch_view(plan.id)
+        finally:
+            target.write_bytes(original)
+            target.chmod(mode)
+        assert time.monotonic() - start < TIME_LIMIT
+        ChangeWatchView.model_validate(page)                    # the page's view keeps its shape
+        assert state["code"]["state"] in ("connected", "unreadable")
+        if state["code"]["state"] == "unreadable":
+            outcomes["repository unreadable"] += 1
+            assert state["changes"] == [] and page["changes"] == [] and page["code"]["line"] == "The connected repository could not be read, so its changes are not listed."
+            continue
+        for change in state["changes"]:
+            assert change["status"] in STATUS_WORDS and change["problem"] in (None, "no_start", "unreadable")
+            if change["problem"] is not None:           # a branch that can't be read is listed with why, and nothing of it can run
+                assert change["status"] == "cant_run" and change["picked"] == [] and change["gives"] is None
+        for row in page["changes"]:
+            assert row["status"]["reason"] or row["status"]["key"] == "not_run"
+            if row["status"]["key"] in ("cant_run", "nothing_to_run"):
+                assert row["panel"]["run"]["can"] is False and row["panel"]["run"]["blocked_reason"]
+        if state == whole:
+            outcomes["as before"] += 1
+        elif any(c["problem"] == "unreadable" for c in state["changes"]):
+            outcomes["a change unreadable"] += 1
+        else:
+            outcomes["read differently"] += 1
+    assert lab.change_watch_state(plan.id) == whole             # every file is back: it reads as before
+    assert outcomes["repository unreadable"] >= 1 and outcomes["a change unreadable"] >= 1 and outcomes["as before"] >= 1, outcomes

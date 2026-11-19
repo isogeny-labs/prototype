@@ -49,6 +49,8 @@ export function ChangeWatchScreen({ planId, openItem = null }: Props) {
   const [view, setView] = useState<ChangeWatchView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [pollError, setPollError] = useState<string | null>(null);
+  const [pollTick, setPollTick] = useState(0);
   const [sending, setSending] = useState(false);
   const [openId, setOpenId] = useState<string | null>(openItem);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -78,21 +80,39 @@ export function ChangeWatchScreen({ planId, openItem = null }: Props) {
     };
   }, [planId, panelStamp]);
 
-  // While a change's picked tests run, ask again every second (the page shows their progress, then the results).
+  // While anything runs for this assessment, ask again every second (the page shows the progress of a change's picked
+  // tests, then the results). A read that fails is said on the page, and the page asks again all the same: it must not
+  // stay on "Running" after the run has finished.
   const busy = view?.busy === true;
   useEffect(() => {
-    if (!busy) return;
+    if (!busy) {
+      setPollError(null);
+      return;
+    }
+    let live = true;
     const mine = asked.current;
     const timer = setTimeout(() => {
       api
         .getChangeWatch(planId)
         .then((next) => {
-          if (asked.current === mine) setView(next);
+          if (!live) return;
+          if (asked.current === mine) {
+            setView(next);
+            setPollError(null);
+          }
+          setPollTick((n) => n + 1);
         })
-        .catch(() => undefined);
+        .catch((e: unknown) => {
+          if (!live) return;
+          if (asked.current === mine) setPollError(errorMessage(e));
+          setPollTick((n) => n + 1);
+        });
     }, POLL_MS);
-    return () => clearTimeout(timer);
-  }, [busy, view, planId]);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [busy, pollTick, planId]);
 
   /** One of the page's two actions. Its answer is the whole view as it now stands. */
   async function act(send: () => Promise<ChangeWatchView>, then?: (next: ChangeWatchView) => void) {
@@ -220,6 +240,11 @@ export function ChangeWatchScreen({ planId, openItem = null }: Props) {
       {actionError ? (
         <div className="mb-4">
           <ErrorBox>{actionError}</ErrorBox>
+        </div>
+      ) : null}
+      {pollError ? (
+        <div className="mb-4" data-testid="change-watch-stale">
+          <ErrorBox title="This page could not be read again, so it may be behind. It asks again every second.">{pollError}</ErrorBox>
         </div>
       ) : null}
 

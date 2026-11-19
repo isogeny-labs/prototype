@@ -107,7 +107,7 @@ def test_the_settings_change_reads_nothing_to_run_with_its_flag_and_its_lines(pa
     assert (change["title"], change["branch"], change["author"], change["is_demo"]) == ("Allow TLS 1.0 for an old partner", "dev/allow-tls-1-0-for-partner",
                                                                                          "Demo developer", True)
     assert re.fullmatch(r"change-[0-9a-f]{12}", change["id"]) and re.fullmatch(r"[0-9a-f]{7}", change["commit"])
-    assert re.fullmatch(r"\d{1,2} November 2026, \d\d:\d\d UTC", change["when"])              # a file, a script and a test read UTC words
+    assert re.fullmatch(r"\d{1,2} [A-Z][a-z]+ 20\d\d, \d\d:\d\d UTC", change["when"])        # a file, a script and a test read UTC words
     assert change["files_line"] == "partner-gateway.conf (added)" and change["picked_line"] == "0 of 4 tests picked"
     assert change["status"] == {"key": "nothing_to_run", "word": "Nothing to run", "tone": "neutral", "busy": False,
                                 "reason": "This change edits no file of a program under test, so no test is picked."}
@@ -150,6 +150,7 @@ def test_run_the_picked_tests_starts_them_and_the_page_reads_running(page):
     change = page.running["changes"][0]
     assert page.running["busy"] is True and change["status"]["key"] == "running" and change["status"]["busy"] is True
     assert change["status"]["reason"] in ("0 of 2 tests have run.", "1 of 2 tests have run.", "2 of 2 tests have run.")
+    assert page.running["busy"] is True
     assert change["panel"]["run"]["can"] is False and "Change watch" in change["panel"]["run"]["blocked_reason"]
     assert [r["title"] for r in change["panel"]["results"]] == [TRICKS, "Speed and size"]
     assert page.while_running == "The tests picked for a change are running in Change watch. Wait until they have finished."
@@ -167,7 +168,7 @@ def test_after_the_run_the_page_repeats_the_reviewers_words_before_and_now(page)
     assert (tricks["before"]["ran_on"], tricks["now"]["ran_on"]) == ("acme-sign 1.4.3", "acme-sign 1.4.2")
     assert tricks["before_note"] == "From the proof of a fix." and re.fullmatch(r"proof-\d+-in-\d+", tricks["before"]["link"]["item"])
     assert tricks["now"]["plain"] and tricks["before"]["plain"] and tricks["job"] is None
-    assert (speed["now"]["label"], speed["differs"]) == ("No slowdown beyond measured noise", "Same as before")
+    assert (speed["now"]["label"], speed["differs"], speed["outcome"]) == ("No slowdown beyond measured noise", "No slowdown against the code before", "not_slower")
     # the words are the reviewer's own for those runs: the page words no result of its own
     with page.lab.db() as db:
         from app.db import TestRunRow
@@ -177,7 +178,7 @@ def test_after_the_run_the_page_repeats_the_reviewers_words_before_and_now(page)
 
 def test_a_browser_gets_its_times_marked_and_a_file_never_does(page):
     marked, plain = page.marked["changes"][0], page.done["changes"][0]
-    assert re.fullmatch(r"\[\[time:2026-11-\d\dT\d\d:\d\d:\d\dZ\]\]", marked["when"]) and "[[time:" not in json.dumps(page.done)
+    assert re.fullmatch(r"\[\[time:20\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ\]\]", marked["when"]) and "[[time:" not in json.dumps(page.done)
     assert marked["panel"]["last_run"].startswith("[[time:") and plain["panel"]["last_run"].endswith("UTC")
 
 
@@ -207,3 +208,26 @@ def test_a_closed_assessment_still_reads_and_changes_nothing(page):
     with lab.db() as db:
         from app.db import WatchRunRow
         assert db.query(WatchRunRow).count() == 1
+
+
+# ---------------------------------------------------------------- the status sentence, case by case
+
+@pytest.mark.parametrize("counts,word,reason", [
+    ({"fails_now": 1}, "Passed before, fails now (1 test)", "1 test passed on the code before and fails on this change."),
+    ({"fails_now": 2}, "Passed before, fails now (2 tests)", "2 tests passed on the code before and fail on this change."),
+    ({"slower_now": 1}, "Passed before, fails now (1 test)", "The speed test reads “Slowdown found” on this change, timed against the code before."),
+    ({"fails_now": 1, "slower_now": 1}, "Passed before, fails now (2 tests)",
+     "1 test passed on the code before and fails on this change. The speed test reads “Slowdown found” on this change, timed against the code before."),
+])
+def test_the_status_sentence_counts_a_slowdown_found_on_the_change_with_the_tests_that_fail_now(counts, word, reason):
+    change = {"status": "passed_before_fails_now", "run": {"review": {"counts": counts}, "state": "reviewed", "total": 2, "finished": 2}}
+    shown = words.status_view(change)
+    assert (shown["word"], shown["reason"], shown["tone"], shown["busy"]) == (word, reason, "fail", False)
+
+
+def test_a_change_to_the_program_with_no_test_that_runs_it_says_so_instead_of_claiming_no_program_file_was_edited():
+    program = {"name": "acme-sign", "version": "1.4.2", "file": "acme_sign.py"}
+    touched = {"status": "nothing_to_run", "touches_program": True, "run": None}
+    assert words.status_view(touched, program)["reason"] == "This change edits acme_sign.py, but no test of the plan runs acme-sign, so no test is picked."
+    untouched = {"status": "nothing_to_run", "touches_program": False, "run": None}
+    assert words.status_view(untouched, program)["reason"] == "This change edits no file of a program under test, so no test is picked."

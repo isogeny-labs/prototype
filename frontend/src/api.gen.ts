@@ -64,7 +64,8 @@ export type ChangeStatusKey =
   | "nothing_to_run"
   | "cant_run"
   | "couldnt_trust";
-export type ChangeOutcome = "fails_now" | "passes_now" | "same" | "not_compared" | "not_trusted";
+export type ChangeOutcome =
+  "fails_now" | "passes_now" | "same" | "slower_now" | "not_slower" | "not_compared" | "not_trusted";
 export type AssistantThread = "testing" | "fixing" | "planning";
 
 export interface AddTestBody {
@@ -1452,7 +1453,7 @@ export interface ChangeResult {
    * "Passed before, fails now", "Failed before, passes now", "Same as before", ...; null until reviewed
    */
   differs: string | null;
-  outcome: ("fails_now" | "passes_now" | "same" | "not_compared" | "not_trusted") | null;
+  outcome: ("fails_now" | "passes_now" | "same" | "slower_now" | "not_slower" | "not_compared" | "not_trusted") | null;
 }
 /**
  * The reviewer's word for one run, repeated: a watch run words no result of its own.
