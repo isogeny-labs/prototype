@@ -4,11 +4,9 @@ Its own code reads, describes and keeps nothing: it decides, runs and changes no
 The first tests read the package's source, so they hold for every state the app can be in; the last ones watch a
 real read on a walked assessment and compare everything the app keeps before and after."""
 import ast
-import hashlib
 from pathlib import Path
 
 import pytest
-from sqlalchemy import text
 
 from app import assistant
 from app.assistant.threads import PAGES
@@ -17,14 +15,16 @@ from app.otto import model
 PACKAGE = Path(assistant.__file__).resolve().parent
 # What the package may import. Nothing here decides, runs or writes: the tables and words of the panel, the errors, the
 # words of a proposal as its page shows it, two constants and one pure rule of the proposals, and the harness's status.
-ALLOWED_IMPORTS = {"__future__", "hashlib", "typing", "app.assistant", "app.assistant.threads", "app.assistant.words", "app.errors",
-                   "app.otto", "app.otto.proposals", "app.present"}
+ALLOWED_IMPORTS = {"__future__", "hashlib", "re", "typing", "app.assistant", "app.assistant.threads", "app.assistant.words", "app.errors",
+                   "app.assistant.engine", "app.otto", "app.otto.proposals", "app.present"}
 ALLOWED_NAMES = {"app.otto.proposals": {"CLOSED", "HOME", "accept_stands"}, "app.otto": {"harness"}, "app.present": {"otto"},
-                 "app.assistant": {"words"}, "app.errors": {"BadRequest", "NotFound"}}
+                 "app.assistant": {"words", "commands", "answers"}, "app.errors": {"BadRequest", "NotFound"}}
 # Every method of the Lab the package may call. Each is a read the pages themselves make (their GET routes), or a
 # read made for the panel; none starts a job, records a decision or writes a row.
 READS = {"assessment_core", "otto_live_ready", "otto_proposals", "plan_view", "lab_view", "fixes_view", "migration_measure_view",
-         "dependencies_view", "import_json_for", "latest_verify", "next_step_from", "decision_name_view", "otto_limit_words"}
+         "dependencies_view", "import_json_for", "latest_verify", "next_step_from", "decision_name_view", "otto_limit_words",
+         # phase 6b: what was said (a read of the kept exchanges), and for a filtered table how many rows it lists
+         "assistant_messages", "checks_view", "advisories_view"}
 # What a page's button calls. None of these may appear anywhere in the package.
 CHANGES = {"otto_decide", "otto_decide_view", "run_all", "run_test", "start_retest", "retest_now", "connect_code", "run_proof_again",
            "open_pull_request", "approve", "merge", "verify", "confirm_address", "measure_migration", "measure_dependencies", "try_change",
@@ -98,16 +98,9 @@ def test_every_listed_read_is_what_a_get_route_or_the_panel_itself_calls():
 
 
 def _everything_kept(lab) -> dict:
-    """A fingerprint of everything the app keeps for its assessments: every row of every table, and every file of the
-    data folder with its content (the Otto ledgers, the connected repositories, the evidence downloads)."""
-    with lab.db() as db:
-        tables = [r[0] for r in db.execute(text("select name from sqlite_master where type = 'table' order by name"))]
-        rows = {t: hashlib.sha256(repr(db.execute(text(f'select * from "{t}"')).fetchall()).encode()).hexdigest() for t in tables}
-    files = {}
-    for path in sorted(Path(lab.settings.data_dir).rglob("*")):
-        if path.is_file() and not path.name.endswith(("-wal", "-shm", "-journal")) and path.suffix != ".db":
-            files[str(path.relative_to(lab.settings.data_dir))] = hashlib.sha256(path.read_bytes()).hexdigest()
-    return {"rows": rows, "files": files}
+    """A fingerprint of everything the app keeps for its assessments (tests/assistant/assistant_walk.py)."""
+    from tests.assistant import assistant_walk as made
+    return made.everything_kept(lab)
 
 
 @pytest.mark.needs_otto

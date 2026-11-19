@@ -170,7 +170,7 @@ def test_never_more_than_three_tabs_and_each_opens_when_its_thread_has_something
     opened = {stage: [t["key"] for t in assistant_walk.at[stage].pages["overview"]["tabs"]] for stage in assistant_walk.at if stage != "fix_accepted"}
     assert opened == {"empty": [], "proposed": ["testing"], "decided": ["testing"], "ran": ["testing", "fixing"],
                       "measured": ["testing", "fixing", "planning"], "accepted": ["testing", "fixing", "planning"],
-                      "closed": ["testing", "fixing", "planning"]}
+                      "said": ["testing", "fixing", "planning"], "closed": ["testing", "fixing", "planning"]}
     for snap in assistant_walk.at.values():
         tabs = [[t["key"] for t in view["tabs"]] for view in snap.pages.values()]
         assert all(t == tabs[0] for t in tabs)                      # the same tabs beside every page
@@ -222,7 +222,7 @@ def test_a_tabs_mark_changes_when_its_thread_gets_a_new_entry_and_only_then(assi
     assert marks("ran")["testing"] == marks("measured")["testing"]                                    # nothing new in Testing
     assert marks("ran")["fixing"] != marks("measured")["fixing"] != marks("accepted")["fixing"]
     assert marks("measured")["planning"] != marks("accepted")["planning"]
-    assert marks("accepted") == marks("closed")                                                       # closing adds no entry
+    assert marks("said") == marks("closed")                                                           # closing adds no entry
 
 
 def test_a_next_step_alone_opens_no_tab(tmp_path):

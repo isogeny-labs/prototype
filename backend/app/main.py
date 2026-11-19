@@ -94,7 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(fixes.routes(lab, require_login), dependencies=guarded)
     app.include_router(checks.routes(lab, require_login), dependencies=guarded)   # phase 5b
     app.include_router(otto_routes.routes(lab, require_login), dependencies=guarded)   # phase 5c
-    app.include_router(assistant_routes.routes(lab, require_login))   # phase 6a: the Otto panel's one read
+    app.include_router(assistant_routes.routes(lab, require_login), dependencies=guarded)   # phase 6a: the panel's read; 6b: a typed sentence
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def no_such_api(rest: str):

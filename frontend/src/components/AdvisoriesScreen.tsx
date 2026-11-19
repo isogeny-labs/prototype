@@ -15,6 +15,9 @@ interface Props {
   /** A decision was recorded (an accepted check joins the test plan, an undone one leaves it): the app reads its copy
    * of the plan again. */
   onPlanChanged?: () => void;
+  /** Phase 6b: the Decision filter the address names, and how a change of it goes back into the address. */
+  decision?: string | null;
+  onFilters?: (filters: { decision?: string | null }) => void;
 }
 
 /** The view with one proposal replaced by what the backend answered for it. */
@@ -36,13 +39,18 @@ function withProposal(view: AdvisoriesView, next: OttoProposal): AdvisoriesView 
  * Otto proposes; a person decides: each proposed check is accepted or rejected by itself, in the advisory's panel.
  * There is no button that decides several at once, and a decision runs nothing. Every word, label and tone is the
  * backend's: this page words no result and decides none. */
-export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Props) {
+export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decision = null, onFilters }: Props) {
   const [view, setView] = useState<AdvisoriesView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadError, setReloadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [testFilter, setTestFilter] = useState("all");
-  const [decisionFilter, setDecisionFilter] = useState("all");
+  const [decisionFilter, setDecisionFilterState] = useState(decision ?? "all");
+  const setDecisionFilter = (value: string) => {
+    setDecisionFilterState(value);
+    onFilters?.({ decision: value === "all" ? null : value });
+  };
+  useEffect(() => setDecisionFilterState(decision ?? "all"), [decision]);
   const [resultFilter, setResultFilter] = useState("all");
   const [openId, setOpenId] = useState<string | null>(openItem);
   // The newest request for the page's view: an answer that comes back after a newer one was asked for is dropped.

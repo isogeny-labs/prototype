@@ -43,6 +43,12 @@ export type AssessmentRoute = {
   section?: string | null;
   /** "page": the item named by `item` on a page of its own, in place of the list with its side panel. */
   view?: "page" | null;
+  /** Phase 6b: three more filters of a page's table are part of its address, so a command or a link can open a filtered
+   * table and Back returns: the Result filter (Checks, Evidence), Came from (Checks) and Decision (Advisories). Each
+   * holds the page's own filter value. */
+  result?: string | null;
+  from?: string | null;
+  decision?: string | null;
 };
 
 /** Settings may name one of its sections to open on (phase 5c: "test-packs"). */
@@ -76,9 +82,23 @@ export function parseRoute(hash: string): Route {
       section: params.get("section"),
       // (only with an item to show, on a page that has side panels: anything else is the page itself)
       view: params.get("view") === "page" && params.get("item") && pageOf(m[2]) !== "overview" ? "page" : null,
+      ...filtersOf(params),
     };
   }
   return { kind: "projects" };
+}
+
+/** The filters an address names (phase 6b). A filter that is not named is not part of the route at all, so an address
+ * without one reads back exactly as before. */
+function filtersOf(params: URLSearchParams): Pick<AssessmentRoute, "result" | "from" | "decision"> {
+  const out: Pick<AssessmentRoute, "result" | "from" | "decision"> = {};
+  const result = params.get("result");
+  const from = params.get("from");
+  const decision = params.get("decision");
+  if (result) out.result = result.slice(0, 80);
+  if (from) out.from = from.slice(0, 80);
+  if (decision) out.decision = decision.slice(0, 80);
+  return out;
 }
 
 export function routeHref(route: Route): string {
@@ -90,6 +110,9 @@ export function routeHref(route: Route): string {
     if (route.group) params.set("group", route.group);
     if (route.section) params.set("section", route.section);
     if (route.view === "page" && route.item) params.set("view", "page");
+    if (route.result) params.set("result", route.result);
+    if (route.from) params.set("from", route.from);
+    if (route.decision) params.set("decision", route.decision);
     const query = params.toString();
     return `#/a/${route.id}/${route.page}${query ? `?${query}` : ""}`;
   }

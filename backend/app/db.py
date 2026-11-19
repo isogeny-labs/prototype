@@ -675,6 +675,24 @@ class OttoResearchRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class AssistantMessageRow(Base):
+    """Phase 6b: one sentence a person typed to Otto in an open assessment, and the answer it got. Kept with the
+    assessment and only ever added. It is a record of what was said: it decides nothing, and nothing reads it to act."""
+    __tablename__ = "assistant_messages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    at: Mapped[str] = mapped_column(String(40))
+    by: Mapped[str] = mapped_column(String(100))
+    page: Mapped[str] = mapped_column(String(60))                 # the page it was typed beside
+    item: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    thread: Mapped[str | None] = mapped_column(String(20), nullable=True)   # the tab it shows in (None: no tab)
+    said: Mapped[str] = mapped_column(Text)                       # the person's own words
+    kind: Mapped[str] = mapped_column(String(20))                 # what kind of answer: went, card, which, cannot, ...
+    reply: Mapped[str] = mapped_column(Text)                      # the answer's one line
+    go: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # where the answer led, if anywhere
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 NO_DELETE_TABLES = ("folders", "projects", "assessments")
 
 
@@ -684,7 +702,8 @@ APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", 
                       "dependency_lists", "dependency_ties",
                       "assessment_details", "assessment_signoffs", "import_files",   # phase 5b
                       "otto_packs", "otto_checks", "otto_steps", "otto_decisions",    # phase 5c
-                      "otto_lookups", "otto_research")                                # phase 6: the research loop
+                      "otto_lookups", "otto_research",                                # phase 6: the research loop
+                      "assistant_messages")                                           # phase 6b: what was said to Otto
 
 
 def create_append_only_triggers(engine) -> None:

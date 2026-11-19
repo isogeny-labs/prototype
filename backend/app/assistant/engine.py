@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Protocol
 
-from app.assistant import words
+from app.assistant import answers, commands, words
 from app.assistant.threads import ENTRY_KINDS, FITS, KIND_THREAD, PAGE_LABELS, PAGE_THREAD, PAGES, THREAD_LABELS, THREADS, thread_of
 from app.errors import BadRequest, NotFound
 from app.otto import harness
@@ -33,6 +33,8 @@ class CopilotEngine(Protocol):
     """What the panel asks. There is one question, and it only reads."""
 
     def read(self, lab: Any, assessment_id: int, page: str, item: str | None = None) -> dict: ...
+
+    def command(self, lab: Any, assessment_id: int, page: str, item: str | None, text: str) -> dict: ...
 
 
 def _entry(what: str, entry_id: str, *, mark: str, title: str, page: str | None = None, **more: Any) -> dict:
@@ -95,6 +97,12 @@ def _proposal_at(proposal: dict) -> str | None:
 class RuleCopilot:
     """The assistant with no AI model: fixed rules over the assessment's records."""
 
+    # ------------------------------------------------------------------ a typed sentence (phase 6b)
+
+    def command(self, lab: Any, assessment_id: int, page: str, item: str | None, text: str) -> dict:
+        """Otto's answer to one typed sentence: where to go, or a card of this engine with its Confirm step. A read."""
+        return answers.answer(self, lab, assessment_id, page, item, text)
+
     # ------------------------------------------------------------------ the read
 
     def read(self, lab: Any, assessment_id: int, page: str, item: str | None = None) -> dict:
@@ -108,7 +116,10 @@ class RuleCopilot:
                   ([installed["sentence"]] if not installed["installed"] else [])
         base = {"assessment_id": assessment_id, "plan_id": core["plan_id"], "title": words.TITLE, "status": words.status(lab.otto_live_ready()),
                 "notices": notices, "note": words.LOOKING, "recorded_as": lab.decision_name_view(), "page": page,
-                "page_label": PAGE_LABELS[page], "thread": PAGE_THREAD[page]}
+                "page_label": PAGE_LABELS[page], "thread": PAGE_THREAD[page],
+                # phase 6b: the text box, and up to three examples fitted to the page (a chip sends its own words)
+                "box": {**commands.BOX, "chips": list(commands.CHIPS.get(page, (commands.HELP,))),
+                        "kept": not closed, "kept_note": None if not closed else words.BOX_CLOSED}}
         if core["import_id"] is None or core["plan_id"] is None:
             link = None if page == "inventory/import" else {"label": "Open Import", "link": _link("inventory/import")}
             return {**base, "tabs": [], "on_page": {"title": words.ON_PAGE, "entries": [], "empty": words.NO_FILE, "empty_link": link},
@@ -142,7 +153,7 @@ class RuleCopilot:
         waiting_here = sum(1 for p in here if waits(p))
         nothing = waiting_here == 0 and not waiting_elsewhere
 
-        tabs = self._tabs(facts, proposals, suggestions)
+        tabs = self._tabs(facts, proposals, suggestions, lab.assistant_messages(core["plan_id"]))
         return {**base, "tabs": tabs,
                 "on_page": {"title": words.ON_PAGE, "entries": on_page, "empty": None if on_page else words.NOTHING_HERE, "empty_link": None},
                 "elsewhere": {"title": words.elsewhere_title(len(waiting_elsewhere)), "count": len(waiting_elsewhere), "lines": lines,
@@ -166,15 +177,18 @@ class RuleCopilot:
 
     # ------------------------------------------------------------------ next steps: a button of the page, by its own name
 
-    def _next_steps(self, facts: "_Facts", page: str, item: str | None) -> list[dict]:
+    def _next_steps(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
+        """The page's buttons that are worth pressing now. `asked` (phase 6b): a person named a button in a command, so
+        every button the page has is listed, whether or not it is the next thing to do, and one that is off is listed
+        with its page's reason."""
         builders = {"overview": self._next_overview, "inventory/import": self._next_import, "inventory/verify": self._next_verify,
                     "checks": self._next_checks, "evidence": self._next_evidence, "fixes": self._next_fixes,
                     "migration/dependencies": self._next_dependencies, "migration/systems": self._next_migration,
                     "migration/roadmap": self._next_migration}
         build = builders.get(page)
-        return build(facts, page, item) if build else []
+        return build(facts, page, item, asked) if build else []
 
-    def _next_overview(self, facts: "_Facts", page: str, item: str | None) -> list[dict]:
+    def _next_overview(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
         step = facts.overview_step()
         if not step or step.get("page") in (None, "overview"):
             return []
@@ -182,8 +196,8 @@ class RuleCopilot:
                        where={"label": f"On {PAGE_LABELS['overview']}", "link": _link("overview")},
                        step=_step({"type": "open", "link": _link(step["page"])}, can=True, reason=None, confirm=None, needs="nothing"))]
 
-    def _next_import(self, facts: "_Facts", page: str, item: str | None) -> list[dict]:
-        if facts.verified():
+    def _next_import(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
+        if facts.verified() and not asked:
             return []
         waiting = facts.waiting_for_ticks()
         label = "Verify claims"
@@ -198,7 +212,7 @@ class RuleCopilot:
                                        "It contacts only the addresses ticked on Import, with handshakes only.",
                                        "It changes nothing on any system. Then the Verify page opens."], label, "Import")))]
 
-    def _next_verify(self, facts: "_Facts", page: str, item: str | None) -> list[dict]:
+    def _next_verify(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
         if not facts.verified() or facts.plan().get("has_results"):
             return []
         return [_entry("next:open", "next:open:checks", page="checks", mark=words.MARK_NEXT, title="Continue to checks",
@@ -206,17 +220,18 @@ class RuleCopilot:
                        where={"label": "On Verify", "link": _link("inventory/verify")},
                        step=_step({"type": "open", "link": _link("checks")}, can=True, reason=None, confirm=None, needs="nothing"))]
 
-    def _next_checks(self, facts: "_Facts", page: str, item: str | None) -> list[dict]:
+    def _next_checks(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
         plan = facts.plan()
         tests = plan.get("tests") or []
         out: list[dict] = []
         unrun = [t for t in tests if t.get("result") is None and t.get("status") == "not_run"]
         live = [t for t in tests if t.get("status") in ("waiting", "running")]
         where = {"label": "On Checks", "link": _link("checks", group="encryption")}
-        if len(unrun) >= 2 or (live and not unrun):
+        if len(unrun) >= 2 or (live and not unrun) or (asked and tests):
             n, ran = len(tests), len(tests) - len(unrun)
             out.append(_entry("next:run_all", "next:run_all", mark=words.MARK_NEXT, title="Run all",
-                              text=(f"{len(unrun)} of the {n} tests in the plan have not run yet." if unrun else "The tests of the plan are running."),
+                              text=(f"{len(unrun)} of the {n} tests in the plan have not run yet." if unrun else
+                                    "The tests of the plan are running." if live else f"All {n} tests in the plan have a result. They would run again."),
                               where=where,
                               step=_step({"type": "run_all", "plan_id": facts.plan_id}, can=bool(plan.get("can_run_all")) and not facts.closed,
                                          reason=facts.closed_reason() or facts.busy_reason(),
@@ -232,10 +247,13 @@ class RuleCopilot:
         # Once the test has a result, the result is in the Testing tab.
         first = unrun + [t for t in live if t.get("result") is None]
         own = [t for t in first if t.get("kind") == "advisory_cases" or item == f"test-{t['id']}" or len(first) == 1]
-        for t in sorted(own, key=lambda t: item != f"test-{t['id']}")[:MAX_STEPS]:
+        if asked:                   # (every card of the plan has its Run button, also a test that has a result)
+            own = list(tests)
+        for t in sorted(own, key=lambda t: item != f"test-{t['id']}")[:None if asked else MAX_STEPS]:
             going = t.get("status") in ("waiting", "running")
             out.append(_entry("next:run", f"next:run:{t['id']}", mark=words.MARK_NEXT, title="Run",
-                              text=f"{t['title']} is running." if going else f"{t['title']} has not run yet.",
+                              text=(f"{t['title']} is running." if going else f"{t['title']} has not run yet." if t.get("result") is None else
+                                    f"{t['title']} has a result. It would run again."),
                               where={"label": "On Checks", "link": _link("checks", f"test-{t['id']}")}, open_item=item == f"test-{t['id']}",
                               step=_step({"type": "run", "plan_id": facts.plan_id, "item_id": t["id"]},
                                          can=bool(t.get("can_run")) and not facts.closed and not going,
@@ -247,7 +265,7 @@ class RuleCopilot:
                                               "The runner runs it and the separate reviewer decides its result."], "Run", "Checks"))))
         return out
 
-    def _next_evidence(self, facts: "_Facts", page: str, item: str | None) -> list[dict]:
+    def _next_evidence(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
         view = facts.lab()
         retest = view.get("retest") or {}
         if not retest or not (view.get("rows") or []):
@@ -266,7 +284,7 @@ class RuleCopilot:
                            where=where, step=_step({"type": "retest", "plan_id": facts.plan_id}, can=False,
                                                    reason=facts.closed_reason() or retest["blocked_reason"], confirm=None))]
         out = []
-        for v in versions[:MAX_STEPS]:
+        for v in versions[:None if asked else MAX_STEPS]:
             out.append(_entry("next:retest", f"next:retest:{v.get('component') or ''}:{v['version']}", mark=words.MARK_NEXT, title=label,
                               text=f"{v['label']}: {v['note']}", where=where,
                               step=_step({"type": "retest", "plan_id": facts.plan_id, "version": v["version"], "component": v.get("component")},
@@ -278,11 +296,11 @@ class RuleCopilot:
                                              label, "Evidence"))))
         return out
 
-    def _next_fixes(self, facts: "_Facts", page: str, item: str | None) -> list[dict]:
+    def _next_fixes(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
         out: list[dict] = []
         fixes = facts.fixes().get("fixes") or []
         for fix in sorted(fixes, key=lambda f: f["id"] != item):
-            opened = fix["id"] == item
+            opened = fix["id"] == item or asked     # (a button that is off is listed for the open fix, or when it was asked for)
             where = {"label": "On Fixes", "link": _link("fixes", fix["id"])}
             note = (fix.get("actions") or {}).get("note")
             for button in (fix.get("actions") or {}).get("buttons") or []:
@@ -299,9 +317,12 @@ class RuleCopilot:
                 made = self._approval_step(facts, fix, box, picker, where, opened)
                 if made is not None:
                     out.append(made)
+        if asked:                   # ("open" still means the fix that is open on the page, not every fix that was listed)
+            for made in out:
+                made["open_item"] = item is not None and made["where"]["link"]["item"] == item
         # (the open fix's steps first, then what can be pressed, a few at most)
         out.sort(key=lambda e: (not e["open_item"], not e["step"]["can"]))
-        return out[:MAX_STEPS + 1]
+        return out if asked else out[:MAX_STEPS + 1]
 
     def _fix_step(self, facts: "_Facts", fix: dict, button: dict, note: str | None, where: dict, opened: bool) -> dict | None:
         action, label, plan_id = button["action"], button["label"], facts.plan_id
@@ -388,7 +409,7 @@ class RuleCopilot:
                                       "These are the reviewers ticked by default on Fixes. To pick others, open the fix on its page.",
                                       "It applies nothing: Approve and Apply stay on their page."], label, "Fixes")))
 
-    def _next_dependencies(self, facts: "_Facts", page: str, item: str | None) -> list[dict]:
+    def _next_dependencies(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
         view = facts.dependencies()
         out: list[dict] = []
         where = {"label": "On Dependencies", "link": _link("migration/dependencies")}
@@ -397,7 +418,7 @@ class RuleCopilot:
         every = view.get("measure_all") or {}
         unmeasured = [r for r in rows if not r.get("measurement")]
         off = bool(every) and not every.get("enabled") and not view.get("busy") and bool(unmeasured) and bool(every.get("blocked_reason"))
-        if every and (off or ((every.get("enabled") or view.get("busy")) and (len(measurable) >= 2 or view.get("busy")))):
+        if every and (asked or off or ((every.get("enabled") or view.get("busy")) and (len(measurable) >= 2 or view.get("busy")))):
             out.append(_entry("next:measure_all", "next:measure_all", mark=words.MARK_NEXT, title=every["label"],
                               text=("A measurement is running." if view.get("busy") else
                                     "Measures the libraries of the list that have a pinned public copy." if off else
@@ -413,10 +434,10 @@ class RuleCopilot:
         seen: set[str] = set()
         for r in sorted(rows, key=lambda r: r["id"] != item):
             measure, opened = r.get("measure") or {}, r["id"] == item
-            if r["id"] in seen or not measure or r.get("measurement") or (not measure.get("enabled") and not opened):
+            if r["id"] in seen or not measure or (r.get("measurement") and not asked) or (not measure.get("enabled") and not opened and not asked):
                 continue
             seen.add(r["id"])
-            if len(seen) > MAX_STEPS:
+            if len(seen) > MAX_STEPS and not asked:
                 break
             out.append(_entry("next:measure_library", f"next:measure:{r['id']}", mark=words.MARK_NEXT, title=measure["label"], text=r["label"],
                               where={"label": "On Dependencies", "link": _link("migration/dependencies", r["id"])}, open_item=opened,
@@ -431,13 +452,13 @@ class RuleCopilot:
                                              measure["label"], "Dependencies"))))
         return out
 
-    def _next_migration(self, facts: "_Facts", page: str, item: str | None) -> list[dict]:
+    def _next_migration(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
         view = facts.migration()
         measure = view.get("measure") or {}
         if not measure:
             return []
         measured = measure.get("label") != "Measure status"
-        if measured and not view.get("busy"):
+        if measured and not view.get("busy") and not asked:
             return []               # every system has a status: measuring again is not the next step
         return [_entry("next:measure_status", "next:measure_status", mark=words.MARK_NEXT, title=measure["label"],
                        text=measure.get("progress_text") or "Measure where each system stands on the move to post-quantum cryptography.",
@@ -514,7 +535,7 @@ class RuleCopilot:
 
     # ------------------------------------------------------------------ the tabs, and each thread so far
 
-    def _tabs(self, facts: "_Facts", proposals: list[dict], suggestions: dict[str, dict]) -> list[dict]:
+    def _tabs(self, facts: "_Facts", proposals: list[dict], suggestions: dict[str, dict], said: list[dict] | None = None) -> list[dict]:
         """The open tabs, at most three. A tab is there once its thread has a suggestion or a result to explain (and,
         from phase 6c, an answer). A next step alone opens no tab. Worked out from the records on every read."""
         so_far: dict[str, list[dict]] = {t: [] for t in THREADS}
@@ -531,6 +552,12 @@ class RuleCopilot:
         so_far["testing"] += results
         steps = self._fix_steps(facts)
         so_far["fixing"] += steps
+        # phase 6b: what was typed to Otto and what it answered, in the thread each exchange was filed under. They show
+        # in a tab that is there; like a next step, an exchange alone opens no tab.
+        for m in said or []:
+            if m.get("thread") in so_far:
+                so_far[m["thread"]].append(_entry(f"said:{m['thread']}", f"said:{m['id']}", mark=words.MARK_SAID, title=m["said"], text=m["reply"],
+                                                  at=m["at"], links=([{"label": words.SAID_LINK, "link": _go_link(m["go"])}] if m.get("go") else [])))
         explain = {"testing": any(e["badge"]["tone"] != "pass" for e in results), "fixing": bool(steps), "planning": False}
         tabs = []
         for thread in THREADS:
@@ -571,6 +598,13 @@ class RuleCopilot:
                               text=fix.get("list_source"), badge={"label": status.get("word") or "", "tone": "neutral"},
                               links=[{"label": "Open the fix", "link": _link("fixes", fix["id"])}]))
         return out
+
+
+def _go_link(go: dict) -> dict:
+    """Where an answer led, as a link of the thread (the filters of the address are not part of a plain link)."""
+    if go.get("page") == "settings":
+        return {"page": "settings", "item": None, "group": None}
+    return _link(str(go.get("page")), go.get("item"), go.get("group"))
 
 
 def _plain(value: object) -> str | None:

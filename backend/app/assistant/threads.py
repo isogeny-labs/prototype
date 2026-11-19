@@ -46,6 +46,9 @@ ENTRY_KINDS: dict[str, str] = {
     "meaning:found": "testing", "meaning:result": "testing", "meaning:text_only": "fixing", "meaning:blocks": "fixing",
     # the thread so far: a reviewed result, and where a fix stands
     "result": "testing", "fix_step": "fixing",
+    # phase 6b: something a person typed, with Otto's answer. It is filed under one thread when it is said (the thread
+    # of what it named, or of the page it was typed beside); "said:testing" and so on are that record's own word.
+    "said:testing": "testing", "said:fixing": "fixing", "said:planning": "planning",
 }
 
 

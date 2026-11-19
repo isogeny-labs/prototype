@@ -1,4 +1,15 @@
-import type { AssistantAction, AssistantConfirm, AssistantDecision, AssistantEntry, AssistantStep, AssistantTab, AssistantThread, AssistantView, OttoProposal } from "../api";
+import type {
+  AssistantAction,
+  AssistantConfirm,
+  AssistantDecision,
+  AssistantEntry,
+  AssistantReply,
+  AssistantStep,
+  AssistantTab,
+  AssistantThread,
+  AssistantView,
+  OttoProposal,
+} from "../api";
 import { quietAssistant } from "./fixtures";
 import { acceptedProposal, proposal, rejectedProposal } from "./proposalFixtures";
 
@@ -163,6 +174,15 @@ export function panel(page: string, over: Partial<AssistantView> = {}): Assistan
   const labels: Record<string, string> = { checks: "Checks", advisories: "Advisories", evidence: "Evidence", fixes: "Fixes", overview: "Overview", "migration/systems": "Systems", "migration/dependencies": "Dependencies", "inventory/import": "Import", "inventory/verify": "Verify", "migration/roadmap": "Roadmap" };
   const threads: Record<string, AssistantThread | null> = { checks: "testing", advisories: "testing", evidence: "testing", "inventory/import": "testing", "inventory/verify": "testing", fixes: "fixing", "migration/dependencies": "fixing", "migration/systems": "planning", "migration/roadmap": "planning", overview: null };
   return quietAssistant({ page, page_label: labels[page] ?? page, thread: threads[page] ?? null, ...over });
+}
+
+/** Phase 6b: Otto's answer to one typed sentence, as the backend sends it. */
+export function answer(kind: AssistantReply["kind"], text: string, over: Partial<AssistantReply> = {}): AssistantReply {
+  return { kind, text, go: null, entry: null, open: null, options: [], can: [], tab: null, thread: null, ...over };
+}
+
+export function goTo(page: string, over: Partial<NonNullable<AssistantReply["go"]>> = {}): NonNullable<AssistantReply["go"]> {
+  return { page, item: null, group: null, result: null, came_from: null, decision: null, ...over };
 }
 
 export function onPage(entries: AssistantEntry[]): AssistantView["on_page"] {

@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AssistantEntry, AssistantView, OttoProposal, PlanView } from "../api";
+import type { AssistantEntry, AssistantGo, AssistantView, OttoProposal, PlanView } from "../api";
 import { OttoPanel } from "../components/assistant/OttoPanel";
 import { ProposalCard } from "../components/otto/ProposalCard";
 import { LinkProvider } from "../components/related";
@@ -9,6 +9,7 @@ import { TestsScreen } from "../components/TestsScreen";
 import { ReadOnlyProvider } from "../readOnly";
 import type { Page } from "../router";
 import {
+  answer,
   checkAccepted,
   checkProposal,
   checkRejected,
@@ -16,6 +17,7 @@ import {
   dependencyProposal,
   elsewhere,
   fixProposal,
+  goTo,
   meaning,
   nextStep,
   onPage,
@@ -36,11 +38,23 @@ type Routes = Parameters<typeof mockApi>[0];
 const read = (page: string, item?: string) => `GET /api/assessments/101/assistant?${new URLSearchParams(item ? { page, item } : { page }).toString()}`;
 const decide = (of: OttoProposal, decision: string) => `POST /api/plans/1/otto/proposals/${of.id}/${decision}`;
 
-function Panel({ page = "checks", item = null, onGo = () => {}, closed = false }: { page?: string; item?: string | null; onGo?: (page: Page, item?: string | null) => void; closed?: boolean }) {
+function Panel({
+  page = "checks",
+  item = null,
+  onGo = () => {},
+  onGoTo,
+  closed = false,
+}: {
+  page?: string;
+  item?: string | null;
+  onGo?: (page: Page, item?: string | null) => void;
+  onGoTo?: (where: AssistantGo) => void;
+  closed?: boolean;
+}) {
   return (
     <ReadOnlyProvider readOnly={closed}>
       <LinkProvider assessmentId={101} planId={1}>
-        <OttoPanel assessmentId={101} page={page as Page} item={item} onGo={onGo} />
+        <OttoPanel assessmentId={101} page={page as Page} item={item} onGo={onGo} onGoTo={onGoTo} />
       </LinkProvider>
     </ReadOnlyProvider>
   );
@@ -739,6 +753,211 @@ describe("the panel beside a page of the app", () => {
 });
 
 // ---------------------------------------------------------------- who a decision is recorded as
+
+// ---------------------------------------------------------------- phase 6b: the text box
+
+describe("the text box (phase 6b)", () => {
+  const SAY = "POST /api/plans/1/assistant/messages";
+  const box = () => screen.getByTestId("otto-box-text") as HTMLTextAreaElement;
+  const type = (words: string) => fireEvent.change(box(), { target: { value: words } });
+  const send = () => fireEvent.click(screen.getByTestId("otto-box-send"));
+  const reply = () => screen.getByTestId("otto-reply");
+  const checksBox = { label: "Tell Otto where to go or what to do", send: "Send", max: 500, chips: ["Show failed checks", "Run all", "What can you do?"], kept: true, kept_note: null };
+
+  it("sits at the foot of the panel with its label, Send and up to three chips; typing sends nothing", async () => {
+    const fetchMock = await open(panel("checks", { box: checksBox }));
+    expect(screen.getByLabelText("Tell Otto where to go or what to do")).toBe(box());
+    expect(screen.getAllByTestId("otto-chip").map((c) => text(c))).toEqual(["Show failed checks", "Run all", "What can you do?"]);
+    expect((screen.getByTestId("otto-box-send") as HTMLButtonElement).disabled).toBe(true); // nothing typed yet
+    type("show me failed checks");
+    expect((screen.getByTestId("otto-box-send") as HTMLButtonElement).disabled).toBe(false);
+    expect(calls(fetchMock)).toEqual([]);
+    expect(screen.queryByTestId("otto-reply")).toBeNull();
+    // it comes after what fits the page, and before the standing note
+    expect(screen.getByTestId("otto-on-page").compareDocumentPosition(screen.getByTestId("otto-box")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId("otto-box").compareDocumentPosition(screen.getByTestId("otto-note")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("moving around is done at once: the sentence is sent with the page and the open item, and the app goes where the answer says", async () => {
+    const onGoTo = vi.fn();
+    const where = goTo("checks", { result: "Failed" });
+    const fetchMock = await open(
+      panel("checks", { box: checksBox }),
+      { [read("checks", "test-5")]: { body: panel("checks", { box: checksBox }) }, [SAY]: { body: answer("went", "Opened Checks, filtered to Failed: 2 checks.", { go: where, thread: "testing" }) } },
+      { onGoTo, item: "test-5" },
+    );
+    type("show me failed checks");
+    send();
+    await waitFor(() => expect(onGoTo).toHaveBeenCalledWith(where));
+    expect(calls(fetchMock)).toEqual([SAY]);
+    expect(sent(fetchMock, SAY)?.body).toEqual({ text: "show me failed checks", page: "checks", item: "test-5" });
+    expect(text(within(reply()).getByTestId("otto-reply-said"))).toBe("You said: show me failed checks");
+    expect(text(within(reply()).getByTestId("otto-reply-text"))).toBe("Opened Checks, filtered to Failed: 2 checks.");
+    expect(reply().getAttribute("data-kind")).toBe("went");
+    expect(box().value).toBe(""); // the box is ready for the next sentence
+    expect(screen.queryByTestId("otto-confirm")).toBeNull();
+  });
+
+  it("Enter sends, Shift and Enter does not, and a chip sends its own words", async () => {
+    const fetchMock = await open(panel("checks", { box: checksBox }), { [SAY]: { body: answer("help", "On Checks you can tell Otto:") } });
+    type("what can you do?");
+    fireEvent.keyDown(box(), { key: "Enter", shiftKey: true });
+    expect(calls(fetchMock)).toEqual([]);
+    fireEvent.keyDown(box(), { key: "Enter" });
+    await waitFor(() => expect(calls(fetchMock)).toEqual([SAY]));
+    fireEvent.click(screen.getAllByTestId("otto-chip")[1]!);
+    await waitFor(() => expect(calls(fetchMock)).toEqual([SAY, SAY]));
+    const bodies = fetchMock.mock.calls.filter(([url]) => String(url) === "/api/plans/1/assistant/messages").map(([, init]) => JSON.parse(String(init!.body)).text);
+    expect(bodies).toEqual(["what can you do?", "Run all"]);
+  });
+
+  it("a decision comes back as the suggestion's card with its Confirm step open; only Confirm sends the page's own request", async () => {
+    const card = suggestion(dependencyProposal);
+    const fetchMock = await open(panel("checks", { box: checksBox }), {
+      [SAY]: { body: answer("card", `Accept “${card.title}”, on Dependencies. Nothing happens until you press Confirm.`, { entry: card, open: { key: "accept", reason: null }, thread: "fixing" }) },
+      [decide(dependencyProposal, "accept")]: { body: decided(dependencyProposal, "accepted") },
+    });
+    type("accept the java fix");
+    send();
+    const shown = await within(await screen.findByTestId("otto-reply")).findByTestId("otto-entry");
+    expect(text(within(shown).getByTestId("otto-entry-title"))).toBe(card.title);
+    expect(text(within(shown).getByTestId("otto-entry-where"))).toBe("On Dependencies"); // it names the proposal's page
+    const step = within(shown).getByTestId("otto-confirm");
+    expect(text(within(step).getByTestId("otto-confirm-names"))).toBe("This is the Accept button on Dependencies.");
+    expect(calls(fetchMock)).toEqual([SAY]); // the sentence was kept; nothing was decided
+    // Cancel leaves everything as it was, and the card stays with its buttons
+    fireEvent.click(within(step).getByTestId("otto-cancel-button"));
+    expect(calls(fetchMock)).toEqual([SAY]);
+    fireEvent.click(button(within(reply()).getByTestId("otto-entry"), "Accept"));
+    fireEvent.click(within(reply()).getByTestId("otto-confirm-button"));
+    await waitFor(() => expect(calls(fetchMock)).toEqual([SAY, decide(dependencyProposal, "accept")]));
+    expect(sent(fetchMock, decide(dependencyProposal, "accept"))?.body).toEqual({}); // exactly what the page's Accept sends (no reason)
+    await waitFor(() => expect(within(reply()).queryByTestId("otto-entry")).toBeNull());
+    expect(text(within(reply()).getByTestId("otto-reply-confirmed"))).toContain("Confirmed.");
+  });
+
+  it("a reason that rides along fills the reason box in the person's own words, and Confirm sends it", async () => {
+    const card = suggestion(dependencyProposal);
+    const why = "we stay on 17.0.2 until January";
+    const fetchMock = await open(panel("checks", { box: checksBox }), {
+      [SAY]: { body: answer("card", "Reject …", { entry: card, open: { key: "reject", reason: why }, thread: "fixing" }) },
+      [decide(dependencyProposal, "reject")]: { body: decided(dependencyProposal, "rejected", why) },
+    });
+    type(`reject the java fix: ${why}`);
+    send();
+    const field = (await within(await screen.findByTestId("otto-reply")).findByTestId("otto-reason")) as HTMLInputElement;
+    expect(field.value).toBe(why);
+    fireEvent.click(within(reply()).getByTestId("otto-confirm-button"));
+    await waitFor(() => expect(sent(fetchMock, decide(dependencyProposal, "reject"))?.body).toEqual({ reason: why }));
+  });
+
+  it("where several things fit it asks Which one? and sends the words of the one that is chosen; it never picks one itself", async () => {
+    let asked = 0;
+    const fetchMock = await open(panel("fixes", { box: checksBox }), {
+      [SAY]: () => {
+        asked += 1;
+        return {
+          body:
+            asked === 1
+              ? answer("which", "Which one?", { options: [{ label: "Update openjdk (on Dependencies)", say: "Accept Update openjdk" }, { label: "Range check (on Fixes)", say: "Accept Range check" }] })
+              : answer("card", "Accept …", { entry: suggestion(fixProposal), open: { key: "accept", reason: null } }),
+        };
+      },
+    });
+    type("accept the fix");
+    send();
+    const options = await within(await screen.findByTestId("otto-reply")).findAllByTestId("otto-reply-option");
+    expect(options.map((o) => text(o))).toEqual(["Update openjdk (on Dependencies)", "Range check (on Fixes)"]);
+    expect(within(reply()).queryByTestId("otto-entry")).toBeNull();
+    expect(calls(fetchMock)).toEqual([SAY]);
+    fireEvent.click(options[1]!);
+    await within(await screen.findByTestId("otto-reply")).findByTestId("otto-confirm");
+    const said = fetchMock.mock.calls.filter(([url]) => String(url) === "/api/plans/1/assistant/messages").map(([, init]) => JSON.parse(String(init!.body)).text);
+    expect(said).toEqual(["accept the fix", "Accept Range check"]);
+  });
+
+  it("where nothing fits it says so and lists what can be said here; an example goes into the box and is not sent", async () => {
+    const can = [
+      { say: "Show failed checks", about: "Opens a page with its table filtered.", kind: "go" as const },
+      { say: "Run all", about: "The Run all button of Checks. It waits for Confirm.", kind: "do" as const },
+    ];
+    const fetchMock = await open(panel("checks", { box: checksBox }), { [SAY]: { body: answer("cannot", "I can't do that.", { can }) } });
+    type("make me a sandwich");
+    send();
+    await waitFor(() => expect(text(within(reply()).getByTestId("otto-reply-text"))).toBe("I can't do that."));
+    const examples = within(reply()).getAllByTestId("otto-reply-example");
+    expect(examples.map((e) => text(e))).toEqual(["Show failed checks", "Run all"]);
+    fireEvent.click(examples[1]!);
+    expect(box().value).toBe("Run all");
+    expect(calls(fetchMock)).toEqual([SAY]); // only the first sentence was sent
+  });
+
+  it("a button that is off comes back as its card with the page's own reason, and no Confirm step", async () => {
+    const why = "This change is a proposal. Accept it first; accepting runs nothing.";
+    const off = nextStep("next:connect", "Connect demo code", "Fixes", { type: "connect", plan_id: 1 }, { can: false, blocked_reason: why });
+    await open(panel("fixes", { box: checksBox }), { [SAY]: { body: answer("cannot", why, { entry: off }) } });
+    type("connect demo code");
+    send();
+    const shown = await within(await screen.findByTestId("otto-reply")).findByTestId("otto-entry");
+    expect(button(shown, "Connect demo code").disabled).toBe(true);
+    expect(text(within(shown).getByTestId("otto-blocked"))).toBe(why);
+    expect(within(reply()).queryByTestId("otto-confirm")).toBeNull();
+  });
+
+  it("closes and opens a tab of the panel when told to, in this browser", async () => {
+    let now = answer("tab", "Closed the Fixing tab.", { tab: { thread: "fixing", how: "close" } });
+    const view = panel("checks", { box: checksBox, tabs: [tab("testing"), tab("fixing"), tab("planning")] });
+    const fetchMock = await open(view, { [read("checks")]: () => ({ body: view }), [SAY]: () => ({ body: now }) });
+    type("close the fixing tab");
+    send();
+    await waitFor(() => expect(tabs().map((t) => t.getAttribute("data-thread"))).toEqual(["testing", "planning"]));
+    now = answer("tab", "Opened the Fixing tab.", { tab: { thread: "fixing", how: "open" } });
+    type("open the fixing tab");
+    send();
+    await waitFor(() => expect(tabs().map((t) => t.getAttribute("data-thread"))).toEqual(["testing", "fixing", "planning"]));
+    expect(tabOf("fixing").getAttribute("data-selected")).toBe("true");
+    expect(calls(fetchMock)).toEqual([SAY, SAY]);
+  });
+
+  it("in a closed assessment the box still takes you places: the read is used, nothing is kept, and the box says so", async () => {
+    const closedBox = { ...checksBox, kept: false, kept_note: "This assessment is closed. The text box can still take you places. What you type is not kept." };
+    const onGoTo = vi.fn();
+    const ANSWER = `GET /api/assessments/101/assistant/answer?${new URLSearchParams({ text: "open evidence", page: "checks" }).toString()}`;
+    const fetchMock = await open(panel("checks", { box: closedBox }), { [ANSWER]: { body: answer("went", "Opened Evidence.", { go: goTo("evidence") }) } }, { onGoTo, closed: true });
+    expect(text(screen.getByTestId("otto-box-note"))).toContain("What you type is not kept.");
+    type("open evidence");
+    expect((screen.getByTestId("otto-box-send") as HTMLButtonElement).disabled).toBe(false); // Send stays on in a closed assessment
+    send();
+    await waitFor(() => expect(onGoTo).toHaveBeenCalledWith(goTo("evidence")));
+    expect(calls(fetchMock)).toEqual([ANSWER]);
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("what was said is listed in its thread so far as You said, with Otto's line and the way to where it led", async () => {
+    const said: AssistantEntry = {
+      id: "said:3", kind: "said", what: "said:testing", thread: "testing", mark: "You said", title: "show me failed checks",
+      text: "Opened Checks, filtered to Failed: 2 checks.", at: "2026-11-19T06:00:00Z", badge: null, where: null,
+      links: [{ label: "Open where it led", link: { page: "checks", item: null, group: null } }], proposal: null, decisions: [], step: null, open_item: false,
+    };
+    await open(panel("checks", { box: checksBox, tabs: [tab("testing", { so_far: [said] })] }));
+    const line = within(screen.getByTestId("otto-so-far")).getByTestId("otto-entry");
+    expect(text(within(line).getByTestId("otto-entry-mark"))).toBe("You said");
+    expect(text(within(line).getByTestId("otto-entry-title"))).toBe("show me failed checks");
+    expect(text(within(line).getByTestId("otto-entry-text"))).toBe("Opened Checks, filtered to Failed: 2 checks.");
+    expect(within(line).getByTestId("otto-entry-link").getAttribute("href")).toBe("#/a/101/checks");
+    expect(within(line).queryAllByRole("button")).toHaveLength(0); // a record of what was said: nothing to press
+  });
+
+  it("a refusal of the server is shown under the box in its own words, and nothing else happens", async () => {
+    const onGoTo = vi.fn();
+    await open(panel("checks", { box: checksBox }), { [SAY]: { status: 422, body: { error: { message: "Type where to go or what to do.", line: null, field: "text" } } } }, { onGoTo });
+    type("   ?   ");
+    send();
+    expect(text(await within(screen.getByTestId("otto-box")).findByRole("alert"))).toBe("Type where to go or what to do.");
+    expect(onGoTo).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("otto-reply")).toBeNull();
+  });
+});
 
 describe("who a decision is recorded as", () => {
   const proposed = () => panel("checks", { tabs: [tab("testing", { waiting: 1 })], on_page: onPage([suggestion(checkProposal)]), waiting: 1 });

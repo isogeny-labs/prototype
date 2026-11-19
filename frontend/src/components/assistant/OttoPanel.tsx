@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { api, errorMessage, type AssistantDecision, type AssistantEntry, type AssistantStep, type AssistantTab, type AssistantThread, type AssistantView } from "../../api";
+import {
+  api,
+  errorMessage,
+  type AssistantDecision,
+  type AssistantEntry,
+  type AssistantGo,
+  type AssistantReply,
+  type AssistantStep,
+  type AssistantTab,
+  type AssistantThread,
+  type AssistantView,
+} from "../../api";
 import { fromPanel, useChangeStamp } from "../../changes";
 import { prefs, type OttoTabs } from "../../prefs";
 import type { Page } from "../../router";
@@ -25,7 +36,8 @@ interface Confirming {
   place: Place;
 }
 
-type Place = "page" | "thread";
+/** "reply": the card that came back for a typed sentence (phase 6b). */
+type Place = "page" | "thread" | "reply";
 
 /** Phase 6a: the Otto assistant, the right-hand panel beside every page of an assessment.
  *
@@ -40,6 +52,7 @@ export function OttoPanel({
   page,
   item,
   onGo,
+  onGoTo,
 }: {
   assessmentId: number;
   page: Page;
@@ -47,6 +60,8 @@ export function OttoPanel({
   item: string | null;
   /** Opens a page of this assessment, as the page itself does after its button's answer. */
   onGo: (page: Page, item?: string | null) => void;
+  /** Phase 6b: where an answer to a typed sentence leads (a page, an item, the filters of its table; or Settings). */
+  onGoTo?: (where: AssistantGo) => void;
 }) {
   const [view, setView] = useState<AssistantView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +163,17 @@ export function OttoPanel({
   // ---- the Confirm step: one button at a time
   const [confirming, setConfirming] = useState<Confirming | null>(null);
   const [reason, setReason] = useState("");
+  // ---- phase 6b: the text box. What was typed last and what came back for it; nothing of it is sent on by itself.
+  const [typed, setTyped] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [exchange, setExchange] = useState<{ said: string; reply: AssistantReply; confirmed: boolean } | null>(null);
+  const [askError, setAskError] = useState<string | null>(null);
+  const boxRef = useRef<HTMLTextAreaElement>(null);
+  const boxId = useId();
+  useEffect(() => {
+    setExchange(null);
+    setAskError(null);
+  }, [assessmentId]);
   // Who a decision is recorded as. A name is asked for once, at the first Confirm of a decision (and kept in Settings).
   const [name, setName] = useState("");
   const [nameAsked, setNameAsked] = useState(prefs.ottoNameAsked);
@@ -175,6 +201,8 @@ export function OttoPanel({
     setSendError(null);
     try {
       await fromPanel(send);
+      // (the card that came back for a typed sentence has done its work: the page and the thread show what it led to)
+      if (confirming?.place === "reply") setExchange((now) => (now ? { ...now, confirmed: true } : now));
       setConfirming(null);
       setReason("");
       if (then) onGo(then.page as Page, then.item);
@@ -186,21 +214,60 @@ export function OttoPanel({
   }
 
   const planId = current?.plan_id ?? null;
+
+  /** Phase 6b: one typed sentence. The answer either takes the app somewhere (moving around is done at once) or is a
+   * card whose Confirm step is shown; nothing is decided or started by sending. In an open assessment the exchange is
+   * kept with it; in a closed one, or before a file is in, it is answered and not kept. */
+  async function say(text: string) {
+    const words = text.trim();
+    if (!words || asking || !current) return;
+    setAsking(true);
+    setAskError(null);
+    try {
+      const reply = current.box.kept && planId !== null ? await api.say(planId, page, item, words) : await api.getAnswer(assessmentId, page, item, words);
+      setTyped("");
+      setExchange({ said: words, reply, confirmed: false });
+      setConfirming(null);
+      setSendError(null);
+      setReason(reply.open?.reason ?? "");
+      if (reply.kind === "tab" && reply.tab) {
+        if (reply.tab.how === "close") {
+          const tab = (current.tabs ?? []).find((t) => t.key === reply.tab!.thread);
+          if (tab) closeTab(tab);
+        } else {
+          reopen(reply.tab.thread);
+          setPicked(reply.tab.thread);
+        }
+      }
+      if ((reply.kind === "went" || reply.kind === "page_only") && reply.go) onGoTo?.(reply.go);
+      if (reply.kind === "card" && reply.entry && reply.open) setConfirming({ entry: reply.entry.id, key: reply.open.key, place: "reply" });
+    } catch (e) {
+      setAskError(errorMessage(e));
+    } finally {
+      setAsking(false);
+    }
+  }
+
   // A Confirm step whose button a new read turned off (or whose card is gone) is closed: the card then shows the
   // button again, off, with the page's own reason. Not while its request is on its way.
   const pageEntries = current?.on_page.entries;
   const threadEntries = selected?.so_far;
+  const replyEntry = exchange?.reply.entry ?? null;
   useEffect(() => {
     if (!confirming || sending) return;
+    if (confirming.place === "reply") {
+      if (!replyEntry || replyEntry.id !== confirming.entry) setConfirming(null);
+      return;
+    }
     const entry = (confirming.place === "page" ? pageEntries : threadEntries)?.find((e) => e.id === confirming.entry);
     const still = confirming.key === "step" ? entry?.step?.confirm : entry?.decisions.find((d) => d.key === confirming.key)?.confirm;
     if (!still) {
       setConfirming(null);
       setReason("");
     }
-  }, [confirming, sending, pageEntries, threadEntries]);
-  const card = (entry: AssistantEntry, compact = false) => {
-    const place: Place = compact ? "thread" : "page";
+  }, [confirming, sending, pageEntries, threadEntries, replyEntry]);
+  const card = (entry: AssistantEntry, compact = false, where: Place | null = null) => {
+    const place: Place = where ?? (compact ? "thread" : "page");
     const mine = confirming?.entry === entry.id && confirming.place === place;
     return (
     <EntryCard
@@ -380,6 +447,120 @@ export function OttoPanel({
           {selected ? (
             <SoFar key={selected.key} tab={selected} card={(entry) => card(entry, true)} />
           ) : null}
+
+          {/* Phase 6b: what was typed last and what came back for it, then the text box with its example chips. */}
+          {exchange ? (
+            <section data-testid="otto-reply" data-kind={exchange.reply.kind} aria-label="Otto's answer" className="rounded-lg border border-slate-700 bg-slate-950/40 p-3">
+              <p data-testid="otto-reply-said" className="break-words text-xs text-slate-400">
+                You said: <span className="text-slate-200">{exchange.said}</span>
+              </p>
+              <p data-testid="otto-reply-text" role="status" className="mt-1.5 break-words text-[13px] text-slate-100">
+                {exchange.reply.text}
+              </p>
+              {exchange.reply.entry && !exchange.confirmed ? <div className="mt-2.5">{card(exchange.reply.entry, false, "reply")}</div> : null}
+              {exchange.confirmed ? (
+                <p data-testid="otto-reply-confirmed" className="mt-1.5 text-xs text-slate-400">
+                  Confirmed. The request the page's own button sends was sent.
+                </p>
+              ) : null}
+              {exchange.reply.options.length > 0 ? (
+                <ul data-testid="otto-reply-options" className="mt-2 space-y-1.5">
+                  {exchange.reply.options.map((option) => (
+                    <li key={option.say}>
+                      <button
+                        type="button"
+                        data-testid="otto-reply-option"
+                        disabled={asking}
+                        onClick={() => void say(option.say)}
+                        className="w-full break-words rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-left text-[13px] text-slate-100 hover:border-slate-500 disabled:opacity-50"
+                      >
+                        {option.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {exchange.reply.can.length > 0 ? (
+                <ul data-testid="otto-reply-can" className="mt-2 space-y-1">
+                  {exchange.reply.can.map((line) => (
+                    <li key={line.say} className="break-words text-xs text-slate-400">
+                      {/* (an example: it goes into the box to be changed, and is sent only by Send) */}
+                      <button
+                        type="button"
+                        data-testid="otto-reply-example"
+                        onClick={() => {
+                          setTyped(line.say);
+                          boxRef.current?.focus({ preventScroll: true });
+                        }}
+                        className="text-left text-sky-300 underline-offset-2 hover:underline"
+                      >
+                        {line.say}
+                      </button>
+                      <span className="text-slate-500"> {line.about}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+          ) : null}
+          <form
+            data-testid="otto-box"
+            className="border-t border-slate-800 pt-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void say(typed);
+            }}
+          >
+            <div data-testid="otto-chips" className="mb-2 flex flex-wrap gap-1.5">
+              {current.box.chips.map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  data-testid="otto-chip"
+                  disabled={asking}
+                  onClick={() => void say(chip)}
+                  className="rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-xs text-slate-200 hover:border-slate-500 disabled:opacity-50"
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+            <label htmlFor={boxId} className="block text-xs text-slate-400">
+              {current.box.label}
+            </label>
+            <div className="mt-1 flex items-end gap-2">
+              <textarea
+                id={boxId}
+                ref={boxRef}
+                data-testid="otto-box-text"
+                rows={2}
+                value={typed}
+                maxLength={current.box.max}
+                onChange={(e) => setTyped(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter sends; Shift+Enter makes a new line.
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void say(typed);
+                  }
+                }}
+                className="min-w-0 flex-1 resize-none rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 placeholder:text-slate-600 focus:border-sky-500 focus:outline-none"
+              />
+              <SecondaryButton testId="otto-box-send" allowWhenClosed disabled={asking || typed.trim() === ""} onClick={() => void say(typed)}>
+                {current.box.send}
+              </SecondaryButton>
+            </div>
+            {current.box.kept_note ? (
+              <p data-testid="otto-box-note" className="mt-1.5 break-words text-[11px] text-slate-500">
+                {current.box.kept_note}
+              </p>
+            ) : null}
+            {askError ? (
+              <div className="mt-2">
+                <ErrorBox>{askError}</ErrorBox>
+              </div>
+            ) : null}
+          </form>
 
           <p data-testid="otto-note" className="border-t border-slate-800 pt-3 text-xs text-slate-500">
             {current.note}

@@ -5,6 +5,9 @@
 // `npm run gen:api` from src/api-schema.json); they are written once, in backend/app/web/models.py.
 
 export type {
+  AssistantReply,
+  AssistantGo,
+  AssistantBox,
   AssistantView,
   AssistantTab,
   AssistantEntry,
@@ -249,6 +252,7 @@ import type {
   OttoProposal,
   OttoProposalsView,
   AssistantView,
+  AssistantReply,
 } from "./api.gen";
 
 export class ApiError extends Error {
@@ -450,6 +454,17 @@ export const api = {
     if (item) params.set("item", item);
     return request<AssistantView>(`/api/assessments/${assessmentId}/assistant?${params.toString()}`);
   },
+  /** Phase 6b: Otto's answer to one typed sentence, and nothing kept (a read: a closed assessment's text box, and an
+   * assessment with no file yet). It decides and starts nothing. */
+  getAnswer: (assessmentId: number, page: string, item: string | null, text: string) => {
+    const params = new URLSearchParams({ text, page });
+    if (item) params.set("item", item);
+    return request<AssistantReply>(`/api/assessments/${assessmentId}/assistant/answer?${params.toString()}`);
+  },
+  /** Phase 6b: the same answer, and the exchange kept with the assessment (what was typed and the one line of the
+   * answer). It decides and starts nothing: a card in the answer still waits for Confirm. */
+  say: (planId: number, page: string, item: string | null, text: string) =>
+    request<AssistantReply>(`/api/plans/${planId}/assistant/messages`, { method: "POST", json: { text, page, item } }),
   getProposals: (planId: number) => request<OttoProposalsView>(`/api/plans/${planId}/otto/proposals`),
   /** Otto proposes; a person decides: accept, reject (with an optional short reason), undo or reconsider one proposal.
    * It runs nothing. The answer is the proposal as it now stands. */

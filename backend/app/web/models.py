@@ -2559,10 +2559,10 @@ class AssistantEntry(Shape):
     result means; and, in a thread so far, a reviewed result or where a fix stands."""
 
     id: str
-    kind: Literal["suggestion", "next", "meaning", "result", "fix_step"]
+    kind: Literal["suggestion", "next", "meaning", "result", "fix_step", "said"]
     what: str = Field(description='Its line in the one table of kinds, e.g. "next:run_all".')
     thread: AssistantThread | None
-    mark: str = Field(description='"From Otto", "Next step", "What this means", "Result" or "Fix"')
+    mark: str = Field(description='"From Otto", "Next step", "What this means", "Result", "Fix" or (phase 6b) "You said"')
     title: str
     text: str | None
     at: str | None = Field(description="When its cause happened (ISO): the order of a thread so far.")
@@ -2606,6 +2606,64 @@ class AssistantElsewhere(Shape):
     empty: str | None = Field(description='"Nothing from Otto is waiting for a decision." when nothing waits anywhere.')
 
 
+class AssistantBox(Shape):
+    """Phase 6b: the text box at the foot of the panel."""
+
+    label: str = Field(description='"Tell Otto where to go or what to do"')
+    send: str
+    max: int
+    chips: list[str] = Field(description="Up to three examples fitted to the page. A chip sends its own words.")
+    kept: bool = Field(description="False in a closed assessment: what is typed there is answered and not kept.")
+    kept_note: str | None
+
+
+class AssistantGo(Shape):
+    """Where an answer leads: a page of this assessment (or Settings), one item on it, and the filters of its table."""
+
+    page: str
+    item: str | None
+    group: str | None
+    result: str | None = Field(description="The page's own Result filter value.")
+    came_from: str | None = Field(description="Checks: its Came from filter value.")
+    decision: str | None = Field(description="Advisories: its Decision filter value.")
+
+
+class AssistantOpen(Shape):
+    key: Literal["accept", "reject", "undo", "reconsider", "step"] = Field(description="Which button of the card shows its Confirm step.")
+    reason: str | None = Field(description="A reject's reason, cut from the person's own words. Nothing is sent before Confirm.")
+
+
+class AssistantOption(Shape):
+    label: str
+    say: str = Field(description="A sentence that names exactly this one. Choosing it sends these words.")
+
+
+class AssistantCan(Shape):
+    say: str
+    about: str
+    kind: Literal["go", "do"]
+
+
+class AssistantTabChange(Shape):
+    thread: AssistantThread
+    how: Literal["open", "close"]
+
+
+class AssistantReply(Shape):
+    """Phase 6b: Otto's answer to one typed sentence. Nothing has been decided or started by it: `went`, `page_only`
+    and `tab` only move around, and `card` hands back an entry whose Confirm step the browser shows."""
+
+    kind: Literal["went", "card", "which", "cannot", "help", "page_only", "tab", "closed"]
+    text: str
+    go: AssistantGo | None
+    entry: AssistantEntry | None
+    open: AssistantOpen | None
+    options: list[AssistantOption]
+    can: list[AssistantCan] = Field(description="What can be said on this page, from the one list.")
+    tab: AssistantTabChange | None
+    thread: AssistantThread | None = Field(description="The tab the exchange is filed under, if any.")
+
+
 class AssistantView(Shape):
     assessment_id: int
     plan_id: int | None
@@ -2617,6 +2675,7 @@ class AssistantView(Shape):
     page: str
     page_label: str
     thread: AssistantThread | None = Field(description="The tab this page selects (null on the Overview).")
+    box: AssistantBox
     tabs: list[AssistantTab] = Field(description="At most three, and only the open ones.")
     on_page: AssistantOnPage
     elsewhere: AssistantElsewhere

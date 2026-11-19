@@ -328,6 +328,30 @@ export default function App() {
     navigate({ kind: "assessment", id: current.id, page: next, item: item ?? null });
   }
 
+  // Phase 6b: the Result, Came from and Decision filters of a page's table are part of its address. A filter changed
+  // on the page goes into the address (so Back returns to what was listed before); one named by the address, by a
+  // link or by a command to Otto, is the one the page starts with.
+  const filters = {
+    result: route.kind === "assessment" ? (route.result ?? null) : null,
+    from: route.kind === "assessment" ? (route.from ?? null) : null,
+    decision: route.kind === "assessment" ? (route.decision ?? null) : null,
+  };
+  function setFilters(change: { result?: string | null; from?: string | null; decision?: string | null }) {
+    if (route.kind !== "assessment") return;
+    navigate({ ...route, ...change });
+  }
+
+  /** Where an answer of Otto's leads (phase 6b): a page, one item on it, and the filters of its table; or Settings. */
+  function goTo(where: { page: string; item: string | null; group: string | null; result: string | null; came_from: string | null; decision: string | null }) {
+    if (where.page === "settings") {
+      navigate({ kind: "settings" });
+      return;
+    }
+    if (!current) return;
+    navigate({ kind: "assessment", id: current.id, page: where.page as Page, item: where.item, group: where.group, result: where.result,
+               from: where.came_from, decision: where.decision });
+  }
+
   function openAssessment(id: number, next: Page = "overview") {
     navigate({ kind: "assessment", id, page: next });
   }
@@ -582,12 +606,32 @@ export default function App() {
   } else if (page === "advisories" && plan) {
     // Phase 5c: accepting one of Otto's proposed checks puts a test in the plan (and Undo takes it out), so the app's
     // copy of the plan is read again after every decision.
-    content = <AdvisoriesScreen planId={plan.id} openItem={routeItem} onPlanChanged={() => void reloadPlan()} />;
+    content = (
+      <AdvisoriesScreen planId={plan.id} openItem={routeItem} onPlanChanged={() => void reloadPlan()} decision={filters.decision} onFilters={setFilters} />
+    );
   } else if (page === "checks" && imp) {
-    content = <ChecksScreen importId={imp.id} plan={plan} onPlan={setPlan} openItem={routeItem} group={route.kind === "assessment" ? (route.group ?? null) : null} />;
+    content = (
+      <ChecksScreen
+        importId={imp.id}
+        plan={plan}
+        onPlan={setPlan}
+        openItem={routeItem}
+        group={route.kind === "assessment" ? (route.group ?? null) : null}
+        result={filters.result}
+        from={filters.from}
+        onFilters={setFilters}
+      />
+    );
   } else if (page === "evidence" && plan) {
     content = (
-      <EvidenceLabScreen planId={plan.id} onViewFix={viewFix} openItem={routeItem} group={route.kind === "assessment" ? (route.group ?? null) : null} />
+      <EvidenceLabScreen
+        planId={plan.id}
+        onViewFix={viewFix}
+        openItem={routeItem}
+        group={route.kind === "assessment" ? (route.group ?? null) : null}
+        result={filters.result}
+        onFilters={setFilters}
+      />
     );
   } else if (page === "fixes" && plan) {
     content = (
@@ -721,7 +765,7 @@ export default function App() {
           {copilotShown && current && page ? (
             <ReadOnlyProvider readOnly={closed}>
               <LinkProvider assessmentId={current.id} planId={plan?.id ?? null}>
-                <OttoPanel assessmentId={current.id} page={page} item={openItem} onGo={(next, item) => go(next, item ?? null)} />
+                <OttoPanel assessmentId={current.id} page={page} item={openItem} onGo={(next, item) => go(next, item ?? null)} onGoTo={goTo} />
               </LinkProvider>
             </ReadOnlyProvider>
           ) : null}

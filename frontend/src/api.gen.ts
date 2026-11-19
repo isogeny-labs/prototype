@@ -944,6 +944,31 @@ export interface AssistantBadge {
   tone: "pass" | "fail" | "neutral" | "warn";
 }
 /**
+ * Phase 6b: the text box at the foot of the panel.
+ */
+export interface AssistantBox {
+  /**
+   * "Tell Otto where to go or what to do"
+   */
+  label: string;
+  send: string;
+  max: number;
+  /**
+   * Up to three examples fitted to the page. A chip sends its own words.
+   */
+  chips: string[];
+  /**
+   * False in a closed assessment: what is typed there is answered and not kept.
+   */
+  kept: boolean;
+  kept_note: string | null;
+}
+export interface AssistantCan {
+  say: string;
+  about: string;
+  kind: "go" | "do";
+}
+/**
  * The Confirm step: what will happen and what will not, and which button of which page it presses.
  */
 export interface AssistantConfirm {
@@ -1013,14 +1038,14 @@ export interface AssistantElsewhereLine {
  */
 export interface AssistantEntry {
   id: string;
-  kind: "suggestion" | "next" | "meaning" | "result" | "fix_step";
+  kind: "suggestion" | "next" | "meaning" | "result" | "fix_step" | "said";
   /**
    * Its line in the one table of kinds, e.g. "next:run_all".
    */
   what: string;
   thread: ("testing" | "fixing" | "planning") | null;
   /**
-   * "From Otto", "Next step", "What this means", "Result" or "Fix"
+   * "From Otto", "Next step", "What this means", "Result", "Fix" or (phase 6b) "You said"
    */
   mark: string;
   title: string;
@@ -1065,11 +1090,73 @@ export interface AssistantStep {
   progress: string | null;
   confirm: AssistantConfirm | null;
 }
+/**
+ * Where an answer leads: a page of this assessment (or Settings), one item on it, and the filters of its table.
+ */
+export interface AssistantGo {
+  page: string;
+  item: string | null;
+  group: string | null;
+  /**
+   * The page's own Result filter value.
+   */
+  result: string | null;
+  /**
+   * Checks: its Came from filter value.
+   */
+  came_from: string | null;
+  /**
+   * Advisories: its Decision filter value.
+   */
+  decision: string | null;
+}
 export interface AssistantOnPage {
   title: string;
   entries: AssistantEntry[];
   empty: string | null;
   empty_link: LabeledLink | null;
+}
+export interface AssistantOpen {
+  /**
+   * Which button of the card shows its Confirm step.
+   */
+  key: "accept" | "reject" | "undo" | "reconsider" | "step";
+  /**
+   * A reject's reason, cut from the person's own words. Nothing is sent before Confirm.
+   */
+  reason: string | null;
+}
+export interface AssistantOption {
+  label: string;
+  /**
+   * A sentence that names exactly this one. Choosing it sends these words.
+   */
+  say: string;
+}
+/**
+ * Phase 6b: Otto's answer to one typed sentence. Nothing has been decided or started by it: `went`, `page_only`
+ * and `tab` only move around, and `card` hands back an entry whose Confirm step the browser shows.
+ */
+export interface AssistantReply {
+  kind: "went" | "card" | "which" | "cannot" | "help" | "page_only" | "tab" | "closed";
+  text: string;
+  go: AssistantGo | null;
+  entry: AssistantEntry | null;
+  open: AssistantOpen | null;
+  options: AssistantOption[];
+  /**
+   * What can be said on this page, from the one list.
+   */
+  can: AssistantCan[];
+  tab: AssistantTabChange | null;
+  /**
+   * The tab the exchange is filed under, if any.
+   */
+  thread: ("testing" | "fixing" | "planning") | null;
+}
+export interface AssistantTabChange {
+  thread: "testing" | "fixing" | "planning";
+  how: "open" | "close";
 }
 /**
  * The one line under the title: what Settings says about Live Otto, with the way there when it is off.
@@ -1117,6 +1204,7 @@ export interface AssistantView {
    * The tab this page selects (null on the Overview).
    */
   thread: ("testing" | "fixing" | "planning") | null;
+  box: AssistantBox;
   /**
    * At most three, and only the open ones.
    */
@@ -3424,6 +3512,11 @@ export interface RelatedView {
 export interface RetestBody {
   version: string;
   component?: string | null;
+}
+export interface SayBody {
+  text: string;
+  page: string;
+  item?: string | null;
 }
 export interface Session {
   setup_required: boolean;

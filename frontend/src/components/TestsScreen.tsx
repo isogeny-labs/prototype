@@ -196,7 +196,7 @@ function Card({
   if (compact) {
     // Phase 5b: beside an open panel, a row stacks: the handle and the name, then its status, Run and the ×.
     return (
-      <tr data-testid="test-card" data-kind={card.kind} data-status={card.status} onDragOver={onDragOver} onDrop={onDrop} className={rowClass}>
+      <tr data-testid="test-card" data-test={card.id} data-kind={card.kind} data-status={card.status} onDragOver={onDragOver} onDrop={onDrop} className={rowClass}>
         <td colSpan={5} className="px-3 py-2.5 align-top">
           <div className="flex items-start gap-2">
             {handle}
@@ -218,7 +218,7 @@ function Card({
   }
 
   return (
-    <tr data-testid="test-card" data-kind={card.kind} data-status={card.status} onDragOver={onDragOver} onDrop={onDrop} className={rowClass}>
+    <tr data-testid="test-card" data-test={card.id} data-kind={card.kind} data-status={card.status} onDragOver={onDragOver} onDrop={onDrop} className={rowClass}>
       <td className="w-12 px-4 py-3 align-top">{handle}</td>
       <td className="min-w-0 px-4 py-3 align-top">
         {title}
@@ -242,9 +242,12 @@ interface Props {
   onPlan: (plan: PlanView) => void;
   /** Phase 5b: drawn inside Checks, under Encryption tests, as "Test plan" (every button and rule as before). */
   embedded?: boolean;
+  /** Phase 6b: inside Checks with its Result filter on, only these tests of the plan are listed (the plan itself, its
+   * order and every button stay as they are). Null: every test. */
+  only?: ReadonlySet<number> | null;
 }
 
-export function TestsScreen({ importId, plan, onPlan, embedded = false }: Props) {
+export function TestsScreen({ importId, plan, onPlan, embedded = false, only = null }: Props) {
   // Phase 5b: inside Checks, a check's panel can be open beside the plan; then each row stacks.
   const compact = usePanelOpen();
   const readOnly = useReadOnly();
@@ -395,7 +398,8 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false }: Props)
     sectionIndex: number,
     headingLevel: 2 | 3,
   ) {
-    return items.map((card, index) => (
+    return items.map((card, index) =>
+      only && !only.has(card.id) ? null : (
       <Card
         key={card.id}
         card={card}
@@ -449,7 +453,8 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false }: Props)
           setOverId(null);
         }}
       />
-    ));
+      ),
+    );
   }
 
   const cardTable = (rowsOfCards: ReactNode, label: string) => (
@@ -501,12 +506,15 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false }: Props)
       const sectionIndex = targetIndex * LISTS.length + n;
       const items = sections[sectionIndex]!.items;
       if (items.length === 0 && (list.key === "standard" || current.grouped)) return null;
+      // (with a Result filter on: the tests of this list that fit it; a list with none is not drawn)
+      const listed = only ? items.filter((card) => only.has(card.id)).length : items.length;
+      if (only && listed === 0) return null;
       return (
         <div key={list.key} data-testid="plan-list" data-list={list.key} className={n > 0 ? "mt-5" : ""}>
           <ListHeading className="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-200">
             {list.label}
             <span data-testid="plan-list-count" className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px] font-medium tabular-nums text-slate-300">
-              {items.length}
+              {listed}
             </span>
             {list.key === "advisory" ? <FromOttoTag testId="plan-list-from-otto" /> : null}
           </ListHeading>

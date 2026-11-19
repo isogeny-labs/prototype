@@ -21,6 +21,10 @@ interface Props {
   openItem?: string | null;
   /** A work group to filter to (from the Overview). */
   group?: string | null;
+  /** Phase 6b: the Result and Came from filters the address names, and how a change of either goes back into it. */
+  result?: string | null;
+  from?: string | null;
+  onFilters?: (filters: { result?: string | null; from?: string | null }) => void;
 }
 
 /** Phase 5b: Checks (was Tests). Every check in the assessment, wherever it was started, in the four work groups. The
@@ -69,14 +73,23 @@ function usePlanHolder() {
   return { holder, hosted, host };
 }
 
-export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = null }: Props) {
+export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = null, result = null, from = null, onFilters }: Props) {
   const planHolder = usePlanHolder();
   const [view, setView] = useState<ChecksView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState<string>(group ?? "all");
-  const [fromFilter, setFromFilter] = useState("all");
-  const [resultFilter, setResultFilter] = useState("all");
+  const [fromFilter, setFromFilterState] = useState(from ?? "all");
+  const [resultFilter, setResultFilterState] = useState(result ?? "all");
+  // (the address names these two filters: a change made here goes into it, and one made there comes back here)
+  const setFromFilter = (value: string) => {
+    setFromFilterState(value);
+    onFilters?.({ from: value === "all" ? null : value });
+  };
+  const setResultFilter = (value: string) => {
+    setResultFilterState(value);
+    onFilters?.({ result: value === "all" ? null : value });
+  };
   const [openId, setOpenId] = useState<string | null>(openItem);
   const [folded, setFolded] = useState<Record<string, boolean>>({});
   // The 5c fixes: a part, and a block inside it, folds too. A block that is not the newest starts folded.
@@ -93,6 +106,8 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
 
   useEffect(() => setOpenId(openItem), [openItem]);
   useEffect(() => setGroupFilter(group ?? "all"), [group]);
+  useEffect(() => setFromFilterState(from ?? "all"), [from]);
+  useEffect(() => setResultFilterState(result ?? "all"), [result]);
 
   useEffect(() => {
     if (planId === null) return;
@@ -153,10 +168,18 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
     return [r.name, r.ran_on, r.came_from.label, r.result?.label ?? ""].some((t) => t.toLowerCase().includes(needle));
   }
 
+  // Phase 6b: with the Result filter on, the test plan lists only its tests that read that way ("show me failed
+  // checks" lists the failed checks and nothing else). A test of the plan is its row "test-<id>" in the list.
+  const planOnly = useMemo(() => {
+    if (resultFilter === "all" || !view) return null;
+    const ids = new Set<number>();
+    for (const g of view.groups) for (const r of g.rows) if (r.id.startsWith("test-") && r.result?.label === resultFilter) ids.add(Number(r.id.slice(5)));
+    return ids;
+  }, [view, resultFilter]);
   // (the first thing in the page in both of its states below, so it is the same drawing before and after the list arrives)
   const thePlan =
     planHolder.holder && planHolder.hosted
-      ? createPortal(<TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded />, planHolder.holder)
+      ? createPortal(<TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded only={planOnly} />, planHolder.holder)
       : null;
   const planPlace = <div ref={planHolder.host} data-testid="test-plan-place" className="contents" />;
 
@@ -207,7 +230,7 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
     const tries = parts.tries ? parts.tries.rows.filter(keep) : [];
     return (
       <div data-testid="encryption-parts">
-        {wanted("plan") ? (
+        {wanted("plan") && (planOnly === null || planOnly.size > 0) ? (
           <PartSection part={parts.plan} open={isOpen("plan")} onToggle={() => toggle("plan")}>
             {planPlace}
           </PartSection>

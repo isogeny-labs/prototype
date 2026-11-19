@@ -137,6 +137,9 @@ interface Props {
   openItem?: string | null;
   /** Phase 5b: a work group to filter to. */
   group?: string | null;
+  /** Phase 6b: the Result filter the address names, and how a change of it goes back into the address. */
+  result?: string | null;
+  onFilters?: (filters: { result?: string | null }) => void;
 }
 
 const OPEN_IN: Record<string, string> = {
@@ -162,13 +165,18 @@ function RunsFor({ planId, checkId }: { planId: number; checkId: string }) {
   return detail ? <EarlierRuns runs={detail.runs} /> : null;
 }
 
-export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = null }: Props) {
+export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = null, result = null, onFilters }: Props) {
   const [lab, setLab] = useState<LabView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [openRow, setOpenRow] = useState<number | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilterState] = useState<StatusFilter>((result as StatusFilter | null) ?? "all");
+  const setStatusFilter = (value: StatusFilter) => {
+    setStatusFilterState(value);
+    onFilters?.({ result: value === "all" ? null : value });
+  };
+  useEffect(() => setStatusFilterState((result as StatusFilter | null) ?? "all"), [result]);
   const [exported, setExported] = useState<EvidenceExport | null>(null);
   const [pollTick, setPollTick] = useState(0);
   // Phase 5b: every other kind of check, in the four groups.

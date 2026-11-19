@@ -2447,6 +2447,115 @@
           }
         }
       }
+    },
+    "/api/assessments/{assessment_id}/assistant/answer": {
+      "get": {
+        "summary": "Answer",
+        "description": "Otto's answer to one typed sentence, and nothing kept: where to go, or a card with its Confirm step.",
+        "operationId": "answer_api_assessments__assessment_id__assistant_answer_get",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          },
+          {
+            "name": "text",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "title": "Text"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 60,
+              "default": "overview",
+              "title": "Page"
+            }
+          },
+          {
+            "name": "item",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Item"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantReply"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/assistant/messages": {
+      "post": {
+        "summary": "Say",
+        "description": "The same answer, and the exchange kept with the assessment. It decides and starts nothing.",
+        "operationId": "say_api_plans__plan_id__assistant_messages_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SayBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantReply"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4939,6 +5048,87 @@
         ],
         "title": "AssistantBadge"
       },
+      "AssistantBox": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Tell Otto where to go or what to do\""
+          },
+          "send": {
+            "type": "string",
+            "title": "Send"
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          },
+          "chips": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Chips",
+            "description": "Up to three examples fitted to the page. A chip sends its own words."
+          },
+          "kept": {
+            "type": "boolean",
+            "title": "Kept",
+            "description": "False in a closed assessment: what is typed there is answered and not kept."
+          },
+          "kept_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kept Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "send",
+          "max",
+          "chips",
+          "kept",
+          "kept_note"
+        ],
+        "title": "AssistantBox",
+        "description": "Phase 6b: the text box at the foot of the panel."
+      },
+      "AssistantCan": {
+        "properties": {
+          "say": {
+            "type": "string",
+            "title": "Say"
+          },
+          "about": {
+            "type": "string",
+            "title": "About"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "go",
+              "do"
+            ],
+            "title": "Kind"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "say",
+          "about",
+          "kind"
+        ],
+        "title": "AssistantCan"
+      },
       "AssistantConfirm": {
         "properties": {
           "title": {
@@ -5135,7 +5325,8 @@
               "next",
               "meaning",
               "result",
-              "fix_step"
+              "fix_step",
+              "said"
             ],
             "title": "Kind"
           },
@@ -5163,7 +5354,7 @@
           "mark": {
             "type": "string",
             "title": "Mark",
-            "description": "\"From Otto\", \"Next step\", \"What this means\", \"Result\" or \"Fix\""
+            "description": "\"From Otto\", \"Next step\", \"What this means\", \"Result\", \"Fix\" or (phase 6b) \"You said\""
           },
           "title": {
             "type": "string",
@@ -5276,6 +5467,84 @@
         "title": "AssistantEntry",
         "description": "One entry of the panel: a suggestion (one of Otto's proposals), a next step (a button of a page) or what a\nresult means; and, in a thread so far, a reviewed result or where a fix stands."
       },
+      "AssistantGo": {
+        "properties": {
+          "page": {
+            "type": "string",
+            "title": "Page"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result",
+            "description": "The page's own Result filter value."
+          },
+          "came_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Came From",
+            "description": "Checks: its Came from filter value."
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision",
+            "description": "Advisories: its Decision filter value."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "page",
+          "item",
+          "group",
+          "result",
+          "came_from",
+          "decision"
+        ],
+        "title": "AssistantGo",
+        "description": "Where an answer leads: a page of this assessment (or Settings), one item on it, and the filters of its table."
+      },
       "AssistantOnPage": {
         "properties": {
           "title": {
@@ -5321,6 +5590,61 @@
         ],
         "title": "AssistantOnPage"
       },
+      "AssistantOpen": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "reject",
+              "undo",
+              "reconsider",
+              "step"
+            ],
+            "title": "Key",
+            "description": "Which button of the card shows its Confirm step."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "A reject's reason, cut from the person's own words. Nothing is sent before Confirm."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "reason"
+        ],
+        "title": "AssistantOpen"
+      },
+      "AssistantOption": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "say": {
+            "type": "string",
+            "title": "Say",
+            "description": "A sentence that names exactly this one. Choosing it sends these words."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "say"
+        ],
+        "title": "AssistantOption"
+      },
       "AssistantReason": {
         "properties": {
           "label": {
@@ -5340,6 +5664,115 @@
           "max"
         ],
         "title": "AssistantReason"
+      },
+      "AssistantReply": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "went",
+              "card",
+              "which",
+              "cannot",
+              "help",
+              "page_only",
+              "tab",
+              "closed"
+            ],
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "go": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantGo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantEntry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "open": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantOpen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "can": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantCan"
+            },
+            "type": "array",
+            "title": "Can",
+            "description": "What can be said on this page, from the one list."
+          },
+          "tab": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantTabChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thread": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "testing",
+                  "fixing",
+                  "planning"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread",
+            "description": "The tab the exchange is filed under, if any."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "text",
+          "go",
+          "entry",
+          "open",
+          "options",
+          "can",
+          "tab",
+          "thread"
+        ],
+        "title": "AssistantReply",
+        "description": "Phase 6b: Otto's answer to one typed sentence. Nothing has been decided or started by it: `went`, `page_only`\nand `tab` only move around, and `card` hands back an entry whose Confirm step the browser shows."
       },
       "AssistantStatus": {
         "properties": {
@@ -5503,6 +5936,34 @@
         ],
         "title": "AssistantTab"
       },
+      "AssistantTabChange": {
+        "properties": {
+          "thread": {
+            "type": "string",
+            "enum": [
+              "testing",
+              "fixing",
+              "planning"
+            ],
+            "title": "Thread"
+          },
+          "how": {
+            "type": "string",
+            "enum": [
+              "open",
+              "close"
+            ],
+            "title": "How"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "thread",
+          "how"
+        ],
+        "title": "AssistantTabChange"
+      },
       "AssistantView": {
         "properties": {
           "assessment_id": {
@@ -5569,6 +6030,9 @@
             "title": "Thread",
             "description": "The tab this page selects (null on the Overview)."
           },
+          "box": {
+            "$ref": "#/components/schemas/AssistantBox"
+          },
           "tabs": {
             "items": {
               "$ref": "#/components/schemas/AssistantTab"
@@ -5607,6 +6071,7 @@
           "page",
           "page_label",
           "thread",
+          "box",
           "tabs",
           "on_page",
           "elsewhere",
@@ -15723,6 +16188,39 @@
           "evidence_link"
         ],
         "title": "SameMeasurement"
+      },
+      "SayBody": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "page": {
+            "type": "string",
+            "maxLength": 60,
+            "title": "Page"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "page"
+        ],
+        "title": "SayBody"
       },
       "Session": {
         "properties": {
