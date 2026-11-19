@@ -5843,7 +5843,8 @@
               "page_only",
               "tab",
               "closed",
-              "answer"
+              "answer",
+              "whatif"
             ],
             "title": "Kind"
           },
@@ -5954,6 +5955,17 @@
             "type": "array",
             "title": "Facts",
             "description": "Phase 6c: an answer's facts, each with its link."
+          },
+          "whatif": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WhatIf"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 6e: the four parts of a what-if."
           }
         },
         "additionalProperties": false,
@@ -18296,6 +18308,374 @@
           "results"
         ],
         "title": "VerifyRun"
+      },
+      "WhatIf": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "asked": {
+            "$ref": "#/components/schemas/WhatIfName"
+          },
+          "known": {
+            "type": "boolean",
+            "title": "Known"
+          },
+          "library": {
+            "$ref": "#/components/schemas/WhatIfLibrary"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "version_read": {
+            "type": "boolean",
+            "title": "Version Read"
+          },
+          "have": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Have",
+            "description": "The versions of this library the assessment has (its dependency list, its scanner file)."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "facts_title": {
+            "type": "string",
+            "title": "Facts Title"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/WhatIfGroup"
+            },
+            "type": "array",
+            "title": "Facts"
+          },
+          "test_copy": {
+            "$ref": "#/components/schemas/WhatIfTry",
+            "description": "The try on a test copy: Evidence's own Retest new version, pointed at this version."
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "hypotheses_title": {
+            "type": "string",
+            "title": "Hypotheses Title"
+          },
+          "hypotheses_note": {
+            "type": "string",
+            "title": "Hypotheses Note"
+          },
+          "hypotheses": {
+            "items": {
+              "$ref": "#/components/schemas/WhatIfHypothesis"
+            },
+            "type": "array",
+            "title": "Hypotheses"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "asked",
+          "known",
+          "library",
+          "version",
+          "version_read",
+          "have",
+          "title",
+          "facts_title",
+          "facts",
+          "test_copy",
+          "explanation",
+          "hypotheses_title",
+          "hypotheses_note",
+          "hypotheses"
+        ],
+        "title": "WhatIf",
+        "description": "Phase 6e, first half: what the app knows about updating one library to one version, in four parts. Facts by fixed\nrules; nothing here is a result, and nothing is started by reading it."
+      },
+      "WhatIfGroup": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "used",
+              "needs",
+              "advisories",
+              "trial",
+              "post_quantum",
+              "blocks",
+              "own_results"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/WhatIfLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "none": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "None",
+            "description": "What is said when the app has nothing on this point."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "lines",
+          "none"
+        ],
+        "title": "WhatIfGroup"
+      },
+      "WhatIfHypothesis": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "WhatIfHypothesis"
+      },
+      "WhatIfLibrary": {
+        "properties": {
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "WhatIfLibrary"
+      },
+      "WhatIfLine": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "Where it comes from: \"From your file\", \"Package file says\", \"Release notes say\", \"Test pack 2026.11.2\", ..."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the app shows it."
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WhatIfSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "label",
+          "link",
+          "source"
+        ],
+        "title": "WhatIfLine"
+      },
+      "WhatIfName": {
+        "properties": {
+          "library": {
+            "type": "string",
+            "title": "Library"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "library",
+          "version"
+        ],
+        "title": "WhatIfName"
+      },
+      "WhatIfSource": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "An https address of the publisher, or null where the line is quoted from an installed test pack."
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
+          "read_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read On",
+            "description": "The day it was read, YYYY-MM-DD, where the source records one."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "url",
+          "quote",
+          "read_on"
+        ],
+        "title": "WhatIfSource",
+        "description": "Where a fact is quoted from: the publisher's package file or release notes, or a test pack's copy of a publisher's line."
+      },
+      "WhatIfTry": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "button": {
+            "type": "string",
+            "title": "Button",
+            "description": "\"Retest new version\": the button of Evidence it stands for."
+          },
+          "offered": {
+            "type": "boolean",
+            "title": "Offered"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why it is not offered, in the page's own words where the page has them."
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "changes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changes",
+            "description": "What a retest changes in this assessment, said before anything is pressed."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "button",
+          "offered",
+          "reason",
+          "component",
+          "version",
+          "changes"
+        ],
+        "title": "WhatIfTry"
       },
       "Workspace": {
         "properties": {

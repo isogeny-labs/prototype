@@ -34,6 +34,9 @@ COMMANDS: tuple[dict[str, Any], ...] = (
     {"key": "filter", "kind": "go", "say": "Show failed checks", "about": "Opens a page with its table filtered."},
     {"key": "open_item", "kind": "go", "say": "Open the Java fix", "about": "Opens one suggestion, test or fix on its page."},
     {"key": "tab", "kind": "go", "say": "Close the Fixing tab", "about": "Opens or closes a tab of this panel."},
+    # phase 6e, first half: a what-if is answered from what the app knows, at once; it runs nothing
+    {"key": "what_if", "kind": "go", "say": "What if I update elliptic to 6.5.7?",
+     "about": "Shows what the app knows about that update, and what it does not. It runs nothing."},
     {"key": "accept", "kind": "do", "say": "Accept the Java fix", "about": "Shows the suggestion's card. Accept waits for Confirm."},
     {"key": "reject", "kind": "do", "say": "Reject the Java fix: not this quarter",
      "about": "Shows the suggestion's card with your reason filled in. Reject waits for Confirm."},
@@ -175,6 +178,14 @@ POLITE = re.compile(r"^(?:(?:hey|hi|ok|okay)\s+)?(?:otto[,:]?\s+)?(?:please\s+)?
 _TOKEN = re.compile(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*")
 _GREETING = re.compile(r"(?i)^\s*(?:(?:hey|hi|ok|okay)\s+)?otto\s*[:,]\s*")
 _PLEASE = re.compile(r"[ ,]+please$")
+_WHAT_IF = re.compile(
+    r"(?:(?:and |so |ok |okay )?(?:what (?:would |will |could |does )?(?:happens?|changes?|breaks?)? ?if|what if|what about if|if|suppose|say) )"
+    r"(?:i|we|you|someone|somebody|the team) "
+    r"(?:were to |would |do |did |could |can )?(?:updated?|upgraded?|moved?|bump(?:ed)?|switch(?:ed)?|change[d]?|go|went) "
+    r"(?:the |my |our )?(?P<library>[a-z0-9@][a-z0-9@._/+-]{0,79}?)(?: library| package)?"
+    # (a version starts with a digit: "to the newest version" names none, and is not read as a what-if)
+    r"(?: from (?:version )?v?[0-9][0-9a-z.+_-]{0,39})? (?:to|up to|onto) (?:version )?v?(?P<version>[0-9][0-9a-z.+_-]{0,39})"
+    r"(?:[ ,;:?!].{0,300})?")
 
 
 def tokens(text: str) -> list[str]:
@@ -212,6 +223,14 @@ def read(text: str) -> dict:
     asked = questions.read(whole) or questions.read(low)
     if asked is not None:
         return {**said, **asked}
+    # Phase 6e: a what-if about one library and one version ("what if I update elliptic to 6.5.7?", "if we upgrade
+    # elliptic to 6.5.7, how does that affect my libraries and dependencies?"). The lead-in is what makes it a question:
+    # "update elliptic to 6.5.7" by itself names no button of this app, and is not read as one.
+    m = _WHAT_IF.fullmatch(whole)
+    if m:
+        # (a sentence that goes on to a second update is not answered for the first one alone)
+        several = re.search(r"(?:\band\b|\bplus\b|\balso\b|[,;]) .{0,80}?\b(?:to|onto) (?:version )?v?[0-9]", whole[m.end("version"):]) is not None
+        return {**said, "key": "what_if", "library": m.group("library"), "version": m.group("version").rstrip(".+_-"), "several": several}
     m = re.fullmatch(r"(close|hide|open|show|switch to|go to|select) (?:the )?(testing|fixing|planning)(?: tab| thread)?", low)
     if m and (m.group(1) in ("close", "hide") or low.endswith((" tab", " thread"))):
         return {**said, "key": "tab", "thread": m.group(2), "how": "close" if m.group(1) in ("close", "hide") else "open"}
@@ -389,11 +408,12 @@ def _button(key: str) -> str:
 
 
 def reply(kind: str, text: str, **more: Any) -> dict:
-    """One answer to a typed sentence. `kind`: went, card, which, cannot, help, page_only, tab, closed, and (phase 6c)
-    answer: a fixed question, with its facts."""
+    """One answer to a typed sentence. `kind`: went, card, which, cannot, help, page_only, tab, closed, (phase 6c)
+    answer: a fixed question, with its facts, and (phase 6e) whatif: what the app knows about an update, in four parts."""
     return {"kind": kind, "text": text, "go": more.get("go"), "entry": more.get("entry"), "open": more.get("open"),
             "options": more.get("options") or [], "can": more.get("can") or [], "tab": more.get("tab"), "thread": more.get("thread"),
-            "question": more.get("question"), "label": more.get("label"), "facts": more.get("facts") or []}
+            "question": more.get("question"), "label": more.get("label"), "facts": more.get("facts") or [],
+            "whatif": more.get("whatif")}
 
 
 def go(page: str, item: str | None = None, **filters: str | None) -> dict:

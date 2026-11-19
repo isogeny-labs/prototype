@@ -64,6 +64,17 @@ def answer(copilot: Any, lab: Any, assessment_id: int, page: str, item: str | No
         shown_ = [p for p in proposals if p["kind"] in fits_ and not settled(p)]
         shown_.sort(key=lambda p: (not _about(p, item), not waits(p)))
         return questions.answer(copilot, facts_, said, page, item, proposals, shown_, out, can)
+    if key == "what_if":
+        # Phase 6e, first half: what the app knows about updating one library to one version. A read: the facts are the
+        # pages' own records, and the one thing that could be started (Evidence's Retest new version, pointed at that
+        # version) is handed back as that button's own card, which waits for Confirm. A closed assessment gets the facts
+        # too, and its button is off with the closed sentence.
+        if not has_file:
+            return out("cannot", NO_FILE, can=can)
+        if said.get("several"):
+            return out("cannot", "I can't do that. A what-if is about one library and one version at a time. Ask about the first, then "
+                                 "about the other.", can=can, thread="fixing")
+        return _what_if(copilot, lab, facts_of(lab, core, closed, proposals), said, out)
     if key == "help":
         return out("help", f"On {PAGE_LABELS[page]} you can tell Otto:", can=can)
     # With no file in, the app shows only the Overview and Import: nothing else can be opened yet, and it says so.
@@ -335,6 +346,29 @@ def _start(copilot: Any, facts: Any, said: dict, line: dict, page: str, item: st
     named = names[entry["id"]][0]
     what = f"{entry['title']}: {named}" if line["key"] in ("run", "retest", "measure_library") and named and named != entry["title"] else entry["title"]
     return out("card", f"{what}, on {PAGE_LABELS[home]}. {WAITS}", entry=entry, open={"key": "step", "reason": None}, thread=thread)
+
+
+WHAT_IF_LABEL = "From what the app knows"
+
+
+def _what_if(copilot: Any, lab: Any, facts: Any, said: dict, out: Any) -> dict:
+    view = lab.whatif_view(facts.plan_id, said["library"], said["version"])
+    tried = view["test_copy"]
+    entry = None
+    if tried["offered"]:
+        # the page's own button, as the panel offers it beside Evidence: same request, same Confirm step
+        entry = next((e for e in copilot._next_steps(facts, "evidence", None, asked=True)
+                      if e["what"] == "next:retest" and e["step"]["action"].get("version") == tried["version"]
+                      and (e["step"]["action"].get("component") or "") == (tried["component"] or "")), None)
+        if entry is None:
+            tried = {**tried, "offered": False, "reason": "Retest new version does not offer that version on Evidence now."}
+        elif not entry["step"]["can"]:
+            tried = {**tried, "offered": False, "reason": entry["step"]["blocked_reason"] or "Retest new version can't be pressed now."}
+    # the facts once more as plain lines, for the record that is kept of what was said (a line with nothing to link to
+    # links to nothing; a quoted source is named in the line)
+    flat = [questions.fact(f"{group['title']}: {line['text']}", line["link"], "See where" if line["link"] else None)
+            for group in view["facts"] for line in (group["lines"] or [{"text": group["none"], "link": None}])]
+    return out("whatif", view["title"], whatif={**view, "test_copy": tried}, entry=entry, facts=flat, label=WHAT_IF_LABEL, thread="fixing")
 
 
 def _step_names(facts: Any, key: str, entries: list[dict]) -> dict[str, list[str]]:

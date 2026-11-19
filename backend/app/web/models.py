@@ -2814,11 +2814,79 @@ class AssistantTabChange(Shape):
     how: Literal["open", "close"]
 
 
+class WhatIfSource(Shape):
+    """Where a fact is quoted from: the publisher's package file or release notes, or a test pack's copy of a publisher's line."""
+
+    title: str
+    url: str | None = Field(description="An https address of the publisher, or null where the line is quoted from an installed test pack.")
+    quote: str | None
+    read_on: str | None = Field(description="The day it was read, YYYY-MM-DD, where the source records one.")
+
+
+class WhatIfLine(Shape):
+    text: str
+    label: str | None = Field(description='Where it comes from: "From your file", "Package file says", "Release notes say", "Test pack 2026.11.2", ...')
+    link: ItemLink | None = Field(description="Where the app shows it.")
+    source: WhatIfSource | None
+
+
+class WhatIfGroup(Shape):
+    key: Literal["used", "needs", "advisories", "trial", "post_quantum", "blocks", "own_results"]
+    title: str
+    lines: list[WhatIfLine]
+    none: str | None = Field(description="What is said when the app has nothing on this point.")
+
+
+class WhatIfTry(Shape):
+    title: str
+    button: str = Field(description='"Retest new version": the button of Evidence it stands for.')
+    offered: bool
+    reason: str | None = Field(description="Why it is not offered, in the page's own words where the page has them.")
+    component: str | None
+    version: str
+    changes: list[str] = Field(description="What a retest changes in this assessment, said before anything is pressed.")
+
+
+class WhatIfName(Shape):
+    library: str
+    version: str
+
+
+class WhatIfLibrary(Shape):
+    key: str | None
+    label: str
+
+
+class WhatIfHypothesis(Shape):
+    text: str
+
+
+class WhatIf(Shape):
+    """Phase 6e, first half: what the app knows about updating one library to one version, in four parts. Facts by fixed
+    rules; nothing here is a result, and nothing is started by reading it."""
+
+    plan_id: int
+    asked: WhatIfName
+    known: bool
+    library: WhatIfLibrary
+    version: str
+    version_read: bool
+    have: list[str] = Field(description="The versions of this library the assessment has (its dependency list, its scanner file).")
+    title: str
+    facts_title: str
+    facts: list[WhatIfGroup]
+    test_copy: WhatIfTry = Field(description="The try on a test copy: Evidence's own Retest new version, pointed at this version.")
+    explanation: str
+    hypotheses_title: str
+    hypotheses_note: str
+    hypotheses: list[WhatIfHypothesis]
+
+
 class AssistantReply(Shape):
     """Phase 6b: Otto's answer to one typed sentence. Nothing has been decided or started by it: `went`, `page_only`
     and `tab` only move around, and `card` hands back an entry whose Confirm step the browser shows."""
 
-    kind: Literal["went", "card", "which", "cannot", "help", "page_only", "tab", "closed", "answer"]
+    kind: Literal["went", "card", "which", "cannot", "help", "page_only", "tab", "closed", "answer", "whatif"]
     text: str
     go: AssistantGo | None
     entry: AssistantEntry | None
@@ -2830,6 +2898,7 @@ class AssistantReply(Shape):
     question: str | None = Field(default=None, description="Phase 6c: the fixed question that was answered, in its own wording.")
     label: str | None = Field(default=None, description='Phase 6c: where an answer is from: "From this assessment\'s records".')
     facts: list[AssistantFact] = Field(default_factory=list, description="Phase 6c: an answer's facts, each with its link.")
+    whatif: WhatIf | None = Field(default=None, description="Phase 6e: the four parts of a what-if.")
 
 
 class AssistantView(Shape):

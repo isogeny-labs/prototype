@@ -1169,7 +1169,7 @@ export interface AssistantOption {
  * and `tab` only move around, and `card` hands back an entry whose Confirm step the browser shows.
  */
 export interface AssistantReply {
-  kind: "went" | "card" | "which" | "cannot" | "help" | "page_only" | "tab" | "closed" | "answer";
+  kind: "went" | "card" | "which" | "cannot" | "help" | "page_only" | "tab" | "closed" | "answer" | "whatif";
   text: string;
   go: AssistantGo | null;
   entry: AssistantEntry | null;
@@ -1196,10 +1196,106 @@ export interface AssistantReply {
    * Phase 6c: an answer's facts, each with its link.
    */
   facts?: AssistantFact[];
+  /**
+   * Phase 6e: the four parts of a what-if.
+   */
+  whatif?: WhatIf | null;
 }
 export interface AssistantTabChange {
   thread: "testing" | "fixing" | "planning";
   how: "open" | "close";
+}
+/**
+ * Phase 6e, first half: what the app knows about updating one library to one version, in four parts. Facts by fixed
+ * rules; nothing here is a result, and nothing is started by reading it.
+ */
+export interface WhatIf {
+  plan_id: number;
+  asked: WhatIfName;
+  known: boolean;
+  library: WhatIfLibrary;
+  version: string;
+  version_read: boolean;
+  /**
+   * The versions of this library the assessment has (its dependency list, its scanner file).
+   */
+  have: string[];
+  title: string;
+  facts_title: string;
+  facts: WhatIfGroup[];
+  test_copy: WhatIfTry;
+  explanation: string;
+  hypotheses_title: string;
+  hypotheses_note: string;
+  hypotheses: WhatIfHypothesis[];
+}
+export interface WhatIfName {
+  library: string;
+  version: string;
+}
+export interface WhatIfLibrary {
+  key: string | null;
+  label: string;
+}
+export interface WhatIfGroup {
+  key: "used" | "needs" | "advisories" | "trial" | "post_quantum" | "blocks" | "own_results";
+  title: string;
+  lines: WhatIfLine[];
+  /**
+   * What is said when the app has nothing on this point.
+   */
+  none: string | null;
+}
+export interface WhatIfLine {
+  text: string;
+  /**
+   * Where it comes from: "From your file", "Package file says", "Release notes say", "Test pack 2026.11.2", ...
+   */
+  label: string | null;
+  /**
+   * Where the app shows it.
+   */
+  link: ItemLink | null;
+  source: WhatIfSource | null;
+}
+/**
+ * Where a fact is quoted from: the publisher's package file or release notes, or a test pack's copy of a publisher's line.
+ */
+export interface WhatIfSource {
+  title: string;
+  /**
+   * An https address of the publisher, or null where the line is quoted from an installed test pack.
+   */
+  url: string | null;
+  quote: string | null;
+  /**
+   * The day it was read, YYYY-MM-DD, where the source records one.
+   */
+  read_on: string | null;
+}
+/**
+ * The try on a test copy: Evidence's own Retest new version, pointed at this version.
+ */
+export interface WhatIfTry {
+  title: string;
+  /**
+   * "Retest new version": the button of Evidence it stands for.
+   */
+  button: string;
+  offered: boolean;
+  /**
+   * Why it is not offered, in the page's own words where the page has them.
+   */
+  reason: string | null;
+  component: string | null;
+  version: string;
+  /**
+   * What a retest changes in this assessment, said before anything is pressed.
+   */
+  changes: string[];
+}
+export interface WhatIfHypothesis {
+  text: string;
 }
 /**
  * The one line under the title: what Settings says about Live Otto, with the way there when it is off.
@@ -3798,6 +3894,24 @@ export interface VerifyRun {
    * Phase 5c: one sentence. Verify is unchanged and nothing is proposed on it yet.
    */
   otto_note?: string;
+}
+export interface WhatIfTry1 {
+  title: string;
+  /**
+   * "Retest new version": the button of Evidence it stands for.
+   */
+  button: string;
+  offered: boolean;
+  /**
+   * Why it is not offered, in the page's own words where the page has them.
+   */
+  reason: string | null;
+  component: string | null;
+  version: string;
+  /**
+   * What a retest changes in this assessment, said before anything is pressed.
+   */
+  changes: string[];
 }
 export interface Workspace {
   organization: string;

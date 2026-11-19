@@ -24,7 +24,9 @@ ALLOWED_NAMES = {"app.otto.proposals": {"CLOSED", "HOME", "accept_stands"}, "app
 READS = {"assessment_core", "otto_live_ready", "otto_proposals", "plan_view", "lab_view", "fixes_view", "migration_measure_view", "change_watch_view",
          "dependencies_view", "import_json_for", "latest_verify", "next_step_from", "decision_name_view", "otto_limit_words",
          # phase 6b: what was said (a read of the kept exchanges), and for a filtered table how many rows it lists
-         "assistant_messages", "checks_view", "advisories_view"}
+         "assistant_messages", "checks_view", "advisories_view",
+         # phase 6e: what the app knows about an update (the dependency list, the knowledge base, the packs, the results)
+         "whatif_view"}
 # What a page's button calls. None of these may appear anywhere in the package.
 CHANGES = {"otto_decide", "otto_decide_view", "run_all", "run_test", "start_retest", "retest_now", "connect_code", "run_proof_again",
            "open_pull_request", "approve", "merge", "verify", "confirm_address", "measure_migration", "measure_dependencies", "try_change",
