@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, errorMessage, type CheckRow, type ChecksView, type PlanView } from "../api";
+import { api, errorMessage, type CheckGroup, type CheckRow, type ChecksView, type LabView, type PlanView } from "../api";
 import { CheckPanel } from "./checks/CheckPanel";
 import { CheckTable } from "./checks/CheckTable";
-import { FilterSelect, GroupSection, PageHeader, SearchInput, TableWithPanel, Toolbar } from "./layout";
+import { BlockSection, FilterSelect, GroupSection, PageHeader, PartSection, SearchInput, TableWithPanel, Toolbar } from "./layout";
 import { AlsoChecks } from "./checks/CheckPanel";
+import { RetestMenu, RetestStatus } from "./lab/RetestMenu";
 import { ItemLinkView } from "./related";
 import { TestsScreen } from "./TestsScreen";
 import { ErrorBox } from "./ui";
@@ -31,6 +32,12 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   const [resultFilter, setResultFilter] = useState("all");
   const [openId, setOpenId] = useState<string | null>(openItem);
   const [folded, setFolded] = useState<Record<string, boolean>>({});
+  // The 5c fixes: a part, and a block inside it, folds too. A block that is not the newest starts folded.
+  const [partFolded, setPartFolded] = useState<Record<string, boolean>>({});
+  const [blockOpen, setBlockOpen] = useState<Record<string, boolean>>({});
+  // Retest new version is the button Evidence has: its menu, its rules and its reasons come from the same view.
+  const [lab, setLab] = useState<LabView | null>(null);
+  const [retesting, setRetesting] = useState(false);
   const [tick, setTick] = useState(0);
   const planId = plan?.id ?? null;
   const planStamp = plan ? `${plan.running}:${plan.tests.map((t) => `${t.id}${t.status}`).join(",")}` : "";
@@ -52,17 +59,25 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
       .catch((e: unknown) => {
         if (live) setError(errorMessage(e));
       });
+    // (if this read fails the checks still show; only the Retest button is missing until the next read)
+    api
+      .getLab(planId)
+      .then((v) => {
+        if (live) setLab(v);
+      })
+      .catch(() => undefined);
     return () => {
       live = false;
     };
   }, [planId, planStamp, tick]);
 
-  // Live: ask again every second while any check waits or runs.
+  // Live: ask again every second while any check waits or runs (a retest started here, on Evidence or in Fixes too).
+  const live = Boolean(view?.busy) || Boolean(lab?.retest.running);
   useEffect(() => {
-    if (!view?.busy) return;
+    if (!live) return;
     const timer = setTimeout(() => setTick((n) => n + 1), POLL_MS);
     return () => clearTimeout(timer);
-  }, [view]);
+  }, [live, view, lab]);
 
   const needle = search.trim().toLowerCase();
   const results = useMemo(() => {
@@ -70,7 +85,15 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
     for (const g of view?.groups ?? []) for (const r of g.rows) if (r.result) labels.add(r.result.label);
     return Array.from(labels);
   }, [view]);
-  const every = useMemo(() => (view?.groups ?? []).flatMap((g) => g.rows), [view]);
+  // Every row that can be opened: the groups' own rows, and the rows of each retest's and each proof's block.
+  const every = useMemo(
+    () =>
+      (view?.groups ?? []).flatMap((g) => [
+        ...(g.parts ? [...g.parts.retests.blocks, ...g.parts.proofs.blocks].flatMap((b) => b.rows) : []),
+        ...g.rows,
+      ]),
+    [view],
+  );
   const opened = every.find((r) => r.id === openId) ?? null;
 
   function keep(r: CheckRow): boolean {
@@ -93,6 +116,87 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   }
 
   const groups = view.groups.filter((g) => groupFilter === "all" || g.key === groupFilter);
+  const toggleOpen = (r: CheckRow) => setOpenId(r.id === openId || (r.alias != null && r.alias === openId) ? null : r.id);
+
+  /** The 5c fixes: Encryption tests in four labelled parts. Each run shows in one part only. */
+  function encryptionParts(g: CheckGroup) {
+    const parts = g.parts!;
+    const wanted = (origin: string) => fromFilter === "all" || fromFilter === origin;
+    const filtering = needle !== "" || resultFilter !== "all";
+    const isOpen = (key: string) => !partFolded[key];
+    const toggle = (key: string) => setPartFolded((f) => ({ ...f, [key]: !f[key] }));
+    const blocks = (part: NonNullable<CheckGroup["parts"]>["retests"]) =>
+      part.blocks.map((b) => {
+        const rows = b.rows.filter(keep);
+        if (filtering && rows.length === 0) return null;
+        // the newest block is open; an older one opens when it is asked for, or when it holds the open row or a match
+        const shown = blockOpen[b.key] ?? (b.newest || filtering || b.rows.some((r) => r.id === openId));
+        return (
+          <BlockSection key={b.key} block={b} open={shown} onToggle={() => setBlockOpen((o) => ({ ...o, [b.key]: !shown }))}>
+            {rows.length > 0 ? (
+              <CheckTable label={`${part.label}: ${b.title}`} rows={rows} selectedId={openId} onOpen={toggleOpen} />
+            ) : (
+              <p className="px-1 py-1 text-sm text-slate-400">Nothing has finished in this block yet.</p>
+            )}
+          </BlockSection>
+        );
+      });
+    const tries = parts.tries ? parts.tries.rows.filter(keep) : [];
+    return (
+      <div data-testid="encryption-parts">
+        {wanted("plan") ? (
+          <PartSection part={parts.plan} open={isOpen("plan")} onToggle={() => toggle("plan")}>
+            <TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded />
+          </PartSection>
+        ) : null}
+        {wanted("retest") ? (
+          <PartSection
+            part={parts.retests}
+            open={isOpen("retests")}
+            onToggle={() => toggle("retests")}
+            actions={
+              lab && planId !== null ? (
+                <RetestMenu
+                  retest={lab.retest}
+                  disabled={retesting}
+                  onChoose={(v) => {
+                    setRetesting(true);
+                    setError(null);
+                    api
+                      .retest(planId, v.version, v.component)
+                      .then((next) => {
+                        setLab(next);
+                        setTick((n) => n + 1);
+                      })
+                      .catch((e: unknown) => setError(errorMessage(e)))
+                      .finally(() => setRetesting(false));
+                  }}
+                />
+              ) : null
+            }
+          >
+            {lab ? <RetestStatus retest={lab.retest} /> : null}
+            {blocks(parts.retests)}
+          </PartSection>
+        ) : null}
+        {wanted("proof") ? (
+          <PartSection part={parts.proofs} open={isOpen("proofs")} onToggle={() => toggle("proofs")}>
+            {blocks(parts.proofs)}
+          </PartSection>
+        ) : null}
+        {parts.tries && wanted("try") ? (
+          <PartSection part={parts.tries} open={isOpen("tries")} onToggle={() => toggle("tries")}>
+            {tries.length > 0 ? (
+              <CheckTable label={parts.tries.label} rows={tries} selectedId={openId} onOpen={toggleOpen} />
+            ) : (
+              <p className="px-1 py-1 text-sm text-slate-400">No check matches this search.</p>
+            )}
+          </PartSection>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <section aria-label="Checks">
       <PageHeader title="Checks" description={view.subline} />
@@ -146,15 +250,20 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
                     )
                   }
                 >
-                  {showPlan ? <TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded /> : null}
-                  {rows.length > 0 ? (
-                    <div className={showPlan ? "mt-4" : ""}>
-                      {showPlan ? <h3 className="mb-2 text-sm font-semibold text-slate-200">Retests, fix proofs and tries</h3> : null}
-                      <CheckTable label={`${g.label} checks`} rows={rows} selectedId={openId} onOpen={(r) => setOpenId(r.id === openId ? null : r.id)} />
-                    </div>
-                  ) : g.rows.length > 0 && g.key !== "encryption" ? (
-                    <p className="px-1 py-2 text-sm text-slate-400">No check matches this search.</p>
-                  ) : null}
+                  {g.key === "encryption" && g.parts ? (
+                    encryptionParts(g)
+                  ) : (
+                    <>
+                      {showPlan ? <TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded /> : null}
+                      {rows.length > 0 ? (
+                        <div className={showPlan ? "mt-4" : ""}>
+                          <CheckTable label={`${g.label} checks`} rows={rows} selectedId={openId} onOpen={toggleOpen} />
+                        </div>
+                      ) : g.rows.length > 0 && g.key !== "encryption" ? (
+                        <p className="px-1 py-2 text-sm text-slate-400">No check matches this search.</p>
+                      ) : null}
+                    </>
+                  )}
                 </GroupSection>
               );
             })}

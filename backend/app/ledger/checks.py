@@ -7,13 +7,14 @@ belongs to one row only. Nothing here runs anything or decides anything.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
 
 from sqlalchemy import select
 
 from app.db import (
-    ApplyRow, ChangeTryRow, ImportRow, PlanItemRow, PlanRow, ReviewRow, RollbackRow, TestRunRow, TestSpecRow,
-    VerifyRunRow,
+    ApplyRow, ChangeTryRow, ImportRow, PlanItemRow, PlanRow, ProofRow, RetestProgramRow, RetestRow, ReviewRow, RollbackRow,
+    TestRunRow, TestSpecRow, VerifyRunRow, iso,
 )
 from app.errors import NotFound
 from app.lab.testlab import HIDDEN_ORIGINS, read_spec
@@ -50,6 +51,14 @@ def _measure_key(row: dict) -> list | None:
     if row.get("kind") == "signing_status" and str(row.get("id", "")).startswith("system-"):
         return ["software", row.get("ran_on")]
     return None
+
+
+# The 5c fixes: on Checks the Encryption tests group is in four labelled parts. A retest's row sits in the block of the
+# version that retest ran on, and a proof's row in the block of its proof: "retest-12-on-3" is test 12 in the block that
+# retest 3 opened, "proof-12-in-2" is test 12 in proof 2. The older ids ("retest-12", "proof-12") still open the newest.
+BLOCK_ROW = re.compile(r"^(retest|proof)-(\d+)-(on|in)-(\d+)$")
+AS_IT_IS = "tested again as it is"
+NO_RETEST = "No retest yet. Retest new version reruns every test in the plan on another version."
 
 
 def short(text: str | None, limit: int = 12) -> str | None:
@@ -327,6 +336,7 @@ class LedgerMixin:
                 job = self.jobs.get((row["item_id"], phase))
                 live = job if job is not None and job.status != "done" else None
         history = []
+        said: dict[int, dict] = {}       # what each reviewed run said (for the blocks of the Encryption tests group)
         newest = None
         for run_id in row["run_ids"]:
             if run_id not in reviewed:
@@ -340,9 +350,13 @@ class LedgerMixin:
                      "came_from": ORIGINS.get(origin, origin), "label": shown["label"], "tone": shown["tone"],
                      "fingerprint": self._result_cache[run_id][0][0] if run_id in self._result_cache else None}
             history.append(entry)
+            said[run_id] = {"label": shown["label"], "tone": shown["tone"], "code": shown["code"], "plain": shown.get("plain"),
+                            "at": run.finished_at or run.started_at, "rerun": run.retest_id,
+                            "ran_on": self._ledger_component_words(run), "component": run.component_name}
             if newest is None:
                 newest = (run, shown, origin)
         row["history"] = history
+        row["said"] = said
         row["runs"] = len(history)
         if newest is not None:
             run, shown, origin = newest
@@ -421,7 +435,8 @@ class LedgerMixin:
                 note = (f"{n} {'library was' if n == 1 else 'libraries were'} answered from release notes or a measurement; "
                         "every answer is on Dependencies.")
             groups.append({**G.group_frame(key), "counts": G.counts(states), "empty_text": empty, "note": note,
-                           "started_on": G.STARTED_ON[key], "rows": [self._public_row(r) for r in in_group]})
+                           "started_on": G.STARTED_ON[key], "rows": [self._public_row(r) for r in in_group],
+                           "parts": self._encryption_parts(plan_id, in_group) if key == "encryption" else None})
         self._mark_same_measurements(groups)
         busy = any(r["state"] == "in_progress" for r in rows)
         evidence_counts = {g["key"]: g["counts"] for g in groups}
@@ -436,6 +451,8 @@ class LedgerMixin:
         keep = ("id", "group", "kind", "name", "ran_on", "came_from", "link", "evidence_link", "state", "status", "result",
                 "plain", "last_run_at", "runs", "from_otto")
         out = {k: row.get(k) for k in keep}
+        if row.get("mark") is not None or row.get("alias") is not None:      # a row of a retest's or a proof's block
+            out["mark"], out["alias"] = row.get("mark"), row.get("alias")
         out["measures"] = _measure_key(row)
         if row.get("pq_claim"):
             out["pq_claim"] = True
@@ -475,10 +492,140 @@ class LedgerMixin:
                 r.pop("pq_claim", None)
                 r.setdefault("same_as", [])
 
+    # ---------------------------------------------------------------- the 5c fixes: Encryption tests in four parts
+
+    def _blocks(self, plan_id: int, rows: list[dict]) -> tuple[list[dict], list[dict], str | None]:
+        """The retests of this plan by the version each ran on (newest first), and its fix proofs (newest first), each
+        with the rows of its own runs; and the version the file names. A row here is a copy of the retest's or the
+        proof's row, read on the runs of that block only. `rows`: the Encryption tests rows of `ledger`, resolved."""
+        from app.present import otto as present_otto      # (only `stamp`: a time in a sentence, marked for a browser)
+        with self.db() as db:
+            plan = self._plan(db, plan_id)
+            retests = db.scalars(select(RetestRow).where(RetestRow.plan_id == plan_id).order_by(RetestRow.id)).all()
+            moved = {m.retest_id: m.component_name for m in db.scalars(
+                select(RetestProgramRow).where(RetestProgramRow.retest_id.in_([r.id for r in retests]))).all()} if retests else {}
+            proofs = db.scalars(select(ProofRow).where(ProofRow.plan_id == plan_id).order_by(ProofRow.id)).all()
+            names_first = f"{plan.component_name} {plan.component_version}" if plan.component_name else None
+            program = plan.component_name
+        # one block for each (program, version) a retest moved to; a retest belongs to the block its version opened
+        by_version: dict[tuple, dict] = {}
+        block_of: dict[int, dict] = {}
+        for r in retests:
+            name = moved.get(r.id) or program or ""
+            block = by_version.setdefault((name, r.version), {"key": f"on-{r.id}", "number": r.id, "name": name, "version": r.version,
+                                                             "reruns": [], "started": None, "rows": []})
+            block["reruns"].append(r.id)
+            block["started"] = iso(r.created_at)
+            block_of[r.id] = block
+        proof_blocks = {p.id: {"key": f"proof-{p.id}", "number": p.id, "name": program or "", "version": p.version, "reruns": [p.id],
+                               "started": iso(p.started_at), "rows": []} for p in proofs}
+        for row in rows:
+            kind = row["id"].split("-", 1)[0]
+            if kind not in ("retest", "proof") or BLOCK_ROW.match(row["id"]):
+                continue
+            where = block_of if kind == "retest" else proof_blocks
+            seen: dict[str, list[int]] = {}
+            for run_id in row["run_ids"]:                    # newest first
+                told = (row.get("said") or {}).get(run_id)
+                found = where.get(told["rerun"]) if told is not None else None
+                if found is not None:
+                    seen.setdefault(found["key"], []).append(run_id)
+            for block in where.values():
+                mine = seen.get(block["key"])
+                if not mine:
+                    continue
+                told = row["said"][mine[0]]
+                its_own = told["component"] is not None and told["component"] == block["name"]
+                copy = {**row, "id": f"{row['id']}-{'on' if kind == 'retest' else 'in'}-{block['number']}",
+                        "alias": row["id"] if mine[0] == row.get("newest_run_id") else None,
+                        "ran_on": (told["ran_on"] if its_own and kind == "retest" else
+                                   f"{told['ran_on']} (the changed code)" if kind == "proof" and told["ran_on"] else
+                                   told["ran_on"] or self._first_ran_on(rows, row)),
+                        # (a server, or a program the retest did not move, is run again on what it was)
+                        "mark": AS_IT_IS if kind == "retest" and not its_own else None,
+                        "result": {"label": told["label"], "tone": told["tone"], "code": told["code"]}, "plain": told["plain"],
+                        "last_run_at": told["at"], "runs": len(mine), "newest_run_id": mine[0], "state": "done", "status": None,
+                        "history": [h for h in row.get("history") or [] if h["run_id"] in mine], "run_ids": mine}
+                block["rows"].append(copy)
+        def finish(blocks: list[dict], kind: str) -> list[dict]:
+            out = []
+            for n, block in enumerate(sorted(blocks, key=lambda b: max(b["reruns"]), reverse=True)):
+                times = len(block["reruns"])
+                if kind == "retest":
+                    title = f"{block['name']} {block['version']}".strip()
+                    line = (f"{'One retest' if times == 1 else f'{times} retests'} on this version. "
+                            f"The newest started {present_otto.stamp(block['started'])}.")
+                else:
+                    title = f"{block['name']} {block['version']} (the changed code)".strip()
+                    line = f"The proof reran the plan's locked tests on the changed code. It started {present_otto.stamp(block['started'])}."
+                out.append({"key": block["key"], "title": title, "line": line, "newest": n == 0, "rows": block["rows"]})
+            return out
+        return finish(list(by_version.values()), "retest"), finish(list(proof_blocks.values()), "proof"), names_first
+
+    @staticmethod
+    def _first_ran_on(rows: list[dict], row: dict) -> str:
+        """What a test's first run ran on (a server's address, a program and its version), for a retest that ran it
+        again as it is."""
+        first = next((r for r in rows if r["id"] == f"test-{row.get('item_id')}"), None)
+        return (first or row)["ran_on"]
+
+    def _block_rows(self, plan_id: int, rows: list[dict]) -> list[dict]:
+        retests, proofs, _ = self._blocks(plan_id, rows)
+        return [r for block in retests + proofs for r in block["rows"]]
+
+    def _encryption_parts(self, plan_id: int, rows: list[dict]) -> dict:
+        """Checks, the Encryption tests group in four labelled parts (the 5c fixes): the test plan with its first runs,
+        the retests by the version each ran on, the fix proofs, and the tries of a server change on a test copy. It
+        sorts rows this page already has: a run shows in one part only, and nothing here runs or decides anything."""
+        retests, proofs, names_first = self._blocks(plan_id, rows)
+        plan_rows = [r for r in rows if r["id"].startswith("test-")]
+        tries = [self._public_row(r) for r in rows if r["id"].startswith("try-")]
+
+        def counted(n: int, one: str, many: str | None = None) -> str:
+            return f"{n} {one if n == 1 else (many or one + 's')}"
+
+        def public(blocks: list[dict]) -> list[dict]:
+            out = []
+            for b in blocks:
+                shown = [self._public_row(r) for r in b["rows"]]
+                for r in shown:
+                    r.pop("measures", None)
+                    r.setdefault("same_as", [])
+                    r.setdefault("mark", None)
+                    r.setdefault("alias", None)
+                out.append({**b, "rows": shown})
+            return out
+        for r in tries:
+            r.pop("measures", None)
+            r.setdefault("same_as", [])
+        return {
+            "plan": {"key": "plan", "label": "Test plan", "count": len(plan_rows), "count_label": counted(len(plan_rows), "test"),
+                     "note": (f"First runs, on the version the file names: {names_first}." if names_first
+                              else "First runs, on what the file names."),
+                     "empty_text": None, "blocks": [], "rows": []},
+            "retests": {"key": "retests", "label": "Retests by version", "count": len(retests),
+                        "count_label": counted(len(retests), "version"),
+                        "note": "One block for each version a retest ran on, the newest first." if retests else None,
+                        "empty_text": None if retests else NO_RETEST, "blocks": public(retests), "rows": []},
+            "proofs": {"key": "proofs", "label": "Fix proofs", "count": len(proofs), "count_label": counted(len(proofs), "proof"),
+                       "note": "One block for each proof of a change, the newest first. A proof is started in Fixes." if proofs else None,
+                       "empty_text": None if proofs else "No fix proof yet. A proof starts in Fixes, when the code of a fix is connected.",
+                       "blocks": public(proofs), "rows": []},
+            # (only when a server change was tried)
+            "tries": ({"key": "tries", "label": "Tries on a test copy", "count": len(tries), "count_label": counted(len(tries), "try", "tries"),
+                       "note": "A try of a server setting change on a test copy. A try is started where the change is.",
+                       "empty_text": None, "blocks": [], "rows": tries} if tries else None),
+        }
+
     def check_detail(self, plan_id: int, check_id: str) -> dict:
         """One check: its newest result as its page words it, its earlier runs, and what it relates to."""
         led = self.ledger(plan_id)
         row = next((r for r in led["rows"] if r["id"] == check_id), None)
+        if row is None and BLOCK_ROW.match(check_id):
+            # a row of one retest's or one proof's block (the 5c fixes): the same test, read on that block's runs only
+            self._resolve_rows(plan_id, led["rows"])
+            row = next((r for r in self._block_rows(plan_id, [r for r in led["rows"] if r["group"] == "encryption"])
+                        if r["id"] == check_id), None)
         if row is None:
             raise NotFound("That check is not in this assessment.")
         self._resolve_rows(plan_id, [row])
@@ -486,13 +633,18 @@ class LedgerMixin:
         if row.get("newest_run_id") is not None:
             with self.db() as db:
                 result = self._result(db, db.get(TestRunRow, row["newest_run_id"]))
+                if result is not None:
+                    # (the line about a fix is laid over a result on Evidence only; here the shape just says there is none)
+                    result.setdefault("fix_line", None)
                 if result is not None and row.get("item_id") is not None:
                     # phase 5c: where an advisory check came from, and the decisions on Otto's proposal (records only)
                     came_from_otto = self.otto_result_blocks(db, self._plan(db, plan_id)).get(row["item_id"])
                     if came_from_otto is not None:
                         result["otto"] = came_from_otto
         related = self.related(plan_id, self.relation_key(row))   # type: ignore[attr-defined]
-        return {"check": self._public_row(row), "result": result, "verify": row.get("verify"),
+        shown = self._public_row(row)
+        shown.pop("measures", None)        # (only the list uses it, to say which checks are the same measurement)
+        return {"check": shown, "result": result, "verify": row.get("verify"),
                 "runs": row.get("history") or [], "related": related}
 
     @staticmethod

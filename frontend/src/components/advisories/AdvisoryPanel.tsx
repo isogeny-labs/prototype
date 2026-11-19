@@ -99,6 +99,7 @@ export function AdvisoryPanel({
     <div data-testid="advisory-panel" data-advisory={row.id} className="contents">
       <DetailPanel
         open
+        item={row.id}
         title={row.name}
         subtitle={
           // The table drops its Published column while the panel is open, so the day is said here too.

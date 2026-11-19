@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { api, errorMessage, type FixSection, type FixesView } from "../api";
 import { ChangeBox } from "./change/ChangeBox";
 import { FixTable } from "./fixes/FixTable";
 import { FixSections } from "./fixes/FixSections";
 import { FixSummary, type FixRequest } from "./fixes/FixSummary";
-import { DetailPanel, PageHeader, SummaryCards, TableWithPanel } from "./layout";
+import { DetailPanel, ItemPageContext, PageHeader, SummaryCards, TableWithPanel } from "./layout";
 import { RelatedFor } from "./related";
 import { DemoDataLabel, ErrorBox } from "./ui";
 
@@ -35,6 +35,7 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
   const [openId, setOpenId] = useState<string | null>(selectedId);
   // As before the panel, the page opens on the first fix until the person closes the panel (then it stays closed).
   const [dismissed, setDismissed] = useState(false);
+  const asPage = Boolean(useContext(ItemPageContext)?.asPage);
   const [seenSelected, setSeenSelected] = useState<string | null>(selectedId);
   if (selectedId !== seenSelected) {
     setSeenSelected(selectedId);
@@ -107,7 +108,8 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
   }
 
   const current = view;
-  const fix = current.fixes.find((f) => f.id === openId) ?? (dismissed ? null : (current.fixes[0] ?? null));
+  // (On a page of its own, the 5c fixes, only the fix the address names is shown: never the first one in its place.)
+  const fix = current.fixes.find((f) => f.id === openId) ?? (dismissed || asPage ? null : (current.fixes[0] ?? null));
   const choose = (fixId: string) => {
     setOpenId(fixId);
     setDismissed(false);
@@ -238,6 +240,7 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
             panel={
               <DetailPanel
                 open={fix !== null}
+                item={fix?.id ?? null}
                 title={fix?.title ?? ""}
                 onClose={closePanel}
               >

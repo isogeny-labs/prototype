@@ -61,9 +61,135 @@ export const planRows: CheckRow[] = [
 
 export const retestRow: CheckRow = testRow(1, "Official test vectors", "acme-sign 1.4.3 (the new version)", true, "retest", 1);
 
-export function checkGroups(over: { verification?: CheckRow[]; encryption?: CheckRow[] } = {}): CheckGroup[] {
+// ---- The 5c fixes: the Encryption tests group in four labelled parts, as the backend sends them ----
+
+export type EncryptionParts = NonNullable<CheckGroup["parts"]>;
+type CheckBlock = EncryptionParts["retests"]["blocks"][number];
+
+/** A retest's row in the block of the version it ran on: the test, read on that block's runs only. */
+export function blockRow(
+  id: number,
+  block: number,
+  name: string,
+  ranOn: string,
+  passed: boolean,
+  more: Partial<CheckRow> = {},
+): CheckRow {
+  return {
+    ...testRow(id, name, ranOn, passed, "retest"),
+    id: `retest-${id}-on-${block}`,
+    alias: `retest-${id}`,
+    mark: null,
+    ...more,
+  };
+}
+
+export const NO_RETEST = "No retest yet. Retest new version reruns every test in the plan on another version.";
+
+/** The newest block: the retest on acme-sign 1.4.3. A server was not moved, so its test was run again as it is. */
+export const newestBlock: CheckBlock = {
+  key: "on-2",
+  title: "acme-sign 1.4.3",
+  line: "One retest on this version. The newest started 10 November 2026, 5:05 am EST.",
+  newest: true,
+  rows: [
+    blockRow(1, 2, "Official test vectors", "acme-sign 1.4.3", true),
+    blockRow(2, 2, "Bad signatures", "acme-sign 1.4.3", true),
+    blockRow(3, 2, "Old TLS versions", "localhost:8443", false, { mark: "tested again as it is" }),
+  ],
+};
+
+/** An older block: an earlier retest on another version. Its rows are no longer the newest of their tests. */
+export const olderBlock: CheckBlock = {
+  key: "on-1",
+  title: "acme-sign 1.4.3-otto",
+  line: "One retest on this version. The newest started 10 November 2026, 4:40 am EST.",
+  newest: false,
+  rows: [blockRow(1, 1, "Official test vectors", "acme-sign 1.4.3-otto", true, { alias: null })],
+};
+
+export const proofBlock: CheckBlock = {
+  key: "proof-1",
+  title: "acme-sign 1.4.3 (the changed code)",
+  line: "The proof reran the plan's locked tests on the changed code. It started 10 November 2026, 4:50 am EST.",
+  newest: true,
+  rows: [
+    {
+      ...testRow(1, "Official test vectors", "acme-sign 1.4.3 (the changed code)", true, "retest"),
+      id: "proof-1-in-1",
+      alias: "proof-1",
+      mark: null,
+      came_from: { key: "proof", label: "Fix proof" },
+      link: { page: "fixes", item: "fix-ecdsa-range-check", section: "proof" },
+    },
+  ],
+};
+
+export const tryRow: CheckRow = {
+  ...testRow(3, "Turn off TLS 1.2 on localhost:8443", "A test copy", true),
+  id: "try-tls:localhost:8443-try",
+  came_from: { key: "try", label: "Try on a test copy" },
+  link: { page: "fixes", item: "fix-tls-versions" },
+  evidence_link: { page: "evidence", item: "try-tls:localhost:8443-try" },
+};
+
+export function encryptionParts(over: { retests?: CheckBlock[]; proofs?: CheckBlock[]; tries?: CheckRow[]; tests?: number } = {}): EncryptionParts {
+  const retests = over.retests ?? [newestBlock];
+  const proofs = over.proofs ?? [];
+  const tries = over.tries ?? [];
+  const tests = over.tests ?? 3;
+  const counted = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  return {
+    plan: {
+      key: "plan",
+      label: "Test plan",
+      count: tests,
+      count_label: counted(tests, "test"),
+      note: "First runs, on the version the file names: acme-sign 1.4.2.",
+      empty_text: null,
+      blocks: [],
+      rows: [],
+    },
+    retests: {
+      key: "retests",
+      label: "Retests by version",
+      count: retests.length,
+      count_label: counted(retests.length, "version"),
+      note: retests.length ? "One block for each version a retest ran on, the newest first." : null,
+      empty_text: retests.length ? null : NO_RETEST,
+      blocks: retests,
+      rows: [],
+    },
+    proofs: {
+      key: "proofs",
+      label: "Fix proofs",
+      count: proofs.length,
+      count_label: counted(proofs.length, "proof"),
+      note: proofs.length ? "One block for each proof of a change, the newest first. A proof is started in Fixes." : null,
+      empty_text: proofs.length ? null : "No fix proof yet. A proof starts in Fixes, when the code of a fix is connected.",
+      blocks: proofs,
+      rows: [],
+    },
+    tries: tries.length
+      ? {
+          key: "tries",
+          label: "Tries on a test copy",
+          count: tries.length,
+          count_label: counted(tries.length, "try", "tries"),
+          note: "A try of a server setting change on a test copy. A try is started where the change is.",
+          empty_text: null,
+          blocks: [],
+          rows: tries,
+        }
+      : null,
+  };
+}
+
+export function checkGroups(over: { verification?: CheckRow[]; encryption?: CheckRow[]; parts?: EncryptionParts | null } = {}): CheckGroup[] {
   const verification = over.verification ?? verifyRows;
   const encryption = over.encryption ?? [...planRows, retestRow];
+  // (the backend always sends the parts with this group; `parts: null` is a view from before the 5c fixes)
+  const parts = over.parts === undefined ? encryptionParts(over.encryption && !over.encryption.includes(retestRow) ? { retests: [] } : {}) : over.parts;
   const counts = (rows: CheckRow[]) => ({
     open: rows.filter((r) => r.state === "open").length,
     in_progress: rows.filter((r) => r.state === "in_progress").length,
@@ -89,6 +215,7 @@ export function checkGroups(over: { verification?: CheckRow[]; encryption?: Chec
       note: null,
       started_on: { label: "The test plan is here", page: "checks" },
       rows: encryption,
+      parts,
     },
     {
       key: "migration",

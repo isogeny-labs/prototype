@@ -63,7 +63,7 @@ export function LibraryTable({ libraries, selectedId, onOpen }: { libraries: Lib
  * Open in Dependencies (where its measurement and its Details and evidence are). */
 export function LibraryPanel({ library, onClose }: { library: LibraryEvidenceRow | null; onClose: () => void }) {
   return (
-    <DetailPanel open={library !== null} title={library?.name ?? ""} subtitle={library?.via_words} onClose={onClose}>
+    <DetailPanel open={library !== null} item={library?.id ?? null} title={library?.name ?? ""} subtitle={library?.via_words} onClose={onClose}>
       {library ? (
         <div data-testid="library-panel" className="space-y-4 text-sm">
           <Blocks library={library} />

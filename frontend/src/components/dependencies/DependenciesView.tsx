@@ -241,7 +241,7 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
   );
 
   const panel = (
-    <DetailPanel open={selected !== null} title={selected?.label ?? ""} subtitle={selected?.library ?? undefined} onClose={closePanel}>
+    <DetailPanel open={selected !== null} item={selected?.id ?? null} title={selected?.label ?? ""} subtitle={selected?.library ?? undefined} onClose={closePanel}>
       {selected ? (
         <DependencyDetail
           row={selected}

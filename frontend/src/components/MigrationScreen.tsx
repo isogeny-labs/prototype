@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   api,
   ApiError,
@@ -16,7 +16,7 @@ import { Roadmap } from "./migration/Roadmap";
 import { SystemDetail } from "./migration/SystemDetail";
 import { StatusPill } from "./migration/parts";
 import type { SaveChoice } from "./migration/OptionCard";
-import { DataTable, DetailPanel, FilterSelect, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "./layout";
+import { DataTable, DetailPanel, FilterSelect, ItemPageContext, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "./layout";
 import { FromOttoTag, ProposalStatusChip } from "./otto/ProposalCard";
 import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton } from "./ui";
 
@@ -77,6 +77,7 @@ export function MigrationScreen({
   const [statusFilter, setStatusFilter] = useState("all");
   // As before the panel, Systems opens on the first system until the person closes the panel (then it stays closed).
   const [dismissed, setDismissed] = useState(false);
+  const asPage = Boolean(useContext(ItemPageContext)?.asPage);
   const closePanel = useCallback(() => {
     setSelectedKey(null);
     setDismissed(true);
@@ -180,9 +181,10 @@ export function MigrationScreen({
   }
 
   const current = view;
+  // (On a page of its own, the 5c fixes, only the system the address names is shown: never the first one in its place.)
   const system =
     current.systems.find((s) => s.key === selectedKey) ??
-    (dismissed || tab !== "systems" ? null : (current.systems[0] ?? null));
+    (dismissed || asPage || tab !== "systems" ? null : (current.systems[0] ?? null));
 
   async function act(call: () => Promise<MigrationView>, tellApp: boolean) {
     setActing(true);
@@ -371,6 +373,7 @@ export function MigrationScreen({
   const panel = (
     <DetailPanel
       open={system !== null}
+      item={system?.key ?? null}
       title={system?.kind_label ?? ""}
       onClose={closePanel}
     >

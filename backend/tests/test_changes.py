@@ -1155,3 +1155,41 @@ def test_the_proof_runs_are_checks_in_encryption_tests_that_open_their_fix(fix_f
     code = next(f for f in fixes["fixes"] if f["id"] == FIX)
     assert code["group"] == "encryption" and code["status"]["word"] == "Merged" and code["fix_state"] == "done"
     assert {link["link"]["page"] for link in code["came_from_links"]} == {"evidence"}
+
+
+# ---------------------------------------------------------------- the 5c fixes: Checks, Encryption tests in four parts
+
+@pytest.mark.slow
+def test_checks_shows_the_proof_in_its_own_block_and_the_retest_under_the_version_it_ran_on(fix_flow):
+    """After the whole fix (proof, merge, Retest now), Checks has one block for the proof, with the changed code's
+    version, and one block for the version the retest ran on. A retest started in Fixes shows on Checks like one
+    started on Evidence. Each run shows in one part only."""
+    from app.web import models
+    from tests.view_helpers import problems
+    lab, plan_id = fix_flow.lab, fix_flow.plan.id
+    view = lab.checks_view(plan_id)
+    assert problems(view, models.ChecksView, "checks") == []
+    parts = next(g for g in view["groups"] if g["key"] == "encryption")["parts"]
+    # the proof: one block, on the changed code, with a row for each test the proof reran
+    assert parts["proofs"]["count"] == 1 and parts["proofs"]["count_label"] == "1 proof"
+    [proof] = parts["proofs"]["blocks"]
+    assert proof["title"] == "acme-sign 1.4.3 (the changed code)" and proof["key"].startswith("proof-") and proof["newest"] is True
+    assert proof["line"].startswith("The proof reran the plan's locked tests on the changed code. It started ")
+    assert len(proof["rows"]) == len(fix_flow.plan.item) and all(r["came_from"]["key"] == "proof" for r in proof["rows"])
+    assert all(r["link"]["page"] == "fixes" and r["mark"] is None for r in proof["rows"])
+    software = [r for r in proof["rows"] if r["kind"] in ("official_vectors", "bad_signatures", "speed_size")]
+    assert software and all(r["ran_on"] == "acme-sign 1.4.3 (the changed code)" for r in software)
+    # the retest that Retest now (in Fixes) started: under its version, like any retest
+    assert parts["retests"]["count"] == 1
+    [retest] = parts["retests"]["blocks"]
+    assert retest["title"] == "acme-sign 1.4.3" and len(retest["rows"]) == len(fix_flow.plan.item)
+    assert {r["mark"] for r in retest["rows"] if r["kind"] in ("tls_versions", "certificate", "pq_readiness")} == {"tested again as it is"}
+    # nothing shows twice: every run of the plan is in exactly one place (the plan's own rows, the proof, the retest)
+    with lab.db() as db:
+        every = {r.id: r.phase for r in db.query(TestRunRow).filter(TestRunRow.plan_id == plan_id).all()}
+    seen: list[int] = []
+    for block in (proof, retest):
+        for row in block["rows"]:
+            seen += [r["run_id"] for r in lab.check_detail(plan_id, row["id"])["runs"]]
+    assert len(seen) == len(set(seen)) and {every[r] for r in seen} == {"proof", "retest"}
+    assert sorted(seen) == sorted(r for r, phase in every.items() if phase in ("proof", "retest"))

@@ -28,6 +28,16 @@ import { ItemLinkView } from "./related";
 
 const POLL_MS = 1000;
 
+/** The 5c fixes: the test plan is two lists. An advisory check is a test a person accepted from a proposal. */
+const LISTS = [
+  { key: "standard", label: "Standard tests" },
+  { key: "advisory", label: "Advisory checks" },
+] as const;
+
+function isAdvisoryCheck(card: TestCard): boolean {
+  return card.kind === "advisory_cases";
+}
+
 /** The order after moving one card to the place of another. */
 function moved(order: number[], id: number, toIndex: number): number[] {
   const from = order.indexOf(id);
@@ -335,27 +345,31 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false }: Props)
     }
   }
 
-  // With one server and one signing program the list is flat: one section with no heading. When the plan is
-  // grouped, each group is a section, and a card only moves inside its own section.
+  // With one server and one signing program the plan has no target headings. When the plan is grouped, each target
+  // has its own heading. The 5c fixes: under each, the plan is two lists, Standard tests and Advisory checks (the
+  // checks a person accepted from a proposal, marked From Otto), and a card only moves inside its own list.
   const headings = new Map(current.groups.map((g) => [g.key, g]));
-  const sections = current.grouped
+  const targets = current.grouped
     ? splitByGroup(current.groups, current.tests, (t) => t.group)
     : [{ key: null, items: current.tests }];
+  const sections = targets.flatMap((target) =>
+    LISTS.map((list) => ({ key: target.key, list, items: target.items.filter((t) => isAdvisoryCheck(t) === (list.key === "advisory")) })),
+  );
   const sectionOf = new Map<number, number>();
   sections.forEach((section, i) =>
     section.items.forEach((t) => sectionOf.set(t.id, i)),
   );
 
-  /** Moves a card to a place inside its own section, and sends the whole list in the order shown. */
+  /** Moves a card to a place inside its own list, and sends the whole plan in its new order: the cards of that list
+   * take that list's own places in the plan, and every other card stays where it is. */
   function reorder(id: number, toIndex: number) {
     const at = sectionOf.get(id);
     if (at === undefined) return;
     const scope = sections[at]!.items.map((t) => t.id);
     const nextScope = moved(scope, id, toIndex);
     if (nextScope === scope) return;
-    const next = sections.flatMap((section, i) =>
-      i === at ? nextScope : section.items.map((t) => t.id),
-    );
+    const queue = [...nextScope];
+    const next = current.tests.map((t) => (sectionOf.get(t.id) === at ? queue.shift()! : t.id));
     const card = current.tests.find((t) => t.id === id);
     // Show the new order straight away; the server's answer then replaces it.
     const byId = new Map(current.tests.map((t) => [t.id, t]));
@@ -363,11 +377,12 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false }: Props)
     const sectionKey = sections[at]!.key;
     const heading =
       sectionKey !== null ? headings.get(sectionKey)?.heading : undefined;
+    const listName = sections[at]!.list.label;
     if (card) {
       setAnnounce(
         heading
-          ? `${card.title} moved to position ${toIndex + 1} of ${scope.length} under ${heading}.`
-          : `${card.title} moved to position ${toIndex + 1} of ${scope.length}.`,
+          ? `${card.title} moved to position ${toIndex + 1} of ${scope.length} in ${listName} under ${heading}.`
+          : `${card.title} moved to position ${toIndex + 1} of ${scope.length} in ${listName}.`,
       );
     }
     void act(() => api.reorder(current.id, next));
@@ -475,13 +490,49 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false }: Props)
     </div>
   );
 
+  const TargetHeading = embedded ? "h4" : "h2";
+
+  /** One target's cards as its two lists, each under its own heading with its count. The Advisory checks list is marked
+   * From Otto. In a plan with target headings, a target with no advisory check shows no empty second list. */
+  function renderLists(targetIndex: number, headingLevel: 2 | 3, label: string) {
+    // Inside Checks the part's own heading ("Test plan") is a level 3, so everything under it is one level lower.
+    const ListHeading = embedded ? (headingLevel === 3 ? "h5" : "h4") : headingLevel === 3 ? "h4" : "h3";
+    return LISTS.map((list, n) => {
+      const sectionIndex = targetIndex * LISTS.length + n;
+      const items = sections[sectionIndex]!.items;
+      if (items.length === 0 && (list.key === "standard" || current.grouped)) return null;
+      return (
+        <div key={list.key} data-testid="plan-list" data-list={list.key} className={n > 0 ? "mt-5" : ""}>
+          <ListHeading className="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-200">
+            {list.label}
+            <span data-testid="plan-list-count" className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px] font-medium tabular-nums text-slate-300">
+              {items.length}
+            </span>
+            {list.key === "advisory" ? <FromOttoTag testId="plan-list-from-otto" /> : null}
+          </ListHeading>
+          {items.length > 0 ? (
+            cardTable(renderCards(items, sectionIndex, headingLevel), `${label}: ${list.label}`)
+          ) : (
+            <p data-testid="plan-list-empty" className="px-1 text-sm text-slate-400">
+              No advisory check is in the plan. A proposed check joins it when you accept it on{" "}
+              <ItemLinkView link={{ page: "advisories", item: null }} className="text-sky-300 hover:underline">
+                Advisories
+              </ItemLinkView>
+              .
+            </p>
+          )}
+        </div>
+      );
+    });
+  }
+
   return (
     <section aria-label={embedded ? "Test plan" : "Tests"} data-testid="test-plan">
       {embedded ? (
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0 max-w-3xl">
             {current.is_demo ? <DemoDataLabel /> : null}
-            <h3 className="mt-1 text-base font-semibold text-slate-100">Test plan</h3>
+            {/* (the heading "Test plan", with its count, is the part's own on Checks) */}
             <p className="mt-1 text-sm leading-relaxed text-slate-400">{current.intro}</p>
           </div>
           <PrimaryButton disabled={busy || !current.can_run_all} onClick={() => void act(() => api.runAll(current.id))}>
@@ -529,7 +580,7 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false }: Props)
         </p>
       ) : current.grouped ? (
         <div className="mt-6 flex flex-col gap-6">
-          {sections.map((section, i) => {
+          {targets.map((section, i) => {
             const group =
               section.key !== null ? headings.get(section.key) : undefined;
             return (
@@ -540,9 +591,9 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false }: Props)
               >
                 {group ? (
                   <>
-                    <h2 className="text-base font-semibold text-slate-100">
+                    <TargetHeading className="text-base font-semibold text-slate-100">
                       {group.heading}
-                    </h2>
+                    </TargetHeading>
                     {group.note ? (
                       <p
                         data-testid="test-group-note"
@@ -553,20 +604,13 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false }: Props)
                     ) : null}
                   </>
                 ) : null}
-                <div className="mt-3">
-                  {cardTable(
-                    renderCards(section.items, i, group ? 3 : 2),
-                    group?.heading ?? "Tests",
-                  )}
-                </div>
+                <div className="mt-3">{renderLists(i, group ? 3 : 2, group?.heading ?? "Tests")}</div>
               </section>
             );
           })}
         </div>
       ) : (
-        <div className="mt-6">
-          {cardTable(renderCards(current.tests, 0, 2), "Tests")}
-        </div>
+        <div className="mt-6">{renderLists(0, 2, "Tests")}</div>
       )}
 
       {/* SPEC section 11: every screen that shows a result carries this one line. */}

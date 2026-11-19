@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   errorMessage,
@@ -36,7 +36,8 @@ import { VerifyScreen } from "./components/VerifyScreen";
 import { setAlgorithmNames } from "./plainNames";
 import { applyTheme, prefs, type Theme } from "./prefs";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "./readOnly";
-import { useRoute, type Page } from "./router";
+import { ItemMissing, ItemPageContext, type ItemPage } from "./components/layout";
+import { PAGE_NAMES, itemPageHref, pageHref, useRoute, type Page } from "./router";
 
 const ANOTHER_FILE =
   "This assessment already has a file. Bringing in another file starts a new assessment in this project; this one stays open, as it is.";
@@ -172,6 +173,32 @@ export default function App() {
   // Phase 5b: a link that names a fix opens it in Fixes.
   const routeItem = route.kind === "assessment" ? (route.item ?? null) : null;
   const routePage = route.kind === "assessment" ? route.page : null;
+  // The 5c fixes: "Open in new tab" in a side panel opens that item on a page of its own (…&view=page).
+  const asItemPage = route.kind === "assessment" && route.view === "page" && Boolean(route.item);
+  const [itemRoot, setItemRoot] = useState<HTMLElement | null>(null);
+  const itemPageId = route.kind === "assessment" ? route.id : null;
+  // (a page that never draws the item, because it has no list to look in, says so after a few seconds)
+  const [itemLate, setItemLate] = useState(false);
+  useEffect(() => {
+    setItemLate(false);
+    if (!asItemPage) return;
+    const timer = setTimeout(() => setItemLate(true), 4000);
+    return () => clearTimeout(timer);
+  }, [asItemPage, itemPageId, routePage, routeItem]);
+  const itemPage = useMemo<ItemPage | null>(
+    () =>
+      itemPageId !== null && routePage !== null
+        ? {
+            asPage: asItemPage,
+            root: asItemPage ? itemRoot : null,
+            backHref: (item) => pageHref(itemPageId, routePage, item ?? routeItem),
+            listHref: pageHref(itemPageId, routePage),
+            backLabel: PAGE_NAMES[routePage],
+            hrefFor: (item) => itemPageHref(itemPageId, routePage, item),
+          }
+        : null,
+    [itemPageId, routePage, routeItem, asItemPage, itemRoot],
+  );
   // The Overview repeats what every page says now (tests run, systems measured, a list added since it was loaded), so
   // it asks for the assessment again each time it opens. It only reads.
   const loadedId = assessment?.id ?? null;
@@ -631,13 +658,35 @@ export default function App() {
               <ReadOnlyProvider readOnly={closed}>
                 {current ? (
                   <LinkProvider assessmentId={current.id} planId={plan?.id ?? null}>
-                    {content}
+                    <ItemPageContext.Provider value={itemPage}>
+                      {/* The 5c fixes: an item on a page of its own ("Open in new tab"). The open panel draws itself in
+                          this place, and the list it belongs to is kept, hidden, so every button works as in the panel. */}
+                      {asItemPage ? (
+                        <>
+                          <div ref={setItemRoot} data-testid="item-page-root" className="peer" />
+                          {/* Shown only while nothing is drawn above: the page is still loading, or (when it has no list
+                              to look in, or stays empty) the address names nothing that is here. */}
+                          <div className="hidden peer-empty:block">
+                            {itemPage && (content === null || itemLate) ? (
+                              <ItemMissing page={itemPage} named={false} />
+                            ) : (
+                              <p role="status" className="text-sm text-slate-400">
+                                Loading…
+                              </p>
+                            )}
+                          </div>
+                        </>
+                      ) : null}
+                      <div hidden={asItemPage || undefined} data-testid="page-content">
+                        {content}
+                      </div>
+                    </ItemPageContext.Provider>
                   </LinkProvider>
                 ) : (
                   content
                 )}
               </ReadOnlyProvider>
-              {guided && current && page && page !== "overview" ? <GuidedBar page={page} access={access} onGo={go} /> : null}
+              {guided && current && page && page !== "overview" && !asItemPage ? <GuidedBar page={page} access={access} onGo={go} /> : null}
             </div>
           </main>
           {/* The assistant sits beside the steps of an assessment (it is about the step on screen), not beside Projects or Settings. */}

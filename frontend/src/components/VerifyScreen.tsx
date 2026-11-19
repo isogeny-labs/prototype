@@ -224,6 +224,7 @@ export function VerifyScreen({ imp, run, onContinue, openItem = null }: Props) {
         panel={
           <DetailPanel
             open={selected !== null}
+            item={selected ? `claim-${selected.claim_id}` : null}
             title={selected ? selected.claim.text : ""}
             subtitle={selected ? <ResultBadge label={selected.result} tone={BADGES[selected.result].tone} /> : undefined}
             onClose={close}

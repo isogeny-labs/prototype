@@ -373,6 +373,7 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
                 panel={
                   <DetailPanel
                     open={openClaim !== null}
+                    item={openClaim ? `claim-${openClaim.id}` : null}
                     title={openClaim ? openClaim.location : ""}
                     subtitle={openClaim ? LOCATION_LABELS[openClaim.location_kind] : undefined}
                     onClose={closeClaim}

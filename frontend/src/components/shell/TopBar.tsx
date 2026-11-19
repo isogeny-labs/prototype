@@ -1,20 +1,10 @@
 import type { AssessmentView, Session } from "../../api";
-import type { Route } from "../../router";
+import { PAGE_NAMES, type Route } from "../../router";
 import { StatusChip } from "../ui";
 import { Icon } from "./icons";
 
-export const PAGE_TITLES: Record<string, string> = {
-  overview: "Overview",
-  "inventory/import": "Import",
-  "inventory/verify": "Verify",
-  advisories: "Advisories",
-  checks: "Checks",
-  evidence: "Evidence",
-  fixes: "Fixes",
-  "migration/systems": "Systems",
-  "migration/roadmap": "Roadmap",
-  "migration/dependencies": "Dependencies",
-};
+/** What each page is called (one list, in router.ts: the breadcrumb and "← Back to Checks" use the same names). */
+export const PAGE_TITLES: Record<string, string> = PAGE_NAMES;
 
 /** Folder / Project / Assessment / Page. Only the project and the assessment are links. */
 function Breadcrumbs({ route, assessment, projectName }: { route: Route; assessment: AssessmentView | null; projectName?: string | null }) {

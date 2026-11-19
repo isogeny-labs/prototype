@@ -35,7 +35,11 @@ const columns: Column<CheckRow>[] = [
     render: (r) => (
       <>
         <span className="block font-medium text-slate-100">{r.name}</span>
-        <span className="block text-xs text-slate-400">{r.ran_on}</span>
+        <span className="block text-xs text-slate-400">
+          {r.ran_on}
+          {/* The 5c fixes: in a retest's block, a server (or a program the retest did not move) was run again unchanged. */}
+          {r.mark ? <span data-testid="check-mark"> · {r.mark}</span> : null}
+        </span>
         <FromOttoMark row={r} />
         {(r.same_as ?? []).length > 0 ? (
           <span data-testid="same-measurement-marker" className="mt-0.5 block text-xs text-slate-500">
@@ -73,7 +77,7 @@ const compactColumns: Column<CheckRow>[] = [
       <>
         <span className="block font-medium text-slate-100">{r.name}</span>
         <span className="block text-xs text-slate-500">
-          {r.ran_on} · {r.came_from.label}
+          {r.ran_on} · {r.mark ?? r.came_from.label}
         </span>
         <FromOttoMark row={r} />
       </>
@@ -103,7 +107,7 @@ export function CheckTable({
       rowKey={(r) => r.id}
       rowTestId="check-row"
       rowAttrs={(r) => ({ "data-check": r.id, "data-group": r.group, "data-came-from": r.came_from.key })}
-      selectedKey={selectedId}
+      selectedKey={rows.find((r) => r.id === selectedId || (r.alias != null && r.alias === selectedId))?.id ?? selectedId}
       onRowClick={onOpen}
       empty="No check matches this search."
     />

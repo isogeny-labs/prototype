@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from "react";
  * Phase 5b: a project has its own overview (#/p/<id>), Tests is now Checks, and an address can name one item on a page
  * (#/a/<id>/<page>?item=<id>&group=<group>), so a link opens exactly that item and Back returns.
  * Phase 5c: Advisories is a page of every assessment (between Inventory and Checks), and Settings can open on one of
- * its sections (#/settings?section=test-packs). */
+ * its sections (#/settings?section=test-packs).
+ * The 5c fixes: an item can be opened on a page of its own (#/a/<id>/<page>?item=<id>&view=page), from "Open in new
+ * tab" in its side panel. The address can be bookmarked and opened again. */
 export type Page =
   | "overview"
   | "inventory/import"
@@ -39,6 +41,8 @@ export type AssessmentRoute = {
   /** The work group to filter the page to. */
   group?: string | null;
   section?: string | null;
+  /** "page": the item named by `item` on a page of its own, in place of the list with its side panel. */
+  view?: "page" | null;
 };
 
 /** Settings may name one of its sections to open on (phase 5c: "test-packs"). */
@@ -70,6 +74,8 @@ export function parseRoute(hash: string): Route {
       item: params.get("item"),
       group: params.get("group"),
       section: params.get("section"),
+      // (only with an item to show, on a page that has side panels: anything else is the page itself)
+      view: params.get("view") === "page" && params.get("item") && pageOf(m[2]) !== "overview" ? "page" : null,
     };
   }
   return { kind: "projects" };
@@ -83,6 +89,7 @@ export function routeHref(route: Route): string {
     if (route.item) params.set("item", route.item);
     if (route.group) params.set("group", route.group);
     if (route.section) params.set("section", route.section);
+    if (route.view === "page" && route.item) params.set("view", "page");
     const query = params.toString();
     return `#/a/${route.id}/${route.page}${query ? `?${query}` : ""}`;
   }
@@ -92,6 +99,25 @@ export function routeHref(route: Route): string {
 export function pageHref(id: number, page: Page, item?: string | null, group?: string | null): string {
   return routeHref({ kind: "assessment", id, page, item, group });
 }
+
+/** The 5c fixes: the address of one item on a page of its own ("Open in new tab"). */
+export function itemPageHref(id: number, page: Page, item: string): string {
+  return routeHref({ kind: "assessment", id, page, item, view: "page" });
+}
+
+/** What each page of an assessment is called, as the sidebar names it ("← Back to Checks"). */
+export const PAGE_NAMES: Record<Page, string> = {
+  overview: "Overview",
+  "inventory/import": "Import",
+  "inventory/verify": "Verify",
+  advisories: "Advisories",
+  checks: "Checks",
+  evidence: "Evidence",
+  fixes: "Fixes",
+  "migration/systems": "Systems",
+  "migration/roadmap": "Roadmap",
+  "migration/dependencies": "Dependencies",
+};
 
 /** A link the backend sent (page and item): where it goes, in this assessment or the one it names. Phase 5c: a link
  * whose page is "settings" opens Settings (on the section it names), which belongs to no assessment. */
