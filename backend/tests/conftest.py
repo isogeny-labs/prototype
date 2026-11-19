@@ -40,6 +40,14 @@ SLOW_SHARED_WALKS = {
     # once for that file. The walk is short, but some thirty tests read it (the tamper cases of the verify command), and
     # with them the fast set had reached five minutes on a slow day.
     "test_otto_evidence.py": "ran",
+    # 19 November 2026 (Kevin's answer to the phase 6 plan's first open question: move the three oldest shared walks to
+    # the slow set, no new package). The fast set had reached five minutes. These three are the `flow` walks of phase
+    # 3a (the fix with its two proofs, pull request, merge and retest), phase 4a (the migration demo measured once) and
+    # phase 4b (a change tried, approved, applied and rolled back). Their tests still run with --full and in the nightly
+    # checks; the answers they stand on are also graded on every push by the accuracy check.
+    "test_fixes_evidence.py": "flow",
+    "test_migration.py": "flow",
+    "test_phase4b.py": "flow",
 }
 
 

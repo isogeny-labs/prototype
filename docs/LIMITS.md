@@ -542,6 +542,47 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
   also a rejection, before any check has run.
 
+## Limits of the 5c fixes (19 November 2026)
+
+Six fixes after Kevin's review of phase 5c: a new Codespace starts the app, Checks in four parts, Open in new tab,
+wording, times, and the "New" tag. What they do is in `docs/SPEC.md` section 2. What they do not do:
+
+- **Times.** Only a time with a time of day is written in the viewer's own zone. A date with no time of day (a
+  pack's build date, an advisory's publication date, a review date) is shown as it is written, which for a build
+  date is the UTC day. The zone's short name is the browser's: United States zones read "EST" or "PDT"; many others
+  read as an offset ("GMT+1"). The evidence file, the report, every download and both of Otto's ledgers keep UTC,
+  and so does every answer to a script, because only the browser asks the server to mark its times
+  (`backend/app/present/times.py`). A time that a person typed into a reason is their text and is never changed.
+- **Open in new tab.** The item's own page keeps the list it belongs to loaded and hidden, so the page asks the
+  server for the same things as the list does. The Overview has no items, so it has no such page. A page that has
+  no list to look in (for example Import with no file) says "This item is not here" after about four seconds.
+- **Checks.** While a retest runs, its block fills as each test finishes: a test that has not finished is not
+  listed in it yet, and the line above the blocks says how far the retest is. A block is one program in one
+  version: two retests on the same version share a block, and each row lists that block's runs. The older address
+  of a retest's check (`retest-12`) opens the newest block's row. Only the Encryption tests group has parts.
+- **The test plan's two lists** are a way of showing one plan. The plan still has one order (Evidence lists results
+  in it); moving a card changes the order among the cards of its own list and nothing else.
+- **Wording.** The rule is about the listed phrases ("Otto wrote", "Otto proposes", "in Otto's words", "Why Otto
+  proposes it", "Otto found", "Otto has", "Otto's proposal", "Otto asked", "Otto no longer") and the same verbs in
+  another tense. Some sentences that were not on the list still name Otto as the one acting, and were left as they
+  are: the Live Otto status lines ("Otto works on the answers recorded during the build"), "Otto adds up each
+  call's cost", "An advisory Otto could not read", "Otto's own change is not offered here". Titles kept their
+  words ("Otto's notes on reading it", "Otto's proposed check, in this assessment"). A decision recorded before
+  the fixes keeps the copy of the proposal it was made on, so the history of an older decision, in the app and in
+  an evidence file, shows the older words. The sentence the assessment's Otto ledger keeps about a proposal
+  ("Every decision a person records on Otto's proposal …") is a record and was not changed; no screen shows it.
+- **The "New" tag** goes by the order packs were installed on this computer. It does not know what a person has
+  already looked at, and it stays until a newer pack is installed.
+- **A Codespace.** The image and the three add-ons are pinned by fingerprint; what an add-on downloads when the
+  Codespace is built (the current Node.js 22, Docker, Git LFS) is not. On the build machine the add-ons could not
+  be installed (it may not reach the host their packages come from), so Docker inside a Codespace and isolated
+  mode there were not rehearsed: Kevin's own check in a new Codespace covers them (`docs/HANDOFF-overnight.md`).
+  The address `./run-demo.sh` prints (`http://127.0.0.1:8000`) is inside the Codespace; README says to use the
+  box GitHub shows, or the Ports tab.
+- **The fast test set.** To keep it under five minutes, the tests that read the three oldest shared walks still
+  in it (the phase 3a fix, the phase 4a migration demo, a phase 4b change) moved to the full set. They run with
+  `--full` and in the nightly checks.
+
 ## Limits of phase 5b (one connected assessment; 17 November 2026)
 
 - **The sign-off name is typed, not checked.** This app has one login, so whoever is at the keyboard records the name

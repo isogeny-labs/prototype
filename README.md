@@ -144,6 +144,18 @@ Things to know in a Codespace:
   **Settings**, **Codespaces**, **Secrets**, with access to this repository). Never type the key into the app, a
   file or the terminal.
 
+### Finding your way on a page (19 November 2026)
+
+- **Checks** lists every check of the assessment in four groups. The Encryption tests group is in four labelled
+  parts, each with a count: **Test plan** (the first runs, as two lists: Standard tests and Advisory checks),
+  **Retests by version** (one block for each version a retest ran on, the newest open; **Retest new version** is
+  here as well as on Evidence), **Fix proofs** (one block for each proof) and **Tries on a test copy** (only when a
+  server change was tried). Each run shows in one place only.
+- **Open in new tab.** Every side panel has **Open in new tab ↗** in its header. It opens that one item on a page of
+  its own, with an address you can bookmark and open again; **← Back** returns to the list with the panel open.
+- **Times** on screen are in your own time zone, like "18 November 2026, 7:46 pm EST". The evidence file, the
+  report and every download keep UTC, so a file reads the same wherever it is opened.
+
 ### A file with several servers and programs
 
 `demo/multi-target-demo.csv` (Demo data) names the Acme server, three local test servers (8444, 8445, 8446)
@@ -248,16 +260,17 @@ come next. The rules are in [docs/SPEC.md](docs/SPEC.md), section 7f.
   adds it) and then **Advisories** in the sidebar. Each row is a real published advisory: its plain name, when it
   was published, which signing programs here it fits, and whether it has a test (**Test ready**, **No test yet** or
   **Not offered**, each with its reason). Open a row to read the publisher's own line, the test, and how the test
-  did when it was tried on public copies before the pack shipped. Where a test fits a signing program of your file,
-  Otto proposes its check, marked "From Otto": **Accept** adds that one check to the test plan and runs nothing;
+  did when it was tried on public copies before the pack shipped. An advisory that arrived with the newest pack
+  you installed has the tag "New" beside its name. Where a test fits a signing program of your file, its check is
+  proposed, marked "From Otto": **Accept** adds that one check to the test plan and runs nothing;
   **Reject** asks for an optional short reason and keeps the proposal on the record as "Not added (reason)". An
   accept can be undone until the check has run, and a rejection can be reconsidered. Every decision is recorded with
   who and when.
-- **Run them** on **Checks**, like any other test. Expected on the Acme Pay demo with both packs installed: three
-  advisory checks. The check for CVE-2022-21449 is **Failed** on `acme-sign` 1.4.2 (3 of 77 published cases wrong);
+- **Run them** on **Checks**, like any other test (the test plan lists them under "Advisory checks", apart from
+  the "Standard tests"). Expected on the Acme Pay demo with both packs installed: three advisory checks. The check for CVE-2022-21449 is **Failed** on `acme-sign` 1.4.2 (3 of 77 published cases wrong);
   the other two are **Passed**. Three of the six advisories read **No test yet**, each with its reason. A result says which cases got the wrong answer. It says nothing about how serious
   an advisory is.
-- **The fix.** In **Fixes**, Otto proposes its own change for `acme-sign`, labelled "Written by Otto". Accept the
+- **The fix.** In **Fixes**, a change for `acme-sign` is proposed, labelled "Written by Otto". Accept the
   proposal first (accepting runs nothing); then **Connect demo code** proves the change on a test copy, rerunning
   every locked test, the advisory checks among them. Open the pull request, approve, merge, and **Retest now**: the
   same locked check reads **Passed**. (The program Otto's recorded change gives is one line different from our own
@@ -266,8 +279,8 @@ come next. The rules are in [docs/SPEC.md](docs/SPEC.md), section 7f.
   version with the quoted source, and two rows, "Proven on public copies" (the trial before the pack shipped) and
   "Proven on your system" ("Not yet" until a retest on the updated version has run here).
 - **Everywhere else.** The Overview counts what is "Waiting for you"; Import says how many checks may apply;
-  Migration and Dependencies show Otto's proposals for the plan and for libraries that an advisory names. Otto
-  proposes; a person decides; nothing runs without a click.
+  Migration and Dependencies show the proposals (each marked "From Otto") for the plan and for libraries that an
+  advisory names. Each proposal is decided by a person; nothing runs without a click.
 - **Otto and Claude.** Otto uses Claude to read each advisory, design its test and propose its fix, and to write a
   change for your own program when an advisory check has failed on it. Nothing Claude writes is trusted by itself,
   and Claude never sets a result. What comes with the app are answers **recorded during the build**; tests,
@@ -328,7 +341,7 @@ Things to know:
 Stop the app first (the end-to-end test needs port 8443 for its own demo server).
 
 ```
-# Backend tests (the fast set, a few minutes) and the accuracy check
+# Backend tests (the fast set, under 5 minutes) and the accuracy check
 cd backend
 .venv/bin/python -m pytest -q tests
 .venv/bin/python -m app.accuracy

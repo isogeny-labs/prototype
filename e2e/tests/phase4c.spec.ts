@@ -107,7 +107,8 @@ test("demo mode: the real libraries import, but nothing of them can run, and eve
   const groups = page.getByTestId("test-group");
   await expect(groups).toHaveCount(6);
   for (const heading of GROUPS) {
-    const one = groups.filter({ has: page.getByRole("heading", { level: 2, name: heading, exact: true }) });
+    // (since the 5c fixes the test plan is a part of Checks, "Test plan", so a group's heading is two levels further in)
+    const one = groups.filter({ has: page.getByRole("heading", { level: 4, name: heading, exact: true }) });
     await expect(one, `expected a group "${heading}"`).toHaveCount(1);
     await expect(one.getByTestId("test-group-note"), `expected the isolated-mode note under "${heading}"`).toContainText("isolated mode");
   }
@@ -174,7 +175,7 @@ test("isolated mode: the real libraries are verified, tested, fixed, measured an
     await expect(view.getByTestId("test-card"), "expected 15 suggested tests").toHaveCount(15);
     await expect(view.getByTestId("test-group"), "expected six groups").toHaveCount(6);
     for (const heading of GROUPS) {
-      await expect(view.getByRole("heading", { level: 2, name: heading, exact: true }), `expected a group "${heading}"`).toBeVisible();
+      await expect(view.getByRole("heading", { level: 4, name: heading, exact: true }), `expected a group "${heading}"`).toBeVisible();
     }
     await expect(view.getByTestId("test-group-note"), "in isolated mode no group should carry a can't-run note").toHaveCount(0);
     await shot(view, "05-tests-real-libraries.png");

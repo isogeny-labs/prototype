@@ -383,7 +383,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await expect(page.getByTestId("next-step")).toContainText("2 advisory checks are proposed from the installed test packs.");
     await expect(waiting.locator('[data-testid="waiting-item"][data-kind="check"]')).toHaveText("2 proposed checks");
     await expect(waiting.getByTestId("waiting-link")).toHaveAttribute("href", /#\/a\/\d+\/advisories$/);
-    await expect(waiting.getByTestId("waiting-note")).toContainText("Otto proposes; a person decides.");
+    await expect(waiting.getByTestId("waiting-note")).toContainText("Each proposal is decided by a person.");
 
     // Advisories: the three advisories of the pack; two have a test, and each of those is a proposal waiting
     let advisories = await openAdvisories(page, assessment);
@@ -856,7 +856,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     const states = Object.fromEntries((part.proposals as any[]).map((p) => [p.title, p.status]));
     expect(states["Update openjdk 17.0.2 to 17.0.3 before the move"]).toBe(`Not added (${JAVA_REASON})`);
     expect(report).toContain("Otto: test packs, the ledger and Claude");
-    expect(report).toContain("Otto&#x27;s proposals, and the decisions on them");
+    expect(report).toContain("Proposals from Otto, and the decisions on them");
     expect(report).toContain(JAVA_REASON);
     expect(JSON.stringify(json)).not.toMatch(/sk-ant-|api[_-]?key"\s*:/i);
     // the report as a person reads it: every proposal with where it stands and each decision on it, who and when

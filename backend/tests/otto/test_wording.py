@@ -10,6 +10,7 @@ This test reads the code, not one walk of the app, so it holds for every state a
   - every piece of text the screens hold themselves (`frontend/src` outside its comments and its tests).
 """
 import ast
+import functools
 import re
 from pathlib import Path
 
@@ -58,7 +59,12 @@ def _screen_texts(path: Path) -> list[tuple[int, str]]:
     return [(n, re.sub(r"(?<![:\"'`])//.*$", "", line)) for n, line in enumerate(source.splitlines(), 1)]
 
 
-def _everything() -> list[tuple[str, int, str]]:
+@functools.lru_cache(maxsize=1)
+def _everything() -> tuple[tuple[str, int, str], ...]:
+    return tuple(_read_everything())
+
+
+def _read_everything() -> list[tuple[str, int, str]]:
     out = []
     for folder in ("backend/app", "backend/evidence"):
         for path in sorted((ROOT / folder).rglob("*.py")):
