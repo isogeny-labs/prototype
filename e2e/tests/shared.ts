@@ -229,8 +229,11 @@ export async function startCopy(browser: Browser, offset: number, mode: "demo" |
                                          EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort), ...more };
   if (mode === "demo") env.EVIDENCE_LAB_MODE = "demo";
   for (const key of ["DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONTEXT", "XDG_RUNTIME_DIR"]) if (process.env[key]) env[key] = process.env[key] as string;
-  const app = spawn(PYTHON, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", "warning"],
-                    { cwd: BACKEND, stdio: "ignore", env });
+  // To look into a walk that failed: E2E_APP_LOG=/some/file keeps what this copy of the app prints, with one line for
+  // every request and its answer. Without it nothing is kept.
+  const log = process.env.E2E_APP_LOG ? fs.openSync(process.env.E2E_APP_LOG, "a") : null;
+  const app = spawn(PYTHON, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", log === null ? "warning" : "info"],
+                    { cwd: BACKEND, stdio: log === null ? "ignore" : ["ignore", log, log], env });
   const context = await browser.newContext({ baseURL: `http://127.0.0.1:${port}` });
   let session: { mode: string } | null = null;
   await expect
@@ -244,6 +247,18 @@ export async function startCopy(browser: Browser, offset: number, mode: "demo" |
     }, { timeout: 30_000 })
     .toBe(true);
   const page = await context.newPage();
+  if (log !== null) {
+    // (and, in the same file, each request the page made: when it ended, its answer and how long it took)
+    const started = Date.now();
+    const note = (line: string) => fs.writeSync(log, `[page +${((Date.now() - started) / 1000).toFixed(2)}s] ${line}\n`);
+    page.on("requestfinished", (request) => {
+      if (!request.url().includes("/api/")) return;
+      void request.response().then((response) =>
+        note(`${request.method()} ${new URL(request.url()).pathname}${new URL(request.url()).search} -> ${response?.status() ?? "no answer"} (${Math.round(request.timing().responseEnd)} ms)`));
+    });
+    page.on("requestfailed", (request) => note(`${request.method()} ${request.url()} failed: ${request.failure()?.errorText ?? "unknown"}`));
+    page.on("framenavigated", (frame) => (frame === page.mainFrame() ? note(`at ${new URL(frame.url()).hash}`) : undefined));
+  }
   return { app, context, page, dataDir, mode: (session as { mode: string } | null)?.mode ?? "demo", server: `localhost:${tlsPort}` };
 }
 

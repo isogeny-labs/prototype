@@ -750,6 +750,39 @@ describe("the panel beside a page of the app", () => {
     expect(calls(fetchMock).filter((k) => k.startsWith("POST"))).toEqual([`POST /api/plans/1/otto/proposals/${blankProposal.id}/accept`]);
     window.history.replaceState(null, "", "#/projects");
   });
+
+  it("on a change of page the panel asks once, and never with the item that was open on the page before", async () => {
+    const { default: App } = await import("../App");
+    const { advisoriesNotAdded } = await import("./ottoFixtures");
+    const { assessmentView, workspace } = await import("./shellFixtures");
+    const { checksView } = await import("./checksFixtures");
+    const { lab, run, session } = await import("./fixtures");
+    const ITEM = "CVE-2022-21449";
+    window.history.replaceState(null, "", `#/a/101/advisories?item=${ITEM}`);
+    const fetchMock = mockApi({
+      "GET /api/session": { body: session },
+      "GET /api/workspace": { body: workspace },
+      "GET /api/assessments/101": { body: assessmentView() },
+      "GET /api/import/7/verify": { body: run },
+      "GET /api/import/7/plan": { body: { ...plan, has_results: true } },
+      "GET /api/plans/1/lab": { body: lab },
+      "GET /api/plans/1/checks": { body: checksView },
+      "GET /api/projects/10": { body: { id: 10, name: "Acme Pay", folder_id: null, archived: false, is_demo: true, path: [], assessments: [], next_name: "Assessment 2" } },
+      "GET /api/plans/1/advisories": { body: advisoriesNotAdded },
+    });
+    render(<App />);
+    // the advisory named by the address is open in the page's own panel, and the Otto panel was told so
+    await screen.findByTestId("advisory-panel");
+    await waitFor(() => expect(panelReads(fetchMock)).toContain(read("advisories", ITEM)));
+    window.location.hash = "#/a/101/checks";
+    fireEvent(window, new HashChangeEvent("hashchange"));
+    await screen.findByRole("heading", { name: "Checks", level: 1 });
+    await waitFor(() => expect(panelReads(fetchMock)).toContain(read("checks")));
+    // one read for Checks, with no item: nothing is open there (before, it first asked about Checks with the advisory)
+    await new Promise((done) => setTimeout(done, 50));
+    expect(panelReads(fetchMock).filter((k) => k.includes("page=checks"))).toEqual([read("checks")]);
+    window.history.replaceState(null, "", "#/projects");
+  });
 });
 
 // ---------------------------------------------------------------- who a decision is recorded as

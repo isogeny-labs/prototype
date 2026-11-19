@@ -91,6 +91,11 @@ def test_why_did_this_check_fail_is_answered_from_the_results_own_words(assistan
     assert result["otto"]["line"] in said
     links = {f["label"]: f["link"] for f in reply["facts"] if f["link"]}
     assert links["See the evidence"] == {"page": "evidence", "item": f"test-{row['item_id']}", "group": None}
+    # each link opens where its sentence stands: the plain sentence is in the Evidence table (a result's open panel
+    # does not repeat it), what happened is in the result's own panel
+    where = {f["text"]: (f["label"], f["link"]["item"]) for f in reply["facts"]}
+    assert where[result["plain"]] == ("See the Evidence table", None) and links["See the Evidence table"]["page"] == "evidence"
+    assert all(where[line] == ("See the evidence", f"test-{row['item_id']}") for line in result["what_happened"][:3])
     assert links["Open the advisory"] == {"page": "advisories", "item": "CVE-2022-21449", "group": None}
     assert any(f["link"] and f["link"]["page"] == "fixes" for f in reply["facts"])
     # nothing in the answer is the assistant's own: every sentence between the first and the fix's is on the result, word for word

@@ -22,6 +22,7 @@ from app.web import changes, checks, dependencies, fixes, importing, migration, 
 from app.web import lab as lab_routes
 from app.web import otto as otto_routes
 from app.web import tests as test_routes
+from app.web.turns import OneReadAtATime
 from app.web.common import error_response
 
 
@@ -44,6 +45,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # The 5c fixes: a browser asks for marked times with one header, and writes each in the viewer's own time zone.
     # Without the header every sentence keeps its UTC words (scripts, the accuracy check, downloads).
     app.add_middleware(MarkTimes)
+    # Reads take turns, first come, first served: several views worked out side by side are much slower than one after
+    # another (app/web/turns.py). Anything that changes something does not wait.
+    app.add_middleware(OneReadAtATime)
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_request: Request, exc: StarletteHTTPException):

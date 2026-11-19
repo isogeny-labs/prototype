@@ -250,10 +250,13 @@ export default function App() {
   // own view again by the same signal (src/changes.ts).
   // (the item open in the page's own side panel, as the panel itself reports it: by its address or by a click on a row)
   // Until a panel has reported on this page, the item the address names stands in (the page is still loading).
-  const [reported, setReported] = useState<{ item: string | null } | null>(null);
-  useEffect(() => setReported(null), [routePage, routeId]);
-  const setOpenItem = useCallback((item: string | null) => setReported({ item }), []);
-  const openItem = reported ? reported.item : routeItem;
+  // A report counts only on the page it was made on: on the first drawing of the next page the item that was open on
+  // the page before is already forgotten, so the Otto panel never asks about that page with the other page's item
+  // (it used to, and every page change cost a second read). A panel that stays open across a change of tab (a system,
+  // on Migration) reports again under the new tab, because the function it reports with is a new one.
+  const [reported, setReported] = useState<{ page: Page | null; id: number | null; item: string | null } | null>(null);
+  const setOpenItem = useCallback((item: string | null) => setReported({ page: routePage, id: routeId, item }), [routePage, routeId]);
+  const openItem = reported && reported.page === routePage && reported.id === routeId ? reported.item : routeItem;
   const panelStamp = usePanelStamp();
   useEffect(() => {
     if (panelStamp === 0 || !loggedIn || routeId === null) return;

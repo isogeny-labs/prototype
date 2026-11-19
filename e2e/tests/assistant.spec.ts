@@ -404,11 +404,18 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     // asking sent the two sentences, to be kept with the assessment, and nothing else: nothing ran, nothing was decided
     const keptSentence = expect.stringMatching(/^POST \/api\/plans\/\d+\/assistant\/messages$/);
     expect(changes(page).slice(beforeAsked)).toEqual([keptSentence, keptSentence]);
-    // the facts are the result's own sentences: the second one is word for word the plain sentence Evidence shows for it
-    const plainSentence = ((await whyFacts.nth(1).innerText()).replace(/\s*See the evidence\s*$/, "")).trim();
-    await whyAnswer.getByRole("link", { name: "See the evidence" }).first().click();
+    // The facts are the result's own sentences, and each link opens where its sentence stands. The second fact is word
+    // for word the plain sentence in the Evidence table (the page is on that table now: its link stays here).
+    const sentence = async (n: number, label: string) => ((await whyFacts.nth(n).innerText()).replace(new RegExp(`\\s*${label}\\s*$`), "")).trim();
+    const plainSentence = await sentence(1, "See the Evidence table");
+    await whyFacts.nth(1).getByRole("link", { name: "See the Evidence table" }).click();
+    await expect(page).toHaveURL(new RegExp(`#/a/${assessment}/evidence$`));
+    await expect(page.getByTestId("evidence-row").filter({ hasText: RANGE_CHECK })).toContainText(plainSentence);
+    // the third is what happened: it stands in the result's own panel, which its link opens
+    const whatHappened = await sentence(2, "See the evidence");
+    await whyFacts.nth(2).getByRole("link", { name: "See the evidence" }).click();
     await expect(page).toHaveURL(new RegExp(`#/a/${assessment}/evidence\\?item=test-\\d+$`));
-    await expect(page.getByTestId("page-content")).toContainText(plainSentence);
+    await expect(page.getByTestId("detail-panel")).toContainText(whatHappened);
     expect(await layoutProblems(page), "Evidence with an answer in the panel").toEqual([]);
     await shots(page, "08c-evidence-why-did-this-check-fail");
     // with the result open, "this check" is that one: the same question is answered at once
