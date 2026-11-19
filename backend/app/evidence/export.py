@@ -28,6 +28,7 @@ from sqlalchemy import select
 
 from app.run import components
 from app.present import plain
+from app.present import times
 from app.engine import pq_vectors
 from app.present import fixes as present_fixes
 from app import real_libraries
@@ -474,7 +475,13 @@ def _earlier_runs(lab, db, item_id: int, shown: set) -> list[dict]:
 
 
 def build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
-    """The evidence for one plan, from the same reviewed results Evidence Lab shows."""
+    """The evidence for one plan, from the same reviewed results Evidence Lab shows. Every time in it is written in UTC
+    words, whoever asked: a browser's request for marked times (app/present/times.py) never reaches a file."""
+    with times.for_files():
+        return _build_evidence(lab, plan_id, generated_at)
+
+
+def _build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
     view = lab.lab_view(plan_id)  # the read gate: every result here has a review that still matches its record
     public = ensure_signing_key(lab.settings.data_dir)
     checks = _checks_part(lab, plan_id)
@@ -1168,7 +1175,8 @@ class EvidenceMixin:
         except SigningKeyError as exc:
             raise Conflict(f"{exc} Nothing was downloaded.") from exc
         fingerprint = sha256_hex(evidence)
-        report = render_report_html({"evidence": evidence, "fingerprint": fingerprint})
+        with times.for_files():
+            report = render_report_html({"evidence": evidence, "fingerprint": fingerprint})
         with self.db() as db:
             row = EvidenceExportRow(plan_id=plan_id, created_at=created, fingerprint=fingerprint, json_bytes=raw, html_bytes=report)
             db.add(row)

@@ -12,6 +12,7 @@ from datetime import datetime
 
 from app.otto import designs, model
 from app.present import advisory as present_advisory
+from app.present import times
 from app.present.results import DISCLAIMER
 
 TEST_LABELS = {"ready": ("Test ready", "pass"), "not_offered": ("Not offered", "warn"), "none": ("No test yet", "neutral")}
@@ -166,7 +167,9 @@ def stamp(value: str | None) -> str:
         when = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return str(value or "")
-    return f"{when.day} {when.strftime('%B %Y')}, {when.strftime('%H:%M')} UTC"
+    # For a file: the UTC words, as always. For a browser that asked: a mark, which the browser writes in the viewer's
+    # own time zone (app/present/times.py).
+    return times.written(value, f"{when.day} {when.strftime('%B %Y')}, {when.strftime('%H:%M')} UTC")
 
 
 def _row(key: str, label: str, word: str, tone: str, text: str, links: list[dict] | None = None, ledger: dict | None = None,

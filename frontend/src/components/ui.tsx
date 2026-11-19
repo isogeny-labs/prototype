@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode, type RefObject } from "react";
 import type { RichText, RowStatus, Tone } from "../api";
 import { CLOSED_SENTENCE, useReadOnly } from "../readOnly";
+import { formatTime } from "../time";
 
 /** Small label saying where a value came from (rule: every number says its source). */
 export function SourceTag({ children }: { children: ReactNode }) {
@@ -116,10 +117,8 @@ export function Wordmark({ large }: { large?: boolean }) {
   );
 }
 
-export function formatTime(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
-}
+// The one way a time is written on screen, in the viewer's own time zone (the 5c fixes): src/time.ts.
+export { formatTime };
 
 /** Saves one file the app made, by its own address. Nothing is sent anywhere. */
 export function saveFile(url: string, filename: string) {

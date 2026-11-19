@@ -211,6 +211,7 @@ export type {
   AdvisoryClaude,
   AdvisoryStep,
 } from "./api.gen";
+import { TIMES_ASK, TIMES_HEADER, withLocalTimes } from "./time";
 import type {
   Session,
   Address,
@@ -293,12 +294,15 @@ interface RequestOptions {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const init: RequestInit = { method: options.method ?? "GET", credentials: "same-origin" };
+  // The 5c fixes: every request asks the server to mark the times in its sentences, and every answer has them written
+  // in the viewer's own time zone below, in this one place (src/time.ts). Downloads are plain links: they keep UTC.
+  const asksForTimes = { [TIMES_HEADER]: TIMES_ASK };
+  const init: RequestInit = { method: options.method ?? "GET", credentials: "same-origin", headers: asksForTimes };
   if (options.json !== undefined) {
-    init.headers = { "Content-Type": "application/json" };
+    init.headers = { "Content-Type": "application/json", ...asksForTimes };
     init.body = JSON.stringify(options.json);
   } else if (options.raw !== undefined) {
-    init.headers = { "Content-Type": "application/octet-stream" };
+    init.headers = { "Content-Type": "application/octet-stream", ...asksForTimes };
     init.body = options.raw;
   }
 
@@ -311,7 +315,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   let body: unknown = null;
   try {
-    body = await response.json();
+    body = withLocalTimes(await response.json());
   } catch {
     body = null;
   }

@@ -16,6 +16,7 @@ from app import auth
 from app.config import FRONTEND_DIST, Settings, load_settings
 from app.importer.common import ImportFileError
 from app.lab.hub import BadRequest, Conflict, Lab, NotFound
+from app.present.times import MarkTimes
 from app.web import changes, checks, dependencies, fixes, importing, migration, projects, session
 from app.web import lab as lab_routes
 from app.web import otto as otto_routes
@@ -39,6 +40,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.lab = lab
     # Only answer requests addressed to this computer (stops other web pages reaching the app by a trick name).
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "testserver"])
+    # The 5c fixes: a browser asks for marked times with one header, and writes each in the viewer's own time zone.
+    # Without the header every sentence keeps its UTC words (scripts, the accuracy check, downloads).
+    app.add_middleware(MarkTimes)
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_request: Request, exc: StarletteHTTPException):

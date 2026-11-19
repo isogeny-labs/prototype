@@ -438,7 +438,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     proposal = panel.getByTestId("otto-proposal");
     await decide(page, proposal, "accept");
     await expect(proposal.getByTestId("proposal-status")).toHaveText("Added");
-    await expect(proposal.getByTestId("proposal-decided")).toContainText(/^Accepted by You on \d{1,2} \w+ 20\d\d, \d\d:\d\d UTC\.$/);
+    await expect(proposal.getByTestId("proposal-decided")).toContainText(/^Accepted by You on \d{1,2} \w+ 20\d\d, \d{1,2}:\d\d [ap]m E[SD]T\.$/);
     await expect(proposal.getByTestId("proposal-effect")).toHaveText("It is in the test plan, on Checks. It has not run yet.");
     await expect(proposal.getByRole("button")).toHaveText(["Undo"]);
     await expect(advisoryRow(page, "CVE-2022-21449").getByTestId("advisory-proposal")).toHaveText("Added");
@@ -452,7 +452,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await expect(proposal.getByTestId("proposal-status")).toHaveText("Added");
     await proposal.getByTestId("proposal-history").locator("summary").first().click();
     await expect(proposal.getByTestId("proposal-decision")).toHaveText([
-      /^1\. Accepted by You on .+ UTC\.$/, /^2\. Accept undone by You on .+ UTC\.$/, /^3\. Accepted by You on .+ UTC\.$/]);
+      /^1\. Accepted by You on .+ [ap]m E[SD]T\.$/, /^2\. Accept undone by You on .+ [ap]m E[SD]T\.$/, /^3\. Accepted by You on .+ [ap]m E[SD]T\.$/]);
     await expect(proposal.getByTestId("proposal-history")).toContainText(ONE_LOGIN);
     await shots(page, "2-00-advisory-accepted-with-its-decisions", { panel: true });
     await closePanel(page);
@@ -523,7 +523,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await expect(origin.getByTestId("result-otto-design")).toContainText(/Design fingerprint \(SHA-256\): [0-9a-f]{64}/);
     await expect(origin.getByTestId("result-otto-trial")).toContainText("openjdk 17.0.2 (affected): 10 of 77 cases wrong.");
     await expect(origin.getByTestId("result-otto-decision")).toHaveText([
-      /^1\. Accepted by You on .+ UTC\.$/, /^2\. Accept undone by You on .+ UTC\.$/, /^3\. Accepted by You on .+ UTC\.$/]);
+      /^1\. Accepted by You on .+ [ap]m E[SD]T\.$/, /^2\. Accept undone by You on .+ [ap]m E[SD]T\.$/, /^3\. Accepted by You on .+ [ap]m E[SD]T\.$/]);
     await expect(origin.getByTestId("result-otto-decisions")).toContainText(ONE_LOGIN);
     await expect(origin.getByTestId("advisory-ledger")).toContainText("Otto ledger entries for this check and its decisions");
     await expect(origin.getByTestId("result-otto-note")).toContainText("The result comes only from the test.");
@@ -805,7 +805,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await decide(page, proposal, "accept");
     await proposal.getByTestId("proposal-history").locator("summary").first().click();
     await expect(proposal.getByTestId("proposal-decision")).toHaveText([
-      new RegExp(`^1\\. Rejected by You on .+ UTC: ${REASON}\\.$`), /^2\. Taken up again by You on .+ UTC\.$/, /^3\. Accepted by You on .+ UTC\.$/]);
+      new RegExp(`^1\\. Rejected by You on .+ [ap]m E[SD]T: ${REASON}\\.$`), /^2\. Taken up again by You on .+ [ap]m E[SD]T\.$/, /^3\. Accepted by You on .+ [ap]m E[SD]T\.$/]);
     await shots(page, "7-00-advisory-reconsidered-and-accepted", { panel: true });
     await closePanel(page);
     await stepLink(page, "Checks").click();
@@ -1030,7 +1030,7 @@ test("isolated mode: a real library's fix from Otto has two proof rows, and a re
     await page.getByTestId("fix-row").filter({ has: page.getByTestId("fix-proposal-mark") }).first().click();
     await expect(here.getByTestId("proof-row-badge")).toHaveText("Passed");
     await expect(here.getByTestId("proof-row-text")).toHaveText(
-      /^On \d{1,2} \w+ 20\d\d, \d\d:\d\d UTC the retest on elliptic 6\.5\.7 passed: the advisory check and every other locked pass-or-fail test\.$/);
+      /^On \d{1,2} \w+ 20\d\d, \d{1,2}:\d\d [ap]m E[SD]T the retest on elliptic 6\.5\.7 passed: the advisory check and every other locked pass-or-fail test\.$/);
     await expect(here.getByTestId("proof-row-link")).toHaveText("See the retest's result");
     await expect(here.getByTestId("proof-row-link")).toHaveAttribute("href", /#\/a\/\d+\/evidence\?/);
     await expect(here.getByTestId("proof-row-note")).toContainText("This row is about a public copy, not the system you run.");

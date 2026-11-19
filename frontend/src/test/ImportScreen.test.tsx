@@ -151,7 +151,7 @@ describe("Import screen", () => {
     await waitFor(() => expect(props.onImported).toHaveBeenCalled());
     const init = fetchMock.mock.calls[0]?.[1];
     expect(init?.body).toBe(file);
-    expect(init?.headers).toEqual({ "Content-Type": "application/octet-stream" });
+    expect(init?.headers).toMatchObject({ "Content-Type": "application/octet-stream" });
   });
 
   it("uploads a dropped file", async () => {

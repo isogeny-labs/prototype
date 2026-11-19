@@ -13,6 +13,7 @@ from datetime import date
 
 from app.migration import rules
 from app.present import pq as present_pq
+from app.present import times
 from app.present import tracks as present_tracks
 from app.engine.guidance import PQ_DATES, PQ_PUBLISHED
 from app.names import join_and
@@ -562,7 +563,10 @@ def _options(state: dict, today: date) -> list[dict]:
 
 
 def choice_line(kind: str, choice: dict) -> str:
-    line = f"Your choice: {option_title(kind, choice['option'])}, saved {day(choice['at'])} (UTC)."
+    # (for a file: the day in UTC, as always; for a browser that asked: the moment, marked, which the browser writes
+    # in the viewer's own time zone)
+    saved = times.mark(choice["at"]) if times.marked() else None
+    line = f"Your choice: {option_title(kind, choice['option'])}, saved {saved or day(choice['at']) + ' (UTC)'}."
     if choice.get("review_date"):
         line += f" Review date: {day(choice['review_date'])}."
     return line + (f" Your reason: {choice['reason']}" if choice.get("reason") else " No reason given.")
