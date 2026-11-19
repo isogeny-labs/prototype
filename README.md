@@ -411,6 +411,45 @@ The app has one login and does not check who is at the keyboard.
 There is no AI model in the panel in this phase: with no API key, everything in it works. The status line under the
 title says whether Live Otto is on.
 
+### Telling Otto what to do (phase 6b, first half, 19 November 2026)
+
+At the foot of the Otto panel there is a text box: **Ask Otto, or tell it what to do**. Type a sentence and
+press Enter (or Send), or press one of the example chips above it.
+
+- **Moving around happens at once.** "show me failed checks" opens Checks with only the failed checks listed.
+  "open evidence", "open the Java fix" and "close the Fixing tab" work the same way. The answer says where it went.
+- **Anything that decides or starts something waits for Confirm.** "accept the Java fix" or "run all" shows that
+  suggestion's or that button's own card, with what will happen. Nothing is sent until you press **Confirm**.
+  "reject the Java fix: we stay on 17.0.2 until January" fills in your reason, in your own words.
+- **Otto never guesses.** If several things fit it asks "Which one?". If nothing fits it says "I can't do that."
+  and lists what you can say on this page. "What can you do?" shows the same list.
+- **Some things are only done on their page**: Approve, Merge pull request, Apply, Roll back, Close and sign off,
+  downloads and Settings. Otto opens the page and says so.
+
+In this version a sentence is read by fixed rules only, so it works the same with no API key. What you type in an
+open assessment is kept with it and shown in the panel's thread. A closed assessment keeps nothing.
+
+### Asking Otto a question (phase 6c, first half, 19 November 2026)
+
+The same text box takes six fixed questions. The ones that fit the page show as chips above the examples:
+
+- **Why did this check fail?**
+- **What does this result show, and what doesn't it?**
+- **Where did this suggestion come from?**
+- **What happens if I accept this?**
+- **What is this page for?**
+- **What should I do next?**
+
+You can also type one in your own words and name the item: "why did the range check fail?".
+
+The answer is a short list of facts, headed **From this assessment's records**. Each fact is a sentence the app
+already shows for that item (the result, what happened, the control, the advisory, the fix), with a link that opens
+the place where it is shown. Nothing in an answer can be pressed except the links. If several items fit, Otto asks
+"Which one?". If the records have nothing to answer from, it says so.
+
+These answers come from fixed rules, so they work the same with no API key, and in a closed assessment too. An
+answer written in free words by Claude is the second half of this phase and is not built yet.
+
 ### Looking for new advisories (Otto's research loop, 19 November 2026)
 
 On the **Advisories** page of an assessment there is a block called **New advisories**, with two buttons. Each one

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.assistant import commands
+from app.assistant import commands, questions
 from app.assistant.threads import FITS, KIND_THREAD, PAGE_LABELS, PAGE_THREAD, PAGES, THREAD_LABELS
 from app.errors import BadRequest
 from app.otto.proposals import CLOSED, HOME
@@ -34,7 +34,7 @@ PAGE_BUTTONS = {"merge": "merge", "apply": "apply", "roll_back": "rollback"}
 
 def answer(copilot: Any, lab: Any, assessment_id: int, page: str, item: str | None, text: str) -> dict:
     """The answer to one typed sentence. `copilot` is the engine of phase 6a: its cards are the cards shown here."""
-    from app.assistant.engine import _Facts, settled, waits         # (the engine imports this module's caller)
+    from app.assistant.engine import facts_of, settled, waits       # (the engine imports this module's caller)
     if page not in PAGES:
         raise BadRequest("That page is not part of an assessment.", field="page")
     said = commands.read(text)
@@ -55,6 +55,13 @@ def answer(copilot: Any, lab: Any, assessment_id: int, page: str, item: str | No
     can = commands.can_say(page, bool(proposals))
     if key is None:
         return out("cannot", CANNOT, can=can)
+    if key == "ask":
+        # Phase 6c: a fixed question. Answering reads; it is the same in a closed assessment.
+        facts_ = facts_of(lab, core, closed, proposals)
+        fits_ = FITS.get(page, ())
+        shown_ = [p for p in proposals if p["kind"] in fits_ and not settled(p)]
+        shown_.sort(key=lambda p: (not _about(p, item), not waits(p)))
+        return questions.answer(copilot, facts_, said, page, item, proposals, shown_, out, can)
     if key == "help":
         return out("help", f"On {PAGE_LABELS[page]} you can tell Otto:", can=can)
     if key == "open_page":
@@ -65,7 +72,7 @@ def answer(copilot: Any, lab: Any, assessment_id: int, page: str, item: str | No
     if not has_file:
         return out("cannot", NO_FILE, can=can)
 
-    facts = _Facts(lab, core, closed)
+    facts = facts_of(lab, core, closed, proposals)
     # the suggestions as the panel shows them: those that fit this page first, in the panel's own order
     fits = FITS.get(page, ())
     shown = [p for p in proposals if p["kind"] in fits and not settled(p)]
@@ -163,7 +170,7 @@ def _open_item(copilot: Any, facts: Any, said: dict, proposals: list[dict], item
         one = found[0]
         return out("went", f"Opened “{one['title']}” on {one['where']}.", go=one["go"], thread=one["thread"])
     if len(found) > 1:
-        return out("which", WHICH, options=[{"label": f"{c['title']} (on {c['where']})", "say": f"Open {c['title']}"}
+        return out("which", WHICH, options=[{"label": f"{c['title']} (on {c['where']})", "say": f"Open {commands.sayable(c['title'])}"}
                                              for c in found[:commands.MAX_OPTIONS]])
     return out("cannot", CANNOT + " Nothing here is called that.", can=can)
 
@@ -227,7 +234,7 @@ def _decision(copilot: Any, said: dict, verb: str, shown: list[dict], others: li
                 break
     if len(pool) > 1:
         return out("which", WHICH, options=[{"label": f"{p['title']} (on {PAGE_LABELS[HOME.get(p['kind'], 'overview')]})",
-                                             "say": f"{VERBS[verb]} {p['title']}" + (f": {said['reason']}" if said.get("reason") else "")}
+                                             "say": f"{VERBS[verb]} {commands.sayable(p['title'])}" + (f": {said['reason']}" if said.get("reason") else "")}
                                             for p in pool[:commands.MAX_OPTIONS]])
     proposal = pool[0]
     entry = copilot._suggestion(proposal, item)
@@ -301,7 +308,7 @@ def _step_names(facts: Any, key: str, entries: list[dict]) -> dict[str, list[str
 
 def _say_again(line: dict, name: str) -> str:
     """A sentence that names exactly this one, for "Which one?"."""
-    key = line["key"]
+    key, name = line["key"], commands.sayable(name)
     if key == "run":
         return f"Run {name}"
     if key == "retest":

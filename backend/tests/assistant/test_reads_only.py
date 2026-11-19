@@ -18,7 +18,7 @@ PACKAGE = Path(assistant.__file__).resolve().parent
 ALLOWED_IMPORTS = {"__future__", "hashlib", "re", "typing", "app.assistant", "app.assistant.threads", "app.assistant.words", "app.errors",
                    "app.assistant.engine", "app.otto", "app.otto.proposals", "app.present"}
 ALLOWED_NAMES = {"app.otto.proposals": {"CLOSED", "HOME", "accept_stands"}, "app.otto": {"harness"}, "app.present": {"otto"},
-                 "app.assistant": {"words", "commands", "answers"}, "app.errors": {"BadRequest", "NotFound"}}
+                 "app.assistant": {"words", "commands", "answers", "questions"}, "app.errors": {"BadRequest", "NotFound"}}
 # Every method of the Lab the package may call. Each is a read the pages themselves make (their GET routes), or a
 # read made for the panel; none starts a job, records a decision or writes a row.
 READS = {"assessment_core", "otto_live_ready", "otto_proposals", "plan_view", "lab_view", "fixes_view", "migration_measure_view",

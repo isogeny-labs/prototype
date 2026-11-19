@@ -156,6 +156,26 @@ def test_a_browser_gets_marks_a_script_gets_utc_and_no_file_or_record_ever_holds
         assert not any(UTC_WORDS.search(text) for text in _texts(client.get(base, headers=browser).json()))
         assert not any(UTC_WORDS.search(text) for text in _texts(client.get(f"/api/plans/{plan['id']}/advisories", headers=browser).json()))
 
+        # --- phase 6c: an answer of the Otto panel that holds a time, asked as the browser asks it (and so kept with the
+        #     assessment). The answer to the browser is marked; what is kept is in UTC words, like every record; and the
+        #     kept answer, read again by a browser, has its time marked again.
+        asked = client.post(f"/api/plans/{plan['id']}/assistant/messages", headers=browser,
+                            json={"text": "where did this suggestion come from?", "page": "advisories", "item": None})
+        assert asked.status_code == 200, asked.text
+        told = [f["text"] for f in asked.json()["facts"]]
+        assert asked.json()["kind"] == "answer" and any(MARK.search(t) for t in told) and not any(UTC_WORDS.search(t) for t in told)
+        kept = client.app.state.lab.assistant_messages(plan["id"])[-1]            # (as stored: read with no browser asking)
+        assert [times.remarked(f["text"]) for f in kept["facts"]] == [f["text"] for f in kept["facts"]]      # for a file it stays as stored
+        assert any(UTC_WORDS.search(f["text"]) for f in kept["facts"]) and "[[time:" not in json.dumps(kept)
+        assert len(kept["facts"]) == len(told)
+        for stored, shown in zip(kept["facts"], asked.json()["facts"], strict=True):
+            with times.for_screen():
+                assert times.remarked(stored["text"]) == re.sub(r":\d\dZ\]\]", ":00Z]]", shown["text"])   # the same moment, to the minute
+        for headers, wanted, unwanted in ((browser, MARK, UTC_WORDS), ({}, UTC_WORDS, MARK)):
+            panel = client.get(f"/api/assessments/{imp['assessment_id']}/assistant", params={"page": "advisories"}, headers=headers).json()
+            line = next(e for t in panel["tabs"] for e in t["so_far"] if e["kind"] == "said")
+            assert any(wanted.search(f["text"]) for f in line["facts"]) and not any(unwanted.search(f["text"]) for f in line["facts"])
+
         # --- the files: built on a browser's click (the header is on that request too), and still in UTC
         lab = client.app.state.lab
         lab.verify(imp["id"])

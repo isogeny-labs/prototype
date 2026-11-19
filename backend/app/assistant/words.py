@@ -7,10 +7,24 @@ from __future__ import annotations
 TITLE = "Otto"
 ON_PAGE = "On this page"
 SO_FAR = "This thread so far"
+# Phase 6c: one sentence about each page, for "What is this page for?" (the assistant's own words; each says what the
+# page holds, never how well anything did).
+PAGE_FOR = {
+    "overview": "The Overview says where this assessment stands: what was verified, what was tested, what waits for a decision, and the next step.",
+    "inventory/import": "Import brings in a scanner file (a CBOM or a CSV). A file is data: nothing in it runs. Its claims are listed here.",
+    "inventory/verify": "Verify checks each claim of the file against the real system and says True, False or Couldn't check, with the evidence.",
+    "advisories": "Advisories lists published advisories that fit this assessment's programs and libraries, and the checks proposed from them.",
+    "checks": "Checks lists every check of this assessment in four groups. The test plan is here, under Encryption tests.",
+    "evidence": "Evidence holds every result: what was run, what came back, what it shows and what it doesn't. The signed evidence file is downloaded here.",
+    "fixes": "Fixes lists what can be done about a failed result: a change with its proof, or a suggestion in words.",
+    "migration/systems": "Systems shows where each system stands on the move to post-quantum cryptography, with its options and its plan.",
+    "migration/roadmap": "Roadmap puts the next step of each system in order.",
+    "migration/dependencies": "Dependencies lists the libraries a dependency list names, and what is known about each.",
+}
 # Phase 6b: the text box.
 MARK_SAID = "You said"
 SAID_LINK = "Open where it led"
-BOX_CLOSED = "This assessment is closed. The text box can still take you places. What you type is not kept."
+BOX_CLOSED = "This assessment is closed. The text box can still take you places and answer the fixed questions. What you type is not kept."
 # Why nothing new can start for a plan while its jobs run: the two sentences the server refuses such a click with, word
 # for word (`BUSY` in app/lab/testlab.py; a test holds them equal). The panel says the one that applies.
 BUSY_TESTS = "Tests are still running. Wait until they have finished."

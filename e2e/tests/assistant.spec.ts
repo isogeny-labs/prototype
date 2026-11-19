@@ -344,6 +344,84 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     await expect(told.getByTestId("otto-blocked")).toHaveText("This check has run, so it stays in the test plan.");
     await shots(page, "08-checks-after-run-all");
 
+    // ================================================================ phase 6b: a typed sentence that moves around
+    // "show me failed checks" opens Checks with only the failed checks listed. Nothing else happens.
+    const box = panel.getByTestId("otto-box-text");
+    await expect(panel.getByLabel("Ask Otto, or tell it what to do")).toBeVisible();
+    await expect(panel.getByTestId("otto-chip")).toHaveText(["Show failed checks", "Run all", "What can you do?"]);
+    const beforeSaid = changes(page).length;
+    await box.fill("show me failed checks");
+    expect(changes(page).length, "typing sends nothing").toBe(beforeSaid);
+    await box.press("Enter");
+    await expect(panel.getByTestId("otto-reply-text")).toHaveText(/^Opened Checks, filtered to Failed: \d+ checks\.$/);
+    expect(page.url()).toMatch(new RegExp(`#/a/${assessment}/checks\\?result=Failed$`));
+    await expect(page.getByRole("combobox", { name: "Result" })).toHaveValue("Failed");
+    // only the failed checks are listed: fewer cards of the plan than before, and each reads Failed
+    const failedCards = page.getByTestId("test-card");
+    await expect.poll(() => failedCards.count()).toBeLessThan(6);
+    const badges = await failedCards.getByTestId("result-badge").allInnerTexts();
+    expect(badges.length).toBeGreaterThan(0);
+    expect(badges.every((b) => b.trim() === "Failed"), `every listed test reads Failed: ${badges.join(", ")}`).toBe(true);
+    for (const row of await page.getByTestId("check-row").all()) await expect(row).toContainText("Failed");
+    // the one request it made is the sentence itself, kept with the assessment; nothing ran and nothing was decided
+    expect(changes(page).slice(beforeSaid)).toEqual([expect.stringMatching(/^POST \/api\/plans\/\d+\/assistant\/messages$/)]);
+    await expect.poll(() => cardStatuses(page)).not.toContain("running");
+    expect(await layoutProblems(page), "Checks, filtered by a command, with the text box").toEqual([]);
+    await shots(page, "08b-checks-show-me-failed-checks");
+    // Back returns to the whole list
+    await page.goBack();
+    await expect(page.getByRole("combobox", { name: "Result" })).toHaveValue("all");
+    await expect(page.getByTestId("test-card")).toHaveCount(6);
+    // what was said is in the thread so far, as "You said"
+    const saidLine = panel.getByTestId("otto-so-far").locator('[data-testid="otto-entry"][data-kind="said"]');
+    await panel.getByTestId("otto-so-far-all").click().catch(() => undefined);
+    await expect(saidLine.last().getByTestId("otto-entry-title")).toHaveText("show me failed checks");
+    // a sentence the rules can't read: it says so, and lists what can be said here
+    await box.fill("make me a sandwich");
+    await box.press("Enter");
+    await expect(panel.getByTestId("otto-reply-text")).toHaveText("I can't do that.");
+    await expect(panel.getByTestId("otto-reply-example").first()).toBeVisible();
+
+    // ================================================================ phase 6c: a fixed question, answered from the records
+    // On Evidence the question that fits is "Why did this check fail?". Several checks failed and none is open, so it
+    // asks which one, and the option asks about that one. The answer is a list of facts with links: nothing to press.
+    await page.goto(`/#/a/${assessment}/evidence`);
+    await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
+    await settled(page);
+    await expect(panel.getByTestId("otto-question").first()).toHaveText("Why did this check fail?");
+    const beforeAsked = changes(page).length;
+    await panel.getByTestId("otto-question").first().click();
+    await expect(panel.getByTestId("otto-reply-text")).toHaveText("Which one?");
+    await panel.getByTestId("otto-reply-option").filter({ hasText: RANGE_CHECK }).click();
+    const whyAnswer = panel.getByTestId("otto-reply");
+    await expect(whyAnswer).toHaveAttribute("data-kind", "answer");
+    await expect(whyAnswer.getByTestId("otto-reply-label")).toHaveText("From this assessment's records");
+    const whyFacts = whyAnswer.getByTestId("otto-fact");
+    await expect(whyFacts.first()).toContainText(`“${RANGE_CHECK}” reads Failed on acme-sign 1.4.2.`);
+    expect(await whyFacts.count()).toBeGreaterThanOrEqual(5);
+    await expect(whyAnswer.getByRole("button")).toHaveCount(0);                    // facts and links only
+    await expect(panel.getByTestId("otto-confirm")).toHaveCount(0);
+    // asking sent the two sentences, to be kept with the assessment, and nothing else: nothing ran, nothing was decided
+    const keptSentence = expect.stringMatching(/^POST \/api\/plans\/\d+\/assistant\/messages$/);
+    expect(changes(page).slice(beforeAsked)).toEqual([keptSentence, keptSentence]);
+    // the facts are the result's own sentences: the second one is word for word the plain sentence Evidence shows for it
+    const plainSentence = ((await whyFacts.nth(1).innerText()).replace(/\s*See the evidence\s*$/, "")).trim();
+    await whyAnswer.getByRole("link", { name: "See the evidence" }).first().click();
+    await expect(page).toHaveURL(new RegExp(`#/a/${assessment}/evidence\\?item=test-\\d+$`));
+    await expect(page.getByTestId("page-content")).toContainText(plainSentence);
+    expect(await layoutProblems(page), "Evidence with an answer in the panel").toEqual([]);
+    await shots(page, "08c-evidence-why-did-this-check-fail");
+    // with the result open, "this check" is that one: the same question is answered at once
+    await panel.getByTestId("otto-question").first().click();
+    await expect(panel.getByTestId("otto-reply").getByTestId("otto-fact").first()).toContainText(`“${RANGE_CHECK}” reads Failed`);
+    // where the check came from opens its advisory
+    await panel.getByTestId("otto-reply").getByRole("link", { name: "Open the advisory" }).click();
+    await expect(page).toHaveURL(new RegExp(`#/a/${assessment}/advisories\\?item=CVE-2022-21449$`));
+    // the answers are kept in the Testing thread, as "You said", with their facts
+    const keptAnswer = panel.getByTestId("otto-so-far").locator('[data-testid="otto-entry"][data-kind="said"]').last();
+    await panel.getByTestId("otto-so-far-all").click().catch(() => undefined);
+    await expect(keptAnswer.getByTestId("otto-fact").first()).toContainText("reads Failed");
+
     // ================================================================ Migration: Measure status, from the panel; then the Planning tab
     await page.goto(`/#/a/${assessment}/migration/systems`);
     await expect(page.getByRole("heading", { name: "Migration", level: 1 })).toBeVisible();
@@ -524,12 +602,30 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     await expect(tab(page, "fixing")).toHaveAttribute("data-selected", "true");
     expect(await layoutProblems(page), "Dependencies with the panel").toEqual([]);
     await shots(page, "17-dependencies-an-update-proposed");
-    const first = update.first();
-    const title = (await first.getByTestId("otto-entry-title").innerText()).trim();
-    step = await ask(page, first, "Accept");
+    // ---- phase 6b: "accept the Java fix" shows a card that names the proposal, its page and exactly what will happen;
+    // the decision is recorded only after Confirm, as from the page
+    const javaFix = /^Update openjdk 17\.0\.2 to 17\.0\.3 before the move$/;
+    const beforeTyped = changes(page).length;
+    await panel.getByTestId("otto-box-text").fill("accept the Java fix");
+    await panel.getByTestId("otto-box-text").press("Enter");
+    const answered = panel.getByTestId("otto-reply");
+    await expect(answered.getByTestId("otto-reply-text")).toHaveText(/^Accept “Update openjdk 17\.0\.2 to 17\.0\.3 before the move”, on Dependencies\. Nothing happens until you press Confirm\.$/);
+    const answerCard = answered.getByTestId("otto-entry");
+    await expect(answerCard.getByTestId("otto-entry-mark")).toHaveText("From Otto");
+    await expect(answerCard.getByTestId("otto-entry-title")).toHaveText(javaFix);
+    await expect(answerCard.getByTestId("otto-entry-where")).toHaveText("On Dependencies");
+    step = answerCard.getByTestId("otto-confirm");
     await expect(step.getByTestId("otto-confirm-lines").getByRole("listitem").first()).toHaveText("Marks this library “update first”.");
+    await expect(step.getByTestId("otto-confirm-names")).toHaveText("This is the Accept button on Dependencies.");
+    // typing decided nothing: the only request so far is the kept sentence, and the proposal still reads Proposed
+    expect(changes(page).slice(beforeTyped)).toEqual([expect.stringMatching(/^POST \/api\/plans\/\d+\/assistant\/messages$/)]);
+    await expect(entryTitled(page, "suggestion:dependency", javaFix).getByTestId("otto-entry-badge")).toHaveText("Proposed");
+    await shots(page, "17b-dependencies-accept-the-java-fix-waits-for-confirm");
     expect(await confirm(page, step, /\/otto\/proposals\/dep-[^/]+\/accept$/)).toMatch(/\/accept$/);
-    await expect(entryTitled(page, "suggestion:dependency", title).getByTestId("otto-entry-badge")).toHaveText("Accepted");
+    await expect(answered.getByTestId("otto-reply-confirmed")).toContainText("Confirmed.");
+    await expect(entryTitled(page, "suggestion:dependency", javaFix).getByTestId("otto-entry-badge")).toHaveText("Accepted");
+    // the Dependencies page shows the same, with no reload
+    await expect(page.getByTestId("dependency-row").filter({ hasText: "openjdk" }).first()).toContainText("Accepted");
     await expectPlainWords(page, "Dependencies");
 
     // ================================================================ the Overview: its own next step, and what waits elsewhere

@@ -690,6 +690,7 @@ class AssistantMessageRow(Base):
     kind: Mapped[str] = mapped_column(String(20))                 # what kind of answer: went, card, which, cannot, ...
     reply: Mapped[str] = mapped_column(Text)                      # the answer's one line
     go: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # where the answer led, if anywhere
+    facts: Mapped[list | None] = mapped_column(JSON, nullable=True)   # phase 6c: the facts of an answer to a fixed question
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 

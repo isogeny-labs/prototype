@@ -18,6 +18,7 @@ it is written as it is, for every reader.
 """
 from __future__ import annotations
 
+import re
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -82,6 +83,27 @@ def for_files():
     return for_screen(False)
 
 
+_MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+_UTC_WORDS = re.compile(r"\b(\d{1,2}) (" + "|".join(_MONTHS) + r") (\d{4}), (\d{2}):(\d{2}) UTC\b")
+
+
+def remarked(text: str) -> str:
+    """A sentence the app stored in UTC words ("19 November 2026, 06:46 UTC"), for a reader: where a browser asked
+    for marked times, each such time becomes its mark again, so the screen writes it in the viewer's own zone; for
+    every other reader the sentence is returned as it was stored. Only for the app's own stored sentences (what the
+    assistant answered): a person's own typed words are never passed through this."""
+    if not _marked.get() or " UTC" not in text:
+        return text
+
+    def one(m: re.Match) -> str:
+        try:
+            when = datetime(int(m.group(3)), _MONTHS.index(m.group(2)) + 1, int(m.group(1)), int(m.group(4)), int(m.group(5)), tzinfo=timezone.utc)
+        except ValueError:
+            return m.group(0)
+        return mark(when) or m.group(0)
+    return _UTC_WORDS.sub(one, text)
+
+
 class MarkTimes:
     """Web middleware: an /api request that carries the header gets its sentences with marked times."""
 
@@ -98,4 +120,4 @@ class MarkTimes:
         await self.app(scope, receive, send)
 
 
-__all__ = ["HEADER", "ASKS", "OPEN", "CLOSE", "MarkTimes", "for_files", "for_screen", "instant", "mark", "marked", "written"]
+__all__ = ["HEADER", "ASKS", "OPEN", "CLOSE", "MarkTimes", "for_files", "for_screen", "instant", "mark", "marked", "remarked", "written"]

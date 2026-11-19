@@ -82,7 +82,7 @@ CHIPS: dict[str, tuple[str, ...]] = {
     "migration/roadmap": ("Open Systems", "Open Dependencies", HELP),
     "migration/dependencies": ("Measure all", "Open Systems", HELP),
 }
-BOX = {"label": "Tell Otto where to go or what to do", "send": "Send", "max": MAX_TEXT}
+BOX = {"label": "Ask Otto, or tell it what to do", "send": "Send", "max": MAX_TEXT}
 
 # ------------------------------------------------------------------ the words the rules know
 PAGE_WORDS: dict[str, str] = {
@@ -168,6 +168,13 @@ def tokens(text: str) -> list[str]:
     return _TOKEN.findall(text.lower().replace("’", "'").replace("'s", " "))
 
 
+def sayable(title: str) -> str:
+    """A title as a sentence can carry it. In a typed sentence the first colon starts a reason, so a title is said
+    without its colons ("Advisory check: Blank signature accepted" as "Advisory check Blank signature accepted"): the
+    words are the same, and `match` finds the one thing that is called exactly that."""
+    return " ".join(str(title).replace(":", " ").split())
+
+
 # ------------------------------------------------------------------ reading a sentence
 
 def read(text: str) -> dict:
@@ -184,6 +191,13 @@ def read(text: str) -> dict:
 
     if re.fullmatch(r"(what can (you|i|we) do( here| on this page| for me)?|help|commands|what can i say|what can i tell you)", low):
         return {**said, "key": "help"}
+    # Phase 6c: one of the six fixed questions, in any of its wordings (answered from the assessment's records).
+    # A question carries no reason, so the whole sentence is read first: a colon in it belongs to a name.
+    from app.assistant import questions
+    whole = POLITE.sub("", plain.strip().lower()).strip(" .!?")
+    asked = questions.read(whole) or questions.read(low)
+    if asked is not None:
+        return {**said, **asked}
     m = re.fullmatch(r"(close|hide|open|show|switch to|go to|select) (?:the )?(testing|fixing|planning)(?: tab| thread)?", low)
     if m and (m.group(1) in ("close", "hide") or low.endswith((" tab", " thread"))):
         return {**said, "key": "tab", "thread": m.group(2), "how": "close" if m.group(1) in ("close", "hide") else "open"}
@@ -252,10 +266,13 @@ def _alias(token: str) -> set[str]:
     return {token, *ALIASES.get(token, ())}
 
 
-def match(rest: str, candidates: list[dict]) -> list[dict]:
+def match(rest: str, candidates: list[dict], ignore: frozenset[str] | set[str] = frozenset()) -> list[dict]:
     """The candidates whose names hold every word of `rest` that says which one is meant. Each candidate is
-    {"names": [text, ...], ...}. No word that narrows it down means every candidate fits ("the fix": every fix)."""
-    wanted = [t for t in tokens(rest) if t not in SKIP and t not in KIND_WORDS and t not in ORDINALS]
+    {"names": [text, ...], ...}. No word that narrows it down means every candidate fits ("the fix": every fix).
+    Where several fit and exactly one of them is called exactly what was said, word for word, it is that one: the
+    sentence behind a "Which one?" option says a whole title, and one title may hold every word of another.
+    `ignore`: more words that only point ("this check"), for the questions."""
+    wanted = [t for t in tokens(rest) if t not in SKIP and t not in KIND_WORDS and t not in ORDINALS and t not in ignore]
     if not wanted:
         return list(candidates)
     out = []
@@ -266,6 +283,11 @@ def match(rest: str, candidates: list[dict]) -> list[dict]:
         # (a version or an id may be typed in part: "42460" for CVE-2024-42460, "17.0.3" for openjdk 17.0.3)
         if all(any(a in have or any(h.endswith("-" + a) or h.startswith(a + "-") for h in have) for a in _alias(t)) for t in wanted):
             out.append(c)
+    if len(out) > 1:
+        said = tokens(rest)
+        exact = [c for c in out if any(tokens(str(name)) == said for name in c["names"])]
+        if len(exact) == 1:
+            return exact
     return out
 
 
@@ -306,9 +328,11 @@ def _button(key: str) -> str:
 
 
 def reply(kind: str, text: str, **more: Any) -> dict:
-    """One answer to a typed sentence. `kind`: went, card, which, cannot, help, page_only, tab, closed."""
+    """One answer to a typed sentence. `kind`: went, card, which, cannot, help, page_only, tab, closed, and (phase 6c)
+    answer: a fixed question, with its facts."""
     return {"kind": kind, "text": text, "go": more.get("go"), "entry": more.get("entry"), "open": more.get("open"),
-            "options": more.get("options") or [], "can": more.get("can") or [], "tab": more.get("tab"), "thread": more.get("thread")}
+            "options": more.get("options") or [], "can": more.get("can") or [], "tab": more.get("tab"), "thread": more.get("thread"),
+            "question": more.get("question"), "label": more.get("label"), "facts": more.get("facts") or []}
 
 
 def go(page: str, item: str | None = None, **filters: str | None) -> dict:

@@ -5,6 +5,7 @@
 // `npm run gen:api` from src/api-schema.json); they are written once, in backend/app/web/models.py.
 
 export type {
+  AssistantFact,
   AssistantReply,
   AssistantGo,
   AssistantBox,

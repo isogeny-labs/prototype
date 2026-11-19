@@ -134,17 +134,21 @@ def test_reading_any_text_at_all_gives_a_line_of_the_list_or_none_and_never_fail
 
 @pytest.mark.needs_otto
 def test_every_answer_fits_its_shape_words_no_result_and_asking_changed_nothing(assistant_walk):
-    asked = 0
+    asked = options = 0
     for stage, snap in assistant_walk.at.items():
         if stage in ("fix_accepted", "said"):
             continue
         assert snap.asking_changed_nothing, stage           # every table row, every file and the running jobs: as before
-        for (_page, sentence), reply in snap.said.items():
-            asked += 1
+        listed = set(made.ASKED.get(stage, ()))
+        for (page, sentence), reply in snap.said.items():
+            asked += (page, sentence) in listed
+            options += (page, sentence) not in listed       # (the sentence behind a "Which one?" option, said by the walk too)
             assert problems(reply, models.AssistantReply, f"{stage}: {sentence}") == []
             assert reply["text"] and not any(word in reply["text"].lower() for word in BANNED), reply["text"]
             assert "Otto " not in reply["text"] or reply["kind"] == "help"            # no sentence says what Otto did
-    assert asked == sum(len(v) for v in made.ASKED.values()) >= 60
+            for f in reply.get("facts") or []:
+                assert not any(word in f["text"].lower() for word in BANNED), f["text"]
+    assert asked == sum(len(v) for v in made.ASKED.values()) >= 60 and options >= 10
 
 
 @pytest.mark.needs_otto
@@ -193,15 +197,51 @@ def test_a_decision_comes_back_as_the_suggestions_own_card_with_its_confirm_step
 
 
 @pytest.mark.needs_otto
+def test_an_option_of_which_one_never_asks_again_it_names_exactly_one(assistant_walk):
+    """The walk said every option of every "Which one?" too, as a click on it does. Each must settle it: a card, an
+    answer or a page, about the one thing its label names; never "Which one?" again and never "I can't do that."."""
+    followed = 0
+    for stage, snap in assistant_walk.at.items():
+        for (page, sentence), reply in getattr(snap, "said", {}).items():
+            for option in reply.get("options") or []:
+                again = snap.said[(page, option["say"])]
+                followed += 1
+                assert again["kind"] in ("card", "answer", "went"), (stage, page, sentence, option["say"], again["kind"], again["text"])
+                assert ":" not in option["say"].split(": ", 1)[0] and commands.read(option["say"])["key"] == commands.read(sentence)["key"]
+                # it is about the one thing the option names: the title before " (" of its label
+                named = option["label"].rsplit(" (", 1)[0]
+                told = " ".join([again["text"]] + [(again.get("entry") or {}).get("title") or ""] + [(again.get("entry") or {}).get("text") or ""]
+                                + [f["text"] for f in again.get("facts") or []])
+                assert named in told or commands.sayable(named) in told, (stage, option["say"], told[:200])
+    assert followed >= 10
+
+
+def test_a_title_is_said_without_its_colon_and_an_exact_title_wins():
+    assert commands.sayable("Advisory check: Blank signature accepted (CVE-2022-21449)") == "Advisory check Blank signature accepted (CVE-2022-21449)"
+    short = {"names": ["Update openjdk 17.0.2 to 17.0.3"], "id": "fix"}
+    long = {"names": ["Update openjdk 17.0.2 to 17.0.3 before the move"], "id": "dependency"}
+    # every word of the short title is in the long one: said exactly, it is the short one; said in part, both fit
+    assert commands.match("update openjdk 17.0.2 to 17.0.3", [short, long]) == [short]
+    assert commands.match("update openjdk 17.0.2 to 17.0.3 before the move", [short, long]) == [long]
+    assert commands.match("the openjdk update", [short, long]) == [short, long]
+    # the reason still rides after the first colon; a question is read whole, its colon belongs to a name
+    said = commands.read("Reject Advisory check Blank signature accepted (CVE-2022-21449) on acme-sign 1.4.2: not this quarter")
+    assert (said["key"], said["reason"]) == ("reject", "not this quarter") and "blank signature accepted" in said["rest"]
+    asked = commands.read("Why did Advisory check: Blank signature accepted (CVE-2022-21449) fail?")
+    assert (asked["key"], asked["question"]) == ("ask", "why_failed") and "cve-2022-21449" in asked["rest"]
+
+
+@pytest.mark.needs_otto
 def test_where_several_things_fit_otto_asks_which_one_and_never_guesses(assistant_walk):
     which = _said(assistant_walk, "proposed", "checks", "accept the check")
     assert which["kind"] == "which" and which["text"] == "Which one?" and which["entry"] is None and which["open"] is None
-    assert len(which["options"]) == 3 and all(o["say"].startswith("Accept Advisory check: ") for o in which["options"])
-    # each option is a sentence that names exactly one: read again, it finds one card
+    # (an option's sentence says the title without its colon: in a typed sentence a colon starts a reason)
+    assert len(which["options"]) == 3 and all(o["say"].startswith("Accept Advisory check ") and ":" not in o["say"] for o in which["options"])
+    assert all(o["label"].startswith("Advisory check: ") for o in which["options"])
     lab = assistant_walk.lab
     fits = _said(assistant_walk, "measured", "fixes", "accept the fix")
     assert fits["kind"] == "which" and {o["say"].split(" ", 1)[1] for o in fits["options"]} == \
-        {p["title"] for p in lab.otto_proposals(assistant_walk.plan_id) if p["kind"] in ("fix", "dependency")}
+        {commands.sayable(p["title"]) for p in lab.otto_proposals(assistant_walk.plan_id) if p["kind"] in ("fix", "dependency")}
     versions = _said(assistant_walk, "ran", "evidence", "retest")
     assert versions["kind"] == "which" and [o["say"] for o in versions["options"]] == ["Retest on acme-sign 1.4.3", "Retest on acme-sign 1.4.2"]
     named = _said(assistant_walk, "ran", "evidence", "retest on 1.4.3")
@@ -293,7 +333,7 @@ def test_in_a_closed_assessment_the_text_box_only_moves_and_anything_else_gets_t
 def test_the_text_box_has_its_label_and_up_to_three_examples_fitted_to_the_page(assistant_walk):
     for page in PAGES:
         box = assistant_walk.at["proposed"].pages[page]["box"]
-        assert box["label"] == "Tell Otto where to go or what to do" and box["send"] == "Send" and box["kept"] is True and box["kept_note"] is None
+        assert box["label"] == "Ask Otto, or tell it what to do" and box["send"] == "Send" and box["kept"] is True and box["kept_note"] is None
         assert 1 <= len(box["chips"]) <= 3 and box["chips"][-1] == "What can you do?"
         for chip in box["chips"]:
             assert commands.read(chip)["key"] is not None, (page, chip)       # a chip sends its own words, and they are read
@@ -304,19 +344,21 @@ def test_the_text_box_has_its_label_and_up_to_three_examples_fitted_to_the_page(
 @pytest.mark.needs_otto
 def test_what_is_typed_in_an_open_assessment_is_kept_with_it_and_shows_in_its_thread_and_nothing_else_changes(assistant_walk):
     said = assistant_walk.at["said"]
-    # sending three sentences changed one table, the one that keeps what was said, and no file but the database
+    # sending the sentences changed one table, the one that keeps what was said, and no file but the database
     assert said.changed_tables == ["assistant_messages"] and all(name.endswith((".sqlite3", ".db")) for name in said.changed_files)
     kept = assistant_walk.lab.assistant_messages(assistant_walk.plan_id)
     assert [(m["page"], m["said"], m["kind"], m["thread"]) for m in kept] == [
         ("checks", "show me failed checks", "went", "testing"), ("migration/dependencies", "undo the python fix", "card", "fixing"),
-        ("checks", "make me a sandwich", "cannot", "testing")]
+        ("checks", "make me a sandwich", "cannot", "testing"),
+        ("evidence", "why did the blank signature check fail?", "answer", "testing")]         # (phase 6c: tests/assistant/test_questions.py)
     assert all(m["by"] == "You" and m["at"].endswith("Z") for m in kept)
     # the answer that was sent back is the one a read gives, and it is what was kept
     for (_page, sentence, reply), row in zip(said.sent, kept, strict=True):
         assert problems(reply, models.AssistantReply, sentence) == [] and (reply["kind"], reply["text"]) == (row["kind"], row["reply"])
     # in the tabs: each exchange under "This thread so far" of the thread it was filed under, as "You said"
     tabs = {t["key"]: [e for e in t["so_far"] if e["kind"] == "said"] for t in said.pages["checks"]["tabs"]}
-    assert [(e["mark"], e["title"]) for e in tabs["testing"]] == [("You said", "show me failed checks"), ("You said", "make me a sandwich")]
+    assert [(e["mark"], e["title"]) for e in tabs["testing"]] == [("You said", "show me failed checks"), ("You said", "make me a sandwich"),
+                                                                    ("You said", "why did the blank signature check fail?")]
     assert [(e["title"], e["text"].split(".")[0]) for e in tabs["fixing"]][0][0] == "undo the python fix" and tabs["planning"] == []
     assert tabs["testing"][0]["links"] == [{"label": "Open where it led", "link": {"page": "checks", "item": None, "group": None}}]
     assert all(e["decisions"] == [] and e["step"] is None for line in tabs.values() for e in line)       # a record: nothing to press
@@ -333,7 +375,7 @@ def test_raw_sql_cannot_change_or_delete_what_was_said(assistant_walk):
     from sqlalchemy import text
     with assistant_walk.lab.db() as db:
         before = db.execute(text("SELECT COUNT(*) FROM assistant_messages")).scalar()
-        assert before == 3
+        assert before == 4
         for statement in ("UPDATE assistant_messages SET said = 'x'", "DELETE FROM assistant_messages"):
             with pytest.raises(Exception, match="append-only"):
                 db.execute(text(statement))

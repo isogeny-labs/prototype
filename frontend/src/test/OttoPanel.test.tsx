@@ -762,11 +762,12 @@ describe("the text box (phase 6b)", () => {
   const type = (words: string) => fireEvent.change(box(), { target: { value: words } });
   const send = () => fireEvent.click(screen.getByTestId("otto-box-send"));
   const reply = () => screen.getByTestId("otto-reply");
-  const checksBox = { label: "Tell Otto where to go or what to do", send: "Send", max: 500, chips: ["Show failed checks", "Run all", "What can you do?"], kept: true, kept_note: null };
+  const LABEL = "Ask Otto, or tell it what to do";
+  const checksBox = { label: LABEL, send: "Send", max: 500, chips: ["Show failed checks", "Run all", "What can you do?"], questions: [] as string[], kept: true, kept_note: null };
 
   it("sits at the foot of the panel with its label, Send and up to three chips; typing sends nothing", async () => {
     const fetchMock = await open(panel("checks", { box: checksBox }));
-    expect(screen.getByLabelText("Tell Otto where to go or what to do")).toBe(box());
+    expect(screen.getByLabelText(LABEL)).toBe(box());
     expect(screen.getAllByTestId("otto-chip").map((c) => text(c))).toEqual(["Show failed checks", "Run all", "What can you do?"]);
     expect((screen.getByTestId("otto-box-send") as HTMLButtonElement).disabled).toBe(true); // nothing typed yet
     type("show me failed checks");
@@ -920,7 +921,7 @@ describe("the text box (phase 6b)", () => {
   });
 
   it("in a closed assessment the box still takes you places: the read is used, nothing is kept, and the box says so", async () => {
-    const closedBox = { ...checksBox, kept: false, kept_note: "This assessment is closed. The text box can still take you places. What you type is not kept." };
+    const closedBox = { ...checksBox, kept: false, kept_note: "This assessment is closed. The text box can still take you places and answer the fixed questions. What you type is not kept." };
     const onGoTo = vi.fn();
     const ANSWER = `GET /api/assessments/101/assistant/answer?${new URLSearchParams({ text: "open evidence", page: "checks" }).toString()}`;
     const fetchMock = await open(panel("checks", { box: closedBox }), { [ANSWER]: { body: answer("went", "Opened Evidence.", { go: goTo("evidence") }) } }, { onGoTo, closed: true });
@@ -956,6 +957,131 @@ describe("the text box (phase 6b)", () => {
     expect(text(await within(screen.getByTestId("otto-box")).findByRole("alert"))).toBe("Type where to go or what to do.");
     expect(onGoTo).not.toHaveBeenCalled();
     expect(screen.queryByTestId("otto-reply")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------- the fixed questions (phase 6c, first half)
+
+describe("the fixed questions (phase 6c)", () => {
+  const SAY = "POST /api/plans/1/assistant/messages";
+  const LABEL = "Ask Otto, or tell it what to do";
+  const QUESTIONS = ["Why did this check fail?", "What should I do next?", "What is this page for?"];
+  const evidenceBox = { label: LABEL, send: "Send", max: 500, chips: ["Show failed results", "What can you do?"], questions: QUESTIONS, kept: true, kept_note: null };
+  const reply = () => screen.getByTestId("otto-reply");
+  const evidenceOf = { page: "evidence", item: "test-6", group: null };
+  const why = answer("answer", "Why did this check fail? Advisory check: Blank signature accepted (CVE-2022-21449)", {
+    thread: "testing",
+    question: "Why did this check fail?",
+    label: "From this assessment's records",
+    facts: [
+      { text: "“Advisory check: Blank signature accepted (CVE-2022-21449)” reads Failed on acme-sign 1.4.2.", link: evidenceOf, label: "See the evidence" },
+      { text: "acme-sign 1.4.2 got 2 of the 64 published cases for advisory CVE-2022-21449 wrong.", link: evidenceOf, label: "See the evidence" },
+      { text: "This check was proposed from the advisory “Blank signature accepted (CVE-2022-21449)”, in test pack 2026.11.1.", link: { page: "advisories", item: "CVE-2022-21449", group: null }, label: "Open the advisory" },
+      { text: "Accept waits for your Confirm, here and on its page.", link: null, label: null },
+    ],
+  });
+
+  it("the questions that fit show as their own row above the examples; looking at them asks nothing", async () => {
+    const fetchMock = await open(panel("evidence", { box: evidenceBox }));
+    expect(screen.getAllByTestId("otto-question").map((q) => text(q))).toEqual(QUESTIONS);
+    expect(screen.getAllByTestId("otto-chip").map((c) => text(c))).toEqual(["Show failed results", "What can you do?"]);
+    expect(screen.getByTestId("otto-questions").compareDocumentPosition(screen.getByTestId("otto-chips")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(calls(fetchMock)).toEqual([]);
+    expect(screen.queryByTestId("otto-reply")).toBeNull();
+  });
+
+  it("with no question that fits there is no row of questions", async () => {
+    await open(panel("evidence", { box: { ...evidenceBox, questions: [] } }));
+    expect(screen.queryByTestId("otto-questions")).toBeNull();
+    expect(screen.getAllByTestId("otto-chip")).toHaveLength(2);
+  });
+
+  it("a click asks the question with the page and the open item; the answer is a list of facts, each with the link to where it is shown, and nothing to press", async () => {
+    const onGoTo = vi.fn();
+    const fetchMock = await open(
+      panel("evidence", { box: evidenceBox }),
+      { [read("evidence", "test-6")]: { body: panel("evidence", { box: evidenceBox }) }, [SAY]: { body: why } },
+      { item: "test-6", onGoTo },
+    );
+    fireEvent.click(screen.getAllByTestId("otto-question")[0]!);
+    const shown = await screen.findByTestId("otto-reply");
+    expect(calls(fetchMock)).toEqual([SAY]);
+    expect(sent(fetchMock, SAY)?.body).toEqual({ text: "Why did this check fail?", page: "evidence", item: "test-6" });
+    expect(shown.getAttribute("data-kind")).toBe("answer");
+    expect(text(within(shown).getByTestId("otto-reply-said"))).toBe("You said: Why did this check fail?");
+    expect(text(within(shown).getByTestId("otto-reply-text"))).toBe(why.text);
+    // where the answer is from, said once, above the facts
+    expect(text(within(shown).getByTestId("otto-reply-label"))).toBe("From this assessment's records");
+    const facts = within(shown).getAllByTestId("otto-fact");
+    expect(facts).toHaveLength(4);
+    expect(text(facts[0]!)).toContain("reads Failed on acme-sign 1.4.2.");
+    const links = within(shown).getAllByTestId("otto-fact-link");
+    expect(links.map((l) => [text(l), l.getAttribute("href")])).toEqual([
+      ["See the evidence", "#/a/101/evidence?item=test-6"],
+      ["See the evidence", "#/a/101/evidence?item=test-6"],
+      ["Open the advisory", "#/a/101/advisories?item=CVE-2022-21449"],
+    ]);
+    expect(within(facts[3]!).queryByRole("link")).toBeNull(); // a fact with nowhere to open has no link
+    // an answer is facts only: no card, no Confirm step, no button in it, and the app went nowhere
+    expect(within(shown).queryAllByRole("button")).toHaveLength(0);
+    expect(within(shown).queryByTestId("otto-entry")).toBeNull();
+    expect(screen.queryByTestId("otto-confirm")).toBeNull();
+    expect(onGoTo).not.toHaveBeenCalled();
+  });
+
+  it("where several fit it asks which one; the option asks about that one, and its answer replaces the question", async () => {
+    const which = answer("which", "Which one?", {
+      thread: "testing",
+      options: [
+        { label: "Old TLS versions (Failed)", say: "Why did Old TLS versions fail?" },
+        { label: "Advisory check: Blank signature accepted (CVE-2022-21449) (Failed)", say: "Why did Advisory check Blank signature accepted (CVE-2022-21449) fail?" },
+      ],
+    });
+    let n = 0;
+    const fetchMock = await open(panel("evidence", { box: evidenceBox }), { [SAY]: () => ({ body: n++ === 0 ? which : why }) });
+    fireEvent.click(screen.getAllByTestId("otto-question")[0]!);
+    const options = await screen.findAllByTestId("otto-reply-option");
+    expect(options.map((o) => text(o))).toEqual(["Old TLS versions (Failed)", "Advisory check: Blank signature accepted (CVE-2022-21449) (Failed)"]);
+    expect(within(reply()).queryByTestId("otto-facts")).toBeNull();
+    fireEvent.click(options[1]!);
+    await waitFor(() => expect(within(reply()).getAllByTestId("otto-fact")).toHaveLength(4));
+    const said = fetchMock.mock.calls.filter(([url]) => String(url) === "/api/plans/1/assistant/messages").map(([, init]) => JSON.parse(String(init!.body)).text);
+    expect(said).toEqual(["Why did this check fail?", "Why did Advisory check Blank signature accepted (CVE-2022-21449) fail?"]);
+    expect(within(reply()).queryByTestId("otto-reply-options")).toBeNull();
+  });
+
+  it("a question can be typed in other words too: it is sent as typed", async () => {
+    const fetchMock = await open(panel("evidence", { box: evidenceBox }), { [SAY]: { body: why } });
+    fireEvent.change(screen.getByTestId("otto-box-text"), { target: { value: "why did the blank signature check fail?" } });
+    fireEvent.click(screen.getByTestId("otto-box-send"));
+    await screen.findByTestId("otto-facts");
+    expect(sent(fetchMock, SAY)?.body).toEqual({ text: "why did the blank signature check fail?", page: "evidence", item: null });
+  });
+
+  it("a closed assessment still answers: the read is used and nothing is kept", async () => {
+    const closedBox = { ...evidenceBox, kept: false, kept_note: "This assessment is closed. The text box can still take you places and answer the fixed questions. What you type is not kept." };
+    const ANSWER = `GET /api/assessments/101/assistant/answer?${new URLSearchParams({ text: "Why did this check fail?", page: "evidence" }).toString()}`;
+    const fetchMock = await open(panel("evidence", { box: closedBox }), { [ANSWER]: { body: why } }, { closed: true });
+    const first = screen.getAllByTestId("otto-question")[0] as HTMLButtonElement;
+    expect(first.disabled).toBe(false); // asking is a read: it stays on in a closed assessment
+    fireEvent.click(first);
+    await screen.findByTestId("otto-facts");
+    expect(calls(fetchMock)).toEqual([ANSWER]);
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("a kept answer stands in its thread so far as You said, with the facts it had then and nothing to press", async () => {
+    const kept: AssistantEntry = {
+      id: "said:4", kind: "said", what: "said:testing", thread: "testing", mark: "You said", title: "why did the blank signature check fail?",
+      text: why.text, at: "2026-11-19T06:00:00Z", badge: null, where: null, links: [], proposal: null, decisions: [], step: null, open_item: false,
+      facts: why.facts,
+    };
+    await open(panel("evidence", { box: evidenceBox, tabs: [tab("testing", { so_far: [kept] })] }));
+    const line = within(screen.getByTestId("otto-so-far")).getByTestId("otto-entry");
+    expect(text(within(line).getByTestId("otto-entry-mark"))).toBe("You said");
+    expect(within(line).getAllByTestId("otto-fact")).toHaveLength(4);
+    expect(within(line).getAllByTestId("otto-fact-link")[2]!.getAttribute("href")).toBe("#/a/101/advisories?item=CVE-2022-21449");
+    expect(within(line).queryAllByRole("button")).toHaveLength(0);
   });
 });
 

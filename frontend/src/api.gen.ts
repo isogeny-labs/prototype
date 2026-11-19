@@ -948,7 +948,7 @@ export interface AssistantBadge {
  */
 export interface AssistantBox {
   /**
-   * "Tell Otto where to go or what to do"
+   * "Ask Otto, or tell it what to do" (phase 6c; in 6b alone it read "Tell Otto where to go or what to do")
    */
   label: string;
   send: string;
@@ -957,6 +957,10 @@ export interface AssistantBox {
    * Up to three examples fitted to the page. A chip sends its own words.
    */
   chips: string[];
+  /**
+   * Phase 6c: up to three of the six fixed questions that fit the page and the open item.
+   */
+  questions: string[];
   /**
    * False in a closed assessment: what is typed there is answered and not kept.
    */
@@ -1070,6 +1074,10 @@ export interface AssistantEntry {
    * It is about the item that is open on the page.
    */
   open_item: boolean;
+  /**
+   * Phase 6c: a kept answer to a fixed question: its facts.
+   */
+  facts?: AssistantFact[];
 }
 export interface LabeledLink {
   label: string;
@@ -1089,6 +1097,17 @@ export interface AssistantStep {
   running: boolean;
   progress: string | null;
   confirm: AssistantConfirm | null;
+}
+/**
+ * Phase 6c: one fact of an answer: a sentence the app already shows about the item, with the link to where.
+ */
+export interface AssistantFact {
+  text: string;
+  link: ItemLink | null;
+  /**
+   * What the link is called: "See the evidence", "Open the advisory", "View in Fixes".
+   */
+  label: string | null;
 }
 /**
  * Where an answer leads: a page of this assessment (or Settings), one item on it, and the filters of its table.
@@ -1138,7 +1157,7 @@ export interface AssistantOption {
  * and `tab` only move around, and `card` hands back an entry whose Confirm step the browser shows.
  */
 export interface AssistantReply {
-  kind: "went" | "card" | "which" | "cannot" | "help" | "page_only" | "tab" | "closed";
+  kind: "went" | "card" | "which" | "cannot" | "help" | "page_only" | "tab" | "closed" | "answer";
   text: string;
   go: AssistantGo | null;
   entry: AssistantEntry | null;
@@ -1153,6 +1172,18 @@ export interface AssistantReply {
    * The tab the exchange is filed under, if any.
    */
   thread: ("testing" | "fixing" | "planning") | null;
+  /**
+   * Phase 6c: the fixed question that was answered, in its own wording.
+   */
+  question?: string | null;
+  /**
+   * Phase 6c: where an answer is from: "From this assessment's records".
+   */
+  label?: string | null;
+  /**
+   * Phase 6c: an answer's facts, each with its link.
+   */
+  facts?: AssistantFact[];
 }
 export interface AssistantTabChange {
   thread: "testing" | "fixing" | "planning";

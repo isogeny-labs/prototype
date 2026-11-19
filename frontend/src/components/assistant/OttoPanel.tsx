@@ -4,6 +4,7 @@ import {
   errorMessage,
   type AssistantDecision,
   type AssistantEntry,
+  type AssistantFact,
   type AssistantGo,
   type AssistantReply,
   type AssistantStep,
@@ -457,6 +458,13 @@ export function OttoPanel({
               <p data-testid="otto-reply-text" role="status" className="mt-1.5 break-words text-[13px] text-slate-100">
                 {exchange.reply.text}
               </p>
+              {/* Phase 6c: a fixed question's answer: where it is from, then its facts, each with the link to where it is shown. */}
+              {exchange.reply.label ? (
+                <p data-testid="otto-reply-label" className="mt-1 text-[11px] uppercase tracking-wider text-slate-500">
+                  {exchange.reply.label}
+                </p>
+              ) : null}
+              <Facts facts={exchange.reply.facts ?? []} />
               {exchange.reply.entry && !exchange.confirmed ? <div className="mt-2.5">{card(exchange.reply.entry, false, "reply")}</div> : null}
               {exchange.confirmed ? (
                 <p data-testid="otto-reply-confirmed" className="mt-1.5 text-xs text-slate-400">
@@ -511,6 +519,22 @@ export function OttoPanel({
               void say(typed);
             }}
           >
+            {current.box.questions.length > 0 ? (
+              <div data-testid="otto-questions" className="mb-2 flex flex-wrap gap-1.5">
+                {current.box.questions.map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    data-testid="otto-question"
+                    disabled={asking}
+                    onClick={() => void say(question)}
+                    className="rounded-full border border-sky-800/70 bg-sky-950/40 px-2.5 py-1 text-left text-xs text-sky-100 hover:border-sky-600 disabled:opacity-50"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div data-testid="otto-chips" className="mb-2 flex flex-wrap gap-1.5">
               {current.box.chips.map((chip) => (
                 <button
@@ -568,6 +592,29 @@ export function OttoPanel({
         </div>
       ) : null}
     </aside>
+  );
+}
+
+/** Phase 6c: the facts of an answer to a fixed question. Each is a sentence the app already shows about the item, with
+ * the link to where it is shown. Nothing here is the panel's own judgement, and nothing can be pressed but a link. */
+function Facts({ facts, compact = false }: { facts: AssistantFact[]; compact?: boolean }) {
+  if (facts.length === 0) return null;
+  return (
+    <ol data-testid="otto-facts" className={`mt-2 list-decimal space-y-1.5 pl-5 marker:text-slate-500 ${compact ? "text-xs" : "text-[13px]"}`}>
+      {facts.map((fact, n) => (
+        <li key={`${n}-${fact.text}`} data-testid="otto-fact" className="break-words text-slate-200">
+          {fact.text}
+          {fact.link ? (
+            <>
+              {" "}
+              <ItemLinkView link={fact.link} testId="otto-fact-link" className="whitespace-nowrap text-xs text-sky-300 underline-offset-2 hover:underline">
+                {fact.label ?? "Open"}
+              </ItemLinkView>
+            </>
+          ) : null}
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -704,6 +751,7 @@ function EntryCard({
           {entry.text}
         </p>
       ) : null}
+      <Facts facts={entry.facts ?? []} compact />
       {proposal?.decided_line && proposal.status.key !== "proposed" ? (
         <p data-testid="otto-entry-decided" className="mt-1 break-words text-xs text-slate-400">
           {proposal.decided_line}

@@ -153,7 +153,7 @@ export function quietAssistant(over: Partial<AssistantView> = {}): AssistantView
     page: "overview",
     page_label: "Overview",
     thread: null,
-    box: { label: "Tell Otto where to go or what to do", send: "Send", max: 500, chips: ["What can you do?"], kept: true, kept_note: null },
+    box: { label: "Ask Otto, or tell it what to do", send: "Send", max: 500, chips: ["What can you do?"], questions: [], kept: true, kept_note: null },
     tabs: [],
     on_page: { title: "On this page", entries: [], empty: "Nothing is suggested on this page.", empty_link: null },
     elsewhere: { title: "Elsewhere: 0 more", count: 0, lines: [], empty: "Nothing from Otto is waiting for a decision." },

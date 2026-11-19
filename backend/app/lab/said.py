@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.db import AssistantMessageRow, iso
 from app.errors import NotFound
+from app.present import times
 
 MAX_KEPT_SHOWN = 200
 
@@ -32,10 +33,17 @@ class SaidMixin:
         if a is None:
             raise NotFound("That assessment does not exist.")
         reply = self.copilot.command(self, a.id, page, item, text)
+        # What is stored keeps UTC words, like every file: a time mark is only ever written into an answer to a browser
+        # (app/present/times.py). Where this answer holds a mark, the same answer is worded once more for a file.
+        kept = reply
+        if times.marked() and (times.OPEN in reply["text"] or any(times.OPEN in f["text"] for f in reply.get("facts") or [])):
+            with times.for_files():
+                kept = self.copilot.command(self, a.id, page, item, text)
         with self.db() as db:
             db.add(AssistantMessageRow(plan_id=plan_id, at=iso(datetime.now(timezone.utc)), by=self.decision_name(),      # type: ignore[attr-defined]
                                        page=page, item=(item or None) and str(item)[:200], thread=reply.get("thread"),
-                                       said=" ".join(str(text).split())[:500], kind=reply["kind"], reply=reply["text"], go=reply.get("go")))
+                                       said=" ".join(str(text).split())[:500], kind=reply["kind"], reply=kept["text"], go=reply.get("go"),
+                                       facts=kept.get("facts") or None))
             db.commit()
         return reply
 
@@ -45,5 +53,8 @@ class SaidMixin:
             return []
         with self.db() as db:
             rows = db.scalars(select(AssistantMessageRow).where(AssistantMessageRow.plan_id == plan_id).order_by(AssistantMessageRow.id)).all()
-            return [{"id": r.id, "at": r.at, "by": r.by, "page": r.page, "thread": r.thread, "said": r.said, "kind": r.kind, "reply": r.reply,
-                     "go": r.go} for r in rows[-MAX_KEPT_SHOWN:]]
+            # (the answer's own sentences were stored in UTC words; a browser gets their times marked again, so that it
+            #  writes them in the viewer's own zone. What the person typed is returned as typed.)
+            return [{"id": r.id, "at": r.at, "by": r.by, "page": r.page, "thread": r.thread, "said": r.said, "kind": r.kind,
+                     "reply": times.remarked(r.reply), "go": r.go,
+                     "facts": [{**f, "text": times.remarked(str(f.get("text") or ""))} for f in r.facts or []]} for r in rows[-MAX_KEPT_SHOWN:]]

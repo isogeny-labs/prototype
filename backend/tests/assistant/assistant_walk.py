@@ -33,17 +33,29 @@ REASON = "Not this quarter"
 STAGES = ("proposed", "decided", "ran", "measured", "accepted", "closed")
 # Phase 6b: what a person might type, asked at each stage of the walk, beside the page named. Asking is a read.
 ASKED: dict[str, tuple[tuple[str, str], ...]] = {
-    "empty": (("overview", "what can you do?"), ("overview", "run all"), ("overview", "open checks"), ("overview", "accept the first suggestion")),
+    "empty": (("overview", "what can you do?"), ("overview", "run all"), ("overview", "open checks"), ("overview", "accept the first suggestion"),
+              # phase 6c: the fixed questions, before a file is in
+              ("overview", "what should i do next?"), ("inventory/import", "what is this page for?"), ("checks", "why did this check fail?")),
     "proposed": (("checks", "show me failed checks"), ("checks", "accept the first suggestion"), ("checks", "accept the check"),
                  ("checks", "reject the second suggestion: not this quarter"), ("checks", "run all"), ("checks", "what can you do?"),
                  ("checks", "undo the first suggestion"), ("overview", "open evidence"), ("checks", "make me a sandwich"),
                  ("checks", "accept the blank signature check"), ("checks", "run the speed test"), ("checks", "accept the fifth suggestion"),
                  ("checks", "open the blank signature check"), ("advisories", "show proposed checks"), ("checks", "retest on 1.4.3"),
                  ("inventory/import", "verify claims"), ("checks", "close the planning tab"), ("checks", "close the testing tab"),
-                 ("checks", "accept 21449"), ("overview", "accept the blank signature check")),
+                 ("checks", "accept 21449"), ("overview", "accept the blank signature check"),
+                 # phase 6c
+                 ("checks", "where did this suggestion come from?"), ("checks", "where did the blank signature check come from?"),
+                 ("checks", "what happens if i accept the blank signature check?"), ("checks", "what is this page for?"),
+                 ("overview", "what is evidence for?"), ("overview", "what should i do next?"), ("checks", "why did this check fail?"),
+                 ("checks", "what is the moon for?")),
     "ran": (("checks", "show me failed checks"), ("evidence", "show failed results"), ("checks", "show the checks that passed"),
             ("evidence", "retest on 1.4.3"), ("evidence", "retest"), ("fixes", "connect demo code"), ("fixes", "accept the fix"),
-            ("fixes", "merge it"), ("fixes", "approve the pull request"), ("checks", "run all"), ("checks", "show retests")),
+            ("fixes", "merge it"), ("fixes", "approve the pull request"), ("checks", "run all"), ("checks", "show retests"),
+            # phase 6c
+            ("evidence", "why did this check fail?"), ("evidence", "why did the blank signature check fail?"),
+            ("evidence", "what does the blank signature check show, and what doesn't it?"), ("evidence", "why did the speed test fail?"),
+            ("checks", "what is this page for?"), ("evidence", "what is this page for?"), ("overview", "what should i do next?"),
+            ("fixes", "where did this suggestion come from?"), ("fixes", "what happens if i accept this?")),
     "measured": (("migration/dependencies", "accept the python fix"), ("migration/dependencies", "reject the python fix: we stay on 0.13.2 until January"),
                  ("overview", "accept the python fix"), ("fixes", "accept the fix"), ("migration/systems", "accept the plan change"),
                  ("migration/dependencies", "measure all"), ("migration/systems", "measure status"), ("migration/roadmap", "measure status"),
@@ -54,7 +66,9 @@ ASKED: dict[str, tuple[tuple[str, str], ...]] = {
     "accepted": (("migration/dependencies", "undo the python fix"), ("migration/dependencies", "accept the python fix"),
                  ("fixes", "connect demo code"), ("checks", "undo the first suggestion")),
     "closed": (("migration/dependencies", "accept the python fix"), ("checks", "show me failed checks"), ("checks", "what can you do?"),
-               ("checks", "run all"), ("fixes", "merge it"), ("overview", "open evidence")),
+               ("checks", "run all"), ("fixes", "merge it"), ("overview", "open evidence"),
+               # phase 6c: a closed assessment still answers the fixed questions
+               ("evidence", "why did the blank signature check fail?"), ("overview", "what should i do next?")),
 }
 
 
@@ -122,6 +136,11 @@ def ask(lab, assessment_id: int, stage: str) -> SimpleNamespace:
     (with the jobs that run). A read, like the panel's own."""
     before, jobs = everything_kept(lab), len(lab.jobs.live(lab.plan.id))
     answers = {(page, said): lab.assistant_answer(assessment_id, page, None, said) for page, said in ASKED.get(stage, ())}
+    # every option of every "Which one?" is said too, as a click on it would: an option must never ask again
+    for (page, _said), reply in list(answers.items()):
+        for option in reply.get("options") or []:
+            if (page, option["say"]) not in answers:
+                answers[(page, option["say"])] = lab.assistant_answer(assessment_id, page, None, option["say"])
     return SimpleNamespace(answers=answers, unchanged=everything_kept(lab) == before and len(lab.jobs.live(lab.plan.id)) == jobs)
 
 
@@ -182,9 +201,11 @@ def make_walk(tmp_path_factory) -> tuple[SimpleNamespace, object, pytest.MonkeyP
         at["accepted"] = snapshot(lab, stage="accepted")
 
         # Phase 6b: three sentences are sent the way the open text box sends them, so they are kept with the assessment.
+        # Phase 6c: and one of the fixed questions, kept with the facts of its answer.
         kept_before = everything_kept(lab)
         sent = [(page, said, lab.assistant_say(pid, page, None, said)) for page, said in
-                (("checks", "show me failed checks"), ("migration/dependencies", "undo the python fix"), ("checks", "make me a sandwich"))]
+                (("checks", "show me failed checks"), ("migration/dependencies", "undo the python fix"), ("checks", "make me a sandwich"),
+                 ("evidence", "why did the blank signature check fail?"))]
         kept_after = everything_kept(lab)
         at["said"] = snapshot(lab)
         at["said"].sent = sent

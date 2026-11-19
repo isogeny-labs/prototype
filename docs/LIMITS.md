@@ -542,6 +542,72 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
   also a rejection, before any check has run.
 
+## Limits of phase 6c, first half (six fixed questions, answered by rules; 19 November 2026)
+
+- **Six questions, and only those.** "Why did this check fail?", "What does this result show, and what doesn't
+  it?", "Where did this suggestion come from?", "What happens if I accept this?", "What is this page for?" and
+  "What should I do next?". Fixed rules read them in a few common wordings each
+  (`backend/app/assistant/questions.py`). Any other question gets "I can't do that." and the list of what can be
+  said on the page. The plan's second half, an answer in free words by Claude from a fact sheet, is not built, so
+  there is no "Hypothesis" part, no "Facts used" fold and no "What was sent" fold yet, and no model is asked for a
+  question with Live Otto on or off.
+- **An answer is a list of the app's own sentences.** Nothing is explained beyond what a page already says about
+  the item. For a failed check that is the reviewer's result, its plain sentence, up to three lines of what
+  happened, the control, where an advisory check came from and the fix; it does not list the single cases the
+  program got wrong (the link opens the result, where they are). Two kinds of sentence are the assistant's own: the
+  opening line that names the item and repeats its result word, and one standing sentence for each page ("What is
+  this page for?"). Those ten page sentences are new wording, in `backend/app/assistant/words.py`.
+- **"This check" is the open item.** With no item open, "Why did this check fail?" is about the one failed check
+  if there is exactly one; with several it asks "Which one?". A check that did not fail gets its result word and
+  plain sentence ("did not fail: it reads Passed"). On Advisories an open advisory stands for its accepted check.
+- **Where an answer shows.** The newest answer shows above the text box and stays there while you move around,
+  until the next sentence. The panel does not switch to the tab the answer belongs to; the kept answer is listed
+  in that tab under "This thread so far", with its facts as they were when asked. A fact is not refreshed later:
+  the kept answer says what the records said then.
+- **What is kept** is the question, the answer's one line and its facts. Like every exchange it is not in the
+  evidence file. A closed assessment answers and keeps nothing.
+- **The status line is unchanged**: "Live Otto is off." with the link to Settings, or "Live Otto is on.". The plan's
+  longer line ("Otto answers the fixed questions from this assessment's records. Free-form answers need Live
+  Otto.") is left for the second half: it promises free-form answers that are not built, and its wording says what
+  Otto does, which the wording rule of 19 November does not allow. This is on the list for Kevin.
+- **The text box's label** changed to "Ask Otto, or tell it what to do", as the plan words it for 6c.
+- **A title with a colon** ("Advisory check: ...") is said without the colon in the sentence behind a "Which one?"
+  option, because in a typed sentence the first colon starts a reason. Typed by hand with its colon after a
+  command ("reject Advisory check: Blank signature accepted"), what follows the colon is read as the reason; the
+  Confirm step shows it before anything is sent.
+
+## Limits of phase 6b, first half (commands by fixed rules; 19 November 2026)
+
+- **Only fixed rules read a sentence.** The plan's second half, passing other wording to Claude with Live Otto on,
+  is not built. A sentence the rules can't read gets "I can't do that." and the list of what can be said on the
+  page. The rules know a fixed set of verbs, page names and filter words; they are in
+  `backend/app/assistant/commands.py`, and each example the list shows is read by them.
+- **Names.** A thing is found by the words of its title and of what it is about (the advisory's id, the library,
+  the program), and by a few everyday names (Java for openjdk, Python or ecdsa for python-ecdsa). A name that fits
+  nothing gets "I can't do that."; one that fits several gets "Which one?". Nothing is guessed, so a short name
+  that two things share always asks.
+- **"The second suggestion"** counts the suggestions shown under "On this page" beside the page the sentence was
+  typed on, in the panel's own order. On a page with no suggestions there is nothing to count.
+- **Filters by a command** are: failed and passed (Checks, Evidence), true, false and couldn't check (Checks),
+  proposed, accepted and rejected (Advisories), and retests, fix proofs and tries (Checks). The count in the answer
+  ("2 checks") is worked out for Checks and Advisories; for Evidence the answer names the filter without a count.
+- **The Result filter on Checks now also narrows the test plan's cards.** Before, it filtered the rows under the
+  plan only. While it is on, moving a card with the arrow keys still moves it in the whole plan, past cards that
+  are not listed.
+- **The address holds the page's own filter value** (`result=Failed` on Checks, `result=failed` on Evidence,
+  `decision=proposed` on Advisories). A value the page does not have lists nothing. Fixes has no such filter.
+- **What is kept** is the sentence, the one line of the answer, the page, the thread and where it led. The card an
+  answer showed is not kept: the thread shows the line only. What was said is not in the evidence file (the plan
+  puts only Claude's steps there, and there are none yet).
+- **Done on its page only.** For Merge pull request, Apply and Roll back the answer repeats the page's own reason
+  where exactly one fix has that button; for Approve it says how many approvals are missing. For the others it
+  only says that it is done on the page.
+- **In a closed assessment** the box moves around and lists what can be said. Since phase 6c (first half) it also
+  answers the six fixed questions there.
+- **Eleven of the thirteen next-step screen tests** still compare the panel's request with a typed request, not
+  with the real page component (found by the reviewer of 6a; the two that do are Run and Run all).
+
+
 ## Limits of Otto's research loop (phase 6; 19 November 2026)
 
 Built in the overnight run of 19 November 2026 from Kevin's brief ("Otto researches by itself"). SPEC section 7f,

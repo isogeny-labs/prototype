@@ -163,7 +163,7 @@ describe("app shell", () => {
     expect(document.body.textContent).not.toMatch(/Prototype assistant|no AI model connected|The assistant isn't built yet/);
     expect(within(panel).queryByRole("button", { name: /Hide/ })).toBeNull();
     // Phase 6b: the text box is at the foot of the panel, under its own label, with the page's example chips
-    expect(within(panel).getByRole("textbox", { name: "Tell Otto where to go or what to do" })).not.toBeNull();
+    expect(within(panel).getByRole("textbox", { name: "Ask Otto, or tell it what to do" })).not.toBeNull();
     expect(within(panel).getAllByTestId("otto-chip").length).toBeGreaterThan(0);
   });
 

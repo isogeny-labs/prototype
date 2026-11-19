@@ -18,7 +18,7 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Protocol
 
-from app.assistant import answers, commands, words
+from app.assistant import answers, commands, questions, words
 from app.assistant.threads import ENTRY_KINDS, FITS, KIND_THREAD, PAGE_LABELS, PAGE_THREAD, PAGES, THREAD_LABELS, THREADS, thread_of
 from app.errors import BadRequest, NotFound
 from app.otto import harness
@@ -44,7 +44,7 @@ def _entry(what: str, entry_id: str, *, mark: str, title: str, page: str | None 
     return {"id": entry_id, "kind": what.split(":")[0], "what": what, "thread": thread_of(what, page), "mark": mark, "title": title,
             "text": more.pop("text", None), "at": more.pop("at", None), "badge": more.pop("badge", None), "where": more.pop("where", None),
             "links": more.pop("links", []), "proposal": more.pop("proposal", None), "decisions": more.pop("decisions", []),
-            "step": more.pop("step", None), "open_item": bool(more.pop("open_item", False)), **more}
+            "step": more.pop("step", None), "open_item": bool(more.pop("open_item", False)), "facts": more.pop("facts", []), **more}
 
 
 def _link(page: str, item: object = None, group: str | None = None) -> dict:
@@ -119,16 +119,15 @@ class RuleCopilot:
                 "page_label": PAGE_LABELS[page], "thread": PAGE_THREAD[page],
                 # phase 6b: the text box, and up to three examples fitted to the page (a chip sends its own words)
                 "box": {**commands.BOX, "chips": list(commands.CHIPS.get(page, (commands.HELP,))),
+                        # phase 6c: the fixed questions that fit (with no file: what the page is for, and what to do next)
+                        "questions": [questions.ASK["next"], questions.ASK["page_for"]],
                         "kept": not closed, "kept_note": None if not closed else words.BOX_CLOSED}}
         if core["import_id"] is None or core["plan_id"] is None:
             link = None if page == "inventory/import" else {"label": "Open Import", "link": _link("inventory/import")}
             return {**base, "tabs": [], "on_page": {"title": words.ON_PAGE, "entries": [], "empty": words.NO_FILE, "empty_link": link},
                     "elsewhere": {"title": words.elsewhere_title(0), "count": 0, "lines": [], "empty": None}, "waiting": 0, "busy": False}
-        facts = _Facts(lab, core, closed)
         proposals = lab.otto_proposals(core["plan_id"])
-        # (as on the Overview: where nothing can be decided, nothing counts as waiting for its next step)
-        facts.waiting = ({kind: sum(1 for p in proposals if p["kind"] == kind and waits(p)) for kind in KIND_THREAD}
-                         if not closed and installed["installed"] else {})
+        facts = facts_of(lab, core, closed, proposals)
         suggestions = {p["id"]: self._suggestion(p, item) for p in proposals}
 
         # On this page: the suggestions that fit it and can still be decided, then its next steps, then what its results mean.
@@ -154,6 +153,7 @@ class RuleCopilot:
         nothing = waiting_here == 0 and not waiting_elsewhere
 
         tabs = self._tabs(facts, proposals, suggestions, lab.assistant_messages(core["plan_id"]))
+        base["box"] = {**base["box"], "questions": questions.fitting(page, item, facts.lab().get("rows") or [], here)}
         return {**base, "tabs": tabs,
                 "on_page": {"title": words.ON_PAGE, "entries": on_page, "empty": None if on_page else words.NOTHING_HERE, "empty_link": None},
                 "elsewhere": {"title": words.elsewhere_title(len(waiting_elsewhere)), "count": len(waiting_elsewhere), "lines": lines,
@@ -557,7 +557,8 @@ class RuleCopilot:
         for m in said or []:
             if m.get("thread") in so_far:
                 so_far[m["thread"]].append(_entry(f"said:{m['thread']}", f"said:{m['id']}", mark=words.MARK_SAID, title=m["said"], text=m["reply"],
-                                                  at=m["at"], links=([{"label": words.SAID_LINK, "link": _go_link(m["go"])}] if m.get("go") else [])))
+                                                  at=m["at"], links=([{"label": words.SAID_LINK, "link": _go_link(m["go"])}] if m.get("go") else []),
+                                                  facts=list(m.get("facts") or [])))
         explain = {"testing": any(e["badge"]["tone"] != "pass" for e in results), "fixing": bool(steps), "planning": False}
         tabs = []
         for thread in THREADS:
@@ -618,12 +619,24 @@ def _plain(value: object) -> str | None:
     return None
 
 
+def facts_of(lab: Any, core: dict, closed: bool, proposals: list[dict]) -> "_Facts":
+    """The assessment's views for one read, with how many proposals wait for a decision, by kind: what the Overview's
+    own next step counts. As on the Overview, where nothing can be decided (a closed assessment, Otto not installed)
+    nothing counts as waiting. The panel's read, a typed command and a fixed question all start here, so the three
+    name the same next step as the Overview."""
+    facts = _Facts(lab, core, closed)
+    facts.waiting = ({kind: sum(1 for p in proposals if p["kind"] == kind and waits(p)) for kind in KIND_THREAD}
+                     if not closed and harness.public_status()["installed"] else {})
+    return facts
+
+
 class _Facts:
     """The views the pages draw from, each read at most once for one read of the panel, and only when it is needed."""
 
     def __init__(self, lab: Any, core: dict, closed: bool) -> None:
         self._lab, self._core, self.closed = lab, core, closed
         self.plan_id, self.import_id = core["plan_id"], core["import_id"]
+        self.has_file = self.plan_id is not None and self.import_id is not None
         self._seen: dict[str, Any] = {}
         self.waiting: dict[str, int] = {}
 

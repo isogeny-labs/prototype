@@ -2554,6 +2554,14 @@ class AssistantBadge(Shape):
     tone: Tone
 
 
+class AssistantFact(Shape):
+    """Phase 6c: one fact of an answer: a sentence the app already shows about the item, with the link to where."""
+
+    text: str
+    link: ItemLink | None
+    label: str | None = Field(description='What the link is called: "See the evidence", "Open the advisory", "View in Fixes".')
+
+
 class AssistantEntry(Shape):
     """One entry of the panel: a suggestion (one of Otto's proposals), a next step (a button of a page) or what a
     result means; and, in a thread so far, a reviewed result or where a fix stands."""
@@ -2573,6 +2581,7 @@ class AssistantEntry(Shape):
     decisions: list[AssistantDecision]
     step: AssistantStep | None
     open_item: bool = Field(description="It is about the item that is open on the page.")
+    facts: list[AssistantFact] = Field(default_factory=list, description="Phase 6c: a kept answer to a fixed question: its facts.")
 
 
 class AssistantTab(Shape):
@@ -2609,10 +2618,11 @@ class AssistantElsewhere(Shape):
 class AssistantBox(Shape):
     """Phase 6b: the text box at the foot of the panel."""
 
-    label: str = Field(description='"Tell Otto where to go or what to do"')
+    label: str = Field(description='"Ask Otto, or tell it what to do" (phase 6c; in 6b alone it read "Tell Otto where to go or what to do")')
     send: str
     max: int
     chips: list[str] = Field(description="Up to three examples fitted to the page. A chip sends its own words.")
+    questions: list[str] = Field(description="Phase 6c: up to three of the six fixed questions that fit the page and the open item.")
     kept: bool = Field(description="False in a closed assessment: what is typed there is answered and not kept.")
     kept_note: str | None
 
@@ -2653,7 +2663,7 @@ class AssistantReply(Shape):
     """Phase 6b: Otto's answer to one typed sentence. Nothing has been decided or started by it: `went`, `page_only`
     and `tab` only move around, and `card` hands back an entry whose Confirm step the browser shows."""
 
-    kind: Literal["went", "card", "which", "cannot", "help", "page_only", "tab", "closed"]
+    kind: Literal["went", "card", "which", "cannot", "help", "page_only", "tab", "closed", "answer"]
     text: str
     go: AssistantGo | None
     entry: AssistantEntry | None
@@ -2662,6 +2672,9 @@ class AssistantReply(Shape):
     can: list[AssistantCan] = Field(description="What can be said on this page, from the one list.")
     tab: AssistantTabChange | None
     thread: AssistantThread | None = Field(description="The tab the exchange is filed under, if any.")
+    question: str | None = Field(default=None, description="Phase 6c: the fixed question that was answered, in its own wording.")
+    label: str | None = Field(default=None, description='Phase 6c: where an answer is from: "From this assessment\'s records".')
+    facts: list[AssistantFact] = Field(default_factory=list, description="Phase 6c: an answer's facts, each with its link.")
 
 
 class AssistantView(Shape):

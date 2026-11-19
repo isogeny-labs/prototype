@@ -5053,7 +5053,7 @@
           "label": {
             "type": "string",
             "title": "Label",
-            "description": "\"Tell Otto where to go or what to do\""
+            "description": "\"Ask Otto, or tell it what to do\" (phase 6c; in 6b alone it read \"Tell Otto where to go or what to do\")"
           },
           "send": {
             "type": "string",
@@ -5070,6 +5070,14 @@
             "type": "array",
             "title": "Chips",
             "description": "Up to three examples fitted to the page. A chip sends its own words."
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Questions",
+            "description": "Phase 6c: up to three of the six fixed questions that fit the page and the open item."
           },
           "kept": {
             "type": "boolean",
@@ -5095,6 +5103,7 @@
           "send",
           "max",
           "chips",
+          "questions",
           "kept",
           "kept_note"
         ],
@@ -5443,6 +5452,14 @@
             "type": "boolean",
             "title": "Open Item",
             "description": "It is about the item that is open on the page."
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantFact"
+            },
+            "type": "array",
+            "title": "Facts",
+            "description": "Phase 6c: a kept answer to a fixed question: its facts."
           }
         },
         "additionalProperties": false,
@@ -5466,6 +5483,45 @@
         ],
         "title": "AssistantEntry",
         "description": "One entry of the panel: a suggestion (one of Otto's proposals), a next step (a button of a page) or what a\nresult means; and, in a thread so far, a reviewed result or where a fix stands."
+      },
+      "AssistantFact": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "What the link is called: \"See the evidence\", \"Open the advisory\", \"View in Fixes\"."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "link",
+          "label"
+        ],
+        "title": "AssistantFact",
+        "description": "Phase 6c: one fact of an answer: a sentence the app already shows about the item, with the link to where."
       },
       "AssistantGo": {
         "properties": {
@@ -5677,7 +5733,8 @@
               "help",
               "page_only",
               "tab",
-              "closed"
+              "closed",
+              "answer"
             ],
             "title": "Kind"
           },
@@ -5756,6 +5813,38 @@
             ],
             "title": "Thread",
             "description": "The tab the exchange is filed under, if any."
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question",
+            "description": "Phase 6c: the fixed question that was answered, in its own wording."
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "Phase 6c: where an answer is from: \"From this assessment's records\"."
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantFact"
+            },
+            "type": "array",
+            "title": "Facts",
+            "description": "Phase 6c: an answer's facts, each with its link."
           }
         },
         "additionalProperties": false,
