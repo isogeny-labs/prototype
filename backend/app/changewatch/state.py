@@ -30,7 +30,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any, Callable
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.canonical import canonical_bytes
 from app.changewatch import demo_changes, flags
@@ -277,6 +277,37 @@ class ChangeWatchMixin:
                              "repository": connection.repository if connection is not None else None,
                              "branch": connection.branch if connection is not None else None},
                     "changes": changes, "menu": self._demo_menu(code, changes)}
+
+    def _fixes_for_developer_changes(self, db, plan: PlanRow, items: list, shown: list[dict]) -> list[dict]:
+        """One of the sources of Fixes (the list is `ChangesMixin._fix_sources`): a Text-only entry for each developer's
+        change whose watch run shows a test that passed on the code before failing on the change. It is there while that
+        change reads "Passed before, fails now", and names the tests and the lines the change takes out. The app writes
+        no change of its own for a developer's branch."""
+        # (a quick look first: the repository is read only where a watch run of this plan ever said so)
+        ever = db.scalar(select(func.count(WatchReviewRow.id)).join(WatchRunRow, WatchRunRow.id == WatchReviewRow.watch_run_id)
+                         .where(WatchRunRow.plan_id == plan.id, WatchReviewRow.status == "passed_before_fails_now"))
+        code = self._watch_code(db, plan) if ever else None
+        if code is None or code["state"] != "connected":
+            return []
+        fixes: list[dict] = []
+        for change in self._developer_changes(db, plan, code)[0]:
+            if change["status"] != "passed_before_fails_now":
+                continue
+            titles = {t["item_id"]: t["title"] for t in change["picked"]}
+            run = change["run"]
+            fixes.append({"id": f"fix-{change['id']}", "test_kind": "developer_change", "kind": "text", "status": "text_only",
+                          "source_kind": "developer_change", "answers": [], "component": None, "template_id": None, "rerun_blocked": None,
+                          "connection": None, "change": None, "proofs": 0, "proof": None, "pull_request": None, "merge": None, "actions": {},
+                          "developer_change": {
+                              "id": change["id"], "branch": change["branch"], "commit": change["head"], "title": change["title"],
+                              "author": change["author"], "is_demo": change["is_demo"], "watch_run_id": run["id"],
+                              "program": code["program"], "gives": change["gives"], "starts_from": change["starts_from"],
+                              "tests": [{"item_id": t["item_id"], "kind": t["kind"], "title": titles.get(t["item_id"]) or research.title_of(t["kind"]),
+                                         "outcome": t["outcome"], "before_run_id": t["before"]["run_id"], "now_run_id": t["now"]["run_id"]}
+                                        for t in run["tests"] if t["outcome"] in ("fails_now", "slower_now")],
+                              "files": [{"name": f["name"], "state": f["state"], "added": f["added"], "removed": f["removed"],
+                                         "is_program": f["is_program"], "blocks": f["blocks"]} for f in change["files"] if f["text"]]}})
+        return fixes
 
     # ---------------------------------------------------------------- the watch run: record, review, read gate
 

@@ -8,6 +8,7 @@ from app.db import PlanRow, TestRunRow
 from app.engine import research
 from app.lab.testlab import BUSY
 from app.present import changewatch as words
+from app.present.fixes import DEVELOPER_CHANGE_FIX_LINE
 
 BEFORE_FROM = {"first": "This assessment's own run of the test.", "retest": "From a retest of this assessment.",
                "proof": "From the proof of a fix.", "watch": "From an earlier run of a change's picked tests.",
@@ -96,6 +97,9 @@ class ChangeWatchViewMixin:
                 "results": results,
                 "flags": flags, "flags_note": words.FLAGS_NOTE if flags else None,
                 "more_flags": (f"{words._count(change['more_flags'], 'more flag')} of the same kind are not listed." if change["more_flags"] else None),
+                # while tests that passed fail on this change, Fixes has an entry for it (ChangeWatchMixin._fixes_for_developer_changes)
+                "fix_line": DEVELOPER_CHANGE_FIX_LINE if change["status"] == "passed_before_fails_now" else None,
+                "fix": ({"page": "fixes", "item": f"fix-{change['id']}", "group": None} if change["status"] == "passed_before_fails_now" else None),
             }}
 
     def change_watch_view(self, plan_id: int) -> dict:

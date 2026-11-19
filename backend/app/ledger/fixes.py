@@ -18,6 +18,12 @@ def came_from_links(state: dict) -> list[dict]:
         for a in state.get("answers") or []:
             system = a.get("system_key") or system
         return [{"label": "The migration plan", "link": {"page": "migration/systems", "item": system}}] if system else []
+    if state.get("source_kind") == "developer_change":
+        # phase 6d: the change itself on Change watch, then each test's run on the change (a row of that watch run on Checks)
+        change = state.get("developer_change") or {}
+        return ([{"label": "The developer's change", "link": {"page": "change-watch", "item": change.get("id")}}]
+                + [{"label": f"{t.get('title')} on the change", "link": {"page": "checks", "item": f"watch-{t.get('item_id')}-in-{change.get('watch_run_id')}"}}
+                   for t in change.get("tests") or []])
     out, seen = [], set()
     for a in state.get("answers") or []:
         item_id = a.get("item_id")

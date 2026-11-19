@@ -85,6 +85,8 @@ const tls: ChangeRow = {
     ],
     flags_note: "A flag is something to look at. It is never a result.",
     more_flags: null,
+    fix_line: null,
+    fix: null,
   },
 };
 
@@ -134,6 +136,8 @@ const revert: ChangeRow = {
     flags: [],
     flags_note: null,
     more_flags: null,
+    fix_line: null,
+    fix: null,
   },
 };
 
@@ -412,6 +416,17 @@ describe("Change watch, the table and a change's panel", () => {
     expect(text(result.getByTestId("change-result-now"))).toContain("On this change: acme-sign 1.4.2");
     expect(text(result.getByTestId("change-result-now"))).toContain("acme-sign 1.4.2 accepted a signature made of zeros.");
     expect(text(panel().getByTestId("change-last-run"))).toBe("Last run started 19 November 2026, 6:06 am EST.");
+    expect(panel().queryByTestId("change-fix-line")).toBeNull(); // (no entry in Fixes is named by the server for this view)
+  });
+
+  it("where Fixes has an entry for the change, its panel says so in one line with the way there", async () => {
+    const withFix: ChangeRow = {
+      ...ran,
+      panel: { ...ran.panel, fix_line: "A suggestion for this change is in Fixes. It is text only.", fix: { page: "fixes", item: `fix-${ran.id}`, group: null } },
+    };
+    await open(withRows(withFix), {}, { openItem: withFix.id });
+    expect(text(panel().getByTestId("change-fix-line"))).toBe("A suggestion for this change is in Fixes. It is text only. View in Fixes");
+    expect(panel().getByTestId("change-fix-link").getAttribute("href")).toBe(`#/a/101/fixes?item=fix-${ran.id}`);
   });
 
   it("in a closed assessment the two buttons are off with the closed sentence, and nothing is sent", async () => {

@@ -221,6 +221,15 @@ export function ChangePanelView({
             </div>
           ) : null}
 
+          {panel.fix_line && panel.fix ? (
+            <p data-testid="change-fix-line" className="break-words rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200">
+              {panel.fix_line}{" "}
+              <ItemLinkView link={panel.fix} testId="change-fix-link" className="text-sky-300 underline-offset-2 hover:underline">
+                View in Fixes
+              </ItemLinkView>
+            </p>
+          ) : null}
+
           {panel.flags.length > 0 ? (
             <div>
               <h3 className={H}>Flags ({row.flags_count})</h3>

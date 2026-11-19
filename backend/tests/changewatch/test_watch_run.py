@@ -15,6 +15,7 @@ from app.errors import NotFound
 from app.fixes.gitrepo import Person
 from app.lab.testlab import BUSY
 from app.run import components
+from app.web import models
 from conftest import make_lab
 from test_changes import FIX, proved, small_plan
 from test_changes_read import SOMEONE, V142, V143, one, refusal, repo_of
@@ -24,15 +25,16 @@ WATCH_TABLES = {"watch_runs": "version", "watch_reviews": "status"}     # listed
 
 
 def views(lab, plan) -> SimpleNamespace:
-    """What the pages of the assessment's own results read, piece by piece: Evidence's results, the test plan and Fixes
-    as one text each; Checks row by row; the Overview's findings, facts and counts."""
+    """What the pages of the assessment's own results read, piece by piece: Evidence's results and the test plan as one
+    text; Fixes entry by entry; Checks row by row; the Overview's findings, facts and counts."""
     a = lab.assessment_for(plan_id=plan.id)
     text_of = lambda value: json.dumps(value, sort_keys=True, default=str)        # noqa: E731
     checks = lab.checks_view(plan.id)
     blocks = lab.assessment_view(a.id)["blocks"]
     encryption = next(g for g in checks["groups"] if g["key"] == "encryption")
     return SimpleNamespace(
-        own=text_of({"lab": lab.lab_view(plan.id), "plan": lab.plan_view(plan.id), "fixes": lab.fix_states(plan.id)}),
+        own=text_of({"lab": lab.lab_view(plan.id), "plan": lab.plan_view(plan.id)}),
+        fixes={f["id"]: text_of(f) for f in lab.fix_states(plan.id)},
         rows={r["id"]: text_of(r) for g in checks["groups"] for r in g["rows"]},
         parts={key: text_of(part) for key, part in (encryption.get("parts") or {}).items()},
         counts={g["key"]: g["counts"] for g in checks["groups"]},
@@ -125,8 +127,12 @@ def test_the_reviewer_says_what_differs_and_that_sets_the_changes_status_word(ra
 
 def test_a_watch_run_never_stands_in_for_a_result_of_the_assessments_own_tests(ran):
     before, after = ran.before, ran.after
-    # Evidence's results, the test plan and Fixes read exactly what they read before the watch run
+    # Evidence's results and the test plan read exactly what they read before the watch run
     assert after.own == before.own
+    # Fixes: every entry that was there is as it was. The change undoes a merged fix, so one entry is new: the
+    # developer's change itself, text only (its own tests are below).
+    assert {key: after.fixes[key] for key in before.fixes} == before.fixes
+    assert [key for key in after.fixes if key not in before.fixes] == [f"fix-{ran.done['id']}"]
     # On Checks every row that was there is as it was. The watch run's rows are new rows of their own, each saying
     # where it came from and leading back to the change.
     assert {key: after.rows[key] for key in before.rows} == before.rows
@@ -139,19 +145,60 @@ def test_a_watch_run_never_stands_in_for_a_result_of_the_assessments_own_tests(r
     # the three parts that were there are untouched; the watch run has a part of its own
     assert {key: after.parts[key] for key in ("plan", "retests", "proofs")} == {key: before.parts[key] for key in ("plan", "retests", "proofs")}
     assert json.loads(before.parts["changes"]) is None and json.loads(after.parts["changes"])["count_label"] == "1 run"
-    # The Overview: every finding, every fact and every count of fixes is as it was. The checks of Encryption tests
-    # that are done go up by the two runs on the change; nothing else moves, and "runs recorded" goes up by the same two.
+    # The Overview: every finding and every fact is as it was. The checks of Encryption tests that are done go up by
+    # the two runs on the change, its open fixes by the one new entry; nothing else moves, and "runs recorded" goes up
+    # by the same two.
     assert after.findings == before.findings
     for key, group in before.overview.items():
-        assert after.overview[key]["fixes"] == group["fixes"] and after.overview[key]["facts"] == group["facts"]
+        assert after.overview[key]["facts"] == group["facts"]
         if key != "encryption":
             assert after.overview[key]["checks"] == group["checks"] and after.counts[key] == before.counts[key]
+            assert after.overview[key]["fixes"] == group["fixes"]
+    assert after.overview["encryption"]["fixes"] == {**before.overview["encryption"]["fixes"], "open": before.overview["encryption"]["fixes"]["open"] + 1}
     assert after.overview["encryption"]["checks"] == {**before.overview["encryption"]["checks"], "done": before.overview["encryption"]["checks"]["done"] + 2}
     assert after.recorded == before.recorded + 2
     with ran.lab.db() as db:
         # (and the bad-signatures test of the plan still reads Failed on 1.4.2 from its own first run, not from the watch run)
         phases = {r.phase for r in db.scalars(select(TestRunRow).where(TestRunRow.plan_id == ran.plan.id)).all()}
     assert {"first", "proof", "watch"} <= phases
+
+
+def test_a_change_that_makes_passing_tests_fail_has_a_text_only_entry_in_fixes_that_names_them_and_shows_the_lines_taken_out(ran):
+    lab, plan, change = ran.lab, ran.plan, ran.done
+    state = next(f for f in lab.fix_states(plan.id) if f["source_kind"] == "developer_change")
+    assert (state["id"], state["kind"], state["status"], state["answers"], state["actions"]) == (f"fix-{change['id']}", "text", "text_only", [], {})
+    assert [(t["kind"], t["outcome"]) for t in state["developer_change"]["tests"]] == [("bad_signatures", "fails_now")]
+    view = lab.fixes_view(plan.id)
+    models.FixesView.model_validate(view)
+    entry = next(f for f in view["fixes"] if f["id"] == state["id"])
+    assert entry["title"] == "Revert the range check: 1 test that passed now fails"
+    assert entry["list_source"] == "Came from: developer's change dev/revert-range-check"
+    assert (entry["status"]["word"], entry["kind"], entry["group"], entry["fix_state"], entry["is_demo"]) == ("Text only", "text", "encryption", "open", True)
+    # it offers nothing to press: the app has made no change for a developer's branch, and never merges one
+    assert entry["actions"] == {"buttons": [], "note": None} and entry["pull_request"] is None and entry["patch"] is None and entry["proposal"] is None
+    assert entry["proof"]["text"].startswith("None. This suggestion is text only: the app has not applied it or tested it.")
+    assert "The app never merges a developer's change." in entry["approvers"]["text"]
+    # where it came from: the change on Change watch, and the failing run on the change (a row of that watch run on Checks)
+    assert entry["came_from_links"] == [
+        {"label": "The developer's change", "link": {"page": "change-watch", "item": change["id"]}},
+        {"label": "Attacker tricks (our short list) on the change", "link": {"page": "checks", "item": f"watch-{state['developer_change']['tests'][0]['item_id']}-in-{change['run']['id']}"}}]
+    suggestion, taken_out = entry["sections"]
+    assert (suggestion["key"], taken_out["key"]) == ("suggestion", "change")
+    assert suggestion["suggestion"]["intro"][0] == ("Attacker tricks (our short list) passed on the code before (acme-sign 1.4.3) and fails on this "
+                                                    "change (acme-sign 1.4.2).")
+    # the lines the change takes out are the lines the merged fix added: every one of them is marked as removed
+    removed = [line["text"] for part in taken_out["parts"] for line in part["before"] if line["mark"] == "-"]
+    assert removed and taken_out["line"] == f"{len(removed)} lines removed, in {len(taken_out['parts'])} places"
+    assert any("r" in text and "s" in text and "<" in text for text in removed)        # the range check itself
+    assert all(part["title"].startswith("acme_sign.py, from line ") and part["before_label"]["strong"] == "acme-sign 1.4.3" for part in taken_out["parts"])
+    words = json.dumps(entry).lower()
+    assert "secure" not in words and "severity" not in words and "score" not in words
+    # the change's own panel leads to it, and no other change's does
+    page = lab.change_watch_view(plan.id)
+    shown = next(c for c in page["changes"] if c["id"] == change["id"])
+    assert shown["panel"]["fix_line"] == "A suggestion for this change is in Fixes. It is text only."
+    assert shown["panel"]["fix"] == {"page": "fixes", "item": state["id"], "group": None}
+    assert all(c["panel"]["fix"] is None and c["panel"]["fix_line"] is None for c in page["changes"] if c["id"] != change["id"])
 
 
 def test_checks_and_evidence_list_the_watch_runs_under_their_change_with_every_run_behind_each_row(ran):
@@ -250,6 +297,13 @@ def test_before_is_the_newest_reviewed_run_on_exactly_the_code_the_change_starts
     with lab.db() as db:                         # and runs on the change's own code (1.4.2), however new, were never taken as "before"
         watch_runs = [r.id for r in db.scalars(select(TestRunRow).where(TestRunRow.phase == "watch")).all()]
     assert not {t["before"]["run_id"] for t in done["run"]["tests"]} & set(watch_runs)
+    # the entry in Fixes is about what the change reads now: one entry, however many runs said so ...
+    assert [f["id"] for f in lab.fix_states(plan.id) if f["source_kind"] == "developer_change"] == [f"fix-{done['id']}"]
+    # ... and it goes when the change no longer reads "Passed before, fails now": after the plan changes, the last run
+    # is no longer a run of the tests picked now, the change reads "Not run yet", and Fixes has no entry for it
+    lab.add_test(plan.id, "mldsa_compare")
+    assert one(lab.change_watch_state(plan.id), REVERT)["status"] == "not_run"
+    assert not [f for f in lab.fix_states(plan.id) if f["source_kind"] == "developer_change"]
 
 
 # ---------------------------------------------------------------- other changes, and what is refused
@@ -334,6 +388,9 @@ def test_the_page_keeps_asking_while_anything_else_runs_for_the_assessment(conne
     assert page["busy"] is False and change["panel"]["run"]["can"] is True and change["panel"]["run"]["blocked_reason"] is None
     # the rerun of the first result changed nothing for the change: its "before" was a reviewed run on exactly that code
     assert change["status"]["key"] == "failed_before_passes_now"
+    # a change whose tests pass now has no entry in Fixes: an entry is only for tests that passed and fail on the change
+    assert not [f for f in lab.fix_states(plan.id) if f["source_kind"] == "developer_change"]
+    assert change["panel"]["fix"] is None
 
 
 def test_what_cannot_run_is_refused_with_the_reason_and_nothing_is_written(connected):

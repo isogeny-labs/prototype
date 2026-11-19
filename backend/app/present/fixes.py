@@ -875,6 +875,75 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
     }
 
 
+# ------------------------------------------------------------------ phase 6d: a developer's change that makes passing tests fail
+
+DEVELOPER_CHANGE_OUTCOMES = {"fails_now": "passed on the code before ({before}) and fails on this change ({now})",
+                             "slower_now": "reads “Slowdown found” on this change ({now}), timed against the code before ({before})"}
+DEVELOPER_CHANGE_FIX_LINE = "A suggestion for this change is in Fixes. It is text only."
+
+
+def developer_change_fix(fix: dict) -> dict:
+    """One entry for a developer's change whose picked tests, run on a click in Change watch, show a test that passed on
+    the code before failing on the change. Text only: it names those tests and shows the lines the change takes out.
+    The app has written no change for a developer's branch, and it never merges one."""
+    change = fix["developer_change"]
+    program = change.get("program") or {}
+    name = str(program.get("name") or "the program")
+    before = f"{name} {(change.get('starts_from') or {}).get('version') or ''}".strip()
+    now = f"{name} {(change.get('gives') or {}).get('version') or ''}".strip()
+    tests = change["tests"]
+    said = [f"{t['title']} {DEVELOPER_CHANGE_OUTCOMES[t['outcome']].format(before=before, now=now)}." for t in tests]
+    n = len(tests)
+    parts = []
+    for file in change["files"]:
+        for block in file["blocks"]:
+            removed = sum(1 for line in block["before"] if line["mark"] == "-")
+            added = sum(1 for line in block["after"] if line["mark"] == "+")
+            if not removed:
+                continue                      # (this entry is about what the change takes out)
+            first = next(line["n"] for line in block["before"] if line["mark"] == "-")
+            parts.append({"title": f"{file['name']}, from line {first}", "why": "",
+                          "before_label": {"lead": "Before:", "strong": before if file["is_program"] else "the code before",
+                                           "rest": f", {removed} {_plural(removed, 'line')} that this change removes (marked −)"},
+                          "before": block["before"],
+                          "after_label": {"lead": "After:", "strong": "this change",
+                                          "rest": f", {added} {_plural(added, 'line')} added (marked +)" if added else ", nothing added here"},
+                          "after": block["after"]})
+    taken_out = sum(sum(1 for line in part["before"] if line["mark"] == "-") for part in parts)
+    sections: list[dict] = [{
+        "key": "suggestion", "title": "The suggestion", "line": "What to do with this change, in plain words", "open": True,
+        "suggestion": {"intro": [*said,
+                                 ("Keep the lines this change takes out, or change the branch so that the tests pass again. Then press "
+                                  "“Run again” on the change in Change watch."),
+                                 "A developer's change is not the system until someone merges it: this assessment's own results are as they were."],
+                       "warning": None, "where": None, "options": None, "exact": None}}]
+    if parts:
+        sections.append({"key": "change", "title": "What the change takes out",
+                         "line": f"{taken_out} {_plural(taken_out, 'line')} removed, in {len(parts)} {_plural(len(parts), 'place')}", "open": True,
+                         "intro": ("The lines the developer's change removes, with the lines around them, read from the connected demo "
+                                   "repository. Nothing here was written by the app."),
+                         "parts": parts})
+    return {
+        "id": fix["id"], "kind": "text",
+        "title": f"{change['title']}: {n} {_plural(n, 'test')} that passed now {'fails' if n == 1 else 'fail'}",
+        "list_source": f"Came from: developer's change {change['branch']}",
+        "source": [_t("Came from the developer's change "), _m(str(change["branch"])),
+                   _t(f" (commit {str(change['commit'])[:7]}), after its picked tests were run in Change watch.")],
+        "status": {"key": "text_only", "word": STATUS_WORDS["text_only"], "busy": False},
+        "labels": [], "is_demo": bool(change.get("is_demo")),
+        "what": {"label": "What it suggests", "server_line": None, "paragraphs": [[_t(
+            f"To look at this change again before anyone merges it: {n} {_plural(n, 'test')} that passed on the code before "
+            f"{'fails' if n == 1 else 'fail'} on it. A suggestion in plain words. The app has not changed the branch.")]]},
+        "proof": {"state": "none", "badge": None, "muted": None,
+                  "text": "None. This suggestion is text only: the app has not applied it or tested it. What the run showed is in Change watch."},
+        "proof_rows": None, "pull_request": None,
+        "approvers": {"text": "Whoever reviews this branch in your own repository, outside this app. The app never merges a developer's change.",
+                      "options": None, "rows": None, "footnote": None},
+        "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None,
+        "sections": sections, "sections_note": None, "change_box": None, "advisories": None,
+    }
+
+
 # ------------------------------------------------------------------ phase 4b (SPEC 7c): the demo server's TLS fix as a change
 
 def with_change_box(shown: dict, box: dict) -> dict:

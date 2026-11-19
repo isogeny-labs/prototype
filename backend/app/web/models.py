@@ -1691,6 +1691,8 @@ class ChangePanel(Shape):
     flags: list[ChangeFlag]
     flags_note: str | None
     more_flags: str | None
+    fix_line: str | None = Field(description="one line when Fixes has an entry for this change (tests that passed fail on it)")
+    fix: "ItemLink | None" = Field(description="the way to that entry on Fixes")
 
 
 class ChangeRow(Shape):

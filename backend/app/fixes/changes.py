@@ -191,6 +191,7 @@ class ChangesMixin:
     _plan, _items, _latest_run, _result, _verdict, _compare_blocked, _submit, start_retest."""
 
     _fixes_for_dependencies: Callable[..., list[dict]]   # from DependenciesMixin (phase 4d); declared for the type check only
+    _fixes_for_developer_changes: Callable[..., list[dict]]   # from ChangeWatchMixin (phase 6d); declared for the type check only
     _otto_pack_fix: Callable[..., dict | None]            # from OttoMixin (phase 5c)
     _otto_state: Callable[..., str]                       # from ProposalsMixin (phase 5c): where a proposal stands
 
@@ -291,8 +292,9 @@ class ChangesMixin:
 
     def _fix_sources(self) -> list:
         """Where fixes come from, as an explicit list. Phase 3a has one source; phase 3c adds a developer's change."""
-        # phase 4a adds the migration plan's entries; phase 4d one entry per library that blocks a track
-        return [self._fixes_for_failed_tests, self._fixes_for_migration, self._fixes_for_dependencies]
+        # phase 4a adds the migration plan's entries; phase 4d one entry per library that blocks a track; phase 6d (the
+        # plan's 3c) one entry for each developer's change that makes tests fail which passed on the code before
+        return [self._fixes_for_failed_tests, self._fixes_for_migration, self._fixes_for_dependencies, self._fixes_for_developer_changes]
 
     def _fixes(self, db, plan: PlanRow) -> list[dict]:
         items = self._items(db, plan.id)

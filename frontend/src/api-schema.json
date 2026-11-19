@@ -6759,6 +6759,29 @@
               }
             ],
             "title": "More Flags"
+          },
+          "fix_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix Line",
+            "description": "one line when Fixes has an entry for this change (tests that passed fail on it)"
+          },
+          "fix": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the way to that entry on Fixes"
           }
         },
         "additionalProperties": false,
@@ -6776,7 +6799,9 @@
           "results",
           "flags",
           "flags_note",
-          "more_flags"
+          "more_flags",
+          "fix_line",
+          "fix"
         ],
         "title": "ChangePanel"
       },

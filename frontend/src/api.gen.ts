@@ -1416,6 +1416,14 @@ export interface ChangePanel {
   flags: ChangeFlag[];
   flags_note: string | null;
   more_flags: string | null;
+  /**
+   * one line when Fixes has an entry for this change (tests that passed fail on it)
+   */
+  fix_line: string | null;
+  /**
+   * the way to that entry on Fixes
+   */
+  fix: ItemLink | null;
 }
 export interface ChangeTest {
   item_id: number;
