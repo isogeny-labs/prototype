@@ -8,6 +8,7 @@ import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
 import {
   CHECKS_SUBLINE,
   NO_RETEST,
+  blockRow,
   checkGroups,
   checksView,
   encryptionParts,
@@ -334,6 +335,46 @@ describe("Checks, the same measurement and the links between groups (phase 5b, p
   });
 });
 
+describe("Checks, the test plan is drawn once: it is there before the list of checks, and stays as it is when the list arrives", () => {
+  const part = (key: string) => within(section("encryption")).getAllByTestId("part-section").find((p) => p.getAttribute("data-part") === key)!;
+
+  it("keeps the + Add test menu open, and the keyboard's place in it, when the list arrives after the menu was opened", async () => {
+    // The list of checks answers late (a busy computer). The plan is on the page at once, with its buttons.
+    let answer: (r: Response) => void = () => {};
+    const late = new Promise<Response>((resolve) => (answer = resolve));
+    const fetchMock = mockApi({ [LAB]: { body: lab }, "GET /api/import/7/plan": { body: plan } });
+    const answered = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input, init) => (String(input) === "/api/plans/1/checks" ? late : answered(input, init)));
+    render(<Harness />);
+    const add = await screen.findByRole("button", { name: "+ Add test" });
+    expect(screen.queryAllByTestId("group-section")).toHaveLength(0); // the list is not here yet
+    const cardsBefore = screen.getAllByTestId("test-card");
+    add.focus();
+    fireEvent.click(add);
+    const menu = screen.getByRole("menu");
+    const item = within(menu).getAllByRole("menuitem")[0]!;
+    item.focus();
+
+    answer(new Response(JSON.stringify(checksView), { status: 200, headers: { "Content-Type": "application/json" } }));
+    await screen.findAllByTestId("group-section");
+    // the same menu, the same cards and the same focused item: the plan was moved into its part, not drawn again
+    expect(screen.getByRole("menu")).toBe(menu);
+    expect(part("plan").contains(menu)).toBe(true);
+    expect(screen.getAllByTestId("test-card")).toEqual(cardsBefore);
+    expect(document.activeElement).toBe(item);
+    expect(screen.getAllByRole("button", { name: "+ Add test" })).toHaveLength(1); // and it is on the page once
+  });
+
+  it("is not drawn while its part is folded shut or a filter leaves the plan out, and comes back after", async () => {
+    await open();
+    expect(within(part("plan")).getAllByTestId("test-card")).toHaveLength(plan.tests.length);
+    fireEvent.click(within(part("plan")).getByRole("button", { name: /Test plan/ }));
+    expect(screen.queryAllByTestId("test-card")).toHaveLength(0);
+    fireEvent.click(within(part("plan")).getByRole("button", { name: /Test plan/ }));
+    expect(within(part("plan")).getAllByTestId("test-card")).toHaveLength(plan.tests.length);
+  });
+});
+
 describe("Checks, the test plan is read fresh when the page opens", () => {
   it("asks for the plan (a read, never a write), so a proof that started meanwhile turns Run all off", async () => {
     // The app's copy says Run all can start; the plan as it is now says a proof runs.
@@ -422,6 +463,26 @@ describe("Checks, Encryption tests in four parts", () => {
     expect((within(part("retests")).getByRole("button", { name: "Retest new version" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it("reads the test plan again once a retest has started here, so Run all is off at once and not when the server refuses a click", async () => {
+    let started = false;
+    const fetchMock = await open(checksView, {
+      [LAB]: () => ({ body: started ? retestRunning : lab }),
+      "GET /api/import/7/plan": () => ({ body: started ? { ...plan, can_run_all: false, running: true } : plan }),
+      "POST /api/plans/1/retest": () => {
+        started = true;
+        return { body: retestRunning };
+      },
+    });
+    const runAll = () => within(part("plan")).getByRole("button", { name: "Run all" }) as HTMLButtonElement;
+    expect(runAll().disabled).toBe(false);
+    fireEvent.click(await within(part("retests")).findByRole("button", { name: "Retest new version" }));
+    fireEvent.click(within(screen.getByRole("menu", { name: lab.retest.menu_title })).getAllByRole("menuitem")[0]!);
+    await waitFor(() => expect(runAll().disabled).toBe(true));
+    const sent = calls(fetchMock);
+    expect(sent.lastIndexOf("GET /api/import/7/plan")).toBeGreaterThan(sent.indexOf("POST /api/plans/1/retest"));
+    expect(sent.filter((c) => c.startsWith("POST"))).toEqual(["POST /api/plans/1/retest"]);      // one start, nothing else
+  });
+
   it("turns the button off with the same reason Evidence gives", async () => {
     const off = { ...lab, retest: { ...lab.retest, can_start: false, blocked_reason: "Run every test first: 2 of 5 have no result yet." } };
     await open(checksView, { [LAB]: { body: off } });
@@ -479,6 +540,32 @@ describe("Checks, Encryption tests in four parts", () => {
     expect(within(block).getByRole("heading", { level: 4 }).textContent).toContain("acme-sign 1.4.3 (the changed code)");
     expect(within(block).getAllByTestId("check-row").map((r) => r.getAttribute("data-check"))).toEqual(["proof-1-in-1"]);
     expect(within(block).getByTestId("check-row").getAttribute("data-came-from")).toBe("proof");
+  });
+
+  it("Came from finds a retest's run that came right after an Apply in its block, and never shows a block as empty", async () => {
+    // The newest run of this retest's server test came right after an Apply: its row says so in "Came from".
+    const afterApply = blockRow(3, 2, "Old TLS versions", "localhost:8443", true, { came_from: { key: "after_apply", label: "After Apply" } });
+    const block = { ...newestBlock, rows: [newestBlock.rows[0]!, afterApply] };
+    const onlyAfter = { ...olderBlock, rows: [{ ...afterApply, id: "retest-3-on-1", alias: null }] };
+    await open(withParts({ retests: [block, onlyAfter] }));
+    const from = (value: string) => fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value } });
+
+    from("after_apply");
+    // the Retests part is there for that row, in the blocks that hold one; the plan and the proofs are not
+    expect(parts().map((p) => p.getAttribute("data-part"))).toEqual(["retests"]);
+    expect(blocksIn("retests").map((b) => b.getAttribute("data-block"))).toEqual([block.key, onlyAfter.key]);
+    expect(rowsIn("encryption").map((r) => r.getAttribute("data-check"))).toEqual([afterApply.id, "retest-3-on-1"]);
+    expect(text(section("encryption"))).not.toContain("Nothing has finished in this block yet.");
+
+    from("retest");
+    // the block that holds only the run after the Apply is left out, not shown as a block where nothing finished
+    expect(blocksIn("retests").map((b) => b.getAttribute("data-block"))).toEqual([block.key]);
+    expect(rowsIn("encryption").map((r) => r.getAttribute("data-check"))).toEqual([newestBlock.rows[0]!.id]);
+    expect(text(section("encryption"))).not.toContain("Nothing has finished in this block yet.");
+
+    from("all");
+    expect(parts().map((p) => p.getAttribute("data-part"))).toEqual(["plan", "retests", "proofs"]);
+    expect(blocksIn("retests")).toHaveLength(2);
   });
 
   it("folds a part shut from its heading and keeps its count showing", async () => {

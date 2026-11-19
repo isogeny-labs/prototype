@@ -824,8 +824,8 @@ failed advisory check is among the failures of the program itself, and then:
   (the id in lower case), `branch` `fix/otto-<advisory id>`, `label` "Written by Otto", `written_by` `"otto"`,
   `proposed_by` `isogeny.otto/1` and `otto` (the advisory, the pack, the SHA-256 of the prompt and of the answer,
   where the answer came from, and the step's ledger entry). When Otto has no change it may offer, the reply is the
-  rule-based engine's own with `otto_note`, the plain reason, which Fixes shows ("Otto's own change is not offered
-  here. ... The fix template is offered in its place."). When the click itself asked Claude and the answer can't be
+  rule-based engine's own with `otto_note`, the plain reason, which Fixes shows ("A change “Written by Otto” is not
+  offered here. ... The fix template is offered in its place."). When the click itself asked Claude and the answer can't be
   used, `OttoCouldNot` is raised and nothing is connected.
 
 From there a change Otto wrote takes the path of every code fix: the byte-for-byte check, the proof, `review_proof`,

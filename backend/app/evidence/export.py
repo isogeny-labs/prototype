@@ -74,7 +74,7 @@ REPORT_LINKS = (tuple(OWN_LINKS) + (WYCHEPROOF_SOURCE_URL, pq_vectors.ACVP_URL, 
 
 
 OTTO_APP_NOTE = ("The engines that propose and review tests are rule-based code from the same build. Advisory checks come from signed "
-                 "test packs made by Otto, which uses Claude to read advisories, design tests and propose fixes; every Claude step "
+                 "test packs. For a pack, Claude is used to read advisories, design tests and propose fixes; every Claude step "
                  "taken for this assessment is in the Otto part of this file. Claude sets no result: the reviewer does.")
 
 

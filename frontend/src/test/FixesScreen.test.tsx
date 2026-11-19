@@ -931,7 +931,7 @@ describe("Fixes, where a change came from (phase 5c)", () => {
     expect(chips()).toEqual([word, "Demo data"]);
   });
 
-  it("shows the fix an advisory check led to as the backend words it: the check among its sources, and why Otto's own change is not offered", async () => {
+  it("shows the fix an advisory check led to as the backend words it: the check among its sources, and why a change written by Otto is not offered", async () => {
     const fetchMock = await open(fixesWithTemplate);
     const fix = fixesWithTemplate.fixes[0]!;
     expect(summary().getAttribute("data-fix-id")).toBe(fix.id);
@@ -945,7 +945,7 @@ describe("Fixes, where a change came from (phase 5c)", () => {
     const paragraphs = fix.what.paragraphs.map((parts) => parts.map((part) => part.v).join(""));
     expect(paragraphs).toHaveLength(2);
     for (const paragraph of paragraphs) expect(what).toContain(paragraph);
-    expect(paragraphs[1]).toMatch(/^Otto's own change is not offered here/);
+    expect(paragraphs[1]).toMatch(/^A change “Written by Otto” is not offered here/);
     expect(inSummary().getByTestId("server-line").textContent).toBe(fix.what.server_line);
     // Nothing is offered before its proof: the only button is the one the view sends (it connects the code).
     expect(summaryButtons().map((b) => b.textContent)).toEqual(fix.actions.buttons.map((b) => b.label));

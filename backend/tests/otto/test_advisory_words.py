@@ -161,8 +161,8 @@ def test_claudes_notes_are_labelled_as_claudes_and_say_which_kind_of_weakness_wa
     entry["reading"].update(notes="", kind="other", area="other")
     plain = _row([], entry=entry, made=made)["panel"]["notes"]
     assert plain["text"] is None and "has a weakness of another kind, outside signature checking" in plain["kind_line"]
-    # an advisory Otto could not read has no notes at all
-    entry["reading"], entry["reading_refused"] = None, "Otto could not read this advisory: the quote is not in the publisher's text."
+    # an advisory that could not be read has no notes at all
+    entry["reading"], entry["reading_refused"] = None, "This advisory could not be read: the quote is not in the publisher's text."
     assert _row([], entry=entry, made=None)["panel"]["notes"] is None
 
 

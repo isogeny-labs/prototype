@@ -72,7 +72,7 @@ def pack_adds(pack) -> list[str]:
     """What a pack adds, one plain line per advisory, for the Install update box."""
     lines = []
     for advisory in pack.pack["advisories"]:
-        name = (advisory["reading"] or {}).get("plain_name") or "An advisory Otto could not read"
+        name = (advisory["reading"] or {}).get("plain_name") or "An advisory that could not be read"
         label = TEST_LABELS[advisory["test"]["state"]][0]
         lines.append(f"{name} ({advisory['id']}): {label}")
     return lines
@@ -108,13 +108,13 @@ def settings_view(*, installed: list, update, refused: list[dict], scan_line: st
                           "confirm": "Install", "cancel": "Cancel"}}
     live_ready = live_on and key_present
     if not key_present:
-        status = ("Live Otto is off: no API key is set on this computer. Otto works on the answers recorded during the build."
+        status = ("Live Otto is off: no API key is set on this computer. Only the answers recorded during the build are used."
                   if not live_on else
-                  "Live Otto is switched on, but no API key is set on this computer, so Otto works on the answers recorded during the build.")
+                  "Live Otto is switched on, but no API key is set on this computer, so only the answers recorded during the build are used.")
     elif live_on:
-        status = "Live Otto is on: when Otto needs an answer, it asks Claude through your key, within the spending limit."
+        status = "Live Otto is on: when an answer is needed, Claude is asked through your key, within the spending limit."
     else:
-        status = "Live Otto is off: Otto works on the answers recorded during the build."
+        status = "Live Otto is off: only the answers recorded during the build are used."
     return {
         "packs": {
             "title": "Test packs",
@@ -151,8 +151,8 @@ def settings_view(*, installed: list, update, refused: list[dict], scan_line: st
             "switch": {"label": "Use live Claude", "on": live_on, "can_turn_on": key_present,
                        "blocked_reason": None if key_present else "This can be turned on only when an API key is present."},
             "limit": {"label": "Spending limit per run (US dollars)", "value": f"{limit_nano / model.NANO:.2f}", "save": "Save",
-                      "note": ("A run is one fix request in the app, or one research command. Otto adds up each call's cost from the tokens the "
-                               "API reports, and does not send a request that could pass the limit.")},
+                      "note": ("A run is one fix request in the app, or one research command. Each call's cost is added up from the tokens the "
+                               "API reports, and a request that could pass the limit is not sent.")},
             "sent_line": SENT_LINE,
             "status_line": status,
             "price_line": (f"Prices used to add up the cost: {model.PRICE_SOURCE['title']}, as of {day(model.PRICE_SOURCE['as_of'])}. "
@@ -686,7 +686,7 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
         reading = advisory["reading"]
         state = advisory["test"]["state"]
         label, tone = TEST_LABELS[state]
-        name = reading["plain_name"] if reading else "An advisory Otto could not read"
+        name = reading["plain_name"] if reading else "An advisory that could not be read"
         here = []
         for entry in row["here"]:
             result = entry["result"]

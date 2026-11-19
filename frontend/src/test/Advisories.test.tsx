@@ -985,10 +985,10 @@ describe("Advisories, an advisory's panel", () => {
     expect(inPanel.queryByTestId("advisory-also-known-as")).toBeNull();
   });
 
-  it("draws no publisher's line for an advisory Otto could not read, and still lists its sources", async () => {
+  it("draws no publisher's line for an advisory that could not be read, and still lists its sources", async () => {
     const view = withFirstRow(advisoriesFailed, (r) => ({
       ...r,
-      name: "An advisory Otto could not read",
+      name: "An advisory that could not be read",
       panel: { ...r.panel, sentence: "The advisory's text could not be matched to its publisher's page.", publisher: null, affected: null },
     }));
     await open(view);

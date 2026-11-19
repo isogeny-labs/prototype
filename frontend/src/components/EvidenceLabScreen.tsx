@@ -688,7 +688,8 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
         <FilterSelect label="Result" value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
       </Toolbar>
 
-      <TableWithPanel panelOpen={anyPanelOpen} table={checks ? grouped : listing} panel={panels} />
+      {/* (a result that is not a test, and a library, are looked up in the checks, which arrive after the results) */}
+      <TableWithPanel panelOpen={anyPanelOpen} settled={checks !== null} table={checks ? grouped : listing} panel={panels} />
     </section>
   );
 }

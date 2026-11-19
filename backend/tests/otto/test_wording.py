@@ -6,7 +6,9 @@ proposal, and Claude's own writing is labelled once.
 
 This test reads the code, not one walk of the app, so it holds for every state a screen can be in:
   - every piece of text the backend can put into an answer (the string constants of `backend/app` and of the verify
-    command, `backend/evidence`; a docstring is a note for developers and is not read), and
+    command, `backend/evidence`; a docstring is a note for developers and is not read),
+  - the reasons the pack builder writes into a test pack (`backend/ottolab/build.py`): Advisories shows them as they
+    are, for every pack built from now on (the two shipped packs are never rebuilt, and hold none of these), and
   - every piece of text the screens hold themselves (`frontend/src` outside its comments and its tests).
 """
 import ast
@@ -18,7 +20,11 @@ ROOT = Path(__file__).resolve().parents[3]
 
 # The phrases Kevin listed, and the same verbs in another tense.
 BANNED = ("Otto wrote", "Otto writes", "Otto proposes", "Otto proposed", "in Otto's words", "In Otto's words", "Why Otto proposes it",
-          "Otto found", "Otto finds", "Otto has", "Otto's proposal", "Otto asked", "Otto asks", "Otto no longer")
+          "Otto found", "Otto finds", "Otto has", "Otto's proposal", "Otto asked", "Otto asks", "Otto no longer",
+          # Not on the list, but the same thing: sentences that named Otto as the one acting. They were found by the
+          # separate reviewer of the 5c fixes and reworded too ("Only the answers recorded during the build are used.").
+          "Otto works", "Otto needs", "Otto adds", "Otto goes on", "Otto could not", "Otto's own change", "made by Otto", "Otto uses",
+          "Otto designs", "Otto reads", "Otto tries", "Otto looks", "Otto decides", "Otto runs", "Otto installs", "Otto sends")
 # The one sentence with such a phrase that stays, word for word.
 KEPT = ("Otto has no say in any result.",)
 # What stays as it is, and must not have been swept away with the rest.
@@ -69,6 +75,9 @@ def _read_everything() -> list[tuple[str, int, str]]:
     for folder in ("backend/app", "backend/evidence"):
         for path in sorted((ROOT / folder).rglob("*.py")):
             out += [(str(path.relative_to(ROOT)), line, text) for line, text in _backend_texts(path)]
+    # (of the research side only the pack builder: its other scripts are pinned by their fingerprints in the research
+    # ledger, and what they hold is a prompt or a record, not a sentence on a screen)
+    out += [("backend/ottolab/build.py", line, text) for line, text in _backend_texts(ROOT / "backend/ottolab/build.py")]
     for path in sorted((ROOT / "frontend/src").rglob("*.ts*")):
         if "test" in path.parts or path.name.endswith(".gen.ts"):
             continue
@@ -82,6 +91,8 @@ def test_no_sentence_says_what_otto_did():
         cleaned = text
         for kept in KEPT:
             cleaned = cleaned.replace(kept, "")
+        # ("Live Otto" is the name of a setting: "Live Otto needs an API key" says what the setting needs)
+        cleaned = cleaned.replace("Live Otto", "the Live setting")
         if any(where == file and start in text for file, start in RECORDS):
             continue
         for phrase in BANNED:

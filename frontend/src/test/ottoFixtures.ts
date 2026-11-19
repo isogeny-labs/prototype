@@ -818,7 +818,7 @@ const ANSWERS_RECORDED: OttoSettingsView["answers"] = { line: "Answers recorded 
 
 const ANSWERS_FOR_A_TEST: OttoSettingsView["answers"] = { line: "Answers written for a test, 17 November 2026", live: false };
 
-const LIVE_NOTE: string = "A run is one fix request in the app, or one research command. Otto adds up each call's cost from the tokens the API reports, and does not send a request that could pass the limit.";
+const LIVE_NOTE: string = "A run is one fix request in the app, or one research command. Each call's cost is added up from the tokens the API reports, and a request that could pass the limit is not sent.";
 
 const SENT_LINE: string = "What is sent to Claude when this is on: the advisory text and, for a fix to your own code, the source file of the failing program and the cases it got wrong. Nothing else leaves this computer.";
 
@@ -832,7 +832,7 @@ const LIVE_NO_KEY: OttoLiveSection = {
   switch: { label: "Use live Claude", on: false, can_turn_on: false, blocked_reason: "This can be turned on only when an API key is present." },
   limit: { label: "Spending limit per run (US dollars)", value: "2.00", save: "Save", note: LIVE_NOTE },
   sent_line: SENT_LINE,
-  status_line: "Live Otto is off: no API key is set on this computer. Otto works on the answers recorded during the build.",
+  status_line: "Live Otto is off: no API key is set on this computer. Only the answers recorded during the build are used.",
   price_line: PRICE_LINE,
 };
 
@@ -971,7 +971,7 @@ export const ottoLiveOn: OttoSettingsView = {
     key_line: "An API key is set on this computer.",
     switch: { label: "Use live Claude", on: true, can_turn_on: true, blocked_reason: null },
     limit: { label: "Spending limit per run (US dollars)", value: "3.50", save: "Save", note: LIVE_NOTE },
-    status_line: "Live Otto is on: when Otto needs an answer, it asks Claude through your key, within the spending limit.",
+    status_line: "Live Otto is on: when an answer is needed, Claude is asked through your key, within the spending limit.",
   },
 };
 
@@ -1243,7 +1243,7 @@ export const fixesWithTemplate: FixesView = {
           [
             {
               t: "text",
-              v: "Otto's own change is not offered here: No recorded answer: this needs Live Otto. The fix template is offered in its place.",
+              v: "A change “Written by Otto” is not offered here: No recorded answer: this needs Live Otto. The fix template is offered in its place.",
             },
           ],
         ],
@@ -1569,7 +1569,7 @@ export const ottoLiveOff: OttoSettingsView = {
   live: {
     ...ottoLiveOn.live,
     switch: { ...ottoLiveOn.live.switch, on: false },
-    status_line: "Live Otto is off: Otto works on the answers recorded during the build.",
+    status_line: "Live Otto is off: only the answers recorded during the build are used.",
   },
 };
 
@@ -1579,7 +1579,7 @@ export const ottoLiveOnNoKey: OttoSettingsView = {
   live: {
     ...LIVE_NO_KEY,
     switch: { ...LIVE_NO_KEY.switch, on: true },
-    status_line: "Live Otto is switched on, but no API key is set on this computer, so Otto works on the answers recorded during the build.",
+    status_line: "Live Otto is switched on, but no API key is set on this computer, so only the answers recorded during the build are used.",
   },
 };
 

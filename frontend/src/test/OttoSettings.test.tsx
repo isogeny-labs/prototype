@@ -385,7 +385,7 @@ describe("Settings, Live Otto", () => {
   });
 
   it("shows the backend's reason when turning it on is refused, and leaves the switch as it was", async () => {
-    const reason = "Live Otto needs an API key on this computer, and none is set (ANTHROPIC_API_KEY). Otto goes on working with the answers recorded during the build.";
+    const reason = "Live Otto needs an API key on this computer, and none is set (ANTHROPIC_API_KEY). The answers recorded during the build go on being used.";
     await open(ottoLiveOff, { [LIVE]: refusal(409, reason) });
     fireEvent.click(toggle());
     const error = await screen.findByTestId("otto-error");

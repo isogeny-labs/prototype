@@ -690,7 +690,7 @@ def code_fix(fix: dict, *, plan_id: int, titles: list[str], server_findings: int
         worded = TEMPLATE_WORDS.get(fix["template_id"], _unknown_template_words)
         words = worded(component["name"], matches["version"] if matches else None, size_words(change) if connected else "")
     note = fix.get("otto_note")   # why the fix template is offered where Otto's own change could not be
-    extra = [[_t(f"Otto's own change is not offered here. {note} The fix template is offered in its place.")]] if note and not otto else []
+    extra = [[_t(f"A change “Written by Otto” is not offered here. {note} The fix template is offered in its place.")]] if note and not otto else []
     holds = f"{matches['name']} {matches['version']}" if matches else ""
     if connected:
         said = _proof_words(fix, rows, server_findings)

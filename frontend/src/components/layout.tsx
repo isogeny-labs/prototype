@@ -534,7 +534,19 @@ function PanelEdge({ panel }: { panel: PanelState }) {
 /** Table on the left, the detail panel on the right when a row is open (on a wide screen; an overlay otherwise).
  * Phase 5b: the panel has the width the person chose (remembered for every page), and the table beside it switches to
  * its compact form. */
-export function TableWithPanel({ panelOpen, table, panel }: { panelOpen: boolean; table: ReactNode; panel: ReactNode }) {
+export function TableWithPanel({
+  panelOpen,
+  table,
+  panel,
+  settled = true,
+}: {
+  panelOpen: boolean;
+  table: ReactNode;
+  panel: ReactNode;
+  /** False while the page still waits for a list it looks an item up in (Evidence reads the checks after its own
+   * results). Until then an item's own page says nothing about an item that is not open yet: it may still be found. */
+  settled?: boolean;
+}) {
   const [width, setWidthState] = useState<number>(() => clampWidth(prefs.panelWidth()));
   const setWidth = useCallback((w: number) => {
     const next = clampWidth(w);
@@ -548,7 +560,7 @@ export function TableWithPanel({ panelOpen, table, panel }: { panelOpen: boolean
     return (
       <>
         {panel}
-        {!panelOpen && itemPage.root ? createPortal(<ItemMissing page={itemPage} />, itemPage.root) : null}
+        {!panelOpen && settled && itemPage.root ? createPortal(<ItemMissing page={itemPage} />, itemPage.root) : null}
       </>
     );
   }

@@ -210,7 +210,7 @@ class OttoMixin:
             if on is not None:
                 if on and not model.key_present():
                     raise Conflict(f"Live Otto needs an API key on this computer, and none is set ({model.KEY_ENV}). "
-                                   "Otto goes on working with the answers recorded during the build.")
+                                   "The answers recorded during the build go on being used.")
                 _set(db, LIVE_KEY, "on" if on else "off")
             db.commit()
         return self.otto_view()
@@ -332,7 +332,7 @@ class OttoMixin:
                 if advisory_id:
                     linked.setdefault(str(advisory_id), []).append(item.id)
             for _, advisory in self._pack_advisories(db, upto):
-                name = (advisory["reading"] or {}).get("plain_name") or "An advisory Otto could not read"
+                name = (advisory["reading"] or {}).get("plain_name") or "An advisory that could not be read"
                 out.append({"id": advisory["id"], "name": name, "sub": present_otto.TEST_LABELS[advisory["test"]["state"]][0],
                             "items": linked.get(advisory["id"], [])})
         return out

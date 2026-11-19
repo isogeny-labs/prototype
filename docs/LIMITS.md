@@ -600,18 +600,35 @@ wording, times, and the "New" tag. What they do is in `docs/SPEC.md` section 2. 
 - **Open in new tab.** The item's own page keeps the list it belongs to loaded and hidden, so the page asks the
   server for the same things as the list does. The Overview has no items, so it has no such page. A page that has
   no list to look in (for example Import with no file) says "This item is not here" after about four seconds.
+  Since the review of the fixes, an item's own page carries the line every result screen carries ("Passing these
+  tests doesn't prove a system secure. It shows these specific checks passed."), on every page but Import, which
+  shows what a file says and no result. This includes an item of Checks, whose list page has no such line. The
+  reason a click was refused, which the hidden list would have shown, is drawn above the item.
 - **Checks.** While a retest runs, its block fills as each test finishes: a test that has not finished is not
   listed in it yet, and the line above the blocks says how far the retest is. A block is one program in one
   version: two retests on the same version share a block, and each row lists that block's runs. The older address
   of a retest's check (`retest-12`) opens the newest block's row. Only the Encryption tests group has parts.
+  The **Came from** filter goes by each row's own "Came from": a retest's test whose newest run came right after
+  an Apply is found by "After Apply", in its block, and not by "Retest". With any filter on, a block that holds a
+  match is open and a block that holds none is left out.
 - **The test plan's two lists** are a way of showing one plan. The plan still has one order (Evidence lists results
   in it); moving a card changes the order among the cards of its own list and nothing else.
 - **Wording.** The rule is about the listed phrases ("Otto wrote", "Otto proposes", "in Otto's words", "Why Otto
   proposes it", "Otto found", "Otto has", "Otto's proposal", "Otto asked", "Otto no longer") and the same verbs in
-  another tense. Some sentences that were not on the list still name Otto as the one acting, and were left as they
-  are: the Live Otto status lines ("Otto works on the answers recorded during the build"), "Otto adds up each
-  call's cost", "An advisory Otto could not read", "Otto's own change is not offered here". Titles kept their
-  words ("Otto's notes on reading it", "Otto's proposed check, in this assessment"). A decision recorded before
+  another tense. Seven sentences that were not on the list also named Otto as the one acting. The separate review
+  of the fixes found them, and they were reworded the same way (Kevin, say so if any should go back): the Live
+  Otto status lines ("Otto works on the answers recorded during the build" is now "Only the answers recorded
+  during the build are used"; "when Otto needs an answer, it asks Claude" is now "when an answer is needed, Claude
+  is asked"), "Otto adds up each call's cost" ("Each call's cost is added up"), "Otto goes on working with the
+  answers recorded during the build" ("The answers recorded during the build go on being used"), "An advisory
+  Otto could not read" ("An advisory that could not be read"), "Otto's own change is not offered here" ("A change
+  “Written by Otto” is not offered here"), and in the evidence file's note about the app "test packs made by
+  Otto, which uses Claude to read advisories" ("test packs. For a pack, Claude is used to read advisories"). Three
+  reasons the pack builder writes into a new pack said "Otto has no answer / design / proposal for this advisory
+  yet" and now say "There is no …"; the two shipped packs hold none of them and were not rebuilt. The wording
+  test now reads the pack builder too. "Live Otto" is the name of a setting and stays ("Live Otto needs an API
+  key"). Titles kept their words ("Otto's notes on reading it", "Otto's proposed check, in this assessment",
+  "Have Otto write a change for …"). A decision recorded before
   the fixes keeps the copy of the proposal it was made on, so the history of an older decision, in the app and in
   an evidence file, shows the older words. The sentence the assessment's Otto ledger keeps about a proposal
   ("Every decision a person records on Otto's proposal …") is a record and was not changed; no screen shows it.

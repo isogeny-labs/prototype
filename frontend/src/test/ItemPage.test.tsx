@@ -306,6 +306,22 @@ describe("an item on a page of its own", () => {
     place.remove();
   });
 
+  it("does not say an item is not here while the page still waits for the list it looks the item up in", () => {
+    const root = document.body.appendChild(document.createElement("div"));
+    const page: ItemPage = { asPage: true, root, standing: true, backHref: () => "#/a/1/evidence", listHref: "#/a/1/evidence", backLabel: "Evidence", hrefFor: () => "#" };
+    const draw = (settled: boolean) => (
+      <ItemPageContext.Provider value={page}>
+        <TableWithPanel panelOpen={false} settled={settled} table={<p>the list</p>} panel={null} />
+      </ItemPageContext.Provider>
+    );
+    const drawn = render(draw(false));
+    expect(within(root).queryByTestId("item-page-missing")).toBeNull(); // still looking: the shell says "Loading…"
+    drawn.rerender(draw(true));
+    expect(within(root).getByTestId("item-page-missing")).not.toBeNull(); // the list is in, and the item is not in it
+    drawn.unmount();
+    root.remove();
+  });
+
   it("stays read-only in a closed assessment: the same buttons, off, with the reason", async () => {
     const first = lab.rows[0]!;
     at(`evidence?item=test-${first.item_id}&view=page`);

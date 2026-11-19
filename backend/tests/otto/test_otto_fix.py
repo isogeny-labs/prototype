@@ -114,7 +114,7 @@ def test_with_no_answer_the_fix_template_is_offered_and_says_why(failed):
     kinds = sorted(a["kind"] for a in fix["answers"])
     assert kinds == ["advisory_cases", "bad_signatures", "official_vectors"]          # the template answers the advisory check too
     shown = next(f for f in lab.fixes_view(lab.plan.id)["fixes"] if f["kind"] == "code")
-    assert shown["labels"] == ["From a fix template"] and any("Otto's own change is not offered here" in part["v"] for p in shown["what"]["paragraphs"] for part in p)
+    assert shown["labels"] == ["From a fix template"] and any("A change “Written by Otto” is not offered here" in part["v"] for p in shown["what"]["paragraphs"] for part in p)
     with lab.db() as db:
         assert db.scalars(select(OttoStepRow)).all() == []            # looking at the page asked nothing and wrote nothing
     prompt = lab.prompts[-1][1]
@@ -298,7 +298,7 @@ def test_a_change_that_gives_no_registered_program_is_not_offered_and_the_templa
     assert fix["id"] == "fix-ecdsa-range-check" and fix["otto"] is None
     assert "could not be used" in fix["otto_note"] and "byte for byte" in fix["otto_note"] and "only those can run" in fix["otto_note"]
     shown = next(f for f in lab.fixes_view(lab.plan.id)["fixes"] if f["kind"] == "code")
-    assert shown["labels"] == ["From a fix template"] and "Otto's own change is not offered here" in json.dumps(shown)
+    assert shown["labels"] == ["From a fix template"] and "A change “Written by Otto” is not offered here" in json.dumps(shown, ensure_ascii=False)
     with lab.db() as db:
         assert db.scalars(select(OttoStepRow)).all() == []            # looking at the page wrote nothing
     lab.connect_code(lab.plan.id)                                     # the click connects what the page offered
@@ -348,7 +348,7 @@ def test_a_live_change_that_gives_no_registered_program_is_refused_at_the_click_
     assert next(f for f in lab.fix_states(lab.plan.id) if f["kind"] == "code")["otto"]["pending"] is True and calls == []
     with pytest.raises(Conflict) as not_yet:                             # nobody accepted Otto's proposal: Claude is not asked
         lab.connect_code(lab.plan.id)
-    assert "Accept the proposal first" in str(not_yet.value) and calls == []
+    assert "Accept it first" in str(not_yet.value) and calls == []
     assert "Have Otto write a change" in _accept_fix(lab)["title"] and calls == []                       # accepting asks nothing either
     with pytest.raises(Conflict) as refused:
         lab.connect_code(lab.plan.id)

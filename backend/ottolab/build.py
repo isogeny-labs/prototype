@@ -207,7 +207,7 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
         if step["step"] == "read_advisory":
             reading, refused = (art["parsed"], None) if used else (None, steps[-1]["refusal"])
     if reading is None and refused is None:
-        refused = "Otto has no answer for this advisory yet."
+        refused = "There is no answer for this advisory yet."
     design, design_note = None, None
     found = research.used_step(st, lab, aid, "design_test")
     if found is not None:
@@ -218,7 +218,7 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
         test["reason"] = "No test yet: " + str(refused)
     elif design_note is None:
         note_refusal = next((s["refusal"] for s in steps if s["step"] == "design_test" and s["outcome"] == "refused"), None)
-        test["reason"] = "No test yet: " + (note_refusal or "Otto has no design for this advisory yet.")
+        test["reason"] = "No test yet: " + (note_refusal or "There is no design for this advisory yet.")
     elif design_note["decision"] == "no_test":
         test["reason"] = "No test yet: " + design_note["reason"]
     else:
@@ -253,7 +253,7 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
         fix["reason"] = "No fix is offered: there is no test for this advisory to prove one with."
     elif proposed is None:
         refusal = next((s["refusal"] for s in steps if s["step"] == "propose_fix" and s["outcome"] == "refused"), None)
-        fix["reason"] = "No fix is offered: " + (refusal or "Otto has no proposal for this advisory yet.")
+        fix["reason"] = "No fix is offered: " + (refusal or "There is no proposal for this advisory yet.")
     elif proposed[1]["artifact"]["parsed"]["fix"] == "none":
         fix["reason"] = "No fix is offered: " + proposed[1]["artifact"]["parsed"]["reason"]
     else:

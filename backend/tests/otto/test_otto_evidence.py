@@ -111,7 +111,7 @@ def test_the_otto_part_is_inside_what_is_signed(ran):
     assert waiting and all(p["decisions"] == [] and p["status"] == "Proposed" for p in waiting)
     run = otto["runs"][0]
     assert run["phase"] == "first" and run["record"]["spec_hash"] == check["spec_hash"] and run["lock_entry"] == check["lock_entry"]
-    assert "Advisory checks come from signed test packs made by Otto" in evidence["app"]["note"]
+    assert "Advisory checks come from signed test packs. For a pack, Claude is used to read advisories" in evidence["app"]["note"]
     # the same check is among the file's tests like any other, with its advisory box
     test = next(t for t in evidence["tests"] if t["item_id"] == ran.check_item)
     assert test["proposed_by"] == "isogeny.otto-pack/1" and test["runs"][0]["result"]["advisories"]["items"][0]["id"] == "CVE-2022-21449"
@@ -122,7 +122,7 @@ def test_the_otto_part_is_inside_what_is_signed(ran):
     _, report, _ = ran.evidence_file(ran.export_evidence(ran.plan.id)["id"], "html")
     page = report.decode()
     assert "8. Otto: test packs, the ledger and Claude" in page and "Advisory checks added from a test pack" in page
-    assert "proposals, and the decisions on them" in page and "Accepted by You" in page and "Nobody has decided this yet." in page
+    assert "Proposals from Otto, and the decisions on them" in page and "Accepted by You" in page and "Nobody has decided this yet." in page
     assert "<script" not in page.lower()
 
 

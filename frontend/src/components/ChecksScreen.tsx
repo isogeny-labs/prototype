@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePanelStamp } from "../changes";
 import { api, errorMessage, type CheckGroup, type CheckRow, type ChecksView, type LabView, type PlanView } from "../api";
 import { CheckPanel } from "./checks/CheckPanel";
@@ -24,7 +25,52 @@ interface Props {
 
 /** Phase 5b: Checks (was Tests). Every check in the assessment, wherever it was started, in the four work groups. The
  * test plan sits under Encryption tests with every button it had; every other check is started where it is today. */
+/** The test plan is drawn once and then moved, never drawn again: by itself while the list of checks is being read,
+ * then inside its part. So what a person opened in it meanwhile (the + Add test menu, a card being dragged) stays as it
+ * is, however long the list takes. `host` goes on the place the plan belongs in; the plan is drawn only while such a
+ * place is on the page (a folded part, or a filter that leaves the plan out, draws none). */
+function usePlanHolder() {
+  const [holder] = useState<HTMLElement | null>(() => {
+    if (typeof document === "undefined") return null;
+    const el = document.createElement("div");
+    el.className = "contents";
+    return el;
+  });
+  const [hosted, setHosted] = useState(false);
+  const focused = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!holder) return;
+    const onIn = (e: FocusEvent) => {
+      focused.current = e.target instanceof HTMLElement ? e.target : null;
+    };
+    const onOut = (e: FocusEvent) => {
+      if (e.relatedTarget) focused.current = null; // the person moved on to something else
+    };
+    holder.addEventListener("focusin", onIn);
+    holder.addEventListener("focusout", onOut);
+    return () => {
+      holder.removeEventListener("focusin", onIn);
+      holder.removeEventListener("focusout", onOut);
+    };
+  }, [holder]);
+  const host = useCallback(
+    (el: HTMLElement | null) => {
+      setHosted(el !== null);
+      if (!el || !holder || holder.parentElement === el) return;
+      el.appendChild(holder);
+      // Moving it takes the keyboard's place away. Give it back, unless the person is somewhere else by now.
+      const was = focused.current;
+      if (was && holder.contains(was) && (document.activeElement === null || document.activeElement === document.body)) {
+        was.focus({ preventScroll: true });
+      }
+    },
+    [holder],
+  );
+  return { holder, hosted, host };
+}
+
 export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = null }: Props) {
+  const planHolder = usePlanHolder();
   const [view, setView] = useState<ChecksView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -107,13 +153,21 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
     return [r.name, r.ran_on, r.came_from.label, r.result?.label ?? ""].some((t) => t.toLowerCase().includes(needle));
   }
 
+  // (the first thing in the page in both of its states below, so it is the same drawing before and after the list arrives)
+  const thePlan =
+    planHolder.holder && planHolder.hosted
+      ? createPortal(<TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded />, planHolder.holder)
+      : null;
+  const planPlace = <div ref={planHolder.host} data-testid="test-plan-place" className="contents" />;
+
   if (!view || planId === null) {
     return (
       <section aria-label="Checks">
+        {thePlan}
         <PageHeader title="Checks" description="Every check in this assessment, wherever it was started." />
         {error ? <ErrorBox>{error}</ErrorBox> : <p className="text-sm text-slate-400">Loading…</p>}
         {/* The test plan is there at once, so its buttons never wait for the list. */}
-        <TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded />
+        {planPlace}
       </section>
     );
   }
@@ -124,16 +178,22 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   /** The 5c fixes: Encryption tests in four labelled parts. Each run shows in one part only. */
   function encryptionParts(g: CheckGroup) {
     const parts = g.parts!;
-    const wanted = (origin: string) => fromFilter === "all" || fromFilter === origin;
-    const filtering = needle !== "" || resultFilter !== "all";
+    type Part = NonNullable<CheckGroup["parts"]>["retests"];
+    // "Came from" picks a part by what the part is, and also by its rows: a retest's newest run can have come right
+    // after an Apply or a Roll back, and "After Apply" must find it in its block.
+    const holds = (part: Part) => [...part.rows, ...part.blocks.flatMap((b) => b.rows)].some((r) => r.came_from.key === fromFilter);
+    const wanted = (origin: string, part?: Part) => fromFilter === "all" || fromFilter === origin || (part ? holds(part) : false);
+    // (with any filter on, a block that holds a match is open, and one that holds none is left out: it would say that
+    // nothing has finished in it)
+    const narrowed = needle !== "" || resultFilter !== "all" || fromFilter !== "all";
     const isOpen = (key: string) => !partFolded[key];
     const toggle = (key: string) => setPartFolded((f) => ({ ...f, [key]: !f[key] }));
-    const blocks = (part: NonNullable<CheckGroup["parts"]>["retests"]) =>
+    const blocks = (part: Part) =>
       part.blocks.map((b) => {
         const rows = b.rows.filter(keep);
-        if (filtering && rows.length === 0) return null;
+        if (narrowed && rows.length === 0) return null;
         // the newest block is open; an older one opens when it is asked for, or when it holds the open row or a match
-        const shown = blockOpen[b.key] ?? (b.newest || filtering || b.rows.some((r) => r.id === openId));
+        const shown = blockOpen[b.key] ?? (b.newest || narrowed || b.rows.some((r) => r.id === openId));
         return (
           <BlockSection key={b.key} block={b} open={shown} onToggle={() => setBlockOpen((o) => ({ ...o, [b.key]: !shown }))}>
             {rows.length > 0 ? (
@@ -149,10 +209,10 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
       <div data-testid="encryption-parts">
         {wanted("plan") ? (
           <PartSection part={parts.plan} open={isOpen("plan")} onToggle={() => toggle("plan")}>
-            <TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded />
+            {planPlace}
           </PartSection>
         ) : null}
-        {wanted("retest") ? (
+        {wanted("retest", parts.retests) ? (
           <PartSection
             part={parts.retests}
             open={isOpen("retests")}
@@ -170,6 +230,9 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
                       .then((next) => {
                         setLab(next);
                         setTick((n) => n + 1);
+                        // The plan above is the app's copy from before the retest: read it again, so Run, Run all and ×
+                        // turn off with the reason now, not when the server refuses a click.
+                        void api.getPlan(importId).then((fresh) => fresh && onPlan(fresh)).catch(() => undefined);
                       })
                       .catch((e: unknown) => setError(errorMessage(e)))
                       .finally(() => setRetesting(false));
@@ -182,12 +245,12 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
             {blocks(parts.retests)}
           </PartSection>
         ) : null}
-        {wanted("proof") ? (
+        {wanted("proof", parts.proofs) ? (
           <PartSection part={parts.proofs} open={isOpen("proofs")} onToggle={() => toggle("proofs")}>
             {blocks(parts.proofs)}
           </PartSection>
         ) : null}
-        {parts.tries && wanted("try") ? (
+        {parts.tries && wanted("try", parts.tries) ? (
           <PartSection part={parts.tries} open={isOpen("tries")} onToggle={() => toggle("tries")}>
             {tries.length > 0 ? (
               <CheckTable label={parts.tries.label} rows={tries} selectedId={openId} onOpen={toggleOpen} />
@@ -202,6 +265,7 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
 
   return (
     <section aria-label="Checks">
+      {thePlan}
       <PageHeader title="Checks" description={view.subline} />
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} label="Search checks" placeholder="Search checks" />
@@ -257,7 +321,7 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
                     encryptionParts(g)
                   ) : (
                     <>
-                      {showPlan ? <TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded /> : null}
+                      {showPlan ? planPlace : null}
                       {rows.length > 0 ? (
                         <div className={showPlan ? "mt-4" : ""}>
                           <CheckTable label={`${g.label} checks`} rows={rows} selectedId={openId} onOpen={toggleOpen} />
