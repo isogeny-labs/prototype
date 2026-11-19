@@ -85,7 +85,7 @@ has not been made yet** (it is one of the long checks).
 | The panel's walk on the final code | `bc8f5e2` and later | **2 passed** (5.9 min), with the new steps from the 6b and 6c review fixes; pictures retaken |
 | The multi-target tests with the new panel test (the real multi-target file: every "Which one?" option names one server's test and settles) | `634e360` | **20 passed** (76 s). First run: the new test expected three servers with "Old TLS versions"; the file has two |
 | The whole fast backend set **with Otto** | `a378bac`, then `634e360` | First run: **11 failed, 7 errors**, 1801 passed, in 6 min 52 s (see "What the first whole fast set with Otto found" below). After the fix: **1819 passed, none failed**, in **6 min 49 s**: over five minutes. The panel's walk-reading tests (54) then went to the slow set, by the project's rule; timed again, see the next row |
-| The whole fast backend set with Otto, after that move, timed | | running at the time of writing |
+| The whole fast backend set with Otto, after that move, timed | `2849a9c` | **1765 passed, none failed, in 5 min 52 s.** Still over five minutes on the build machine (the same machine took 5 min 4 s for the 5c merge, before tonight). **Not met here; met on GitHub's runner at the limit (4 min 59 s without Otto).** Decision 10 |
 | Every walk once (`cd e2e && npm test`) | | queued |
 | The full backend set (`pytest -q tests --full`) | | queued |
 
@@ -115,7 +115,9 @@ panel's shared walk (41 s, new) and one panel test of 15 s. By the project's rul
 walk built for its files is slow") the panel's 54 walk-reading tests are now in the slow set
 (`SLOW_SHARED_WALKS` in `backend/tests/conftest.py`); about 140 panel tests that need no walk stay in the
 everyday run. Run the others with `pytest -q tests/assistant --full` (about 80 seconds) whenever the panel is
-touched. Whether that brings this machine under five minutes is being timed now; see decision 10.
+touched. **After the move the fast set takes 5 min 52 s here** (1765 tests): still over. What is left is
+spread over many small tests; the one big piece is the shared demo walk (46 s) that most result-reading tests
+use, which was in the fast set before tonight. Nothing more can move by the rule, so this is decision 10.
 
 ## Step 1: the 5c fixes (built, reviewed, findings fixed, committed and pushed)
 
