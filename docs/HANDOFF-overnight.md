@@ -13,9 +13,10 @@ Doc "Phase 6 plan: Otto assistant".
 
 ## Where the run stands (updated after every step)
 
-Written at 10:10 UTC on 19 November 2026 (machine time). The exact next action is the section before the
-appendix. In one line: **steps 1 to 3 and the first halves of 6b and 6c are built, reviewed, fixed and pushed;
-6d and 6e are not started; the last two long checks are running again on the newest code.**
+Written at 11:05 UTC on 19 November 2026 (machine time). The exact next action is the section before the
+appendix. In one line: **steps 1 to 3 and the first halves of 6b and 6c are built, reviewed, fixed and pushed, and
+every walk passed on them (100 of 100); 6d is started (two backend checkpoints, nothing of it on a page yet); 6e is
+not started; the long checks are running once more on the newest code.**
 
 | # | Success step | State |
 |---|---|---|
@@ -31,9 +32,9 @@ appendix. In one line: **steps 1 to 3 and the first halves of 6b and 6c are buil
 | 12 | Commands | **First half done** (6b, fixed rules only): built, tested, documented, reviewed, the review's findings fixed with tests, walked on the final code. Two small leftovers are listed in step 4 below. **The second half (free wording through Claude) is not built** |
 | 13 | Questions | **First half done** (6c, the six fixed questions by rules): built, tested, documented, reviewed ("not ready as committed": 13 findings), all 13 fixed with tests, walked on the final code. **The second half (answers in free words by Claude, with "Hypothesis") is not built**, so an unproven answer labelled Hypothesis does not exist yet |
 | 14 | What-if and hypotheses | **Not started** (6e) |
-| 15 | Change watch | **Not started** (6d) |
+| 15 | Change watch | **Started, not usable yet** (6d, the shorter first half: Changes without the Watch list). Two backend checkpoints are in, with tests, and **nothing of it is on a page**: no route, no button. See "Step 6" below for what is built and what is left |
 | 16 | Nothing without a click and Confirm; works without a key | **Holds for everything built**: 6a, the research loop, 6b and 6c work with no key (no part of the panel asks Claude in this version), with tests |
-| 17 | Keys match in both modes, fast tests under 5 minutes, each step reviewed, committed, pushed | **Keys: match in both modes** (isolated: exit code 0 on a frozen copy; demo: green in the GitHub checks on every push). **Fast tests: 5 min 52 s on the build machine with Otto, 4 min 35 s without; 4 min 59 s on GitHub's runner. Not safely under five minutes: decision 10.** Each step reviewed, fixed, committed, pushed. The complete run of every walk found two failures, both fixed (see "What the complete run of every walk found"); **it and the full backend set are running again on that fix** |
+| 17 | Keys match in both modes, fast tests under 5 minutes, each step reviewed, committed, pushed | **Keys: match in both modes** (isolated: exit code 0 on a frozen copy; demo: green in the GitHub checks on every push). **Fast tests: 5 min 52 s on the build machine with Otto, 4 min 35 s without; 4 min 59 s on GitHub's runner. Not safely under five minutes: decision 10.** Each step reviewed, fixed, committed, pushed. The complete run of every walk found two failures; both are fixed, the fix was reviewed (five findings, fixed), and **every walk then passed (100 of 100)**. The full backend set has not run on the newest code yet: **it is running now**, after the fast set and one more complete run of the walks |
 | 18 | This file | Kept current |
 
 Commits on `overnight/fixes-and-phase6` since the 5c merge (`5a6b4e4`), oldest first, all pushed:
@@ -53,7 +54,10 @@ tests** · `187258d` a test on the real multi-target file · `b3b6376` this file
 walk green on the final code, with its pictures · `634e360` the panel's shared test walk no longer leaves its
 patches in place · `2849a9c` the panel's walk-reading tests go to the slow set · `ec10c0a` this file ·
 `e16786f` **what the complete run of every walk found: reads take turns, the panel asks once on a change of
-page, and a fact's link opens where its sentence stands**.
+page, and a fact's link opens where its sentence stands** · `44faeba` this file · `043c5ac` **the review of
+that commit: five findings fixed** · `3322971` **6d, checkpoint 1** (a developer's change is read, its tests are
+picked; backend only) · `2aa07a2` **6d, checkpoint 2** (the watch run and the reviewer's rule for it; backend
+only).
 
 ## The GitHub checks, and what they caught (07:45 UTC)
 
@@ -98,8 +102,8 @@ the setting the top bar's toggle keeps in the browser. The first complete run of
 | Every walk once (`cd e2e && npm test`), first complete run | `ec10c0a` | **97 passed, 2 failed, 1 did not run** (51.1 min). The two failures are real and are fixed in `e16786f`: see "What the complete run of every walk found" below. The one that did not run is the second part of the panel's walk, which is skipped when its first part fails |
 | After `e16786f`: the whole fast set with Otto, and without | `e16786f` | **1772 passed** in 5 min 52 s with Otto; **1674 passed, 98 skipped** in 4 min 35 s without (as the GitHub checks run it). 821 screen tests, lint, both type checks and the generated files are clean. The layout walk alone: **passed** (1.2 min) |
 | The GitHub checks on the fix | `e16786f` | **All green** (10:15 UTC): Backend in 7 min 3 s (lint, type check, generated files, the fast set without Otto, demo-mode accuracy against the keys), Frontend, CodeQL |
-| Every walk once, again | `e16786f` | **running** (started 10:08 UTC, about 50 minutes; its output is in the scratch folder as `d-3-e2e.txt`; if this session ended before it finished, run `cd e2e && npm test` again) |
-| The full backend set (`pytest -q tests --full`) | `e16786f` | **queued behind the walks** (about 40 minutes; `d-4-full.txt`) |
+| Every walk once, again | `e16786f` | **100 passed, none failed** (53.8 min; 11:02 UTC). Its request log shows no read slower than a few seconds in any walk |
+| After the review of `e16786f` (five findings, fixed in `043c5ac`) and 6d's two backend checkpoints (`3322971`, `2aa07a2`): the fast set with Otto and without, every walk once more, the full backend set | `2aa07a2` | **running** (started 11:05 UTC, about two hours in all; outputs in the scratch folder as `e-1-fast.txt`, `e-2-fast-no-otto.txt`, `e-3-e2e.txt`, `e-4-full.txt`). If this session ended first: run them again, one at a time (the commands are in "The exact next action") |
 
 ### What the first whole fast set with Otto found (08:32 UTC)
 
@@ -644,6 +648,70 @@ one server's test and settles), 20 passed. There is no walk step on the multi-ta
 the same sentences through the same path as the panel. One more thing the complete run of every walk found is in
 "What the complete run of every walk found" above (a fact's link, fixed in `e16786f`).
 
+## Step 6: phase 6d, Change watch (started: two backend checkpoints; nothing of it is on a page yet)
+
+The plan's shorter first half: **Changes without the Watch list**. Built in checkpoints, each committed with its
+tests, so that a stop between two of them leaves the app as it was: until the page is built (checkpoint 3) there is
+no route and no button, and nothing of Change watch can be seen or started in the app.
+
+**Checkpoint 1 (`3322971`): a developer's change is read, and its tests are picked.**
+- `demo/changes/`: the two bundled demo changes as data files ("Revert the range check", offered once a fix is
+  merged; "Allow TLS 1.0 for an old partner"). A change names its branch, its commit message and the files it
+  leaves. A program comes only by the name of one of our registered demo programs: no change holds program text,
+  and the reader refuses one that does (`backend/app/changewatch/demo_changes.py`).
+- `backend/app/changewatch/state.py`: `change_watch_state` reads the connected repository on every call. Every
+  branch that is neither the connected branch nor one of the app's own changes is a developer's change: what it
+  touches, the tests picked for it and the rule that placed each one (fixed rules, by file; no Claude step), which
+  registered program its code is (the byte-for-byte check), and its flags. `bring_in_demo_change` writes one
+  branch with one commit by "Demo developer" and runs nothing.
+- Flags: `backend/app/changewatch/flags.py`, and the short list `OLD_CRYPTOGRAPHY` in
+  `backend/app/engine/guidance.py` (SSL 3.0, TLS 1.0, TLS 1.1, SHA-1, MD5, RC4, 3DES, each with its source). A
+  flag comes only from a line a change adds, and is never a result.
+- Tests: `backend/tests/changewatch/` **51 passed** (6 seconds): every state from "not connected" to "a fix
+  merged"; bringing a change in writes four repository files and no database row; the picking rules; a change
+  that is not a registered program cannot run; several commits; a branch that starts elsewhere; a damaged
+  repository; reading writes nothing; seeded fuzz of both new readers.
+
+**Checkpoint 2 (`2aa07a2`): the watch run, and the reviewer's rule for it.**
+- `run_picked_tests`: the one way a watch run starts. First the byte-for-byte check (the change's code, and the
+  code it starts from, must each be a registered demo program; the registered program is what runs). The picked
+  tests then run through the same runner and locked tests as every run. "Before" is each test's newest reviewed
+  run on exactly the code the change starts from; where there is none, that test also runs on that code.
+- `RuleReviewer.review_watch`: places each test (fails now, passes now, same, not compared, not trusted) and sets
+  the change's status word, and nothing else. A test that could not run is not compared. The stored review is
+  believed only while reviewing again gives exactly it.
+- Kept apart: two add-only tables (`watch_runs`, `watch_reviews`) and two run phases (`watch`, `watch_base`) that
+  nothing reading the assessment's own results looks at. A test compares Evidence, the test plan, Fixes, Checks
+  and the Overview before and after a watch run: only the Overview's "runs recorded" moves.
+- Tests: `test_watch_run.py` **28 passed** (one of them in the slow set), and the tests around the touched core
+  (`test_changes.py`, the proof, speed and retest rules, the reviewer, jobs) **194 passed** together.
+- **Decided while building, for Kevin to confirm (decision 19):** a watch run of an advisory check is **not**
+  bound in the assessment's Otto ledger. The ledger's pinned checker of 5c knows three run phases and must not be
+  changed; the plan puts the new pinned checker for watch runs in the Watch list half. Until then such a run is
+  kept with its change, in the database (and in the signed evidence, once checkpoint 4 is in).
+- **Also decided (decision 20):** the status list of the plan has no word for "a picked test could not run". Such
+  a watch run reads **"Can't run"** (a stop is not a result, so it is neither "No difference found" nor a
+  difference).
+
+**Still to build for the first half, in this order:**
+3. The page and what shows on other pages: routes and shapes (`backend/app/web/`, `models.py`, then
+   `tools/api_schema.py` and `npm run gen:api`); the words (`backend/app/present/changewatch.py`); the page
+   "Change watch" after Fixes with the Changes view (table, panel: lines before and after, Tests picked and Not
+   picked with reasons, Run the picked tests then Run again, results before and after, Flags, Related) and Bring
+   in a demo change (Demo data); the page in the assistant's lists (`threads.py` `PAGES`, `PAGE_THREAD`,
+   `words.py` `PAGE_FOR`; `router.ts`, the sidebar); the panel's next step for Run the picked tests behind
+   Confirm; the label "From a developer's change: branch, commit" in Evidence and "Came from: Change watch" on
+   Checks (`ledger/checks.py`: `ORIGINS`, `PHASE_ORIGIN`, `_row_key`); the Text-only entry in Fixes "Came from:
+   developer's change" when tests that passed now fail (`ChangesMixin._fix_sources`). Screen tests; the tables at
+   1440 pixels.
+4. The evidence part `change_watch` (added only when there is something to put in it: the exact list of the
+   file's parts is pinned by `tests/test_evidence.py`), the report's part 9, and the verify command
+   (`backend/evidence/`: a new check called like `check_otto`).
+5. The walk `e2e/tests/changewatch.spec.ts` (ports of its own), pictures in `docs/screenshots/phase6d/`,
+   SPEC section 2 (the plan's wording for 6d, without the Watch list), CLAUDE.md (the plan's rules 6 and 10),
+   LIMITS, README, LAYOUT, the questions for `docs/OTTO-KEY.md`; one separate review; fixes.
+**Not in the first half:** the Watch list (its proposals, rechecks and the new pinned checker).
+
 ## Decisions for Kevin (collected so far)
 
 1. Run the Codespace check (`docs/CODESPACE-CHECK.md`, about 30 minutes): it is the part of fix 8 that
@@ -701,26 +769,31 @@ the same sentences through the same path as the panel. One more thing the comple
     with the assessment and listed in no tab. Should it be listed in the tab that is open, in all three, or not be
     kept at all?
 
+19. Phase 6d: a watch run of an advisory check is not bound in the assessment's Otto ledger in the first half
+    (the 5c checker of the ledger is pinned and knows three run phases; the plan's new pinned checker for watch
+    runs belongs to the Watch list half). Is that right until then?
+20. Phase 6d: where a picked test could not run, the change reads "Can't run". The plan's list of statuses has no
+    word of its own for it. Should it?
+
 ## The exact next action
 
-1. **Read the results of the two long checks that were running when this was written** (both on `e16786f`): the
-   complete run of every walk (`cd e2e && npm test`, about 50 minutes; with `E2E_APP_LOG=/some/file` in front
-   it keeps the request log) and the full backend set (`cd backend && .venv/bin/python -m pytest -q tests --full
-   > FILE 2>&1`, about 40 minutes with Docker ready). If this file still says "running" for them, run them again,
-   one at a time and with nothing else running, and write the results into "The long checks". A complete run of
-   the walks rewrites every picture: keep only folders retaken on purpose, and put the others back with
-   `git checkout -- docs/screenshots/<folder>` (after `e16786f` the picture
-   `docs/screenshots/phase6a/08c-evidence-why-did-this-check-fail-*.png` shows the new link and is retaken on
-   purpose).
-2. Read the separate reviewer's report on `e16786f` (reads take turns; the open item; the fact's link) and fix
-   what breaks a requirement. Its findings and their states belong under "What the complete run of every walk
-   found".
-3. Read the newest run of "Checks" on pull request #7 (GitHub), and correct what it shows.
-4. Then, in this order, as far as time goes: **6d** at least its shorter first half (Changes without the Watch
-   list: the plan's order of work, points 1 to 5 and 7 to 8), **6e** at least its shorter first half (the what-if
-   facts and the try), then the second halves of 6b and 6c (the Claude steps, with the CLAUDE.md rule changes the
-   plan lists for them). Each: plan, build, tests, one walk, pictures, documents, one separate review, fixes,
-   commit, push, this file. Phase 6's plan is the Claude Doc "Phase 6 plan: Otto assistant".
+1. **Read the results of the long checks that were running when this was written** (all on `2aa07a2`, one after
+   another): the fast set with Otto, timed (`cd backend && .venv/bin/python -m pytest -q tests`), and without
+   (`EVIDENCE_LAB_OTTO_HOME=/some/empty/folder` in front); every walk once (`cd e2e && npm test`, about 50
+   minutes; `E2E_APP_LOG=/some/file` in front keeps the request log); the full backend set (`cd backend &&
+   .venv/bin/python -m pytest -q tests --full > FILE 2>&1`, about 40 minutes with Docker ready). If this file
+   still says "running" for them, run them again, one at a time and with nothing else running, and write the
+   results into "The long checks". A complete run of the walks rewrites every picture: keep only folders retaken
+   on purpose and put the others back with `git checkout -- docs/screenshots/<folder>`. **`docs/screenshots/
+   phase6a/` is to be retaken on purpose from that run**: since `043c5ac` a result's panel starts with its plain
+   sentence, and the picture `08c-evidence-why-did-this-check-fail-*.png` shows it.
+2. Read the newest run of "Checks" on pull request #7 (GitHub), and correct what it shows.
+3. **Go on with 6d at checkpoint 3** ("Step 6" above lists what is left, in order). It is being built in a
+   separate working copy while the long checks use the main one; everything committed there is on the branch.
+4. After 6d's first half: **6e** at least its shorter first half (the what-if facts and the try), then the second
+   halves of 6b and 6c (the Claude steps, with the CLAUDE.md rule changes the plan lists for them). Each: plan,
+   build, tests, one walk, pictures, documents, one separate review, fixes, commit, push, this file. Phase 6's
+   plan is the Claude Doc "Phase 6 plan: Otto assistant".
 5. Two leftovers of 6b's review (step 4 above, finding 12): eight command lines are never asked against an
    assessment at the stage where their button exists, and most lines have one wording in the tests.
 6. Keep pull request #7 a draft. Never merge. Leave the line in `docs/ACTIVE.md` unticked until the run ends.
