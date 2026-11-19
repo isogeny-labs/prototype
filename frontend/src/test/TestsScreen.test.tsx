@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PlanView } from "../api";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
 import { LinkProvider } from "../components/related";
@@ -277,6 +277,45 @@ describe("Tests screen", () => {
     await waitFor(() => expect(screen.getAllByTestId("test-card")).toHaveLength(6));
     expect(body(fetchMock, "/api/plans/1/tests")).toEqual({ catalog_id: "pq_readiness" });
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("a read of the plan that was on its way while a test was added does not put the old list back", async () => {
+    // Inside Checks the plan is known already and is read again when the page opens. That read can still be on its way
+    // when a person adds a test (the reads take turns on the server). It then holds the plan from before the add and
+    // lands after the add's own answer: it is asked again (src/api.ts), so the card that was added stays.
+    const added = { ...plan, tests: [...cards, pqCard], catalog: [plan.catalog[1]!] };
+    let reads = 0;
+    const inner = mockApi({
+      "GET /api/import/7/plan": () => ({ body: reads++ === 0 ? plan : added }),
+      "POST /api/plans/1/tests": { body: added },
+    });
+    let land: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (land = resolve));
+    let first = true;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const answer = await inner(input, init); // (the answer is made now, from the plan as it is at this moment)
+      if (first && String(input) === "/api/import/7/plan") {
+        first = false;
+        await held; // ... and is on its way until the test lets it land
+      }
+      return answer;
+    });
+    function Embedded() {
+      const [current, setCurrent] = useState<PlanView | null>(plan);
+      return <TestsScreen importId={7} plan={current} onPlan={setCurrent} embedded />;
+    }
+    render(<Embedded />);
+    expect(await shownCards()).toHaveLength(5);
+
+    fireEvent.click(button("+ Add test"));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Tests you can add" })).getByRole("menuitem", { name: /Post-quantum readiness/ }));
+    await waitFor(() => expect(screen.getAllByTestId("test-card")).toHaveLength(6));
+
+    land();
+    await waitFor(() => expect(calls(inner)).toEqual(["GET /api/import/7/plan", "POST /api/plans/1/tests", "GET /api/import/7/plan"]));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(titles()).toHaveLength(6);
+    expect(titles()).toContain("Post-quantum readiness");
   });
 
   it("closes the add-test list on Escape without adding anything", async () => {

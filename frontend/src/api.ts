@@ -318,10 +318,16 @@ interface RequestOptions {
   quiet401?: boolean;
 }
 
+/** How many requests that are not reads have been answered (or have failed) so far. */
+let changesAnswered = 0;
+/** A read is asked again at most this often (see `request`). */
+const MAX_ASKED_AGAIN = 2;
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   // The 5c fixes: every request asks the server to mark the times in its sentences, and every answer has them written
   // in the viewer's own time zone below, in this one place (src/time.ts). Downloads are plain links: they keep UTC.
   const asksForTimes = { [TIMES_HEADER]: TIMES_ASK };
+  const isRead = (options.method ?? "GET") === "GET";
   const init: RequestInit = { method: options.method ?? "GET", credentials: "same-origin", headers: asksForTimes };
   if (options.json !== undefined) {
     init.headers = { "Content-Type": "application/json", ...asksForTimes };
@@ -332,17 +338,27 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   let response: Response;
-  try {
-    response = await fetch(path, init);
-  } catch {
-    throw new ApiError(0, "Can't reach the app. Check that it is still running, then try again.");
-  }
-
   let body: unknown = null;
-  try {
-    body = withLocalTimes(await response.json());
-  } catch {
-    body = null;
+  // A read that was on its way while a change was answered may hold what was there before the change, and it would
+  // land after the change's own answer and put the old state back on the page (19 November 2026: a test plan that
+  // showed six tests after a seventh was added; the reads take turns on the server, so one can be on its way for a
+  // while). Such a read is asked again, so what it gives is never older than a change this browser already has the
+  // answer to. Nothing else is ever sent twice: a request that is not a read is sent once.
+  for (let askedAgain = 0; ; askedAgain += 1) {
+    const before = changesAnswered;
+    try {
+      response = await fetch(path, init);
+    } catch {
+      if (!isRead) changesAnswered += 1;
+      throw new ApiError(0, "Can't reach the app. Check that it is still running, then try again.");
+    }
+    if (!isRead) changesAnswered += 1;
+    try {
+      body = withLocalTimes(await response.json());
+    } catch {
+      body = null;
+    }
+    if (!isRead || before === changesAnswered || askedAgain >= MAX_ASKED_AGAIN) break;
   }
 
   if (!response.ok) {
