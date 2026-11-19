@@ -13,26 +13,26 @@ Doc "Phase 6 plan: Otto assistant".
 
 ## Where the run stands (updated after every step)
 
-Written at 06:35 UTC on 19 November 2026 (machine time), in the middle of the run. The exact next action is
+Written at 07:40 UTC on 19 November 2026 (machine time), in the middle of the run. The exact next action is
 the section before the appendix.
 
 | # | Success step | State |
 |---|---|---|
 | 1 | A brand-new Codespace starts the app with `./run-demo.sh` alone | **Built** (fix 8). Proven on the build machine as far as it can be; **Kevin's own 30-minute check is still needed**: `docs/CODESPACE-CHECK.md` |
-| 2 | Checks: Encryption tests in four labelled parts | **Built** (fixes 1 and 2), reviewed, review findings fixed |
-| 3 | "Open in new tab" on every side panel | **Built** (fix 3), reviewed, review findings fixed |
-| 4 | No sentence says what Otto did | **Built** (fixes 4 and 5), with a wording test; seven more sentences reworded after the review |
-| 5 | Times in the viewer's own time zone; files keep UTC | **Built** (fix 6) |
-| 6 | "New" tag on advisories of the newest pack | **Built** (fix 7) |
-| 7 | "Look for new advisories" reads a public source and finds what fits | **Built and committed** (step 3). The read from osv.dev itself could not be tried from the build machine: `docs/LIVE-CHECK.md`, Part 1, is Kevin's first real look |
-| 8 | Otto designs a test and proves it on public copies after a click; only then a proposal | **Built and committed.** The real run in containers passes (9 min 40 s). Its walk reached the proposal and its Accept on the first try and is **running again now**; pictures and the separate review (started) are still open |
-| 9, 10, 11 | The assistant: suggestions that fit the page, three tabs, decide in the panel | **Done** (phase 6a): built, reviewed, findings fixed, walk green (2 of 2), 38 pictures, committed and pushed |
-| 12 | Commands | **First half built, tested, committed and pushed** (6b, fixed rules only). Its documents are written (not committed yet), its two commands are in the walk (**running now**), and its separate review has started. The second half (free wording through Claude) is not built |
-| 13 | Questions | Not started (6c) |
+| 2 | Checks: Encryption tests in four labelled parts | **Done** (fixes 1 and 2): built, reviewed, review findings fixed |
+| 3 | "Open in new tab" on every side panel | **Done** (fix 3): built, reviewed, review findings fixed |
+| 4 | No sentence says what Otto did | **Done** (fixes 4 and 5), with a wording test; seven more sentences reworded after the review |
+| 5 | Times in the viewer's own time zone; files keep UTC | **Done** (fix 6). Since phase 6c a kept answer of the panel follows the same rule (stored in UTC words, shown in the viewer's time) |
+| 6 | "New" tag on advisories of the newest pack | **Done** (fix 7) |
+| 7 | "Look for new advisories" reads a public source and finds what fits | **Built, reviewed, review findings fixed, pushed** (step 3). The read from osv.dev itself could not be tried from the build machine: `docs/LIVE-CHECK.md`, Part 1, is Kevin's first real look |
+| 8 | Otto designs a test and proves it on public copies after a click; only then a proposal | **Built, reviewed, review findings fixed, pushed.** The real run in containers and the walk passed before the fixes and are **running again now** on the fixed code |
+| 9, 10, 11 | The assistant: suggestions that fit the page, three tabs, decide in the panel | **Done** (phase 6a): built, reviewed, findings fixed, walk green, pictures, pushed |
+| 12 | Commands | **First half done** (6b, fixed rules only): built, tested, walk green, documented, reviewed. The review's findings are fixed in the working tree and being tested (**not committed yet** at the time of writing). The second half (free wording through Claude) is not built |
+| 13 | Questions | **First half built** (6c, the six fixed questions by rules): tested, walk green, documented, pushed (`c7472a4`); its separate review is running. The second half (answers in free words by Claude, with "Hypothesis") is not built |
 | 14 | What-if and hypotheses | Not started (6e) |
 | 15 | Change watch | Not started (6d) |
-| 16 | Nothing without a click and Confirm; works without a key | Built for what 6a and the research loop have, with tests |
-| 17 | Keys match in both modes, fast tests under 5 minutes, each step reviewed, committed, pushed | Steps 1 and 2 reviewed, fixed, committed and pushed. **Still open:** the fast set's time, the full set's result (running), the accuracy check in both modes after tonight's changes |
+| 16 | Nothing without a click and Confirm; works without a key | **Holds for everything built**: 6a, the research loop, 6b and 6c work with no key (no part of the panel asks Claude in this version), with tests |
+| 17 | Keys match in both modes, fast tests under 5 minutes, each step reviewed, committed, pushed | Steps 1, 2, 3 and 6b reviewed and fixed; 6c's review running. **Still open: the long checks** on the branch as it is now (the full backend set, the fast set's time, the accuracy check in both modes, one complete run of every walk) |
 | 18 | This file | Kept current |
 
 Commits on `overnight/fixes-and-phase6` since the 5c merge (`5a6b4e4`), oldest first, all pushed:
@@ -42,7 +42,9 @@ back (**step 1 as first built**) · `e50d1a7` this file and 24 pictures · `cc96
 `a19bb0f`, `ea1329a` **step 1, the review's findings fixed** · `07ad491` **the research loop, first part** ·
 `77c001a` **phase 6a, the review's findings fixed** · `255ec6f` the research loop's documents and this file ·
 `23d577e` the research loop: evidence fix · `f20042a` **phase 6a: the walk green, with its pictures** ·
-`ec1d061` the research loop: a run is ended with the app · `7a0898f` **phase 6b, first half**.
+`ec1d061` the research loop: a run is ended with the app · `7a0898f` **phase 6b, first half** · `664c083` this
+file · `874f9ad` **the research loop's walk, its pictures, and the live check list** · `c7472a4` **phase 6c,
+first half, with 6b's documents and walk** · `c819aa9` **the research loop: the review's findings fixed**.
 
 ## Step 1: the 5c fixes (built, reviewed, findings fixed, committed and pushed)
 
@@ -187,7 +189,7 @@ The same walk now also types phase 6b's two commands (see step 4 below); that ve
 
 **Still open for 6a:** the fast set timed with the panel's tests in it; the accuracy check in both modes.
 
-## Step 3: Otto's research loop (built, documented, walk green with pictures, reviewed; the review's findings are being fixed)
+## Step 3: Otto's research loop (built, documented, walk green with pictures, reviewed, the review's findings fixed and pushed)
 
 Commits: `07ad491` (the loop), `255ec6f` (its documents: SPEC sections 2, 3, 7f point 14 and 9; CLAUDE.md;
 LIMITS "Limits of Otto's research loop"; README; LAYOUT), `23d577e` (a run's pack, and a look by itself, are
@@ -305,7 +307,7 @@ What Kevin must know about step 3 (also in "Decisions for Kevin"):
 - With Live Otto off only the advisories of the dated snapshot have recorded answers; any other advisory
   needs Live Otto (a key, and up to the spending limit per run). No live run was made during the build.
 
-## Step 4: phase 6b, commands (first half built, tested, committed and pushed; documents, walk and review open)
+## Step 4: phase 6b, commands (first half built, tested, documented, walk green, reviewed; the review's findings fixed)
 
 Commit: `7a0898f`. The plan's "shorter first half": fixed rules only, without the Claude step for free wording.
 
@@ -329,12 +331,10 @@ wordings, the answers at each stage of the shared walk, a seeded fuzz of the rea
 what is kept, the routes). Frontend: **808 screen tests passed** (12 for the text box, 5 for the address
 filters). Lint, type check and generated files clean.
 
-**Still to do for 6b's first half:**
-1. The walk: `e2e/tests/assistant.spec.ts` now types "show me failed checks" (after Run all) and "accept the
-   Java fix" (on Dependencies), in the working tree. **Running now** (`<scratchpad>/e2e-6a-8.txt`). Two new
-   pictures: `08b-...` and `17b-...`.
-2. The separate reviewer's report (started): fix what it finds.
-3. Commit the documents and the walk; push.
+The walk: `e2e/tests/assistant.spec.ts` types "show me failed checks" (after Run all: the page is filtered, one
+request was sent, Back returns) and "accept the Java fix" (on Dependencies: the card with its Confirm step,
+Confirm accepts). **2 passed (5.7 minutes)**, with pictures `08b-...` and `17b-...` in
+`docs/screenshots/phase6a/`. Documents and walk were committed with phase 6c (`c7472a4`).
 - **Not built (the second half):** passing a sentence the rules can't read to Claude with Live Otto on, its
   check, its recorded answers and its ledger record. The CLAUDE.md rule changes 3, 4 and 8 of the plan (Claude's
   jobs, what a run is, when a live call is made) are therefore **not** applied yet.
@@ -344,33 +344,48 @@ about 4,500 made-up sentences at nine stages of a demo assessment).** State of e
 1. **High. A "Which one?" option did not lead to the thing it names** (a title with a colon looped or showed
    another suggestion's card; a reject could carry the rest of the title as its reason). *State: (a), (b) and (d)
    fixed in `c7472a4` (titles are said without their colons, an exact title wins, and the walk now says every
-   option of every "Which one?"). Still open: (c) a title that holds a kind word ("Fix acme-sign 1.4.2 before
-   ..." is a plan change, and "fix" narrows the search to fixes), and (e) the list holds things the button is not
-   offered for and is cut at 8 without saying so.*
+   option of every "Which one?"). (c) and (e) **fixed** after that: a whole title is looked for word for word
+   before any word of it is read as a kind; a decision's list holds only what its button is offered for, and
+   says so when more than eight fit.*
 2. **High. "Close the Fixing tab" does not close the tab in an open assessment**: the kept sentence is filed
    under that thread and changes the tab's mark, so the tab is back at once with a dot. For the same reason any
-   typed sentence brings a closed tab back. *State: open.*
-3. **Medium. "approve it" counts every reviewer as missing** (it reads fields the rows do not have). *State: open.*
+   typed sentence brings a closed tab back. *State: **fixed** (what a person typed is not part of a tab's mark;
+   a backend test and a screen test whose read after the sentence carries the new entry).*
+3. **Medium. "approve it" counts every reviewer as missing** (it reads fields the rows do not have). *State:
+   **fixed** (counted from `approved_at`; tested at none, one of two, and all approved).*
 4. **Medium. In a closed assessment a page-only command says a button is ready**, and "What can you do?" still
-   lists decisions and starts. *State: open.*
+   lists decisions and starts. *State: **fixed** (the page opens with the closed sentence; the list holds only what
+   moves; the keeping call itself now refuses a closed assessment too).*
 5. **Medium. The card that comes back for a sentence goes stale** (it is not replaced by later reads; the server
-   refuses a stale Confirm, so nothing wrong is recorded). *State: open.*
+   refuses a stale Confirm, so nothing wrong is recorded). *State: **fixed** (once anything changes the assessment
+   after the answer, its card is taken away and one line says so; a screen test).*
 6. **Medium. Checks filtered by a command can be misread**: with a Result value no row has, the control shows
    "All results" and the Test plan part is gone with no word; "Run all" still runs all tests while only some
-   are listed; on Evidence the Result filter narrows only the Encryption tests table. *State: open.*
+   are listed; on Evidence the Result filter narrows only the Encryption tests table. *State: **fixed** (the
+   control shows the filter that is on; the plan keeps its part and says in one line how many tests are listed
+   and that Run all runs all of them; the Evidence answer says which table is filtered).*
 7. **Medium to low. A sentence with no thread is kept and shown nowhere** (typed beside the Overview, or "open
-   settings"). *State: open.*
-8. **Low to medium. "Opened Checks." with no file in, while the app shows Import.** *State: open.*
+   settings"). *State: **said in SPEC and LIMITS; decision 18 for Kevin** (where should such a sentence be listed?).*
+8. **Low to medium. "Opened Checks." with no file in, while the app shows Import.** *State: **fixed.***
 9. **Low. Sentences read into something else** (all only move): "show open checks", "tick Dana as reviewer",
-   "apply the filter", "Otto: run all", "open the plan". *State: open.*
+   "apply the filter", "Otto: run all", "open the plan". *State: **fixed** (24 sentences in a test), except "open
+   the pull request", which still asks to open a new one (LIMITS).*
 10. **Low. Wording**: "filtered to Accepted" where the control says "Added"; "no check reads Retest now";
-    "There is One suggestion"; "Open where it led" drops the filter. *State: open.*
+    "There is One suggestion"; "Open where it led" drops the filter. *State: **fixed**, except "Open where it led",
+    which still opens the page without the filter (LIMITS); a reason over 300 characters is now refused when it is
+    said, not at Confirm.*
 11. **Low. Documents**: SPEC section 3 still says nothing is stored for the panel; LIMITS on short names; what is
     kept with each sentence (name, time, open item); `assistant_say` has no closed check of its own; no
-    `docs/screenshots/phase6b/` folder (the two pictures are in `phase6a/`). *State: open.*
+    `docs/screenshots/phase6b/` folder (the two pictures are in `phase6a/`). *State: **documents corrected**; the
+    pictures stay in `phase6a/` with their walk, and LIMITS says so; a closed assessment's sentence shows in the
+    terminal's request log (LIMITS).*
 12. **Tests the plan names that are thin**: Approve with some approvals given, a page-only answer in a closed
     assessment, the reply card after its entry changed, a tab command where the read after it differs; 8 of the
-    32 lines are never asked against an assessment; 19 lines have one wording. *State: open.*
+    32 lines are never asked against an assessment; 19 lines have one wording. *State: **partly done** (tests for
+    Approve, the closed page-only answer, the stale card, the tab and the narrowed plan were added). **Still
+    open:** eight lines (reconsider, run proof again, open pull request, retest now, try, ask for approval,
+    measure a library, roll back) are read by the rules in a test but never asked against an assessment at the
+    stage where their button exists; most lines have one wording in the tests.*
 
 Checked by the reviewer and found met: nothing happens before Confirm but moving around (all eight kinds of
 answer traced through the panel); a card for a command is the panel's own card; a button that is off gives the
@@ -378,6 +393,46 @@ page's reason and no Confirm step; typed text is data (fixed patterns, 500 chara
 the table is add-only; the package only reads and no model is asked; address filters; counts in answers follow
 the pages' own rule; no "secure", score, severity or sentence about what Otto did; the documents say plainly
 that the Claude step is not built.
+
+## Step 5: phase 6c, questions (first half built, tested, walk green, documented, pushed; its review is running)
+
+Commit: `c7472a4`. The plan's "shorter first half": the six fixed questions alone, answered by rules, with no
+Claude step.
+
+What is built:
+- **Six fixed questions** ("Why did this check fail?", "What does this result show, and what doesn't it?", "Where
+  did this suggestion come from?", "What happens if I accept this?", "What is this page for?", "What should I do
+  next?"): the rules that read one in its common wordings, which of them fit a page and an open item (up to three
+  chips above the examples), and the rules that pick the facts of an answer
+  (`backend/app/assistant/questions.py`).
+- **An answer is a list of facts**, headed "From this assessment's records". Each fact is a sentence a page of the
+  app already shows for the item, with a link to where it is shown. Nothing in an answer can be pressed but the
+  links; it words no result and rates nothing. With several that fit and none open: "Which one?".
+- **Kept** with the facts of its answer in an open assessment, and listed in its thread; a closed assessment
+  answers and keeps nothing. What is kept holds its times in UTC words, and a browser shows them in the viewer's
+  time (`app/present/times.py`, `remarked`).
+- The text box now reads "Ask Otto, or tell it what to do" (the plan's wording for 6c).
+- Documents: SPEC sections 2, 3 and 9; CLAUDE.md (the rule-based rule, what is kept, the Tests rule); LIMITS
+  "Limits of phase 6c, first half"; README "Asking Otto a question"; LAYOUT.
+
+Test results: backend `tests/assistant` and `tests/times` **155 passed** (27 in `test_questions.py`; the shared
+walk now also says every option of every "Which one?"); **815 screen tests passed** (7 for the questions); lint,
+type check and generated files clean. The walk `e2e/tests/assistant.spec.ts`: **2 passed (5.7 minutes)**: on
+Evidence the chip "Why did this check fail?" asks, "Which one?" lists the failed checks, the chosen one answers
+with its facts, "See the evidence" opens the result, whose plain sentence is word for word the answer's second
+fact, and "Open the advisory" opens the advisory. Picture: `docs/screenshots/phase6a/08c-evidence-why-did-this-
+check-fail-dark.png` (and `-light`).
+
+Found while building it and fixed: a kept answer would have stored the browser's time marks (now UTC words, with
+a test that walks it with the browser's header on); the panel's read, a command and a question did not count
+what waits the same way, so "What should I do next?" named another next step than the Overview.
+
+**Not built (the second half):** answers in free words by Claude from a fact sheet, with "Hypothesis", "Facts
+used" and "What was sent", the two labels, recorded answers for the walk, the status line about spending, and
+the Settings line on what is sent. The CLAUDE.md rule changes 3, 7, 8 and 9 of the plan are therefore not
+applied.
+
+**Still to do for 6c's first half:** read its separate reviewer's report and fix what it finds.
 
 ## Decisions for Kevin (collected so far)
 
@@ -429,23 +484,31 @@ that the Claude step is not built.
     built. How should it read once they are?
 17. Phase 6c: one sentence about each page ("What is this page for?") is new wording of mine, ten sentences in
     `backend/app/assistant/words.py` (`PAGE_FOR`). Please read them.
+18. Phase 6b: a sentence typed beside the Overview that belongs to no thread (and one that opens Settings) is kept
+    with the assessment and listed in no tab. Should it be listed in the tab that is open, in all three, or not be
+    kept at all?
 
 ## The exact next action
 
-1. Read the two walks' results (`<scratchpad>/e2e-research-2.txt`, then `<scratchpad>/e2e-6a-8.txt`). Correct
-   what fails (so far each failure was an expectation of the walk itself) and run that walk again:
-   `cd frontend && npm run build`, then `cd e2e && npx playwright test tests/research.spec.ts --trace off`
-   (about 15 minutes, Docker) or `tests/assistant.spec.ts` (about 4 minutes).
-2. Commit: the research walk with its pictures (`docs/screenshots/phase6-research/`), `docs/LIVE-CHECK.md` and
-   CLAUDE.md's walk line; then the 6b documents and the assistant walk with its two new pictures. Restore other
-   picture folders a run rewrote with `git checkout -- docs/screenshots/<folder>`. Push.
-3. Read the two reviewers' reports (step 3, and 6b's first half) when they arrive; fix what breaks a
-   requirement; commit; push.
+1. If the working tree holds uncommitted changes under `backend/app/assistant/`, `backend/app/lab/said.py`,
+   `backend/tests/assistant/`, `frontend/src/` or `e2e/tests/assistant.spec.ts`: those are the fixes for the 6b
+   review's findings (the list with its states is in step 4 above). Check them
+   (`cd backend && .venv/bin/python -m pytest -q tests/assistant tests/times`, `cd frontend && npm run typecheck
+   && npm test`, then `cd frontend && npm run build && cd ../e2e && npx playwright test tests/assistant.spec.ts
+   --trace off`), commit and push.
+2. The research loop after its fixes: `cd backend && .venv/bin/python -m pytest -q tests/otto/test_discover_real.py
+   --full` (about 10 minutes, Docker) and `cd e2e && npx playwright test tests/research.spec.ts --trace off`
+   (about 11 minutes). Commit the walk's pictures (`docs/screenshots/phase6-research/`); restore other picture
+   folders a run rewrote with `git checkout -- docs/screenshots/<folder>`.
+3. Read the 6c reviewer's report when it arrives; fix what breaks a requirement; commit; push.
 4. The long checks on the branch as it is then, **one at a time and with nothing else running**: the full
-   backend set with its whole output kept; the fast set (timed); the accuracy check in demo and in isolated
-   mode; `--only otto --mode isolated` against the 5c build; one complete run of every walk (`cd e2e && npm test`).
-5. Then 6c, 6d and 6e, each at least its shorter first half (6c: the six fixed questions; 6d: Changes without
-   the Watch list; 6e: the what-if facts and the try), and 6b's second half.
+   backend set with its whole output kept (`cd backend && .venv/bin/python -m pytest -q tests --full > FILE
+   2>&1`); the fast set, timed (it must stay under 5 minutes); the accuracy check in demo and in isolated mode
+   (`.venv/bin/python -m app.accuracy --mode demo`, then `--mode isolated`); `--only otto --mode isolated`
+   against the 5c build; one complete run of every walk (`cd e2e && npm test`). Write the results into this
+   file.
+5. Then 6d and 6e, each at least its shorter first half (6d: Changes without the Watch list; 6e: the what-if
+   facts and the try), and the second halves of 6b and 6c (the Claude steps).
 6. Keep pull request #7 a draft. Never merge. Leave the line in `docs/ACTIVE.md` unticked until the run ends.
 
 ## Appendix: the plan for step 1 as written before it was built
