@@ -7,11 +7,13 @@ import re
 
 from fastapi import APIRouter, Depends
 
+from app.changewatch.demo_changes import ORDER as DEMO_KEYS
 from app.errors import NotFound
 from app.web import models
 from app.web.common import shows
 
-_DEMO_KEY = re.compile(r"[a-z0-9]+(-[a-z0-9]+){0,7}")
+# A change's id as the view writes it: "change-" and twelve characters of its commit. (A demo change is named by one of
+# our own keys, and only those are let through: the address is never matched against a pattern that could run long.)
 _CHANGE_ID = re.compile(r"change-[0-9a-f]{12}")
 
 
@@ -28,7 +30,7 @@ def routes(lab, require_login) -> APIRouter:
     def bring_in_demo_change(plan_id: int, key: str):
         """Bring in a demo change (Demo data): one branch with one commit, written into this assessment's own copy of
         the repository. It runs nothing."""
-        if not _DEMO_KEY.fullmatch(key) or len(key) > 40:
+        if key not in DEMO_KEYS:
             raise NotFound("That demo change does not exist.")
         lab.bring_in_demo_change(plan_id, key)
         return lab.change_watch_view(plan_id)
@@ -36,7 +38,7 @@ def routes(lab, require_login) -> APIRouter:
     @router.post("/api/plans/{plan_id}/change-watch/{change_id}/run", dependencies=login, responses=shows(models.ChangeWatchView))
     def run_picked_tests(plan_id: int, change_id: str):
         """Run the picked tests (then: Run again). Sent by that button, or by its Confirm in the Otto panel."""
-        if not _CHANGE_ID.fullmatch(change_id):
+        if len(change_id) != 19 or not _CHANGE_ID.fullmatch(change_id):
             raise NotFound("That change is not in the connected repository.")
         lab.run_picked_tests(plan_id, change_id)
         return lab.change_watch_view(plan_id)
