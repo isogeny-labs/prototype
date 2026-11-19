@@ -24,7 +24,7 @@ Passing these tests doesn't prove a system secure. It shows these specific check
 | Connecting real code hosts (GitHub and others) | Not in this version: only the small demo repository that comes with the app |
 | Server setting change with proof (SPEC section 7c) | Built (phase 4b), on the Acme Pay demo server only |
 | Changing a server that isn't ours (connectors) | Not built (a later phase); Download change still works |
-| Change watch | Not built (phase 3c) |
+| Change watch (the plan's phase 3c, built as phase 6d) | First half built: the Changes view (a developer's change, the tests picked for it, a run on a click, flags, the entry in Fixes, the evidence part). The Watch list is not built |
 | Assistant panel | Empty panel only; the assistant is phase 3b. No AI model is connected to it (Otto, above, uses Claude for other jobs) |
 | Accuracy panel in the app | Not built (phase 3b); the accuracy check is a command for now |
 
@@ -462,15 +462,25 @@ To try it on the Acme Pay demo:
    with one commit to the demo repository, as a push would. It runs nothing.
 3. Open the change. The panel shows the lines before and after, the tests picked for it and why, and the tests
    left out and why.
-4. Press **Run the picked tests**. They run on the program the change gives, and each is compared with its result
-   on the code before. The change then reads "Passed before, fails now": the fix is gone again.
-5. Bring in the other demo change, "Allow TLS 1.0 for an old partner". It touches no program, so nothing is picked
+4. Press **Run the picked tests** (on the page, or on the card the Otto panel shows beside it, which waits for
+   Confirm). They run on the program the change gives, and each is compared with its result on the code before.
+   The change then reads "Passed before, fails now": the fix is gone again.
+5. Press **View in Fixes** in the change's panel. Fixes has one entry for the change, **Text only**: it names the
+   tests that fail on the change and shows the lines the change takes out. The app writes no change for a
+   developer's branch and never merges one.
+6. **Checks** and **Evidence** list the runs under Encryption tests, each saying "Came from: Change watch".
+7. Bring in the other demo change, "Allow TLS 1.0 for an old partner". It touches no program, so nothing is picked
    and nothing can run. It carries one flag: the line that names TLS 1.0. A flag is something to look at, never a
    result.
+8. **Download evidence**. The file has a part "Change watch" with both changes and the run, and the report has
+   part 9. The verify command checks that part against the runs in the file:
+
+```bash
+cd backend && .venv/bin/python -m evidence verify <the downloaded .json file>
+```
 
 These runs are kept apart. They never replace a result of the assessment's own tests. What is not built yet (the
-Watch list, the labels on Evidence and Checks, the entry in Fixes, the evidence part) is listed in
-`docs/LIMITS.md`.
+Watch list) and what the built part does not cover is listed in `docs/LIMITS.md`.
 
 ### Looking for new advisories (Otto's research loop, 19 November 2026)
 

@@ -545,15 +545,36 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 ## Limits of phase 6d, first half (Change watch: the Changes view; 19 November 2026)
 
 - **Only the first half is built.** The Changes view: a developer's change is read, its tests are picked, they run
-  on a click, the reviewer's rule says what differs, added lines that name old cryptography are flagged. **Not
-  built:** the Watch list (watched items, their proposals and rechecks, and the new pinned checker the plan gives
-  them); the Text-only entry in Fixes when a fixed weakness is back; the part of the evidence file and of the
-  report; the Otto panel's own next step for the page.
-- **The signed evidence file lists a watch run, and no more than that yet.** Since the run's rows are on Checks,
-  the file's list of checks has them too: what ran, on what code ("acme-sign 1.4.2, the change on dev/..., commit
-  ..."), the reviewer's word and the run's fingerprint. The run's own record, the change it belongs to, the
-  reviewer's word for the change and the flags are not in the file until its Change watch part is built. The file
-  verifies as before.
+  on a click, the reviewer's rule says what differs, added lines that name old cryptography are flagged; a run
+  shows on Checks and Evidence, a change that makes passing tests fail has an entry in Fixes, the Otto panel
+  offers the run behind Confirm, and the signed evidence file holds the changes and their runs. **Not built:** the
+  Watch list (watched items, their proposals and rechecks, and the new pinned checker the plan gives them); a
+  watch run's results and flags as entries of the panel's Testing thread; the Related block of a change.
+- **The entry in Fixes is a suggestion in words, and it follows the change's status.** It is there only while the
+  change reads "Passed before, fails now", and it says which tests fail on the change and which lines the change
+  takes out. It does not say that those lines are why the tests fail: the app has not tried the change with the
+  lines put back. It has no button, no proof and no pull request, and the app writes no change for a developer's
+  branch. It goes as soon as the change no longer reads so, also when only the test plan changed and the change
+  has not been run since. It counts as an open fix of Encryption tests on the Overview while it is there. It is
+  linked to its change and to the failing runs; it has no Related block, and the failing results on Checks do not
+  carry a "View in Fixes" line of their own.
+- **What the verify command checks of the Change watch part, and what it takes as given.** It checks every run
+  record against its fingerprint and its review, that each run ran on the change's code (the version, the commit,
+  the fingerprint of the program file), the record the reviewer was given against those runs, the reviewer's
+  word for the change against that record (by the rule, written out a second time in the verify command), each
+  change's status against its run, and every Change watch row of the file's list of checks against the part. It
+  takes as given what only the repository could show: that the change's code was, byte for byte, the registered
+  demo program that ran (the app made that comparison and wrote it into the record), which tests were picked, and
+  the flags. Those are covered by the file's own signature, like everything else in it. A change is in the file
+  as it was read when the file was made; a change whose branch is gone is no longer listed, but its runs are kept.
+  A run the app itself did not believe when the file was made is said as that in the file and accepted as that.
+- **The rule for a watch run is written twice.** Once in the app's reviewer, once in the verify command, so that a
+  file is not checked with the code that made it. Whoever changes one must change the other; a test compares the
+  two over every combination of results and fails when they differ.
+- **In the Otto panel only the start is offered.** The card is the page's own Run the picked tests. The results of
+  a watch run and the flags are on the page; they do not arrive as entries of the Testing thread. The change's
+  entry in Fixes arrives in the Fixing thread as a text-only suggestion. Typed, "run the picked tests" without a
+  name means a change that can run; where several can, the panel asks which one.
 - **A change comes in by a demo button only.** Connecting a real repository host is not in this version. **Bring
   in a demo change** writes one of two bundled changes into the assessment's own copy of the demo repository, as a
   push would. Whatever else is in that repository is listed too (the view reads it each time), but nothing in the

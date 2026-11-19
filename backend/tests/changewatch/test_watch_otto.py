@@ -81,5 +81,22 @@ def test_a_watch_run_of_an_advisory_check_changes_nothing_otto_shows(tmp_path, m
                 run = (proposal.get("about") or {}).get("run")
                 if run is not None:
                     assert db.get(TestRunRow, run).phase not in ("watch", "watch_base")
+
+        # The evidence file then holds both parts: Otto's (the packs, the ledger that binds the assessment's own runs of
+        # the check) and Change watch's (the run of the same check made for the change, kept with its change). The
+        # verify command checks each part, and the file verifies. The run for the change is not bound in Otto's ledger:
+        # the ledger's pinned checker knows the assessment's own run phases only (docs/LIMITS.md, phase 6d).
+        made = lab.export_evidence(plan.id)
+        _, raw, _ = lab.evidence_file(made["id"], "json")
+        evidence = json.loads(raw)["evidence"]
+        watch_run, = evidence["change_watch"]["runs"]
+        advisory = next(t for t in watch_run["tests"] if t["kind"] == "advisory_cases")
+        assert advisory["now"]["result"]["label"] == "Failed" and advisory["before"]["result"]["label"] == "Passed"
+        bound = json.dumps(evidence["otto"]["ledger"])
+        assert advisory["before"]["run_sha256"] in bound and advisory["now"]["run_sha256"] not in bound
+        path = tmp_path / "evidence.json"
+        path.write_bytes(raw)
+        from evidence.__main__ import main
+        assert main(["verify", str(path), "--data-dir", str(lab.settings.data_dir), "--pack-key", public]) == 0
     finally:
         lab.stop()

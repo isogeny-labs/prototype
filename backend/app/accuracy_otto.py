@@ -390,8 +390,80 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             answers["evidence.pack_swapped_and_signed_again"] = resigned(pack_swapped)
             answers["evidence.previous_later_download"] = _verify(["verify", str(folder / "newer.json"), "--previous", str(folder / "older.json"), *data])[0]
             answers["evidence.previous_with_a_shorter_ledger"] = _verify(["verify", str(folder / "older.json"), "--previous", str(folder / "newer.json"), *data])[0]
+            # Phase 6d: Change watch, on the same assessment and after everything above (so no earlier answer moves).
+            progress("  ... Acme Pay: Change watch (both demo changes, the picked tests of the one that undoes the fix, the evidence)")
+            _change_watch_part(lab, pid, answers, folder, data)
         finally:
             lab.stop()
+
+
+CHANGE_BRANCHES = {"revert-range-check": "dev/revert-range-check", "allow-tls-1-0": "dev/allow-tls-1-0-for-partner"}
+
+
+def _change_watch_part(lab: Lab, pid: int, answers: dict, folder: Path, data: list[str]) -> None:
+    """Change watch through the same path as its buttons: Bring in a demo change (twice), what is picked for each and
+    why it can or cannot run, Run the picked tests for the change that undoes the merged fix, what Fixes then lists,
+    and the verify command on a download and on two changed copies."""
+    def own() -> str:        # the assessment's own results, as Evidence and Advisories read them
+        return json.dumps([lab.lab_view(pid)["rows"], lab.advisories_view(pid)["rows"]], sort_keys=True, default=str)
+
+    def change(key: str) -> dict | None:
+        return next((c for c in lab.change_watch_view(pid)["changes"] if c["branch"] == CHANGE_BRANCHES[key]), None)
+    runs_before, own_before = _runs(lab, pid), own()
+    for key in CHANGE_BRANCHES:
+        offered = next(m for m in lab.change_watch_view(pid)["menu"]["items"] if m["key"] == key)
+        answers[f"change.{key}.offered"] = bool(offered["can"])
+        if offered["can"]:
+            lab.bring_in_demo_change(pid, key)
+    answers["change.bringing_in_ran_nothing"] = _runs(lab, pid) == runs_before and not lab.jobs.busy(pid)
+    state = {c["branch"]: c for c in lab.change_watch_state(pid)["changes"]}
+    for key, branch in CHANGE_BRANCHES.items():
+        shown, raw = change(key), state.get(branch)
+        if shown is None or raw is None:
+            continue
+        answers[f"change.{key}.code_is"] = (raw.get("gives") or {}).get("version")
+        answers[f"change.{key}.picked"] = [t["title"] for t in shown["panel"]["picked"]]
+        answers[f"change.{key}.not_picked"] = [t["title"] for t in shown["panel"]["not_picked"]]
+        answers[f"change.{key}.status_before_a_run"] = shown["status"]["word"]
+        answers[f"change.{key}.can_run"] = bool(shown["panel"]["run"]["can"])
+        answers[f"change.{key}.flags"] = [f"{f['file']} line {f['line']}: {f['word']}" for f in raw["flags"]]
+    revert = change("revert-range-check")
+    if revert is None or not revert["panel"]["run"]["can"]:
+        return
+    lab.run_picked_tests(pid, revert["id"])              # the Run the picked tests button
+    lab.wait_until_idle(pid, WAIT_SECONDS)
+    done = change("revert-range-check") or revert
+    answers["change.revert-range-check.status_after_the_run"] = done["status"]["word"]
+    for result in done["panel"]["results"]:
+        answers[f"change.revert-range-check.{result['title']}.before"] = (result["before"] or {}).get("label")
+        answers[f"change.revert-range-check.{result['title']}.on_the_change"] = (result["now"] or {}).get("label")
+        answers[f"change.revert-range-check.{result['title']}.reads"] = result["differs"]
+    answers["change.revert-range-check.own_results_unchanged"] = own() == own_before
+    answers["change.revert-range-check.fixes_entry"] = next(
+        (f["title"] for f in lab.fixes_view(pid)["fixes"] if f["id"] == f"fix-{done['id']}"), None)
+    entry = next((f for f in lab.fixes_view(pid)["fixes"] if f["id"] == f"fix-{done['id']}"), None)
+    answers["change.revert-range-check.fixes_entry_status"] = entry["status"]["word"] if entry else None
+    raw_file = lab.evidence_file(lab.export_evidence(pid)["id"], "json")[1]
+    (folder / "watch.json").write_bytes(raw_file)
+    answers["evidence.change_watch.fresh_download"] = _verify(["verify", str(folder / "watch.json"), *data])[0]
+
+    def resigned(alter) -> int:
+        evidence = json.loads(raw_file)["evidence"]
+        alter(evidence)
+        (folder / "watch-changed.json").write_bytes(sign_envelope(evidence, lab.settings.data_dir))
+        return _verify(["verify", str(folder / "watch-changed.json"), *data])[0]
+
+    def word_changed(evidence: dict) -> None:
+        evidence["change_watch"]["runs"][-1]["review"]["status"] = "no_difference"
+
+    def run_record_changed(evidence: dict) -> None:
+        evidence["change_watch"]["runs"][-1]["tests"][0]["now"]["record"]["duration_ms"] += 1
+
+    def part_removed(evidence: dict) -> None:
+        del evidence["change_watch"]
+    answers["evidence.change_watch.reviewers_word_changed_and_signed_again"] = resigned(word_changed)
+    answers["evidence.change_watch.run_record_changed_and_signed_again"] = resigned(run_record_changed)
+    answers["evidence.change_watch.part_removed_and_signed_again"] = resigned(part_removed)
 
 
 def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[packs.Pack], progress) -> None:

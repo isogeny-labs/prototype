@@ -205,6 +205,39 @@ Three more questions are about the fresh download itself, not about the verify c
 | `evidence.every_decision_names_who_and_when` | Whether every one of them names who decided and when | true or false |
 | `evidence.rejected_proposal_with_its_reason` | Whether the file holds the rejection of step 2 with its reason | true or false |
 
+### Change watch on the Acme Pay demo (both modes; phase 6d)
+
+Asked last, on the same assessment, after everything above: the fix is merged, both packs are installed and every
+accepted check has run. The walk presses **Bring in a demo change** for each of the two bundled changes, then **Run
+the picked tests** for the one that undoes the merged fix. `<change>` is `revert-range-check` ("Revert the range
+check": its code is, byte for byte, acme-sign 1.4.2) or `allow-tls-1-0` ("Allow TLS 1.0 for an old partner": it adds
+one settings file and leaves the program alone). What each change holds is in `demo/changes/`.
+
+| Question | What it asks | Values |
+| --- | --- | --- |
+| `change.<change>.offered` | Whether Bring in a demo change offers it at this point | true or false |
+| `change.bringing_in_ran_nothing` | Whether bringing both changes in made no run and started no job | true or false |
+| `change.<change>.code_is` | Which registered version of acme-sign the change's code is, byte for byte | a version, or null when it is none |
+| `change.<change>.picked` | The tests picked for it, by their titles, in plan order | a list of titles |
+| `change.<change>.not_picked` | The tests of the plan that are not picked | a list of titles |
+| `change.<change>.status_before_a_run` | Its status word before anything ran | a status word |
+| `change.<change>.can_run` | Whether Run the picked tests can be pressed for it | true or false |
+| `change.<change>.flags` | Its flags, each as "*file* line *n*: *name*" | a list |
+| `change.revert-range-check.status_after_the_run` | Its status word once the picked tests have run and were reviewed | a status word, with its count |
+| `change.revert-range-check.<test title>.before` | That test's result on the code the change starts from | a result label |
+| `change.revert-range-check.<test title>.on_the_change` | Its result on the change's code | a result label |
+| `change.revert-range-check.<test title>.reads` | What the reviewer's rule says of the two | `Passed before, fails now`, `Failed before, passes now`, `No difference found`, `Slower than the code before`, `No slowdown against the code before`, or one of the two "Not compared" sentences |
+| `change.revert-range-check.own_results_unchanged` | Whether Evidence and Advisories read exactly what they read before the run | true or false |
+| `change.revert-range-check.fixes_entry` | The title of the entry Fixes then lists for the change | a title, or null |
+| `change.revert-range-check.fixes_entry_status` | That entry's status word | a status word |
+| `evidence.change_watch.fresh_download` | The verify command's exit code for a download made after the run | 0 or 1 |
+| `evidence.change_watch.reviewers_word_changed_and_signed_again` | The same, with the reviewer's word for the change altered in the file and the file signed again with the app's own key | 0 or 1 |
+| `evidence.change_watch.run_record_changed_and_signed_again` | The same, with one run record of the watch run altered, signed again | 0 or 1 |
+| `evidence.change_watch.part_removed_and_signed_again` | The same, with the Change watch part taken out of the file, signed again | 0 or 1 |
+
+The status words of a change are: Not run yet, Running, No difference found, Passed before, fails now (with the
+count), Failed before, passes now (with the count), Nothing to run, Can't run, Couldn't trust this run.
+
 ### The real libraries file
 
 In both modes:
@@ -270,6 +303,11 @@ Work the key out from sources that do not depend on this build's own results for
 - What the verify command must say about a changed file: the rules in `docs/SPEC.md` (section 7f, point 11).
 - What a decision does and what a status reads: the rules in `docs/SPEC.md` (section 7f, point 9, and section 2).
   The decisions themselves are the walk's, listed above.
+- Which tests a developer's change picks, and what its status reads: the rules in `docs/SPEC.md`, section 2
+  ("Change watch"). A change that touches the program's file picks every test of the plan that runs that program;
+  the two bundled changes are in `demo/changes/`. What each picked test answers on the change's code follows from
+  what it answers on acme-sign 1.4.2, which the questions `acme.first.*` already ask; what it answers on the code
+  before follows from `acme.after_merge.*`.
 
 `docs/SPEC.md`, `docs/LIMITS.md` and `docs/HANDOFF.md` also describe what this build measured for phase 5c (the
 packs' trial figures, the results on the Acme Pay demo). Those passages repeat the app's own answers: a key copied
