@@ -73,6 +73,16 @@ def read_spec(row: TestSpecRow | None) -> tuple[dict, bool]:
     return (spec if isinstance(spec, dict) else {}), bool(ok)
 
 
+def live_job_view(job: Any) -> dict:
+    """A job that was live when a view began, as one row of that view shows it. The view reads the live jobs first and
+    the stored records after, and puts a job on a row only where no reviewed run was stored for it: so as of that
+    read the job had not finished. The job itself goes on meanwhile and may read "done" by the time the row is made;
+    the row still says running, and the next read shows the result. (A row never shows a finished job without its
+    result: the full test set of 19 November 2026 met exactly that, once, on a busy machine.)"""
+    return {"status": job.status if job.status in ("waiting", "running") else "running",
+            "progress_text": job.progress_text, "progress_percent": job.progress_percent}
+
+
 def run_record(row: TestRunRow) -> dict:
     """The run record exactly as it was fingerprinted (the row id is not part of it)."""
     return {"schema": RUN_SCHEMA, "spec_hash": row.spec_hash, "phase": row.phase,

@@ -42,7 +42,7 @@ from app.engine import research
 from app.engine.reviewer import WATCH_NO_RESULT_CODES, WATCH_SCHEMA
 from app.errors import Conflict, NotFound
 from app.fixes.gitrepo import Commit, GitRepo, GitRepoError, Person, changed_spots
-from app.lab.testlab import BUSY, WATCH_PHASES, read_spec
+from app.lab.testlab import BUSY, WATCH_PHASES, live_job_view, read_spec
 from app import demo_repo
 from app.run import components
 
@@ -413,7 +413,7 @@ class ChangeWatchMixin:
             rows.append({"item_id": t["item_id"], "kind": t["kind"], "before_made_here": t["before_made_here"],
                          "before": {k: t["before"][k] for k in ("run_id", "code")} if t["before"] is not None else None,
                          "now": {k: t["now"][k] for k in ("run_id", "code")} if t["now"] is not None else None,
-                         "job": {"status": job.status, "progress_text": job.progress_text, "progress_percent": job.progress_percent} if job is not None else None,
+                         "job": live_job_view(job) if job is not None else None,
                          "outcome": placed[t["item_id"]]["outcome"] if t["item_id"] in placed else None})
         state = "running" if live else "interrupted" if review is None else "reviewed"
         return {"id": watch.id, "started_at": iso(watch.started_at), "state": state, "version": watch.version, "base_version": watch.base_version,

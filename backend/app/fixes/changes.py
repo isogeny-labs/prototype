@@ -33,7 +33,7 @@ from app.db import (
 from app.errors import BadRequest, Conflict, NotFound
 from app.fixes.gitrepo import GitRepo, GitRepoError, Person, count_changes, format_patch
 from app.engine.reviewer import PROOF_SCHEMA, ReviewNotAllowed
-from app.lab.testlab import BUSY, WATCH_PHASES, read_spec
+from app.lab.testlab import BUSY, WATCH_PHASES, live_job_view, read_spec
 from app.otto import proposals as otto_proposals
 from app.otto.engine import OttoCouldNot
 
@@ -552,8 +552,7 @@ class ChangesMixin:
             job, check = (live.get(t["item_id"]) if t["proof"] is None else None), checks.get(t["item_id"])
             rows.append({"item_id": t["item_id"], "kind": t["kind"], "target": t["target"],
                          "first": _shown_verdict(t["first"]), "proof": _shown_verdict(t["proof"]),
-                         "job": {"status": job.status, "progress_text": job.progress_text,
-                                 "progress_percent": job.progress_percent} if job is not None else None,
+                         "job": live_job_view(job) if job is not None else None,
                          "check": {k: check[k] for k in ("group", "report_only", "ok", "reason")} if check is not None else None})
         state = "running" if live else "interrupted" if review is None else "passed" if review["offered"] else "failed"
         return {"id": proof.id, "baseline_version": proof.baseline_version, "version": proof.version,
