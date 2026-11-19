@@ -19,7 +19,7 @@ _(none pinned — set one with `/goal <text>`)_
 <!-- One line per task, added as the task's first step with its draft PR:
 - [ ] <task> (<runtime>, started YYYY-MM-DD, branch <branch>, PR #<n>) -->
 
-- [ ] Overnight run: the 5c fixes, then phase 6 (the Otto assistant, 6a to 6e) and Otto's research loop — **in progress** (claude, started 2026-11-19, branch overnight/fixes-and-phase6). Kevin approved the plan in advance and reviews the next day; `docs/HANDOFF-overnight.md` says after every step what is done, what is left and the exact next action. Never merged into `mvp/crypto-simple` by the session.
+- [ ] Overnight run: the 5c fixes, then phase 6 (the Otto assistant, 6a to 6e) and Otto's research loop — **in progress** (claude, started 2026-11-19, branch overnight/fixes-and-phase6, PR #7). Kevin approved the plan in advance and reviews the next day; `docs/HANDOFF-overnight.md` says after every step what is done, what is left and the exact next action. Never merged into `mvp/crypto-simple` by the session.
 - [x] Phase 5c: Otto in Evidence Lab — **done and merged** (claude, started 2026-11-17, finished 2026-11-18; branch wip/5c-otto, PR #6). The first build, and the owner's acceptance criteria of 2026-11-18 (Otto proposes, a person accepts or rejects; two proof rows; Otto on every tab), are built, checked and reviewed three times; counts and what the reviews found are in docs/HANDOFF.md, the walk's pictures in docs/screenshots/phase5c/, and the plain-English report is the doc "Phase 5c report: Otto in Evidence Lab". What is left is the owner's: the questions below.
 
 ## Blocked / questions for the owner
