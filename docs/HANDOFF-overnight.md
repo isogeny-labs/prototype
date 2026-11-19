@@ -82,11 +82,33 @@ has not been made yet** (it is one of the long checks).
 | The research loop's walk | `0697a62` and later | **2 passed** (10.7 min) |
 | Backend `tests/assistant` and `tests/times` (with Otto) | `bc8f5e2` | **195 passed** (80 s) |
 | Screen tests | `bc8f5e2` | **820 passed** |
-| The panel's walk on the final code | | running at the time of writing |
-| The multi-target tests with the new panel test | | queued |
-| The whole fast backend set **with Otto**, timed | | queued |
+| The panel's walk on the final code | `bc8f5e2` and later | **2 passed** (5.9 min), with the new steps from the 6b and 6c review fixes; pictures retaken |
+| The multi-target tests with the new panel test | | first run: 19 passed, 1 failed (the new test expected three servers with "Old TLS versions"; the file has two). Corrected; running again |
+| The whole fast backend set **with Otto**, timed | `a378bac` | **First run: 11 failed, 7 errors, 1801 passed, in 6 min 52 s.** See "What the first whole fast set with Otto found" below. Running again after the fix |
 | Every walk once (`cd e2e && npm test`) | | queued |
 | The full backend set (`pytest -q tests --full`) | | queued |
+
+### What the first whole fast set with Otto found (08:32 UTC)
+
+Since phase 6a nobody had run the whole fast set on a computer **with** the Otto harness: I ran single test
+folders, and the GitHub checks run without Otto. Run whole, it failed 11 tests with 7 errors, all in
+`tests/otto/` (`test_shipped.py`, `test_proposal_rules.py` and the new real-command test of
+`test_discover.py`), each with "The pack is signed by a key this installation does not trust."
+
+The cause is in a test fixture of phase 6a, not in the app: `assistant_walk` (the shared walk the panel's tests
+read) is made once for the whole run, and it left its own list of trusted pack keys in place until the run
+ended. Every later test that needs the real shipped key was then refused its packs. `tests/assistant` runs before
+`tests/otto`, so the folders passed one by one and failed together. **This is also what failed in the full
+backend run on the frozen copy of step 1** (15 failed, 7 errors), which I had put down to other runs going on at
+the same time; that explanation was wrong.
+
+Fixed in `backend/tests/conftest.py`: the walk's patches are taken off as soon as the walk is made and put back
+only for the one test that reads it. The lesson is in CLAUDE.md's test section (the whole fast set, with and
+without Otto, before a step is called done).
+
+The same run took **6 min 52 s**, over the five minutes the fast set must stay under (part of that is the
+failing tests' own time). The run that is going now lists the slowest tests; what must move to the slow set
+follows from it.
 
 ## Step 1: the 5c fixes (built, reviewed, findings fixed, committed and pushed)
 

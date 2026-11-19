@@ -378,14 +378,31 @@ def demo_flow(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def assistant_walk(tmp_path_factory):
-    """Phase 6a: one walk of a demo-mode Lab for the Otto panel's tests, with every page's read of the panel kept at
-    each stage (tests/assistant/assistant_walk.py). It needs Adam's Otto harness: decisions are recorded in its
-    ledger. A few seconds, once, for the tests that read it."""
+def _assistant_walk_made(tmp_path_factory):
+    """The walk itself, made once for the run. What it patched to be made (its own list of trusted pack keys, and the
+    wrapper that records Otto's prompts) is taken off again at once and handed on: for the rest of the run nothing of
+    it may stand between the tests of other files. (Left in place, every later test that needs the real shipped key
+    was refused its packs: found on 19 November 2026 by the first whole run of the fast set with Otto.)"""
+    from app.otto import model, packs
     from tests.assistant import assistant_walk as made
     walk, lab, patches = made.make_walk(tmp_path_factory)
+    held = {"keys": packs.TRUSTED_KEYS_FILE, "recorded": model.OttoModel.__dict__["recorded"]}
+    patches.undo()
     try:
-        yield walk
+        yield walk, held
     finally:
         lab.stop()
-        patches.undo()
+
+
+@pytest.fixture
+def assistant_walk(_assistant_walk_made, monkeypatch):
+    """Phase 6a: one walk of a demo-mode Lab for the Otto panel's tests, with every page's read of the panel kept at
+    each stage (tests/assistant/assistant_walk.py). It needs Adam's Otto harness: decisions are recorded in its
+    ledger. A few seconds, once, for the tests that read it. The walk's own patches are put back for the one test
+    that reads it (its Lab is asked again by some), and taken off when that test ends."""
+    from app.otto import model, packs
+    walk, held = _assistant_walk_made
+    monkeypatch.delenv(model.KEY_ENV, raising=False)
+    monkeypatch.setattr(packs, "TRUSTED_KEYS_FILE", held["keys"])
+    monkeypatch.setattr(model.OttoModel, "recorded", held["recorded"])
+    return walk

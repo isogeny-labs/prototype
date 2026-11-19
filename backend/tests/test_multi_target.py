@@ -414,7 +414,7 @@ def test_the_panel_names_exactly_one_of_the_tests_that_share_a_title(flow):
     aid = lab.assessment_for(plan_id=flow.plan["id"]).id
     rows = lab.lab_view(flow.plan["id"])["rows"]
     tls = [r for r in rows if r["title"] == "Old TLS versions"]
-    assert len(tls) >= 3 and len({r["group"] for r in tls}) == len(tls)                      # one for each server, under the same title
+    assert len(tls) >= 2 and len({r["group"] for r in tls}) == len(tls)                      # one for each server that has it, under the same title
 
     def settle(page: str, sentence: str, kinds: tuple[str, ...]) -> list[dict]:
         which = lab.assistant_answer(aid, page, None, sentence)
