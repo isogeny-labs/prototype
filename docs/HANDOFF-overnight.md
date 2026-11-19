@@ -71,6 +71,23 @@ walk, the research loop's walk, the walk that measures the pages' widths); the o
 the setting the top bar's toggle keeps in the browser. **A complete run of every walk on the branch as it is now
 has not been made yet** (it is one of the long checks).
 
+## The long checks (results as they come in)
+
+| Check | On | Result |
+|---|---|---|
+| Accuracy, **isolated mode**, all four answer keys (`python -m app.accuracy --mode isolated`) | a frozen copy of `5699057` | **Exit code 0** (23 min 40 s): first key 18 of 18, migration 47 of 47, real libraries 33 of 33 with trial counts 6 of 6 unchanged, dependencies 220 of 220. Otto is not graded (the fifth key is not written, as agreed). After that commit only the assistant's package, its tests and documents changed (`bc8f5e2`, `187258d`), none of which the accuracy check goes through |
+| Accuracy, **demo mode** | GitHub checks on `27bd7f3` and again on `187258d` (every review fix is in it) | **Passed** both times (about 2 minutes). It runs again on every push |
+| The fast backend set **without Otto**, lint, type check, generated files; frontend type check, tests, build; CodeQL | GitHub checks on `27bd7f3` and again on `187258d` | **All green** both times. The backend job, with the fast set and the accuracy check, takes about 7 to 8 minutes; the fast set alone took 4 min 59 s on `27bd7f3` |
+| The research loop's real run in containers | `c819aa9` and later | **1 passed** (9 min 36 s) |
+| The research loop's walk | `0697a62` and later | **2 passed** (10.7 min) |
+| Backend `tests/assistant` and `tests/times` (with Otto) | `bc8f5e2` | **195 passed** (80 s) |
+| Screen tests | `bc8f5e2` | **820 passed** |
+| The panel's walk on the final code | | running at the time of writing |
+| The multi-target tests with the new panel test | | queued |
+| The whole fast backend set **with Otto**, timed | | queued |
+| Every walk once (`cd e2e && npm test`) | | queued |
+| The full backend set (`pytest -q tests --full`) | | queued |
+
 ## Step 1: the 5c fixes (built, reviewed, findings fixed, committed and pushed)
 
 **Test results on step 1 as first built (`dd21a67`, a frozen copy):**
