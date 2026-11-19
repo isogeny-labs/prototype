@@ -128,6 +128,10 @@ def test_after_the_run_the_card_is_there_for_the_open_change_and_when_asked_for_
     models.AssistantView.model_validate(fixes)
     entry = next(e for e in fixes["on_page"]["entries"] if e["title"] == "Revert the range check: 1 test that passed now fails")
     assert (entry["what"], entry["thread"], entry["step"], entry["decisions"]) == ("meaning:text_only", "fixing", None, [])
+    # asked what is on Fixes, the panel counts as the page does: the change's suggestion is said apart, not with the fixes
+    counted = sum(1 for f in lab.fixes_view(beside.plan.id)["fixes"] if not f["apart"])
+    told = [f["text"] for f in lab.assistant_answer(aid, "fixes", None, "What is this page for?")["facts"]]
+    assert told[1].startswith(f"On it now: {counted} {'fix' if counted == 1 else 'fixes'}. Listed apart: 1 suggestion for a developer's change.")
 
 
 def test_two_changes_that_can_run_get_which_one_and_each_option_settles_it(beside):
@@ -155,3 +159,35 @@ def test_in_a_closed_assessment_the_card_is_off_with_the_closed_sentence(beside)
     step = next(e for e in _steps(view) if e["open_item"])
     assert step["step"]["can"] is False and step["step"]["confirm"] is None
     assert "closed" in step["step"]["blocked_reason"].lower()
+
+
+def test_for_a_change_whose_code_is_not_a_registered_program_the_card_says_the_pages_word_alone_and_cannot_be_pressed(tmp_path):
+    """Nothing of such a change ran and nothing of it can: the card must not say that its picked tests would run again
+    (the second review of phase 6d, finding 7). Why the button is off is the page's own sentence."""
+    lab = make_lab(tmp_path)
+    try:
+        plan = small_plan(lab)
+        proved(lab, plan)
+        repo = repo_of(lab, plan.id)
+        repo.branch_from("dev/not-ours", repo.branch("main"), {"acme_sign.py": V142 + b"\n# edited\n"}, "Edit the signer",
+                         Person("Sam Dev", "sam@example.test"), int(time.time()))
+        aid = lab.assessment_for(plan_id=plan.id).id
+        change = one(lab.change_watch_state(plan.id), "dev/not-ours")
+        page = one_view(lab.change_watch_view(plan.id), change["id"])
+        not_ours = "The changed code is not the same as one of our registered demo programs, so nothing of it runs."
+        assert (page["status"]["key"], page["status"]["reason"], page["panel"]["last_run"]) == ("cant_run", not_ours, None)
+        assert (page["panel"]["run"]["can"], page["panel"]["run"]["blocked_reason"]) == (False, not_ours)
+        was = kept(lab)
+        # by itself the panel offers nothing for it: there is no button to press
+        assert _steps(lab.assistant_view(aid, "change-watch")) == []
+        # with the change open, and when it is asked for: the page's word, and the button off with the page's reason
+        opened = next(e for e in _steps(lab.assistant_view(aid, "change-watch", change["id"])) if e["open_item"])
+        asked = lab.assistant_answer(aid, "change-watch", None, "run the picked tests for Edit the signer")
+        assert (asked["kind"], asked["text"]) == ("cannot", not_ours)
+        for card in (opened, asked["entry"]):
+            assert card["text"] == "“Edit the signer” reads Can't run."
+            assert "run again" not in card["text"] and "would run" not in card["text"]
+            assert (card["step"]["can"], card["step"]["blocked_reason"], card["step"]["confirm"]) == (False, not_ours, None)
+        assert kept(lab) == was and lab.jobs.live(plan.id) == []
+    finally:
+        lab.stop()

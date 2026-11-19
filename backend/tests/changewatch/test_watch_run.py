@@ -26,13 +26,20 @@ WATCH_TABLES = {"watch_runs": "version", "watch_reviews": "status"}     # listed
 
 def views(lab, plan) -> SimpleNamespace:
     """What the pages of the assessment's own results read, piece by piece: Evidence's results and the test plan as one
-    text; Fixes entry by entry; Checks row by row; the Overview's findings, facts and counts."""
+    text; Fixes entry by entry; Checks row by row; the Overview's findings, facts and counts; what Fixes, the Overview
+    and the Projects row count as fixes, and the next step."""
     a = lab.assessment_for(plan_id=plan.id)
     text_of = lambda value: json.dumps(value, sort_keys=True, default=str)        # noqa: E731
     checks = lab.checks_view(plan.id)
-    blocks = lab.assessment_view(a.id)["blocks"]
+    whole = lab.assessment_view(a.id)
+    blocks = whole["blocks"]
+    fixes_page = lab.fixes_view(plan.id)
     encryption = next(g for g in checks["groups"] if g["key"] == "encryption")
     return SimpleNamespace(
+        counted_fixes=text_of({"list_title": fixes_page["list_title"],
+                               "groups": {g["key"]: {"counts": g["counts"], "fix_ids": g["fix_ids"], "empty_text": g["empty_text"]}
+                                          for g in fixes_page["groups"]},
+                               "assessment": whole["counts"]["fixes"], "next_step": whole["next_step"]}),
         own=text_of({"lab": lab.lab_view(plan.id), "plan": lab.plan_view(plan.id)}),
         fixes={f["id"]: text_of(f) for f in lab.fix_states(plan.id)},
         rows={r["id"]: text_of(r) for g in checks["groups"] for r in g["rows"]},
@@ -145,18 +152,19 @@ def test_a_watch_run_never_stands_in_for_a_result_of_the_assessments_own_tests(r
     # the three parts that were there are untouched; the watch run has a part of its own
     assert {key: after.parts[key] for key in ("plan", "retests", "proofs")} == {key: before.parts[key] for key in ("plan", "retests", "proofs")}
     assert json.loads(before.parts["changes"]) is None and json.loads(after.parts["changes"])["count_label"] == "1 run"
-    # The Overview: every finding and every fact is as it was. The checks of Encryption tests that are done go up by
-    # the two runs on the change, its open fixes by the one new entry; nothing else moves, and "runs recorded" goes up
+    # The Overview: every finding, every fact and every count of fixes is as it was (the change's entry in Fixes is
+    # listed apart and counted nowhere: its own test is below). Two figures move, both counts of runs and neither a
+    # finding: the checks of Encryption tests that are done go up by the two runs on the change, and "runs recorded"
     # by the same two.
     assert after.findings == before.findings
     for key, group in before.overview.items():
-        assert after.overview[key]["facts"] == group["facts"]
+        assert after.overview[key]["facts"] == group["facts"] and after.overview[key]["fixes"] == group["fixes"]
         if key != "encryption":
             assert after.overview[key]["checks"] == group["checks"] and after.counts[key] == before.counts[key]
-            assert after.overview[key]["fixes"] == group["fixes"]
-    assert after.overview["encryption"]["fixes"] == {**before.overview["encryption"]["fixes"], "open": before.overview["encryption"]["fixes"]["open"] + 1}
     assert after.overview["encryption"]["checks"] == {**before.overview["encryption"]["checks"], "done": before.overview["encryption"]["checks"]["done"] + 2}
     assert after.recorded == before.recorded + 2
+    # what Fixes counts as findings with a fix, group by group, what the Projects row counts, and the next step
+    assert after.counted_fixes == before.counted_fixes
     with ran.lab.db() as db:
         # (and the bad-signatures test of the plan still reads Failed on 1.4.2 from its own first run, not from the watch run)
         phases = {r.phase for r in db.scalars(select(TestRunRow).where(TestRunRow.plan_id == ran.plan.id)).all()}
@@ -174,6 +182,23 @@ def test_a_change_that_makes_passing_tests_fail_has_a_text_only_entry_in_fixes_t
     assert entry["title"] == "Revert the range check: 1 test that passed now fails"
     assert entry["list_source"] == "Came from: developer's change dev/revert-range-check"
     assert (entry["status"]["word"], entry["kind"], entry["group"], entry["fix_state"], entry["is_demo"]) == ("Text only", "text", "encryption", "open", True)
+    # It sits in the group of the tests it reruns, under a heading of its own, and is counted nowhere: not in the
+    # page's own count, not in its group's counts or list, not on the Overview and not in the Projects row.
+    assert entry["apart"] is True and [f["id"] for f in view["fixes"] if f["apart"]] == [state["id"]]
+    counted = [f for f in view["fixes"] if not f["apart"]]
+    assert view["list_title"] == f"Open findings with a fix ({len(counted)})" and len(counted) == len(view["fixes"]) - 1
+    by_group = {g["key"]: g for g in view["groups"]}
+    assert by_group["encryption"]["apart"] == {
+        "label": "From a developer's change",
+        "note": ("A developer's change is not the system until someone merges it. A suggestion listed here is not counted with "
+                 "the assessment's findings."),
+        "fix_ids": [state["id"]]}
+    assert all(g["apart"] is None for key, g in by_group.items() if key != "encryption")
+    assert state["id"] not in by_group["encryption"]["fix_ids"]
+    assert sum(by_group["encryption"]["counts"].values()) == len(by_group["encryption"]["fix_ids"])
+    whole = lab.assessment_view(lab.assessment_for(plan_id=plan.id).id)
+    assert whole["counts"]["fixes"]["total"] == len(counted)
+    assert sum(g["fixes"]["open"] + g["fixes"]["in_progress"] + g["fixes"]["done"] for g in whole["blocks"]["groups"] if g["fixes"]) == len(counted)
     # it offers nothing to press: the app has made no change for a developer's branch, and never merges one
     assert entry["actions"] == {"buttons": [], "note": None} and entry["pull_request"] is None and entry["patch"] is None and entry["proposal"] is None
     assert entry["proof"]["text"].startswith("None. This suggestion is text only: the app has not applied it or tested it.")

@@ -25,7 +25,7 @@ Passing these tests doesn't prove a system secure. It shows these specific check
 | Server setting change with proof (SPEC section 7c) | Built (phase 4b), on the Acme Pay demo server only |
 | Changing a server that isn't ours (connectors) | Not built (a later phase); Download change still works |
 | Change watch (the plan's phase 3c, built as phase 6d) | First half built: the Changes view (a developer's change, the tests picked for it, a run on a click, flags, the entry in Fixes, the evidence part). The Watch list is not built |
-| Assistant panel | Empty panel only; the assistant is phase 3b. No AI model is connected to it (Otto, above, uses Claude for other jobs) |
+| The Otto panel (the assistant, phase 6) | First halves built: suggestions that fit the page and three thread tabs (6a), typed commands read by fixed rules (6b), six fixed questions answered from the assessment's records (6c), and a what-if about one library and one version (6e). Every decision and every start waits for Confirm. The panel asks no AI model in this version: free wording, an answer in free words and a test made from a hypothesis are not built |
 | Accuracy panel in the app | Not built (phase 3b); the accuracy check is a command for now |
 
 This table and the walk below were last brought up to date for phase 4c. Phases 4d, 5a and 5b (dependency
@@ -481,6 +481,33 @@ cd backend && .venv/bin/python -m evidence verify <the downloaded .json file>
 
 These runs are kept apart. They never replace a result of the assessment's own tests. What is not built yet (the
 Watch list) and what the built part does not cover is listed in `docs/LIMITS.md`.
+
+### Asking "what if I update this library?" (phase 6e, first half, 19 November 2026)
+
+Type a what-if into the Otto panel's text box, on any page of an assessment:
+
+> What if I update elliptic to 6.5.7?
+
+The answer is one card in the **Fixing** tab, with four parts. No AI model is asked.
+
+1. **What the app knows.** Seven kinds of fact, each line with its label and a link to where it is shown: where
+   the library is used (your dependency list), what the new version declares it needs compared with the version
+   you have (the publisher's own package file, quoted), which published advisories the update answers and which
+   still name it (the installed test packs), what the pack's own trial showed on public copies, post-quantum
+   support of both versions, the migration track it blocks today, and this assessment's own results on it. Where
+   the app knows nothing on a point the line says so ("Not in our knowledge base yet", "Couldn't tell the
+   version", "Doesn't apply"). Nothing is guessed.
+2. **A try on a test copy.** Where Evidence could run **Retest new version** for that library and version, the card
+   offers that same button behind Confirm, and says first what a retest changes in the assessment. Where it could
+   not (the scanner file does not name the library, the app holds no public copy of that version, a real library
+   in demo mode), the part says why and has no button.
+3. **One sentence** in place of an explanation: "Live Otto is off. This is what the app knows."
+4. **Hypothesis.** What the facts do not show, in the app's own sentences. A hypothesis is no result.
+
+To see it on the Acme Pay demo: install both test packs in Settings, add the demo dependency list on Dependencies
+(`demo/dependencies-demo.cdx.json`), then ask the question above. For the try, ask "What if we upgrade acme-sign to
+1.4.3?" once the tests have run. What the card does not cover is in `docs/LIMITS.md` ("Limits of phase 6e, first
+half").
 
 ### Looking for new advisories (Otto's research loop, 19 November 2026)
 

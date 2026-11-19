@@ -414,8 +414,12 @@ def _on_page(facts: Any, page: str) -> str | None:
         return (f"On it now, of the test plan: {done} {'test has' if done == 1 else 'tests have'} a result, and {failed} of them "
                 f"{'reads' if failed == 1 else 'read'} as failed.")
     if page == "fixes":
-        n = len(facts.fixes().get("fixes") or [])
-        return f"On it now: {n} {'fix' if n == 1 else 'fixes'}.{wait}"
+        listed = facts.fixes().get("fixes") or []
+        n = sum(1 for f in listed if not f.get("apart"))
+        # (phase 6d: a suggestion for a developer's change is listed apart on the page, so it is said apart here too)
+        apart = len(listed) - n
+        more = (f" Listed apart: {apart} {'suggestion' if apart == 1 else 'suggestions'} for a developer's change." if apart else "")
+        return f"On it now: {n} {'fix' if n == 1 else 'fixes'}.{more}{wait}"
     return f"On it now:{wait}" if wait else None
 
 

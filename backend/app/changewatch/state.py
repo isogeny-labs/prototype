@@ -154,7 +154,8 @@ class ChangeWatchMixin:
             spec, _ = read_spec(row)
             kind = row.kind if row is not None else None
             target = spec.get("target") or {}
-            out.append({"item_id": item.id, "kind": kind, "title": research.title_of(kind, spec), "program": self._program_of(plan, claims, spec),
+            out.append({"item_id": item.id, "kind": kind, "title": research.title_of(kind, spec), "spec_hash": item.spec_hash,
+                        "program": self._program_of(plan, claims, spec),
                         "server": str(target.get("address")) if target.get("kind") == "server" and target.get("address") else None})
         return out
 
@@ -166,7 +167,7 @@ class ChangeWatchMixin:
         picked, not_picked = [], []
         for test in tests:
             runs = test["program"]
-            entry = {"item_id": test["item_id"], "kind": test["kind"], "title": test["title"]}
+            entry = {"item_id": test["item_id"], "kind": test["kind"], "title": test["title"], "spec_hash": test.get("spec_hash")}
             if runs is not None and runs["own"]:
                 if touched_program:
                     picked.append({**entry, "rule": "runs_the_program"})

@@ -217,7 +217,8 @@ one settings file and leaves the program alone). What each change holds is in `d
 | --- | --- | --- |
 | `change.<change>.offered` | Whether Bring in a demo change offers it at this point | true or false |
 | `change.bringing_in_ran_nothing` | Whether bringing both changes in made no run and started no job | true or false |
-| `change.<change>.code_is` | Which registered version of acme-sign the change's code is, byte for byte | a version, or null when it is none |
+| `change.<change>.edits_the_program` | Whether the change edits the program's own file (a change that only adds or edits other files leaves the program alone) | true or false |
+| `change.<change>.code_is` | Which registered version of acme-sign everything the change leaves in the repository is, byte for byte | a version; null when it is none, which is also the answer for a change that adds a file beside an unchanged program (read it with `edits_the_program`) |
 | `change.<change>.picked` | The tests picked for it, by their titles, in plan order | a list of titles |
 | `change.<change>.not_picked` | The tests of the plan that are not picked | a list of titles |
 | `change.<change>.status_before_a_run` | Its status word before anything ran | a status word |

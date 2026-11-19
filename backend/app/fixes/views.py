@@ -18,6 +18,7 @@ from app.run import components
 from app.present import changes as present_changes
 from app.present import fixes as present_fixes
 from app.present import otto as present_otto
+from app.ledger import groups as G
 from app.ledger.fixes import group_fixes
 from app.engine import research
 from app.db import ImportRow, PlanItemRow, PlanRow, ReviewRow, TestRunRow, TestSpecRow
@@ -62,7 +63,8 @@ class FixesMixin:
                     or self.jobs.busy(("dependencies", plan.id)))
             pairs = self._fix_details(db, plan)
             shown = [detail for _, detail in pairs]
-            view = present_fixes.view(plan.id, bool(imp.is_demo), shown, busy or any(d["status"]["busy"] for d in shown))
+            view = present_fixes.view(plan.id, bool(imp.is_demo), shown, busy or any(d["status"]["busy"] for d in shown),
+                                      counted=sum(1 for state, _ in pairs if not G.fix_is_apart(state)))
             # Phase 5b: the four work groups, each fix's group and the links for where it came from.
             systems = {s["item_id"]: s["key"] for s in self._migration_states(db, plan)}
             # The libraries of the dependency list, asked only when a fix is about a real library.

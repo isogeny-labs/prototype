@@ -52,6 +52,7 @@ def group_fixes(view: dict, pairs: list[tuple[dict, dict]], migration_systems: d
     """Add the group, the links and the group headings to a Fixes view (in place) and return it."""
     systems = migration_systems or {}
     by_group: dict[str, list[dict]] = {k: [] for k in G.GROUP_KEYS}
+    apart: dict[str, list[dict]] = {k: [] for k in G.GROUP_KEYS}     # phase 6d: listed under their own heading, never counted
     also: dict[str, list[dict]] = {k: [] for k in G.GROUP_KEYS}
     for state, detail in pairs:
         if state.get("source_kind") == "migration":
@@ -63,10 +64,13 @@ def group_fixes(view: dict, pairs: list[tuple[dict, dict]], migration_systems: d
         detail["group_label"] = G.GROUP_LABELS[group]
         detail["came_from_links"] = came_from_links(state)
         detail["fix_state"] = G.fix_state(detail["status"]["word"])
-        by_group[group].append(detail)
+        detail["apart"] = G.fix_is_apart(state)
+        (apart if detail["apart"] else by_group)[group].append(detail)
         for other in also_relates(state, listed):
             also[other].append({"fix_id": detail["id"], "title": detail["title"], "group_label": G.GROUP_LABELS[group]})
     view["groups"] = [{**G.group_frame(k), "counts": G.counts(d["fix_state"] for d in by_group[k]),
                        "fix_ids": [d["id"] for d in by_group[k]], "empty_text": None if by_group[k] else G.EMPTY_FIXES[k],
+                       "apart": ({"label": G.APART_LABEL, "note": G.APART_NOTE, "fix_ids": [d["id"] for d in apart[k]]}
+                                 if apart[k] else None),
                        "also": also[k]} for k in G.GROUP_KEYS]
     return view

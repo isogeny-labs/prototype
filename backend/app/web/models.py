@@ -852,6 +852,8 @@ class FixDetail(Shape):
     group_label: str = ""
     came_from_links: list["FixCameFrom"] = Field(default_factory=list, description="Phase 5b: where it came from, as links.")
     fix_state: Literal["open", "in_progress", "done"] = "open"
+    apart: bool = Field(default=False, description="Phase 6d: listed under its group's own heading for a developer's change and "
+                                                    "never counted with the findings.")
 
 
 class FixesView(Shape):
@@ -860,7 +862,7 @@ class FixesView(Shape):
     title: str = Field(description='"Fixes"')
     subline: str
     disclaimer: str
-    list_title: str = Field(description='"Open findings with a fix (2)"')
+    list_title: str = Field(description='"Open findings with a fix (2)": the entries that are not listed apart')
     empty_text: str | None = Field(description="when no failed test has a fix: one plain sentence, and fixes is []")
     fixes: list[FixDetail] = Field(description="in list order; the list on the left is drawn from these too")
     busy: bool = Field(description="something is running: ask again in a second")
@@ -2001,13 +2003,21 @@ class FixGroupAlso(Shape):
     group_label: str
 
 
+class FixGroupApart(Shape):
+    label: str = Field(description='"From a developer\'s change"')
+    note: str
+    fix_ids: list[str]
+
+
 class FixGroup(Shape):
     key: GroupKey
     label: str
     question: str
-    counts: StateCounts
+    counts: StateCounts = Field(description="of fix_ids only: an entry listed apart is never counted")
     fix_ids: list[str]
     empty_text: str | None
+    apart: FixGroupApart | None = Field(default=None, description="Phase 6d: the group's entries for a developer's change, under "
+                                                                  "their own heading; None when there are none.")
     also: list[FixGroupAlso] = Field(description='"Also relates to this group": fixes listed in another group.')
 
 

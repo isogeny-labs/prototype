@@ -1005,8 +1005,11 @@ def link_same_updates(pairs: list[tuple[dict, dict]]) -> None:
 
 # ------------------------------------------------------------------ the whole step
 
-def view(plan_id: int, is_demo: bool, fixes: list[dict], busy: bool) -> dict:
+def view(plan_id: int, is_demo: bool, fixes: list[dict], busy: bool, counted: int | None = None) -> dict:
+    """`counted`: how many of `fixes` count as findings with a fix (phase 6d: a suggestion for a developer's change is
+    listed apart and is not counted). Every one of them, where it is not given."""
     from_migration = any(str(fix.get("list_source") or "").startswith(MIGRATION_SOURCE) for fix in fixes)
+    n = len(fixes) if counted is None else counted
     return {"plan_id": plan_id, "is_demo": is_demo, "title": TITLE, "subline": SUBLINE_WITH_MIGRATION if from_migration else SUBLINE,
             "disclaimer": present.DISCLAIMER,
-            "list_title": f"Open findings with a fix ({len(fixes)})", "empty_text": None if fixes else EMPTY, "fixes": fixes, "busy": busy}
+            "list_title": f"Open findings with a fix ({n})", "empty_text": None if fixes else EMPTY, "fixes": fixes, "busy": busy}

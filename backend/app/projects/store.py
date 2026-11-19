@@ -266,6 +266,8 @@ class ProjectsMixin:
         """The Overview's own next step, from parts a caller has already read (the Otto panel, phase 6a): the same rule
         and the same sentence as `assessment_view`, without reading every page's view again. `fixes`: the Fixes
         page's list, or None when no test has run and nothing was measured. `waiting`: undecided proposals by kind."""
+        if fixes is not None:      # (phase 6d: as `assessment_counts` counts them, without the entries listed apart)
+            fixes = [f for f in fixes if not f.get("apart")]
         counts = {"claims": {} if verified else None,
                   "tests": {} if summary and summary.get("has_results") else None,
                   "fixes": ({"total": len(fixes),

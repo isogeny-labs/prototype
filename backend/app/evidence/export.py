@@ -45,6 +45,7 @@ from app.db import (
 from app.errors import Conflict, NotFound
 from app.fixes.gitrepo import GitRepoError
 from app.engine.guidance import OWN_LINKS
+from app.ledger import groups as G
 from app.present import advisory as present_advisory
 from app.present import changewatch as watch_words
 from app.present.results import DISCLAIMER, TITLES
@@ -451,8 +452,8 @@ def _watch_change_entry(change: dict, program: dict) -> dict:
     run = change.get("run")
 
     def test(entry: dict) -> dict:
-        return {"item_id": entry["item_id"], "kind": entry["kind"], "title": entry["title"], "rule": entry["rule"],
-                "reason": watch_words.pick_reason(entry, program)}
+        return {"item_id": entry["item_id"], "kind": entry["kind"], "title": entry["title"], "spec_hash": entry.get("spec_hash"),
+                "rule": entry["rule"], "reason": watch_words.pick_reason(entry, program)}
     return {"id": change["id"], "branch": change["branch"], "head_commit": change["head"], "base_commit": change["base"],
             "commits": change["commits"], "title": change["title"], "message": change["message"], "author": change["author"],
             "is_demo": bool(change["is_demo"]), "committed_at": change["when"], "problem": change["problem"],
@@ -460,7 +461,7 @@ def _watch_change_entry(change: dict, program: dict) -> dict:
             "files": [dict(d) for d in change["digests"]],
             "lines": [{"name": f["name"], "added": f["added"], "removed": f["removed"], "is_program": bool(f["is_program"]), "is_text": bool(f["text"])}
                       for f in change["files"]],
-            "gives": change["gives"], "starts_from": change["starts_from"],
+            "gives": change["gives"], "starts_from": change["starts_from"], "touches_program": bool(change["touches_program"]),
             "picked": [test(entry) for entry in change["picked"]], "not_picked": [test(entry) for entry in change["not_picked"]],
             "flags": [{"file": f["file"], "line": f["line"], "word": f["word"], "text": f["text"], "source": dict(f["source"]),
                        "note": watch_words.flag_view(f)["note"]} for f in change["flags"]],
@@ -1162,9 +1163,16 @@ def render_report_html(envelope: dict) -> bytes:
         body.append(el("p", t(f"Code connected: the app's own copy of the repository {code.get('repository')}, branch {code.get('branch')}, "
                               f"commit {code.get('base_commit')} ({component.get('name')} {component.get('version')}). "),
                        _tag("demo") if code.get("is_demo") is True else _Safe("")))
-    if not fixes:
+    # Phase 6d: a suggestion for a developer's change is listed after the others, under its own heading, as on Fixes.
+    apart = [fix for fix in fixes if G.fix_is_apart({"source_kind": (fix.get("source") or {}).get("kind")})]
+    counted = [fix for fix in fixes if fix not in apart]
+    if not counted:
         body.append(el("p", t("No failed test had a fix when this file was made.")))
-    body += [_fix_html(fix) for fix in fixes]
+    body += [_fix_html(fix) for fix in counted]
+    if apart:
+        body.append(el("h3", t(f"{G.APART_LABEL} ({len(apart)})")))
+        body.append(el("p", t(G.APART_NOTE), cls="note"))
+        body += [_fix_html(fix) for fix in apart]
     body += _migration_html(e.get("migration"))
     body += _changes_html(e.get("changes"))
     body += _dependencies_html(e.get("dependencies"))
@@ -1186,7 +1194,10 @@ def _change_watch_html(part: dict | None) -> list:
         return []
     out = [el("h2", t("9. Change watch")), el("p", t(part.get("note")), cls="note")]
     repository = part.get("repository") or {}
-    if repository.get("name"):
+    if repository.get("state") == "unreadable":
+        out.append(el("p", t("The connected repository could not be read when this file was made, so no change is listed here. The runs "
+                             "that were kept are below.")))
+    elif repository.get("name"):
         out.append(el("p", t(f"Read from the app's own copy of the demo repository {repository.get('name')}, branch {repository.get('branch')}, "
                              "when this file was made.")))
     runs = {run.get("watch_run_id"): run for run in part.get("runs") or []}
@@ -1200,8 +1211,7 @@ def _change_watch_html(part: dict | None) -> list:
                    f"By {change.get('author') or 'an unknown author'}" + (" (demo data)" if change.get("is_demo") else "")
                    + (f", {change.get('committed_at')} (UTC)" if change.get("committed_at") else ""),
                    (f"Starts from commit {change.get('base_commit')}" if change.get("base_commit") else "Where it starts could not be read"),
-                   ("Its code is, byte for byte, " + f"{(change.get('gives') or {}).get('name')} {(change.get('gives') or {}).get('version')}"
-                    if change.get("gives") else "Its code is not one of our registered demo programs, so nothing of it runs"))], cls="meta")]
+                   _watch_code_line(change, part.get("program") or {}))], cls="meta")]
         if change.get("files"):
             box.append(el("h4", t("Files, with the fingerprint (SHA-256) of each before and after")))
             box.append(el("ul", *[el("li", t(f"{f.get('name')} ({f.get('state')}): "), el("code", t(f.get("old_sha256") or "not there")),
@@ -1229,6 +1239,19 @@ def _change_watch_html(part: dict | None) -> list:
         for run in earlier:
             out += _watch_run_html(run, [])
     return out
+
+
+def _watch_code_line(change: dict, program: dict) -> str:
+    """What the report says about a change's code, as the page says it: which registered program it is; that it is none
+    (only where the change edits the program); that the branch could not be read; or that it leaves the program alone."""
+    gives = change.get("gives") or {}
+    if gives:
+        return f"Its code is, byte for byte, {gives.get('name')} {gives.get('version')}"
+    if change.get("problem"):
+        return watch_words.PROBLEMS.get(str(change.get("problem")), "This branch could not be read from the repository.").rstrip(".")
+    if change.get("touches_program"):
+        return watch_words.NOT_OURS.rstrip(".")
+    return f"It does not edit {program.get('file') or 'the program under test'}: the program is as it was"
 
 
 def _watch_run_html(run: dict, picked: list) -> list:

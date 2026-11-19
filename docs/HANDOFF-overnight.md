@@ -683,7 +683,7 @@ one server's test and settles), 20 passed. There is no walk step on the multi-ta
 the same sentences through the same path as the panel. One more thing the complete run of every walk found is in
 "What the complete run of every walk found" above (a fact's link, fixed in `e16786f`).
 
-## Step 6: phase 6d, Change watch (first half built, documented, walked, reviewed once with its findings fixed; the pieces built after that review wait for a second one)
+## Step 6: phase 6d, Change watch (first half built, documented, walked, reviewed twice; both reviews' findings fixed)
 
 The plan's shorter first half: **Changes without the Watch list**. Built in checkpoints, each committed with its
 tests, so that a stop between two of them leaves the app in a state that can be shown. Since checkpoint 3b the page
@@ -798,7 +798,8 @@ entry for it under Encryption tests: "*title*: *N* tests that passed now fail", 
 change. **Text only**: no button, no proof, no pull request; the app writes no change for a developer's branch.
 The change's panel says so in one line with **View in Fixes**. The entry goes when the change no longer reads so.
 The test that holds watch runs apart now holds Fixes entry by entry (every entry that was there is as it was;
-exactly one is new), and the Overview's count of open fixes of Encryption tests goes up by that one.
+exactly one is new). (As first built, the Overview's count of open fixes went up by that one. The second review
+objected, rightly: see its finding 6 below. Since then the entry is listed apart and counted nowhere.)
 
 **Checkpoint 7 (`49d1f0d`): the Otto panel, and the walk through it.** Beside Change watch the panel offers the
 page's own **Run the picked tests** behind Confirm (the page's request, with the change's id, and nothing else).
@@ -832,12 +833,57 @@ README ("Change watch"); LAYOUT; OTTO-KEY.
 `backend/tests/assistant` in full **375 passed**; the evidence, fixes, ledger, projects and time tests in full
 **450 passed**; **845 screen tests**; lint, both type checks and the generated files clean; the walk green.
 
+**The second separate review** (of what was built after the first one: the evidence part and its check in the
+verify command, the entry in Fixes, the panel's step, the new questions of the accuracy walk). It read the code at
+`b41f631`, made evidence files at eleven stages of the demo and tried to get changed files past the verify
+command. It found **seven things; all seven are fixed** (the commit after `36ed916`):
+
+1. *A changed status could get past the verify command.* The command held a change's status to its run only where
+   the change's own entry said that the run counts. Someone with the app's key could take the run out of the
+   change's entry, say the run was "of other tests", name an older run, or change the count in the status word,
+   and the file still verified. **Fixed:** the command now works out by itself which run counts (the newest run of
+   exactly the change's code), works out again from the two lists whether that run is of the tests picked now,
+   and holds the count in the status word to the reviewer's counts. A picked test now carries the fingerprint of
+   its locked plan in the file, so the two lists can be compared.
+2. *"Ran on the change's code" was read from a note beside the run, not from the run record.* A run on the code
+   before could be put where the run on the change belongs. **Fixed:** the version, the commit, the file's
+   fingerprint and the kind of run are read from the run record itself, and the change's own files and versions
+   are compared with its run's.
+3. *The report said something untrue about the settings change.* For "Allow TLS 1.0 for an old partner", which
+   leaves the program alone, part 9 of the report read "Its code is not one of our registered demo programs".
+   **Fixed:** the report now says that the change leaves the program alone; a file made when the repository could
+   not be read says that; and the accuracy walk gives two answers for each change (`edits_the_program` and
+   `code_is`) so that "none" cannot be read as "not ours". `docs/OTTO-KEY.md` words the two questions.
+4. *An honestly made file could fail.* Where a stored watch review differed from what the reviewer says now only
+   in the reviewer's name, the app wrote "believed" into the file and the verify command then refused it.
+   **Fixed:** the app no longer believes such a review, the file says so, and the file verifies.
+5. *Two smaller holes in the same check.* A "not trusted" line was accepted with any result code, and the
+   command's own summary line counted runs the app had not believed as reviewed. **Fixed** both.
+6. *The entry in Fixes was counted as one of the assessment's findings.* "Open findings with a fix (3)", one more
+   open fix on the Overview and in the Projects row, and "Open fixes" as the next step, for a change nobody has
+   merged. The plan says such an entry is listed under its own heading and never counted. **Fixed:** the entry
+   sits in Encryption tests under **From a developer's change (1)**, with one line that says why, and it is
+   counted nowhere. The report lists it the same way. The sentence in LIMITS about which figures move was wrong
+   and is corrected (two figures move, both counts of runs: "runs recorded" and the checks of Encryption tests
+   that are done).
+7. *The panel's card said "Its picked tests would run again" for a change that never ran and cannot run.*
+   **Fixed:** for such a change the card says the page's status word alone, with the button off and the page's
+   own reason.
+
+What the review confirmed as holding: honestly made files verify at all eleven stages; the verify command reads
+the part as data only (1,300 hostile values, none run, none crashed it); the evidence part is complete; the
+entry in Fixes follows its rules; the panel sends only the page's own request; the accuracy walk's new part
+cannot move an earlier answer.
+
+**What the tightened check still takes as given** is written out in `docs/LIMITS.md`: what only the repository
+could show (the byte-for-byte comparison, which tests were picked, the files, the flags), a change's title and
+author, the times and the sentences beside a status. Those are covered by the file's signature only. **One thing
+to know:** an evidence file made by one of tonight's builds between `2422941` and `36ed916` lacks the new
+fingerprint and fails the tightened check. No such file was handed out.
+
 **What is left of 6d:**
-1. **One separate review of what was built after the first one** (`2422941`, `5a07467`, `49d1f0d` and the
-   documents after it): the evidence part and `backend/evidence/changewatch.py`, the entry in Fixes, the panel's
-   step and its two commands, the new questions of the accuracy walk. Then its fixes.
-2. The long checks on the final commit (see "The exact next action").
-3. Small things the plan names for the first half that are **not built**: a watch run's results and flags as
+1. The long checks on the final commit (see "The exact next action").
+2. Small things the plan names for the first half that are **not built**: a watch run's results and flags as
    entries of the panel's Testing thread (only the start is offered there); the Related block of a change; a
    "View in Fixes" line on the failing result's own row on Checks.
 **Not in the first half:** the Watch list (its proposals, rechecks and the new pinned checker).

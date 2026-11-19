@@ -1337,6 +1337,91 @@ describe("Fixes, the table and its detail panel", () => {
   });
 });
 
+describe("Fixes, a suggestion for a developer's change (phase 6d)", () => {
+  // The backend lists it apart: `apart` on the entry, the group's `apart` part with its own heading, and counts without it.
+  const base = fixesViews.ready;
+  const NOTE = "A developer's change is not the system until someone merges it. A suggestion listed here is not counted with the assessment's findings.";
+  const fromChange = {
+    ...base.fixes[1]!,
+    id: "fix-change-bd2fc0912345",
+    title: "Take the range check out again: 2 tests that passed now fail",
+    list_source: "Came from: developer's change dev/revert-range-check",
+    status: { ...base.fixes[1]!.status, word: "Text only" },
+    apart: true,
+  };
+  const withApart = (counted: typeof base.fixes): FixesView => ({
+    ...base,
+    list_title: `Open findings with a fix (${counted.length})`,
+    fixes: [...counted, fromChange],
+    groups: fixGroups(counted).map((g) =>
+      g.key === "encryption" ? { ...g, apart: { label: "From a developer's change", note: NOTE, fix_ids: [fromChange.id] } } : g,
+    ),
+  });
+
+  it("lists it in its group under its own heading, with the note, and counts it nowhere", async () => {
+    const view = withApart(base.fixes);
+    const fetchMock = mockApi({ [`GET ${FIXES}`]: { body: view } });
+    render(<Harness start={null} />);
+    await screen.findAllByTestId("fix-row");
+    // the page's count, the cards and the group's counts are of the assessment's own findings
+    expect(screen.getByRole("heading", { name: `Open findings with a fix (${base.fixes.length})` })).toBeTruthy();
+    const cards = screen.getAllByTestId("summary-card").map((c) => [c.querySelector("p")?.textContent, c.querySelector("p:nth-of-type(2)")?.textContent]);
+    expect(cards[0]).toEqual(["Fixes", String(base.fixes.length)]);
+    expect(cards.some(([label]) => label === "Text only")).toBe(base.fixes.some((f) => f.status.word === "Text only"));
+    const encryption = groupSection("Encryption tests");
+    const sent = view.groups!.find((g) => g.key === "encryption")!.counts;
+    expect(within(encryption).getByTestId("group-counts").textContent).toBe(
+      `Open ${sent.open} · In progress ${sent.in_progress} · Done ${sent.done}`,
+    );
+    expect(rows().some((r) => (r.textContent ?? "").includes("Take the range check out again"))).toBe(false);
+    expect(rows()).toHaveLength(base.fixes.length);
+    // its own heading, inside the group of the tests it reruns
+    const apart = within(encryption).getByTestId("fix-apart");
+    expect(within(apart).getByTestId("fix-apart-title").textContent).toBe("From a developer's change (1)");
+    expect(within(apart).getByTestId("fix-apart-note").textContent).toBe(NOTE);
+    const listed = within(apart).getAllByTestId("fix-apart-row");
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.textContent).toContain("Take the range check out again: 2 tests that passed now fail");
+    expect(listed[0]!.textContent).toContain("Text only");     // (beside the open panel a row is the entry and its status)
+    expect(calls(fetchMock)).toEqual([`GET ${FIXES}`]);
+  });
+
+  it("opens from its row like every entry, calling nothing more", async () => {
+    const fetchMock = mockApi({ [`GET ${FIXES}`]: { body: withApart(base.fixes) } });
+    render(<Harness start={null} />);
+    fireEvent.click(within((await screen.findAllByTestId("fix-apart-row"))[0]!).getByRole("button", { name: /Take the range check out again/ }));
+    await waitFor(() => expect(summary().getAttribute("aria-label")).toContain("Take the range check out again"));
+    expect(status().textContent).toBe("Text only");
+    expect(calls(fetchMock).filter((c) => !c.startsWith("GET "))).toEqual([]);
+  });
+
+  it("where the group has no finding of its own with a fix, it still says so above the heading, and shows no summary cards", async () => {
+    mockApi({ [`GET ${FIXES}`]: { body: withApart([]) } });
+    render(<Harness start={fromChange.id} />);
+    await screen.findAllByTestId("fix-apart-row");
+    expect(screen.getByRole("heading", { name: "Open findings with a fix (0)" })).toBeTruthy();
+    expect(screen.queryAllByTestId("summary-card")).toEqual([]);
+    const encryption = groupSection("Encryption tests");
+    expect(within(encryption).getByTestId("group-counts").textContent).toBe("Open 0 · In progress 0 · Done 0");
+    expect(within(encryption).getByTestId("group-empty").textContent).toBe("No failed test has a fix.");
+    expect(within(encryption).getByTestId("fix-apart-title").textContent).toBe("From a developer's change (1)");
+    expect(screen.queryAllByTestId("fix-row")).toEqual([]);
+  });
+
+  it("is searched and filtered like the rest, and says so when none of them match", async () => {
+    mockApi({ [`GET ${FIXES}`]: { body: withApart(base.fixes) } });
+    render(<Harness start={CODE_FIX} />);
+    await screen.findAllByTestId("fix-apart-row");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), { target: { value: "no such words anywhere" } });
+    await waitFor(() => expect(screen.queryAllByTestId("fix-apart-row")).toEqual([]));
+    expect(within(screen.getByTestId("fix-apart")).getByText("None of these match this search.")).toBeTruthy();
+    // the heading keeps the number that are listed, not the number that match
+    expect(screen.getByTestId("fix-apart-title").textContent).toBe("From a developer's change (1)");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), { target: { value: "revert-range-check" } });
+    await waitFor(() => expect(screen.getAllByTestId("fix-apart-row")).toHaveLength(1));
+  });
+});
+
 describe("Fixes, the summary counts each status word", () => {
   it("counts by the word the backend sent, so statuses that share a key are not added up under one word", async () => {
     // Two fixes whose statuses share a key but carry different words (as a change box's statuses do).

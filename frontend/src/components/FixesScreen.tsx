@@ -120,8 +120,10 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
   };
   // One card for each status word the backend sent, counted by that word (no wording of our own). Phase 5b: counted by
   // the word, not the key, because the statuses of a change box share one key while each has its own word.
+  // Phase 6d: an entry the backend lists apart (a suggestion for a developer's change) is not one of the counted fixes.
+  const counted = current.fixes.filter((f) => !f.apart);
   const byStatus = new Map<string, { word: string; n: number }>();
-  for (const f of current.fixes) {
+  for (const f of counted) {
     const seen = byStatus.get(f.status.word);
     if (seen) seen.n += 1;
     else byStatus.set(f.status.word, { word: f.status.word, n: 1 });
@@ -219,11 +221,11 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
       ) : null}
       {current.fixes.length > 0 || (current.groups ?? []).length > 0 ? (
         <div className="mt-6">
-          {current.fixes.length > 0 ? (
+          {counted.length > 0 ? (
           <SummaryCards
             label="Fixes summary"
             cards={[
-              { key: "fixes", label: "Fixes", value: current.fixes.length },
+              { key: "fixes", label: "Fixes", value: counted.length },
               ...Array.from(byStatus, ([key, { word, n }]) => ({ key, label: word, value: n })).slice(0, 3),
             ]}
           />

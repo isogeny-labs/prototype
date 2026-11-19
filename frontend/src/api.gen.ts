@@ -2771,6 +2771,10 @@ export interface FixDetail {
    */
   came_from_links?: FixCameFrom[];
   fix_state?: "open" | "in_progress" | "done";
+  /**
+   * Phase 6d: listed under its group's own heading for a developer's change and never counted with the findings.
+   */
+  apart?: boolean;
 }
 export interface FixStatus {
   key: "not_connected" | "proving" | "ready" | "failed" | "waiting" | "ready_to_merge" | "merged" | "text_only";
@@ -3042,13 +3046,33 @@ export interface FixGroup {
   key: "verification" | "encryption" | "migration" | "dependencies";
   label: string;
   question: string;
-  counts: StateCounts;
+  counts: StateCounts1;
   fix_ids: string[];
   empty_text: string | null;
+  /**
+   * Phase 6d: the group's entries for a developer's change, under their own heading; None when there are none.
+   */
+  apart?: FixGroupApart | null;
   /**
    * "Also relates to this group": fixes listed in another group.
    */
   also: FixGroupAlso[];
+}
+/**
+ * of fix_ids only: an entry listed apart is never counted
+ */
+export interface StateCounts1 {
+  open: number;
+  in_progress: number;
+  done: number;
+}
+export interface FixGroupApart {
+  /**
+   * "From a developer's change"
+   */
+  label: string;
+  note: string;
+  fix_ids: string[];
 }
 export interface FixGroupAlso {
   fix_id: string;
@@ -3065,7 +3089,7 @@ export interface FixesView {
   subline: string;
   disclaimer: string;
   /**
-   * "Open findings with a fix (2)"
+   * "Open findings with a fix (2)": the entries that are not listed apart
    */
   list_title: string;
   /**

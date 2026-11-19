@@ -17,7 +17,8 @@ interface Props {
 }
 
 /** The findings that have a fix, in the four work groups: each with where it came from (as links) and its status, with
- * a search box, a group filter and a status filter. */
+ * a search box, a group filter and a status filter. Phase 6d: a suggestion for a developer's change is listed in its
+ * group under a heading of its own (`group.apart`); the group's counts are the backend's and leave it out. */
 export function FixTable({ title, fixes, groups, selectedId, onSelect, group = null }: Props) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -114,6 +115,8 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, group = n
           .filter((g) => groupFilter === "all" || g.key === groupFilter)
           .map((g) => {
             const rows = g.fix_ids.map((id) => byId.get(id)).filter((f): f is FixDetail => f !== undefined).filter(keep);
+            const apartAll = (g.apart?.fix_ids ?? []).map((id) => byId.get(id)).filter((f): f is FixDetail => f !== undefined);
+            const apartRows = apartAll.filter(keep);
             return (
               <GroupSection
                 key={g.key}
@@ -121,7 +124,7 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, group = n
                 counts={g.counts}
                 open={!folded[g.key]}
                 onToggle={() => setFolded((f) => ({ ...f, [g.key]: !f[g.key] }))}
-                emptyText={g.fix_ids.length === 0 ? g.empty_text : null}
+                emptyText={g.fix_ids.length === 0 && apartAll.length === 0 ? g.empty_text : null}
                 also={
                   g.also.length > 0 ? (
                     <span>
@@ -150,9 +153,38 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, group = n
                     selectedKey={selectedId}
                     onRowClick={(fix) => onSelect(fix.id)}
                   />
+                ) : g.fix_ids.length === 0 ? (
+                  // only entries listed apart: the group's own sentence still says that no finding of its own has a fix
+                  <p data-testid="group-empty" className="px-1 py-2 text-sm text-slate-400">
+                    {g.empty_text}
+                  </p>
                 ) : (
                   <p className="px-1 py-2 text-sm text-slate-400">No fixes match this search.</p>
                 )}
+                {g.apart && apartAll.length > 0 ? (
+                  <section data-testid="fix-apart" aria-label={g.apart.label} className="mt-4">
+                    <h3 data-testid="fix-apart-title" className="px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
+                      {g.apart.label} ({apartAll.length})
+                    </h3>
+                    <p data-testid="fix-apart-note" className="mb-2 mt-1 px-1 text-xs text-slate-400">
+                      {g.apart.note}
+                    </p>
+                    {apartRows.length > 0 ? (
+                      <DataTable
+                        label={g.apart.label}
+                        columns={columns}
+                        compactColumns={compactColumns}
+                        rows={apartRows}
+                        rowKey={(fix) => fix.id}
+                        rowTestId="fix-apart-row"
+                        selectedKey={selectedId}
+                        onRowClick={(fix) => onSelect(fix.id)}
+                      />
+                    ) : (
+                      <p className="px-1 py-2 text-sm text-slate-400">None of these match this search.</p>
+                    )}
+                  </section>
+                ) : null}
               </GroupSection>
             );
           })}

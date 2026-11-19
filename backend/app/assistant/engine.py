@@ -203,10 +203,19 @@ class RuleCopilot:
             if not (asked or opened or going or status["key"] == "not_run"):
                 continue                    # it has run: its result is on the page, and Run again is there
             label = run["label"]
-            text = (f"The tests picked for “{change['title']}” are running." if going else
-                    f"The tests picked for “{change['title']}” have not run yet ({change['picked_line']})." if status["key"] == "not_run" else
-                    f"“{change['title']}” reads {status['word']}. Its picked tests would run again." if run["will_run"] else
-                    f"“{change['title']}”: {status['word']}.")
+            reads = f"“{change['title']}” reads {status['word']}."
+            if going:
+                text = f"The tests picked for “{change['title']}” are running."
+            elif status["key"] == "not_run":
+                # (where its last run does not count, cut off or of other tests, the page's own reason says so)
+                text = (f"{reads} {_plain(status['reason'])}" if status.get("reason") else
+                        f"The tests picked for “{change['title']}” have not run yet ({change['picked_line']}).")
+            elif run["can"] and run["will_run"] and change["panel"]["last_run"] is not None:
+                text = f"{reads} Its picked tests would run again."
+            else:
+                # nothing of it ran, or nothing can run now: the page's word alone. Why the button cannot be pressed is
+                # the step's own reason, in the page's words (a branch that is not a registered program runs nothing).
+                text = reads
             out.append(_entry("next:run_picked_tests", f"next:run_picked_tests:{change['id']}", mark=words.MARK_NEXT, title=label, text=text,
                               where={"label": f"On {PAGE_LABELS['change-watch']}", "link": _link("change-watch", change["id"])}, open_item=opened,
                               step=_step({"type": "run_picked_tests", "plan_id": facts.plan_id, "change": change["id"]},

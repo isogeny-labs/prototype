@@ -421,6 +421,8 @@ def _change_watch_part(lab: Lab, pid: int, answers: dict, folder: Path, data: li
         shown, raw = change(key), state.get(branch)
         if shown is None or raw is None:
             continue
+        # (two answers, so that "none" is never read as "its code is not ours" for a change that leaves the program alone)
+        answers[f"change.{key}.edits_the_program"] = bool(raw.get("touches_program"))
         answers[f"change.{key}.code_is"] = (raw.get("gives") or {}).get("version")
         answers[f"change.{key}.picked"] = [t["title"] for t in shown["panel"]["picked"]]
         answers[f"change.{key}.not_picked"] = [t["title"] for t in shown["panel"]["not_picked"]]

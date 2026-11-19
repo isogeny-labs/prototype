@@ -206,8 +206,23 @@ CHANGED = {
     "the review names another watch record": "its review is of another watch record",
     "the run on the change ran another commit": "did not run on the commit this watch run names",
     "the run on the change ran another program file": "does not have the fingerprint the change's file list gives",
-    "the run on the change ran another version": "did not run on version 1.4.2",
-    "the run before ran another version": "did not run on version 1.4.3",
+    "the run on the change ran another version": "the code it is said to have run on is not the code its run record names",
+    "the run before ran another version": "the code it is said to have run on is not the code its run record names",
+    # what the second review of 6d showed was not held (19 November 2026): each of these verified before
+    "the run left out of the change's entry": "does not name the newest watch run of its code that the file holds",
+    "the run said to be of other tests": "whether its watch run is of the tests picked now is not what the two lists show",
+    "the count in the status word changed": "its status word is not the word of its status (Passed before, fails now (1 test))",
+    "the run before put where the run on the change stands": "its run record is not of version 1.4.2",
+    "a run record of another kind of run where the run on the change stands": "its run record is not a run made for this change",
+    "the change's own version changed": "its files or versions are not the ones its watch run was made for",
+    "the change's own files changed": "its files or versions are not the ones its watch run was made for",
+    "a not-trusted line with another result code": "the watch record does not say what the run's review says",
+    "the review under another reviewer's name": "its review was not made by the reviewer this file names",
+    "the kind of run said beside a run changed": "the kind of run it is said to be is not the one its run record names",
+    "the watch record names another program": "its runs are not all of the one program the watch record names",
+    "the part is said to be about another program": "holds a run of another program than the one this part is about",
+    "the entry in Fixes for the change taken out": "the file's list of fixes has no text-only entry for it",
+    "an entry in Fixes for a change that does not read so": "has an entry for a developer's change that does not read",
     "a run of another locked test": "is not a run of the locked test this watch run names",
     "the change's status changed": "is not the one its watch run gives",
     "the status word changed": "its status word is not the word of its status",
@@ -288,6 +303,56 @@ def test_a_change_inside_the_part_is_caught_even_when_the_file_is_signed_again(m
         part["more"] = 1
     elif name == "the same watch run twice":
         part["runs"].append(copy.deepcopy(run))
+    elif name == "the run left out of the change's entry":
+        change.update(watch_run_id=None, run_covers_picked=None)
+        change["status"].update(key="not_run", word="Not run yet", reason=None)
+    elif name == "the run said to be of other tests":
+        change["run_covers_picked"] = False
+        change["status"].update(key="not_run", word="Not run yet", reason=None)
+    elif name == "the count in the status word changed":
+        change["status"]["word"] = "Passed before, fails now (9 tests)"
+    elif name == "the run before put where the run on the change stands":
+        # no run record and no test review is altered: the run on the code before stands in for the run on the change,
+        # under the note of the run it replaces, and the watch record, its fingerprint, the review and the status are
+        # made to fit
+        kept_note = test["now"]["code"]
+        test["now"] = copy.deepcopy(test["before"])
+        test["now"]["code"] = kept_note
+        listed["now"] = copy.deepcopy(listed["before"])
+        again = verifier.word_for(run["record"])
+        run["review"].update(status=again["status"], counts=again["counts"], tests=again["tests"])
+        _refit(run)
+        change["status"].update(key=again["status"], word=verifier.STATUS_WORDS[again["status"]])
+    elif name == "a run record of another kind of run where the run on the change stands":
+        test["now"]["record"]["phase"] = test["now"]["phase"] = "retest"
+        test["now"]["run_sha256"] = test["now"]["review"]["run_sha256"] = listed["now"]["run_sha256"] = sha256_hex(test["now"]["record"])
+        _refit(run)
+    elif name == "the change's own version changed":
+        change["gives"]["version"] = "1.4.3"
+    elif name == "the change's own files changed":
+        change["files"][0]["new_sha256"] = ZERO64
+    elif name == "a not-trusted line with another result code":
+        listed["now"].update(code="couldnt_run", reason_code=None, control_outcome="not_run")
+        again = verifier.word_for(run["record"])
+        run["review"].update(status=again["status"], counts=again["counts"], tests=again["tests"])
+        _refit(run)
+        change["status"].update(key=again["status"], word=verifier.STATUS_WORDS[again["status"]])
+    elif name == "the review under another reviewer's name":
+        run["review"]["reviewer"] = "isogeny.rule-reviewer/0"
+    elif name == "the kind of run said beside a run changed":
+        test["now"]["phase"] = "retest"
+    elif name == "the watch record names another program":
+        run["record"]["matches"]["name"] = "acme-kex"
+        _refit(run)
+    elif name == "the part is said to be about another program":
+        part["program"]["name"] = "acme-kex"
+    elif name == "the entry in Fixes for the change taken out":
+        evidence["fixes"] = [f for f in evidence["fixes"] if f["source"]["kind"] != "developer_change"]
+    elif name == "an entry in Fixes for a change that does not read so":
+        other = next(c for c in part["changes"] if c["branch"] == TLS)
+        entry = copy.deepcopy(next(f for f in evidence["fixes"] if f["source"]["kind"] == "developer_change"))
+        entry["id"] = f"fix-{other['id']}"
+        evidence["fixes"].append(entry)
     elif name == "a run that is also the test's own, with another fingerprint there":
         own = next(t for t in evidence["tests"] if t["kind"] == "bad_signatures")
         own["earlier_runs"].append({"run_id": test["now"]["run_id"], "run_sha256": ZERO64})
@@ -307,8 +372,49 @@ def test_a_run_the_app_did_not_believe_is_said_as_that_and_accepted_as_that(made
     run["believed"] = False
     assert _verify(made, sign_envelope(evidence, made.lab.settings.data_dir), tmp_path, capsys)[0] == 1     # the change still claims a word of the run
     change["status"].update(key="couldnt_trust", word="Couldn't trust this run")
+    assert _verify(made, sign_envelope(evidence, made.lab.settings.data_dir), tmp_path, capsys)[0] == 1     # Fixes still lists an entry for it
+    # (the app lists an entry in Fixes only while a change reads "Passed before, fails now": a file it makes in this state has none)
+    evidence["fixes"] = [f for f in evidence["fixes"] if f["source"]["kind"] != "developer_change"]
     code, said = _verify(made, sign_envelope(evidence, made.lab.settings.data_dir), tmp_path, capsys)
     assert code == 0 and "Change watch: 2 changes, 1 run of the picked tests" in said
+    # such a run is not counted among the reviewed ones, and the line says what it is
+    assert "Change watch: 0 reviewed runs:" in said and "1 run more: the app did not believe the stored review when the file was made, and the file says so." in said
+
+
+def test_a_stored_review_under_another_reviewers_name_is_not_believed_by_the_app_and_the_file_it_makes_verifies(made, tmp_path, capsys):
+    """The app believes a stored review only if reviewing again gives exactly it, the reviewer's own name included. A
+    row whose name differs (a damaged row, or a reviewer whose id has moved since) reads "Couldn't trust this run" in
+    the app, and the file the app then makes says so. That file is honest and must verify (the second review of 6d
+    found that it did not)."""
+    from sqlalchemy import text as sql
+    lab, plan = made.lab, made.plan
+    with lab.db() as db:
+        row = db.execute(sql("select id, reviewer from watch_reviews order by id limit 1")).first()
+    # (watch_reviews is add-only: the row is changed with the triggers off, as a damaged file would be, and put back after)
+    import sqlite3
+    path = lab.settings.db_path
+    def set_reviewer(value: str) -> None:
+        raw = sqlite3.connect(path)
+        try:
+            triggers = raw.execute("select name, sql from sqlite_master where type = 'trigger' and tbl_name = 'watch_reviews'").fetchall()
+            for trigger, _ in triggers:
+                raw.execute(f'drop trigger "{trigger}"')
+            raw.execute("update watch_reviews set reviewer = ? where id = ?", (value, row[0]))
+            for _, made_by in triggers:
+                raw.execute(made_by)
+            raw.commit()
+        finally:
+            raw.close()
+    set_reviewer("isogeny.rule-reviewer/0")
+    try:
+        download = _download(lab, plan)
+        first = next(r for r in download.evidence["change_watch"]["runs"] if r["watch_run_id"] == row[0])
+        assert first["believed"] is False and first["review"]["reviewer"] == "isogeny.rule-reviewer/0"
+        code, said = _verify(made, download.raw, tmp_path, capsys)
+        assert code == 0, said
+    finally:
+        set_reviewer(row[1])
+    assert _verify(made, _download(lab, plan).raw, tmp_path, capsys)[0] == 0
 
 
 # ---------------------------------------------------------------- the rule, written twice
@@ -382,3 +488,16 @@ def test_damaged_copies_of_the_part_are_checked_or_refused_plainly_within_a_time
     for odd in (None, [], "x", 7, {"schema": CHANGE_WATCH_SCHEMA}, {"schema": "other"}):
         evidence = {**made.ran.evidence, "change_watch": odd}
         assert verifier.check_change_watch(evidence).ok is False
+
+
+def test_a_change_that_names_an_older_run_of_its_code_is_caught(made, tmp_path, capsys):
+    """Three runs of the same code are in the later file: two reviewed, then one that was cut off. The newest one counts.
+    A file whose change names an earlier run and takes that run's word verified before the second review of 6d."""
+    evidence = copy.deepcopy(made.later.evidence)
+    part = evidence["change_watch"]
+    first = part["runs"][0]
+    change = next(c for c in part["changes"] if c["branch"] == REVERT)
+    change.update(watch_run_id=first["watch_run_id"], run_covers_picked=True)
+    change["status"].update(key="passed_before_fails_now", word="Passed before, fails now (1 test)", reason="1 test passed on the code before and fails on this change.")
+    code, said = _verify(made, sign_envelope(evidence, made.lab.settings.data_dir), tmp_path, capsys)
+    assert code == 1 and "does not name the newest watch run of its code that the file holds" in said

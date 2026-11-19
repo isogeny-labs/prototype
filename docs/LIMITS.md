@@ -542,6 +542,62 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
   also a rejection, before any check has run.
 
+## Limits of phase 6e, first half (what-if: what the app knows, and the try; 19 November 2026)
+
+- **Only the first half is built.** A what-if typed into the Otto panel gets one card: what the app knows, a try on
+  a test copy, one sentence in place of an explanation, and what the facts do not show. **Not built:** Claude's
+  explanation of the facts in plain sentences; **Turn this into a test** and **Add to Change watch** on a
+  hypothesis; hypothesis records, the Open hypotheses block on Change watch and the block "Proposed from your
+  questions" on Checks; the registration of a hypothesis test in Otto's ledger and its pinned checker. So success
+  step 14 of the overnight brief is met for the facts and the try, and its "every unproven point has two buttons"
+  is not: a hypothesis is a sentence with nothing to press.
+- **The question is read by fixed rules.** It needs a lead-in ("what if", "what happens if", "if", "suppose"), who
+  ("I", "we", ...), a verb of updating, one library and one version that starts with a digit. "Update elliptic to
+  6.5.7" by itself is no question and names no button, so it gets "I can't do that." "To the newest version" names
+  no version and is not read. Two updates in one sentence are not answered for the first one alone. No model is
+  asked, with Live Otto on or off.
+- **A fact repeats a record; it is not a forecast.** Each line says what a list, a package file, a test pack or a
+  reviewed run says now. The card does not say what will happen on a system after the update.
+- **"Dependencies added or removed" is what two package files list, nothing more.** It compares what each version
+  itself declares it needs (the names and the version ranges, as written). It does not resolve the ranges, does not
+  look at what those packages need in turn, and says nothing about what a system really loads. It is filled for
+  four versions only: elliptic 6.5.6 and 6.5.7, python-ecdsa 0.13.2 and 0.13.3. Any other version of them reads
+  "Not in our knowledge base yet", a version that cannot be read "Couldn't tell the version", and Java and OpenSSL
+  "Doesn't apply" (they are no package with such a file). Nothing is worked out from a neighbouring version.
+- **Where those four entries came from.** They were read on 19 November 2026 from the pinned downloads the app
+  already holds for its real libraries (`backend/app/real_libraries.py`), each first checked against its pinned
+  fingerprint: `package.json` inside the npm package, the `METADATA` file inside the wheel. Each entry quotes the
+  lines, names the file's own SHA-256 and links the publisher's package. They were read by the build, not by a
+  person; this is decision 26 for Kevin (someone should compare the four entries with the publisher's files once).
+- **"The update answers this advisory" is the publisher's statement, compared by version.** Where a test pack's
+  reading names a fixed version and the version asked about is at or past it, the line says that the update answers
+  the advisory "by the publisher's own statement". The app has not tested that version for the what-if. What the
+  pack's own trial showed is a line of its own, and only where the trial was made for exactly that version.
+- **Post-quantum support of the new version is the knowledge base's answer** ("Release notes say"), unless
+  Dependencies already holds a measurement for exactly that version. Nothing is measured for a what-if.
+- **"Would no longer block the track" is by that answer.** The line about a migration track compares today's
+  blocker with the knowledge base's answer for the new version. It is not a measurement and moves nothing on
+  Migration.
+- **"Your own results" are the reviewed results Evidence shows now for a program the scanner file names by that
+  name**, on whichever version they ran (a first run, or a retest's run). A library that is only in the dependency
+  list has none.
+- **The try is Retest new version, and it is a real retest.** It reruns the assessment's locked tests for that
+  library on the public copy of the new version, and its results become this assessment's newest results "after":
+  a finding that passes can read as closed, "Proven on your system" reads the run, and an accepted update for the
+  library can then no longer be undone. The card says so before Confirm. It is offered only where Evidence would
+  offer the same retest: the scanner file names the library, the app holds a public copy of exactly that version,
+  nothing else is running, and (for a real library) the app is in isolated mode. Otherwise the part gives the
+  reason and has no button. A try does not touch a system of yours: it runs a public copy on this computer.
+- **A library the app holds nothing about** gets the same four parts, each saying that it knows nothing, and one
+  hypothesis: that everything about the update is open.
+- **Like every typed sentence, the question is kept.** In an open assessment the sentence, the title of the answer
+  and its facts are kept add-only and shown under "This thread so far" of the Fixing tab. A closed assessment
+  answers and keeps nothing, and its try is off.
+- **The walk is in demo mode only.** `e2e/tests/whatif.spec.ts` shows the elliptic question on the Acme Pay demo
+  (where the scanner file does not name elliptic, so the try is off with that reason) and the try behind Confirm
+  for the demo program the file names. The plan's part in isolated mode (the real-libraries file, the try running
+  on elliptic 6.5.7 in its container) has no walk yet.
+
 ## Limits of phase 6d, first half (Change watch: the Changes view; 19 November 2026)
 
 - **Only the first half is built.** The Changes view: a developer's change is read, its tests are picked, they run
@@ -555,26 +611,42 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   takes out. It does not say that those lines are why the tests fail: the app has not tried the change with the
   lines put back. It has no button, no proof and no pull request, and the app writes no change for a developer's
   branch. It goes as soon as the change no longer reads so, also when only the test plan changed and the change
-  has not been run since. It counts as an open fix of Encryption tests on the Overview while it is there. It is
-  linked to its change and to the failing runs; it has no Related block, and the failing results on Checks do not
-  carry a "View in Fixes" line of their own.
+  has not been run since. It is listed in Encryption tests under a heading of its own, "From a developer's
+  change", and it is counted nowhere: not in the page's "Open findings with a fix", not in its group's counts, not
+  on the Overview and not in the Projects row, and it never makes "Open fixes" the next step (the second review,
+  19 November 2026: before that it was counted as an open fix). The report lists it the same way. It is linked to
+  its change and to the failing runs; it has no Related block, and the failing results on Checks do not carry a
+  "View in Fixes" line of their own.
 - **What the verify command checks of the Change watch part, and what it takes as given.** It checks every run
-  record against its fingerprint and its review, that each run ran on the change's code (the version, the commit,
-  the fingerprint of the program file), the record the reviewer was given against those runs, the reviewer's
-  word for the change against that record (by the rule, written out a second time in the verify command), each
-  change's status against its run, and every Change watch row of the file's list of checks against the part. It
-  takes as given what only the repository could show: that the change's code was, byte for byte, the registered
-  demo program that ran (the app made that comparison and wrote it into the record), which tests were picked, and
-  the flags. Those are covered by the file's own signature, like everything else in it. A change is in the file
-  as it was read when the file was made; a change whose branch is gone is no longer listed, but its runs are kept.
-  A run the app itself did not believe when the file was made is said as that in the file and accepted as that.
+  record against its fingerprint and its review; that each run ran on the code its place says (the version, the
+  commit, the fingerprint of the program file and the kind of run, read from the run record itself, so a run on
+  the code before cannot stand where the run on the change belongs); the record the reviewer was given against
+  those runs; the reviewer's word for the change against that record, with its count (by the rule, written out a
+  second time in the verify command); that a review the file calls believed is under the name of the reviewer the
+  file names; that each change names the newest watch run of exactly its code, and that this run's files and
+  versions are the change's; whether that run is of the tests picked now, worked out again from the two lists;
+  that Fixes has an entry for exactly the changes that read "Passed before, fails now"; and every Change watch row
+  of the file's list of checks against the part. It takes as given what only the repository could show: that the
+  change's code was, byte for byte, the registered demo program that ran (the app made that comparison and wrote
+  it into the record), which tests were picked and which were not, the files and the flags. A change's title and
+  author, the times, the sentences beside a status and the results as they are worded for a reader are not
+  compared with anything either. All of those are covered by the file's own signature, like everything else in
+  it: someone who holds the app's key and rewrites a whole file so that every part still agrees is not caught by
+  this check, as for the rest of the file. A change is in the file as it was read when the file was made; a change
+  whose branch is gone is no longer listed, but its runs are kept. A run the app itself did not believe when the
+  file was made is said as that in the file, accepted as that and counted apart in the command's own lines.
+- **The check was tightened after the second review (19 November 2026).** Since then a picked test carries the
+  fingerprint of its locked plan in the file. An evidence file made by one of that night's earlier builds does not
+  carry it and fails the check. No such file was handed out, so nothing was done to read them.
 - **The rule for a watch run is written twice.** Once in the app's reviewer, once in the verify command, so that a
   file is not checked with the code that made it. Whoever changes one must change the other; a test compares the
   two over every combination of results and fails when they differ.
 - **In the Otto panel only the start is offered.** The card is the page's own Run the picked tests. The results of
   a watch run and the flags are on the page; they do not arrive as entries of the Testing thread. The change's
   entry in Fixes arrives in the Fixing thread as a text-only suggestion. Typed, "run the picked tests" without a
-  name means a change that can run; where several can, the panel asks which one.
+  name means a change that can run; where several can, the panel asks which one. For a change that cannot run
+  (its code is not a registered program) the card says the page's word alone, with the button off and the page's
+  reason. Asked what Fixes is for, the panel counts as the page does and says the change's suggestion apart.
 - **A change comes in by a demo button only.** Connecting a real repository host is not in this version. **Bring
   in a demo change** writes one of two bundled changes into the assessment's own copy of the demo repository, as a
   push would. Whatever else is in that repository is listed too (the view reads it each time), but nothing in the
@@ -592,8 +664,10 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   that code again.
 - **The status word is about the change, not about a system.** "Passed before, fails now" says that a test which
   passed on the code before fails on the change's code. A developer's change is not the system until someone merges
-  it: the Overview's findings, every proposal and the migration plan keep reading the assessment's own results. The
-  one figure that moves is the Overview's count of runs recorded.
+  it: the Overview's findings, its facts and its counts of fixes, every proposal and the migration plan keep reading
+  the assessment's own results. Two figures on the Overview do move, and both count runs, not findings: "runs
+  recorded", and the checks of Encryption tests that are done (each run of a picked test is a row on Checks, under
+  Change watch).
 - **"Can't run" has two meanings.** Nothing of the change may run (its code is not a registered program), or a
   picked test could not run (for example an advisory check where Otto is not installed). The sentence under the
   word says which. The plan's list of statuses has no word of its own for the second; a stop is not a result, so it

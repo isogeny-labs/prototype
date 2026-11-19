@@ -136,6 +136,15 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   await fix.getByRole("button", { name: "Merge pull request" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Confirm merge" }).click();
   await expect(fix.getByTestId("fix-status")).toHaveAttribute("data-status", "merged", { timeout: 60_000 });
+  // what Fixes counts before any change comes in (compared again once a change has its entry there)
+  const encryptionFixes = page.locator('[data-testid="group-section"][data-group="encryption"]');
+  const fixesCounted = {
+    title: await page.locator("#fix-list-title").innerText(),
+    group: await encryptionFixes.getByTestId("group-counts").innerText(),
+    rows: await page.getByTestId("fix-row").count(),
+  };
+  expect(fixesCounted.title).toMatch(/^Open findings with a fix \(\d+\)$/i);
+  await expect(page.getByTestId("fix-apart")).toHaveCount(0);
 
   // what Evidence says before any change comes in (compared again at the end)
   await stepLink(page, "Evidence").click();
@@ -227,6 +236,15 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   await expect(entry.getByTestId("fix-proof")).toContainText("This suggestion is text only: the app has not applied it or tested it.");
   await expect(entry.getByTestId("fix-approvers")).toContainText("The app never merges a developer's change.");
   await expect(entry.getByRole("button", { name: /Merge|Approve|Open pull request|Download patch|Connect/ })).toHaveCount(0);
+  // It sits in Encryption tests under a heading of its own and is counted nowhere: the page's count, the group's
+  // counts and the rows of the assessment's own findings are what they were before the change came in.
+  await expect(encryptionFixes.getByTestId("fix-apart-title")).toHaveText("From a developer's change (1)");
+  await expect(encryptionFixes.getByTestId("fix-apart-note")).toContainText("is not counted with the assessment's findings");
+  await expect(encryptionFixes.getByTestId("fix-apart-row")).toHaveCount(1);
+  await expect(encryptionFixes.getByTestId("fix-apart-row")).toContainText("Revert the range check: 2 tests that passed now fail");
+  expect(await page.locator("#fix-list-title").innerText()).toBe(fixesCounted.title);
+  expect(await encryptionFixes.getByTestId("group-counts").innerText()).toBe(fixesCounted.group);
+  expect(await page.getByTestId("fix-row").count()).toBe(fixesCounted.rows);
   const takenOut = page.locator('[data-section="change"]');
   await expect(takenOut).toContainText("What the change takes out");
   expect(await takenOut.locator('[data-testid="code-line"][data-mark="-"]').count()).toBeGreaterThan(0);
