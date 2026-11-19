@@ -245,9 +245,11 @@ interface Props {
   /** Phase 6b: inside Checks with its Result filter on, only these tests of the plan are listed (the plan itself, its
    * order and every button stay as they are). Null: every test. */
   only?: ReadonlySet<number> | null;
+  /** The value of the filter that narrows the plan ("Failed"), for the line that says the plan is narrowed. */
+  onlyLabel?: string;
 }
 
-export function TestsScreen({ importId, plan, onPlan, embedded = false, only = null }: Props) {
+export function TestsScreen({ importId, plan, onPlan, embedded = false, only = null, onlyLabel }: Props) {
   // Phase 5b: inside Checks, a check's panel can be open beside the plan; then each row stacks.
   const compact = usePanelOpen();
   const readOnly = useReadOnly();
@@ -582,6 +584,23 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
         </div>
       ) : null}
 
+      {/* Phase 6b: with the Result filter of Checks on, the plan lists only the tests that fit it. Said in one line,
+          with what Run all still does: the button runs the whole plan, listed or not. */}
+      {only && current.tests.length > 0 ? (
+        <p data-testid="plan-narrowed" role="status" className="mt-4 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-[13px] text-slate-300">
+          {(() => {
+            const total = current.tests.length;
+            const listed = current.tests.filter((t) => only.has(t.id)).length;
+            const filter = onlyLabel ? ` (Result: ${onlyLabel})` : "";
+            const first =
+              listed === 0
+                ? `No test of the plan ${onlyLabel ? `reads ${onlyLabel}` : "fits the Result filter"} now${onlyLabel ? "" : filter}.`
+                : `${listed} of the plan's ${total} ${total === 1 ? "test is" : "tests are"} listed${filter}.`;
+            return `${first} Run all runs all ${total}.`;
+          })()}
+        </p>
+      ) : null}
+
       {current.tests.length === 0 ? (
         <p className="mt-6 text-sm text-slate-400">
           There are no tests in the plan.
@@ -591,6 +610,8 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
           {targets.map((section, i) => {
             const group =
               section.key !== null ? headings.get(section.key) : undefined;
+            // (a target none of whose tests is listed is not drawn: no bare heading)
+            if (only && !LISTS.some((_, n) => sections[i * LISTS.length + n]!.items.some((card) => only.has(card.id)))) return null;
             return (
               <section
                 key={section.key ?? `rest-${i}`}

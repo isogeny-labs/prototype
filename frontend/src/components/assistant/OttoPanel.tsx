@@ -12,7 +12,7 @@ import {
   type AssistantThread,
   type AssistantView,
 } from "../../api";
-import { fromPanel, useChangeStamp } from "../../changes";
+import { fromPanel, onChanged, useChangeStamp } from "../../changes";
 import { prefs, type OttoTabs } from "../../prefs";
 import type { Page } from "../../router";
 import { FromOttoTag, ProposalStatusChip } from "../otto/ProposalCard";
@@ -167,7 +167,7 @@ export function OttoPanel({
   // ---- phase 6b: the text box. What was typed last and what came back for it; nothing of it is sent on by itself.
   const [typed, setTyped] = useState("");
   const [asking, setAsking] = useState(false);
-  const [exchange, setExchange] = useState<{ said: string; reply: AssistantReply; confirmed: boolean } | null>(null);
+  const [exchange, setExchange] = useState<{ said: string; reply: AssistantReply; confirmed: boolean; stale?: boolean } | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const boxId = useId();
@@ -175,6 +175,19 @@ export function OttoPanel({
     setExchange(null);
     setAskError(null);
   }, [assessmentId]);
+  // The card that came back for a sentence shows the suggestion or the button as it stood when the sentence was
+  // answered. Once anything changes the assessment after that (a decision on its page, another card's Confirm), the
+  // card is taken away and a line says so: a button in the panel must never stand where its page's button no longer
+  // does. (The reply card's own Confirm is not such a change: it ends in "Confirmed.".)
+  const confirmingReply = useRef(false);
+  useEffect(
+    () =>
+      onChanged(() => {
+        if (confirmingReply.current) return;
+        setExchange((now) => (now && now.reply.entry && !now.confirmed ? { ...now, stale: true } : now));
+      }),
+    [],
+  );
   // Who a decision is recorded as. A name is asked for once, at the first Confirm of a decision (and kept in Settings).
   const [name, setName] = useState("");
   const [nameAsked, setNameAsked] = useState(prefs.ottoNameAsked);
@@ -200,6 +213,7 @@ export function OttoPanel({
   async function confirm(send: () => Promise<unknown>, then?: { page: string; item: string | null } | null) {
     setSending(true);
     setSendError(null);
+    confirmingReply.current = confirming?.place === "reply";
     try {
       await fromPanel(send);
       // (the card that came back for a typed sentence has done its work: the page and the thread show what it led to)
@@ -210,6 +224,7 @@ export function OttoPanel({
     } catch (e) {
       setSendError(errorMessage(e));
     } finally {
+      confirmingReply.current = false;
       setSending(false);
     }
   }
@@ -253,7 +268,7 @@ export function OttoPanel({
   // button again, off, with the page's own reason. Not while its request is on its way.
   const pageEntries = current?.on_page.entries;
   const threadEntries = selected?.so_far;
-  const replyEntry = exchange?.reply.entry ?? null;
+  const replyEntry = exchange && !exchange.stale ? exchange.reply.entry : null;
   useEffect(() => {
     if (!confirming || sending) return;
     if (confirming.place === "reply") {
@@ -465,7 +480,13 @@ export function OttoPanel({
                 </p>
               ) : null}
               <Facts facts={exchange.reply.facts ?? []} />
-              {exchange.reply.entry && !exchange.confirmed ? <div className="mt-2.5">{card(exchange.reply.entry, false, "reply")}</div> : null}
+              {exchange.reply.entry && !exchange.confirmed && !exchange.stale ? <div className="mt-2.5">{card(exchange.reply.entry, false, "reply")}</div> : null}
+              {exchange.reply.entry && !exchange.confirmed && exchange.stale ? (
+                <p data-testid="otto-reply-stale" className="mt-1.5 text-xs text-slate-400">
+                  Something has changed in this assessment since this answer, so its card is no longer shown. Say it again to see where it stands
+                  now.
+                </p>
+              ) : null}
               {exchange.confirmed ? (
                 <p data-testid="otto-reply-confirmed" className="mt-1.5 text-xs text-slate-400">
                   Confirmed. The request the page's own button sends was sent.

@@ -949,6 +949,70 @@ describe("the text box (phase 6b)", () => {
     expect(within(line).queryAllByRole("button")).toHaveLength(0); // a record of what was said: nothing to press
   });
 
+  it("the card that came back for a sentence is taken away once the assessment changes elsewhere, and a line says so", async () => {
+    // The same suggestion is under "On this page" and, after "accept the check", in the answer. It is then accepted
+    // on the page's own card: the answer's card must not go on offering Accept.
+    const card = suggestion(checkProposal);
+    const fetchMock = await open(panel("checks", { box: checksBox, on_page: onPage([card]) }), {
+      [SAY]: { body: answer("card", `Accept “${card.title}”, on Advisories. Nothing happens until you press Confirm.`, { entry: card, open: { key: "accept", reason: null }, thread: "testing" }) },
+      [decide(checkProposal, "accept")]: { body: decided(checkProposal, "accepted") },
+    });
+    type("accept the check");
+    send();
+    const shown = await within(await screen.findByTestId("otto-reply")).findByTestId("otto-entry");
+    expect(within(shown).getByTestId("otto-confirm")).toBeTruthy();
+    fireEvent.click(within(shown).getByTestId("otto-cancel-button")); // not confirmed in the answer
+    // ... and accepted on its own card above
+    const own = within(screen.getByTestId("otto-on-page")).getByTestId("otto-entry");
+    fireEvent.click(button(own, "Accept"));
+    fireEvent.click(within(own).getByTestId("otto-confirm-button"));
+    await waitFor(() => expect(calls(fetchMock)).toContain(decide(checkProposal, "accept")));
+    await waitFor(() => expect(within(reply()).queryByTestId("otto-entry")).toBeNull());
+    expect(text(within(reply()).getByTestId("otto-reply-stale"))).toBe(
+      "Something has changed in this assessment since this answer, so its card is no longer shown. Say it again to see where it stands now.",
+    );
+    expect(within(reply()).queryAllByRole("button")).toHaveLength(0);
+    expect(within(reply()).queryByTestId("otto-reply-confirmed")).toBeNull();
+  });
+
+  it("the answer's own Confirm ends in Confirmed, not in the line about a change", async () => {
+    const card = suggestion(dependencyProposal);
+    await open(panel("checks", { box: checksBox }), {
+      [SAY]: { body: answer("card", `Accept “${card.title}”, on Dependencies. Nothing happens until you press Confirm.`, { entry: card, open: { key: "accept", reason: null }, thread: "fixing" }) },
+      [decide(dependencyProposal, "accept")]: { body: decided(dependencyProposal, "accepted") },
+    });
+    type("accept the java fix");
+    send();
+    const shown = await within(await screen.findByTestId("otto-reply")).findByTestId("otto-entry");
+    fireEvent.click(within(shown).getByTestId("otto-confirm-button"));
+    expect(text(await within(reply()).findByTestId("otto-reply-confirmed"))).toBe("Confirmed. The request the page's own button sends was sent.");
+    expect(within(reply()).queryByTestId("otto-reply-stale")).toBeNull();
+  });
+
+  it("a tab closed by a sentence stays closed when the read that follows lists that sentence in the tab", async () => {
+    // The kept sentence is filed under the thread it closes. The tab's mark does not count what was said, so the read
+    // after the sentence brings the same mark and the tab is not back.
+    const said: AssistantEntry = {
+      id: "said:9", kind: "said", what: "said:fixing", thread: "fixing", mark: "You said", title: "close the fixing tab", text: "Closed the Fixing tab.",
+      at: "2026-11-19T06:00:00Z", badge: null, where: null, links: [], proposal: null, decisions: [], step: null, open_item: false,
+    };
+    const before = panel("checks", { box: checksBox, tabs: [tab("testing"), tab("fixing", { mark: "fixing-mark-1" })] });
+    const after = panel("checks", { box: checksBox, tabs: [tab("testing"), tab("fixing", { mark: "fixing-mark-1", so_far: [said] })] });
+    let reads = 0;
+    mockApi({
+      [read("checks")]: () => ({ body: reads++ === 0 ? before : after }),
+      [SAY]: { body: answer("tab", "Closed the Fixing tab.", { tab: { thread: "fixing", how: "close" }, thread: "fixing" }) },
+    });
+    render(<Panel page="checks" />);
+    await screen.findByTestId("otto-status");
+    expect(tabs().map((t) => t.getAttribute("data-thread"))).toEqual(["testing", "fixing"]);
+    type("close the fixing tab");
+    send();
+    await waitFor(() => expect(text(screen.getByTestId("otto-reply-text"))).toBe("Closed the Fixing tab."));
+    await waitFor(() => expect(reads).toBeGreaterThanOrEqual(2)); // the panel read again after the sentence was kept
+    await waitFor(() => expect(tabs().map((t) => t.getAttribute("data-thread"))).toEqual(["testing"]));
+  });
+
   it("a refusal of the server is shown under the box in its own words, and nothing else happens", async () => {
     const onGoTo = vi.fn();
     await open(panel("checks", { box: checksBox }), { [SAY]: { status: 422, body: { error: { message: "Type where to go or what to do.", line: null, field: "text" } } } }, { onGoTo });

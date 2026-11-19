@@ -584,8 +584,11 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   `backend/app/assistant/commands.py`, and each example the list shows is read by them.
 - **Names.** A thing is found by the words of its title and of what it is about (the advisory's id, the library,
   the program), and by a few everyday names (Java for openjdk, Python or ecdsa for python-ecdsa). A name that fits
-  nothing gets "I can't do that."; one that fits several gets "Which one?". Nothing is guessed, so a short name
-  that two things share always asks.
+  nothing gets "I can't do that."; one that fits several gets "Which one?". Nothing is guessed. A short name that
+  two things share asks, with two exceptions that are not guesses: the one of them that is the open item, and,
+  for a decision, the only one that button is offered for. A whole title, said word for word, is that thing,
+  whatever word of it could also name a kind ("Fix acme-sign 1.4.2 before ..." is a plan change). A "Which one?"
+  lists at most eight and says so when more fit.
 - **"The second suggestion"** counts the suggestions shown under "On this page" beside the page the sentence was
   typed on, in the panel's own order. On a page with no suggestions there is nothing to count.
 - **Filters by a command** are: failed and passed (Checks, Evidence), true, false and couldn't check (Checks),
@@ -596,12 +599,35 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   are not listed.
 - **The address holds the page's own filter value** (`result=Failed` on Checks, `result=failed` on Evidence,
   `decision=proposed` on Advisories). A value the page does not have lists nothing. Fixes has no such filter.
-- **What is kept** is the sentence, the one line of the answer, the page, the thread and where it led. The card an
-  answer showed is not kept: the thread shows the line only. What was said is not in the evidence file (the plan
+- **What is kept** is the sentence, the one line of the answer, the page, the open item, the thread, where it led,
+  the time, and the name decisions are recorded under ("You" until one is typed). The card an answer showed is not
+  kept: the thread shows the line only. A sentence that belongs to no thread (typed beside the Overview, or one
+  that opens Settings) is kept and listed in no tab; that is on the list for Kevin. A kept sentence does not
+  bring a closed tab back and puts no dot on a tab. "Open where it led" opens the page, without the filter the
+  sentence had set.
+- **The card in an answer** shows the suggestion or the button as it stood when the sentence was answered. As soon
+  as anything changes the assessment after that, the card is taken away and a line says "Something has changed
+  ... Say it again to see where it stands now." It is not refreshed in place.
+- **A closed assessment's sentences are not kept by the app, but the terminal shows them.** There the box asks
+  with a read whose address holds the sentence, and the app's own log line for each request (printed by
+  `./run-demo.sh` in its terminal, written to no file) shows that address. What was said is not in the evidence file (the plan
   puts only Claude's steps there, and there are none yet).
 - **Done on its page only.** For Merge pull request, Apply and Roll back the answer repeats the page's own reason
-  where exactly one fix has that button; for Approve it says how many approvals are missing. For the others it
-  only says that it is done on the page.
+  where exactly one fix has that button; for Approve it says how many approvals are missing (none missing:
+  "Nothing on Fixes is waiting for that now."). For the others it only says that it is done on the page. In a
+  closed assessment the page opens and the answer is the closed sentence. "Open the pull request" asks to open a
+  new one; no sentence opens one that is already open (the fix's page shows it).
+- **With no file in**, only the Overview and Import can be opened, so "open checks" answers "Bring in a scanner
+  file first ...", and "What can you do?" lists only what moves around. The same list is shown in a closed
+  assessment.
+- **Checks narrowed by a command** says so in one line in the test plan ("1 of the plan's 6 tests are listed
+  (Result: Failed). Run all runs all 6."). The part's own heading still counts the whole plan. On Evidence the
+  Result filter narrows the Encryption tests table only; the other groups list every row.
+- **Words the rules no longer take**: "open" and "added" as a decision filter ("show open checks" is not read),
+  "apply the filter", "sign off the fix", "export the plan" and "tick Dana as reviewer" get "I can't do that."
+  instead of opening a page.
+- **The pictures of 6b and 6c** are in `docs/screenshots/phase6a/` (08b, 08c, 17b), with the walk they belong to;
+  there is no `phase6b/` or `phase6c/` folder.
 - **In a closed assessment** the box moves around and lists what can be said. Since phase 6c (first half) it also
   answers the six fixed questions there.
 - **Eleven of the thirteen next-step screen tests** still compare the panel's request with a typed request, not

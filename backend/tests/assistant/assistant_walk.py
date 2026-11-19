@@ -32,10 +32,15 @@ CHANGE = {"title": "Reject signatures whose r or s is out of range",
 REASON = "Not this quarter"
 STAGES = ("proposed", "decided", "ran", "measured", "accepted", "closed")
 # Phase 6b: what a person might type, asked at each stage of the walk, beside the page named. Asking is a read.
+# (after the review of 6b) A plan change's title holds the word "fix", which elsewhere says which kind of suggestion is
+# meant. Said whole, the title is that plan change.
+PLAN_CHANGE = "Fix acme-sign 1.4.2 before its signatures move to post-quantum"
+LONG_REJECT = "reject the blank signature check: " + "x" * 301
 ASKED: dict[str, tuple[tuple[str, str], ...]] = {
     "empty": (("overview", "what can you do?"), ("overview", "run all"), ("overview", "open checks"), ("overview", "accept the first suggestion"),
               # phase 6c: the fixed questions, before a file is in
-              ("overview", "what should i do next?"), ("inventory/import", "what is this page for?"), ("checks", "why did this check fail?")),
+              ("overview", "what should i do next?"), ("inventory/import", "what is this page for?"), ("checks", "why did this check fail?"),
+              ("overview", "open import"), ("overview", "open settings")),
     "proposed": (("checks", "show me failed checks"), ("checks", "accept the first suggestion"), ("checks", "accept the check"),
                  ("checks", "reject the second suggestion: not this quarter"), ("checks", "run all"), ("checks", "what can you do?"),
                  ("checks", "undo the first suggestion"), ("overview", "open evidence"), ("checks", "make me a sandwich"),
@@ -47,7 +52,9 @@ ASKED: dict[str, tuple[tuple[str, str], ...]] = {
                  ("checks", "where did this suggestion come from?"), ("checks", "where did the blank signature check come from?"),
                  ("checks", "what happens if i accept the blank signature check?"), ("checks", "what is this page for?"),
                  ("overview", "what is evidence for?"), ("overview", "what should i do next?"), ("checks", "why did this check fail?"),
-                 ("checks", "what is the moon for?")),
+                 ("checks", "what is the moon for?"),
+                 # after the review of 6b: a button offered for none of what fits; a reason that is too long
+                 ("checks", "undo the check"), ("checks", LONG_REJECT)),
     "ran": (("checks", "show me failed checks"), ("evidence", "show failed results"), ("checks", "show the checks that passed"),
             ("evidence", "retest on 1.4.3"), ("evidence", "retest"), ("fixes", "connect demo code"), ("fixes", "accept the fix"),
             ("fixes", "merge it"), ("fixes", "approve the pull request"), ("checks", "run all"), ("checks", "show retests"),
@@ -56,7 +63,8 @@ ASKED: dict[str, tuple[tuple[str, str], ...]] = {
             ("evidence", "what does the blank signature check show, and what doesn't it?"), ("evidence", "why did the speed test fail?"),
             ("checks", "what is this page for?"), ("evidence", "what is this page for?"), ("overview", "what should i do next?"),
             ("fixes", "where did this suggestion come from?"), ("fixes", "what happens if i accept this?")),
-    "measured": (("migration/dependencies", "accept the python fix"), ("migration/dependencies", "reject the python fix: we stay on 0.13.2 until January"),
+    "measured": (("migration/systems", "accept " + PLAN_CHANGE), ("overview", "open " + PLAN_CHANGE), ("overview", "where did " + PLAN_CHANGE + " come from?"),
+                 ("migration/dependencies", "accept the python fix"), ("migration/dependencies", "reject the python fix: we stay on 0.13.2 until January"),
                  ("overview", "accept the python fix"), ("fixes", "accept the fix"), ("migration/systems", "accept the plan change"),
                  ("migration/dependencies", "measure all"), ("migration/systems", "measure status"), ("migration/roadmap", "measure status"),
                  ("migration/dependencies", "open the python fix"), ("migration/dependencies", "undo the python fix"),
@@ -65,7 +73,8 @@ ASKED: dict[str, tuple[tuple[str, str], ...]] = {
                  ("overview", "turn on live otto"), ("inventory/import", "i own this system")),
     "accepted": (("migration/dependencies", "undo the python fix"), ("migration/dependencies", "accept the python fix"),
                  ("fixes", "connect demo code"), ("checks", "undo the first suggestion")),
-    "closed": (("migration/dependencies", "accept the python fix"), ("checks", "show me failed checks"), ("checks", "what can you do?"),
+    "closed": (("fixes", "approve it"), ("fixes", "apply"),
+               ("migration/dependencies", "accept the python fix"), ("checks", "show me failed checks"), ("checks", "what can you do?"),
                ("checks", "run all"), ("fixes", "merge it"), ("overview", "open evidence"),
                # phase 6c: a closed assessment still answers the fixed questions
                ("evidence", "why did the blank signature check fail?"), ("overview", "what should i do next?")),

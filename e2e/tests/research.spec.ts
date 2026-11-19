@@ -220,6 +220,9 @@ test("isolated mode: look, design and prove on public copies, the proven check i
     await expect(box).toContainText("A test counts as proven only when it fails on the affected version, passes on the fixed version, and the control that must fail does.");
     await expect(box).toContainText("Live Otto is off: only answers recorded during the build are used.");
     await expect(box).toContainText("that pack is installed by this click, after the built-in test pack not installed yet (2026.11.1), in order.");
+    // said before the run starts: what a run leaves open, and what a pack made here means for later built-in packs
+    await expect(box).toContainText("An advisory the run cannot settle (no answer, or a trial that does not finish) is left out of the pack and can be tried again.");
+    await expect(box).toContainText("Test packs install in one order, and a pack made here becomes the newest.");
     await expect(box).toContainText("Accepting or rejecting it stays with you");
     await shots(page, "04-the-box-before-a-research-run");
     const beforeStart = changes(page).length;

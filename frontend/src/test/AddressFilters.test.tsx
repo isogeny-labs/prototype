@@ -99,6 +99,32 @@ describe("Checks, filtered from its address", () => {
     await waitFor(() => expect(screen.getAllByTestId("test-card")).toHaveLength(plan.tests.length));
   });
 
+  it("says in one line that the plan is narrowed and what Run all still does", async () => {
+    mockApi(routes);
+    render(<Harness result="Failed" />);
+    await screen.findAllByTestId("group-section");
+    const line = await screen.findByTestId("plan-narrowed");
+    expect(line.textContent).toBe(`1 of the plan's ${plan.tests.length} tests are listed (Result: Failed). Run all runs all ${plan.tests.length}.`);
+    // with the filter off the line is gone
+    fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "all" } });
+    await waitFor(() => expect(screen.queryByTestId("plan-narrowed")).toBeNull());
+  });
+
+  it("a Result value from the address that no check reads now stays shown in the control, and the Test plan part stays with a line that says why it is empty", async () => {
+    mockApi(routes);
+    render(<Harness result="Couldn't check" />); // (as "show checks that could not be checked" opens the page)
+    await screen.findAllByTestId("group-section");
+    const control = screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement;
+    expect(control.value).toBe("Couldn't check"); // the filter that is on, not "All results"
+    expect(Array.from(control.options).map((o) => o.value)).toContain("Couldn't check");
+    // no card of the plan is listed, and the part says so; + Add test and Run all are still there
+    const line = await screen.findByTestId("plan-narrowed");
+    expect(line.textContent).toBe(`No test of the plan reads Couldn't check now. Run all runs all ${plan.tests.length}.`);
+    expect(screen.queryAllByTestId("test-card")).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Run all" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "+ Add test" })).toBeTruthy();
+  });
+
   it("a filter changed on the page goes into the address, and one the address names comes back to the page", async () => {
     mockApi(routes);
     const onFilters = vi.fn();

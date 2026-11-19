@@ -87,10 +87,10 @@ BOX = {"label": "Ask Otto, or tell it what to do", "send": "Send", "max": MAX_TE
 # ------------------------------------------------------------------ the words the rules know
 PAGE_WORDS: dict[str, str] = {
     "overview": "overview", "home": "overview", "start": "overview",
-    "import": "inventory/import", "inventory": "inventory/import", "the file": "inventory/import",
+    "import": "inventory/import", "inventory": "inventory/import", "file": "inventory/import", "scanner file": "inventory/import",
     "verify": "inventory/verify", "claims": "inventory/verify", "verification": "inventory/verify",
     "advisories": "advisories", "advisory": "advisories",
-    "checks": "checks", "tests": "checks", "test plan": "checks", "the plan": "checks", "the test plan": "checks",
+    "checks": "checks", "tests": "checks", "test plan": "checks", "plan": "checks",
     "evidence": "evidence", "results": "evidence", "evidence lab": "evidence",
     "fixes": "fixes", "fix": "fixes",
     "systems": "migration/systems", "migration": "migration/systems", "migration plan": "migration/systems",
@@ -112,11 +112,12 @@ RESULT_VALUES: dict[str, dict[str, str]] = {
     "evidence": {"Failed": "failed", "Passed": "passed"},
 }
 DECISION_WORDS: dict[str, str] = {
-    "proposed": "proposed", "undecided": "proposed", "waiting": "proposed", "open": "proposed",
-    "accepted": "accepted", "added": "accepted",
+    "proposed": "proposed", "undecided": "proposed", "waiting": "proposed",
+    "accepted": "accepted",
     "rejected": "rejected", "not added": "rejected", "declined": "rejected",
 }
-DECISION_LABELS = {"proposed": "Proposed", "accepted": "Accepted", "rejected": "Not added"}
+# (the Decision control's own words on Advisories)
+DECISION_LABELS = {"proposed": "Proposed", "accepted": "Added", "rejected": "Not added"}
 FROM_WORDS: dict[str, tuple[str, str]] = {
     "retests": ("retest", "Retest"), "retest": ("retest", "Retest"), "fix proofs": ("proof", "Fix proof"), "proofs": ("proof", "Fix proof"),
     "tries": ("try", "Try on a test copy"),
@@ -141,7 +142,7 @@ ALIASES: dict[str, tuple[str, ...]] = {"java": ("openjdk",), "jdk": ("openjdk",)
 _FOR = r"(?: (?:for|on|of|to|in) (?P<rest>.+))?"
 # The buttons a command can name, in the order the rules try them (the general "run <a test>" comes last).
 STARTS: tuple[tuple[str, str], ...] = (
-    ("run_all", r"(?:run|start|rerun) (?:all|everything|every test|all (?:the )?tests|the (?:whole )?(?:test )?plan|the tests)(?: again)?"),
+    ("run_all", r"(?:run|start|rerun) (?:all|everything|every test|all (?:the )?(?:tests|checks)|the (?:whole )?(?:test )?plan|the tests|the checks)(?: again)?"),
     ("verify", r"(?:verify|check)(?: the)?(?: claims| file)?"),
     ("retest_now", r"retest now" + _FOR),
     ("retest", r"retest(?: new version| a new version| another version)?(?: (?:on|with|to|against|at) (?P<rest>.+))?"),
@@ -162,6 +163,8 @@ SKIP = {"the", "a", "an", "this", "that", "it", "its", "my", "our", "of", "for",
 POLITE = re.compile(r"^(?:(?:hey|hi|ok|okay)\s+)?(?:otto[,:]?\s+)?(?:please\s+)?(?:(?:can|could|would|will)\s+you\s+)?(?:please\s+)?"
                     r"(?:i\s+(?:want|would\s+like|need)\s+to\s+)?(?:let'?s\s+)?")
 _TOKEN = re.compile(r"[a-z0-9]+(?:[.\-][a-z0-9]+)*")
+_GREETING = re.compile(r"(?i)^\s*(?:(?:hey|hi|ok|okay)\s+)?otto\s*[:,]\s*")
+_PLEASE = re.compile(r"[ ,]+please$")
 
 
 def tokens(text: str) -> list[str]:
@@ -183,9 +186,10 @@ def read(text: str) -> dict:
     plain = " ".join(str(text or "").replace("’", "'").split())[:MAX_TEXT]
     if not plain:
         return {"key": None, "said": ""}
-    # A reason rides along after the first colon. It is the person's own words, as typed.
-    head, _, tail = plain.partition(":")
-    low = POLITE.sub("", head.strip().lower()).strip(" .!?")
+    # A reason rides along after the first colon. It is the person's own words, as typed. ("Otto: run all" greets with
+    # a colon: that one is not the start of a reason.)
+    head, _, tail = _GREETING.sub("", plain).partition(":")
+    low = _PLEASE.sub("", POLITE.sub("", head.strip().lower()).strip(" .!?"))
     reason = tail.strip() or None
     said = {"said": plain}
 
@@ -194,7 +198,7 @@ def read(text: str) -> dict:
     # Phase 6c: one of the six fixed questions, in any of its wordings (answered from the assessment's records).
     # A question carries no reason, so the whole sentence is read first: a colon in it belongs to a name.
     from app.assistant import questions
-    whole = POLITE.sub("", plain.strip().lower()).strip(" .!?")
+    whole = _PLEASE.sub("", POLITE.sub("", _GREETING.sub("", plain).strip().lower()).strip(" .!?"))
     asked = questions.read(whole) or questions.read(low)
     if asked is not None:
         return {**said, **asked}
@@ -204,11 +208,15 @@ def read(text: str) -> dict:
 
     # ---- done on its page only (read before the decisions: "approve" is not "accept")
     for key, pattern in (
-        ("approve", r"approve\b.*"), ("merge", r"merge\b.*"), ("apply", r"apply\b.*"), ("roll_back", r"roll ?back\b.*|undo the apply.*"),
-        ("sign_off", r"(close and sign off|sign off|sign it off|close (the|this) assessment)\b.*"),
-        ("own_tick", r"(i own (this|the) system|tick .*|confirm (the|this|my) address.*|confirm ownership.*)"),
+        ("approve", r"approve\b.*"), ("merge", r"merge\b.*"),
+        # (only what names the button's own thing: "apply the filter" and "sign off the fix" are not these buttons)
+        ("apply", r"apply(?: it| this| that| the (?:fix|change|setting|update|try))?(?: to .+)?(?: now)?"),
+        ("roll_back", r"roll ?back\b.*|undo the apply.*"),
+        ("sign_off", r"(?:close and sign off|sign off|sign it off|close (?:the|this) assessment)(?: (?:the|this) assessment)?(?: now)?"),
+        ("own_tick", r"(i own (this|the) system|tick (?:that )?i own.*|tick (?:the )?(?:box|ownership|owner)\b.*|confirm (the|this|my) address.*|confirm ownership.*)"),
         ("choose_option", r"(choose|pick|select|take) .*\boption\b.*|keep .* classical.*"),
-        ("mark_reviewed", r"mark .*\breviewed\b.*|mark reviewed"), ("download", r"download\b.*|export\b.*"),
+        ("mark_reviewed", r"mark .*\breviewed\b.*|mark reviewed"),
+        ("download", r"download\b.*|export(?: the)? (?:evidence|report)\b.*"),
         ("settings", r"(turn|switch) (on|off) live otto|(turn|switch) live otto (on|off)|(open |go to |show )?settings|install .*pack.*|set .*limit.*"),
     ):
         if re.fullmatch(pattern, low):
@@ -291,6 +299,21 @@ def match(rest: str, candidates: list[dict], ignore: frozenset[str] | set[str] =
     return out
 
 
+def exact(rest: str, candidates: list[dict]) -> list[dict]:
+    """The candidates that are called exactly what was said, word for word (their whole title). Looked for before any
+    word of the sentence is read as a kind of thing: a title may hold such a word itself ("Fix acme-sign 1.4.2 before
+    its signatures move to post-quantum" is a change to the migration plan, not a fix)."""
+    said = tokens(rest)
+    return [c for c in candidates if said and any(tokens(str(name)) == said for name in c["names"])]
+
+
+def which_text(shown: int, fitting: int) -> str:
+    """"Which one?", and where more fit than are listed, a plain word about it."""
+    if fitting <= shown:
+        return "Which one?"
+    return f"Which one? The first {shown} of {fitting} that fit are listed. Say more of its name to narrow it down."
+
+
 def kinds_named(rest: str) -> tuple[str, ...] | None:
     """Which kinds of suggestion the words name ("the Java fix": a fix or a library update), or None when they name none."""
     named = [KIND_WORDS[t] for t in tokens(rest) if t in KIND_WORDS]
@@ -307,13 +330,16 @@ def ordinal(rest: str) -> int | None:
 
 # ------------------------------------------------------------------ what can be said on a page
 
-def can_say(page: str, has_suggestions: bool) -> list[dict]:
+def can_say(page: str, has_suggestions: bool, moving_only: bool = False) -> list[dict]:
     """The lines of the one list that fit this page, each with an example: moving around, the decisions (where a
-    suggestion can be named), the page's own buttons, and what is done on a page only."""
+    suggestion can be named), the page's own buttons, and what is done on a page only. `moving_only`: a closed
+    assessment, or one with no file yet, where nothing can be decided or started: only the lines that move."""
     out = []
     for c in COMMANDS:
         if c["kind"] == "go":
             out.append({"say": c["say"], "about": c["about"], "kind": "go"})
+        elif moving_only:
+            continue
         elif c["key"] in DECISIONS:
             if has_suggestions:
                 out.append({"say": c["say"], "about": c["about"], "kind": "do"})

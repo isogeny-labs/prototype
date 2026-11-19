@@ -309,9 +309,14 @@ def test_where_nothing_fits_it_says_so_and_lists_what_can_be_said_here_from_the_
     for c in commands.COMMANDS:
         assert commands.read(c["say"])["key"] == c["key"], c["say"]
     # with no file in yet: moving around works, and a decision or a start says what is missing
-    assert _said(assistant_walk, "empty", "overview", "open checks")["kind"] == "went"
+    # (with no file the app shows only the Overview and Import: another page is not "opened", the answer says what is missing)
+    assert _said(assistant_walk, "empty", "overview", "open import")["kind"] == "went"
+    no_file = _said(assistant_walk, "empty", "overview", "open checks")
+    assert no_file["kind"] == "cannot" and no_file["go"] is None and no_file["text"].startswith("Bring in a scanner file first.")
+    assert _said(assistant_walk, "empty", "overview", "open settings")["kind"] == "page_only"          # Settings is not part of an assessment
     assert _said(assistant_walk, "empty", "overview", "run all")["text"].startswith("Bring in a scanner file first.")
-    assert not any("Accept" in c["say"] for c in _said(assistant_walk, "empty", "overview", "what can you do?")["can"])
+    listed = _said(assistant_walk, "empty", "overview", "what can you do?")["can"]
+    assert listed and all(c["kind"] == "go" for c in listed)                 # only the lines that move: nothing can be decided or started yet
 
 
 @pytest.mark.needs_otto
@@ -322,7 +327,20 @@ def test_in_a_closed_assessment_the_text_box_only_moves_and_anything_else_gets_t
         assert reply["kind"] == "closed" and "This assessment is closed." in reply["text"] and reply["entry"] is None and reply["open"] is None
     assert closed.said[("checks", "show me failed checks")]["kind"] == "went"
     assert closed.said[("overview", "open evidence")]["kind"] == "went" and closed.said[("checks", "what can you do?")]["kind"] == "help"
-    assert closed.said[("fixes", "merge it")]["kind"] == "page_only"
+    # a button that is done on its page only: the page opens, and the answer is the closed sentence, never "the button is ready"
+    for sentence, starts in (("merge it", "Merging is done on the page. "), ("approve it", "Approving is done on the page. "),
+                             ("apply", "Applying a change is done on the page. ")):
+        reply = closed.said[("fixes", sentence)]
+        assert reply["kind"] == "page_only" and reply["go"]["page"] == "fixes" and reply["text"].startswith(starts)
+        assert "This assessment is closed" in reply["text"] and "ready" not in reply["text"] and "missing" not in reply["text"]
+    # what can be said there: only the lines that move
+    assert all(c["kind"] == "go" for c in closed.said[("checks", "what can you do?")]["can"])
+    # and nothing typed there is kept, also when the keeping call is made directly
+    from app.errors import Conflict
+    before = len(assistant_walk.lab.assistant_messages(assistant_walk.plan_id))
+    with pytest.raises(Conflict):
+        assistant_walk.lab.assistant_say(assistant_walk.plan_id, "checks", None, "open evidence")
+    assert len(assistant_walk.lab.assistant_messages(assistant_walk.plan_id)) == before
     box = closed.pages["checks"]["box"]
     assert box["kept"] is False and "not kept" in box["kept_note"]
 
@@ -412,3 +430,93 @@ def test_the_two_routes_answer_alike_one_keeps_the_exchange_and_a_closed_assessm
 
 def test_the_page_labels_the_answers_use_are_the_pages_own():
     assert PAGE_LABELS["checks"] == "Checks" and set(commands.CHIPS) == set(PAGES)
+
+
+# ---------------------------------------------------------------- after the separate review of 6b (19 November 2026)
+
+@pytest.mark.parametrize("sentence, key", [
+    ("Otto: run all", "run_all"), ("otto, show me failed checks", "filter"), ("hey otto: open evidence", "open_page"),
+    ("open the plan", "open_page"), ("open the test plan", "open_page"), ("open the file", "open_page"), ("open the checks page please", "open_page"),
+    ("run the checks", "run_all"), ("run all the checks", "run_all"), ("open evidence, please", "open_page"),
+    # read as nothing the list knows, not as a button of another page
+    ("apply the filter", None), ("sign off the fix", None), ("export the plan", None), ("tick Dana as reviewer", None),
+    # still what they were
+    ("apply", "apply"), ("apply it", "apply"), ("apply the change to localhost:8443", "apply"), ("sign off", "sign_off"),
+    ("close and sign off", "sign_off"), ("download evidence", "download"), ("export the report", "download"),
+    ("tick the box", "own_tick"), ("i own this system", "own_tick"), ("confirm the address", "own_tick"),
+])
+def test_sentences_the_review_found_read_into_something_else(sentence, key):
+    assert commands.read(sentence)["key"] == key, sentence
+
+
+def test_open_and_added_are_not_read_as_a_decision_filter_and_the_decision_words_are_the_controls_own():
+    # "Open" is Checks' own count word and "added by you" the plan's: neither opens Advisories filtered
+    assert commands.read("show open checks")["key"] == "open_item" and commands.read("show added tests")["key"] == "open_item"
+    accepted = commands.read("show accepted checks")
+    assert (accepted["key"], accepted["page"], accepted["value"], accepted["label"]) == ("filter", "advisories", "accepted", "Added")
+    assert commands.read("otto: reject the java fix: not this quarter")["reason"] == "not this quarter"
+
+
+def test_the_whole_title_is_found_before_a_word_of_it_is_read_as_a_kind():
+    plan = {"names": ["Fix acme-sign 1.4.2 before its signatures move to post-quantum"], "kind": "plan"}
+    fix = {"names": ["Reject signatures whose r or s is out of range (acme-sign)"], "kind": "fix"}
+    assert commands.exact("fix acme-sign 1.4.2 before its signatures move to post-quantum", [plan, fix]) == [plan]
+    assert commands.exact("fix acme-sign", [plan, fix]) == [] and commands.exact("", [plan, fix]) == []
+    assert commands.kinds_named("fix acme-sign 1.4.2 before its signatures move to post-quantum") == ("fix", "dependency")     # why the look comes first
+    assert commands.which_text(3, 3) == "Which one?"
+    assert commands.which_text(8, 12) == "Which one? The first 8 of 12 that fit are listed. Say more of its name to narrow it down."
+
+
+@pytest.mark.needs_otto
+def test_a_title_that_holds_a_kind_word_is_still_that_one_thing(assistant_walk):
+    from assistant_walk import PLAN_CHANGE
+    plan = next(p for p in assistant_walk.lab.otto_proposals(assistant_walk.plan_id) if p["kind"] == "plan")
+    assert plan["title"] == PLAN_CHANGE
+    card = _said(assistant_walk, "measured", "migration/systems", "accept " + PLAN_CHANGE)
+    assert card["kind"] == "card" and card["entry"]["title"] == PLAN_CHANGE and card["open"]["key"] == "accept" and card["thread"] == "planning"
+    went = _said(assistant_walk, "measured", "overview", "open " + PLAN_CHANGE)
+    assert went["kind"] == "went" and went["go"]["page"] == "migration/systems" and went["text"] == f"Opened “{PLAN_CHANGE}” on Systems."
+    asked = _said(assistant_walk, "measured", "overview", "where did " + PLAN_CHANGE + " come from?")
+    assert asked["kind"] == "answer" and PLAN_CHANGE in asked["facts"][0]["text"] and asked["thread"] == "planning"
+
+
+@pytest.mark.needs_otto
+def test_a_button_offered_for_nothing_that_fits_says_so_and_a_reason_that_is_too_long_is_refused_before_any_card(assistant_walk):
+    from app.otto import proposals
+    from assistant_walk import LONG_REJECT
+    nothing = _said(assistant_walk, "proposed", "checks", "undo the check")           # nothing was accepted yet: there is nothing to undo
+    assert nothing["kind"] == "cannot" and nothing["options"] == [] and nothing["entry"] is None
+    assert nothing["text"] == "Undo is not offered for any of the 3 suggestions that fit now. Each card says where it stands."
+    long = _said(assistant_walk, "proposed", "checks", LONG_REJECT)
+    assert long["kind"] == "cannot" and long["entry"] is None and long["open"] is None
+    assert long["text"] == "A reason is one short line, 300 characters at most. Yours has 301. Say it again with a shorter reason."
+    assert answers.MAX_REASON == proposals.MAX_REASON == 300
+
+
+def test_approve_counts_the_approvals_that_are_missing_from_the_rows_own_field():
+    """A reviewer's row carries when it was approved, or nothing. (The first version read a field the rows do not have,
+    and so counted every reviewer as missing, also after the merge.)"""
+    line = commands.BY_KEY["approve"]
+
+    def told(rows) -> str:
+        fixes = [{"id": "fix-1", "title": "A fix", "approvers": {"rows": rows}}]
+        facts = type("Facts", (), {"fixes": lambda self: {"fixes": fixes}})()
+        return answers._page_only(facts, "approve", line, {"rest": "approve it"}, None, lambda kind, text, **more: {"kind": kind, "text": text, **more})["text"]
+    none, one, both = [{"name": "A", "approved_at": None}, {"name": "B", "approved_at": None}], \
+        [{"name": "A", "approved_at": "2026-11-19T07:00:00Z"}, {"name": "B", "approved_at": None}], \
+        [{"name": "A", "approved_at": "2026-11-19T07:00:00Z"}, {"name": "B", "approved_at": "2026-11-19T07:01:00Z"}]
+    assert told(none) == "Approving is done on the page. 2 approvals are still missing."
+    assert told(one) == "Approving is done on the page. One approval is still missing."
+    assert told(both) == "Approving is done on the page. Nothing on Fixes is waiting for that now."
+
+
+@pytest.mark.needs_otto
+def test_what_a_person_typed_does_not_change_a_tabs_mark(assistant_walk):
+    """A tab that was closed comes back, with a dot, when its thread has something new. A person's own sentence is not
+    that: "close the Fixing tab" is filed under Fixing, and must not bring the tab back."""
+    before = {t["key"]: t["mark"] for t in assistant_walk.at["accepted"].pages["checks"]["tabs"]}
+    after = {t["key"]: t["mark"] for t in assistant_walk.at["said"].pages["checks"]["tabs"]}
+    assert before == after and before
+    said = [e for t in assistant_walk.at["said"].pages["checks"]["tabs"] for e in t["so_far"] if e["kind"] == "said"]
+    assert len(said) >= 3                                       # the sentences are listed in their threads all the same
+

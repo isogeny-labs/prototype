@@ -230,6 +230,10 @@ def _shows(row: dict, out: Any) -> dict:
 def _pick_proposal(rest: str, item: str | None, proposals: list[dict], shown: list[dict]) -> dict | list[dict]:
     from app.assistant.engine import _about
     if _names(rest):
+        # the whole title, word for word, whatever kind word it holds itself ("Fix acme-sign 1.4.2 before ..." is a plan change)
+        whole = commands.exact(rest, [{"names": [str(p.get("title") or "")], "p": p} for p in proposals])
+        if len(whole) == 1:
+            return whole[0]["p"]
         kinds = commands.kinds_named(rest)
         pool = [p for p in proposals if kinds is None or p["kind"] in kinds]
         found = [c["p"] for c in commands.match(rest, [{"names": [str(p.get("title") or "")] + [str(v) for v in (p.get("about") or {}).values()

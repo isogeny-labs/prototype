@@ -27,7 +27,7 @@ the section before the appendix.
 | 7 | "Look for new advisories" reads a public source and finds what fits | **Built, reviewed, review findings fixed, pushed** (step 3). The read from osv.dev itself could not be tried from the build machine: `docs/LIVE-CHECK.md`, Part 1, is Kevin's first real look |
 | 8 | Otto designs a test and proves it on public copies after a click; only then a proposal | **Built, reviewed, review findings fixed, pushed.** The real run in containers and the walk passed before the fixes and are **running again now** on the fixed code |
 | 9, 10, 11 | The assistant: suggestions that fit the page, three tabs, decide in the panel | **Done** (phase 6a): built, reviewed, findings fixed, walk green, pictures, pushed |
-| 12 | Commands | **First half done** (6b, fixed rules only): built, tested, walk green, documented, reviewed. The review's findings are fixed in the working tree and being tested (**not committed yet** at the time of writing). The second half (free wording through Claude) is not built |
+| 12 | Commands | **First half done** (6b, fixed rules only): built, tested, walk green, documented, reviewed. The review's findings are fixed and committed as work in progress (the commit after `12ea5d8`): the reader's own tests (110) and the screen tests of the two files touched (94) pass, lint and both type checks are clean; **the harness tests of `tests/assistant` and the panel walk were not run on it yet** (the machine was busy with the research loop's real run). The second half (free wording through Claude) is not built |
 | 13 | Questions | **First half built** (6c, the six fixed questions by rules): tested, walk green, documented, pushed (`c7472a4`); its separate review is running. The second half (answers in free words by Claude, with "Hypothesis") is not built |
 | 14 | What-if and hypotheses | Not started (6e) |
 | 15 | Change watch | Not started (6d) |
@@ -490,12 +490,11 @@ applied.
 
 ## The exact next action
 
-1. If the working tree holds uncommitted changes under `backend/app/assistant/`, `backend/app/lab/said.py`,
-   `backend/tests/assistant/`, `frontend/src/` or `e2e/tests/assistant.spec.ts`: those are the fixes for the 6b
-   review's findings (the list with its states is in step 4 above). Check them
-   (`cd backend && .venv/bin/python -m pytest -q tests/assistant tests/times`, `cd frontend && npm run typecheck
-   && npm test`, then `cd frontend && npm run build && cd ../e2e && npx playwright test tests/assistant.spec.ts
-   --trace off`), commit and push.
+1. The fixes for the 6b review's findings (the list with its states is in step 4 above) are committed as work
+   in progress, right after `12ea5d8`. They still need their checks: `cd backend && .venv/bin/python -m pytest -q
+   tests/assistant tests/times`, `cd frontend && npm run typecheck && npm test`, then `cd frontend && npm run
+   build && cd ../e2e && npx playwright test tests/assistant.spec.ts --trace off`. Correct what fails, commit the
+   walk's pictures (`docs/screenshots/phase6a/`), push.
 2. The research loop after its fixes: `cd backend && .venv/bin/python -m pytest -q tests/otto/test_discover_real.py
    --full` (about 10 minutes, Docker) and `cd e2e && npx playwright test tests/research.spec.ts --trace off`
    (about 11 minutes). Commit the walk's pictures (`docs/screenshots/phase6-research/`); restore other picture

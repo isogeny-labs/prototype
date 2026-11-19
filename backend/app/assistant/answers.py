@@ -28,6 +28,7 @@ WHICH = "Which one?"
 NO_FILE = "Bring in a scanner file first. Until then there is nothing to decide or to start."
 WAITS = "Nothing happens until you press Confirm."
 VERBS = {"accept": "Accept", "reject": "Reject", "undo": "Undo", "reconsider": "Reconsider"}
+MAX_REASON = 300          # (the page's own limit for a reject reason: app/otto/proposals.py; a test holds the two equal)
 # What "it" can be told about a button that lives on its page only: the page's own button, when one fix has it.
 PAGE_BUTTONS = {"merge": "merge", "apply": "apply", "roll_back": "rollback"}
 
@@ -52,7 +53,7 @@ def answer(copilot: Any, lab: Any, assessment_id: int, page: str, item: str | No
 
     has_file = core["import_id"] is not None and core["plan_id"] is not None
     proposals = lab.otto_proposals(core["plan_id"]) if has_file else []
-    can = commands.can_say(page, bool(proposals))
+    can = commands.can_say(page, bool(proposals), moving_only=closed or not has_file)
     if key is None:
         return out("cannot", CANNOT, can=can)
     if key == "ask":
@@ -64,10 +65,16 @@ def answer(copilot: Any, lab: Any, assessment_id: int, page: str, item: str | No
         return questions.answer(copilot, facts_, said, page, item, proposals, shown_, out, can)
     if key == "help":
         return out("help", f"On {PAGE_LABELS[page]} you can tell Otto:", can=can)
+    # With no file in, the app shows only the Overview and Import: nothing else can be opened yet, and it says so.
+    reachable = has_file or key in ("settings",)
     if key == "open_page":
+        if not has_file and said["page"] not in ("overview", "inventory/import"):
+            return out("cannot", NO_FILE, can=can)
         return out("went", f"Opened {PAGE_LABELS[said['page']]}.", go=commands.go(said["page"]), thread=PAGE_THREAD[said["page"]])
     if line and line["kind"] == "page" and key not in PAGE_BUTTONS and key != "approve":
         target = line["page"]
+        if not reachable and target not in ("overview", "inventory/import"):
+            return out("cannot", NO_FILE, can=can)
         return out("page_only", line["done"], go=commands.go(target), thread=PAGE_THREAD.get(target))
     if not has_file:
         return out("cannot", NO_FILE, can=can)
@@ -95,6 +102,10 @@ def answer(copilot: Any, lab: Any, assessment_id: int, page: str, item: str | No
         return _open_item(copilot, facts, said, shown + others, item, out, can)
 
     if key in PAGE_BUTTONS or key == "approve":
+        if closed:
+            # (nothing can be approved, merged, applied or rolled back in a closed assessment: the page opens, and the
+            #  answer is the closed sentence, never "the button is ready")
+            return out("page_only", f"{line['done']} {core['status'].get('closed_line') or CLOSED}", go=commands.go("fixes"), thread="fixing")
         return _page_only(facts, key, line, said, item, out)
 
     # ---- from here on: a decision or a start. Nothing of it happens here: the answer is a card and its Confirm step.
@@ -122,9 +133,11 @@ def _filter(lab: Any, facts: Any, said: dict, out: Any) -> dict:
     else:
         where = commands.go(page, result=value)
     if count is None:
-        return out("went", f"Opened {name}, filtered to {label}.", go=where, thread=PAGE_THREAD[page])
+        # (Evidence: its Result filter is the Encryption tests table's own; the other groups list every row)
+        return out("went", f"Opened {name}, with the Encryption tests table filtered to {label}.", go=where, thread=PAGE_THREAD[page])
     many = {"check": "checks", "advisory": "advisories", "result": "results"}[one]
-    told = f"{count} {one if count == 1 else many}" if count else f"no {one} reads {label} now"
+    none = f"no {one} is listed there now" if said["filter"] == "from" else f"no {one} reads {label} now"
+    told = f"{count} {one if count == 1 else many}" if count else none
     return out("went", f"Opened {name}, filtered to {label}: {told}.", go=where, thread=PAGE_THREAD[page])
 
 
@@ -165,13 +178,25 @@ def _open_item(copilot: Any, facts: Any, said: dict, proposals: list[dict], item
             candidates.append({"names": [fix["title"], fix.get("list_source") or ""], "title": fix["title"], "go": commands.go("fixes", fix["id"]),
                                "thread": "fixing", "where": "Fixes"})
     found = commands.match(rest, candidates) if [t for t in commands.tokens(rest) if t not in commands.SKIP and t not in commands.KIND_WORDS] else []
+    if len(found) != 1:
+        # the whole title, word for word, whatever kind word it holds itself (looked for among everything, of any kind)
+        everything = [{"names": [p["title"]], "title": p["title"], "go": {**commands.go(HOME.get(p["kind"], "overview")), **_link_of(p)},
+                       "thread": KIND_THREAD[p["kind"]], "where": PAGE_LABELS[HOME.get(p["kind"], "overview")]} for p in proposals]
+        everything += [{"names": [t["title"]], "title": t["title"], "go": commands.go("checks", f"test-{t['id']}"), "thread": "testing", "where": "Checks"}
+                       for t in facts.plan().get("tests") or []]
+        everything += [{"names": [fix["title"]], "title": fix["title"], "go": commands.go("fixes", fix["id"]), "thread": "fixing", "where": "Fixes"}
+                       for fix in facts.fixes().get("fixes") or []]
+        whole = _once(commands.exact(rest, everything), lambda c: (c["go"]["page"], c["go"]["item"]))
+        if len(whole) == 1:
+            found = whole
     found = _once(found, lambda c: (c["go"]["page"], c["go"]["item"]))
     if len(found) == 1:
         one = found[0]
         return out("went", f"Opened “{one['title']}” on {one['where']}.", go=one["go"], thread=one["thread"])
     if len(found) > 1:
-        return out("which", WHICH, options=[{"label": f"{c['title']} (on {c['where']})", "say": f"Open {commands.sayable(c['title'])}"}
-                                             for c in found[:commands.MAX_OPTIONS]])
+        listed = found[:commands.MAX_OPTIONS]
+        return out("which", commands.which_text(len(listed), len(found)),
+                   options=[{"label": f"{c['title']} (on {c['where']})", "say": f"Open {commands.sayable(c['title'])}"} for c in listed])
     return out("cannot", CANNOT + " Nothing here is called that.", can=can)
 
 
@@ -185,7 +210,7 @@ def _page_only(facts: Any, key: str, line: dict, said: dict, item: str | None, o
         buttons = list((fix.get("actions") or {}).get("buttons") or []) + list((fix.get("change_box") or {}).get("buttons") or [])
         if key == "approve":
             rows = list((fix.get("approvers") or {}).get("rows") or []) + list(((fix.get("change_box") or {}).get("approvals") or {}).get("rows") or [])
-            waiting = [r for r in rows if not r.get("approved") and r.get("state") != "approved"]
+            waiting = [r for r in rows if not r.get("approved_at")]          # (a row carries when it was approved, or nothing)
             if rows and waiting:
                 having.append((fix, None, f"{_count(len(waiting), 'approval is', 'approvals are')} still missing."))
             continue
@@ -208,17 +233,25 @@ def _page_only(facts: Any, key: str, line: dict, said: dict, item: str | None, o
 
 def _decision(copilot: Any, said: dict, verb: str, shown: list[dict], others: list[dict], item: str | None, out: Any, can: list[dict]) -> dict:
     rest = said["rest"]
+    if verb == "reject" and said.get("reason") and len(said["reason"]) > MAX_REASON:
+        return out("cannot", f"A reason is one short line, {MAX_REASON} characters at most. Yours has {len(said['reason'])}. "
+                             "Say it again with a shorter reason.", can=can)
     kinds = commands.kinds_named(rest)
     pool = [p for p in shown + others if kinds is None or p["kind"] in kinds]
     place = commands.ordinal(rest)
-    if place is not None:
+    # the whole title, word for word, whatever kind word it holds itself
+    whole = commands.exact(rest, [{"names": [p["title"]], "p": p} for p in shown + others])
+    if len(whole) == 1:
+        pool, place = [whole[0]["p"]], None
+    elif place is not None:
         # "the second suggestion": counted down the cards as the panel shows them on this page
         listed = [p for p in shown if kinds is None or p["kind"] in kinds]
         try:
             pool = [listed[place]]
         except IndexError:
-            return out("cannot", f"{CANNOT} There {'is' if len(listed) == 1 else 'are'} {_count(len(listed), 'suggestion', 'suggestions')} "
-                                 "on this page to count down.", can=can)
+            there = ("There is no suggestion" if not listed else "There is 1 suggestion" if len(listed) == 1
+                     else f"There are {len(listed)} suggestions")
+            return out("cannot", f"{CANNOT} {there} on this page to count down.", can=can)
     else:
         named = commands.match(rest, [{"names": _names_of(p), "p": p} for p in pool])
         pool = [c["p"] for c in named]
@@ -233,9 +266,16 @@ def _decision(copilot: Any, said: dict, verb: str, shown: list[dict], others: li
                 pool = narrower
                 break
     if len(pool) > 1:
-        return out("which", WHICH, options=[{"label": f"{p['title']} (on {PAGE_LABELS[HOME.get(p['kind'], 'overview')]})",
-                                             "say": f"{VERBS[verb]} {commands.sayable(p['title'])}" + (f": {said['reason']}" if said.get("reason") else "")}
-                                            for p in pool[:commands.MAX_OPTIONS]])
+        # only the ones this button is offered for are worth choosing between
+        offered = [p for p in pool if verb in (p.get("actions") or {})]
+        if not offered:
+            return out("cannot", f"{VERBS[verb]} is not offered for any of the {len(pool)} suggestions that fit now. Each card says where "
+                                 "it stands.", can=can)
+        listed = offered[:commands.MAX_OPTIONS]
+        return out("which", commands.which_text(len(listed), len(offered)),
+                   options=[{"label": f"{p['title']} (on {PAGE_LABELS[HOME.get(p['kind'], 'overview')]})",
+                             "say": f"{VERBS[verb]} {commands.sayable(p['title'])}" + (f": {said['reason']}" if said.get("reason") else "")}
+                            for p in listed])
     proposal = pool[0]
     entry = copilot._suggestion(proposal, item)
     thread = KIND_THREAD[proposal["kind"]]
@@ -275,8 +315,9 @@ def _start(copilot: Any, facts: Any, said: dict, line: dict, page: str, item: st
                 entries = narrower
                 break
     if len(entries) > 1:
-        return out("which", WHICH, thread=thread, options=[{"label": names[e["id"]][0], "say": _say_again(line, names[e["id"]][0])}
-                                                            for e in entries[:commands.MAX_OPTIONS]])
+        listed = entries[:commands.MAX_OPTIONS]
+        return out("which", commands.which_text(len(listed), len(entries)), thread=thread,
+                   options=[{"label": names[e["id"]][0], "say": _say_again(line, names[e["id"]][0])} for e in listed])
     entry = entries[0]
     step = entry["step"]
     if step["needs"] == "nothing":

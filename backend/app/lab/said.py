@@ -11,7 +11,7 @@ from typing import Any
 from sqlalchemy import select
 
 from app.db import AssistantMessageRow, iso
-from app.errors import NotFound
+from app.errors import Conflict, NotFound
 from app.present import times
 
 MAX_KEPT_SHOWN = 200
@@ -32,6 +32,8 @@ class SaidMixin:
         a = self.assessment_for(plan_id=plan_id)             # type: ignore[attr-defined]
         if a is None:
             raise NotFound("That assessment does not exist.")
+        if a.closed_at is not None:                          # (the route refuses this too; a closed assessment keeps nothing)
+            raise Conflict("This assessment is closed. What you type is not kept.")
         reply = self.copilot.command(self, a.id, page, item, text)
         # What is stored keeps UTC words, like every file: a time mark is only ever written into an answer to a browser
         # (app/present/times.py). Where this answer holds a mark, the same answer is worded once more for a file.

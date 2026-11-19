@@ -658,6 +658,24 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     expect(good.status, `the evidence file should check: ${good.stdout} ${good.stderr}`).toBe(0);
     expect(good.stdout).toMatch(/^Evidence verified/);
     expect(good.stdout).toMatch(/Decisions: 9 on \d+ of the \d+ proposals, each in the ledger with who and when/);
+
+    // ================================================================ after the review of 6b: a tab closed by a sentence stays closed
+    // "close the Fixing tab" is kept with the assessment under that very thread. The tab must not come back for it.
+    await expect(tab(page, "fixing")).toHaveCount(1);
+    await panel.getByTestId("otto-box-text").fill("close the fixing tab");
+    await panel.getByTestId("otto-box-text").press("Enter");
+    await expect(panel.getByTestId("otto-reply-text")).toHaveText("Closed the Fixing tab.");
+    await settled(page);
+    await expect(tab(page, "fixing")).toHaveCount(0);
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+    unanswered.set(page, 0);
+    await expect(panelOf(page).getByTestId("otto-status")).toBeVisible();
+    await expect(tab(page, "testing")).toHaveCount(1, { timeout: 30_000 });
+    await expect(tab(page, "fixing")).toHaveCount(0);                             // still closed after the page was loaded again
+    // on Checks, narrowed by the earlier command's filter, the plan says how many of its tests are listed and what Run all does
+    await page.goto(`/#/a/${assessment}/checks?result=Failed`);
+    await expect(page.getByTestId("plan-narrowed")).toHaveText(/^\d+ of the plan's \d+ tests are listed \(Result: Failed\)\. Run all runs all \d+\.$/);
   } finally {
     await stopCopy(copy);
   }

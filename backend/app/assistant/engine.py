@@ -567,8 +567,11 @@ class RuleCopilot:
             entries = sorted(so_far[thread], key=lambda e: (e.get("at") is None, e.get("at") or "", e["id"]))
             # (an entry with the word it carries now: a server change keeps one status key through Try passed, Waiting for
             # approval and Applied, and only its word tells them apart)
+            # (What a person typed is not part of the mark: a sentence filed under a thread must not bring its closed tab
+            #  back or put a "new" dot on the person's own words. "Close the Fixing tab" is itself such a sentence.)
             seen = "|".join(sorted([f"{p['id']}#{len(p.get('decisions') or [])}" for p in proposals if KIND_THREAD[p["kind"]] == thread]
-                                   + [f"{e['id']}~{(e.get('badge') or {}).get('label') or ''}" for e in entries if e["kind"] != "suggestion"]))
+                                   + [f"{e['id']}~{(e.get('badge') or {}).get('label') or ''}" for e in entries
+                                      if e["kind"] not in ("suggestion", "said")]))
             tabs.append({"key": thread, "label": THREAD_LABELS[thread], "waiting": waiting[thread],
                          "mark": hashlib.sha256(seen.encode("utf-8")).hexdigest()[:16],
                          "so_far_title": words.SO_FAR, "so_far": entries, "so_far_empty": None if entries else words.SO_FAR_EMPTY})

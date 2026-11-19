@@ -179,7 +179,10 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   // (the first thing in the page in both of its states below, so it is the same drawing before and after the list arrives)
   const thePlan =
     planHolder.holder && planHolder.hosted
-      ? createPortal(<TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded only={planOnly} />, planHolder.holder)
+      ? createPortal(
+          <TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded only={planOnly} onlyLabel={planOnly ? resultFilter : undefined} />,
+          planHolder.holder,
+        )
       : null;
   const planPlace = <div ref={planHolder.host} data-testid="test-plan-place" className="contents" />;
 
@@ -230,7 +233,9 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
     const tries = parts.tries ? parts.tries.rows.filter(keep) : [];
     return (
       <div data-testid="encryption-parts">
-        {wanted("plan") && (planOnly === null || planOnly.size > 0) ? (
+        {/* (with the Result filter on, the part stays even when none of its tests fits: it then says so in one line, and
+            + Add test and Run all stay where they are) */}
+        {wanted("plan") ? (
           <PartSection part={parts.plan} open={isOpen("plan")} onToggle={() => toggle("plan")}>
             {planPlace}
           </PartSection>
@@ -307,7 +312,11 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
         <FilterSelect
           label="Result"
           value={resultFilter}
-          options={[{ value: "all", label: "All results" }, ...results.map((r) => ({ value: r, label: r }))]}
+          // (a value from the address that no row reads now is still an option: the control shows the filter that is on)
+          options={[
+            { value: "all", label: "All results" },
+            ...Array.from(new Set([...results, ...(resultFilter !== "all" ? [resultFilter] : [])])).map((r) => ({ value: r, label: r })),
+          ]}
           onChange={setResultFilter}
         />
       </Toolbar>
