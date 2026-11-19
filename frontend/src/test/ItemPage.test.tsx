@@ -7,6 +7,7 @@ import { DetailPanel, ItemPageContext, PanelHeaderSlotContext, TableWithPanel, t
 import { CLOSED_SENTENCE } from "../readOnly";
 import { itemPageHref, parseRoute, routeHref } from "../router";
 import { checksView, newestBlock, retestDetail } from "./checksFixtures";
+import { CODE_FIX, TLS_FIX, fixesViews } from "./fixesFixtures";
 import { calls, lab, mockApi, plan, run, session, text } from "./fixtures";
 import { assessmentView, closedAssessment, workspace } from "./shellFixtures";
 
@@ -171,6 +172,25 @@ describe("an item on a page of its own", () => {
     expect(within(page).queryByTestId("open-in-new-tab")).toBeNull();
     // looking at it started nothing
     expect(calls(fetchMock).filter((c) => c.startsWith("POST") && !c.includes("/plan"))).toEqual([]);
+  });
+
+  it("a fix opens on a page of its own in a new browser tab, and a link to one fix opens that fix, not the first", async () => {
+    // (the app is opened at the address itself, as a new browser tab does: nothing was open before)
+    const fixes = { "GET /api/plans/1/fixes": { body: fixesViews.ready } };
+    at(`fixes?item=${TLS_FIX}&view=page`);
+    mockApi(routes(fixes));
+    const first = render(<App />);
+    const page = await screen.findByTestId("item-page");
+    await waitFor(() => expect(within(page).getByTestId("fix-summary").getAttribute("data-fix-id")).toBe(TLS_FIX));
+    expect(screen.queryByTestId("item-page-missing")).toBeNull();
+    first.unmount();
+
+    at(`fixes?item=${TLS_FIX}`);
+    mockApi(routes(fixes));
+    render(<App />);
+    expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(TLS_FIX);
+    expect(TLS_FIX).not.toBe(CODE_FIX); // the first fix in the list is the other one
+    expect(fixesViews.ready.fixes[0]?.id).toBe(CODE_FIX);
   });
 
   it("Back returns to the list with that panel open", async () => {

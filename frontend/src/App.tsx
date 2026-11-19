@@ -150,11 +150,14 @@ export default function App() {
   // exactly as it was left, because everything it holds is its own.
   const routeId = route.kind === "assessment" ? route.id : null;
   const loggedIn = session?.logged_in === true;
+  // (the fix an address names stays open: a link to one fix, or its own page, opened in a new browser tab)
+  const namedFix = route.kind === "assessment" && route.page === "fixes" && route.item ? route.item : null;
   useEffect(() => {
     if (!loggedIn || routeId === null) return;
     if (assessment?.id === routeId) return;
-    setFixId(null);
+    setFixId(namedFix);
     void loadAssessment(routeId);
+    // (only another assessment starts this; the fix the address names is read at that moment)
   }, [loggedIn, routeId, assessment?.id, loadAssessment]);
 
   const projectId = route.kind === "project" ? route.id : route.kind === "assessment" && assessment?.id === route.id ? assessment.project.id : null;
