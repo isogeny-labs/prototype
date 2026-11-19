@@ -289,11 +289,13 @@ def _whatif_blocks(kb: Any, purl: object, name: object, state: dict | None, rows
 def _whatif_own_results(lab: dict, named: list[dict], label: str) -> dict:
     if not named:
         return _group("own_results", [], f"Your scanner file does not name {label}, so this assessment has no result of its own on it.")
-    wanted = {f"{p['component']} {p['version']}".casefold() for p in named}
+    # every reviewed result on this library that Evidence shows now, on whichever version: the first results on the
+    # version the file names, and a retest's results on the version it was pointed at
+    wanted = tuple(f"{p['component']} ".casefold() for p in named)
     lines = []
     for row in lab.get("rows") or []:
         for side in (row.get("result"), row.get("after")):
-            if side and str(side.get("component") or "").casefold() in wanted:
+            if side and str(side.get("component") or "").casefold().startswith(wanted):
                 lines.append(_line(f"{row['title']} on {side['component']}: {side['label']}.", OWN_RESULTS, _link("evidence", f"test-{row['item_id']}")))
     return _group("own_results", lines, f"No test of the plan has a reviewed result on {label} yet.")
 

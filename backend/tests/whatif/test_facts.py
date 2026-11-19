@@ -182,6 +182,11 @@ def test_once_the_tests_have_run_the_what_if_shows_the_assessments_own_results_a
         other = lab.whatif_view(plan.id, "acme-sign", "9.9.9")["test_copy"]
         assert other["offered"] is False and other["reason"]
         assert _kept(lab) == runs and lab.jobs.live(plan.id) == []          # asking started no retest
+        # after a retest on the new version (pressed by a person), its results are this assessment's own too
+        lab.start_retest(plan.id, "1.4.3")
+        lab.wait_until_idle(plan.id, 120)
+        after = _texts(lab.whatif_view(plan.id, "acme-sign", "1.4.3"), "own_results")
+        assert after == ["Attacker tricks (our short list) on acme-sign 1.4.2: Failed.", "Attacker tricks (our short list) on acme-sign 1.4.3: Passed."]
     finally:
         lab.stop()
 
