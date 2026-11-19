@@ -87,10 +87,12 @@ def test_the_elliptic_what_if_says_where_it_is_used_what_the_new_version_declare
     assert same["label"] == "Package file says" and same["source"]["url"] == "https://registry.npmjs.org/elliptic/-/elliptic-6.5.7.tgz"
     assert '"bn.js": "^4.11.9"' in same["source"]["quote"] and same["source"]["read_on"] == "2026-11-19"
     assert old["source"]["url"].endswith("elliptic-6.5.6.tgz")
-    # the advisories of the installed packs about this library: each answered, by the publisher's own statement
+    # the advisories of the installed packs about this library: 6.5.7 is the version their publisher names as fixed, so
+    # each is answered by the publisher's own statement (and nothing is worked out about the versions you have)
     advisories = _texts(view, "advisories")
-    assert len(advisories) == 3 and all("its publisher names 6.5.7 as the fixed version. 6.5.7 is at or past it" in t for t in advisories)
-    assert all("by the publisher's own statement (it names 6.5.6, which you have)." in t for t in advisories)
+    assert len(advisories) == 3 and all(t.endswith("its publisher names 6.5.7 as the fixed version, so updating to 6.5.7 answers this "
+                                                   "advisory by the publisher's own statement.") for t in advisories)
+    assert not any("which you have" in t for t in advisories)
     assert {line["link"]["item"] for line in _group(view, "advisories")["lines"]} == {"CVE-2024-42460", "CVE-2024-42461", "CVE-2024-42459"}
     assert all(line["label"] == "Test pack 2026.11.2" and line["source"]["quote"] == '"fixed": "6.5.7"' for line in _group(view, "advisories")["lines"])
     # the pack's own trial, in the words of "Proven on public copies"
@@ -108,7 +110,8 @@ def test_what_the_app_does_not_know_is_said_and_never_filled_in_from_a_neighbour
     older = acme.views[("Elliptic", "6.5.4")]
     assert older["library"] == {"key": "elliptic", "label": "elliptic"}          # (a name is read without regard to upper and lower case)
     assert _texts(older, "needs") == ["Not in our knowledge base yet. Our knowledge base does not hold what elliptic 6.5.4 declares it needs."]
-    assert all("6.5.4 is before it, so this advisory still names it." in t for t in _texts(older, "advisories"))
+    # (6.5.4 is not the fixed version: the pack's reading of the affected versions is quoted, and nothing is worked out)
+    assert all(t.endswith("Whether 6.5.4 is among them is not worked out here.") and "still names" not in t for t in _texts(older, "advisories"))
     assert _texts(older, "trial") == ["CVE-2024-42460: the pack's trial was made for elliptic 6.5.7. It says nothing about 6.5.4."]
     assert {"text": whatif.H_NO_DATA} in older["hypotheses"]
     unknown = acme.views[("left-pad", "1.3.0")]
@@ -227,9 +230,9 @@ def test_the_plain_values_say_what_the_cards_lines_say_and_reading_them_writes_n
         # every advisory of the group is placed once, and its line says what its place says
         lines = {line["text"].split(" ", 1)[0]: line["text"] for line in _group(view, "advisories")["lines"]}
         placed = plain["advisories"]
-        assert sorted(placed["answered"] + placed["still_named"] + placed["cant_say"]) == sorted(lines)
-        assert all("so the update answers this advisory by the publisher's own statement" in lines[a] for a in placed["answered"])
-        assert all("so this advisory still names it." in lines[a] for a in placed["still_named"])
+        assert sorted(placed["answered"] + placed["not_worked_out"] + placed["cant_say"]) == sorted(lines)
+        assert all("answers this advisory by the publisher's own statement." in lines[a] for a in placed["answered"])
+        assert all(lines[a].endswith("is among them is not worked out here.") for a in placed["not_worked_out"])
         assert all("can't say whether" in lines[a] or "Couldn't tell the version you asked about." in lines[a] for a in placed["cant_say"])
         # the three post-quantum answers, for the new version and for each version the assessment has
         texts = _texts(view, "post_quantum")
@@ -242,8 +245,171 @@ def test_the_plain_values_say_what_the_cards_lines_say_and_reading_them_writes_n
 
 def test_the_elliptic_update_answers_the_three_elliptic_advisories_of_the_installed_packs_by_the_publishers_statement(acme):
     plain = acme.lab.whatif_plain(acme.plan.id, "elliptic", "6.5.7")
-    assert plain["advisories"]["answered"] and plain["advisories"]["still_named"] == [] and plain["advisories"]["cant_say"] == []
+    assert plain["advisories"]["answered"] and plain["advisories"]["not_worked_out"] == [] and plain["advisories"]["cant_say"] == []
     assert plain["needs"]["compared"] == [{"with": "6.5.6", "answer": "Package file says", "added": [], "removed": [], "changed": []}]
     older = acme.lab.whatif_plain(acme.plan.id, "Elliptic", "6.5.4")           # before every fixed version: nothing is answered
-    assert older["advisories"]["answered"] == [] and sorted(older["advisories"]["still_named"]) == sorted(plain["advisories"]["answered"])
+    assert older["advisories"]["answered"] == [] and sorted(older["advisories"]["not_worked_out"]) == sorted(plain["advisories"]["answered"])
     assert older["needs"] == {"answer": "Not in our knowledge base yet", "declares": None, "compared": []}
+
+
+# ---------------------------------------------------------------- the separate review of 19 November 2026
+
+def test_an_advisory_is_said_to_be_answered_only_for_the_exact_version_its_publisher_names_as_fixed(acme):
+    """Finding 3. A pack holds the affected versions as words, and a range can have gaps: OpenJDK 18 is affected although
+    its number is past the fix, and elliptic before 2.0.0 was never affected. So only the fixed version itself is called
+    answered; for any other version the pack's reading is quoted and nothing is worked out from it."""
+    lab, pid = acme.lab, acme.plan.id
+    for library, version in (("openjdk", "18"), ("openjdk", "15.0.7"), ("elliptic", "1.0.0"), ("elliptic", "6.5.8")):
+        view, plain = lab.whatif_view(pid, library, version), lab.whatif_plain(pid, library, version)
+        lines = _group(view, "advisories")["lines"]
+        assert lines and plain["advisories"]["answered"] == [] and len(plain["advisories"]["not_worked_out"]) == len(lines), (library, version)
+        for line in lines:
+            assert "answers this advisory" not in line["text"] and "still names" not in line["text"], line["text"]
+            assert "The test pack reads the affected versions as “" in line["text"]
+            assert line["text"].endswith(f"Whether {version} is among them is not worked out here.")
+    java = _group(lab.whatif_view(pid, "openjdk", "18"), "advisories")["lines"][0]
+    assert "“OpenJDK 18, 17.0.2 and earlier in the 17 line, 15.0.6 and earlier in the 15 line”" in java["text"]
+    assert java["source"]["quote"] == "The affected versions are 18, 17.0.2, 15.0.6,"        # the publisher's own line on what is affected
+    # the version the publisher names as fixed is answered, also written with a leading "v" or one more zero
+    for version in ("17.0.3", "v17.0.3", "17.0.3.0"):
+        assert lab.whatif_plain(pid, "openjdk", version)["advisories"] == {"answered": ["CVE-2022-21449"], "not_worked_out": [], "cant_say": []}
+
+
+def test_the_try_names_exactly_the_version_asked_about_and_is_off_in_a_closed_assessment():
+    """Finding 2: a version with a suffix is another program ("1.4.3-otto" is not "1.4.3"), so the card names and offers
+    exactly the version asked about, never its upstream number in its place. Finding 8: in a closed assessment the try is
+    off with the closed sentence, in the card and in the plain values alike."""
+    import tempfile
+    lab = make_lab(Path(tempfile.mkdtemp(prefix="whatif-try-")))
+    try:
+        plan = demo_plan(lab)
+        lab.remove_test(plan.id, plan.item["official_vectors"])
+        lab.remove_test(plan.id, plan.item["speed_size"])
+        lab.run_all(plan.id)
+        lab.wait_until_idle(plan.id, 120)
+        for version in ("1.4.3-otto", "1.4.3-1", "1.4.3+build.5"):
+            view = lab.whatif_view(plan.id, "acme-sign", version)
+            tried = view["test_copy"]
+            assert view["title"] == f"What if acme-sign is updated to {version}?" and view["version"] == version
+            assert (tried["offered"], tried["version"], tried["component"]) == (False, version, None)
+            assert tried["reason"].startswith(f"Retest new version does not offer acme-sign {version} for this assessment. It offers ")
+            assert "acme-sign 1.4.3" in tried["reason"]
+        aid = lab.assessment_for(plan_id=plan.id).id
+        reply = lab.assistant_answer(aid, "evidence", None, "what if we upgrade acme-sign to 1.4.3-otto?")
+        assert reply["kind"] == "whatif" and reply["entry"] is None and reply["whatif"]["test_copy"]["version"] == "1.4.3-otto"
+        assert lab.whatif_plain(plan.id, "acme-sign", "1.4.3")["try_offered"] is True
+        lab.update_assessment(aid, {"close": True, "signed_off_by": "A reviewer", "note": ""})
+        closed = lab.whatif_view(plan.id, "acme-sign", "1.4.3")["test_copy"]
+        assert (closed["offered"], closed["reason"]) == (False, "This assessment is closed. Start a new one to continue.")
+        assert lab.whatif_plain(plan.id, "acme-sign", "1.4.3")["try_offered"] is False
+    finally:
+        lab.stop()
+
+
+def test_in_demo_mode_the_try_is_off_for_a_real_library_also_after_the_tests_have_run():
+    """Finding 1. Real software runs only in isolated mode, so in demo mode the try is off with the page's own reason,
+    also once Run all has finished and Evidence's retest menu lists the fixed version."""
+    import tempfile
+    from conftest import csv_bytes
+    lab = make_lab(Path(tempfile.mkdtemp(prefix="whatif-demo-real-")))
+    try:
+        assert lab.mode.name == "demo"
+        imp = lab.import_file("elliptic.csv", csv_bytes("elliptic 6.5.6,software,signature_algorithm,ECDSA P-256"))
+        lab.verify(imp["id"])
+        pid = lab.ensure_plan(imp["id"])["id"]
+        lab.run_all(pid)
+        lab.wait_until_idle(pid, 120)
+        assert any(str(v.get("version")) == "6.5.7" for v in lab.lab_view(pid)["retest"]["versions"])     # (Evidence's menu lists it)
+        tried = lab.whatif_view(pid, "elliptic", "6.5.7")["test_copy"]
+        assert tried["offered"] is False and tried["reason"] == ("This is real software from outside. It runs only in isolated mode "
+                                                                 "(Docker), and this run is in demo mode, so its tests can't run here.")
+        assert lab.whatif_plain(pid, "elliptic", "6.5.7")["try_offered"] is False
+        reply = lab.assistant_answer(lab.assessment_for(plan_id=pid).id, "evidence", None, "What if I update elliptic to 6.5.7?")
+        assert reply["kind"] == "whatif" and reply["entry"] is None and reply["whatif"]["test_copy"]["offered"] is False
+    finally:
+        lab.stop()
+
+
+def test_a_library_asked_about_by_its_packages_own_name_is_the_library_the_knowledge_base_holds(acme):
+    """Finding 5. PyPI calls python-ecdsa "ecdsa": asked that way, the card has python-ecdsa's advisories and trial,
+    the same facts as asked by its own name, never "nothing is known"."""
+    by_package = acme.lab.whatif_view(acme.plan.id, "ecdsa", "0.13.3")
+    assert by_package["library"] == {"key": "python-ecdsa", "label": "python-ecdsa"} and by_package["known"] is True
+    assert by_package["title"] == "What if python-ecdsa is updated to 0.13.3?"
+    own = acme.lab.whatif_view(acme.plan.id, "python-ecdsa", "0.13.3")
+    for key in ("used", "needs", "advisories", "trial", "post_quantum", "blocks"):
+        assert _texts(by_package, key) == _texts(own, key), key
+    assert len(_group(by_package, "advisories")["lines"]) == 2 and _group(by_package, "trial")["lines"]
+
+
+def test_an_entry_of_the_dependency_list_named_otherwise_is_found_by_its_package_address():
+    """Finding 5, the other way round: a list entry under a name the knowledge base does not know, with python-ecdsa's
+    package address, is python-ecdsa, with its advisories."""
+    import tempfile
+
+    def renamed(node):
+        if isinstance(node, dict):
+            return {k: ("ecdsa-for-signing" if k == "name" and v == "python-ecdsa" else renamed(v)) for k, v in node.items()}
+        return [renamed(v) for v in node] if isinstance(node, list) else node
+    lab = make_lab(Path(tempfile.mkdtemp(prefix="whatif-renamed-")))
+    try:
+        plan = demo_plan(lab)
+        lab.check_pack_updates()
+        for version in ("2026.11.1", "2026.11.2"):
+            lab.install_pack(version)
+        listed = renamed(json.loads(DEPENDENCIES.read_text()))
+        lab.add_dependency_list(plan.id, "renamed.cdx.json", json.dumps(listed).encode())
+        view = lab.whatif_view(plan.id, "ecdsa-for-signing", "0.13.3")
+        assert view["library"]["key"] == "python-ecdsa" and view["have"] == ["0.13.2"]
+        assert _texts(view, "used")[0].startswith("ecdsa-for-signing 0.13.2 is in your dependency list")
+        assert len(_group(view, "advisories")["lines"]) == 2
+    finally:
+        lab.stop()
+
+
+def test_a_version_the_dependency_list_already_holds_reads_as_dependencies_shows_it(acme):
+    """Finding 6. The new version's post-quantum answers are the knowledge base's, unless the dependency list already
+    holds exactly that version: then they are that entry's, as Dependencies shows them, a measurement included."""
+    from app.knowledge.base import knowledge_base
+    from app.present import dependencies as present_deps
+    measured = {q: {"answer": "yes", "label": "public_copy"} for q in present_deps.QUESTION_WORDS}
+    noted = {q: {"answer": "no", "label": "release_notes"} for q in present_deps.QUESTION_WORDS}
+    rows = [{"id": "row-1", "version": "3.0.22", "answers": noted}, {"id": "row-2", "version": "3.5.9", "answers": measured}]
+    group = whatif._whatif_post_quantum(knowledge_base(), "pkg:generic/openssl", "openssl", "OpenSSL", rows, ["3.0.22", "3.5.9"], "3.5.9", "3.5.9")
+    for line, (question, words) in zip(group["lines"], present_deps.QUESTION_WORDS.items(), strict=True):
+        assert line["text"] == (f"{words}. OpenSSL 3.0.22: No (Release notes say); OpenSSL 3.5.9: Yes (Measured on a public copy). "
+                                "Each is as Dependencies shows it for that entry of your list.")
+        assert (line["label"], line["link"]["item"], line["source"]) == ("Measured on a public copy", "row-2", None)
+        assert group["plain"][question] == {"question": words, "new": "Yes", "have": {"3.0.22": "No"}}
+    # the demo list holds OpenSSL 3.5.9 too: asked about that version, the card says where its answers come from
+    listed = _texts(acme.lab.whatif_view(acme.plan.id, "openssl", "3.5.9"), "post_quantum")
+    assert len(listed) == 3 and all(t.endswith("Each is as Dependencies shows it for that entry of your list.") for t in listed)
+
+
+def test_the_track_a_library_blocks_is_said_with_what_the_new_versions_answer_would_mean():
+    """A test gap the review found: once the dependency list is tied to a system, each blocker of the library is a line
+    with the track, the question, and what the knowledge base's answer for the new version would mean."""
+    import tempfile
+    lab = make_lab(Path(tempfile.mkdtemp(prefix="whatif-blocks-")))
+    try:
+        plan = demo_plan(lab)
+        lab.add_dependency_list(plan.id, DEPENDENCIES.name, DEPENDENCIES.read_bytes())
+        with lab.db() as db:
+            state = lab._dependency_state(db, lab._plan(db, plan.id))
+        server = next(s["key"] for s in state["system_choices"] if s["kind"] == "server")
+        for top in state["tops"]:
+            if top["tie"]["system"] is None:
+                lab.tie_dependency(plan.id, top["key"], server)
+
+        def blocks(version: str) -> list[dict]:
+            return _group(lab.whatif_view(plan.id, "openssl", version), "blocks")["lines"]
+        new = blocks("3.5.9")
+        assert len(new) == 2 and all(line["label"] == "From the Dependencies page" and line["link"]["page"] == "migration/dependencies" for line in new)
+        assert new[0]["text"].startswith("openssl 3.0.22 blocks the key exchange track of ")
+        assert new[0]["text"].endswith("“X25519MLKEM768 hybrid TLS” reads No. For 3.5.9 the knowledge base's answer is Yes (Release notes say), "
+                                       "so by that answer it would no longer block the track.")
+        assert all(line["text"].endswith("For 3.4.0 the answer is still No, so it would still block the track.") for line in blocks("3.4.0"))
+        assert all(line["text"].endswith("For devel the answer is “Couldn't tell the version”, so whether it would still block is not known.")
+                   for line in blocks("devel"))
+    finally:
+        lab.stop()

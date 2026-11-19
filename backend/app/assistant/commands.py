@@ -187,6 +187,11 @@ _WHAT_IF = re.compile(
     r"(?: from (?:version )?v?[0-9][0-9a-z.+_-]{0,39})? (?:to|up to|onto) (?:version )?v?(?P<version>[0-9][0-9a-z.+_-]{0,39})"
     r"(?:[ ,;:?!].{0,300})?")
 
+# A second "to <version>" after the first one, joined by any word ("and", "then", "or", "&", "/", "with" ...): a version
+# with a dot ("to 0.13.3"), or a bare number where the sentence ends or goes on to another clause ("and java to 18?").
+# "the move to 2027 plans" and "up to 3 years" are no second update (the review of 19 November 2026).
+_SECOND_UPDATE = re.compile(r"\b(?:to|onto) (?:version )?v?(?:\d+\.\d|\d+(?=\s*(?:[?!.,;:]|$)|\s+(?:and|or|then|plus|too|also)\b))")
+
 
 def tokens(text: str) -> list[str]:
     return _TOKEN.findall(text.lower().replace("’", "'").replace("'s", " "))
@@ -228,8 +233,8 @@ def read(text: str) -> dict:
     # "update elliptic to 6.5.7" by itself names no button of this app, and is not read as one.
     m = _WHAT_IF.fullmatch(whole)
     if m:
-        # (a sentence that goes on to a second update is not answered for the first one alone)
-        several = re.search(r"(?:\band\b|\bplus\b|\balso\b|[,;]) .{0,80}?\b(?:to|onto) (?:version )?v?[0-9]", whole[m.end("version"):]) is not None
+        # (a sentence that goes on to a second update is not answered for the first one alone, whatever joins the two)
+        several = _SECOND_UPDATE.search(whole[m.end("version"):]) is not None
         return {**said, "key": "what_if", "library": m.group("library"), "version": m.group("version").rstrip(".+_-"), "several": several}
     m = re.fullmatch(r"(close|hide|open|show|switch to|go to|select) (?:the )?(testing|fixing|planning)(?: tab| thread)?", low)
     if m and (m.group(1) in ("close", "hide") or low.endswith((" tab", " thread"))):

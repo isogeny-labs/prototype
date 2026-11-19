@@ -283,8 +283,8 @@ reads, so they are asked in both modes. The values are the ones the lines of the
 | `whatif.<update>.dependencies_added` | The packages the new version declares that the version in the file does not, each as "*name* *range*" (asked only where both versions have an entry) | a list |
 | `whatif.<update>.dependencies_removed` | The packages the version in the file declares that the new version does not, by name | a list |
 | `whatif.<update>.dependencies_changed` | The packages both declare with a different range, by name | a list |
-| `whatif.<update>.advisories_answered` | The advisories of the installed packs whose publisher names a fixed version at or before the new version | a sorted list of advisory ids |
-| `whatif.<update>.advisories_still_named` | The advisories of the installed packs whose fixed version is after the new version | a sorted list of advisory ids |
+| `whatif.<update>.advisories_answered` | The advisories of the installed packs about this library whose publisher names exactly the new version as the fixed version | a sorted list of advisory ids |
+| `whatif.<update>.advisories_not_worked_out` | The other advisories of the installed packs about this library whose fixed version the app can read: the card quotes the pack's reading of the affected versions and works out nothing from it | a sorted list of advisory ids |
 | `whatif.<update>.post_quantum.<question>.new_version` | The answer for the new version to "ML-KEM-768 key exchange", "X25519MLKEM768 hybrid TLS" or "ML-DSA-65 signatures" | `Yes`, `No`, `Doesn't apply`, `Not in our knowledge base yet`, `Couldn't tell the version` or `Needs your environment` |
 | `whatif.<update>.post_quantum.<question>.version_you_have` | The same for the version the file names | the same words |
 

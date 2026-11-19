@@ -35,7 +35,7 @@ hypothesis turned into a test) are not built. Green at the stop: every GitHub ch
 | 9, 10, 11 | The assistant: suggestions that fit the page, three tabs, decide in the panel | **Done** (phase 6a): built, reviewed, findings fixed, walk green, pictures, pushed |
 | 12 | Commands | **First half done** (6b, fixed rules only): built, tested, documented, reviewed, the review's findings fixed with tests, walked on the final code. Two small leftovers are listed in step 4 below. **The second half (free wording through Claude) is not built** |
 | 13 | Questions | **First half done** (6c, the six fixed questions by rules): built, tested, documented, reviewed ("not ready as committed": 13 findings), all 13 fixed with tests, walked on the final code. **The second half (answers in free words by Claude, with "Hypothesis") is not built**, so an unproven answer labelled Hypothesis does not exist yet |
-| 14 | What-if and hypotheses | **First half done; not reviewed yet** (6e: the what-if facts and the try): built, tested, documented, walked. "What if I update elliptic to 6.5.7?" typed into the panel gets one card: what the app knows (where the library is used, the dependencies the new version declares against the one you have, the advisories it answers, the pack's trial, post-quantum support of both versions, the track it blocks, your own results), each line with its label and link and an honest "not known" where the app knows nothing; the try on a test copy (Evidence's own Retest new version behind Confirm), proven on a real library in a real container; and what the facts do not show under Hypothesis. **Not built (the second half): the two buttons on a hypothesis (Turn this into a test, Add to Change watch) and Claude's explanation.** So "every unproven point has its two buttons" is not met. **Its separate review was started and stopped before it reported** (the session's usage limit was reached): it is the first next action |
+| 14 | What-if and hypotheses | **First half done; reviewed (8 findings, all fixed with tests)** (6e: the what-if facts and the try): built, tested, documented, walked. "What if I update elliptic to 6.5.7?" typed into the panel gets one card: what the app knows (where the library is used, the dependencies the new version declares against the one you have, the advisories it answers, the pack's trial, post-quantum support of both versions, the track it blocks, your own results), each line with its label and link and an honest "not known" where the app knows nothing; the try on a test copy (Evidence's own Retest new version behind Confirm), proven on a real library in a real container; and what the facts do not show under Hypothesis. **Not built (the second half): the two buttons on a hypothesis (Turn this into a test, Add to Change watch) and Claude's explanation.** So "every unproven point has its two buttons" is not met |
 | 15 | Change watch | **First half done** (6d: Changes without the Watch list): built, tested, documented, walked, reviewed once (8 findings, all fixed with tests). A developer's change is listed with the tests picked for it and why; **Run the picked tests** runs them (on the page, or from the Otto panel's card behind Confirm) and the change reads, for the demo, "Passed before, fails now"; the runs show on Checks and Evidence as "Came from: Change watch"; Fixes gets a Text-only entry for the change; a line that names old cryptography is flagged; the signed evidence file and the report hold the changes and their runs, and the verify command checks them. What was built after that review (the evidence part and its verify check, the entry in Fixes, the panel's step) had **a second separate review: 7 findings, all fixed** (`80c27a5`; see "Step 6"). The entry in Fixes is now listed under its own heading and counted nowhere. **Not built: the Watch list** (the second half) |
 | 16 | Nothing without a click and Confirm; works without a key | **Holds for everything built**: 6a, the research loop, 6b, 6c and 6d work with no key (no part of the panel asks Claude in this version), with tests. Change watch starts nothing by itself: bringing a change in runs nothing, and the picked tests run only on a click |
 | 17 | Keys match in both modes, fast tests under 5 minutes, each step reviewed, committed, pushed | **Keys: match in both modes** (isolated: exit code 0 on a frozen copy of `5699057`; demo: green in the GitHub checks on every push, the last on `3885e19`). **Fast tests: 4 min 59 s with Otto on `3885e19`, measured alone: just under five minutes, at the limit** (1917 passed, 502 left out as slow), after the long shared walks moved to the slow set (decision 10; before the move 7 min 0 s, with other work running). On GitHub's runner the whole backend job on `3885e19` (lint, type check, generated files, the fast set without Otto, the demo-mode accuracy check) took 4 min 50 s and 6 min 41 s (two runs). Each step reviewed, fixed, committed, pushed, **except 6e, whose separate review did not finish** |
@@ -972,7 +972,50 @@ is offered), with the accuracy walk asking them; and the try on a real library i
 - Claude's explanation of the facts (part 3). With Live Otto on, the part says it is not part of this version.
 - The plan's walk part in isolated mode. The backend test above runs that path instead.
 
-**What is left of 6e's first half:** one separate review, and its fixes. (A first review was started on `2d49dd8` and stopped before it reported, when the session's usage limit was reached.)
+**The separate review** (a fresh reviewer that did not build the what-if, on `581f3da`, after a first attempt on
+`2d49dd8` stopped before it reported). It read the facts module, the try and the tests in real containers, ran 8
+probe scripts, and checked the four knowledge-base entries against the real files inside the prepared images (the
+fingerprints and the quoted lines match). It found **8 things and 3 test gaps; all 8 are fixed, each with a test that
+fails on the code before the fix** (14 new test cases, plus the card's screen test):
+
+1. *In demo mode the try was offered for a real library*, once Run all had finished, although such a retest could
+   only read "Couldn't run". **Fixed:** the try is off there, with the page's own sentence ("This is real software
+   from outside. It runs only in isolated mode (Docker) ...").
+2. *A version with a suffix was cut to its upstream number*: asked about acme-sign 1.4.3-otto, the card named and
+   offered a retest of 1.4.3, another program. **Fixed:** the card names and offers exactly the version asked about;
+   for one of our own demo programs it says which versions Retest new version offers.
+3. *"Answers this advisory by the publisher's own statement" could say the opposite of the publisher*: it compared
+   with the fixed version only, so OpenJDK 18 read as fixed although the publisher lists 18 as affected, and
+   elliptic 1.0.0 read as named although its flaws came later. **Fixed:** that sentence is said only for the exact
+   version the publisher names as fixed. For any other version the line quotes the test pack's reading of the
+   affected versions and says that whether the version is among them is not worked out (a pack holds them as words).
+   The demo's three updates are each that exact version, so their lines still read "answers".
+4. *Two updates joined by "then", "or", "&", "/" or "with" were answered for the first one alone*, and "the move to
+   2027 plans" was refused as a second update. **Fixed** both ways.
+5. *Asked by a package's own name or an everyday name, the card said nothing was known*: "ecdsa" (PyPI's name for
+   python-ecdsa) got "No advisory ... is about ecdsa", and "Java" got "The app holds nothing about this library".
+   **Fixed:** the library is found by its package names and by the dependency list's package address, and the panel
+   reads its own everyday names ("Java" for openjdk). "Python" is not read as python-ecdsa (it is also the language).
+6. *A sentence in LIMITS was not true*: a version the dependency list already holds read as the knowledge base's
+   answer, not as Dependencies shows it. **Fixed** in the code: that entry's answer is used, and the line says so.
+7. *Once Confirm was pressed, the card said the try "is not offered"* beside "Confirmed. ... was sent". **Fixed:** it
+   keeps what a retest changes and no longer says that.
+8. *The plain values for the accuracy check said the try was offered in a closed assessment.* **Fixed:** the try is
+   off there with the closed sentence, in the card and in the plain values alike.
+
+Test gaps: the lines "blocks the ... track" had no test (now they have one, from the reviewer's own probe); a real
+library in demo mode after Run all, and an affected range that does not follow the fixed version, are now tested
+(findings 1 and 3). **Deferred, with the reason:** (a) the test in real containers sends the card's action to
+`start_retest` directly rather than through the browser's request; the screen test checks that Confirm sends exactly
+that request, and the route's own tests check where it leads, so each link of the chain is tested; (b) the lines on
+what a version declares it needs link the publisher's package file, not a page of the app, because no page of the
+app shows declared needs; (c) a "not known" line carries no label, because the line itself says what is not known.
+
+Documents changed with the fixes: `docs/LIMITS.md` (the 6e section, so that every sentence is true again) and
+`docs/OTTO-KEY.md` (the question `advisories_still_named` is now `advisories_not_worked_out`). **Not changed, for
+Kevin's OK (decision 33):** one phrase of `docs/SPEC.md`.
+
+**What is left of 6e's first half:** nothing but the long checks on the final commit.
 
 ## Decisions for Kevin (collected so far)
 
@@ -1073,10 +1116,10 @@ is offered), with the accuracy walk asking them; and the try on a real library i
 28. Phase 6e: with Live Otto on, part 3 of the card reads "This is what the app knows. An explanation in plain
     sentences is not part of this version yet." (with it off: "Live Otto is off. This is what the app knows.", as
     the plan words it). The first sentence is mine. Is it right?
-29. Phase 6e: "the update answers this advisory" is said from the publisher's own statement (the fixed version a
-    test pack quotes) compared with the version asked about, and the line says "by the publisher's own statement".
-    The app has not tested that version for the what-if. Is that wording careful enough, or should the line only
-    name the fixed version and leave the conclusion to the reader?
+29. Phase 6e: since the review, "the update answers this advisory by the publisher's own statement" is said only
+    for the exact version the publisher names as fixed; for any other version the line quotes the test pack's
+    reading of the affected versions and works nothing out. Is that careful enough, or should even the exact
+    version only name the fixed version and leave the conclusion to the reader?
 30. Phase 6e: "What if ...?" is one line of the fixed list of commands, of the kind that moves nowhere and starts
     nothing (it answers). Typed without a lead-in ("update elliptic to 6.5.7") it is not read, because that
     sentence names no button of the app. Should a bare "update X to Y" be read as the same question?
@@ -1089,16 +1132,16 @@ is offered), with the accuracy walk asking them; and the try on a real library i
     `36ed916` fails the tightened verify check (it lacks a fingerprint the check now needs). No such file was
     handed out, so nothing reads the older form. If you kept a download from a run of your own during the night,
     make a new one.
+33. Phase 6e, after its review: `docs/SPEC.md` (section 2, "What-if in the Otto panel", part 1) still says the card
+    tells "which the update answers by the publisher's own statement and which still name it". Since the fix it
+    says which it answers, and for the others quotes the test pack's reading of the affected versions instead of
+    a conclusion. I did not change the SPEC without your OK. The words I propose: "(the installed test packs: which
+    the update answers by the publisher's own statement, and for the others the pack's reading of the affected
+    versions, with the publisher's quoted line)". Shall I put them in?
 
 ## The exact next action
 
-1. **The separate review of phase 6e.** A first attempt, on `2d49dd8`, stopped before it reported (the session's
-   usage limit was reached). Start a new one on the newest commit: one reviewer against
-   `docs/SPEC.md` (section 2, "What-if in the Otto panel"), `CLAUDE.md` and the plan (the Claude Doc "Phase 6 plan:
-   Otto assistant", section 6e), for `backend/app/whatif/`, the `declared` entries in `knowledge/libraries/`,
-   `_WHAT_IF` in `backend/app/assistant/commands.py`, `_what_if` in `answers.py`, `WhatIfCard.tsx`, the new part of
-   `backend/app/accuracy_otto.py` and the documents. Fix what breaks a requirement, adds something out of scope,
-   or makes the demo less accurate; write the findings and what was done into "Step 7".
+1. *(Done on 19 November 2026: the separate review of phase 6e, and its eight fixes. See "Step 7".)*
 2. **The long checks on the newest commit, one at a time and with nothing else running:**
    - the fast set with Otto, timed: `cd backend && .venv/bin/python -m pytest -q tests`, and without:
      `EVIDENCE_LAB_OTTO_HOME=/some/empty/folder` in front. See the row "Fast tests" in the table at the top for

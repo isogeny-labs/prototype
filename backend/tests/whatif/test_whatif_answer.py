@@ -146,3 +146,39 @@ def test_in_a_closed_assessment_the_facts_are_given_and_nothing_can_be_started(a
     assert reply["kind"] == "whatif" and reply["whatif"]["facts"]
     assert reply["whatif"]["test_copy"]["offered"] is False and "closed" in reply["whatif"]["test_copy"]["reason"].lower()
     assert reply["entry"] is None or reply["entry"]["step"]["can"] is False
+
+
+# ---------------------------------------------------------------- the separate review of 19 November 2026
+
+@pytest.mark.parametrize("sentence, several", [
+    ("what if I update elliptic to 6.5.7 then ecdsa to 0.13.3", True),
+    ("what if I update elliptic to 6.5.7 or ecdsa to 0.13.3", True),
+    ("what if I update elliptic to 6.5.7 & ecdsa to 0.13.3", True),
+    ("what if I update elliptic to 6.5.7 / ecdsa to 0.13.3", True),
+    ("what if I update elliptic to 6.5.7 with bn.js to 5.0.0", True),
+    ("what if I update elliptic to 6.5.7 and java to 18?", True),
+    ("if I update elliptic to 6.5.7, how does that affect the move to 2027 plans?", False),
+    ("if I update elliptic to 6.5.7, how does that affect my 2 systems up to 3 years", False),
+])
+def test_a_second_update_is_noticed_whatever_word_joins_it_and_a_number_that_is_no_version_is_not(sentence, several):
+    """Finding 4: two updates in one sentence are never answered for the first one alone, and a number that is no
+    version ("the move to 2027 plans") is no second update."""
+    read = commands.read(sentence)
+    assert (read["key"], read["library"], read["version"], read["several"]) == ("what_if", "elliptic", "6.5.7", several)
+
+
+def test_an_everyday_name_of_the_panels_own_table_is_read_as_its_library_and_python_is_not(asked):
+    """Finding 5: "Java" is openjdk in the panel's table of everyday names, so the what-if is about openjdk. "Python" is
+    also the language, so "update Python to 3.12" is not read as python-ecdsa: on the demo list it is the entry for the
+    Python interpreter itself, "python 3.12.3"."""
+    lab, aid = asked.lab, asked.aid
+    java = lab.assistant_answer(aid, "evidence", None, "What if I update Java to 17.0.3?")
+    assert java["kind"] == "whatif" and java["whatif"]["title"] == "What if OpenJDK (the JDK) is updated to 17.0.3?"
+    assert java["whatif"]["known"] is True and java["whatif"]["library"]["key"] == "openjdk"
+    advisories = next(g for g in java["whatif"]["facts"] if g["key"] == "advisories")["lines"]
+    assert [line["link"]["item"] for line in advisories] == ["CVE-2022-21449"]
+    language = lab.assistant_answer(aid, "evidence", None, "What if we update Python to 3.12?")
+    assert language["kind"] == "whatif" and language["whatif"]["title"] == "What if python is updated to 3.12?"
+    assert language["whatif"]["library"] == {"key": None, "label": "python"} and language["whatif"]["have"] == ["3.12.3"]
+    used = next(g for g in language["whatif"]["facts"] if g["key"] == "used")["lines"]
+    assert used[0]["text"].startswith("python 3.12.3 is in your dependency list")

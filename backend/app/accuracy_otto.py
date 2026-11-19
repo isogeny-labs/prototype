@@ -485,7 +485,7 @@ def _whatif_part(lab: Lab, pid: int, answers: dict) -> None:
             answers[f"{key}.dependencies_removed"] = compared["removed"]
             answers[f"{key}.dependencies_changed"] = compared["changed"]
         answers[f"{key}.advisories_answered"] = sorted(said["advisories"]["answered"])
-        answers[f"{key}.advisories_still_named"] = sorted(said["advisories"]["still_named"])
+        answers[f"{key}.advisories_not_worked_out"] = sorted(said["advisories"]["not_worked_out"])
         for question in said["post_quantum"].values():
             answers[f"{key}.post_quantum.{question['question']}.new_version"] = question["new"]
             answers[f"{key}.post_quantum.{question['question']}.version_you_have"] = next(iter(question["have"].values()), None)

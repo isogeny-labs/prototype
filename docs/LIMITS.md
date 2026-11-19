@@ -554,8 +554,11 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **The question is read by fixed rules.** It needs a lead-in ("what if", "what happens if", "if", "suppose"), who
   ("I", "we", ...), a verb of updating, one library and one version that starts with a digit. "Update elliptic to
   6.5.7" by itself is no question and names no button, so it gets "I can't do that." "To the newest version" names
-  no version and is not read. Two updates in one sentence are not answered for the first one alone. No model is
-  asked, with Live Otto on or off.
+  no version and is not read. Two updates in one sentence are not answered for the first one alone, whatever word
+  joins them ("and", "then", "or", "&", "with"); a number that is no version ("the move to 2027 plans") is no second
+  update. The panel's own everyday names are understood ("Java" for openjdk, "ecdsa" for python-ecdsa), and so is a
+  library's package name; "Python" is not read as python-ecdsa, because it is also the language. No model is asked,
+  with Live Otto on or off.
 - **A fact repeats a record; it is not a forecast.** Each line says what a list, a package file, a test pack or a
   reviewed run says now. The card does not say what will happen on a system after the update.
 - **"Dependencies added or removed" is what two package files list, nothing more.** It compares what each version
@@ -569,12 +572,18 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   fingerprint: `package.json` inside the npm package, the `METADATA` file inside the wheel. Each entry quotes the
   lines, names the file's own SHA-256 and links the publisher's package. They were read by the build, not by a
   person; this is decision 26 for Kevin (someone should compare the four entries with the publisher's files once).
-- **"The update answers this advisory" is the publisher's statement, compared by version.** Where a test pack's
-  reading names a fixed version and the version asked about is at or past it, the line says that the update answers
-  the advisory "by the publisher's own statement". The app has not tested that version for the what-if. What the
-  pack's own trial showed is a line of its own, and only where the trial was made for exactly that version.
-- **Post-quantum support of the new version is the knowledge base's answer** ("Release notes say"), unless
-  Dependencies already holds a measurement for exactly that version. Nothing is measured for a what-if.
+- **"The update answers this advisory" is said only for the version the publisher names as fixed.** Only where the
+  version asked about is exactly that version (6.5.7 for elliptic, also written "v6.5.7") does the line say that
+  the update answers the advisory "by the publisher's own statement". For any other version the line quotes the test
+  pack's reading of the affected versions and says that whether the version is among them is not worked out: a pack
+  holds the affected versions as words, and a range can have gaps (OpenJDK 18 is affected although its number is
+  past the fix, and versions from before a flaw was introduced were never affected). The separate review of 19
+  November 2026 found the earlier rule (at or past the fixed version) saying the opposite of the publisher. The app
+  has not tested any version for the what-if. What the pack's own trial showed is a line of its own, and only where
+  the trial was made for exactly that version.
+- **Post-quantum support of the new version is the knowledge base's answer** ("Release notes say"), unless the
+  dependency list already holds exactly that version: then it is that entry's answer as Dependencies shows it, a
+  measurement on a public copy included, and the line says so. Nothing is measured for a what-if.
 - **"Would no longer block the track" is by that answer.** The line about a migration track compares today's
   blocker with the knowledge base's answer for the new version. It is not a measurement and moves nothing on
   Migration.
@@ -585,9 +594,13 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   library on the public copy of the new version, and its results become this assessment's newest results "after":
   a finding that passes can read as closed, "Proven on your system" reads the run, and an accepted update for the
   library can then no longer be undone. The card says so before Confirm. It is offered only where Evidence would
-  offer the same retest: the scanner file names the library, the app holds a public copy of exactly that version,
-  nothing else is running, and (for a real library) the app is in isolated mode. Otherwise the part gives the
-  reason and has no button. A try does not touch a system of yours: it runs a public copy on this computer.
+  offer the same retest: the scanner file names the library, the app holds a public copy of exactly that version
+  (the version as asked: "1.4.3-otto" is another program than "1.4.3"), nothing else is running, the assessment is
+  open, and (for a real library) the app is in isolated mode with its image prepared. In demo mode Evidence's own
+  menu still lists a real library's versions, but the try stays off there, because such a retest could only read
+  "Couldn't run". Otherwise the part gives the reason and has no button. Once its card is confirmed the part keeps
+  what a retest changes, and the panel says the request was sent. A try does not touch a system of yours: it runs a
+  public copy on this computer.
 - **A library the app holds nothing about** gets the same four parts, each saying that it knows nothing, and one
   hypothesis: that everything about the update is open.
 - **Like every typed sentence, the question is kept.** In an open assessment the sentence, the title of the answer

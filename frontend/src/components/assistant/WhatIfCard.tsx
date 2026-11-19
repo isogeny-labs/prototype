@@ -73,7 +73,10 @@ export function WhatIfCard({ whatif, tryCard }: { whatif: WhatIf; tryCard: React
 
       <h3 className={H}>{tried.title}</h3>
       <div data-testid="whatif-try" data-offered={tried.offered ? "yes" : "no"} className="mt-1">
-        {tried.offered && tryCard ? (
+        {/* Offered: what a retest changes, then its card. Once the card is confirmed, or the answer is out of date, the
+            card is gone and the panel says so under the answer; the try was offered all the same, so this part never
+            says it is not offered (the review of 19 November 2026). */}
+        {tried.offered ? (
           <>
             <ul data-testid="whatif-try-changes" className="list-disc space-y-0.5 pl-5 text-xs text-slate-300 marker:text-slate-500">
               {tried.changes.map((change) => (
@@ -82,7 +85,7 @@ export function WhatIfCard({ whatif, tryCard }: { whatif: WhatIf; tryCard: React
                 </li>
               ))}
             </ul>
-            <div className="mt-2">{tryCard}</div>
+            {tryCard ? <div className="mt-2">{tryCard}</div> : null}
           </>
         ) : (
           <p data-testid="whatif-try-reason" className="break-words text-[13px] text-slate-300">

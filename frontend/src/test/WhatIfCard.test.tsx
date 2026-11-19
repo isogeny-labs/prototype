@@ -135,6 +135,15 @@ describe("a what-if in the Otto panel (phase 6e, first half)", () => {
     fireEvent.click(within(card).getByTestId("otto-confirm-button"));
     await waitFor(() => expect(calls(fetchMock)).toContain(RETEST));
     expect(sent(fetchMock, RETEST)?.body).toEqual({ version: "1.4.3", component: "acme-sign" }); // the page button's own request
+    // Once confirmed, the card is gone and the panel says it was sent. The try was offered all the same: the part keeps
+    // what a retest changes and never says that it is not offered (the review of 19 November 2026).
+    await waitFor(() => expect(screen.getByTestId("otto-reply-confirmed")).toBeTruthy());
+    const after = screen.getByTestId("whatif-try");
+    expect(after.getAttribute("data-offered")).toBe("yes");
+    expect(within(after).queryByTestId("whatif-try-reason")).toBeNull();
+    expect(after.textContent).not.toContain("is not offered");
+    expect(within(after).queryByTestId("otto-entry")).toBeNull();
+    expect(within(after).getAllByRole("listitem").map((li) => text(li))).toEqual(offered.test_copy.changes);
   });
 
   it("a library the app knows nothing about still gets its four parts, and says so", async () => {

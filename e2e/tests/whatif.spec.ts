@@ -137,7 +137,7 @@ test("a what-if is answered from what the app knows; the try is the page's own r
   await expect(group("needs").getByTestId("whatif-quote").first()).toContainText('"bn.js": "^4.11.9"');
   await expect(group("advisories").getByTestId("whatif-line")).toHaveCount(3);
   await expect(group("advisories").getByTestId("whatif-line").first()).toContainText(
-    "its publisher names 6.5.7 as the fixed version. 6.5.7 is at or past it, so the update answers this advisory by the publisher's own statement");
+    "its publisher names 6.5.7 as the fixed version, so updating to 6.5.7 answers this advisory by the publisher's own statement");
   await expect(group("advisories").getByTestId("whatif-label").first()).toHaveText("Test pack 2026.11.2");
   await expect(group("trial").getByTestId("whatif-line")).toContainText("Proven on public copies: Passed. 6.5.6 fails the advisory check; 6.5.7 passes.");
   await expect(group("post_quantum").getByTestId("whatif-line")).toHaveCount(3);

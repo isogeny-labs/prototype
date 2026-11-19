@@ -17,6 +17,7 @@ results. It writes nothing, starts nothing and decides nothing; a fact repeats a
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
 
 from app import real_libraries
@@ -24,10 +25,11 @@ from app.db import ImportRow, PlanRow
 from app.engine import research
 from app.knowledge import needs as needs_lists
 from app.knowledge.base import knowledge_base
-from app.knowledge.versions import at_least, read_version, shown
+from app.knowledge.versions import key as version_key, read_version
 from app.present import dependencies as present_deps
 from app.present import otto as present_otto
 from app.present import times
+from app.present.lookup import CLOSED_SENTENCE
 
 MAX_TEXT = 80
 TITLES = {
@@ -40,6 +42,7 @@ TITLES = {
     "own_results": "Your own results on this library",
 }
 FROM_FILE, PACKAGE_FILE, DEPENDENCIES, OWN_RESULTS = "From your file", "Package file says", "From the Dependencies page", "This assessment's reviewed runs"
+_LEADING_V = re.compile(r"^[vV](?=\d)")
 NEEDS_WORDS = {"not_in_knowledge_base": "Not in our knowledge base yet", "couldnt_tell_version": "Couldn't tell the version",
                "doesnt_apply": "Doesn't apply"}
 EXPLANATION_OFF = "Live Otto is off. This is what the app knows."
@@ -83,6 +86,21 @@ def _source(source: Any) -> dict:
     return {"title": source.title, "url": source.url, "quote": source.quote, "read_on": source.checked}
 
 
+def _package_names(entry: Any) -> set[str]:
+    """The names of a knowledge-base entry's packages ("pkg:pypi/ecdsa" is called "ecdsa"), lower case."""
+    out = set()
+    for package in entry.packages:
+        tail = str(package.purl).split("?", 1)[0].split("#", 1)[0].rsplit("/", 1)[-1].split("@", 1)[0]
+        if tail:
+            out.add(tail.casefold())
+    return out
+
+
+def _same_version(a: Any, b: Any) -> bool:
+    """Two read versions are the same release (1.1.1 and 1.1.1.0 are; 6.5.7 and 6.5.70 are not)."""
+    return a is not None and b is not None and version_key(a) == version_key(b)
+
+
 def _join(items: list[str]) -> str:
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
 
@@ -100,6 +118,7 @@ class WhatIfMixin:
     _dependency_state: Callable[..., dict | None]
     _pack_advisories: Callable[..., list]
     _closed_at: Callable[[int], Any]
+    _real_note: Callable[[dict], str | None]
     lab_view: Callable[[int], dict]
     otto_live_ready: Callable[[], bool]
 
@@ -124,29 +143,45 @@ class WhatIfMixin:
     def _whatif_read(self, plan_id: int, library: object, version: object) -> dict:
         asked_library, asked_version = _plain(library), _plain(version)
         kb = knowledge_base()
-        entry = kb.find(None, asked_library) or next((f for f in kb.files.values() if asked_library.casefold() in (f.library, f.label.casefold())), None)
-        label = entry.label if entry is not None else asked_library
-        key = entry.library if entry is not None else None
+        asked = asked_library.casefold()
+        # The library as the knowledge base knows it: by one of its names, its label, or the name of one of its packages
+        # (PyPI calls python-ecdsa "ecdsa"). The review of 19 November 2026 found "ecdsa" answered as if nothing were known.
+        entry = (kb.find(None, asked_library)
+                 or next((f for f in kb.files.values() if asked in (f.library, f.label.casefold())), None)
+                 or next((f for f in kb.files.values() if asked in _package_names(f)), None))
         read = read_version(asked_version)
-        new = shown(read) if read is not None else asked_version
+        # The version as asked (only a leading "v" is dropped): "1.4.3-otto" is another program than "1.4.3", so the card
+        # names and offers exactly the version asked about, never its upstream number in its place.
+        new = _LEADING_V.sub("", asked_version)
         with self.db() as db:
             plan = self._plan(db, plan_id)
             state = self._dependency_state(db, plan)
             programs = research.programs(self._claims(db.get(ImportRow, plan.import_id)))
-            advisories = [(pack, a) for pack, a in self._pack_advisories(db, self._closed_at(plan.id))
-                          if a["package"]["name"].casefold() in {asked_library.casefold(), str(key or "").casefold(), label.casefold()}]
+            closed = self._closed_at(plan.id)
+            pack_advisories = self._pack_advisories(db, closed)
         rows = [r for r in (state or {}).get("rows") or []
-                if (key is not None and r.get("library") == key) or str(r.get("name") or "").casefold() == asked_library.casefold()]
-        named = [p for p in programs if p["component"].casefold() in {asked_library.casefold(), str(key or "").casefold(), label.casefold()}]
+                if (entry is not None and r.get("library") == entry.library) or str(r.get("name") or "").casefold() == asked]
+        if entry is None:          # an entry of the dependency list the knowledge base knows by its package address
+            entry = next((kb.files[r["library"]] for r in rows if r.get("library") in kb.files), None)
+            if entry is not None:
+                rows = [r for r in (state or {}).get("rows") or [] if r.get("library") == entry.library or str(r.get("name") or "").casefold() == asked]
+        label = entry.label if entry is not None else asked_library
+        key = entry.library if entry is not None else None
+        names = {asked, str(key or "").casefold(), label.casefold()} | (_package_names(entry) if entry is not None else set())
+        names.discard("")
+        advisories = [(pack, a) for pack, a in pack_advisories if a["package"]["name"].casefold() in names]
+        named = [p for p in programs if p["component"].casefold() in names]
         # the versions this assessment has of the library, in the order they are met (the list first, then the file)
         have = list(dict.fromkeys([str(r["version"]) for r in rows if r.get("version")] + [str(p["version"]) for p in named if p.get("version")]))
         lab = self.lab_view(plan_id) if named else {}
         purl = next((r.get("purl") for r in rows if r.get("purl")), None)
         name = (rows[0]["name"] if rows else None) or (named[0]["component"] if named else None) or asked_library
+        # why a real library of the file can't run here now (demo mode, or its image not prepared), in the page's words
+        real_note = self._real_note({"component": named[0]["component"], "version": named[0]["version"]}) if named else None
 
         new_needs = kb.declared_needs(purl, name, asked_version) if (purl or entry is not None) else kb.declared_needs(None, asked_library, asked_version)
         facts = [_whatif_used(state, rows, label), _whatif_needs(kb, purl, name, label, have, new, new_needs),
-                 _whatif_advisories(advisories, label, have, read, new), _whatif_trial(advisories, label, new),
+                 _whatif_advisories(advisories, label, read, new), _whatif_trial(advisories, label, new),
                  _whatif_post_quantum(kb, purl, name, label, rows, have, asked_version, new), _whatif_blocks(kb, purl, name, state, rows, label, asked_version, new),
                  _whatif_own_results(lab, named, label)]
         known = entry is not None or bool(rows) or bool(named) or bool(advisories)
@@ -159,7 +194,7 @@ class WhatIfMixin:
             "title": f"What if {label} is updated to {new}?",
             "facts_title": "What the app knows", "facts": facts,
             # (the try on a test copy: Evidence's own Retest new version, pointed at this version)
-            "test_copy": _whatif_try(lab, named, key, label, new, read is not None),
+            "test_copy": _whatif_try(lab, named, key, label, new, read is not None, closed is not None, real_note),
             "explanation": EXPLANATION_NOT_BUILT if self.otto_live_ready() else EXPLANATION_OFF,
             "hypotheses_title": "Hypothesis", "hypotheses_note": HYPOTHESIS_NOTE, "hypotheses": [{"text": h} for h in hypotheses],
         }
@@ -221,33 +256,46 @@ def _whatif_needs(kb: Any, purl: object, name: object, label: str, have: list[st
         lines.append(_line(entry.note, PACKAGE_FILE, None, None))
     return _group("needs", lines, plain=plain)
 
-def _whatif_advisories(advisories: list, label: str, have: list[str], read: Any, new: str) -> dict:
+def _whatif_advisories(advisories: list, label: str, read: Any, new: str) -> dict:
+    """What each advisory of the installed packs says about the version asked about. A conclusion is drawn only where
+    the version asked about is exactly the version the publisher names as fixed. A pack holds the affected versions as
+    words, and a range can have gaps (OpenJDK 18 is affected although its number is past the fix, and versions before a
+    flaw was introduced were never affected), so for any other version the line quotes the pack's reading and works
+    nothing out from it (the review of 19 November 2026)."""
     lines = []
-    plain: dict[str, list[str]] = {"answered": [], "still_named": [], "cant_say": []}
+    plain: dict[str, list[str]] = {"answered": [], "not_worked_out": [], "cant_say": []}
     for pack, advisory in advisories:
         reading = advisory.get("reading") or {}
         fixed = (reading.get("fixed") or {}).get("version")
+        affected = reading.get("affected") or {}
         name = f"{advisory['id']} ({reading.get('plain_name') or 'an advisory'})"
-        quote = (reading.get("fixed") or {}).get("quote") or {}
-        source = ({"title": f"The publisher's line, as test pack {pack.version} holds it", "url": None, "quote": quote.get("text"), "read_on": None}
-                  if quote.get("text") else None)
+        fixed_quote = (reading.get("fixed") or {}).get("quote") or {}
+        affected_quote = affected.get("quote") or {}
+        by = f"Test pack {pack.version}"
+
+        def source(quote: dict, version: str = pack.version) -> dict | None:
+            return ({"title": f"The publisher's line, as test pack {version} holds it", "url": None, "quote": quote.get("text"), "read_on": None}
+                    if quote.get("text") else None)
         link = _link("advisories", advisory["id"])
-        plain["cant_say" if not fixed or read_version(fixed) is None or read is None else
-              "answered" if at_least(read, str(fixed)) else "still_named"].append(str(advisory["id"]))
-        if not fixed or read_version(fixed) is None:
+        fixed_read = read_version(fixed) if fixed else None
+        if fixed_read is None:
+            plain["cant_say"].append(str(advisory["id"]))
             lines.append(_line(f"{name}: the test pack names no fixed version the app can read, so it can't say whether {new} answers it.",
-                               f"Test pack {pack.version}", link, source))
+                               by, link, source(affected_quote)))
         elif read is None:
+            plain["cant_say"].append(str(advisory["id"]))
             lines.append(_line(f"{name}: its publisher names {fixed} as the fixed version. Couldn't tell the version you asked about.",
-                               f"Test pack {pack.version}", link, source))
-        elif at_least(read, str(fixed)):
-            was = [v for v in have if read_version(v) is not None and not at_least(read_version(v), str(fixed))]        # type: ignore[arg-type]
-            lines.append(_line(f"{name}: its publisher names {fixed} as the fixed version. {new} is at or past it, so the update answers this "
-                               f"advisory by the publisher's own statement" + (f" (it names {_join(was)}, which you have)." if was else "."),
-                               f"Test pack {pack.version}", link, source))
+                               by, link, source(fixed_quote)))
+        elif _same_version(read, fixed_read):
+            plain["answered"].append(str(advisory["id"]))
+            lines.append(_line(f"{name}: its publisher names {fixed} as the fixed version, so updating to {new} answers this advisory by "
+                               "the publisher's own statement.", by, link, source(fixed_quote)))
         else:
-            lines.append(_line(f"{name}: its publisher names {fixed} as the fixed version. {new} is before it, so this advisory still names it.",
-                               f"Test pack {pack.version}", link, source))
+            plain["not_worked_out"].append(str(advisory["id"]))
+            versions = _plain(affected.get("versions"), 300)
+            reading_line = (f" The test pack reads the affected versions as “{versions}”." if versions else "")
+            lines.append(_line(f"{name}: its publisher names {fixed} as the fixed version.{reading_line} Whether {new} is among them is not "
+                               "worked out here.", by, link, source(affected_quote) or source(fixed_quote)))
     return _group("advisories", lines, f"No advisory in the installed test packs is about {label}.", plain)
 
 def _whatif_trial(advisories: list, label: str, new: str) -> dict:
@@ -267,13 +315,22 @@ def _whatif_trial(advisories: list, label: str, new: str) -> dict:
 
 def _whatif_post_quantum(kb: Any, purl: object, name: object, label: str, rows: list[dict], have: list[str], asked_version: str, new: str) -> dict:
     after = kb.look_up(purl, name, asked_version)
+    # (where the dependency list already holds exactly the version asked about, its answer is the one Dependencies shows
+    # for that entry, a measurement on a public copy included; only otherwise is it the knowledge base's answer)
+    listed = next((r for r in rows if str(r.get("version")) == new), None)
     lines = []
     plain: dict[str, dict] = {}
     for question, words in present_deps.QUESTION_WORDS.items():
         a = after[question]
-        said = f"{label} {new}: {present_deps.ANSWER_WORDS[a.answer]}"
-        said += f" ({present_deps.LABEL_WORDS[a.label]})" if a.label else ""
-        plain[question] = {"question": words, "new": present_deps.ANSWER_WORDS[a.answer], "have": {}}
+        if listed is not None:
+            shown_now = listed["answers"][question]
+            now_label = present_deps.LABEL_WORDS.get(shown_now.get("label") or "")
+            said = f"{label} {new}: {present_deps.ANSWER_WORDS[shown_now['answer']]}" + (f" ({now_label})" if now_label else "")
+            plain[question] = {"question": words, "new": present_deps.ANSWER_WORDS[shown_now["answer"]], "have": {}}
+        else:
+            said = f"{label} {new}: {present_deps.ANSWER_WORDS[a.answer]}"
+            said += f" ({present_deps.LABEL_WORDS[a.label]})" if a.label else ""
+            plain[question] = {"question": words, "new": present_deps.ANSWER_WORDS[a.answer], "have": {}}
         before = []
         for version in [v for v in have if v != new]:
             row = next((r for r in rows if str(r.get("version")) == version), None)
@@ -286,9 +343,13 @@ def _whatif_post_quantum(kb: Any, purl: object, name: object, label: str, rows: 
                 b = kb.look_up(purl, name, version)[question]
                 before.append(f"{label} {version}: {present_deps.ANSWER_WORDS[b.answer]}" + (f" ({present_deps.LABEL_WORDS[b.label]})" if b.label else ""))
                 plain[question]["have"][version] = present_deps.ANSWER_WORDS[b.answer]
-        lines.append(_line(f"{words}. {'; '.join(before + [said])}. {a.reason}", present_deps.LABEL_WORDS.get(a.label or ""),
-                           _link("migration/dependencies", rows[0]["id"]) if rows else None,
-                           _source(a.source) if a.source is not None else None))
+        if listed is not None:
+            lines.append(_line(f"{words}. {'; '.join(before + [said])}. Each is as Dependencies shows it for that entry of your list.",
+                               now_label or DEPENDENCIES, _link("migration/dependencies", listed["id"]), None))
+        else:
+            lines.append(_line(f"{words}. {'; '.join(before + [said])}. {a.reason}", present_deps.LABEL_WORDS.get(a.label or ""),
+                               _link("migration/dependencies", rows[0]["id"]) if rows else None,
+                               _source(a.source) if a.source is not None else None))
     return _group("post_quantum", lines, plain=plain)
 
 def _whatif_blocks(kb: Any, purl: object, name: object, state: dict | None, rows: list[dict], label: str, asked_version: str, new: str) -> dict:
@@ -331,22 +392,33 @@ def _whatif_own_results(lab: dict, named: list[dict], label: str) -> dict:
 
 # ---------------------------------------------------------------- the try
 
-def _whatif_try(lab: dict, named: list[dict], key: str | None, label: str, new: str, version_read: bool) -> dict:
-    """Whether Evidence's Retest new version can be pointed at the asked version, and if not, why. Nothing is started."""
+def _whatif_try(lab: dict, named: list[dict], key: str | None, label: str, new: str, version_read: bool, closed: bool,
+                real_note: str | None) -> dict:
+    """Whether Evidence's Retest new version can be pointed at the asked version, and if not, why. Nothing is started.
+    It is offered only where that button would run the retest for exactly that version (the review of 19 November 2026:
+    not in a closed assessment, and not for a real library while the app can't run it, in demo mode for one)."""
     out: dict[str, Any] = {"title": TRY_TITLE, "button": "Retest new version", "offered": False, "reason": None, "component": None,
                            "version": new, "changes": TRY_CHANGES}
+    if closed:
+        return {**out, "reason": CLOSED_SENTENCE}
     if not named:
         return {**out, "reason": f"Your scanner file does not name {label}, so there is no locked test of this assessment to rerun on it."}
     if not version_read:
         return {**out, "reason": "Couldn't tell the version you asked about, so there is nothing to retest on."}
+    if real_note:
+        return {**out, "reason": real_note}
     retest = lab.get("retest") or {}
-    choice = next((v for v in retest.get("versions") or []
-                   if str(v.get("version")) == new and str(v.get("component") or "").casefold() in {p["component"].casefold() for p in named}), None)
+    components = {p["component"].casefold() for p in named}
+    offered = [v for v in retest.get("versions") or [] if str(v.get("component") or "").casefold() in components]
+    choice = next((v for v in offered if str(v.get("version")) == new), None)
     if choice is None:
         pinned = (real_libraries.LIBRARIES.get(str(key)) or {}).get("versions") or []
-        if new not in pinned:
-            held = f" It holds {_join([f'{label} {v}' for v in pinned])}." if pinned else ""
-            return {**out, "reason": f"The app holds no public copy of {label} {new}.{held}"}
+        if pinned and new not in pinned:
+            return {**out, "reason": f"The app holds no public copy of {label} {new}. It holds {_join([f'{label} {v}' for v in pinned])}."}
+        if not pinned:     # one of our own demo programs: Retest new version offers the registered versions only
+            listed = _join([f"{v.get('component')} {v.get('version')}" for v in offered]) if offered else None
+            return {**out, "reason": f"Retest new version does not offer {label} {new} for this assessment."
+                                     + (f" It offers {listed}." if listed else "")}
         return {**out, "reason": str(retest.get("blocked_reason") or f"Retest new version does not offer {label} {new} for this assessment now.")}
     if not retest.get("can_start"):
         return {**out, "component": choice.get("component"), "reason": str(retest.get("blocked_reason") or "Retest new version can't be started now.")}

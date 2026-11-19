@@ -351,8 +351,22 @@ def _start(copilot: Any, facts: Any, said: dict, line: dict, page: str, item: st
 WHAT_IF_LABEL = "From what the app knows"
 
 
+# Everyday names a what-if is not read under: "Python" is also the language ("update Python to 3.12" is about the
+# interpreter, which the app knows nothing about), so it is not read as python-ecdsa.
+WHAT_IF_NOT_ALIASED = frozenset({"python"})
+
+
 def _what_if(copilot: Any, lab: Any, facts: Any, said: dict, out: Any) -> dict:
     view = lab.whatif_view(facts.plan_id, said["library"], said["version"])
+    typed = str(said["library"]).casefold()
+    if not view["known"] and typed not in WHAT_IF_NOT_ALIASED:
+        # an everyday name of the panel's own table ("Java" for openjdk, "ecdsa" for python-ecdsa), read only where the
+        # name itself is unknown and the library it stands for is known (the review of 19 November 2026)
+        for other in commands.ALIASES.get(typed, ()):
+            known = lab.whatif_view(facts.plan_id, other, said["version"])
+            if known["known"]:
+                view = known
+                break
     tried = view["test_copy"]
     entry = None
     if tried["offered"]:
