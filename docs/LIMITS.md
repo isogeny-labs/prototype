@@ -542,6 +542,61 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
   also a rejection, before any check has run.
 
+## Limits of Otto's research loop (phase 6; 19 November 2026)
+
+Built in the overnight run of 19 November 2026 from Kevin's brief ("Otto researches by itself"). SPEC section 7f,
+point 14, has the rules. What it does not do, plainly:
+
+- **The public source has not been read for real from the build machine.** The machine this was built on could not
+  reach `api.osv.dev`. The reader was written against the shape OSV documents and is tested with answers written in
+  that shape and with damaged copies of them (a seeded fuzz test). The first real look is Kevin's to make: one click
+  on **Look for new advisories** on a computer with internet, as the 15-minute live check list says. If OSV answers
+  in a way the reader does not expect, the look says "... is not in the shape it documents" and nothing is listed.
+- **Which libraries are asked about.** Only libraries the assessment names and OSV keeps by name: packages of npm,
+  PyPI, Go, Maven, crates.io, NuGet and RubyGems. Of the six libraries the app knows today that is python-ecdsa
+  (PyPI, as `ecdsa`), elliptic (npm) and Go's standard library (Go, as `stdlib`). Java (OpenJDK), OpenSSL and
+  BoringSSL are not packages of those ecosystems, so they are not asked about, and the box says so before the look.
+  Their advisories still come only from the built-in packs. A library the app does not know is not asked about
+  either, whatever a dependency list says: a look is about the libraries the app can say something about.
+- **Only the package's name is sent**, with its ecosystem. No version is sent, so the answer lists every advisory of
+  that package; which ones name a version you have is worked out here from the record's version ranges. A record
+  that gives its range only as source-code commits can't be matched to a version number: it reads "It could not be
+  told whether it names ..." and nothing is guessed.
+- **How much is read.** At most 3 pages of an answer and 200 records for one package; a look keeps the 40 newest
+  advisories. When there were more the look says so. A record that is withdrawn, that says nothing about a version
+  of the package, or that is not in the documented shape is left out and counted ("N records were left out").
+- **No severity.** A record's rating of how serious a weakness is, and its score, are not read and not shown.
+- **A test can be proven only for a library with pinned public copies of an affected and of the fixed version**:
+  today openjdk 17.0.2 and 17.0.3, python-ecdsa 0.13.2 and 0.13.3, elliptic 6.5.6 and 6.5.7. An advisory fixed in
+  any other version reads "No test yet: a test is proven against the fixed version, ..., and this version of the
+  app has no public copy of it". So with today's pinned versions **most newly published advisories read "No test
+  yet"**. Pinning more versions (for example elliptic 6.6.0 and 6.6.1) needs a new container image and Kevin's OK,
+  like any dependency change.
+- **Only one kind of test can be designed**: published ECDSA P-256 signature cases (the building block of phase
+  5c). An advisory about anything else gets "No test yet" with the design's own reason.
+- **Proving needs isolated mode.** In demo mode **Design and prove tests** is off and says why: a real library runs
+  only in its own locked-down container.
+- **With Live Otto off, only the advisories of the dated snapshot have recorded answers.** A research run on any
+  other advisory then reads "No recorded answer: this needs Live Otto." for it. With Live Otto on, the run asks
+  Claude (read, design, propose a fix) within the spending limit per run; what is sent is the advisory's published
+  text. A live research run was not made during the build (no key on the build machine; no test may reach Claude).
+- **A pack made here is installed by the click that started the run**, after any built-in pack that is not
+  installed yet. This is the one case where a pack is installed without a click of its own; the box says so before
+  the run starts. A pack made here is signed with a key made on this computer and is trusted on this computer only.
+- **One research run at a time**, for the whole app. It can take several minutes for each advisory. If the app is
+  stopped while a run goes on, the run is lost: the block says it was interrupted, nothing was installed, and it
+  can be started again. The research ledger of runs made here is in the data folder (`otto-research-lab/`), apart
+  from the shipped one in `research/lab/`, which is never written by the app.
+- **The proof is the research side's own**, as for a shipped pack: the trial on public copies and its replay by a
+  second author, which is a second role of the same build on the same computer and not an outside party.
+- **What a look found is not kept as a list of its own.** The evidence file holds each look (when, by whom, the
+  source, the names sent, how many were found and left out) and each research run with the pack it made; the
+  advisories themselves are in the pack, where a test was tried for them.
+- **The demonstration** (`backend/tools/research_demo.py`) uses the three elliptic advisories of the dated snapshot
+  as a recorded source, with only the first built-in pack present, so that the recorded answers fit. It shows the
+  loop end to end with no internet and no key: one advisory is proven and proposed, two read "No test yet".
+
+
 ## Limits of phase 6a (the Otto assistant: suggestions and three tabs; 19 November 2026)
 
 What is real:

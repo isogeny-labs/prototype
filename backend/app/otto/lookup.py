@@ -115,7 +115,7 @@ def _http_transport(body: bytes, timeout: float) -> tuple[int, bytes]:
     """One POST to the source: (HTTP status, answer bytes). Raises OSError when there is no answer at all."""
     request = urllib.request.Request(SOURCE_URL, data=body, method="POST",
                                      headers={"Content-Type": "application/json", "Accept": "application/json",
-                                              "User-Agent": "evidence-lab-advisory-reader"})
+                                              "User-Agent": "advisory-reader"})      # a plain client name: nothing about who asks
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:   # noqa: S310 (a fixed https address)
             return response.status, response.read(MAX_ANSWER_BYTES + 1)

@@ -411,6 +411,45 @@ The app has one login and does not check who is at the keyboard.
 There is no AI model in the panel in this phase: with no API key, everything in it works. The status line under the
 title says whether Live Otto is on.
 
+### Looking for new advisories (Otto's research loop, 19 November 2026)
+
+On the **Advisories** page of an assessment there is a block called **New advisories**, with two buttons. Each one
+first opens a box that says what it will do. Nothing is sent or started until you press the button in that box.
+
+1. **Look for new advisories** asks OSV (osv.dev), a public database of published advisories, about the libraries
+   your assessment names. Only the package names are sent (for example `elliptic` and `ecdsa`): no version, no
+   address and no file. Which advisories name a version you have is worked out on your computer. Looking is free
+   and proposes nothing.
+2. **Design and prove tests** then takes the new advisories that can be tried here. For each one a test is
+   designed from published test cases and tried on public copies of the library, in isolated mode (Docker). A test
+   counts as proven only when it fails on the affected version, passes on the fixed version, and the control that
+   must fail does. What was found is signed into a test pack made on your computer, which the same click installs.
+   Each proven check then shows on the page as a proposal marked **From Otto**, with **Accept** and **Reject**.
+   An advisory with no proven test says why ("No test yet: ...").
+
+Nobody has to install a test pack to get new checks. The two shipped packs stay as the starting set.
+
+What it covers today, plainly: libraries the app knows that are published on npm, PyPI, Go, Maven, crates.io,
+NuGet or RubyGems, and a test only where the app has public copies of an affected and a fixed version (Java,
+python-ecdsa and elliptic, in the versions pinned in the app). So most newly published advisories will read
+"No test yet". `docs/LIMITS.md` has the full list.
+
+**To see the whole loop with no internet and no API key** (Docker must be running, for isolated mode):
+
+```bash
+cd backend && .venv/bin/python tools/research_demo.py /tmp/research-demo
+```
+
+It prepares a folder and prints one command. Run that command from the repository's top folder to start the app
+on it. Then: **New assessment**, bring in `demo/real-libraries.csv`, open **Advisories**, press **Look for new
+advisories** (three elliptic advisories are found, read from a recorded copy), then **Design and prove tests**.
+After a few minutes one check is proposed (proven on elliptic 6.5.6 and 6.5.7) and two advisories read "No test
+yet", each with its reason.
+
+With **Live Otto** on (Settings; it needs `ANTHROPIC_API_KEY`), a research run asks Claude to read each advisory
+and design its test, within the spending limit per run. With it off, only the answers recorded during the build
+are used, and an advisory with none reads "No recorded answer: this needs Live Otto."
+
 ## Where things are
 
 - `backend/` – Python 3.12, FastAPI, SQLite. `app/` is the code (one folder per job, see
