@@ -15,8 +15,9 @@ Doc "Phase 6 plan: Otto assistant".
 
 Written at 11:05 UTC on 19 November 2026 (machine time). The exact next action is the section before the
 appendix. In one line: **steps 1 to 3 and the first halves of 6b and 6c are built, reviewed, fixed and pushed, and
-every walk passed on them (100 of 100); 6d is started (two backend checkpoints, nothing of it on a page yet); 6e is
-not started; the long checks are running once more on the newest code.**
+every walk passed on them (100 of 100); 6d's first half is partly built and can be used (the Change watch page with
+its Changes view, tested and walked; four pieces of it are still missing and it has not had its separate review);
+6e is not started; the long checks are running once more.**
 
 | # | Success step | State |
 |---|---|---|
@@ -32,7 +33,7 @@ not started; the long checks are running once more on the newest code.**
 | 12 | Commands | **First half done** (6b, fixed rules only): built, tested, documented, reviewed, the review's findings fixed with tests, walked on the final code. Two small leftovers are listed in step 4 below. **The second half (free wording through Claude) is not built** |
 | 13 | Questions | **First half done** (6c, the six fixed questions by rules): built, tested, documented, reviewed ("not ready as committed": 13 findings), all 13 fixed with tests, walked on the final code. **The second half (answers in free words by Claude, with "Hypothesis") is not built**, so an unproven answer labelled Hypothesis does not exist yet |
 | 14 | What-if and hypotheses | **Not started** (6e) |
-| 15 | Change watch | **Started, not usable yet** (6d, the shorter first half: Changes without the Watch list). Two backend checkpoints are in, with tests, and **nothing of it is on a page**: no route, no button. See "Step 6" below for what is built and what is left |
+| 15 | Change watch | **First half partly built, and usable** (6d: Changes without the Watch list). The page is in the sidebar after Fixes: a developer's change is listed with the tests picked for it and why; **Run the picked tests** runs them and the change reads, for the demo, "Passed before, fails now"; a line that names old cryptography is flagged. Tested (88 backend tests, 13 screen tests) and walked in a browser (1 passed, 2.0 min), with pictures. **Still missing in the first half:** the labels for a watch run on Evidence and Checks, the Text-only entry in Fixes, the Otto panel's next step for the page, the part of the evidence file. **Not reviewed separately yet.** The Watch list (second half) is not built. See "Step 6" |
 | 16 | Nothing without a click and Confirm; works without a key | **Holds for everything built**: 6a, the research loop, 6b and 6c work with no key (no part of the panel asks Claude in this version), with tests |
 | 17 | Keys match in both modes, fast tests under 5 minutes, each step reviewed, committed, pushed | **Keys: match in both modes** (isolated: exit code 0 on a frozen copy; demo: green in the GitHub checks on every push). **Fast tests: 5 min 52 s on the build machine with Otto, 4 min 35 s without; 4 min 59 s on GitHub's runner. Not safely under five minutes: decision 10.** Each step reviewed, fixed, committed, pushed. The complete run of every walk found two failures; both are fixed, the fix was reviewed (five findings, fixed), and **every walk then passed (100 of 100)**. The full backend set has not run on the newest code yet: **it is running now**, after the fast set and one more complete run of the walks |
 | 18 | This file | Kept current |
@@ -57,7 +58,9 @@ patches in place · `2849a9c` the panel's walk-reading tests go to the slow set 
 page, and a fact's link opens where its sentence stands** · `44faeba` this file · `043c5ac` **the review of
 that commit: five findings fixed** · `3322971` **6d, checkpoint 1** (a developer's change is read, its tests are
 picked; backend only) · `2aa07a2` **6d, checkpoint 2** (the watch run and the reviewer's rule for it; backend
-only).
+only) · `b3c3ea4` this file · `ff5f30c` **6d, checkpoint 3a** (the page's read and two actions, shapes, words) ·
+`ed05b33` **6d, checkpoint 3b** (the Change watch page) · `7500297` 6d in SPEC, CLAUDE.md, LIMITS, README, LAYOUT ·
+`fa1e1b6` **6d: the walk, with its pictures**.
 
 ## The GitHub checks, and what they caught (07:45 UTC)
 
@@ -648,11 +651,12 @@ one server's test and settles), 20 passed. There is no walk step on the multi-ta
 the same sentences through the same path as the panel. One more thing the complete run of every walk found is in
 "What the complete run of every walk found" above (a fact's link, fixed in `e16786f`).
 
-## Step 6: phase 6d, Change watch (started: two backend checkpoints; nothing of it is on a page yet)
+## Step 6: phase 6d, Change watch (first half partly built: the page works and is walked; four pieces and the review are left)
 
 The plan's shorter first half: **Changes without the Watch list**. Built in checkpoints, each committed with its
-tests, so that a stop between two of them leaves the app as it was: until the page is built (checkpoint 3) there is
-no route and no button, and nothing of Change watch can be seen or started in the app.
+tests, so that a stop between two of them leaves the app in a state that can be shown. Since checkpoint 3b the page
+is in the sidebar and works; `docs/SPEC.md` section 2 and `docs/LIMITS.md` ("Limits of phase 6d, first half") say
+what is built and what is not.
 
 **Checkpoint 1 (`3322971`): a developer's change is read, and its tests are picked.**
 - `demo/changes/`: the two bundled demo changes as data files ("Revert the range check", offered once a fix is
@@ -693,23 +697,51 @@ no route and no button, and nothing of Change watch can be seen or started in th
   a watch run reads **"Can't run"** (a stop is not a result, so it is neither "No difference found" nor a
   difference).
 
+**Checkpoint 3a (`ff5f30c`): the page's backend.** `backend/app/present/changewatch.py` (the words: a status
+word with one sentence that says why; a reason for each picking rule; a flag's sentence and note),
+`backend/app/changewatch/views.py` (`change_watch_view`: before and now repeat the reviewer's own word and plain
+sentence), `backend/app/web/changewatch.py` (one read, and two actions with no body: `POST
+.../change-watch/demo/{key}` and `POST .../change-watch/{change}/run`, both under the closed guard), the shapes in
+`models.py`, the generated frontend types. Tests: `test_watch_view.py`, 10 (the view at each stage in its shape and
+words; marked times for a browser, UTC for a file; login; every refusal; a closed assessment).
+
+**Checkpoint 3b (`ed05b33`): the page.** `frontend/src/components/ChangeWatchScreen.tsx` (the table and **Bring in
+a demo change**) and `changewatch/ChangePanelView.tsx` (a change's panel: what changed line by line, Tests picked
+and Not picked with reasons, **Run the picked tests** then **Run again**, the results before and on the change,
+Flags). The page is in the router, the sidebar (after Fixes) and the assistant's lists (a Testing page; "open
+change watch"; its sentence for "What is this page for?"). Tests: 13 screen tests (`ChangeWatch.test.tsx`); the
+three tests that pin the list of pages and of side panels name the new one. **834 screen tests pass.**
+
+**Documents (`7500297`):** SPEC section 2 and section 9, CLAUDE.md (one product rule, one safety rule, the test
+folder), LIMITS, README ("Change watch"), LAYOUT.
+
+**The walk (`fa1e1b6`):** `e2e/tests/changewatch.spec.ts` on its own copy of the app (port 8034, demo server
+8467). **1 passed (2.0 minutes)**, run twice. It goes from "Connect the demo code first" through the merge of the
+fix with the Fixes page's own buttons, brings in both demo changes, runs the picked tests ("Passed before, fails
+now (2 tests)"), checks that Evidence reads exactly what it read before, reads the flag, and measures the table
+and the panel at 1440 pixels wide. Pictures: `docs/screenshots/phase6d/` (ten, dark and light). The first pictures
+showed a long branch name broken between letters in the panel's header; corrected.
+
+**Test results for 6d so far:** `backend/tests/changewatch/` **88 passed** in the fast set (89 with the slow one);
+with `backend/tests/assistant` in full: **278 passed**; **834 screen tests**; lint, both type checks and the
+generated files clean; the walk green. **Not run on these commits yet:** the whole fast set, the full backend set
+and the complete run of every walk (the long checks that were running used the commit before the page).
+
 **Still to build for the first half, in this order:**
-3. The page and what shows on other pages: routes and shapes (`backend/app/web/`, `models.py`, then
-   `tools/api_schema.py` and `npm run gen:api`); the words (`backend/app/present/changewatch.py`); the page
-   "Change watch" after Fixes with the Changes view (table, panel: lines before and after, Tests picked and Not
-   picked with reasons, Run the picked tests then Run again, results before and after, Flags, Related) and Bring
-   in a demo change (Demo data); the page in the assistant's lists (`threads.py` `PAGES`, `PAGE_THREAD`,
-   `words.py` `PAGE_FOR`; `router.ts`, the sidebar); the panel's next step for Run the picked tests behind
-   Confirm; the label "From a developer's change: branch, commit" in Evidence and "Came from: Change watch" on
-   Checks (`ledger/checks.py`: `ORIGINS`, `PHASE_ORIGIN`, `_row_key`); the Text-only entry in Fixes "Came from:
-   developer's change" when tests that passed now fail (`ChangesMixin._fix_sources`). Screen tests; the tables at
-   1440 pixels.
-4. The evidence part `change_watch` (added only when there is something to put in it: the exact list of the
+1. What shows on other pages (`ledger/checks.py`: `ORIGINS`, `PHASE_ORIGIN`, `_row_key`, a block for a watch run):
+   "Came from: Change watch" on Checks; the heading "From a developer's change: branch, commit" in Evidence; then
+   the result on the change gets its "See the evidence" link in the Change watch panel (today only the result
+   before has one). The Text-only entry in Fixes "Came from: developer's change" when tests that passed now fail
+   (`ChangesMixin._fix_sources`; its status word must be in `ledger/groups.py` `FIX_STATE_BY_WORD`). The Related
+   block of a change.
+2. The Otto panel: a next step for "Run the picked tests" behind Confirm (`assistant/engine.py`, `threads.py`
+   `ENTRY_KINDS`), with its screen test that Confirm sends the page button's own request; "Bring in a demo change"
+   as a page-only command.
+3. The evidence part `change_watch` (added only when there is something to put in it: the exact list of the
    file's parts is pinned by `tests/test_evidence.py`), the report's part 9, and the verify command
    (`backend/evidence/`: a new check called like `check_otto`).
-5. The walk `e2e/tests/changewatch.spec.ts` (ports of its own), pictures in `docs/screenshots/phase6d/`,
-   SPEC section 2 (the plan's wording for 6d, without the Watch list), CLAUDE.md (the plan's rules 6 and 10),
-   LIMITS, README, LAYOUT, the questions for `docs/OTTO-KEY.md`; one separate review; fixes.
+4. The questions for `docs/OTTO-KEY.md` (which tests are picked for each demo change, and each result); the walk
+   and the pictures again; **one separate review of the whole first half**; its fixes; the long checks.
 **Not in the first half:** the Watch list (its proposals, rechecks and the new pinned checker).
 
 ## Decisions for Kevin (collected so far)
@@ -788,8 +820,9 @@ no route and no button, and nothing of Change watch can be seen or started in th
    phase6a/` is to be retaken on purpose from that run**: since `043c5ac` a result's panel starts with its plain
    sentence, and the picture `08c-evidence-why-did-this-check-fail-*.png` shows it.
 2. Read the newest run of "Checks" on pull request #7 (GitHub), and correct what it shows.
-3. **Go on with 6d at checkpoint 3** ("Step 6" above lists what is left, in order). It is being built in a
-   separate working copy while the long checks use the main one; everything committed there is on the branch.
+3. **Go on with 6d** ("Step 6" above lists the four pieces that are left, in order, then its separate review).
+   The fast set, the full backend set and a complete run of every walk have not run on the commits after
+   `2aa07a2` (the page and its walk): run them once the pieces are in.
 4. After 6d's first half: **6e** at least its shorter first half (the what-if facts and the try), then the second
    halves of 6b and 6c (the Claude steps, with the CLAUDE.md rule changes the plan lists for them). Each: plan,
    build, tests, one walk, pictures, documents, one separate review, fixes, commit, push, this file. Phase 6's
