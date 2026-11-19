@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -78,7 +79,25 @@ class DiscoverMixin:
 
     def _init_discover(self) -> None:
         self._research_lock = threading.Lock()
-        self._research_live: dict[int, dict] = {}        # research row id -> {"lines": [...], "thread": Thread}
+        self._research_live: dict[int, dict] = {}        # research row id -> {"lines": [...], "thread": Thread, "process": Popen}
+
+    def stop_research(self) -> None:
+        """When the app stops: end a research run that is still going, with everything it started. Its end row then
+        says it stopped, nothing is installed, and the block says the run can be started again. A run is never left
+        behind to go on working after the app is gone."""
+        for state in list(self._research_live.values()):
+            state["stopped"] = True
+            process = state.get("process")
+            if process is None or process.poll() is not None:
+                continue
+            try:
+                os.killpg(process.pid, signal.SIGTERM)       # (the command and what it started: it runs in a group of its own)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+        for state in list(self._research_live.values()):
+            thread = state.get("thread")
+            if thread is not None:
+                thread.join(15)
 
     # ---------------------------------------------------------------- which libraries, and what the source can be asked
 
@@ -309,7 +328,8 @@ class DiscoverMixin:
             env = dict(os.environ)
             env["PYTHONUNBUFFERED"] = "1"
             process = subprocess.Popen(self._research_command(inbox, live, limit_nano), cwd=str(BACKEND), env=env, stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
+                                       stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", start_new_session=True)
+            state["process"] = process
             assert process.stdout is not None
             for line in process.stdout:
                 text = "".join(ch if ch.isprintable() else " " for ch in line.rstrip("\n"))[:500]
@@ -317,7 +337,9 @@ class DiscoverMixin:
                     lines.append(text)
                     del lines[:-MAX_OUTPUT_LINES]
             code = process.wait(timeout=RESEARCH_TIMEOUT_SECONDS)
-            if code == 0:
+            if state.get("stopped"):
+                reason = present_lookup.INTERRUPTED
+            elif code == 0:
                 with self.db() as db:
                     update, _, _ = self._scan_updates(db)
                 if update is not None and update.made_here:

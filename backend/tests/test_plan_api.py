@@ -213,7 +213,10 @@ def test_there_is_no_route_that_accepts_software(client):
                       "/api/otto/packs/install": "PackInstallBody", "/api/otto/live": "LiveOttoBody",
                       # Otto's proposals (phase 5c): a short reason for a rejection, in words (300 characters at most); the
                       # proposal's id and the decision are in the address, and both are held to what the app itself made
-                      "/api/plans/{plan_id}/otto/proposals/{proposal_id}/{decision}": "DecisionBody"}
+                      "/api/plans/{plan_id}/otto/proposals/{proposal_id}/{decision}": "DecisionBody",
+                      # Phase 6a: the name a person types once, in words, for their decisions (60 characters at most after
+                      # cleaning; it is recorded and shown as plain text, and nothing in it runs)
+                      "/api/otto/name": "NameBody"}
     assert {k: v for k, v in with_json_body.items() if k in allowed_bodies} == allowed_bodies
     extra = set(with_json_body) - set(allowed_bodies)
     assert all(p.startswith("/api/evidence") or p.endswith("/evidence") for p in extra), extra

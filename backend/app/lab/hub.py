@@ -145,6 +145,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         # A test still unfinished now is interrupted, not answered: it must write nothing, or it would record
         # "the server did not answer" about a demo server that we ourselves are about to stop.
         self._stopping = True
+        self.stop_research()        # (phase 6: a research run that is still going is ended with the app, never left behind)
         self.jobs.stop()
         self.demo.stop()
         self.extra.stop()

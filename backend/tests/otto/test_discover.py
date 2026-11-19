@@ -366,6 +366,66 @@ def test_a_research_run_is_started_by_the_click_runs_in_the_background_and_its_e
 
 
 @pytest.mark.needs_otto
+def test_a_research_run_is_ended_with_the_app_and_never_left_behind(lab, monkeypatch, tmp_path):
+    """Stopping the app ends a run that is still going, with what it started. Its end is kept and says so."""
+    lab.look_for_advisories(lab.plan.id)
+    _pretend_isolated(lab, monkeypatch)
+    alive = tmp_path / "still-going"
+    # (a stand-in that would go on for a minute, and starts a child of its own, as the real command starts containers)
+    _stand_in(lab, monkeypatch, "import subprocess, sys, time, pathlib; print('started', flush=True); "
+                                "subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); "
+                                f"time.sleep(60); pathlib.Path({str(alive)!r}).write_text('it went on')")
+    lab.start_research(lab.plan.id)
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not any("started" in line for s in lab._research_live.values() for line in s["lines"]):
+        time.sleep(0.05)
+    [state] = list(lab._research_live.values())
+    process = state["process"]
+    began = time.monotonic()
+    lab.stop_research()
+    assert time.monotonic() - began < 20 and process.poll() is not None and not state["thread"].is_alive()
+    with lab.db() as db:
+        end = db.scalars(select(OttoResearchRow).where(OttoResearchRow.kind == "finished")).one()
+    assert end.pack_version is None and end.reason == words.INTERRUPTED
+    block = lab.advisories_view(lab.plan.id)["lookup"]
+    assert block["busy"] is False and block["research"]["progress"]["line"].endswith(words.INTERRUPTED)
+    time.sleep(0.5)
+    assert not alive.exists()
+    # the child it had started is gone too: nothing of the run goes on working
+    # (a process that has ended can stay listed as "defunct" until something collects it: that one works on nothing)
+    import subprocess as sp
+    from pathlib import Path
+    listed = sp.run(["pgrep", "-g", str(process.pid)], capture_output=True, text=True).stdout.split()
+
+    def working(pid: str) -> bool:
+        try:
+            return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
+        except OSError:
+            return False
+    assert [pid for pid in listed if working(pid)] == []
+
+
+@pytest.mark.needs_otto
+@pytest.mark.parametrize("table, column", [("otto_lookups", "source"), ("otto_research", "kind")])
+def test_raw_sql_cannot_change_or_delete_a_look_or_a_research_run(lab, monkeypatch, table, column):
+    """Both records only accept new rows: the database itself refuses a change or a removal."""
+    lab.look_for_advisories(lab.plan.id)
+    _pretend_isolated(lab, monkeypatch)
+    _stand_in(lab, monkeypatch, "print('Stopped: written for a test'); raise SystemExit(1)")
+    lab.start_research(lab.plan.id)
+    lab.wait_until_research_done(60)
+    with lab.db() as db:
+        before = db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()
+        assert before > 0
+        for statement in (f"UPDATE {table} SET {column} = 'x'", f"DELETE FROM {table}"):
+            with pytest.raises(Exception, match="append-only"):
+                db.execute(text(statement))
+                db.commit()
+            db.rollback()
+        assert db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar() == before
+
+
+@pytest.mark.needs_otto
 def test_only_one_research_run_at_a_time(lab, monkeypatch):
     lab.look_for_advisories(lab.plan.id)
     _pretend_isolated(lab, monkeypatch)
