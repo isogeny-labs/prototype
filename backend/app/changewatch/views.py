@@ -36,16 +36,21 @@ class ChangeWatchViewMixin:
         return {"run_id": run.id, "label": result["label"], "tone": result["tone"], "plain": result["plain"], "ran_on": on, "link": link}
 
     @staticmethod
-    def _before_link(run: TestRunRow | None) -> dict | None:
-        """Where the run a test is compared with is shown (None for a run made inside a watch run: Change watch shows it)."""
+    def _run_link(run: TestRunRow | None) -> dict | None:
+        """Where a run's evidence is shown. The test's own first run is its row on Evidence. A run of one retest, one
+        proof or one watch run is a row of that block on Checks, where exactly that run opens with its record (Evidence
+        lists such a test once, by its newest run of the kind)."""
         if run is None:
             return None
         if run.phase == "first":
             return {"page": "evidence", "item": f"test-{run.plan_item_id}", "group": None}
         if run.phase == "retest" and run.retest_id is not None:
-            return {"page": "evidence", "item": f"retest-{run.plan_item_id}-on-{run.retest_id}", "group": None}
+            return {"page": "checks", "item": f"retest-{run.plan_item_id}-on-{run.retest_id}", "group": None}
         if run.phase == "proof" and run.retest_id is not None:
-            return {"page": "evidence", "item": f"proof-{run.plan_item_id}-in-{run.retest_id}", "group": None}
+            return {"page": "checks", "item": f"proof-{run.plan_item_id}-in-{run.retest_id}", "group": None}
+        if run.phase in ("watch", "watch_base") and run.retest_id is not None:
+            kind = "watch" if run.phase == "watch" else "watchbase"
+            return {"page": "checks", "item": f"{kind}-{run.plan_item_id}-in-{run.retest_id}", "group": None}
         return None
 
     def _change_view(self, db, change: dict, program: dict, blocked: str | None) -> dict:
@@ -56,9 +61,9 @@ class ChangeWatchViewMixin:
             before_run = db.get(TestRunRow, row["before"]["run_id"]) if row["before"] is not None else None
             results.append({
                 "item_id": row["item_id"], "title": titles.get(row["item_id"]) or row["kind"],
-                "before": self._watch_side(db, row["before"], self._before_link(before_run)),
+                "before": self._watch_side(db, row["before"], self._run_link(before_run)),
                 "before_note": (words_or_none(row, before_run)),
-                "now": self._watch_side(db, row["now"], None),
+                "now": self._watch_side(db, row["now"], self._run_link(db.get(TestRunRow, row["now"]["run_id"]) if row["now"] is not None else None)),
                 "job": row["job"], "differs": words.OUTCOME_WORDS.get(row["outcome"]) if row["outcome"] else None,
                 "outcome": row["outcome"]})
         status = words.status_view(change)

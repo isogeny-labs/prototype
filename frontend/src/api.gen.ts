@@ -2127,12 +2127,16 @@ export interface EncryptionParts {
    * Only when a server change was tried on a test copy.
    */
   tries: CheckPart1 | null;
+  /**
+   * Phase 6d: only when the tests picked for a developer's change were run.
+   */
+  changes?: CheckPart1 | null;
 }
 /**
  * The test plan itself (drawn from the plan view); its heading names the version the file names.
  */
 export interface CheckPart {
-  key: "plan" | "retests" | "proofs" | "tries";
+  key: "plan" | "retests" | "proofs" | "tries" | "changes";
   label: string;
   count: number;
   /**
@@ -2157,7 +2161,7 @@ export interface CheckPart {
  * The 5c fixes: one labelled, foldable part of the Encryption tests group on Checks, with its count.
  */
 export interface CheckPart1 {
-  key: "plan" | "retests" | "proofs" | "tries";
+  key: "plan" | "retests" | "proofs" | "tries" | "changes";
   label: string;
   count: number;
   /**

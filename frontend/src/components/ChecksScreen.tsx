@@ -153,7 +153,7 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   const every = useMemo(
     () =>
       (view?.groups ?? []).flatMap((g) => [
-        ...(g.parts ? [...g.parts.retests.blocks, ...g.parts.proofs.blocks].flatMap((b) => b.rows) : []),
+        ...(g.parts ? [...g.parts.retests.blocks, ...g.parts.proofs.blocks, ...(g.parts.changes?.blocks ?? [])].flatMap((b) => b.rows) : []),
         ...g.rows,
       ]),
     [view],
@@ -285,6 +285,12 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
             ) : (
               <p className="px-1 py-1 text-sm text-slate-400">No check matches this search.</p>
             )}
+          </PartSection>
+        ) : null}
+        {/* Phase 6d: the runs of the tests picked for a developer's change, one block for each run. Only once one has run. */}
+        {parts.changes && wanted("watch", parts.changes) ? (
+          <PartSection part={parts.changes} open={isOpen("changes")} onToggle={() => toggle("changes")}>
+            {blocks(parts.changes)}
           </PartSection>
         ) : null}
       </div>

@@ -190,9 +190,38 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   expect(await layoutProblems(page), "Change watch after a run").toEqual([]);
   await noBannedWords("a change, after its run");
   await shots("03-passed-before-fails-now");
-  // "See the evidence" of the result before opens that run where the assessment keeps it
-  await tricks.getByTestId("change-result-before").getByTestId("change-result-link").click();
-  await expect(page).toHaveURL(/#\/a\/\d+\/evidence\?item=(proof|retest|test)-\d+/);
+  // "See the evidence" of the result on the change opens exactly that run on Checks: a row of its own under Change
+  // watch, never the test's own result
+  await tricks.getByTestId("change-result-now").getByTestId("change-result-link").click();
+  await expect(page).toHaveURL(/#\/a\/\d+\/checks\?item=watch-\d+-in-\d+$/);
+  const check = page.getByTestId("check-panel");
+  await expect(check).toBeVisible();
+  await expect(check).toContainText("Change watch");
+  // (where it ran is in the panel's heading: the program, and that it is the change's code)
+  await expect(page.getByTestId("detail-panel")).toContainText("acme-sign 1.4.2, the change on dev/revert-range-check (commit ");
+  await expect(check.getByTestId("result-badge").first()).toHaveText("Failed");
+  // ---- Checks: the run has a part of its own under Encryption tests, one block for the change, one row for each picked test
+  const part = page.locator('[data-testid="part-section"][data-part="changes"]');
+  await expect(part).toBeVisible();
+  await expect(part.getByRole("heading", { level: 3 })).toContainText("Change watch");
+  await expect(part.getByTestId("part-count").first()).toHaveText("1 run");
+  await expect(part.getByTestId("block-section")).toHaveCount(1);
+  await expect(part.getByTestId("block-section")).toContainText("From a developer's change: dev/revert-range-check, commit ");
+  await expect(part.getByTestId("check-row")).toHaveCount(3);
+  await expect(page.locator('[data-testid="part-section"][data-part="plan"]').getByTestId("test-card")).toHaveCount(5);     // the plan is as it was
+  await page.waitForLoadState("networkidle");
+  expect(await layoutProblems(page), "Checks with a watch run's part and one of its rows open").toEqual([]);
+  await shots("03b-checks-the-run-on-the-change");
+  // the result before opens the run it came from: the proof of the fix, in its own block on Checks
+  await stepLink(page, "Change watch").click();
+  await row("Revert the range check").click();
+  await expect(panel()).toBeVisible();
+  await results.filter({ hasText: TRICKS }).getByTestId("change-result-before").getByTestId("change-result-link").click();
+  await expect(page).toHaveURL(/#\/a\/\d+\/checks\?item=proof-\d+-in-\d+$/);
+  await expect(page.getByTestId("check-panel").getByTestId("result-badge").first()).toHaveText("Passed");
+  // Evidence lists the change's runs too, under Encryption tests, each saying where it came from
+  await stepLink(page, "Evidence").click();
+  await expect(page.getByTestId("check-row").filter({ hasText: "Change watch" })).toHaveCount(3);
 
   // ---- these runs are kept apart: Evidence reads exactly what it read before the change came in
   await stepLink(page, "Evidence").click();

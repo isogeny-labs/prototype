@@ -56,7 +56,7 @@ ASKS: tuple[tuple[str, str], ...] = (
 # The words that only say "the thing I am looking at".
 _POINTING = {"this", "that", "it", "check", "checks", "test", "result", "one", "suggestion", "proposal", "fix", "update", "change", "here"}
 _TEST = re.compile(r"^test-(\d+)$")
-_OTHER_RUN = re.compile(r"^(?:retest|proof)-\d+")
+_OTHER_RUN = re.compile(r"^(?:retest|proof|watch|watchbase)-\d+")
 
 
 def read(low: str) -> dict | None:

@@ -133,10 +133,13 @@ export const tryRow: CheckRow = {
   evidence_link: { page: "evidence", item: "try-tls:localhost:8443-try" },
 };
 
-export function encryptionParts(over: { retests?: CheckBlock[]; proofs?: CheckBlock[]; tries?: CheckRow[]; tests?: number } = {}): EncryptionParts {
+export function encryptionParts(
+  over: { retests?: CheckBlock[]; proofs?: CheckBlock[]; tries?: CheckRow[]; tests?: number; changes?: CheckBlock[] } = {},
+): EncryptionParts {
   const retests = over.retests ?? [newestBlock];
   const proofs = over.proofs ?? [];
   const tries = over.tries ?? [];
+  const changes = over.changes ?? [];
   const tests = over.tests ?? 3;
   const counted = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
   return {
@@ -182,8 +185,39 @@ export function encryptionParts(over: { retests?: CheckBlock[]; proofs?: CheckBl
           rows: tries,
         }
       : null,
+    // Phase 6d: only when the tests picked for a developer's change were run.
+    changes: changes.length
+      ? {
+          key: "changes",
+          label: "Change watch",
+          count: changes.length,
+          count_label: counted(changes.length, "run"),
+          note: "One block for each run of the tests picked for a developer's change, the newest first. A run is started on Change watch. These runs never replace a result of the test plan.",
+          empty_text: null,
+          blocks: changes,
+          rows: [],
+        }
+      : null,
   };
 }
+
+/** Phase 6d: one run of the tests picked for a developer's change, as Checks lists it. */
+export const watchBlock: CheckBlock = {
+  key: "watch-1",
+  title: "From a developer's change: dev/revert-range-check, commit bd2fc09",
+  line: "The tests picked for this change ran on its code, acme-sign 1.4.2. The run started 19 November 2026, 6:28 am EST.",
+  newest: true,
+  rows: [
+    {
+      ...testRow(1, "Official test vectors", "acme-sign 1.4.2, the change on dev/revert-range-check (commit bd2fc09)", false, "retest"),
+      id: "watch-1-in-1",
+      alias: null,
+      mark: null,
+      came_from: { key: "watch", label: "Change watch" },
+      link: { page: "change-watch", item: "change-bd2fc0900000" },
+    },
+  ],
+};
 
 export function checkGroups(over: { verification?: CheckRow[]; encryption?: CheckRow[]; parts?: EncryptionParts | null } = {}): CheckGroup[] {
   const verification = over.verification ?? verifyRows;

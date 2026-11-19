@@ -24,14 +24,21 @@ WATCH_TABLES = {"watch_runs": "version", "watch_reviews": "status"}     # listed
 
 
 def views(lab, plan) -> SimpleNamespace:
-    """Everything the pages of the assessment's own results read, as one text; and, by itself, the one number that is
-    meant to move: the Overview's count of runs recorded (a watch run's runs are recorded runs, kept with the assessment)."""
+    """What the pages of the assessment's own results read, piece by piece: Evidence's results, the test plan and Fixes
+    as one text each; Checks row by row; the Overview's findings, facts and counts."""
     a = lab.assessment_for(plan_id=plan.id)
-    overview = lab.assessment_view(a.id)
-    recorded = overview["blocks"]["evidence"].pop("runs")
-    return SimpleNamespace(recorded=recorded, text=json.dumps(
-        {"lab": lab.lab_view(plan.id), "plan": lab.plan_view(plan.id), "fixes": lab.fix_states(plan.id), "checks": lab.checks_view(plan.id),
-         "overview": overview}, sort_keys=True, default=str))
+    text_of = lambda value: json.dumps(value, sort_keys=True, default=str)        # noqa: E731
+    checks = lab.checks_view(plan.id)
+    blocks = lab.assessment_view(a.id)["blocks"]
+    encryption = next(g for g in checks["groups"] if g["key"] == "encryption")
+    return SimpleNamespace(
+        own=text_of({"lab": lab.lab_view(plan.id), "plan": lab.plan_view(plan.id), "fixes": lab.fix_states(plan.id)}),
+        rows={r["id"]: text_of(r) for g in checks["groups"] for r in g["rows"]},
+        parts={key: text_of(part) for key, part in (encryption.get("parts") or {}).items()},
+        counts={g["key"]: g["counts"] for g in checks["groups"]},
+        findings=text_of(blocks["findings"]),
+        overview={g["key"]: {"checks": g["checks"], "fixes": g["fixes"], "facts": text_of(g["facts"])} for g in blocks["groups"]},
+        recorded=blocks["evidence"]["runs"])
 
 
 @pytest.fixture(scope="module")
@@ -115,15 +122,66 @@ def test_the_reviewer_says_what_differs_and_that_sets_the_changes_status_word(ra
 
 
 def test_a_watch_run_never_stands_in_for_a_result_of_the_assessments_own_tests(ran):
-    # Evidence, the test plan, Fixes, Checks and the Overview read exactly what they read before the watch run:
-    # every result, every count of open, in progress and done, every finding
-    assert ran.after.text == ran.before.text
-    # the one number that moves is "runs recorded": the two runs of the watch run are recorded runs
-    assert ran.after.recorded == ran.before.recorded + 2
+    before, after = ran.before, ran.after
+    # Evidence's results, the test plan and Fixes read exactly what they read before the watch run
+    assert after.own == before.own
+    # On Checks every row that was there is as it was. The watch run's rows are new rows of their own, each saying
+    # where it came from and leading back to the change.
+    assert {key: after.rows[key] for key in before.rows} == before.rows
+    new = {key: json.loads(row) for key, row in after.rows.items() if key not in before.rows}
+    assert sorted(new) == sorted(f"watch-{e['item_id']}" for e in ran.done["run"]["tests"])
+    for row in new.values():
+        assert row["came_from"] == {"key": "watch", "label": "Change watch"} and row["group"] == "encryption"
+        assert row["link"] == {"page": "change-watch", "item": ran.done["id"]} and row["state"] == "done"
+        assert row["ran_on"].startswith("acme-sign 1.4.2, the change on dev/revert-range-check (commit ")
+    # the three parts that were there are untouched; the watch run has a part of its own
+    assert {key: after.parts[key] for key in ("plan", "retests", "proofs")} == {key: before.parts[key] for key in ("plan", "retests", "proofs")}
+    assert json.loads(before.parts["changes"]) is None and json.loads(after.parts["changes"])["count_label"] == "1 run"
+    # The Overview: every finding, every fact and every count of fixes is as it was. The checks of Encryption tests
+    # that are done go up by the two runs on the change; nothing else moves, and "runs recorded" goes up by the same two.
+    assert after.findings == before.findings
+    for key, group in before.overview.items():
+        assert after.overview[key]["fixes"] == group["fixes"] and after.overview[key]["facts"] == group["facts"]
+        if key != "encryption":
+            assert after.overview[key]["checks"] == group["checks"] and after.counts[key] == before.counts[key]
+    assert after.overview["encryption"]["checks"] == {**before.overview["encryption"]["checks"], "done": before.overview["encryption"]["checks"]["done"] + 2}
+    assert after.recorded == before.recorded + 2
     with ran.lab.db() as db:
         # (and the bad-signatures test of the plan still reads Failed on 1.4.2 from its own first run, not from the watch run)
         phases = {r.phase for r in db.scalars(select(TestRunRow).where(TestRunRow.plan_id == ran.plan.id)).all()}
     assert {"first", "proof", "watch"} <= phases
+
+
+def test_checks_and_evidence_list_the_watch_runs_under_their_change_with_every_run_behind_each_row(ran):
+    lab, plan, run = ran.lab, ran.plan, ran.done["run"]
+    encryption = next(g for g in lab.checks_view(plan.id)["groups"] if g["key"] == "encryption")
+    part = encryption["parts"]["changes"]
+    assert (part["key"], part["label"]) == ("changes", "Change watch") and "never replace a result of the test plan" in part["note"]
+    block = part["blocks"][0]
+    assert block["key"] == f"watch-{run['id']}" and block["newest"] is True
+    assert block["title"] == f"From a developer's change: dev/revert-range-check, commit {ran.listed['head'][:7]}"
+    assert block["line"].startswith("The tests picked for this change ran on its code, acme-sign 1.4.2. The run started ")
+    by_kind = {r["kind"]: r for r in block["rows"]}
+    assert sorted(by_kind) == ["bad_signatures", "speed_size"]
+    tricks = by_kind["bad_signatures"]
+    item = next(t["item_id"] for t in run["tests"] if t["kind"] == "bad_signatures")
+    assert tricks["id"] == f"watch-{item}-in-{run['id']}" and tricks["result"]["label"] == "Failed" and tricks["runs"] == 1
+    assert tricks["came_from"] == {"key": "watch", "label": "Change watch"} and tricks["link"] == {"page": "change-watch", "item": ran.done["id"]}
+    assert tricks["ran_on"] == f"acme-sign 1.4.2, the change on dev/revert-range-check (commit {ran.listed['head'][:7]})"
+    assert tricks["evidence_link"] == {"page": "evidence", "item": f"watch-{item}"}
+    # the row opens like every check: its newest result as its own page words it, and its run's record
+    detail = lab.check_detail(plan.id, tricks["id"])
+    assert detail["check"]["id"] == tricks["id"] and detail["result"]["label"] == "Failed" and len(detail["runs"]) == 1
+    assert detail["result"]["run_record"] and detail["result"]["component"] == "acme-sign 1.4.2"
+    # the test's own row on Checks still reads its own first result, with its own count of runs
+    own = next(r for r in lab.ledger(plan.id)["rows"] if r["id"] == f"test-{item}")
+    assert own["result"]["label"] == "Failed" and own["came_from"]["key"] == "plan" and own["runs"] == 1
+    # and the Change watch panel links each side of before and now to its row
+    change = next(c for c in lab.change_watch_view(plan.id)["changes"] if c["id"] == ran.done["id"])
+    shown = next(r for r in change["panel"]["results"] if r["item_id"] == item)
+    assert shown["now"]["link"] == {"page": "checks", "item": tricks["id"], "group": None}
+    assert shown["before"]["link"]["page"] == "checks" and shown["before"]["link"]["item"].startswith(f"proof-{item}-in-")
+    assert lab.check_detail(plan.id, shown["before"]["link"]["item"])["result"]["label"] == "Passed"
 
 
 def test_run_again_makes_a_second_watch_run_and_the_newest_one_counts(ran):

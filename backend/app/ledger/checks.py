@@ -14,11 +14,11 @@ from sqlalchemy import select
 
 from app.db import (
     ApplyRow, ChangeTryRow, ImportRow, PlanItemRow, PlanRow, ProofRow, RetestProgramRow, RetestRow, ReviewRow, RollbackRow,
-    TestRunRow, TestSpecRow, VerifyRunRow, iso,
+    TestRunRow, TestSpecRow, VerifyRunRow, WatchRunRow, iso,
 )
 from app.engine import research
 from app.errors import NotFound
-from app.lab.testlab import HIDDEN_ORIGINS, read_spec
+from app.lab.testlab import HIDDEN_ORIGINS, WATCH_PHASES, read_spec
 from app.ledger import groups as G
 from app.names import join_and
 from app.present.results import status_view
@@ -27,10 +27,11 @@ ORIGINS = {
     "verify": "Verify", "plan": "Test plan", "retest": "Retest", "proof": "Fix proof", "try": "Try on a test copy",
     "after_apply": "After Apply", "after_rollback": "After Roll back", "measure": "Measure status",
     "public_copy": "Measure on a public copy",
+    "watch": "Change watch",        # phase 6d: a run of the tests picked for a developer's change
 }
 VERIFY_TONES = {"True": "pass", "False": "fail"}
 PHASE_ORIGIN = {"first": "plan", "retest": "retest", "proof": "proof", "migration": "measure", "dependencies": "public_copy",
-                "try": "try", "try_nginx": "try"}
+                "try": "try", "try_nginx": "try", "watch": "watch", "watch_base": "watch"}
 # The claim kinds a server test checks (a software test names its claim by ref).
 TEST_CLAIM_KINDS = {"tls_versions": ("protocol_versions", "cipher_suites"), "certificate": ("certificate",),
                     "pq_readiness": ("post_quantum",)}
@@ -58,9 +59,19 @@ def _measure_key(row: dict) -> list | None:
 # The 5c fixes: on Checks the Encryption tests group is in four labelled parts. A retest's row sits in the block of the
 # version that retest ran on, and a proof's row in the block of its proof: "retest-12-on-3" is test 12 in the block that
 # retest 3 opened, "proof-12-in-2" is test 12 in proof 2. The older ids ("retest-12", "proof-12") still open the newest.
-BLOCK_ROW = re.compile(r"^(retest|proof)-(\d+)-(on|in)-(\d+)$")
+# Phase 6d: "watch-12-in-4" is test 12 on a developer's change in watch run 4, and "watchbase-12-in-4" the same test on the
+# code that change starts from, where it had to be run for the comparison.
+BLOCK_ROW = re.compile(r"^(retest|proof|watch|watchbase)-(\d+)-(on|in)-(\d+)$")
+ON_THE_CODE_BEFORE = "on the code before the change"
 AS_IT_IS = "tested again as it is"
 NO_RETEST = "No retest yet. Retest new version reruns every test in the plan on another version."
+
+
+def _watch_ran_on(words: str | None, watch: WatchRunRow, before: bool) -> str:
+    """Where a run of a developer's change ran: the program, and which code of the change (its own, or the code it starts from)."""
+    which = (f"the code before the change on {watch.branch} (commit {watch.base_commit[:7]})" if before
+             else f"the change on {watch.branch} (commit {watch.head_commit[:7]})")
+    return f"{words}, {which}" if words else which[0].upper() + which[1:]
 
 
 def short(text: str | None, limit: int = 12) -> str | None:
@@ -138,7 +149,7 @@ class LedgerMixin:
             claim_order = {c.id: n for n, c in enumerate(claims)}
             system_order = {s["key"]: n for n, s in enumerate(systems.values())}
             library_order = {rid: n for n, rid in enumerate(deps["rows"])}
-            rank = {"claim": 0, "test": 1, "retest": 2, "proof": 3, "try": 4, "system": 5, "library": 6}
+            rank = {"claim": 0, "test": 1, "retest": 2, "proof": 3, "watch": 3.4, "watchbase": 3.6, "try": 4, "system": 5, "library": 6}
 
             def order(row: dict) -> tuple:
                 kind = row["id"].split("-", 1)[0]
@@ -244,6 +255,12 @@ class LedgerMixin:
                 base["ran_on"] = (f"{run.component_name} {version} (the changed code)" if run.component_name and version
                                   else base["ran_on"])
             return key, base
+        if phase in WATCH_PHASES:
+            # Phase 6d: a run that belongs to a developer's change. It is a row of its own, never the test's own result.
+            key = ("watch" if phase == "watch" else "watchbase") + f"-{item.id}"
+            base = self._test_base(item, spec, claims, "watch")
+            base.update(id=key, evidence_link={"page": "evidence", "item": key}, ran_on=self._ledger_component_words(run) or base["ran_on"])
+            return key, base
         if phase == "migration":
             state = systems.get(item.id)
             if state is None:
@@ -279,10 +296,11 @@ class LedgerMixin:
         if ran_on is None and target.get("claim"):
             claim = next((c for c in claims if c.ref == target.get("claim")), None)
             ran_on = claim.location if claim is not None else target.get("component")
-        prefix = {"plan": "test", "retest": "retest", "proof": "proof"}[origin]
+        prefix = {"plan": "test", "retest": "retest", "proof": "proof", "watch": "watch"}[origin]
         row_id = f"{prefix}-{item.id}"
         link = ({"page": "checks", "item": row_id} if origin == "plan" else
                 {"page": "evidence", "item": f"test-{item.id}"} if origin == "retest" else
+                {"page": "change-watch", "item": None} if origin == "watch" else
                 {"page": "fixes", "item": None, "section": "proof"})
         # Phase 5c: an advisory check came from one of Otto's proposals that a person accepted. Its row says so, with
         # the way to its advisory.
@@ -326,7 +344,8 @@ class LedgerMixin:
     def _finish_row(self, db, row: dict, reviewed: set) -> None:
         """Word the newest reviewed run, list the earlier ones, and say whether it is open, in progress or done."""
         phase = {"plan": "first", "retest": "retest", "proof": "proof", "measure": "migration",
-                 "public_copy": "dependencies", "try": None}.get(row["came_from"]["key"])
+                 "public_copy": "dependencies", "try": None,
+                 "watch": "watch_base" if row["id"].startswith("watchbase-") else "watch"}.get(row["came_from"]["key"])
         live = None
         if row.get("item_id") is not None:
             if row["came_from"]["key"] == "try":
@@ -366,6 +385,12 @@ class LedgerMixin:
             row["plain"] = shown.get("plain")
             row["last_run_at"] = run.finished_at or run.started_at
             row["newest_run_id"] = run.id
+            if origin == "watch" and run.retest_id is not None:
+                # which developer's change this run belongs to: said where it ran, and linked
+                watch = db.get(WatchRunRow, run.retest_id)
+                if watch is not None:
+                    row["ran_on"] = _watch_ran_on(self._ledger_component_words(run), watch, row["id"].startswith("watchbase-"))
+                    row["link"] = {"page": "change-watch", "item": f"change-{watch.head_commit[:12]}"}
             if origin in ("after_apply", "after_rollback"):
                 change_key = row["origins"][run.id][1]
                 row["came_from"] = {"key": origin, "label": ORIGINS[origin]}
@@ -496,10 +521,11 @@ class LedgerMixin:
 
     # ---------------------------------------------------------------- the 5c fixes: Encryption tests in four parts
 
-    def _blocks(self, plan_id: int, rows: list[dict]) -> tuple[list[dict], list[dict], list[str] | None]:
+    def _blocks(self, plan_id: int, rows: list[dict]) -> tuple[list[dict], list[dict], list[str] | None, list[dict]]:
         """The retests of this plan by the version each ran on (newest first), and its fix proofs (newest first), each
-        with the rows of its own runs; and the versions the file names. A row here is a copy of the retest's or the
-        proof's row, read on the runs of that block only. `rows`: the Encryption tests rows of `ledger`, resolved."""
+        with the rows of its own runs; the versions the file names; and (phase 6d) the runs of the tests picked for a
+        developer's change, newest first. A row here is a copy of the retest's, the proof's or the watch run's row, read
+        on the runs of that block only. `rows`: the Encryption tests rows of `ledger`, resolved."""
         from app.present import otto as present_otto      # (only `stamp`: a time in a sentence, marked for a browser)
         with self.db() as db:
             plan = self._plan(db, plan_id)
@@ -507,6 +533,7 @@ class LedgerMixin:
             moved = {m.retest_id: m.component_name for m in db.scalars(
                 select(RetestProgramRow).where(RetestProgramRow.retest_id.in_([r.id for r in retests]))).all()} if retests else {}
             proofs = db.scalars(select(ProofRow).where(ProofRow.plan_id == plan_id).order_by(ProofRow.id)).all()
+            watches = db.scalars(select(WatchRunRow).where(WatchRunRow.plan_id == plan_id).order_by(WatchRunRow.id)).all()
             # every program and version the file names, once each (a file can name several: four libraries, or two
             # versions of one program); the plan's first runs are on all of them, not on the plan's own program only
             named = list(dict.fromkeys(
@@ -528,11 +555,13 @@ class LedgerMixin:
             block_of[r.id] = block
         proof_blocks = {p.id: {"key": f"proof-{p.id}", "number": p.id, "name": program or "", "version": p.version, "reruns": [p.id],
                                "started": iso(p.started_at), "rows": []} for p in proofs}
+        watch_blocks = {w.id: {"key": f"watch-{w.id}", "number": w.id, "name": program or "", "version": w.version, "reruns": [w.id],
+                               "started": iso(w.started_at), "rows": [], "watch": w} for w in watches}
         for row in rows:
             kind = row["id"].split("-", 1)[0]
-            if kind not in ("retest", "proof") or BLOCK_ROW.match(row["id"]):
+            if kind not in ("retest", "proof", "watch", "watchbase") or BLOCK_ROW.match(row["id"]):
                 continue
-            where = block_of if kind == "retest" else proof_blocks
+            where = block_of if kind == "retest" else proof_blocks if kind == "proof" else watch_blocks
             seen: dict[str, list[int]] = {}
             for run_id in row["run_ids"]:                    # newest first
                 told = (row.get("said") or {}).get(run_id)
@@ -549,9 +578,12 @@ class LedgerMixin:
                         "alias": row["id"] if mine[0] == row.get("newest_run_id") else None,
                         "ran_on": (told["ran_on"] if its_own and kind == "retest" else
                                    f"{told['ran_on']} (the changed code)" if kind == "proof" and told["ran_on"] else
+                                   _watch_ran_on(told["ran_on"], block["watch"], kind == "watchbase") if kind in ("watch", "watchbase") else
                                    told["ran_on"] or self._first_ran_on(rows, row)),
                         # (a server, or a program the retest did not move, is run again on what it was)
-                        "mark": AS_IT_IS if kind == "retest" and not its_own else None,
+                        "mark": (AS_IT_IS if kind == "retest" and not its_own else ON_THE_CODE_BEFORE if kind == "watchbase" else None),
+                        **({"link": {"page": "change-watch", "item": f"change-{block['watch'].head_commit[:12]}"}}
+                           if kind in ("watch", "watchbase") else {}),
                         "result": {"label": told["label"], "tone": told["tone"], "code": told["code"]}, "plain": told["plain"],
                         "last_run_at": told["at"], "runs": len(mine), "newest_run_id": mine[0], "state": "done", "status": None,
                         "history": [h for h in row.get("history") or [] if h["run_id"] in mine], "run_ids": mine}
@@ -564,12 +596,18 @@ class LedgerMixin:
                     title = f"{block['name']} {block['version']}".strip()
                     line = (f"{'One retest' if times == 1 else f'{times} retests'} on this version. "
                             f"The newest started {present_otto.stamp(block['started'])}.")
+                elif kind == "watch":
+                    watch = block["watch"]
+                    title = f"From a developer's change: {watch.branch}, commit {watch.head_commit[:7]}"
+                    line = (f"The tests picked for this change ran on its code, {block['name']} {block['version']}. "
+                            f"The run started {present_otto.stamp(block['started'])}.")
                 else:
                     title = f"{block['name']} {block['version']} (the changed code)".strip()
                     line = f"The proof reran the plan's locked tests on the changed code. It started {present_otto.stamp(block['started'])}."
                 out.append({"key": block["key"], "title": title, "line": line, "newest": n == 0, "rows": block["rows"]})
             return out
-        return finish(list(by_version.values()), "retest"), finish(list(proof_blocks.values()), "proof"), names_first
+        return (finish(list(by_version.values()), "retest"), finish(list(proof_blocks.values()), "proof"), names_first,
+                finish([b for b in watch_blocks.values() if b["rows"]], "watch"))
 
     @staticmethod
     def _first_ran_on(rows: list[dict], row: dict) -> str:
@@ -579,14 +617,14 @@ class LedgerMixin:
         return (first or row)["ran_on"]
 
     def _block_rows(self, plan_id: int, rows: list[dict]) -> list[dict]:
-        retests, proofs, _ = self._blocks(plan_id, rows)
-        return [r for block in retests + proofs for r in block["rows"]]
+        retests, proofs, _, watches = self._blocks(plan_id, rows)
+        return [r for block in retests + proofs + watches for r in block["rows"]]
 
     def _encryption_parts(self, plan_id: int, rows: list[dict]) -> dict:
         """Checks, the Encryption tests group in four labelled parts (the 5c fixes): the test plan with its first runs,
         the retests by the version each ran on, the fix proofs, and the tries of a server change on a test copy. It
         sorts rows this page already has: a run shows in one part only, and nothing here runs or decides anything."""
-        retests, proofs, names_first = self._blocks(plan_id, rows)
+        retests, proofs, names_first, watches = self._blocks(plan_id, rows)
         plan_rows = [r for r in rows if r["id"].startswith("test-")]
         tries = [self._public_row(r) for r in rows if r["id"].startswith("try-")]
 
@@ -625,6 +663,11 @@ class LedgerMixin:
             "tries": ({"key": "tries", "label": "Tries on a test copy", "count": len(tries), "count_label": counted(len(tries), "try", "tries"),
                        "note": "A try of a server setting change on a test copy. A try is started where the change is.",
                        "empty_text": None, "blocks": [], "rows": tries} if tries else None),
+            # (phase 6d; only when the tests picked for a developer's change were run)
+            "changes": ({"key": "changes", "label": "Change watch", "count": len(watches), "count_label": counted(len(watches), "run"),
+                         "note": ("One block for each run of the tests picked for a developer's change, the newest first. A run is started on "
+                                  "Change watch. These runs never replace a result of the test plan."),
+                         "empty_text": None, "blocks": public(watches), "rows": []} if watches else None),
         }
 
     def check_detail(self, plan_id: int, check_id: str) -> dict:

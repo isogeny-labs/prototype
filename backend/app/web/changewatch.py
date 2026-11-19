@@ -1,19 +1,19 @@
 """Change watch (phase 6d): the page's one read and its two actions. Each action is one click by the person at the
 keyboard. Neither has a body: nothing here accepts software, a file or text. A demo change is named by one of our own
-keys, a change by the id the view gave it."""
+names, a change by the id the view gave it."""
 from __future__ import annotations
 
 import re
 
 from fastapi import APIRouter, Depends
 
-from app.changewatch.demo_changes import ORDER as DEMO_KEYS
+from app.changewatch.demo_changes import ORDER as DEMO_NAMES
 from app.errors import NotFound
 from app.web import models
 from app.web.common import shows
 
 # A change's id as the view writes it: "change-" and twelve characters of its commit. (A demo change is named by one of
-# our own keys, and only those are let through: the address is never matched against a pattern that could run long.)
+# our own names, and only those are let through: the address is never matched against a pattern that could run long.)
 _CHANGE_ID = re.compile(r"change-[0-9a-f]{12}")
 
 
@@ -26,13 +26,13 @@ def routes(lab, require_login) -> APIRouter:
         """The Changes view: every developer's change in the connected demo repository, read now. It only reads."""
         return lab.change_watch_view(plan_id)
 
-    @router.post("/api/plans/{plan_id}/change-watch/demo/{key}", dependencies=login, responses=shows(models.ChangeWatchView))
-    def bring_in_demo_change(plan_id: int, key: str):
+    @router.post("/api/plans/{plan_id}/change-watch/demo/{name}", dependencies=login, responses=shows(models.ChangeWatchView))
+    def bring_in_demo_change(plan_id: int, name: str):
         """Bring in a demo change (Demo data): one branch with one commit, written into this assessment's own copy of
-        the repository. It runs nothing."""
-        if key not in DEMO_KEYS:
+        the repository. It runs nothing. `name` is one of our own names for a bundled change, and nothing else."""
+        if name not in DEMO_NAMES:
             raise NotFound("That demo change does not exist.")
-        lab.bring_in_demo_change(plan_id, key)
+        lab.bring_in_demo_change(plan_id, name)
         return lab.change_watch_view(plan_id)
 
     @router.post("/api/plans/{plan_id}/change-watch/{change_id}/run", dependencies=login, responses=shows(models.ChangeWatchView))

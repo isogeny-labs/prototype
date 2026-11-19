@@ -16,6 +16,7 @@ import {
   olderBlock,
   planRows,
   proofBlock,
+  watchBlock,
   retestDetail,
   retestRow,
   tryRow,
@@ -409,6 +410,21 @@ describe("Checks, Encryption tests in four parts", () => {
     expect(parts().map((p) => within(p).getAllByTestId("part-count")[0]!.textContent)).toEqual(["3 tests", "2 versions", "1 proof"]);
     // the other three groups are as they were: no parts in them
     for (const key of ["verification", "migration", "dependencies"]) expect(within(section(key)).queryByTestId("part-section")).toBeNull();
+  });
+
+  it("adds Change watch once the tests picked for a developer's change were run: one block for each run, each row leading back to the change", async () => {
+    await open(withParts({ proofs: [proofBlock], changes: [watchBlock] }));
+    expect(parts().map((p) => p.getAttribute("data-part"))).toEqual(["plan", "retests", "proofs", "changes"]);
+    expect(within(part("changes")).getByRole("heading", { level: 3 }).textContent).toBe("▾Change watch1 run");
+    expect(part("changes").textContent).toContain("These runs never replace a result of the test plan.");
+    const blocks = blocksIn("changes");
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]!.textContent).toContain("From a developer's change: dev/revert-range-check, commit bd2fc09");
+    const row = within(blocks[0]!).getByTestId("check-row");
+    expect(row.textContent).toContain("acme-sign 1.4.2, the change on dev/revert-range-check (commit bd2fc09)");
+    expect(row.textContent).toContain("Change watch");
+    // the plan's own part is as it was: the change's run is not one of its cards
+    expect(within(part("plan")).getAllByTestId("test-card")).toHaveLength(plan.tests.length);
   });
 
   it("adds Tries on a test copy once a server change was tried", async () => {

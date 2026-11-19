@@ -143,7 +143,7 @@ const side = (run_id: number, label: string, tone: "pass" | "fail", plain: strin
   tone,
   plain,
   ran_on,
-  link: item ? { page: "evidence", item, group: null } : null,
+  link: item ? { page: "checks", item, group: null } : null,
 });
 
 const running: ChangeRow = {
@@ -350,7 +350,7 @@ describe("Change watch, the table and a change's panel", () => {
     expect(text(result.getByTestId("change-result-before"))).toContain("Before: acme-sign 1.4.3");
     expect(text(result.getByTestId("change-result-before"))).toContain("Every damaged signature was refused.");
     expect(text(result.getByTestId("change-result-before"))).toContain("From the proof of a fix.");
-    expect(before.getByTestId("change-result-link").getAttribute("href")).toBe("#/a/101/evidence?item=proof-4-in-1");
+    expect(before.getByTestId("change-result-link").getAttribute("href")).toBe("#/a/101/checks?item=proof-4-in-1");
     expect(text(now.getByTestId("result-badge"))).toBe("Failed");
     expect(text(result.getByTestId("change-result-now"))).toContain("On this change: acme-sign 1.4.2");
     expect(text(result.getByTestId("change-result-now"))).toContain("acme-sign 1.4.2 accepted a signature made of zeros.");

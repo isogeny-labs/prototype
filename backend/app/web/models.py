@@ -1894,7 +1894,7 @@ class CheckBlock(Shape):
 
 class CheckPart(Shape):
     """The 5c fixes: one labelled, foldable part of the Encryption tests group on Checks, with its count."""
-    key: Literal["plan", "retests", "proofs", "tries"]
+    key: Literal["plan", "retests", "proofs", "tries", "changes"]
     label: str
     count: int
     count_label: str = Field(description='"8 tests", "1 version", "2 proofs", "1 try".')
@@ -1910,6 +1910,7 @@ class EncryptionParts(Shape):
     retests: CheckPart
     proofs: CheckPart
     tries: CheckPart | None = Field(description="Only when a server change was tried on a test copy.")
+    changes: CheckPart | None = Field(default=None, description="Phase 6d: only when the tests picked for a developer's change were run.")
 
 
 class CheckGroup(Shape):

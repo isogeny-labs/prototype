@@ -2587,11 +2587,11 @@
         }
       }
     },
-    "/api/plans/{plan_id}/change-watch/demo/{key}": {
+    "/api/plans/{plan_id}/change-watch/demo/{name}": {
       "post": {
         "summary": "Bring In Demo Change",
-        "description": "Bring in a demo change (Demo data): one branch with one commit, written into this assessment's own copy of\nthe repository. It runs nothing.",
-        "operationId": "bring_in_demo_change_api_plans__plan_id__change_watch_demo__key__post",
+        "description": "Bring in a demo change (Demo data): one branch with one commit, written into this assessment's own copy of\nthe repository. It runs nothing. `name` is one of our own names for a bundled change, and nothing else.",
+        "operationId": "bring_in_demo_change_api_plans__plan_id__change_watch_demo__name__post",
         "parameters": [
           {
             "name": "plan_id",
@@ -2603,12 +2603,12 @@
             }
           },
           {
-            "name": "key",
+            "name": "name",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Key"
+              "title": "Name"
             }
           }
         ],
@@ -7896,7 +7896,8 @@
               "plan",
               "retests",
               "proofs",
-              "tries"
+              "tries",
+              "changes"
             ],
             "title": "Key"
           },
@@ -9935,6 +9936,17 @@
               }
             ],
             "description": "Only when a server change was tried on a test copy."
+          },
+          "changes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckPart"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 6d: only when the tests picked for a developer's change were run."
           }
         },
         "additionalProperties": false,
