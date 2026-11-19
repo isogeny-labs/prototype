@@ -3,7 +3,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import App from "../App";
-import { DetailPanel, ItemPageContext, PanelHeaderSlotContext, TableWithPanel, type ItemPage } from "../components/layout";
+import { DetailPanel, HiddenPageNotesContext, ItemPageContext, PanelHeaderSlotContext, STANDING_LINE, TableWithPanel, type ItemPage } from "../components/layout";
+import { ErrorBox } from "../components/ui";
 import { CLOSED_SENTENCE } from "../readOnly";
 import { itemPageHref, parseRoute, routeHref } from "../router";
 import { checksView, newestBlock, retestDetail } from "./checksFixtures";
@@ -63,6 +64,7 @@ describe("the address of an item on a page of its own", () => {
 describe("a side panel's header", () => {
   const page = (over: Partial<ItemPage> = {}): ItemPage => ({
     asPage: false,
+    standing: true,
     root: null,
     backHref: (item) => `#/a/101/checks${item ? `?item=${item}` : ""}`,
     listHref: "#/a/101/checks",
@@ -220,6 +222,88 @@ describe("an item on a page of its own", () => {
     expect(within(missing).getByTestId("item-page-back").getAttribute("href")).toBe("#/a/101/checks");
     expect(document.title).toBe("Not found · Isogeny Labs");
     expect(screen.queryByTestId("item-page")).toBeNull();
+  });
+
+  it("carries the one line every result screen carries, under the item (SPEC section 11)", async () => {
+    at(`checks?item=${ROW.id}&view=page`);
+    mockApi(routes());
+    render(<App />);
+    const page = await screen.findByTestId("item-page");
+    const line = within(page).getByTestId("item-page-standing");
+    expect(text(line)).toBe("Passing these tests doesn't prove a system secure. It shows these specific checks passed.");
+    expect(STANDING_LINE).toBe(text(line));
+    // it comes after the item's own content
+    expect(within(page).getByTestId("check-panel").compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("an item of Import, which shows what a file says and no result, has no such line", () => {
+    const root = document.body.appendChild(document.createElement("div"));
+    const importPage: ItemPage = { asPage: true, root, standing: false, backHref: () => "#/a/1/inventory/import", listHref: "#/a/1/inventory/import", backLabel: "Import", hrefFor: () => "#" };
+    const drawn = render(
+      <ItemPageContext.Provider value={importPage}>
+        <DetailPanel open title="RSA-2048" onClose={() => {}} item="row-3">
+          <p>From the file.</p>
+        </DetailPanel>
+      </ItemPageContext.Provider>,
+    );
+    expect(within(root).getByTestId("item-page")).not.toBeNull();
+    expect(within(root).queryByTestId("item-page-standing")).toBeNull();
+    drawn.rerender(
+      <ItemPageContext.Provider value={{ ...importPage, standing: true, backLabel: "Checks" }}>
+        <DetailPanel open title="Official test vectors" onClose={() => {}} item="test-5">
+          <p>Passed.</p>
+        </DetailPanel>
+      </ItemPageContext.Provider>,
+    );
+    expect(within(root).getByTestId("item-page-standing")).not.toBeNull();
+    drawn.unmount();
+    root.remove();
+  });
+
+  it("shows the reason when a click on the item's own page is refused: the hidden list's error box is drawn above the item", async () => {
+    const refusal = "Run every test in the plan first.";
+    at(`fixes?item=${CODE_FIX}&view=page`);
+    const fetchMock = mockApi(
+      routes({
+        "GET /api/plans/1/fixes": { body: fixesViews.not_connected },
+        "POST /api/plans/1/fixes/connect": { status: 409, body: { error: { message: refusal, line: null, field: null } } },
+      }),
+    );
+    render(<App />);
+    const page = await screen.findByTestId("item-page");
+    const notes = screen.getByTestId("item-page-notes");
+    expect(notes.childElementCount).toBe(0);
+    fireEvent.click(await within(page).findByRole("button", { name: "Connect demo code" }));
+    const alert = await within(notes).findByRole("alert");
+    expect(text(alert)).toBe(refusal);
+    expect(calls(fetchMock)).toContain("POST /api/plans/1/fixes/connect");
+    // it is on screen: above the item, and not inside the list page that is kept hidden
+    expect(screen.getByTestId("page-content").hidden).toBe(true);
+    expect(screen.getByTestId("page-content").contains(alert)).toBe(false);
+    expect(notes.compareDocumentPosition(screen.getByTestId("item-page-root")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
+  it("an error box inside the item itself, and on a list page, stays where it is drawn", () => {
+    const place = document.body.appendChild(document.createElement("div"));
+    const drawn = render(
+      <div data-testid="list">
+        <ErrorBox>On a list page.</ErrorBox>
+        <HiddenPageNotesContext.Provider value={place}>
+          <ErrorBox title="Refused">From the hidden list.</ErrorBox>
+          <HiddenPageNotesContext.Provider value={undefined}>
+            <ErrorBox>Inside the item.</ErrorBox>
+          </HiddenPageNotesContext.Provider>
+        </HiddenPageNotesContext.Provider>
+        <HiddenPageNotesContext.Provider value={null}>
+          <ErrorBox>Before the place is there.</ErrorBox>
+        </HiddenPageNotesContext.Provider>
+      </div>,
+    );
+    expect(text(screen.getByTestId("list"))).toBe("On a list page.Inside the item.");
+    expect(text(place)).toBe("RefusedFrom the hidden list.");
+    drawn.unmount();
+    place.remove();
   });
 
   it("stays read-only in a closed assessment: the same buttons, off, with the reason", async () => {

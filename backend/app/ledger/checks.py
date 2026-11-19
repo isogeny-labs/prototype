@@ -16,9 +16,11 @@ from app.db import (
     ApplyRow, ChangeTryRow, ImportRow, PlanItemRow, PlanRow, ProofRow, RetestProgramRow, RetestRow, ReviewRow, RollbackRow,
     TestRunRow, TestSpecRow, VerifyRunRow, iso,
 )
+from app.engine import research
 from app.errors import NotFound
 from app.lab.testlab import HIDDEN_ORIGINS, read_spec
 from app.ledger import groups as G
+from app.names import join_and
 from app.present.results import status_view
 
 ORIGINS = {
@@ -494,9 +496,9 @@ class LedgerMixin:
 
     # ---------------------------------------------------------------- the 5c fixes: Encryption tests in four parts
 
-    def _blocks(self, plan_id: int, rows: list[dict]) -> tuple[list[dict], list[dict], str | None]:
+    def _blocks(self, plan_id: int, rows: list[dict]) -> tuple[list[dict], list[dict], list[str] | None]:
         """The retests of this plan by the version each ran on (newest first), and its fix proofs (newest first), each
-        with the rows of its own runs; and the version the file names. A row here is a copy of the retest's or the
+        with the rows of its own runs; and the versions the file names. A row here is a copy of the retest's or the
         proof's row, read on the runs of that block only. `rows`: the Encryption tests rows of `ledger`, resolved."""
         from app.present import otto as present_otto      # (only `stamp`: a time in a sentence, marked for a browser)
         with self.db() as db:
@@ -505,7 +507,14 @@ class LedgerMixin:
             moved = {m.retest_id: m.component_name for m in db.scalars(
                 select(RetestProgramRow).where(RetestProgramRow.retest_id.in_([r.id for r in retests]))).all()} if retests else {}
             proofs = db.scalars(select(ProofRow).where(ProofRow.plan_id == plan_id).order_by(ProofRow.id)).all()
-            names_first = f"{plan.component_name} {plan.component_version}" if plan.component_name else None
+            # every program and version the file names, once each (a file can name several: four libraries, or two
+            # versions of one program); the plan's first runs are on all of them, not on the plan's own program only
+            named = list(dict.fromkeys(
+                f"{p['component']} {p['version']}" if p["version"] else str(p["component"])
+                for p in research.programs(self._claims(db.get(ImportRow, plan.import_id)))))     # type: ignore[attr-defined]
+            if not named and plan.component_name:
+                named = [f"{plan.component_name} {plan.component_version}"]
+            names_first = named or None
             program = plan.component_name
         # one block for each (program, version) a retest moved to; a retest belongs to the block its version opened
         by_version: dict[tuple, dict] = {}
@@ -600,8 +609,9 @@ class LedgerMixin:
             r.setdefault("same_as", [])
         return {
             "plan": {"key": "plan", "label": "Test plan", "count": len(plan_rows), "count_label": counted(len(plan_rows), "test"),
-                     "note": (f"First runs, on the version the file names: {names_first}." if names_first
-                              else "First runs, on what the file names."),
+                     "note": ("First runs, on what the file names." if not names_first else
+                              f"First runs, on the version the file names: {names_first[0]}." if len(names_first) == 1 else
+                              f"First runs, on the versions the file names: {join_and(names_first)}."),
                      "empty_text": None, "blocks": [], "rows": []},
             "retests": {"key": "retests", "label": "Retests by version", "count": len(retests),
                         "count_label": counted(len(retests), "version"),

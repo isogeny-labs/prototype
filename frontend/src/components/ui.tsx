@@ -1,7 +1,9 @@
-import { useEffect, type ReactNode, type RefObject } from "react";
+import { useContext, useEffect, type ReactNode, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import type { RichText, RowStatus, Tone } from "../api";
 import { CLOSED_SENTENCE, useReadOnly } from "../readOnly";
 import { formatTime } from "../time";
+import { HiddenPageNotesContext } from "./layout";
 
 /** Small label saying where a value came from (rule: every number says its source). */
 export function SourceTag({ children }: { children: ReactNode }) {
@@ -21,12 +23,16 @@ export function DemoDataLabel() {
 }
 
 export function ErrorBox({ title, children }: { title?: string; children: ReactNode }) {
-  return (
+  // An item on a page of its own: the list page is kept but hidden, so what it says is shown above the item instead.
+  const notes = useContext(HiddenPageNotesContext);
+  const box = (
     <div role="alert" className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
       {title ? <p className="font-semibold">{title}</p> : null}
       <div className={title ? "mt-1" : undefined}>{children}</div>
     </div>
   );
+  if (notes === undefined) return box;
+  return notes ? createPortal(<div className="mb-4">{box}</div>, notes) : null;
 }
 
 export function PrimaryButton({

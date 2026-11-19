@@ -247,6 +247,9 @@ export interface ItemPage {
   asPage: boolean;
   /** Where the item is drawn when it has the page to itself. */
   root: HTMLElement | null;
+  /** Whether an item of this page carries the one line every result screen carries (all pages but Import, which
+   * shows what a file says and no result). */
+  standing: boolean;
   /** The list this item belongs to, with its panel open: "← Back to Checks". */
   backHref: (item: string | null) => string;
   /** The list by itself, for an address that names an item that is not there. */
@@ -257,6 +260,15 @@ export interface ItemPage {
 }
 
 export const ItemPageContext = createContext<ItemPage | null>(null);
+
+/** On an item's own page the list it belongs to is kept, hidden, so every button works as in the panel. What that
+ * hidden page has to say (the reason a click was refused, a page that could not be loaded) would be hidden with it,
+ * so an `ErrorBox` drawn there is shown in this place above the item instead. `undefined` everywhere else, and inside
+ * the item itself: there an error box is on screen where it is drawn. `null` until the place is there. */
+export const HiddenPageNotesContext = createContext<HTMLElement | null | undefined>(undefined);
+
+/** SPEC section 11: the one line every result screen carries. An item on a page of its own is one. */
+export const STANDING_LINE = "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
 
 /** A place in every panel's header for buttons that belong to the whole app, not to one page (kept for the Otto
  * assistant of phase 6; nothing fills it yet). It is given the open item's id. */
@@ -299,7 +311,14 @@ function ItemPageView({ page, item, title, subtitle, children, testId }: { page:
         </div>
         {slot ? <div data-testid="panel-header-slot" className="flex shrink-0 items-center gap-1">{slot(item)}</div> : null}
       </header>
-      <div className="@container">{children}</div>
+      <HiddenPageNotesContext.Provider value={undefined}>
+        <div className="@container">{children}</div>
+      </HiddenPageNotesContext.Provider>
+      {page.standing ? (
+        <p data-testid="item-page-standing" className="mt-6 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+          {STANDING_LINE}
+        </p>
+      ) : null}
     </article>
   );
 }

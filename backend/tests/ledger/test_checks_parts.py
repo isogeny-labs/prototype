@@ -36,6 +36,21 @@ def test_the_test_plan_part_counts_the_plans_tests_and_names_the_version_the_fil
     assert plan["blocks"] == [] and plan["rows"] == []     # the plan itself is drawn from the plan view, with its buttons
 
 
+@pytest.mark.parametrize("file_name, said", [
+    # four libraries: the first runs are on all four, not on the plan's own program only
+    ("real-libraries.csv", "First runs, on the versions the file names: openjdk 17.0.2, python-ecdsa 0.13.2, elliptic 6.5.6 and openssl 3.5.9."),
+    # two versions of one program are two programs
+    ("multi-target-demo.csv", "First runs, on the versions the file names: acme-sign 1.4.2 and acme-sign 9.9."),
+    # a file that names servers only
+    ("lab-nginx.csv", "First runs, on what the file names."),
+])
+def test_the_test_plan_part_names_every_version_the_file_names_when_it_names_several(lab, file_name, said):
+    from app.config import DEMO_DIR
+    source = DEMO_DIR / file_name
+    plan_id = lab.ensure_plan(lab.import_file(source.name, source.read_bytes())["id"])["id"]
+    assert _parts(lab.checks_view(plan_id))["plan"]["note"] == said
+
+
 def test_a_retest_sits_in_the_block_of_the_version_it_ran_on(demo_flow):
     retests = _parts(demo_flow.lab.checks_view(demo_flow.plan.id))["retests"]
     assert retests["count"] == 1 and retests["count_label"] == "1 version" and retests["empty_text"] is None

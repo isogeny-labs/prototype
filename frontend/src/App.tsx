@@ -36,7 +36,7 @@ import { VerifyScreen } from "./components/VerifyScreen";
 import { setAlgorithmNames } from "./plainNames";
 import { applyTheme, prefs, type Theme } from "./prefs";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "./readOnly";
-import { ItemMissing, ItemPageContext, type ItemPage, OpenItemContext } from "./components/layout";
+import { HiddenPageNotesContext, ItemMissing, ItemPageContext, type ItemPage, OpenItemContext } from "./components/layout";
 import { PAGE_NAMES, itemPageHref, pageHref, useRoute, type Page } from "./router";
 import { usePanelStamp } from "./changes";
 
@@ -180,6 +180,8 @@ export default function App() {
   // The 5c fixes: "Open in new tab" in a side panel opens that item on a page of its own (…&view=page).
   const asItemPage = route.kind === "assessment" && route.view === "page" && Boolean(route.item);
   const [itemRoot, setItemRoot] = useState<HTMLElement | null>(null);
+  // (above the item: what the hidden list page has to say, such as the reason a click was refused)
+  const [itemNotes, setItemNotes] = useState<HTMLElement | null>(null);
   const itemPageId = route.kind === "assessment" ? route.id : null;
   // (a page that never draws the item, because it has no list to look in, says so after a few seconds)
   const [itemLate, setItemLate] = useState(false);
@@ -195,6 +197,7 @@ export default function App() {
         ? {
             asPage: asItemPage,
             root: asItemPage ? itemRoot : null,
+            standing: routePage !== "inventory/import",
             backHref: (item) => pageHref(itemPageId, routePage, item ?? routeItem),
             listHref: pageHref(itemPageId, routePage),
             backLabel: PAGE_NAMES[routePage],
@@ -684,10 +687,12 @@ export default function App() {
                           this place, and the list it belongs to is kept, hidden, so every button works as in the panel. */}
                       {asItemPage ? (
                         <>
-                          <div ref={setItemRoot} data-testid="item-page-root" className="peer" />
+                          <div ref={setItemNotes} data-testid="item-page-notes" className="peer/notes" />
+                          <div ref={setItemRoot} data-testid="item-page-root" className="peer/root" />
                           {/* Shown only while nothing is drawn above: the page is still loading, or (when it has no list
-                              to look in, or stays empty) the address names nothing that is here. */}
-                          <div className="hidden peer-empty:block">
+                              to look in, or stays empty) the address names nothing that is here. Not shown under a reason
+                              the page gave, such as a page that could not be loaded. */}
+                          <div className="hidden peer-empty/root:peer-empty/notes:block">
                             {itemPage && (content === null || itemLate) ? (
                               <ItemMissing page={itemPage} named={false} />
                             ) : (
@@ -699,7 +704,7 @@ export default function App() {
                         </>
                       ) : null}
                       <div hidden={asItemPage || undefined} data-testid="page-content">
-                        {content}
+                        <HiddenPageNotesContext.Provider value={asItemPage ? itemNotes : undefined}>{content}</HiddenPageNotesContext.Provider>
                       </div>
                      </OpenItemContext.Provider>
                     </ItemPageContext.Provider>
