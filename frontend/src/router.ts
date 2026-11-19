@@ -15,6 +15,7 @@ export type Page =
   | "checks"
   | "evidence"
   | "fixes"
+  | "change-watch"
   | "migration/systems"
   | "migration/roadmap"
   | "migration/dependencies";
@@ -27,6 +28,7 @@ export const PAGES: Page[] = [
   "checks",
   "evidence",
   "fixes",
+  "change-watch",
   "migration/systems",
   "migration/roadmap",
   "migration/dependencies",
@@ -137,6 +139,7 @@ export const PAGE_NAMES: Record<Page, string> = {
   checks: "Checks",
   evidence: "Evidence",
   fixes: "Fixes",
+  "change-watch": "Change watch",
   "migration/systems": "Systems",
   "migration/roadmap": "Roadmap",
   "migration/dependencies": "Dependencies",

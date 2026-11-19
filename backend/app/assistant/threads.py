@@ -9,16 +9,17 @@ from __future__ import annotations
 THREADS = ("testing", "fixing", "planning")
 THREAD_LABELS = {"testing": "Testing", "fixing": "Fixing", "planning": "Planning"}
 
-PAGES = ("overview", "inventory/import", "inventory/verify", "advisories", "checks", "evidence", "fixes",
+PAGES = ("overview", "inventory/import", "inventory/verify", "advisories", "checks", "evidence", "fixes", "change-watch",
          "migration/systems", "migration/roadmap", "migration/dependencies")
 # (as the sidebar names them)
 PAGE_LABELS = {"overview": "Overview", "inventory/import": "Import", "inventory/verify": "Verify", "advisories": "Advisories",
-               "checks": "Checks", "evidence": "Evidence", "fixes": "Fixes", "migration/systems": "Systems",
+               "checks": "Checks", "evidence": "Evidence", "fixes": "Fixes", "change-watch": "Change watch", "migration/systems": "Systems",
                "migration/roadmap": "Roadmap", "migration/dependencies": "Dependencies"}
 # The thread whose tab a page selects. The Overview has no thread of its own: it keeps the tab you had.
 PAGE_THREAD: dict[str, str | None] = {
     "overview": None,
     "inventory/import": "testing", "inventory/verify": "testing", "advisories": "testing", "checks": "testing", "evidence": "testing",
+    "change-watch": "testing",      # phase 6d: the tests picked for a developer's change, and their runs
     "fixes": "fixing", "migration/dependencies": "fixing",
     "migration/systems": "planning", "migration/roadmap": "planning",
 }

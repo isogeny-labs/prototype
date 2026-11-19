@@ -26,7 +26,7 @@ def test_every_kind_of_entry_maps_to_exactly_one_of_the_three_threads():
 def test_every_page_of_an_assessment_has_its_thread_and_the_overview_has_none():
     assert set(threads.PAGE_THREAD) == set(threads.PAGES) == set(threads.PAGE_LABELS)
     assert threads.PAGE_THREAD["overview"] is None
-    assert {p for p, t in threads.PAGE_THREAD.items() if t == "testing"} == {"inventory/import", "inventory/verify", "advisories", "checks", "evidence"}
+    assert {p for p, t in threads.PAGE_THREAD.items() if t == "testing"} == {"inventory/import", "inventory/verify", "advisories", "checks", "evidence", "change-watch"}
     assert {p for p, t in threads.PAGE_THREAD.items() if t == "fixing"} == {"fixes", "migration/dependencies"}
     assert {p for p, t in threads.PAGE_THREAD.items() if t == "planning"} == {"migration/systems", "migration/roadmap"}
 

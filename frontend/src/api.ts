@@ -180,6 +180,15 @@ export type {
   OttoLiveLimit,
   AdvisoriesView,
   AdvisoryWaiting,
+  ChangeWatchView,
+  ChangeRow,
+  ChangePanel,
+  ChangeFile,
+  ChangeTest,
+  ChangeResult,
+  ChangeResultSide,
+  ChangeFlag,
+  DemoChangeItem,
   AdvisoryProposalCell,
   OttoProposal,
   OttoProposalButton,
@@ -250,6 +259,7 @@ import type {
   ProjectOverview,
   OttoSettingsView,
   AdvisoriesView,
+  ChangeWatchView,
   OttoProposal,
   OttoProposalsView,
   AssistantView,
@@ -523,6 +533,15 @@ export const api = {
     }),
 
   exportEvidence: (planId: number) => request<EvidenceExport>(`/api/plans/${planId}/evidence`, { method: "POST" }),
+
+  // Change watch (phase 6d). The read, and its two actions; neither action sends anything but its own address.
+  getChangeWatch: (planId: number) => request<ChangeWatchView>(`/api/plans/${planId}/change-watch`),
+
+  bringInDemoChange: (planId: number, key: string) =>
+    request<ChangeWatchView>(`/api/plans/${planId}/change-watch/demo/${encodeURIComponent(key)}`, { method: "POST" }),
+
+  runPickedTests: (planId: number, changeId: string) =>
+    request<ChangeWatchView>(`/api/plans/${planId}/change-watch/${encodeURIComponent(changeId)}/run`, { method: "POST" }),
 
   // The Fixes step. Every call answers with the whole view as it now stands. Nothing here sends code.
   getFixes: (planId: number) => request<FixesView>(`/api/plans/${planId}/fixes`),

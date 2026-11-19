@@ -22,6 +22,8 @@ PAGE_FOR = {
     "evidence": "Evidence holds every result: what was run, what came back, what it shows and what it doesn't. The signed evidence file is downloaded here.",
     "fixes": ("Fixes lists the fixes for the findings in Evidence, and what the migration plan needs done. A code change is ready for review "
               "only after its proof has passed."),
+    "change-watch": ("Change watch lists every developer's change in the connected demo repository, with the tests picked for it. They run "
+                     "only when you ask, and their runs are kept apart from this assessment's own results."),
     "migration/systems": "Systems shows where each system stands on the move to post-quantum cryptography, with its options and its plan.",
     "migration/roadmap": "Roadmap gives every track of every system its place, built from your choices. It updates when a choice, a setting or a measurement changes.",
     "migration/dependencies": ("Dependencies lists the libraries your dependency list names, and which of them can do post-quantum key exchange "

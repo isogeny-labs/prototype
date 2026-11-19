@@ -34,7 +34,7 @@ const labels = (nav: ReturnType<typeof within>) => nav.getAllByRole("link").map(
 describe("sidebar", () => {
   it("lists the assessment's pages in order, with Migration's three views, and Projects and Settings at the bottom", async () => {
     await openAcme();
-    // Phase 5c: Advisories sits between Inventory and Checks.
+    // Phase 5c: Advisories sits between Inventory and Checks. Phase 6d: Change watch comes after Fixes.
     expect(labels(assessmentNav())).toEqual([
       "Overview",
       "Inventory",
@@ -44,6 +44,7 @@ describe("sidebar", () => {
       "Checks",
       "Evidence",
       "Fixes",
+      "Change watch",
       "Migration",
       "Systems",
       "Roadmap",
