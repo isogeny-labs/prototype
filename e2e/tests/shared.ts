@@ -26,7 +26,7 @@ export const password: string = process.env.E2E_PASSWORD ?? "";
 if (!password) throw new Error("E2E_PASSWORD is not set; run the tests with `npm test` from the e2e folder.");
 
 export function screenshotFolder(
-  phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes" | "phase4a" | "phase4b" | "phase4c" | "phase4d" | "phase5a" | "phase5b" | "phase5c" | "phase5c-fixes" | "phase6a",
+  phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes" | "phase4a" | "phase4b" | "phase4c" | "phase4d" | "phase5a" | "phase5b" | "phase5c" | "phase5c-fixes" | "phase6a" | "phase6d",
 ): string {
   return path.join(REPO, "docs/screenshots", phase);
 }
@@ -77,9 +77,9 @@ const STEP_PAGES: Record<string, string> = {
 };
 
 /** The sidebar's assessment pages, in order, once a file is in (Migration's three views open with it). */
-// Phase 5c: Advisories sits between Inventory and Checks.
-export const SIDEBAR_PAGES = ["Overview", "Inventory", "Import", "Verify", "Advisories", "Checks", "Evidence", "Fixes", "Migration", "Systems", "Roadmap",
-                              "Dependencies"];
+// Phase 5c: Advisories sits between Inventory and Checks. Phase 6d: Change watch comes after Fixes.
+export const SIDEBAR_PAGES = ["Overview", "Inventory", "Import", "Verify", "Advisories", "Checks", "Evidence", "Fixes", "Change watch", "Migration",
+                              "Systems", "Roadmap", "Dependencies"];
 
 /** The page an old step lands on, as the sidebar marks it current ("4. Evidence Lab" -> "Evidence"; "6. Migration"
  * opens Migration's first view, "Systems"). */

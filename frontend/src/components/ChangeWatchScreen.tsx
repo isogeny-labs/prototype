@@ -32,7 +32,7 @@ function NameCell({ row }: { row: ChangeRow }) {
   return (
     <>
       <span className="block break-words font-medium text-slate-100">{row.title}</span>
-      <span className="mt-0.5 block break-all font-mono text-xs text-slate-400">{row.branch}</span>
+      <span className="mt-0.5 block break-words font-mono text-xs text-slate-400">{row.branch}</span>
       {row.is_demo ? (
         <span className="mt-1 block">
           <DemoDataLabel />

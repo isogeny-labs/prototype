@@ -106,9 +106,9 @@ export function ChangePanelView({
         item={row.id}
         title={row.title}
         subtitle={
+          // (the branch is in the box below: beside the header's buttons a long branch name would be broken between letters)
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="break-all font-mono">{row.branch}</span>
-            <span className="font-mono">commit {row.commit}</span>
+            <span className="whitespace-nowrap font-mono">commit {row.commit}</span>
             {row.is_demo ? <DemoDataLabel /> : null}
           </span>
         }
@@ -122,7 +122,10 @@ export function ChangePanelView({
                 {row.status.reason}
               </p>
             ) : null}
-            <p className="mt-2 break-words text-xs text-slate-400">
+            <p data-testid="change-branch" className="mt-2 break-words text-xs text-slate-400">
+              Branch <span className="font-mono text-slate-300">{row.branch}</span>
+            </p>
+            <p className="mt-1 break-words text-xs text-slate-400">
               {[row.author ? `By ${row.author}` : null, row.when].filter(Boolean).join(", ")}
             </p>
             {panel.starts_from ? <p className="mt-1 break-words text-xs text-slate-400">{panel.starts_from}</p> : null}
