@@ -39,6 +39,7 @@ ENTRY_KINDS: dict[str, str] = {
     "suggestion:check": "testing", "suggestion:fix": "fixing", "suggestion:dependency": "fixing", "suggestion:plan": "planning",
     # a next step: a button of a page, under that button's own name
     "next:verify": "testing", "next:run": "testing", "next:run_all": "testing", "next:retest": "testing",
+    "next:run_picked_tests": "testing",      # phase 6d: Change watch, the tests picked for a developer's change
     "next:connect": "fixing", "next:run_proof_again": "fixing", "next:open_pull_request": "fixing", "next:retest_now": "fixing",
     "next:try": "fixing", "next:ask_approval": "fixing", "next:measure_library": "fixing", "next:measure_all": "fixing",
     "next:measure_status": "planning",

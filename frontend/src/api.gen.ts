@@ -914,6 +914,7 @@ export interface AssistantAction {
     | "run"
     | "run_all"
     | "retest"
+    | "run_picked_tests"
     | "connect"
     | "run_proof_again"
     | "open_pull_request"
@@ -932,7 +933,7 @@ export interface AssistantAction {
   item_id: number | null;
   fix_id: string | null;
   /**
-   * A server change's key (Try on a test copy, Ask for approval).
+   * A server change's key (Try on a test copy, Ask for approval), or the id of a developer's change (Run the picked tests).
    */
   change: string | null;
   /**

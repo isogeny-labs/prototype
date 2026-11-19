@@ -31,6 +31,7 @@ VERBS = {"accept": "Accept", "reject": "Reject", "undo": "Undo", "reconsider": "
 MAX_REASON = 300          # (the page's own limit for a reject reason: app/otto/proposals.py; a test holds the two equal)
 # What "it" can be told about a button that lives on its page only: the page's own button, when one fix has it.
 PAGE_BUTTONS = {"merge": "merge", "apply": "apply", "roll_back": "rollback"}
+ONLY_WITH_SOMETHING_TO_RUN = ("run_picked_tests",)
 
 
 def answer(copilot: Any, lab: Any, assessment_id: int, page: str, item: str | None, text: str) -> dict:
@@ -308,6 +309,10 @@ def _start(copilot: Any, facts: Any, said: dict, line: dict, page: str, item: st
         entries = [c["e"] for c in commands.match(rest, [{"names": names[e["id"]], "e": e} for e in entries])]
         if not entries:
             return out("cannot", f"{CANNOT} {PAGE_LABELS[home]} has no {button} button for that.", can=can, thread=thread)
+    if len(entries) > 1 and not rest and line["key"] in ONLY_WITH_SOMETHING_TO_RUN:
+        # (phase 6d: every change of the page has the button, also one with nothing picked, where it is off for good.
+        # Unless a person named it, such a change is not what the sentence means while another one can run or is running.)
+        entries = [e for e in entries if e["step"]["can"] or e["step"].get("running")] or entries
     if len(entries) > 1:
         opened = [e for e in entries if e.get("open_item")]
         pressable = [e for e in entries if e["step"]["can"]]
@@ -344,6 +349,9 @@ def _step_names(facts: Any, key: str, entries: list[dict]) -> dict[str, list[str
         elif key == "retest":
             version = " ".join(str(x) for x in (action.get("component"), action.get("version")) if x)
             out[e["id"]] = [version or e["title"], e.get("text") or ""]
+        elif key == "run_picked_tests":         # (a change is called by its title or its branch)
+            change = next((c for c in facts.change_watch().get("changes") or [] if c["id"] == action.get("change")), None)
+            out[e["id"]] = [change["title"], change["branch"]] if change else [e.get("text") or e["title"]]
         else:
             out[e["id"]] = [e.get("text") or e["title"], e["title"]]
     return out

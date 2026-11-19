@@ -14,6 +14,8 @@ export function sendStep(action: AssistantAction): Promise<unknown> {
       return api.runAll(need(plan));
     case "retest":
       return api.retest(need(plan), need(action.version), action.component ?? undefined);
+    case "run_picked_tests": // (phase 6d: Change watch's own button; `change` is the developer's change)
+      return api.runPickedTests(need(plan), need(action.change));
     case "connect":
       return api.connectCode(need(plan));
     case "run_proof_again":

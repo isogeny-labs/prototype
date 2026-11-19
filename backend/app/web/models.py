@@ -2678,13 +2678,14 @@ class AssistantDecision(Shape):
 class AssistantAction(Shape):
     """The request of the page's own button. The browser sends it on Confirm, through the same call the page uses."""
 
-    type: Literal["verify", "run", "run_all", "retest", "connect", "run_proof_again", "open_pull_request", "retest_now", "try", "ask_approval",
-                  "measure_library", "measure_all", "measure_status", "open"]
+    type: Literal["verify", "run", "run_all", "retest", "run_picked_tests", "connect", "run_proof_again", "open_pull_request", "retest_now", "try",
+                  "ask_approval", "measure_library", "measure_all", "measure_status", "open"]
     plan_id: int | None
     import_id: int | None
     item_id: int | None = Field(description="A test of the plan (Run).")
     fix_id: str | None
-    change: str | None = Field(description="A server change's key (Try on a test copy, Ask for approval).")
+    change: str | None = Field(description="A server change's key (Try on a test copy, Ask for approval), or the id of a developer's "
+                                           "change (Run the picked tests).")
     row: str | None = Field(description="A library row (Measure on a public copy).")
     version: str | None
     component: str | None

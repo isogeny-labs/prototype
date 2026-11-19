@@ -21,7 +21,7 @@ ALLOWED_NAMES = {"app.otto.proposals": {"CLOSED", "HOME", "accept_stands"}, "app
                  "app.assistant": {"words", "commands", "answers", "questions"}, "app.errors": {"BadRequest", "NotFound"}}
 # Every method of the Lab the package may call. Each is a read the pages themselves make (their GET routes), or a
 # read made for the panel; none starts a job, records a decision or writes a row.
-READS = {"assessment_core", "otto_live_ready", "otto_proposals", "plan_view", "lab_view", "fixes_view", "migration_measure_view",
+READS = {"assessment_core", "otto_live_ready", "otto_proposals", "plan_view", "lab_view", "fixes_view", "migration_measure_view", "change_watch_view",
          "dependencies_view", "import_json_for", "latest_verify", "next_step_from", "decision_name_view", "otto_limit_words",
          # phase 6b: what was said (a read of the kept exchanges), and for a filtered table how many rows it lists
          "assistant_messages", "checks_view", "advisories_view"}

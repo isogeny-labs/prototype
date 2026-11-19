@@ -183,10 +183,41 @@ class RuleCopilot:
         with its page's reason."""
         builders = {"overview": self._next_overview, "inventory/import": self._next_import, "inventory/verify": self._next_verify,
                     "checks": self._next_checks, "evidence": self._next_evidence, "fixes": self._next_fixes,
+                    "change-watch": self._next_change_watch,
                     "migration/dependencies": self._next_dependencies, "migration/systems": self._next_migration,
                     "migration/roadmap": self._next_migration}
         build = builders.get(page)
         return build(facts, page, item, asked) if build else []
+
+    def _next_change_watch(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
+        """Change watch (phase 6d): the page's Run the picked tests, for each change whose picked tests have not run
+        or are running, and for the change that is open. Everything in the card is the page's own: the button's name,
+        whether it can be pressed and why not, and what it will run. Bring in a demo change stays on its page."""
+        out = []
+        for change in facts.change_watch().get("changes") or []:
+            run, status = change["panel"]["run"], change["status"]
+            opened = item == change["id"]
+            going = bool(status.get("busy"))
+            if not run["will_run"] and not asked:
+                continue                    # nothing is picked for it (or nothing of it can run): there is no button to press
+            if not (asked or opened or going or status["key"] == "not_run"):
+                continue                    # it has run: its result is on the page, and Run again is there
+            label = run["label"]
+            text = (f"The tests picked for “{change['title']}” are running." if going else
+                    f"The tests picked for “{change['title']}” have not run yet ({change['picked_line']})." if status["key"] == "not_run" else
+                    f"“{change['title']}” reads {status['word']}. Its picked tests would run again." if run["will_run"] else
+                    f"“{change['title']}”: {status['word']}.")
+            out.append(_entry("next:run_picked_tests", f"next:run_picked_tests:{change['id']}", mark=words.MARK_NEXT, title=label, text=text,
+                              where={"label": f"On {PAGE_LABELS['change-watch']}", "link": _link("change-watch", change["id"])}, open_item=opened,
+                              step=_step({"type": "run_picked_tests", "plan_id": facts.plan_id, "change": change["id"]},
+                                         can=bool(run["can"]) and not facts.closed, reason=facts.closed_reason() or run["blocked_reason"],
+                                         running=going, progress=_plain(status.get("reason")) if going else None,
+                                         confirm=words.step_confirm(
+                                             f"{label}?",
+                                             [_plain(run.get("note")) or "",
+                                              "The runner runs each test and the separate reviewer decides its result."], label, PAGE_LABELS["change-watch"]))))
+        out.sort(key=lambda e: not e["open_item"])
+        return out if asked else out[:MAX_STEPS]
 
     def _next_overview(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
         step = facts.overview_step()
@@ -676,6 +707,10 @@ class _Facts:
 
     def dependencies(self) -> dict:
         return self._once("dependencies", lambda: self._lab.dependencies_view(self.plan_id))
+
+    def change_watch(self) -> dict:
+        """Change watch's own read (phase 6d): it reads the connected repository and writes nothing."""
+        return self._once("change_watch", lambda: self._lab.change_watch_view(self.plan_id))
 
     def imported(self) -> dict:
         return self._once("imported", lambda: self._lab.import_json_for(self.import_id))

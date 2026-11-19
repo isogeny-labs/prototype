@@ -34,7 +34,8 @@ def test_the_one_list_has_three_kinds_and_every_start_names_a_kind_of_entry_and_
             assert c["done"].endswith(".") and (c["page"] in PAGES or c["page"] == "settings")
     # what is done on its page only is exactly what the panel never presses (SPEC section 2, 6b)
     assert {c["key"] for c in commands.COMMANDS if c["kind"] == "page"} == {
-        "approve", "merge", "apply", "roll_back", "sign_off", "own_tick", "choose_option", "mark_reviewed", "download", "settings"}
+        "approve", "merge", "apply", "roll_back", "sign_off", "own_tick", "choose_option", "mark_reviewed", "download", "settings",
+        "bring_in_demo_change"}        # (phase 6d: it runs nothing, and it is still the person's own click on Change watch)
     # every next step the panel of 6a can offer behind Confirm can also be asked for
     asked_for = {c["what"] for c in commands.COMMANDS if c.get("what")}
     assert asked_for == {k for k in ENTRY_KINDS if k.startswith("next:") and k != "next:open"}
@@ -56,6 +57,16 @@ def test_the_one_list_has_three_kinds_and_every_start_names_a_kind_of_entry_and_
     ("open CVE-2022-21449", "open_item", {"rest": "cve-2022-21449"}),
     ("what can you do?", "help", {}),
     ("help", "help", {}),
+    # phase 6d: Change watch's own button, and the one that stays on its page
+    ("run the picked tests", "run_picked_tests", {"rest": ""}),
+    ("Run the picked tests for Revert the range check", "run_picked_tests", {"rest": "revert the range check"}),
+    ("rerun the picked tests on dev/revert-range-check", "run_picked_tests", {"rest": "dev/revert-range-check"}),
+    ("please run the tests picked for the revert", "run_picked_tests", {"rest": "the revert"}),
+    ("bring in a demo change", "bring_in_demo_change", {}),
+    ("add the demo change", "bring_in_demo_change", {}),
+    ("bring in a change", "bring_in_demo_change", {}),
+    ("run the tests", "run_all", {}),                           # (still the plan's own Run all)
+    ("apply the change", "apply", {}),                          # (still the server change's Apply)
     ("close the fixing tab", "tab", {"thread": "fixing", "how": "close"}),
     ("open the planning tab", "tab", {"thread": "planning", "how": "open"}),
     ("accept the Java fix", "accept", {"rest": "the java fix", "reason": None}),

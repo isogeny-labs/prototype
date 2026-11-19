@@ -4982,6 +4982,7 @@
               "run",
               "run_all",
               "retest",
+              "run_picked_tests",
               "connect",
               "run_proof_again",
               "open_pull_request",
@@ -5050,7 +5051,7 @@
               }
             ],
             "title": "Change",
-            "description": "A server change's key (Try on a test copy, Ask for approval)."
+            "description": "A server change's key (Try on a test copy, Ask for approval), or the id of a developer's change (Run the picked tests)."
           },
           "row": {
             "anyOf": [

@@ -43,6 +43,7 @@ COMMANDS: tuple[dict[str, Any], ...] = (
     {"key": "run_all", "kind": "do", "say": "Run all", "what": "next:run_all", "page": "checks"},
     {"key": "run", "kind": "do", "say": "Run the speed test", "what": "next:run", "page": "checks"},
     {"key": "retest", "kind": "do", "say": "Retest on 1.4.3", "what": "next:retest", "page": "evidence"},
+    {"key": "run_picked_tests", "kind": "do", "say": "Run the picked tests", "what": "next:run_picked_tests", "page": "change-watch"},
     {"key": "connect", "kind": "do", "say": "Connect demo code", "what": "next:connect", "page": "fixes"},
     {"key": "run_proof_again", "kind": "do", "say": "Run proof again", "what": "next:run_proof_again", "page": "fixes"},
     {"key": "open_pull_request", "kind": "do", "say": "Open pull request", "what": "next:open_pull_request", "page": "fixes"},
@@ -63,6 +64,8 @@ COMMANDS: tuple[dict[str, Any], ...] = (
      "done": "Choosing a migration option is done on the page."},
     {"key": "mark_reviewed", "kind": "page", "say": "Mark reviewed", "page": "evidence", "done": "Marking a result reviewed is done on the page."},
     {"key": "download", "kind": "page", "say": "Download evidence", "page": "evidence", "done": "A download is started on the page."},
+    {"key": "bring_in_demo_change", "kind": "page", "say": "Bring in a demo change", "page": "change-watch",
+     "done": "Bringing in a demo change is done on the page."},
     {"key": "settings", "kind": "page", "say": "Turn on Live Otto", "page": "settings", "done": "Settings are changed in Settings."},
 )
 BY_KEY = {c["key"]: c for c in COMMANDS}
@@ -78,7 +81,7 @@ CHIPS: dict[str, tuple[str, ...]] = {
     "checks": ("Show failed checks", "Run all", HELP),
     "evidence": ("Show failed results", "Open Fixes", HELP),
     "fixes": ("Connect demo code", "Show failed checks", HELP),
-    "change-watch": ("Open Fixes", "Open Evidence", HELP),
+    "change-watch": ("Run the picked tests", "Open Fixes", HELP),
     "migration/systems": ("Measure status", "Open Roadmap", HELP),
     "migration/roadmap": ("Open Systems", "Open Dependencies", HELP),
     "migration/dependencies": ("Measure all", "Open Systems", HELP),
@@ -147,6 +150,8 @@ ALIASES: dict[str, tuple[str, ...]] = {"java": ("openjdk",), "jdk": ("openjdk",)
 _FOR = r"(?: (?:for|on|of|to|in) (?P<rest>.+))?"
 # The buttons a command can name, in the order the rules try them (the general "run <a test>" comes last).
 STARTS: tuple[tuple[str, str], ...] = (
+    ("run_picked_tests", r"(?:run|start|rerun)(?: the| its| their)? picked tests(?: again)?" + _FOR),
+    ("run_picked_tests", r"(?:run|start|rerun)(?: the)? tests picked" + _FOR),
     ("run_all", r"(?:run|start|rerun) (?:all|everything|every test|all (?:the )?(?:tests|checks)|the (?:whole )?(?:test )?plan|the tests|the checks)(?: again)?"),
     ("verify", r"(?:verify|check)(?: the)?(?: claims| file)?"),
     ("retest_now", r"retest now" + _FOR),
@@ -222,6 +227,8 @@ def read(text: str) -> dict:
         ("choose_option", r"(choose|pick|select|take) .*\boption\b.*|keep .* classical.*"),
         ("mark_reviewed", r"mark .*\breviewed\b.*|mark reviewed"),
         ("download", r"download\b.*|export(?: the)? (?:evidence|report)\b.*"),
+        ("bring_in_demo_change", r"(?:bring in|add|push|load)(?: a| the| another)? (?:demo|developer(?:'s)?) change\b.*|"
+                                 r"bring in(?: a| the| another)? change\b.*"),
         ("settings", r"(turn|switch) (on|off) live otto|(turn|switch) live otto (on|off)|(open |go to |show )?settings|install .*pack.*|set .*limit.*"),
     ):
         if re.fullmatch(pattern, low):

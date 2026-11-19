@@ -5,17 +5,23 @@
 //   - the fix is connected, proven, approved and merged with the Fixes page's own buttons;
 //   - "Bring in a demo change" adds the change that undoes the merged fix: it is listed with the tests picked for it
 //     and why, and the tests left out and why. Nothing has run;
-//   - "Run the picked tests" runs them: the change reads "Passed before, fails now", with each test's result before
-//     and on the change in the reviewer's own words. The assessment's own results are as they were;
+//   - "Run the picked tests" runs them, pressed from the Otto panel's card behind Confirm (the page's own request):
+//     the change reads "Passed before, fails now", with each test's result before and on the change in the reviewer's
+//     own words. The assessment's own results are as they were;
+//   - Fixes has an entry for the change, text only, that names the tests and shows the lines the change takes out;
 //   - the second demo change, a settings file that names TLS 1.0, picks nothing, cannot run, and carries one flag;
-//   - the table and the panel are measured at 1440 pixels wide.
+//   - the table and the panel are measured at 1440 pixels wide, also beside the Otto panel;
+//   - the evidence file holds the change and its run, and the verify command checks them.
 //
-// The Otto panel is hidden: this walk is about the page. Main-screen buttons only. Pictures, dark and light:
-// docs/screenshots/phase6d/.
+// The Otto panel is hidden, except for the one step that is about it. Pictures, dark and light: docs/screenshots/phase6d/.
 import { expect, test, type Page, type Request } from "@playwright/test";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { continueToChecks, enterApp, layoutProblems, openFreshAssessment, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
+import {
+  BACKEND, PYTHON, continueToChecks, enterApp, layoutProblems, openFreshAssessment, screenshotFolder, startCopy, stepLink, stopCopy, type Copy,
+} from "./shared";
 
 const SHOTS = screenshotFolder("phase6d");
 const TRICKS = "Attacker tricks (our short list)";
@@ -167,11 +173,28 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   await noBannedWords("a change, not run yet");
   await shots("02-a-change-with-its-picked-tests");
 
-  // ---- Run the picked tests: one request, then before and now in the reviewer's own words
+  // ---- Run the picked tests, from the Otto panel: its card is the page's own button, and nothing is sent before Confirm
+  await page.getByRole("button", { name: "Show the assistant" }).click();
+  const otto = page.getByTestId("otto-panel");
+  const card = otto.locator('[data-testid="otto-entry"][data-what="next:run_picked_tests"]');
+  await expect(card).toHaveCount(1);
+  await expect(card.getByTestId("otto-entry-mark")).toHaveText("Next step");
+  await expect(card.getByTestId("otto-entry-title")).toHaveText("Run the picked tests");
+  await expect(card).toContainText("The tests picked for “Revert the range check” have not run yet (3 of 5 tests picked).");
+  await page.waitForLoadState("networkidle");
+  expect(await layoutProblems(page), "Change watch with a change open, beside the Otto panel").toEqual([]);
   const beforeRun = sent.length;
-  await panel().getByTestId("change-run-button").click();
-  await expect(panel().getByTestId("change-panel-status")).toHaveText("Running");
+  await card.getByRole("button", { name: "Run the picked tests", exact: true }).click();
+  const step = card.getByTestId("otto-confirm");
+  await expect(step.getByTestId("otto-confirm-names")).toHaveText("This is the Run the picked tests button on Change watch.");
+  await expect(step).toContainText("These runs are kept apart: they never replace a result of this assessment's own tests.");
+  await shots("02b-the-otto-panels-card-with-its-confirm-step");
+  expect(sent.slice(beforeRun)).toEqual([]);
+  await step.getByTestId("otto-confirm-button").click();
+  await expect(panel().getByTestId("change-panel-status")).toHaveText("Running");      // the page read again after the panel's request
   await expect(panel().getByTestId("change-run-button")).toBeDisabled();
+  await page.getByRole("button", { name: "Hide the assistant" }).click();
+  await expect(otto).toHaveCount(0);
   await expect(panel().getByTestId("change-panel-status")).toHaveText("Passed before, fails now (2 tests)", { timeout: 300_000 });
   expect(sent.slice(beforeRun)).toEqual([expect.stringMatching(/^POST \/api\/plans\/\d+\/change-watch\/change-[0-9a-f]{12}\/run$/)]);
   await expect(panel().getByTestId("change-status-reason")).toHaveText("2 tests passed on the code before and fail on this change.");
@@ -192,6 +215,32 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   expect(await layoutProblems(page), "Change watch after a run").toEqual([]);
   await noBannedWords("a change, after its run");
   await shots("03-passed-before-fails-now");
+  // ---- Fixes has an entry for this change: text only, with the tests that fail on it and the lines it takes out
+  await expect(panel().getByTestId("change-fix-line")).toContainText("A suggestion for this change is in Fixes. It is text only.");
+  await panel().getByTestId("change-fix-link").click();
+  await expect(page).toHaveURL(/#\/a\/\d+\/fixes\?item=fix-change-[0-9a-f]{12}$/);
+  const entry = page.getByTestId("fix-summary");
+  await expect(entry).toHaveAttribute("aria-label", "Revert the range check: 2 tests that passed now fail");
+  await expect(page.getByTestId("detail-panel")).toContainText("Revert the range check: 2 tests that passed now fail");
+  await expect(entry.getByTestId("fix-status")).toHaveText("Text only");
+  await expect(entry.getByTestId("fix-source")).toContainText("Came from the developer's change dev/revert-range-check");
+  await expect(entry.getByTestId("fix-proof")).toContainText("This suggestion is text only: the app has not applied it or tested it.");
+  await expect(entry.getByTestId("fix-approvers")).toContainText("The app never merges a developer's change.");
+  await expect(entry.getByRole("button", { name: /Merge|Approve|Open pull request|Download patch|Connect/ })).toHaveCount(0);
+  const takenOut = page.locator('[data-section="change"]');
+  await expect(takenOut).toContainText("What the change takes out");
+  expect(await takenOut.locator('[data-testid="code-line"][data-mark="-"]').count()).toBeGreaterThan(0);
+  await expect(page.locator('[data-section="suggestion"]')).toContainText(`${TRICKS} passed on the code before (acme-sign 1.4.3) and fails on this change (acme-sign 1.4.2).`);
+  await page.waitForLoadState("networkidle");
+  expect(await layoutProblems(page), "Fixes with the entry for a developer's change open").toEqual([]);
+  // (the entry's own words: the Fixes page itself carries the app's line that passing tests proves no system secure)
+  const entryWords = (await entry.innerText()) + (await page.locator('[data-section="suggestion"]').innerText());
+  for (const banned of BANNED) expect(entryWords, `the entry for a developer's change: ${banned}`).not.toMatch(banned);
+  await shots("03c-fixes-the-entry-for-the-change");
+  await stepLink(page, "Change watch").click();
+  await row("Revert the range check").click();
+  await expect(panel()).toBeVisible();
+
   // "See the evidence" of the result on the change opens exactly that run on Checks: a row of its own under Change
   // watch, never the test's own result
   await tricks.getByTestId("change-result-now").getByTestId("change-result-link").click();
@@ -260,7 +309,31 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   for (const item of await page.getByTestId("demo-change-item").all()) await expect(item).toBeDisabled();
   await page.keyboard.press("Escape");
 
+  // ---- the evidence file holds both changes and the run, and the verify command checks that part against the runs
+  await stepLink(page, "Evidence").click();
+  const created = page.waitForResponse((r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Download evidence" }).click();
+  const made = await created;
+  expect(made.status()).toBe(200);
+  const info = await made.json();
+  const raw = await (await page.request.get(info.json.url)).body();
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-changewatch-")), "evidence.json");
+  fs.writeFileSync(file, raw);
+  const signed = JSON.parse(raw.toString("utf-8")).evidence.change_watch;
+  expect(signed.changes.map((c: { branch: string }) => c.branch).sort()).toEqual(["dev/allow-tls-1-0-for-partner", "dev/revert-range-check"]);
+  expect(signed.runs).toHaveLength(1);
+  expect(signed.runs[0].review.status).toBe("passed_before_fails_now");
+  const checked = spawnSync(PYTHON, ["-m", "evidence", "verify", file, "--data-dir", copy.dataDir], { cwd: BACKEND, encoding: "utf-8" });
+  expect(checked.status, checked.stdout + checked.stderr).toBe(0);
+  expect(checked.stdout).toContain("Evidence verified");
+  expect(checked.stdout).toContain("Change watch: 2 changes, 1 run of the picked tests (6 test runs): each run matches its fingerprint and ran on the change's code.");
+  expect(checked.stdout).toContain("the reviewer's word for the change follows from it.");
+  const report = await (await page.request.get(info.html.url)).text();
+  expect(report).toContain("9. Change watch");
+  expect(report).toContain("Revert the range check");
+
   // ---- an address that names a change opens it
+  await stepLink(page, "Change watch").click();
   const id = await row("Revert the range check").getAttribute("data-change");
   const assessment = page.url().match(/#\/a\/(\d+)/)![1];
   await page.goto(`/#/a/${assessment}/overview`);

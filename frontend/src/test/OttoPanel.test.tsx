@@ -328,6 +328,8 @@ const STEPS: { what: string; title: string; page: string; label: string; action:
   { what: "next:run_all", title: "Run all", page: "checks", label: "Checks", action: { type: "run_all", plan_id: 1 }, request: "POST /api/plans/1/run-all", body: null },
   { what: "next:run", title: "Run", page: "checks", label: "Checks", action: { type: "run", plan_id: 1, item_id: 12 }, request: "POST /api/plans/1/tests/12/run", body: null },
   { what: "next:retest", title: "Retest new version", page: "evidence", label: "Evidence", action: { type: "retest", plan_id: 1, version: "1.4.3", component: "acme-sign" }, request: "POST /api/plans/1/retest", body: { version: "1.4.3", component: "acme-sign" } },
+  // phase 6d: Change watch's own button (the request names the developer's change; it has no body)
+  { what: "next:run_picked_tests", title: "Run the picked tests", page: "change-watch", label: "Change watch", action: { type: "run_picked_tests", plan_id: 1, change: "change-0123456789ab" }, request: "POST /api/plans/1/change-watch/change-0123456789ab/run", body: null },
   { what: "next:connect", title: "Connect demo code", page: "fixes", label: "Fixes", action: { type: "connect", plan_id: 1, fix_id: "fix-ecdsa-range-check" }, request: "POST /api/plans/1/fixes/connect", body: null },
   { what: "next:run_proof_again", title: "Run proof again", page: "fixes", label: "Fixes", action: { type: "run_proof_again", plan_id: 1, fix_id: "fix-ecdsa-range-check" }, request: "POST /api/plans/1/fixes/fix-ecdsa-range-check/proof", body: null },
   { what: "next:open_pull_request", title: "Open pull request", page: "fixes", label: "Fixes", action: { type: "open_pull_request", plan_id: 1, fix_id: "fix-ecdsa-range-check", reviewers: ["a", "you"] }, request: "POST /api/plans/1/fixes/fix-ecdsa-range-check/pull-request", body: { reviewers: ["a", "you"] } },
@@ -363,7 +365,7 @@ describe("a next step", () => {
   });
 
   it("every kind of next step the backend can send has its request here", () => {
-    const sendable = ["verify", "run", "run_all", "retest", "connect", "run_proof_again", "open_pull_request", "retest_now", "try", "ask_approval", "measure_library", "measure_all", "measure_status"];
+    const sendable = ["verify", "run", "run_all", "retest", "run_picked_tests", "connect", "run_proof_again", "open_pull_request", "retest_now", "try", "ask_approval", "measure_library", "measure_all", "measure_status"];
     expect(STEPS.map((s) => s.action.type).sort()).toEqual([...sendable].sort());
   });
 
