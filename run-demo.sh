@@ -13,15 +13,46 @@ URL="http://127.0.0.1:8000"
 say() { printf '\n== %s\n' "$1"; }
 fail() { printf '\nCould not start: %s\n' "$1" >&2; exit 1; }
 
-# 1. Python 3.12
-if [ -x /usr/bin/python3.12 ]; then
-  PY=/usr/bin/python3.12
-elif command -v python3.12 >/dev/null 2>&1; then
-  PY="$(command -v python3.12)"
-elif command -v python3 >/dev/null 2>&1 && python3 -c 'import sys; sys.exit(sys.version_info[:2] != (3, 12))'; then
-  PY="$(command -v python3)"
-else
-  fail "Python 3.12 is not installed. Install Python 3.12, then run ./run-demo.sh again."
+# 1. Python 3.12. The app keeps its own private Python environment in backend/.venv. When that is there and
+#    works, no other Python is needed. Otherwise it is made (in step 3) with the first Python 3.12 on this
+#    computer that can make one: it must be version 3.12 and have the two parts that make an environment with pip
+#    in it ("venv" and "ensurepip"; Ubuntu and Debian keep them in a separate package, python3.12-venv). A
+#    Python 3.12 without them is passed over, never picked: making an environment with it stops halfway.
+python_candidates() {            # where to look, best first, one per line
+  type -aP python3.12 2>/dev/null || true
+  printf '%s\n' /usr/local/bin/python3.12 /usr/bin/python3.12
+  type -aP python3 2>/dev/null || true
+}
+environment_works() {            # backend/.venv is whole: its Python starts and its pip answers
+  [ -x "$VENV/bin/python" ] && "$VENV/bin/python" -m pip --version >/dev/null 2>&1
+}
+PY=""                            # the Python picked to make the environment; empty while none is needed
+LOOKED_AT=""                     # the candidates already looked at, so that none is looked at twice
+SAW_312=0                        # 1 once any Python 3.12 was seen, usable or not
+pick_python() {                  # puts the next usable Python 3.12 into PY; fails when there is none left
+  local candidate
+  while IFS= read -r candidate; do
+    [ -n "$candidate" ] && [ -x "$candidate" ] || continue
+    case "$candidate" in "$VENV"/*) continue ;; esac                    # never the environment's own Python
+    case "$LOOKED_AT" in *$'\n'"$candidate"$'\n'*) continue ;; esac
+    LOOKED_AT="$LOOKED_AT"$'\n'"$candidate"$'\n'
+    "$candidate" -c 'import sys; sys.exit(sys.version_info[:2] != (3, 12))' >/dev/null 2>&1 || continue
+    SAW_312=1
+    "$candidate" -c 'import venv, ensurepip' >/dev/null 2>&1 || continue
+    PY="$candidate"
+    return 0
+  done < <(python_candidates)
+  PY=""
+  return 1
+}
+if ! environment_works && ! pick_python; then
+  if [ "$SAW_312" = 0 ]; then
+    fail "Python 3.12 is not installed. Install Python 3.12, then run ./run-demo.sh again."
+  elif [ "${CODESPACES:-}" = "true" ]; then
+    fail "This Codespace's Python 3.12 cannot make the app's private Python environment (its venv part is missing). Make a new Codespace, or rebuild this one (see README.md, \"In a Codespace\"), then run ./run-demo.sh again."
+  else
+    fail "Python 3.12 is installed, but it cannot make the app's private Python environment (its venv part is missing). Install that part (on Ubuntu or Debian: sudo apt install python3.12-venv), then run ./run-demo.sh again."
+  fi
 fi
 
 # 2. Large files. Since phase 4c+ new test-set files are kept in Git LFS (large-file storage). A copy made
@@ -41,10 +72,29 @@ if grep -rlq "^version https://git-lfs.github.com/spec/v1" "$ROOT/demo/vectors" 
 fi
 
 # 3. Backend: private Python environment + packages, exact versions with their fingerprints from
-#    requirements.lock (only when missing or the lock changed)
-if [ ! -x "$VENV/bin/python" ]; then
-  say "Setting up Python (first run only, about a minute)"
-  "$PY" -m venv "$VENV"
+#    requirements.lock (only when missing or the lock changed). An environment that is only half made (its
+#    Python or its pip does not work, for example after a first try that stopped halfway) is thrown away and
+#    made again. A try that fails leaves nothing behind, and the next usable Python 3.12 is tried.
+make_environment() {             # backend/.venv made new with the Python given: whole on success, gone on failure
+  rm -rf "$VENV"
+  if PYTHON_SAID="$("$1" -m venv "$VENV" 2>&1)" && environment_works; then
+    return 0
+  fi
+  rm -rf "$VENV"
+  return 1
+}
+if [ -n "$PY" ]; then
+  if [ -e "$VENV" ]; then
+    say "Setting up Python again (what was there was only half made; about a minute)"
+  else
+    say "Setting up Python (first run only, about a minute)"
+  fi
+  until make_environment "$PY"; do
+    if ! pick_python; then
+      [ -z "$PYTHON_SAID" ] || printf '   Python said: %s\n' "${PYTHON_SAID##*$'\n'}" >&2
+      fail "Python 3.12 could not make the app's private Python environment (backend/.venv). Check that the disk is not full and that this folder can be written to, then run ./run-demo.sh again."
+    fi
+  done
 fi
 if [ ! -f "$VENV/.requirements-installed" ] || [ "$BACKEND/requirements.lock" -nt "$VENV/.requirements-installed" ]; then
   say "Installing the backend packages"

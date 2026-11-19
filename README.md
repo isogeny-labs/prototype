@@ -42,6 +42,7 @@ Screenshots are in [docs/screenshots/](docs/screenshots/).
 
 You need Python 3.12 and Node.js 20 or newer installed. Docker is optional. No internet is needed after the first run.
 Otto (phase 5c, below) is optional too: the first run fetches its harness if this computer may read its repository.
+In a GitHub Codespace all of this is already there: see "In a Codespace" below.
 
 ```
 ./run-demo.sh
@@ -97,6 +98,51 @@ open **http://127.0.0.1:8000** in your browser.
    It prints `Evidence verified`. Change any one character in a copy of the file and it fails.
 
 To stop the app, press Ctrl+C in the window where it is running.
+
+### In a Codespace
+
+A Codespace is a ready-made computer on GitHub that you use in your browser. This repository says what a new one
+is built from (`.devcontainer/devcontainer.json`): Microsoft's official Python 3.12 image, and three official
+add-ons that install Node.js 22, Docker and Git LFS. The image and the three add-ons are each pinned by their
+fingerprint, so every new Codespace starts from exactly the same four. (What an add-on installs is the current
+release of that program, so Node.js 22, Docker and Git LFS can be a little newer in a later Codespace.) In a new
+Codespace, `./run-demo.sh` is the only command you need.
+
+1. On the repository's page on GitHub, click **Code**, then the **Codespaces** tab, then create a codespace on
+   the branch you want.
+2. GitHub shows a page, "This codespace is requesting additional permissions". Click **Authorize and continue**.
+   That is what lets the Codespace read the private Otto repository.
+3. Wait until the editor has opened and the terminal at the bottom is ready for typing. This can take several
+   minutes: GitHub downloads the image and adds Node.js, Docker and Git LFS.
+4. In the terminal, type `./run-demo.sh` and press Enter.
+5. When it says "Isogeny Evidence Lab is starting", a box appears at the bottom right: "Your application running
+   on port 8000 is available". Click **Open in Browser**. If the box is gone, open the **Ports** tab next to the
+   terminal and click the globe icon in the row of port 8000.
+6. The app opens in a new browser tab and asks you to create a password. From here everything is as above.
+
+Things to know in a Codespace:
+
+- **Use the box or the Ports tab, not the address the script prints.** `http://127.0.0.1:8000` is an address
+  inside the Codespace; typed into the browser on your own computer it finds nothing. The address GitHub opens
+  for you is private: only you, signed in to GitHub, can open it. Leave it private.
+- **The first run takes the longest.** It installs the Python packages, builds the screens, fetches the Otto
+  harness and, because Docker is running, downloads and builds the test images for isolated mode (about 3 GB, see
+  "Real libraries" below). That can take several minutes; the script says what it is doing at each step. Later
+  starts take a few seconds.
+- **If Otto is missing**, the script says "could not fetch it" and "Otto harness: missing", and the app says
+  "Otto is not installed on this computer" with the reason. Everything else works; advisory checks can't be added
+  or run. The usual cause is that step 2 was skipped: make a new Codespace and click **Authorize and continue**.
+- **If Docker is missing or not running**, the script says so and the app starts in demo mode, and says that too.
+  Real libraries then say they need isolated mode.
+- **A Codespace made before this change** (19 November 2026), or from a branch that does not have it yet, still
+  has the old setup, in which `./run-demo.sh` stops at the Python step and says so. The simplest is to make a new
+  Codespace. (An old one also works once it has this change and is rebuilt: press F1, type `Rebuild` and choose
+  **Codespaces: Rebuild Container**.)
+- **Other ports.** GitHub may show the same box for port 8443, the app's own demo test server. You only need
+  port 8000.
+- **Live Otto is optional.** Its key is a Codespaces secret named `ANTHROPIC_API_KEY` (on GitHub: your
+  **Settings**, **Codespaces**, **Secrets**, with access to this repository). Never type the key into the app, a
+  file or the terminal.
 
 ### A file with several servers and programs
 

@@ -15,7 +15,7 @@ shapes see `docs/ENGINE.md`; for how software under test is run see `docs/ADAPTE
 | `research/` | Otto's research data (phase 5c): `snapshot/2026-11-17/` (six real published advisories, quoted word for word, with a `README.md` of sources and licences), `recorded/` (Claude's answers recorded during the build, one file for each prompt), `lab/` (Otto's research ledger with its pinned scripts, its design and fix files and its run outputs; only Otto's harness writes it) and `packs/` (the two signed test packs). Data only. |
 | `docs/` | The spec, limits, handoff, engine and adapter notes, the blind test, the questions of the fifth answer key (`OTTO-KEY.md`), screenshots. This page. |
 | `.github/workflows/` | `checks.yml` (every push and pull request) and `slow.yml` (nightly and by hand). |
-| `.devcontainer/` | `devcontainer.json` (phase 5c): asks GitHub to let a new Codespace read the private Otto repository, so `./run-demo.sh` can fetch the pinned harness there. |
+| `.devcontainer/` | `devcontainer.json`: names what a new Codespace is built from, each part pinned by its fingerprint (the official Python 3.12 image and the features Node.js 22, Docker inside the Codespace and Git LFS), so `./run-demo.sh` works there by itself; and (phase 5c) asks GitHub to let a new Codespace read the private Otto repository, so `./run-demo.sh` can fetch the pinned harness there. `backend/tests/test_devcontainer.py` checks both, and the Python step of `./run-demo.sh`. |
 
 ## backend/app, folder by folder
 
