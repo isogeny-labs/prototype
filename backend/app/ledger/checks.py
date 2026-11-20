@@ -287,7 +287,8 @@ class LedgerMixin:
                 "name": title, "ran_on": (copy.get("label") or ("Real nginx" if phase == "try_nginx" else "A test copy"))
                 + (", and the server as it is today" if phase == "try_clients" else ""),
                 "came_from": {"key": "try", "label": ORIGINS["try"]}, "change_key": change_key, "item_id": item.id,
-                "link": self._change_link(change_key, systems, item),
+                # (phase 4e: the stand-ins' run has a plan item of its own; it links where its try does, to the try's system)
+                "link": self._change_link(change_key, systems, tried.item_id if phase == "try_clients" and tried is not None else item.id),
                 "evidence_link": {"page": "evidence", "item": f"try-{change_key}-{phase}"}}
         return None, {}
 
@@ -336,10 +337,10 @@ class LedgerMixin:
                 "link": {"page": "migration/dependencies", "item": row_id}, "evidence_link": {"page": "evidence", "item": rid}}
 
     @staticmethod
-    def _change_link(change_key: str | None, systems: dict, item: PlanItemRow) -> dict:
+    def _change_link(change_key: str | None, systems: dict, item_id: int) -> dict:
         if str(change_key or "").startswith("tls"):
             return {"page": "fixes", "item": "change:" + str(change_key)}
-        state = systems.get(item.id)
+        state = systems.get(item_id)
         return {"page": "migration/systems", "item": state["key"] if state else None}
 
     def _job_live(self, item_id: int, phase: str) -> bool:

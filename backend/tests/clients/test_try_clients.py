@@ -89,6 +89,7 @@ def test_the_run_is_on_checks_and_in_the_signed_evidence_and_the_report(flow):
     assert row["name"] == f"Who can still connect: {flow.addr['c1']}" and row["came_from"]["label"] == "Try on a test copy"
     assert row["group"] == "migration" and row["result"]["label"] == "Measured"
     assert row["ran_on"] == "a test copy with the change, and the server as it is today"
+    assert row["link"] == {"page": "migration/systems", "item": f"server:{flow.addr['c1']}"}     # Open where it started
     export = lab.export_evidence(flow.pid)
     _, raw, _ = lab.evidence_file(export["id"], "json")
     _, report, _ = lab.evidence_file(export["id"], "html")
