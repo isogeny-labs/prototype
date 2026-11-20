@@ -81,6 +81,13 @@ const STEP_PAGES: Record<string, string> = {
 export const SIDEBAR_PAGES = ["Overview", "Inventory", "Import", "Verify", "Advisories", "Checks", "Evidence", "Fixes", "Change watch", "Migration",
                               "Systems", "Roadmap", "Dependencies"];
 
+/** 20 November 2026: the sidebar lists the four work groups under the open page when it is Checks, Evidence or Fixes. The
+ * sidebar's links, in order, with the open page's groups under it. */
+export function sidebarLinksOn(open: "Checks" | "Evidence" | "Fixes"): string[] {
+  const at = SIDEBAR_PAGES.indexOf(open);
+  return [...SIDEBAR_PAGES.slice(0, at + 1), "Verification", "Crypto tests", "Migration", "Dependencies", ...SIDEBAR_PAGES.slice(at + 1)];
+}
+
 /** The page an old step lands on, as the sidebar marks it current ("4. Evidence Lab" -> "Evidence"; "6. Migration"
  * opens Migration's first view, "Systems"). */
 export function stepName(step: string): string {

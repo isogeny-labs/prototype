@@ -4,7 +4,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DISCLAIMER, expectPageOpen, openFreshAssessment, password, shotFixes, SIDEBAR_PAGES, stepLink, stepNav, shotBothThemes } from "./shared";
+import { DISCLAIMER, expectPageOpen, openFreshAssessment, password, shotFixes, sidebarLinksOn, stepLink, stepNav, shotBothThemes } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.resolve(here, "../../docs/screenshots/phase1");
@@ -278,7 +278,8 @@ test("Continue to checks shows the five suggested tests", async () => {
   await expect(stepLink(page, "3. Tests")).toHaveAttribute("aria-current", "page");
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveCount(1);
   await expectPageOpen(page, "4. Evidence Lab");
-  await expect(stepNav(page).getByRole("link")).toHaveText(SIDEBAR_PAGES);
+  // (with the four work groups of the open page, Checks, under it)
+  await expect(stepNav(page).getByRole("link")).toHaveText(sidebarLinksOn("Checks"));
   await expectPageOpen(page, "5. Fixes");
   await shot(page, "09-tests.png");
 });

@@ -14,7 +14,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, REPO, screenshotFolder, SIDEBAR_PAGES, stepLink, stepName, stepNav, openFreshAssessment, openGroupTab, closeResult, evidenceRow, openResult, expectPageOpen } from "./shared";
+import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, REPO, screenshotFolder, sidebarLinksOn, stepLink, stepName, stepNav, openFreshAssessment, openGroupTab, closeResult, evidenceRow, openResult, expectPageOpen } from "./shared";
 
 const SHOTS = screenshotFolder("phase3a");
 const PQ_TOO_OLD = "Couldn't run (needs OpenSSL 3.5 or newer)";
@@ -313,7 +313,7 @@ test("a fresh import: Verify, the five suggested tests plus Post-quantum readine
   await expect(cards.getByTestId("test-status")).toHaveText(Array(5).fill("Not run yet"));
 
   // Phase 5b: once a file is in, every page opens, Evidence and Fixes included.
-  await expect(stepNav(page).getByRole("link")).toHaveText(SIDEBAR_PAGES);
+  await expect(stepNav(page).getByRole("link")).toHaveText(sidebarLinksOn("Checks"));   // (Checks' four groups under it)
   await expectPageOpen(page, "4. Evidence Lab");
   await expectPageOpen(page, "5. Fixes");
 
