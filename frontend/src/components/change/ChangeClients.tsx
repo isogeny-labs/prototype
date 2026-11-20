@@ -1,8 +1,6 @@
 import type { TryClients } from "../../api";
 import { StatusChip, StatusView } from "../ui";
 
-const TH = "border-b border-slate-800 px-2.5 py-1.5 text-left align-bottom text-xs font-medium uppercase tracking-wide text-slate-400";
-
 /** Phase 4e: who can still connect, in a try's result. Each demo client stand-in's handshake today and on the test copy,
  * and the reviewer's word for it. Information: it has no button, decides nothing about the try and holds Apply off
  * nothing. Every word comes from the backend. */
@@ -31,35 +29,34 @@ export function ChangeClients({ view }: { view: TryClients }) {
               {view.warning}
             </p>
           ) : null}
-          <div className="mt-2 overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 px-3 py-1">
-            <table className="w-full border-collapse text-[13px]">
-              <thead>
-                <tr>
-                  {view.columns.map((column) => (
-                    <th key={column} scope="col" className={TH}>
-                      {column}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {view.rows.map((row) => (
-                  <tr key={row.id} data-testid="clients-row" data-client={row.id} data-word={row.word_key} className="border-b border-slate-800 last:border-b-0">
-                    <th scope="row" className="px-2.5 py-2 text-left align-top font-medium text-slate-100">
-                      {row.name}
-                      <span className="mt-0.5 block text-xs font-normal text-slate-400">{row.offers}</span>
-                    </th>
-                    <td className="px-2.5 py-2 align-top text-slate-200">{row.today}</td>
-                    <td className="px-2.5 py-2 align-top text-slate-200">{row.on_copy}</td>
-                    <td className="px-2.5 py-2 align-top">
-                      <StatusChip label={row.word} tone={row.tone} size="sm" wrap testId="clients-word" />
-                      {row.note ? <span className="mt-1 block text-xs text-slate-400">{row.note}</span> : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {/* One stacked row per stand-in (the panel is narrow): its word first, then who it is, then its handshake today
+              and on the test copy under the backend's own column names, then what its profile offers. */}
+          <ul
+            aria-label={view.columns[0]}
+            className="mt-2 divide-y divide-slate-800 rounded-lg border border-slate-800 bg-slate-950 px-3"
+          >
+            {view.rows.map((row) => (
+              <li key={row.id} data-testid="clients-row" data-client={row.id} data-word={row.word_key} className="py-2.5">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <StatusChip label={row.word} tone={row.tone} size="sm" wrap testId="clients-word" />
+                  <span className="font-medium text-slate-100">{row.name}</span>
+                  <span className="text-xs text-slate-500">{row.label}</span>
+                </div>
+                <dl className="mt-1 grid gap-x-3 gap-y-0.5 text-[13px] @md:grid-cols-[minmax(7rem,auto)_minmax(0,1fr)]">
+                  <dt className="text-slate-400">{view.columns[1]}</dt>
+                  <dd data-testid="clients-today" className="min-w-0 break-words text-slate-200">
+                    {row.today}
+                  </dd>
+                  <dt className="text-slate-400">{view.columns[2]}</dt>
+                  <dd data-testid="clients-copy" className="min-w-0 break-words text-slate-200">
+                    {row.on_copy}
+                  </dd>
+                </dl>
+                {row.note ? <p className="mt-0.5 text-xs text-slate-300">{row.note}</p> : null}
+                <p className="mt-0.5 break-words text-xs text-slate-500">{row.offers}</p>
+              </li>
+            ))}
+          </ul>
           <ul className="mt-2 space-y-0.5 text-xs text-slate-400">
             <li data-testid="clients-decides">{view.decides}</li>
             <li data-testid="clients-note">{view.note}</li>

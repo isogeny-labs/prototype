@@ -46,11 +46,19 @@ describe("Who can still connect, in a try (phase 4e)", () => {
     expect(block.getByText("Who can still connect")).toBeTruthy();
     expect(block.getByTestId("clients-summary").textContent).toBe("1 breaks, 2 connect, 1 didn't connect before either.");
     expect(block.getByTestId("clients-warning").textContent).toBe("Sort out the 1 that breaks before you apply this change.");
-    expect(block.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(COLUMNS);
+    expect(block.getByRole("list", { name: COLUMNS[0] })).toBeTruthy();
     const rows = block.getAllByTestId("clients-row");
     expect(rows.map((r) => r.getAttribute("data-word"))).toEqual(["breaks", "connects", "connects", "not_before"]);
-    expect(within(rows[0]!).getAllByRole("cell").map((c) => c.textContent)).toEqual(["TLS 1.2, classical (P-256)", "Refused (protocol version)", "Breaks"]);
-    expect(within(rows[0]!).getByTestId("clients-word").getAttribute("data-tone")).toBe("fail");
+    const first = within(rows[0]!);
+    expect(first.getByTestId("clients-word").textContent).toContain("Breaks");
+    expect(first.getByTestId("clients-word").getAttribute("data-tone")).toBe("fail");
+    expect(first.getAllByRole("term").map((t) => t.textContent)).toEqual(["Today", "On the test copy"]);
+    expect([first.getByTestId("clients-today").textContent, first.getByTestId("clients-copy").textContent]).toEqual([
+      "TLS 1.2, classical (P-256)",
+      "Refused (protocol version)",
+    ]);
+    // the word comes first in the row, before the name
+    expect(rows[0]!.textContent!.indexOf("Breaks")).toBeLessThan(rows[0]!.textContent!.indexOf("Payment terminal, old firmware"));
     expect(block.getByTestId("clients-decides").textContent).toBe(DECIDES);
     expect(block.getByTestId("clients-note").textContent).toBe(NOTE);
   });
