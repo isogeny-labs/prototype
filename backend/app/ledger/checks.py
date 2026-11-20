@@ -31,7 +31,7 @@ ORIGINS = {
 }
 VERIFY_TONES = {"True": "pass", "False": "fail"}
 PHASE_ORIGIN = {"first": "plan", "retest": "retest", "proof": "proof", "migration": "measure", "dependencies": "public_copy",
-                "try": "try", "try_nginx": "try", "watch": "watch", "watch_base": "watch"}
+                "try": "try", "try_nginx": "try", "try_clients": "try", "watch": "watch", "watch_base": "watch"}
 # The claim kinds a server test checks (a software test names its claim by ref).
 TEST_CLAIM_KINDS = {"tls_versions": ("protocol_versions", "cipher_suites"), "certificate": ("certificate",),
                     "pq_readiness": ("post_quantum",)}
@@ -272,15 +272,20 @@ class LedgerMixin:
                 # an earlier measurement of a library still in the list: find its row by the same plan item
                 return f"library-item-{item.id}", self._library_base(None, spec, deps, item.id)
             return f"library-{row_id}", self._library_base(row_id, spec, deps, item.id)
-        if phase in ("try", "try_nginx"):
+        if phase in ("try", "try_nginx", "try_clients"):
             tried = tries.get(run.retest_id) if run.retest_id is not None else None
             change_key = tried.change_key if tried is not None else None
-            copy: dict = next((c for c in (tried.copies or []) if c.get("phase") == phase), {}) if tried is not None else {}
+            # (phase 4e: the client stand-ins ran on the try's first copy)
+            copy: dict = next((c for c in (tried.copies or []) if c.get("phase") == ("try" if phase == "try_clients" else phase)), {}) \
+                if tried is not None else {}
             title = ((tried.change or {}).get("title") if tried is not None else None) or spec.get("title") or "The change"
+            if phase == "try_clients":
+                title = f"{spec.get('title') or 'Who can still connect'}: {(spec.get('target') or {}).get('address') or 'the server'}"
             group = G.group_of_change(change_key)
             return f"try-{change_key}-{phase}", {
                 "id": f"try-{change_key}-{phase}", "group": group, "kind": spec.get("kind") or "try",
-                "name": title, "ran_on": copy.get("label") or ("Real nginx" if phase == "try_nginx" else "A test copy"),
+                "name": title, "ran_on": (copy.get("label") or ("Real nginx" if phase == "try_nginx" else "A test copy"))
+                + (", and the server as it is today" if phase == "try_clients" else ""),
                 "came_from": {"key": "try", "label": ORIGINS["try"]}, "change_key": change_key, "item_id": item.id,
                 "link": self._change_link(change_key, systems, item),
                 "evidence_link": {"page": "evidence", "item": f"try-{change_key}-{phase}"}}

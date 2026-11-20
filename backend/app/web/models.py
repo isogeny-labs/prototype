@@ -1149,6 +1149,33 @@ class TryViewResult(Shape):
     result: MeasurementResult
 
 
+class TryClientRow(Shape):
+    id: str = Field(description='The stand-in: "old-terminal" | "partner-classical" | "new-terminal" | "pq-only".')
+    name: str = Field(description='"Payment terminal, old firmware"')
+    offers: str = Field(description="What its profile offers, in one plain line.")
+    label: str = Field(description='"Demo data"')
+    today: str = Field(description='Its handshake with the server as it is today: "TLS 1.2, classical (X25519)" | "Refused (protocol version)".')
+    on_copy: str = Field(description="Its handshake with the test copy, in the same words.")
+    word: str = Field(description="The reviewer's word: Connects, Falls back, Breaks, Didn't connect before either, Couldn't check.")
+    word_key: Literal["connects", "falls_back", "breaks", "not_before", "couldnt_check"]
+    tone: Tone
+    note: str | None = Field(description='"New: it can\'t connect today." when it connects only on the copy.')
+
+
+class TryClients(Shape):
+    """Phase 4e: who can still connect, measured on the try's first copy. Information: it decides nothing about the try."""
+    title: str
+    running: RowStatus | None
+    summary: str | None = Field(description='"1 breaks, 2 connect, 1 didn\'t connect before either."')
+    warning: str | None = Field(description='"Sort out the 1 that breaks before you apply this change." Holds nothing off.')
+    columns: list[str]
+    rows: list[TryClientRow]
+    note: str
+    decides: str = Field(description="That it is information and holds Apply off nothing.")
+    control: str | None
+    no_answer: str | None = Field(description="Set when the stand-ins' run gave no answer (it could not run, or its control misread).")
+
+
 class TryView(Shape):
     title: str
     running: RowStatus | None
@@ -1157,6 +1184,7 @@ class TryView(Shape):
     rows: list[TryViewRow]
     notes: list[str]
     results: list[TryViewResult]
+    clients: TryClients | None = Field(default=None, description="Phase 4e: who can still connect; null for a try made before it.")
 
 
 class ApprovalsPickerOption(Shape):

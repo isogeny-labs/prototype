@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from app.servers import lab_servers
 from app.fixes.changes import REVIEWERS
+from app.present import clients as present_clients
 from app.present import times
 from app.present.tracks import TRACK_LABELS, hybrid_client
 
@@ -118,7 +119,7 @@ def _try_view(change: dict, rec: dict) -> dict | None:
     if outcome.get("code") == "running":
         return {"title": "Try on a test copy: running", "running": {"status": "running", "status_text": "Running",
                                                                     "progress": {"text": "measuring the copies", "percent": None}},
-                "verdict": None, "columns": [], "rows": [], "notes": [], "results": []}
+                "verdict": None, "columns": [], "rows": [], "notes": [], "results": [], "clients": None}
     name = change["name"]
     columns = ["", f"Before: {name} as measured"]
     cols = [_column(rec.get("try_before"), "measured", None, None)]
@@ -163,8 +164,13 @@ def _try_view(change: dict, rec: dict) -> dict | None:
     title = {"passed": "passed", "failed": "did not pass"}.get(code, "no answer")
     notes.append(f"Tried {when(row.created_at)}. The test certificate and its test key were made for the try and thrown away; the key is "
                  "never shown or stored.")
+    # Phase 4e: who can still connect, measured on the first copy. Information: it decides nothing about the verdict above.
+    clients = present_clients.try_block(rec.get("clients"))
+    measured_clients = (rec.get("clients") or {}).get("run") or {}
+    if measured_clients.get("result"):
+        results.append({"label": "who can still connect (the client stand-ins)", "result": measured_clients["result"]})
     return {"title": f"Try on a test copy: {title}", "running": None, "verdict": verdict, "columns": columns, "rows": rows,
-            "notes": notes, "results": results}
+            "notes": notes, "results": results, "clients": clients}
 
 
 def _cost_words(change: dict) -> str:
@@ -389,10 +395,21 @@ def export_history(history: dict) -> dict:
     """Every round of one change, for the evidence file (from system_changes.change_history), in time order."""
     def run_id(measured):
         return (measured or {}).get("run_id")
+    def clients(t: dict) -> dict:
+        """Phase 4e, only on a try that has the client stand-ins' run (an earlier try's entry reads as it did)."""
+        measured = ((t.get("clients") or {}).get("run")) or None
+        if measured is None:
+            return {}
+        detail = measured.get("detail") or {}
+        return {"clients": {"run_id": measured.get("run_id"), "code": measured.get("code"),
+                            "summary": (present_clients.try_block(t["clients"]) or {}).get("summary") if measured.get("code") == "measured" else None,
+                            "counts": detail.get("counts"),
+                            "stand_ins": [{"id": r.get("id"), "word": r.get("word"), "new": r.get("new")} for r in detail.get("stand_ins") or []],
+                            "decides": present_clients.DECIDES_NOTHING}}
     return {
         "tries": [{"tried_at": when(t["row"].created_at), "change_fingerprint": t["row"].change_fp, "before_run_id": t["row"].before_run_id,
                    "copies": [{"label": c["label"], "skipped": c["skipped"], "run_id": run_id(c["measured"])} for c in t["copies"]],
-                   "outcome": t["outcome"].get("code"), "checks": t["outcome"].get("checks")} for t in history["tries"]],
+                   "outcome": t["outcome"].get("code"), "checks": t["outcome"].get("checks"), **clients(t)} for t in history["tries"]],
         "approval_requests": [{"asked_at": when(r["row"].created_at), "change_fingerprint": r["row"].change_fp,
                                "reviewers": [REVIEWERS.get(x, x) for x in r["row"].reviewers],
                                "approvals": [{"name": a.name, "approved_at": when(a.approved_at)} for a in r["approvals"]]}

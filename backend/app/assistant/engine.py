@@ -431,6 +431,8 @@ class RuleCopilot:
                                  confirm=words.step_confirm(
                                      "Try this change on a test copy?",
                                      ["Starts a test copy of the server with the change and measures the copy.",
+                                      "It also connects four demo client stand-ins to the copy and to the server as it is today, "
+                                      "to show who can still connect (handshakes only).",
                                       "It changes nothing on the real system: Apply stays on its page."], label, "Fixes")))
 
     def _approval_step(self, facts: "_Facts", fix: dict, box: dict, picker: dict, where: dict, opened: bool) -> dict | None:

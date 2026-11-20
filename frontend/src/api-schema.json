@@ -18376,6 +18376,197 @@
         ],
         "title": "TrackStatus"
       },
+      "TryClientRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The stand-in: \"old-terminal\" | \"partner-classical\" | \"new-terminal\" | \"pq-only\"."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "\"Payment terminal, old firmware\""
+          },
+          "offers": {
+            "type": "string",
+            "title": "Offers",
+            "description": "What its profile offers, in one plain line."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Demo data\""
+          },
+          "today": {
+            "type": "string",
+            "title": "Today",
+            "description": "Its handshake with the server as it is today: \"TLS 1.2, classical (X25519)\" | \"Refused (protocol version)\"."
+          },
+          "on_copy": {
+            "type": "string",
+            "title": "On Copy",
+            "description": "Its handshake with the test copy, in the same words."
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "The reviewer's word: Connects, Falls back, Breaks, Didn't connect before either, Couldn't check."
+          },
+          "word_key": {
+            "type": "string",
+            "enum": [
+              "connects",
+              "falls_back",
+              "breaks",
+              "not_before",
+              "couldnt_check"
+            ],
+            "title": "Word Key"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "\"New: it can't connect today.\" when it connects only on the copy."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "offers",
+          "label",
+          "today",
+          "on_copy",
+          "word",
+          "word_key",
+          "tone",
+          "note"
+        ],
+        "title": "TryClientRow"
+      },
+      "TryClients": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "running": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RowStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary",
+            "description": "\"1 breaks, 2 connect, 1 didn't connect before either.\""
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning",
+            "description": "\"Sort out the 1 that breaks before you apply this change.\" Holds nothing off."
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/TryClientRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "decides": {
+            "type": "string",
+            "title": "Decides",
+            "description": "That it is information and holds Apply off nothing."
+          },
+          "control": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control"
+          },
+          "no_answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Answer",
+            "description": "Set when the stand-ins' run gave no answer (it could not run, or its control misread)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "running",
+          "summary",
+          "warning",
+          "columns",
+          "rows",
+          "note",
+          "decides",
+          "control",
+          "no_answer"
+        ],
+        "title": "TryClients",
+        "description": "Phase 4e: who can still connect, measured on the try's first copy. Information: it decides nothing about the try."
+      },
       "TryView": {
         "properties": {
           "title": {
@@ -18429,6 +18620,17 @@
             },
             "type": "array",
             "title": "Results"
+          },
+          "clients": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TryClients"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 4e: who can still connect; null for a try made before it."
           }
         },
         "additionalProperties": false,

@@ -1693,6 +1693,10 @@ export interface TryView {
   rows: TryViewRow[];
   notes: string[];
   results: TryViewResult[];
+  /**
+   * Phase 4e: who can still connect; null for a try made before it.
+   */
+  clients?: TryClients | null;
 }
 export interface RowStatus {
   status: "not_run" | "waiting" | "running" | "done";
@@ -1906,6 +1910,69 @@ export interface OttoResultDecisions {
   rows: OttoDecisionLine[];
   footnote: string;
   empty: string | null;
+}
+/**
+ * Phase 4e: who can still connect, measured on the try's first copy. Information: it decides nothing about the try.
+ */
+export interface TryClients {
+  title: string;
+  running: RowStatus | null;
+  /**
+   * "1 breaks, 2 connect, 1 didn't connect before either."
+   */
+  summary: string | null;
+  /**
+   * "Sort out the 1 that breaks before you apply this change." Holds nothing off.
+   */
+  warning: string | null;
+  columns: string[];
+  rows: TryClientRow[];
+  note: string;
+  /**
+   * That it is information and holds Apply off nothing.
+   */
+  decides: string;
+  control: string | null;
+  /**
+   * Set when the stand-ins' run gave no answer (it could not run, or its control misread).
+   */
+  no_answer: string | null;
+}
+export interface TryClientRow {
+  /**
+   * The stand-in: "old-terminal" | "partner-classical" | "new-terminal" | "pq-only".
+   */
+  id: string;
+  /**
+   * "Payment terminal, old firmware"
+   */
+  name: string;
+  /**
+   * What its profile offers, in one plain line.
+   */
+  offers: string;
+  /**
+   * "Demo data"
+   */
+  label: string;
+  /**
+   * Its handshake with the server as it is today: "TLS 1.2, classical (X25519)" | "Refused (protocol version)".
+   */
+  today: string;
+  /**
+   * Its handshake with the test copy, in the same words.
+   */
+  on_copy: string;
+  /**
+   * The reviewer's word: Connects, Falls back, Breaks, Didn't connect before either, Couldn't check.
+   */
+  word: string;
+  word_key: "connects" | "falls_back" | "breaks" | "not_before" | "couldnt_check";
+  tone: "pass" | "fail" | "neutral" | "warn";
+  /**
+   * "New: it can't connect today." when it connects only on the copy.
+   */
+  note: string | null;
 }
 export interface ChangeWatchCode {
   state: "no_code" | "not_connected" | "unreadable" | "connected";
