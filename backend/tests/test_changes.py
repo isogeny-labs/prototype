@@ -1168,14 +1168,14 @@ def test_the_proof_runs_are_checks_in_encryption_tests_that_open_their_fix(fix_f
     assert signing and all(r["ran_on"].endswith("(the changed code)") for r in signing)
     # Retest now after the merge is a retest, in the same group.
     assert any(r["came_from"]["key"] == "retest" for r in encryption["rows"])
-    # The code fix is one fix in Encryption tests; merged counts as done.
+    # The code fix is one fix in Crypto tests; merged counts as done.
     fixes = lab.fixes_view(plan.id)
     code = next(f for f in fixes["fixes"] if f["id"] == FIX)
     assert code["group"] == "encryption" and code["status"]["word"] == "Merged" and code["fix_state"] == "done"
     assert {link["link"]["page"] for link in code["came_from_links"]} == {"evidence"}
 
 
-# ---------------------------------------------------------------- the 5c fixes: Checks, Encryption tests in four parts
+# ---------------------------------------------------------------- the 5c fixes: Checks, Crypto tests in four parts
 
 @pytest.mark.slow
 def test_checks_shows_the_proof_in_its_own_block_and_the_retest_under_the_version_it_ran_on(fix_flow):

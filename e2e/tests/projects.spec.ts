@@ -6,7 +6,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { DISCLAIMER, REPO, enterApp, stepLink } from "./shared";
+import { DISCLAIMER, REPO, enterApp, openGroupTab, stepLink } from "./shared";
 
 const SHOTS = path.join(REPO, "docs/screenshots/phase5a");
 const DEPENDENCY_LIST = path.join(REPO, "demo/dependencies-demo.cdx.json");
@@ -136,6 +136,7 @@ test("run Acme Pay: Verify claims, then every suggested test", async () => {
 test("Evidence: a table of results; a row opens the detail panel; Fixes and Migration in the new layout", async () => {
   await stepLink(page, "Evidence").click();
   await expect(page.getByText(DISCLAIMER)).toBeVisible();
+  await openGroupTab(page, "Crypto tests", "Evidence");      // (the results are Evidence's Crypto tests tab)
   const rows = page.getByTestId("evidence-row");
   await expect(rows).toHaveCount(5);
   evidenceRows = await rows.allInnerTexts();
@@ -200,6 +201,7 @@ test("switch to Migration demo, then back: Acme Pay is exactly as it was left", 
   await expect(page.getByTestId("finding-count").filter({ hasText: "False claims" })).toHaveText("False claims 1");
   await shots("02-overview-after");
   await stepLink(page, "Evidence").click();
+  await openGroupTab(page, "Crypto tests", "Evidence");
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
   expect(await page.getByTestId("evidence-row").allInnerTexts()).toEqual(evidenceRows);
   await stepLink(page, "Verify").click();
@@ -258,10 +260,12 @@ test("New assessment: a fresh pass in Acme Pay; the old one stays open until it 
   await shots("16-closed-assessment");
   // Every action button is off, with the reason; downloads stay on.
   await stepLink(page, "Checks").click();
+  await openGroupTab(page, "Crypto tests", "Checks");
   const runAll = page.getByRole("button", { name: "Run all" });
   await expect(runAll).toBeDisabled();
   await expect(runAll).toHaveAttribute("title", CLOSED);
   await stepLink(page, "Evidence").click();
+  await openGroupTab(page, "Crypto tests", "Evidence");
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
   expect(await page.getByTestId("evidence-row").allInnerTexts()).toEqual(evidenceRows);   // kept exactly as it was
   await expect(page.getByRole("button", { name: "Download evidence" })).toBeEnabled();

@@ -115,7 +115,7 @@ def test_accepting_a_proposed_check_locks_and_adds_it_and_runs_nothing(otto_lab)
         spec = json.loads(spec_row.canonical)
         assert spec["inputs"]["advisory"]["pack_fingerprint"] == check.pack_fingerprint
     assert helpers.accept_checks(lab, plan_id)["rows"][0]["proposal"]["label"] == "Added"      # nothing is left to accept
-    # the check shows on Checks, under Encryption tests, with its advisory in the name and the mark "From Otto"
+    # the check shows on Checks, under Crypto tests, with its advisory in the name and the mark "From Otto"
     groups = {g["key"]: g for g in lab.checks_view(plan_id)["groups"]}
     mine = [r for r in groups["encryption"]["rows"] if r["name"].startswith("Advisory check: Blank signature accepted")]
     assert mine and mine[0]["from_otto"] == {"label": "From Otto", "advisory": "Advisory CVE-2022-21449",

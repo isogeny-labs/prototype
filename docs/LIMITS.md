@@ -630,7 +630,7 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   takes out. It does not say that those lines are why the tests fail: the app has not tried the change with the
   lines put back. It has no button, no proof and no pull request, and the app writes no change for a developer's
   branch. It goes as soon as the change no longer reads so, also when only the test plan changed and the change
-  has not been run since. It is listed in Encryption tests under a heading of its own, "From a developer's
+  has not been run since. It is listed in Crypto tests under a heading of its own, "From a developer's
   change", and it is counted nowhere: not in the page's "Open findings with a fix", not in its group's counts, not
   on the Overview and not in the Projects row, and it never makes "Open fixes" the next step (the second review,
   19 November 2026: before that it was counted as an open fix). The report lists it the same way. It is linked to
@@ -685,7 +685,7 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   passed on the code before fails on the change's code. A developer's change is not the system until someone merges
   it: the Overview's findings, its facts and its counts of fixes, every proposal and the migration plan keep reading
   the assessment's own results. Two figures on the Overview do move, and both count runs, not findings: "runs
-  recorded", and the checks of Encryption tests that are done (each run of a picked test is a row on Checks, under
+  recorded", and the checks of Crypto tests that are done (each run of a picked test is a row on Checks, under
   Change watch).
 - **"Can't run" has two meanings.** Nothing of the change may run (its code is not a registered program), or a
   picked test could not run (for example an advisory check where Otto is not installed). The sentence under the
@@ -832,7 +832,7 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   assessment.
 - **Checks narrowed by a command** says so in one line in the test plan ("1 of the plan's 6 tests is listed
   (Result: Failed). Run all runs all 6."). The part's own heading still counts the whole plan. On Evidence the
-  Result filter narrows the Encryption tests table only; the other groups list every row.
+  Result filter narrows the Crypto tests table only; the other groups list every row.
 - **Words the rules no longer take**: "open" and "added" as a decision filter ("show open checks" is not read),
   "apply the filter", "sign off the fix", "export the plan" and "tick Dana as reviewer" get "I can't do that."
   instead of opening a page.
@@ -1029,7 +1029,7 @@ wording, times, and the "New" tag. What they do is in `docs/SPEC.md` section 2. 
 - **Checks.** While a retest runs, its block fills as each test finishes: a test that has not finished is not
   listed in it yet, and the line above the blocks says how far the retest is. A block is one program in one
   version: two retests on the same version share a block, and each row lists that block's runs. The older address
-  of a retest's check (`retest-12`) opens the newest block's row. Only the Encryption tests group has parts.
+  of a retest's check (`retest-12`) opens the newest block's row. Only the Crypto tests group has parts.
   The **Came from** filter goes by each row's own "Came from": a retest's test whose newest run came right after
   an Apply is found by "After Apply", in its block, and not by "Retest". With any filter on, a block that holds a
   match is open and a block that holds none is left out.

@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import App from "../App";
 import { ItemLinkView } from "../components/related";
 import { linkRoute, parseRoute, routeHref } from "../router";
-import { mockApi, notFound, session, text } from "./fixtures";
+import { lab, mockApi, notFound, session, text } from "./fixtures";
+import { checksView } from "./checksFixtures";
 import { advisoriesTwoPacks, ottoEmpty } from "./ottoFixtures";
 import { ORG, acmeRoutes, closedAssessment, emptyAssessment, workspace } from "./shellFixtures";
 
@@ -86,6 +87,23 @@ describe("sidebar", () => {
     await screen.findByTestId("projects-page");
     expect(screen.queryByRole("navigation", { name: "Assessment" })?.querySelector("a")).toBeNull();
     expect(workspaceNav().getByRole("link", { name: "Projects" }).getAttribute("aria-current")).toBe("page");
+  });
+
+  it("lists the four work groups under the open page only (Checks, Evidence or Fixes), never when collapsed to icons", async () => {
+    await openAcme("evidence", { "GET /api/plans/1/lab": { body: lab }, "GET /api/plans/1/checks": { body: checksView } });
+    const groups = await screen.findByTestId("sidebar-groups");
+    expect(groups.getAttribute("aria-label")).toBe("Evidence groups");
+    expect(within(groups).getAllByRole("link").map((a) => a.getAttribute("aria-label"))).toEqual([
+      "Verification on Evidence",
+      "Crypto tests on Evidence",
+      "Migration on Evidence",
+      "Dependencies on Evidence",
+    ]);
+    // the page's own link and Migration's own pages keep their names: a link named "Dependencies" is still one
+    expect(assessmentNav().getAllByRole("link", { name: "Dependencies" })).toHaveLength(1);
+    expect(assessmentNav().getByRole("link", { name: "Evidence" }).getAttribute("aria-current")).toBe("page");
+    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(screen.queryByTestId("sidebar-groups")).toBeNull();
   });
 
   it("collapses to icons, keeps every accessible name, and remembers it for the next visit", async () => {

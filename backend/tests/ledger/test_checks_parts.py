@@ -1,4 +1,4 @@
-"""The 5c fixes: on Checks the Encryption tests group is in four labelled parts.
+"""The 5c fixes: on Checks the Crypto tests group is in four labelled parts.
 
 Test plan (the first runs, on the version the file names), Retests by version (one block for each version a retest ran
 on, the newest open), Fix proofs (one block for each proof) and Tries on a test copy (only when a server change was

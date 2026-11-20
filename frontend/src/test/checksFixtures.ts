@@ -61,7 +61,7 @@ export const planRows: CheckRow[] = [
 
 export const retestRow: CheckRow = testRow(1, "Official test vectors", "acme-sign 1.4.3 (the new version)", true, "retest", 1);
 
-// ---- The 5c fixes: the Encryption tests group in four labelled parts, as the backend sends them ----
+// ---- The 5c fixes: the Crypto tests group in four labelled parts, as the backend sends them ----
 
 export type EncryptionParts = NonNullable<CheckGroup["parts"]>;
 type CheckBlock = EncryptionParts["retests"]["blocks"][number];
@@ -242,8 +242,8 @@ export function checkGroups(over: { verification?: CheckRow[]; encryption?: Chec
     },
     {
       key: "encryption",
-      label: "Encryption tests",
-      question: "Is the encryption built right?",
+      label: "Crypto tests",
+      question: "Is the cryptography built right?",
       counts: counts(encryption),
       empty_text: encryption.length ? null : "No test has run yet. The test plan is on Checks.",
       note: null,
@@ -275,7 +275,7 @@ export function checkGroups(over: { verification?: CheckRow[]; encryption?: Chec
 }
 
 export const CHECKS_SUBLINE =
-  "Every check in this assessment, wherever it was started. The test plan is under Encryption tests; every other check is started where it is today, and its result reads as it does there.";
+  "Every check in this assessment, wherever it was started. The test plan is under Crypto tests; every other check is started where it is today, and its result reads as it does there.";
 
 export const checksView: ChecksView = {
   plan_id: 1,

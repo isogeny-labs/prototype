@@ -14,7 +14,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, REPO, screenshotFolder, SIDEBAR_PAGES, stepLink, stepName, stepNav, openFreshAssessment, closeResult, evidenceRow, openResult, expectPageOpen } from "./shared";
+import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, REPO, screenshotFolder, sidebarLinksOn, stepLink, stepName, stepNav, openFreshAssessment, openGroupTab, closeResult, evidenceRow, openResult, expectPageOpen } from "./shared";
 
 const SHOTS = screenshotFolder("phase3a");
 const PQ_TOO_OLD = "Couldn't run (needs OpenSSL 3.5 or newer)";
@@ -109,6 +109,9 @@ function verifyEvidence(file: string): { code: number; output: string } {
 async function goTo(step: string): Promise<void> {
   await stepLink(page, step).click();
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText(stepName(step));
+  // (the old steps Tests and Evidence Lab are the test plan and the results: since 20 November 2026 they are the
+  // Crypto tests tab of Checks and of Evidence)
+  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step)) await openGroupTab(page, "Crypto tests", stepName(step) as "Checks" | "Evidence");
 }
 
 /** Opens a result in Evidence Lab (if it is closed) and hands back its row. */
@@ -310,7 +313,7 @@ test("a fresh import: Verify, the five suggested tests plus Post-quantum readine
   await expect(cards.getByTestId("test-status")).toHaveText(Array(5).fill("Not run yet"));
 
   // Phase 5b: once a file is in, every page opens, Evidence and Fixes included.
-  await expect(stepNav(page).getByRole("link")).toHaveText(SIDEBAR_PAGES);
+  await expect(stepNav(page).getByRole("link")).toHaveText(sidebarLinksOn("Checks"));   // (Checks' four groups under it)
   await expectPageOpen(page, "4. Evidence Lab");
   await expectPageOpen(page, "5. Fixes");
 
@@ -1534,13 +1537,20 @@ test("a third import: Fixes says when no failed test has a fix, and Connect demo
   await card("Certificate strength").getByRole("button", { name: "Run Certificate strength" }).click();
   await expect(badge(card("Certificate strength"))).toHaveText("Passed", { timeout: 120_000 });
   await goTo("5. Fixes");
-  // Phase 5b: each of the four work groups stays and says why it is empty (Encryption tests: no failed test has a fix).
-  await expect(page.getByTestId("group-empty")).toHaveText([
-    "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Encryption tests.",
+  // Phase 5b: each of the four work groups stays and says why it is empty (Crypto tests: no failed test has a fix).
+  // Since 20 November 2026 they are tabs: with nothing in any of them, the page opens on the first, and each tab says why.
+  const empty: string[] = [];
+  for (const label of ["Verification", "Crypto tests", "Migration", "Dependencies"]) {
+    await openGroupTab(page, label);
+    empty.push(await page.getByTestId("group-empty").innerText());
+  }
+  expect(empty).toEqual([
+    "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Crypto tests.",
     "No failed test has a fix.",
     "No system's plan needs a change yet.",
     "No library blocks a track.",
   ]);
+  await openGroupTab(page, "Verification");
   await expect(page.getByTestId("fix-row")).toHaveCount(0);
   await expect(page.getByTestId("fix-summary")).toHaveCount(0);
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);

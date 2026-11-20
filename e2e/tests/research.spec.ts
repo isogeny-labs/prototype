@@ -260,7 +260,7 @@ test("isolated mode: look, design and prove on public copies, the proven check i
     await expectPlainWords(page, "Advisories after the research run");
     await shots(page, "06-after-the-run-one-proven-two-not");
     // nothing was added to the test plan: no advisory check is in it before a person accepts one
-    await page.goto(`/#/a/${assessment}/checks`);
+    await page.goto(`/#/a/${assessment}/checks?group=encryption`);   // (the test plan is the Crypto tests tab)
     await expect(page.getByTestId("test-card").first()).toBeVisible();
     await expect(page.getByTestId("test-card").filter({ hasText: "Advisory check" })).toHaveCount(0);
     await openAdvisories(page, assessment);
@@ -282,7 +282,7 @@ test("isolated mode: look, design and prove on public copies, the proven check i
     await expect(proposal.getByTestId("proposal-status")).toHaveText("Added");
 
     // ================================================================ Checks: the accepted check is run by the runner, decided by the reviewer
-    await page.goto(`/#/a/${assessment}/checks`);
+    await page.goto(`/#/a/${assessment}/checks?group=encryption`);   // (the test plan is the Crypto tests tab)
     const card = page.getByTestId("test-card").filter({ hasText: PROVEN });
     await expect(card).toHaveCount(1);
     await expect(card.getByTestId("card-from-otto")).toHaveText("From Otto");

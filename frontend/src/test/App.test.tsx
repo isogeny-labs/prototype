@@ -88,6 +88,9 @@ const currentPages = () =>
     .filter((a) => a.getAttribute("aria-current") === "page")
     .map((a) => text(a));
 const goTo = (name: string) => fireEvent.click(sideLink(name));
+/** 20 November 2026: the sidebar lists the four work groups under the open page (Checks, Evidence or Fixes); each opens
+ * its tab. A screen reader hears the page with the group ("Crypto tests on Evidence"). */
+const goToGroup = async (group: string, page: string) => fireEvent.click(await nav().findByRole("link", { name: `${group} on ${page}` }));
 
 /** What an assessment (101, Acme Pay) with a file, a Verify run and a plan with results asks the server for. */
 const withResults = (extra: Record<string, unknown> = {}): Routes =>
@@ -233,7 +236,10 @@ describe("full flow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Continue to checks" }));
     expect(await screen.findByRole("heading", { level: 1, name: "Checks" })).not.toBeNull();
+    // Continue to checks opens Crypto tests, where the test plan and Run all are (20 November 2026).
     expect(await screen.findAllByTestId("test-card")).toHaveLength(5);
+    expect(window.location.hash).toBe("#/a/111/checks?group=encryption");
+    expect((await screen.findByRole("tab", { name: "Crypto tests" })).getAttribute("aria-selected")).toBe("true");
     expect(calls(fetchMock).filter((c) => c === "POST /api/import/7/plan")).toHaveLength(1);
 
     expect(currentPages()).toEqual(["Checks"]);
@@ -249,12 +255,30 @@ describe("full flow", () => {
     await screen.findByRole("heading", { name: "Verify" });
     expect(isOff("Evidence")).toBe(false);
     goTo("Evidence");
+    // It opens on the first group with something in it (claims were verified); the sidebar lists the four groups under
+    // Evidence, with the open one marked, and each opens its tab.
+    await screen.findAllByTestId("group-section");
+    const groupLinks = () => within(screen.getAllByTestId("sidebar-groups")[0]!).getAllByRole("link");
+    await waitFor(() => expect(groupLinks().map((a) => text(a))).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]));
+    expect(groupLinks().map((a) => a.getAttribute("aria-current"))).toEqual(["true", null, null, null]);
+    expect(groupLinks()[1]!.getAttribute("href")).toBe("#/a/101/evidence?group=encryption");
+    await goToGroup("Crypto tests", "Evidence");
     expect(await screen.findAllByTestId("evidence-row")).toHaveLength(5);
+    expect(window.location.hash).toBe("#/a/101/evidence?group=encryption");
     expect(currentPages()).toEqual(["Evidence"]);
+    await waitFor(() => expect(groupLinks().map((a) => a.getAttribute("aria-current"))).toEqual([null, "true", null, null]));
+    // a tab chosen on the page shows in the sidebar too, and goes into the address
+    fireEvent.click(screen.getByRole("tab", { name: "Migration" }));
+    expect(window.location.hash).toBe("#/a/101/evidence?group=migration");
+    await waitFor(() => expect(groupLinks().map((a) => a.getAttribute("aria-current"))).toEqual([null, null, "true", null]));
     expect(screen.getByTestId("otto-panel")).not.toBeNull();
 
     goTo("Checks");
+    // (the groups listed are the open page's: Evidence's are gone)
+    await screen.findAllByTestId("group-section");
+    await goToGroup("Crypto tests", "Checks");
     expect(await screen.findAllByTestId("test-card")).toHaveLength(5);
+    expect(screen.getAllByTestId("sidebar-groups")).toHaveLength(1);
   });
 
   // Everything the Fixes tests below need: a plan with results, its Evidence and its fixes.
@@ -289,12 +313,13 @@ describe("full flow", () => {
     expect(screen.getByTestId("mode-line")).not.toBeNull();
 
     goTo("Evidence");
+    await goToGroup("Crypto tests", "Evidence");
     expect(await screen.findAllByTestId("evidence-row")).toHaveLength(5);
     expect(currentPages()).toEqual(["Evidence"]);
   });
 
   it("View in Fixes on an Evidence line opens Fixes with that fix selected", async () => {
-    at("evidence");
+    at("evidence?group=encryption");
     mockApi(withFixes());
     render(<App />);
     await screen.findAllByTestId("evidence-row");
@@ -313,6 +338,7 @@ describe("full flow", () => {
 
     // And the signing finding's line opens its own fix.
     goTo("Evidence");
+    await goToGroup("Crypto tests", "Evidence");
     await screen.findAllByTestId("evidence-row");
     expandRow("Official test vectors");
     viewInFixes("Official test vectors");
@@ -329,7 +355,7 @@ describe("full flow", () => {
     expect(screen.getByTestId("fix-summary").getAttribute("data-fix-id")).toBe(TLS_FIX);
 
     goTo("Evidence");
-    await screen.findAllByTestId("evidence-row");
+    await screen.findAllByTestId("group-section");
     goTo("Fixes");
     expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(TLS_FIX);
   });
@@ -419,7 +445,7 @@ describe("full flow", () => {
     at("evidence");
     mockApi(withFixes());
     const first = render(<App />);
-    await screen.findAllByTestId("evidence-row");
+    await screen.findAllByTestId("group-section");
     goTo("Fixes");
     await openFirstFix();
     first.unmount();
@@ -458,11 +484,14 @@ describe("full flow", () => {
     const first = render(<App />);
     await screen.findByRole("heading", { name: "Verify" });
     goTo("Evidence");
+    await goToGroup("Crypto tests", "Evidence");
     await screen.findAllByTestId("evidence-row");
     first.unmount();
 
+    // the tab is in the address, so the refresh comes back to it
     render(<App />);
     expect(await screen.findAllByTestId("evidence-row")).toHaveLength(5);
+    expect(screen.getByRole("tab", { name: "Crypto tests" }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("offers no upload of software on any page after Import", async () => {
@@ -472,6 +501,8 @@ describe("full flow", () => {
     await screen.findByRole("heading", { name: "Verify" });
     for (const [name, testId] of [["Checks", "test-card"], ["Evidence", "evidence-row"], ["Fixes", "fix-summary"]] as const) {
       goTo(name);
+      await screen.findAllByTestId("group-section");
+      if (name !== "Fixes") await goToGroup("Crypto tests", name);
       await screen.findAllByTestId(testId);
       expect(document.querySelector('input[type="file"]')).toBeNull();
       expect(screen.getByRole("main").textContent).not.toMatch(/upload|drop a file|choose a file/i);

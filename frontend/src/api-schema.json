@@ -7911,7 +7911,7 @@
                 "type": "null"
               }
             ],
-            "description": "The 5c fixes: set on the Encryption tests group only."
+            "description": "The 5c fixes: set on the Crypto tests group only."
           }
         },
         "additionalProperties": false,
@@ -8007,7 +8007,7 @@
           "rows"
         ],
         "title": "CheckPart",
-        "description": "The 5c fixes: one labelled, foldable part of the Encryption tests group on Checks, with its count."
+        "description": "The 5c fixes: one labelled, foldable part of the Crypto tests group on Checks, with its count."
       },
       "CheckResult": {
         "properties": {
@@ -9998,7 +9998,7 @@
           "tries"
         ],
         "title": "EncryptionParts",
-        "description": "The 5c fixes: Checks shows the Encryption tests group in four parts. A run shows in one part only."
+        "description": "The 5c fixes: Checks shows the Crypto tests group in four parts. A run shows in one part only."
       },
       "Evidence": {
         "properties": {

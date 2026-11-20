@@ -31,7 +31,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   BACKEND, DISCLAIMER, PYTHON, REPO, continueToChecks, enterApp, evidenceRow, exactText, importVerifyAndOpenTests, layoutProblems, openFreshAssessment,
-  openResult, screenshotFolder, startCopy, stepLink, stopCopy, type Copy,
+  openPageGroup, openResult, screenshotFolder, startCopy, stepLink, stopCopy, type Copy,
 } from "./shared";
 
 const SHOTS = screenshotFolder("phase5c");
@@ -109,8 +109,9 @@ const TABS: Array<{ key: string; url: (assessment: string, project: string) => s
   { key: "import", url: (a) => `/#/a/${a}/inventory/import`, ready: (p) => p.getByTestId("import-otto") },
   { key: "verify", url: (a) => `/#/a/${a}/inventory/verify`, ready: (p) => p.getByTestId("result-row").first() },
   { key: "advisories", url: (a) => `/#/a/${a}/advisories`, ready: (p) => p.getByTestId("advisory-row").first() },
-  { key: "checks", url: (a) => `/#/a/${a}/checks`, ready: (p) => p.getByTestId("test-card").last() },
-  { key: "evidence", url: (a) => `/#/a/${a}/evidence`, ready: (p) => p.getByTestId("evidence-row").first() },
+  // (since 20 November 2026 the work groups are tabs: the test plan and the results are on Crypto tests)
+  { key: "checks", url: (a) => `/#/a/${a}/checks?group=encryption`, ready: (p) => p.getByTestId("test-card").last() },
+  { key: "evidence", url: (a) => `/#/a/${a}/evidence?group=encryption`, ready: (p) => p.getByTestId("evidence-row").first() },
   { key: "fixes", url: (a) => `/#/a/${a}/fixes`, ready: (p) => p.getByTestId("fix-list").or(p.getByTestId("fixes-empty")) },
   { key: "migration-systems", url: (a) => `/#/a/${a}/migration/systems`, ready: (p) => p.getByTestId("system-card").first() },
   { key: "migration-roadmap", url: (a) => `/#/a/${a}/migration/roadmap`, ready: (p) => p.getByTestId("roadmap-row").first() },
@@ -241,7 +242,7 @@ async function cardStatuses(page: Page): Promise<string[]> {
 }
 
 async function runAllAndWait(page: Page, count: number): Promise<void> {
-  await stepLink(page, "Checks").click();
+  await openPageGroup(page, "Checks", "Crypto tests");
   await expect(page.getByTestId("test-card")).toHaveCount(count);
   await page.getByRole("button", { name: "Run all" }).click();
   await expect.poll(() => cardStatuses(page), { timeout: 240_000 }).toEqual(Array(count).fill("done"));
@@ -249,7 +250,7 @@ async function runAllAndWait(page: Page, count: number): Promise<void> {
 }
 
 async function runOne(page: Page, title: string, timeout = 120_000): Promise<void> {
-  await stepLink(page, "Checks").click();
+  await openPageGroup(page, "Checks", "Crypto tests");
   await card(page, title).getByRole("button", { name: `Run ${title}`, exact: true }).click();
   await expect(card(page, title)).toHaveAttribute("data-status", "done", { timeout });
 }
@@ -491,7 +492,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     expect(await layoutProblems(page), "Advisories with decisions, panel closed").toEqual([]);
 
     // Checks: the accepted check is in the test plan, marked "From Otto", with its advisory; and nothing has run
-    await stepLink(page, "Checks").click();
+    await openPageGroup(page, "Checks", "Crypto tests");
     await expect(page.getByTestId("test-card")).toHaveCount(6);
     await expect(card(page, RANGE_CHECK)).toHaveAttribute("data-status", "not_run");
     await expect(card(page, RANGE_CHECK).getByTestId("card-from-otto")).toHaveText("From Otto");
@@ -717,7 +718,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
     await closePanel(page);
     // Checks: the fix proof and the retest of the advisory check are rows of their own, each marked "From Otto" with
     // its advisory, and the row's panel says so too
-    await page.goto(`/#/a/${assessment}/checks`);
+    await page.goto(`/#/a/${assessment}/checks?group=encryption`);
     const ottoRows = page.getByTestId("check-row").filter({ has: page.getByTestId("check-from-otto-mark") });
     await expect(ottoRows.first()).toBeVisible();
     await expect(ottoRows.first().getByTestId("check-from-otto-mark")).toContainText("From Otto");
@@ -808,7 +809,7 @@ test("demo mode, the success flow: Otto proposes, a person decides; run, fix, pl
       new RegExp(`^1\\. Rejected by You on .+ [ap]m E[SD]T: ${REASON}\\.$`), /^2\. Taken up again by You on .+ [ap]m E[SD]T\.$/, /^3\. Accepted by You on .+ [ap]m E[SD]T\.$/]);
     await shots(page, "7-00-advisory-reconsidered-and-accepted", { panel: true });
     await closePanel(page);
-    await stepLink(page, "Checks").click();
+    await openPageGroup(page, "Checks", "Crypto tests");
     await expect(page.getByTestId("test-card")).toHaveCount(8);
     await runOne(page, MISSING_ZERO_CHECK);
     await runOne(page, ENCODED_CHECK);
@@ -958,7 +959,7 @@ test("isolated mode: a real library's fix from Otto has two proof rows, and a re
     await decide(page, proposal, "accept");
     await expect(proposal.getByTestId("proposal-status")).toHaveText("Added");
     await closePanel(page);
-    await stepLink(page, "Checks").click();
+    await openPageGroup(page, "Checks", "Crypto tests");
     await expect(page.getByTestId("test-card")).toHaveCount(before + 1);
 
     // ---- Run all on elliptic 6.5.6 (in its own locked-down container): the advisory check fails
@@ -1092,7 +1093,7 @@ test("without Otto: the app says so, nothing can be decided, and the rest works 
     await expect(page.getByTestId("overview-waiting")).toHaveAttribute("data-total", "0");
 
     // ---- everything else works as before: the plan's own tests run, and the fix template is offered as before
-    await stepLink(page, "Checks").click();
+    await openPageGroup(page, "Checks", "Crypto tests");
     await expect(page.getByTestId("test-card")).toHaveCount(5);
     await page.getByRole("button", { name: "Run all" }).click();
     await expect.poll(() => cardStatuses(page), { timeout: 240_000 }).toEqual(Array(5).fill("done"));

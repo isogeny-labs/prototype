@@ -49,6 +49,7 @@ describe("closed assessment banner", () => {
   });
 
   it("is not shown for an open assessment, and its buttons work", async () => {
+    // (the old address of Tests still opens the test plan: Checks' Crypto tests tab)
     window.history.replaceState(null, "", "#/a/101/tests");
     mockApi(routes());
     render(<App />);
@@ -87,7 +88,7 @@ describe("closed assessment is read-only", () => {
   });
 
   it("turns off Run all and Add test on Checks", async () => {
-    await openClosed("checks");
+    await openClosed("checks?group=encryption");
     await screen.findByRole("button", { name: "Run all" });
     for (const name of ["Run all", "+ Add test"]) {
       expect(button(name).disabled, name).toBe(true);

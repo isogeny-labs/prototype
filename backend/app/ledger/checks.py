@@ -56,7 +56,7 @@ def _measure_key(row: dict) -> list | None:
     return None
 
 
-# The 5c fixes: on Checks the Encryption tests group is in four labelled parts. A retest's row sits in the block of the
+# The 5c fixes: on Checks the Crypto tests group is in four labelled parts. A retest's row sits in the block of the
 # version that retest ran on, and a proof's row in the block of its proof: "retest-12-on-3" is test 12 in the block that
 # retest 3 opened, "proof-12-in-2" is test 12 in proof 2. The older ids ("retest-12", "proof-12") still open the newest.
 # Phase 6d: "watch-12-in-4" is test 12 on a developer's change in watch run 4, and "watchbase-12-in-4" the same test on the
@@ -357,7 +357,7 @@ class LedgerMixin:
                 job = self.jobs.get((row["item_id"], phase))
                 live = job if job is not None and job.status != "done" else None
         history = []
-        said: dict[int, dict] = {}       # what each reviewed run said (for the blocks of the Encryption tests group)
+        said: dict[int, dict] = {}       # what each reviewed run said (for the blocks of the Crypto tests group)
         newest = None
         for run_id in row["run_ids"]:
             if run_id not in reviewed:
@@ -470,7 +470,7 @@ class LedgerMixin:
         return {"plan_id": plan_id, "title": "Checks", "groups": groups, "busy": busy,
                 "libraries": libraries, "evidence_counts": evidence_counts,
                 "came_from_options": [{"key": k, "label": v} for k, v in ORIGINS.items()],
-                "subline": ("Every check in this assessment, wherever it was started. The test plan is under Encryption tests; "
+                "subline": ("Every check in this assessment, wherever it was started. The test plan is under Crypto tests; "
                             "every other check is started where it is today, and its result reads as it does there.")}
 
     @staticmethod
@@ -507,7 +507,7 @@ class LedgerMixin:
                 r["same_as"] = [{"id": o["id"], "name": o["name"], "ran_on": o["ran_on"], "group_label": label_of[o["group"]],
                                  "link": {"page": "checks", "item": o["id"]}, "evidence_link": o["evidence_link"]}
                                 for o in same if o is not r]
-            # Linked from Migration: the Post-quantum readiness test (Encryption tests) and Verify's post-quantum claim
+            # Linked from Migration: the Post-quantum readiness test (Crypto tests) and Verify's post-quantum claim
             # (Verification), as the same measurement as Measure status.
             for r in same:
                 if r["group"] != "migration" and (r["kind"] == "pq_readiness" or r.get("pq_claim")):
@@ -519,13 +519,13 @@ class LedgerMixin:
                 r.pop("pq_claim", None)
                 r.setdefault("same_as", [])
 
-    # ---------------------------------------------------------------- the 5c fixes: Encryption tests in four parts
+    # ---------------------------------------------------------------- the 5c fixes: Crypto tests in four parts
 
     def _blocks(self, plan_id: int, rows: list[dict]) -> tuple[list[dict], list[dict], list[str] | None, list[dict]]:
         """The retests of this plan by the version each ran on (newest first), and its fix proofs (newest first), each
         with the rows of its own runs; the versions the file names; and (phase 6d) the runs of the tests picked for a
         developer's change, newest first. A row here is a copy of the retest's, the proof's or the watch run's row, read
-        on the runs of that block only. `rows`: the Encryption tests rows of `ledger`, resolved."""
+        on the runs of that block only. `rows`: the Crypto tests rows of `ledger`, resolved."""
         from app.present import otto as present_otto      # (only `stamp`: a time in a sentence, marked for a browser)
         with self.db() as db:
             plan = self._plan(db, plan_id)
@@ -621,7 +621,7 @@ class LedgerMixin:
         return [r for block in retests + proofs + watches for r in block["rows"]]
 
     def _encryption_parts(self, plan_id: int, rows: list[dict]) -> dict:
-        """Checks, the Encryption tests group in four labelled parts (the 5c fixes): the test plan with its first runs,
+        """Checks, the Crypto tests group in four labelled parts (the 5c fixes): the test plan with its first runs,
         the retests by the version each ran on, the fix proofs, and the tries of a server change on a test copy. It
         sorts rows this page already has: a run shows in one part only, and nothing here runs or decides anything."""
         retests, proofs, names_first, watches = self._blocks(plan_id, rows)

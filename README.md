@@ -146,7 +146,11 @@ Things to know in a Codespace:
 
 ### Finding your way on a page (19 November 2026)
 
-- **Checks** lists every check of the assessment in four groups. The Encryption tests group is in four labelled
+- **Checks**, **Evidence** and **Fixes** show the four work groups as tabs (20 November 2026), one group's table at
+  a time; the sidebar lists the four under the page that is open. A page opens on its first group with something in
+  it; **Continue to checks** opens Crypto tests, where the test plan is. While a search or a filter is on, each tab
+  says how many of its rows match. The group "Crypto tests" was called "Encryption tests" until then.
+- **Checks** lists every check of the assessment in four groups. The Crypto tests group is in four labelled
   parts, each with a count: **Test plan** (the first runs, as two lists: Standard tests and Advisory checks),
   **Retests by version** (one block for each version a retest ran on, the newest open; **Retest new version** is
   here as well as on Evidence), **Fix proofs** (one block for each proof) and **Tries on a test copy** (only when a
@@ -468,7 +472,7 @@ To try it on the Acme Pay demo:
 5. Press **View in Fixes** in the change's panel. Fixes has one entry for the change, **Text only**: it names the
    tests that fail on the change and shows the lines the change takes out. The app writes no change for a
    developer's branch and never merges one.
-6. **Checks** and **Evidence** list the runs under Encryption tests, each saying "Came from: Change watch".
+6. **Checks** and **Evidence** list the runs under Crypto tests, each saying "Came from: Change watch".
 7. Bring in the other demo change, "Allow TLS 1.0 for an old partner". It touches no program, so nothing is picked
    and nothing can run. It carries one flag: the line that names TLS 1.0. A flag is something to look at, never a
    result.

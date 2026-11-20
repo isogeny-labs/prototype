@@ -20,7 +20,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  BACKEND, PYTHON, continueToChecks, enterApp, layoutProblems, openFreshAssessment, screenshotFolder, startCopy, stepLink, stopCopy, type Copy,
+  BACKEND, PYTHON, continueToChecks, enterApp, layoutProblems, openFreshAssessment, openPageGroup, screenshotFolder, startCopy, stepLink, stopCopy, type Copy,
 } from "./shared";
 
 const SHOTS = screenshotFolder("phase6d");
@@ -147,7 +147,8 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   await expect(page.getByTestId("fix-apart")).toHaveCount(0);
 
   // what Evidence says before any change comes in (compared again at the end)
-  await stepLink(page, "Evidence").click();
+  // (the test results are Evidence's Crypto tests tab)
+  await openPageGroup(page, "Evidence", "Crypto tests");
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
   await expect(page.getByTestId("evidence-row").first()).toBeVisible();
   // (the rows' own text, whatever is drawn at this instant: `innerText` reads as one unbroken line while a row is in
@@ -240,7 +241,7 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   await expect(entry.getByTestId("fix-proof")).toContainText("This suggestion is text only: the app has not applied it or tested it.");
   await expect(entry.getByTestId("fix-approvers")).toContainText("The app never merges a developer's change.");
   await expect(entry.getByRole("button", { name: /Merge|Approve|Open pull request|Download patch|Connect/ })).toHaveCount(0);
-  // It sits in Encryption tests under a heading of its own and is counted nowhere: the page's count, the group's
+  // It sits in Crypto tests (the tab the link opened: the one that holds it) under a heading of its own and is counted nowhere: the page's count, the group's
   // counts and the rows of the assessment's own findings are what they were before the change came in.
   await expect(encryptionFixes.getByTestId("fix-apart-title")).toHaveText("From a developer's change (1)");
   await expect(encryptionFixes.getByTestId("fix-apart-note")).toContainText("is not counted with the assessment's findings");
@@ -273,7 +274,7 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   // (where it ran is in the panel's heading: the program, and that it is the change's code)
   await expect(page.getByTestId("detail-panel")).toContainText("acme-sign 1.4.2, the change on dev/revert-range-check (commit ");
   await expect(check.getByTestId("result-badge").first()).toHaveText("Failed");
-  // ---- Checks: the run has a part of its own under Encryption tests, one block for the change, one row for each picked test
+  // ---- Checks: the run has a part of its own under Crypto tests (the tab the link opened), one block for the change, one row for each picked test
   const part = page.locator('[data-testid="part-section"][data-part="changes"]');
   await expect(part).toBeVisible();
   await expect(part.getByRole("heading", { level: 3 })).toContainText("Change watch");
@@ -292,12 +293,12 @@ test("Change watch: a developer's change comes in, its tests are picked and run 
   await results.filter({ hasText: TRICKS }).getByTestId("change-result-before").getByTestId("change-result-link").click();
   await expect(page).toHaveURL(/#\/a\/\d+\/checks\?item=proof-\d+-in-\d+$/);
   await expect(page.getByTestId("check-panel").getByTestId("result-badge").first()).toHaveText("Passed");
-  // Evidence lists the change's runs too, under Encryption tests, each saying where it came from
-  await stepLink(page, "Evidence").click();
+  // Evidence lists the change's runs too, under Crypto tests, each saying where it came from
+  await openPageGroup(page, "Evidence", "Crypto tests");
   await expect(page.getByTestId("check-row").filter({ hasText: "Change watch" })).toHaveCount(3);
 
   // ---- these runs are kept apart: Evidence reads exactly what it read before the change came in
-  await stepLink(page, "Evidence").click();
+  await openPageGroup(page, "Evidence", "Crypto tests");
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
   await expect.poll(async () => page.getByTestId("evidence-row").allTextContents()).toEqual(evidenceBefore);
 

@@ -154,7 +154,7 @@ def test_a_watch_run_never_stands_in_for_a_result_of_the_assessments_own_tests(r
     assert json.loads(before.parts["changes"]) is None and json.loads(after.parts["changes"])["count_label"] == "1 run"
     # The Overview: every finding, every fact and every count of fixes is as it was (the change's entry in Fixes is
     # listed apart and counted nowhere: its own test is below). Two figures move, both counts of runs and neither a
-    # finding: the checks of Encryption tests that are done go up by the two runs on the change, and "runs recorded"
+    # finding: the checks of Crypto tests that are done go up by the two runs on the change, and "runs recorded"
     # by the same two.
     assert after.findings == before.findings
     for key, group in before.overview.items():

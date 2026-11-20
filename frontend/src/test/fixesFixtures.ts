@@ -707,7 +707,7 @@ export const tlsFix: FixDetail = {
 
 // ---- The whole view, one for each status of the code fix ----
 
-/** The four work groups as the backend sends them: every fix here came from a failed test (Encryption tests). The
+/** The four work groups as the backend sends them: every fix here came from a failed test (Crypto tests). The
  * counts sort each status word as the backend does (app/ledger/groups.py). */
 const IN_PROGRESS_WORDS = ["Proving", "Ready for review", "Waiting for approval", "Ready to merge"];
 export function fixGroups(fixes: FixDetail[]): FixGroup[] {
@@ -725,13 +725,13 @@ export function fixGroups(fixes: FixDetail[]): FixGroup[] {
       question: "Is the scanner file true?",
       counts: none,
       fix_ids: [],
-      empty_text: "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Encryption tests.",
+      empty_text: "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Crypto tests.",
       also: [],
     },
     {
       key: "encryption",
-      label: "Encryption tests",
-      question: "Is the encryption built right?",
+      label: "Crypto tests",
+      question: "Is the cryptography built right?",
       counts: count(fixes),
       fix_ids: fixes.map((f) => f.id),
       empty_text: fixes.length === 0 ? "No failed test has a fix." : null,

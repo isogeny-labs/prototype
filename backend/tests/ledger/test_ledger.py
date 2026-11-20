@@ -21,7 +21,7 @@ def _rows(view):
 def test_the_four_groups_in_order_with_counts_and_every_claim_and_test_in_its_group(demo_flow):
     lab, plan = demo_flow.lab, demo_flow.plan
     view = lab.checks_view(plan.id)
-    assert [g["label"] for g in view["groups"]] == ["Verification", "Encryption tests", "Migration", "Dependencies"]
+    assert [g["label"] for g in view["groups"]] == ["Verification", "Crypto tests", "Migration", "Dependencies"]
     by = {g["key"]: g for g in view["groups"]}
     claims = by["verification"]["rows"]
     assert len(claims) == 3 and {r["came_from"]["label"] for r in claims} == {"Verify"}
@@ -100,7 +100,7 @@ def test_every_relation_is_recorded_both_ways(demo_flow):
 
 def test_fixes_are_in_their_group_once_with_counts_and_links_to_where_they_came_from(demo_flow):
     view = demo_flow.lab.fixes_view(demo_flow.plan.id)
-    assert [g["label"] for g in view["groups"]] == ["Verification", "Encryption tests", "Migration", "Dependencies"]
+    assert [g["label"] for g in view["groups"]] == ["Verification", "Crypto tests", "Migration", "Dependencies"]
     listed = [fid for g in view["groups"] for fid in g["fix_ids"]]
     assert sorted(listed) == sorted(f["id"] for f in view["fixes"]) and len(listed) == len(set(listed))
     groups = {g["key"]: g for g in view["groups"]}
@@ -218,7 +218,7 @@ def test_the_same_measurement_in_two_places_is_marked_on_both_with_links(measure
 
 
 def test_migration_links_the_readiness_test_and_the_post_quantum_claim_from_its_foot():
-    """Plan decision 3: the Post-quantum readiness test sits in Encryption tests and Verify's post-quantum claim in
+    """Plan decision 3: the Post-quantum readiness test sits in Crypto tests and Verify's post-quantum claim in
     Verification; Migration links both from its foot, as the same measurement as Measure status. Neither is moved or
     counted twice."""
     from app.ledger.checks import LedgerMixin, _measure_key
@@ -241,7 +241,7 @@ def test_migration_links_the_readiness_test_and_the_post_quantum_claim_from_its_
         out.pop("verify", None)
         return out
     groups = [{"key": "verification", "label": "Verification", "rows": [public(claim)]},
-              {"key": "encryption", "label": "Encryption tests", "rows": [public(test), public(other)]},
+              {"key": "encryption", "label": "Crypto tests", "rows": [public(test), public(other)]},
               {"key": "migration", "label": "Migration", "rows": [public(system)]},
               {"key": "dependencies", "label": "Dependencies", "rows": []}]
     LedgerMixin._mark_same_measurements(groups)

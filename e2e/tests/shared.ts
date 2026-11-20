@@ -26,7 +26,7 @@ export const password: string = process.env.E2E_PASSWORD ?? "";
 if (!password) throw new Error("E2E_PASSWORD is not set; run the tests with `npm test` from the e2e folder.");
 
 export function screenshotFolder(
-  phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes" | "phase4a" | "phase4b" | "phase4c" | "phase4d" | "phase5a" | "phase5b" | "phase5c" | "phase5c-fixes" | "phase6a" | "phase6d" | "phase6e",
+  phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes" | "phase4a" | "phase4b" | "phase4c" | "phase4d" | "phase5a" | "phase5b" | "phase5c" | "phase5c-fixes" | "phase6a" | "phase6d" | "phase6e" | "group-tabs",
 ): string {
   return path.join(REPO, "docs/screenshots", phase);
 }
@@ -66,7 +66,7 @@ export async function enterApp(page: Page, options: { ottoPanel?: boolean } = {}
 }
 
 // Phase 5a: the six steps of the old step bar are now pages of the open assessment, in the sidebar. Phase 5b: Tests is
-// now Checks (every check of the assessment; the test plan is in it, under Encryption tests).
+// now Checks (every check of the assessment; the test plan is in it, under Crypto tests).
 const STEP_PAGES: Record<string, string> = {
   "1. Import": "Import",
   "2. Verify": "Verify",
@@ -80,6 +80,13 @@ const STEP_PAGES: Record<string, string> = {
 // Phase 5c: Advisories sits between Inventory and Checks. Phase 6d: Change watch comes after Fixes.
 export const SIDEBAR_PAGES = ["Overview", "Inventory", "Import", "Verify", "Advisories", "Checks", "Evidence", "Fixes", "Change watch", "Migration",
                               "Systems", "Roadmap", "Dependencies"];
+
+/** 20 November 2026: the sidebar lists the four work groups under the open page when it is Checks, Evidence or Fixes. The
+ * sidebar's links, in order, with the open page's groups under it. */
+export function sidebarLinksOn(open: "Checks" | "Evidence" | "Fixes"): string[] {
+  const at = SIDEBAR_PAGES.indexOf(open);
+  return [...SIDEBAR_PAGES.slice(0, at + 1), "Verification", "Crypto tests", "Migration", "Dependencies", ...SIDEBAR_PAGES.slice(at + 1)];
+}
 
 /** The page an old step lands on, as the sidebar marks it current ("4. Evidence Lab" -> "Evidence"; "6. Migration"
  * opens Migration's first view, "Systems"). */
@@ -132,11 +139,36 @@ export async function importVerifyAndOpenTests(page: Page): Promise<void> {
   await continueToChecks(page);
 }
 
-/** Verify's Continue to checks (was Continue to tests): opens Checks, where the test plan's cards are. */
+/** 20 November 2026: Checks, Evidence and Fixes show the four work groups as tabs, one group's table at a time. Opens
+ * the tab of one group by its name ("Crypto tests"), or keeps it open; the page's own tabs, never the Otto panel's.
+ * `on`: the page it is on, right after that page was opened. For a moment the page before may still be drawn, with tabs
+ * of its own (Evidence and Fixes have a Crypto tests tab too), and a page opened again from the sidebar picks its tab
+ * again: the sidebar's link to the group on that page ("Crypto tests on Evidence") exists only once that page is open,
+ * and the address it sets decides the tab, so it is followed first. */
+export async function openGroupTab(page: Page, label: string, on?: "Checks" | "Evidence" | "Fixes"): Promise<void> {
+  const tab = page.getByRole("tablist", { name: "Work groups" }).getByRole("tab", { name: label, exact: true });
+  if (on) {
+    const link = stepNav(page).getByRole("link", { name: `${label} on ${on}`, exact: true });
+    await link.click();
+    await expect(link).toHaveAttribute("aria-current", "true");
+  }
+  await expect(tab).toBeVisible();
+  if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
+}
+
+/** A sidebar link to a page, then the tab of one of its work groups: Checks, Evidence or Fixes on that group. */
+export async function openPageGroup(page: Page, step: string, label: string): Promise<void> {
+  await stepLink(page, step).click();
+  await openGroupTab(page, label, stepName(step) as "Checks" | "Evidence" | "Fixes");
+}
+
+/** Verify's Continue to checks (was Continue to tests): opens Checks on Crypto tests, where the test plan's cards are. */
 export async function continueToChecks(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Continue to checks" }).click();
   await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
   await expect(page.getByTestId("test-card").first()).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "Work groups" }).getByRole("tab", { name: "Crypto tests", exact: true })).toHaveAttribute("aria-selected", "true");
 }
 
 /** Phase 5b: once a file is in, every page of the assessment opens (a page with nothing yet says what fills it). */
@@ -186,6 +218,8 @@ export function resultPanel(page: Page): Locator {
 /** Opens one result in the detail panel (or keeps it open) and returns what the panel shows for it. */
 export async function openResult(page: Page, title: string, within?: Locator): Promise<Locator> {
   const heading = page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: title, exact: true });
+  // (the test results are Evidence's Crypto tests table: its tab is opened first, unless a panel is open on it already)
+  if ((await heading.count()) === 0 && (await page.getByRole("tablist", { name: "Work groups" }).count()) > 0) await openGroupTab(page, "Crypto tests", "Evidence");
   if ((await heading.count()) === 0) await evidenceRow(page, title, within).click();
   await expect(heading).toBeVisible();
   return resultPanel(page);

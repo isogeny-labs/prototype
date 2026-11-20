@@ -1,10 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePanelStamp } from "../changes";
 import { api, errorMessage, type CheckGroup, type CheckRow, type ChecksView, type LabView, type PlanView } from "../api";
 import { CheckPanel } from "./checks/CheckPanel";
 import { CheckTable } from "./checks/CheckTable";
-import { BlockSection, FilterSelect, GroupSection, PageHeader, PartSection, SearchInput, TableWithPanel, Toolbar } from "./layout";
+import {
+  BlockSection,
+  FilterSelect,
+  GroupSection,
+  GroupTabs,
+  ItemPageContext,
+  PageHeader,
+  PartSection,
+  SearchInput,
+  TableWithPanel,
+  Toolbar,
+  useGroupTab,
+  useShowGroups,
+  type GroupNav,
+} from "./layout";
 import { AlsoChecks } from "./checks/CheckPanel";
 import { RetestMenu, RetestStatus } from "./lab/RetestMenu";
 import { ItemLinkView } from "./related";
@@ -19,16 +33,22 @@ interface Props {
   onPlan: (plan: PlanView) => void;
   /** A check to open (from a link: #/a/<id>/checks?item=<check id>). */
   openItem?: string | null;
-  /** A work group to filter to (from the Overview). */
+  /** The work group whose tab to open (from the address: the Overview, the sidebar, Continue to checks). */
   group?: string | null;
-  /** Phase 6b: the Result and Came from filters the address names, and how a change of either goes back into it. */
+  /** Phase 6b: the Result and Came from filters the address names, and how a change of either goes back into it. A filter
+   * changed here also names the open tab, so the tab stays where it is. */
   result?: string | null;
   from?: string | null;
-  onFilters?: (filters: { result?: string | null; from?: string | null }) => void;
+  onFilters?: (filters: { result?: string | null; from?: string | null; group?: string | null }) => void;
+  /** A tab chosen here: it goes into the address. */
+  onGroup?: (group: string) => void;
+  /** The open tab and the groups, for the sidebar. */
+  onGroupShown?: (nav: GroupNav) => void;
 }
 
 /** Phase 5b: Checks (was Tests). Every check in the assessment, wherever it was started, in the four work groups. The
- * test plan sits under Encryption tests with every button it had; every other check is started where it is today. */
+ * test plan sits under Crypto tests with every button it had; every other check is started where it is today. Since 20
+ * November 2026 the groups are tabs: one group's table at a time. */
 /** The test plan is drawn once and then moved, never drawn again: by itself while the list of checks is being read,
  * then inside its part. So what a person opened in it meanwhile (the + Add test menu, a card being dragged) stays as it
  * is, however long the list takes. `host` goes on the place the plan belongs in; the plan is drawn only while such a
@@ -73,25 +93,24 @@ function usePlanHolder() {
   return { holder, hosted, host };
 }
 
-export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = null, result = null, from = null, onFilters }: Props) {
+export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = null, result = null, from = null, onFilters, onGroup, onGroupShown }: Props) {
   const planHolder = usePlanHolder();
+  const tabIds = useId();
   const [view, setView] = useState<ChecksView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [groupFilter, setGroupFilter] = useState<string>(group ?? "all");
   const [fromFilter, setFromFilterState] = useState(from ?? "all");
   const [resultFilter, setResultFilterState] = useState(result ?? "all");
   // (the address names these two filters: a change made here goes into it, and one made there comes back here)
   const setFromFilter = (value: string) => {
     setFromFilterState(value);
-    onFilters?.({ from: value === "all" ? null : value });
+    onFilters?.({ from: value === "all" ? null : value, group: active });
   };
   const setResultFilter = (value: string) => {
     setResultFilterState(value);
-    onFilters?.({ result: value === "all" ? null : value });
+    onFilters?.({ result: value === "all" ? null : value, group: active });
   };
   const [openId, setOpenId] = useState<string | null>(openItem);
-  const [folded, setFolded] = useState<Record<string, boolean>>({});
   // The 5c fixes: a part, and a block inside it, folds too. A block that is not the newest starts folded.
   const [partFolded, setPartFolded] = useState<Record<string, boolean>>({});
   const [blockOpen, setBlockOpen] = useState<Record<string, boolean>>({});
@@ -105,7 +124,6 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   const planStamp = plan ? `${plan.running}:${plan.tests.map((t) => `${t.id}${t.status}`).join(",")}` : "";
 
   useEffect(() => setOpenId(openItem), [openItem]);
-  useEffect(() => setGroupFilter(group ?? "all"), [group]);
   useEffect(() => setFromFilterState(from ?? "all"), [from]);
   useEffect(() => setResultFilterState(result ?? "all"), [result]);
 
@@ -160,13 +178,71 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   );
   const opened = every.find((r) => r.id === openId) ?? null;
 
-  function keep(r: CheckRow): boolean {
-    if (r.id === openId) return true; // the open check stays listed whatever the search
+  function fits(r: CheckRow): boolean {
     if (fromFilter !== "all" && r.came_from.key !== fromFilter) return false;
     if (resultFilter !== "all" && r.result?.label !== resultFilter) return false;
     if (!needle) return true;
     return [r.name, r.ran_on, r.came_from.label, r.result?.label ?? ""].some((t) => t.toLowerCase().includes(needle));
   }
+  function keep(r: CheckRow): boolean {
+    return r.id === openId || fits(r); // the open check stays listed whatever the search
+  }
+
+  // 20 November 2026: the rows a group's tab lists. Crypto tests lists its test plan's tests (as the plan's cards) and
+  // the rows of its parts; a check sits in one group, so a row is counted in one tab only.
+  const tabRows = (g: CheckGroup): CheckRow[] =>
+    g.key === "encryption"
+      ? [
+          ...g.rows.filter((r) => r.id.startsWith("test-")),
+          ...(g.parts
+            ? [...g.parts.retests.blocks, ...g.parts.proofs.blocks, ...(g.parts.changes?.blocks ?? [])].flatMap((b) => b.rows).concat(g.parts.tries?.rows ?? [])
+            : g.rows.filter((r) => !r.id.startsWith("test-"))),
+        ]
+      : g.rows;
+  const groupKeys = useMemo(() => (view?.groups ?? []).map((g) => g.key), [view]);
+  // Which tab to open: the one the address names; else the tab of the check the address names; else, with a filter in
+  // the address, the first tab with a match; else the first group with something in it (Crypto tests always holds the
+  // test plan).
+  const [active, choose] = useGroupTab({
+    keys: groupKeys,
+    group,
+    item: openItem,
+    filters: `${result ?? ""}\u0000${from ?? ""}`,
+    onGroup,
+    pick: () => {
+      if (!view) return null;
+      if (openItem) {
+        const holder = view.groups.find((g) =>
+          [...g.rows, ...tabRows(g)].some((r) => r.id === openItem || (r.alias != null && r.alias === openItem)),
+        );
+        if (holder) return holder.key;
+      }
+      // (the address's own filters: a pick happens when the address changes, before the page's filters follow it)
+      if (from || result) {
+        const named = (r: CheckRow) => (!from || r.came_from.key === from) && (!result || r.result?.label === result);
+        const match = view.groups.find((g) => tabRows(g).some(named));
+        if (match) return match.key;
+      }
+      return (view.groups.find((g) => g.key === "encryption" || g.rows.length > 0) ?? view.groups[0])?.key ?? null;
+    },
+  });
+  useShowGroups(onGroupShown, active, view?.groups ?? null);
+  // A check belongs to the tab it sits in: when another tab opens (on the page, from the sidebar, by Back), the panel of a
+  // check of another tab closes. Not on an item's own page, which is the panel itself.
+  const asPage = Boolean(useContext(ItemPageContext)?.asPage);
+  useEffect(() => {
+    if (asPage || !view || active === null || openId === null) return;
+    const holder = view.groups.find((g) => [...g.rows, ...tabRows(g)].some((r) => r.id === openId || (r.alias != null && r.alias === openId)));
+    if (holder && holder.key !== active) setOpenId(null);
+    // (only when the tab changes: a check opened from a link opens its own tab with it)
+  }, [active]);
+  // While a search or a filter is on, each tab says how many of its rows match.
+  const narrowedAny = needle !== "" || fromFilter !== "all" || resultFilter !== "all";
+  const matches = useMemo(
+    () => (narrowedAny && view ? Object.fromEntries(view.groups.map((g) => [g.key, tabRows(g).filter(fits).length])) : null),
+    // (`fits` reads the search and the two filters named here)
+    [narrowedAny, view, needle, fromFilter, resultFilter],
+  );
 
   // Phase 6b: with the Result filter on, the test plan lists only its tests that read that way ("show me failed
   // checks" lists the failed checks and nothing else). A test of the plan is its row "test-<id>" in the list.
@@ -192,16 +268,17 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
         {thePlan}
         <PageHeader title="Checks" description="Every check in this assessment, wherever it was started." />
         {error ? <ErrorBox>{error}</ErrorBox> : <p className="text-sm text-slate-400">Loading…</p>}
-        {/* The test plan is there at once, so its buttons never wait for the list. */}
-        {planPlace}
+        {/* The test plan is there at once when the address opens Crypto tests (Continue to checks, a link to the plan), so
+            its buttons never wait for the list. */}
+        {group === "encryption" ? planPlace : null}
       </section>
     );
   }
 
-  const groups = view.groups.filter((g) => groupFilter === "all" || g.key === groupFilter);
+  const groups = view.groups.filter((g) => g.key === active);
   const toggleOpen = (r: CheckRow) => setOpenId(r.id === openId || (r.alias != null && r.alias === openId) ? null : r.id);
 
-  /** The 5c fixes: Encryption tests in four labelled parts. Each run shows in one part only. */
+  /** The 5c fixes: Crypto tests in four labelled parts. Each run shows in one part only. */
   function encryptionParts(g: CheckGroup) {
     const parts = g.parts!;
     type Part = NonNullable<CheckGroup["parts"]>["retests"];
@@ -301,14 +378,17 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
     <section aria-label="Checks">
       {thePlan}
       <PageHeader title="Checks" description={view.subline} />
+      {active !== null ? (
+        <GroupTabs
+          groups={view.groups}
+          active={active}
+          onChoose={choose}
+          idBase={tabIds}
+          matches={matches}
+        />
+      ) : null}
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} label="Search checks" placeholder="Search checks" />
-        <FilterSelect
-          label="Group"
-          value={groupFilter}
-          options={[{ value: "all", label: "All groups" }, ...view.groups.map((g) => ({ value: g.key, label: g.label }))]}
-          onChange={setGroupFilter}
-        />
         <FilterSelect
           label="Came from"
           value={fromFilter}
@@ -342,8 +422,7 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
                   key={g.key}
                   group={g}
                   counts={g.counts}
-                  open={!folded[g.key]}
-                  onToggle={() => setFolded((f) => ({ ...f, [g.key]: !f[g.key] }))}
+                  tabbed={{ idBase: tabIds }}
                   note={g.note}
                   also={<AlsoChecks items={g.also ?? []} which="link" />}
                   emptyText={g.key === "encryption" ? null : g.rows.length === 0 ? g.empty_text : null}

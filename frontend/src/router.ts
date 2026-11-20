@@ -80,7 +80,8 @@ export function parseRoute(hash: string): Route {
       id: Number(m[1]),
       page: pageOf(m[2]),
       item: params.get("item"),
-      group: params.get("group"),
+      // (the phase 5a address of Tests is the test plan: since 20 November 2026 Checks' Crypto tests tab)
+      group: params.get("group") ?? (m[2] === "tests" && !params.get("item") ? "encryption" : null),
       section: params.get("section"),
       // (only with an item to show, on a page that has side panels: anything else is the page itself)
       view: params.get("view") === "page" && params.get("item") && pageOf(m[2]) !== "overview" ? "page" : null,

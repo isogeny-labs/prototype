@@ -582,8 +582,167 @@ function clampWidth(w: number): number {
   return Math.max(PANEL_MIN, Math.min(PANEL_MAX, Math.round(w)));
 }
 
-/** Phase 5b: a work group's heading (Verification, Encryption tests, Migration, Dependencies) with its three counts. It
- * folds its rows shut and open, links to where its checks are started, and says why when it is empty. */
+/** 20 November 2026: Checks, Evidence and Fixes show the four work groups as tabs, one group's table at a time. The tab
+ * strip draws the groups it is given, in their order, with the backend's labels; it decides nothing. While a search or a
+ * filter is on, a tab may carry how many of its rows match (`matches`), so nothing found is hidden behind another tab.
+ * The arrow keys, Home and End move between the tabs. `idBase` ties each tab to its panel (`GroupSection`'s `tabbed`). */
+export function GroupTabs({
+  groups,
+  active,
+  onChoose,
+  idBase,
+  matches = null,
+  label = "Work groups",
+}: {
+  groups: { key: string; label: string }[];
+  active: string;
+  onChoose: (key: string) => void;
+  idBase: string;
+  matches?: Record<string, number> | null;
+  label?: string;
+}) {
+  const move = (to: number) => {
+    const next = groups[(to + groups.length) % groups.length];
+    if (!next) return;
+    if (next.key !== active) onChoose(next.key);
+    document.getElementById(groupTabId(idBase, next.key))?.focus();
+  };
+  const at = groups.findIndex((g) => g.key === active);
+  return (
+    <div className="mb-4">
+      <div
+        role="tablist"
+        aria-label={label}
+        data-testid="group-tabs"
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") move(at + 1);
+          else if (e.key === "ArrowLeft") move(at - 1);
+          else if (e.key === "Home") move(0);
+          else if (e.key === "End") move(groups.length - 1);
+          else return;
+          e.preventDefault();
+        }}
+        className="inline-flex max-w-full flex-wrap gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1"
+      >
+        {groups.map((g) => {
+          const selected = g.key === active;
+          const n = matches ? matches[g.key] : undefined;
+          return (
+            <button
+              key={g.key}
+              type="button"
+              role="tab"
+              id={groupTabId(idBase, g.key)}
+              aria-selected={selected}
+              aria-controls={groupPanelId(idBase, g.key)}
+              aria-describedby={n !== undefined ? `${groupTabId(idBase, g.key)}-matches` : undefined}
+              tabIndex={selected ? 0 : -1}
+              data-testid="group-tab"
+              data-group={g.key}
+              onClick={() => {
+                if (!selected) onChoose(g.key); // (the open tab stays as it is, with any panel open beside it)
+              }}
+              className={`flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                selected ? "bg-slate-800 text-slate-50 shadow-sm" : "text-slate-400 hover:text-slate-100"
+              }`}
+            >
+              {g.label}
+              {n !== undefined ? (
+                <span
+                  aria-hidden="true"
+                  data-testid="group-tab-matches"
+                  className="rounded-full border border-slate-700 px-1.5 text-[11px] tabular-nums text-slate-300"
+                >
+                  {n}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      {matches
+        ? groups.map((g) =>
+            matches[g.key] !== undefined ? (
+              <span key={g.key} id={`${groupTabId(idBase, g.key)}-matches`} className="sr-only">
+                {matches[g.key] === 1 ? "1 row matches" : `${matches[g.key]} rows match`}
+              </span>
+            ) : null,
+          )
+        : null}
+    </div>
+  );
+}
+
+const safeId = (s: string) => s.replace(/[^A-Za-z0-9_-]/g, "");
+export const groupTabId = (idBase: string, key: string) => `${safeId(idBase)}-tab-${safeId(key)}`;
+export const groupPanelId = (idBase: string, key: string) => `${safeId(idBase)}-panel-${safeId(key)}`;
+
+/** Which tab a page shows (20 November 2026). The tab the address names wins; without one the page picks once, when its
+ * data is in (`pick`: the tab of the item the address names, else the first tab a filter in the address matches, else
+ * the first group with something in it), and keeps it while the data changes. A tab chosen on the page goes into the
+ * address (`onGroup`), so Back returns and a link can name it. A new item, group or filter in the address (`filters`:
+ * the address's filters, as one string) picks again; a filter changed on the page names the open tab with it, so the
+ * tab stays where it is. */
+export function useGroupTab({
+  keys,
+  group,
+  item,
+  filters = "",
+  pick,
+  onGroup,
+}: {
+  keys: string[];
+  group: string | null;
+  item?: string | null;
+  filters?: string;
+  /** The tab to start on, or null while the page's data is not in yet. */
+  pick: () => string | null;
+  onGroup?: (key: string) => void;
+}): [string | null, (key: string) => void] {
+  const stamp = `${group ?? ""}\u0000${item ?? ""}\u0000${filters}`;
+  const [state, setState] = useState<{ local: string | null; seen: string }>({ local: null, seen: stamp });
+  let local = state.local;
+  if (state.seen !== stamp) {
+    local = null;
+    setState({ local: null, seen: stamp });
+  }
+  let active = local ?? (group !== null && keys.includes(group) ? group : null);
+  if (active === null && keys.length > 0) {
+    const picked = pick();
+    if (picked !== null) {
+      active = picked;
+      setState({ local: picked, seen: stamp });
+    }
+  }
+  const choose = (key: string) => {
+    setState({ local: key, seen: stamp });
+    onGroup?.(key);
+  };
+  return [active, choose];
+}
+
+/** The open tab and the page's groups, as the sidebar lists them under the open page (20 November 2026). */
+export interface GroupNav {
+  active: string;
+  groups: { key: string; label: string }[];
+}
+
+/** Tells the sidebar which tab the page shows, whenever that or the groups change. */
+export function useShowGroups(onShown: ((nav: GroupNav) => void) | undefined, active: string | null, groups: { key: string; label: string }[] | null) {
+  const tell = useRef(onShown);
+  tell.current = onShown;
+  const said = groups ? groups.map((g) => `${g.key}=${g.label}`).join("\u0000") : "";
+  useEffect(() => {
+    if (active === null || !groups) return;
+    tell.current?.({ active, groups: groups.map((g) => ({ key: g.key, label: g.label })) });
+    // (`said` stands for the groups: a new copy of the same groups says nothing new)
+  }, [active, said]);
+}
+
+/** Phase 5b: a work group's heading (Verification, Crypto tests, Migration, Dependencies) with its three counts. It
+ * folds its rows shut and open, links to where its checks are started, and says why when it is empty. Since 20
+ * November 2026, on Checks, Evidence and Fixes it is the panel of its tab (`tabbed`): it does not fold, and its
+ * heading says the question the group answers. */
 export function GroupSection({
   group,
   counts,
@@ -591,8 +750,9 @@ export function GroupSection({
   note,
   startedOn,
   also,
-  open,
+  open = true,
   onToggle,
+  tabbed,
   children,
   testId = "group-section",
 }: {
@@ -602,28 +762,51 @@ export function GroupSection({
   note?: ReactNode;
   startedOn?: ReactNode;
   also?: ReactNode;
-  open: boolean;
-  onToggle: () => void;
+  open?: boolean;
+  onToggle?: () => void;
+  /** The panel of a tab of `GroupTabs` with the same `idBase`. */
+  tabbed?: { idBase: string };
   children?: ReactNode;
   testId?: string;
 }) {
   const headingId = useId();
+  if (tabbed) open = true;
   return (
-    <section data-testid={testId} data-group={group.key} aria-labelledby={headingId} className="mb-5">
+    <section
+      data-testid={testId}
+      data-group={group.key}
+      aria-labelledby={headingId}
+      role={tabbed ? "tabpanel" : undefined}
+      id={tabbed ? groupPanelId(tabbed.idBase, group.key) : undefined}
+      className="mb-5"
+    >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2">
-        <h2 id={headingId} className="m-0">
-          <button
-            type="button"
-            aria-expanded={open}
-            onClick={onToggle}
-            className="flex items-center gap-2 text-left text-sm font-semibold text-slate-100"
-          >
-            <span aria-hidden="true" className="inline-block w-3 text-slate-500">
-              {open ? "▾" : "▸"}
-            </span>
-            {group.label}
-          </button>
-        </h2>
+        {tabbed ? (
+          <div className="min-w-0">
+            <h2 id={headingId} className="m-0 text-sm font-semibold text-slate-100">
+              {group.label}
+            </h2>
+            {group.question ? (
+              <p data-testid="group-question" className="text-xs text-slate-400">
+                {group.question}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <h2 id={headingId} className="m-0">
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={onToggle}
+              className="flex items-center gap-2 text-left text-sm font-semibold text-slate-100"
+            >
+              <span aria-hidden="true" className="inline-block w-3 text-slate-500">
+                {open ? "▾" : "▸"}
+              </span>
+              {group.label}
+            </button>
+          </h2>
+        )}
         {counts ? (
           <p data-testid="group-counts" className="text-xs tabular-nums text-slate-400">
             Open {counts.open} · In progress {counts.in_progress} · Done {counts.done}

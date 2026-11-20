@@ -145,8 +145,8 @@ def _filter(lab: Any, facts: Any, said: dict, out: Any) -> dict:
     else:
         where = commands.go(page, result=value)
     if count is None:
-        # (Evidence: its Result filter is the Encryption tests table's own; the other groups list every row)
-        return out("went", f"Opened {name}, with the Encryption tests table filtered to {label}.", go=where, thread=PAGE_THREAD[page])
+        # (Evidence: its Result filter is the Crypto tests table's own; the other groups list every row)
+        return out("went", f"Opened {name}, with the Crypto tests table filtered to {label}.", go=where, thread=PAGE_THREAD[page])
     many = {"check": "checks", "advisory": "advisories", "result": "results"}[one]
     none = f"no {one} is listed there now" if said["filter"] == "from" else f"no {one} reads {label} now"
     told = f"{count} {one if count == 1 else many}" if count else none

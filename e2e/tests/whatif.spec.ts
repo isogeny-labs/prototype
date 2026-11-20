@@ -16,7 +16,7 @@
 import { expect, test, type Locator, type Page, type Request } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { REPO, enterApp, layoutProblems, openFreshAssessment, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
+import { REPO, enterApp, layoutProblems, openFreshAssessment, openPageGroup, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
 
 const SHOTS = screenshotFolder("phase6e");
 const DEPENDENCIES_FILE = path.join(REPO, "demo/dependencies-demo.cdx.json");
@@ -167,7 +167,7 @@ test("a what-if is answered from what the app knows; the try is the page's own r
   await expect(page).toHaveURL(/#\/a\/\d+\/migration\/dependencies\?item=row-\d+$/);
 
   // ================================================================ where the page offers the retest: its own card
-  await stepLink(page, "Evidence").click();
+  await openPageGroup(page, "Evidence", "Crypto tests");     // (the results are Evidence's Crypto tests tab)
   await expect(page.getByTestId("evidence-row").first()).toBeVisible();
   await say("What if we update acme-sign to 1.4.3?");
   await expect(reply().getByTestId("otto-reply-text")).toHaveText("What if acme-sign is updated to 1.4.3?");

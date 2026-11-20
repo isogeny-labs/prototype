@@ -39,6 +39,14 @@ describe("the address of a filtered table", () => {
     const plain = parseRoute("#/a/12/checks?item=test-5");
     expect("result" in plain || "from" in plain || "decision" in plain).toBe(false);
   });
+
+  it("the phase 5a address of Tests still opens the test plan: Checks on its Crypto tests tab (20 November 2026)", () => {
+    expect(parseRoute("#/a/12/tests")).toMatchObject({ page: "checks", group: "encryption" });
+    expect(parseRoute("#/a/12/tests?group=migration")).toMatchObject({ page: "checks", group: "migration" });
+    // (an item it names opens the tab that holds it, as on Checks)
+    expect(parseRoute("#/a/12/tests?item=claim-1")).toMatchObject({ page: "checks", item: "claim-1", group: null });
+    expect(parseRoute("#/a/12/checks")).toMatchObject({ page: "checks", group: null });
+  });
 });
 
 describe("Checks, filtered from its address", () => {
@@ -64,16 +72,22 @@ describe("Checks, filtered from its address", () => {
    * button stands for Back (or a link) changing the address from outside the page. */
   function Harness({ result = null, from = null, onFilters }: { result?: string | null; from?: string | null; onFilters?: (f: { result?: string | null; from?: string | null }) => void }) {
     const [current, setCurrent] = useState<PlanView | null>(plan);
-    const [address, setAddress] = useState<{ result: string | null; from: string | null }>({ result, from });
+    const [address, setAddress] = useState<{ result: string | null; from: string | null; group?: string | null }>({ result, from });
     return (
       <LinkProvider assessmentId={101} planId={1}>
         <button type="button" onClick={() => setAddress({ result: null, from: "retest" })}>
           the address changes
         </button>
+        {/* (what Otto's "show me failed checks" does: the same page, with the Result filter and no group in the address) */}
+        <button type="button" onClick={() => setAddress({ result: "Failed", from: null, group: null })}>
+          failed checks are asked for
+        </button>
         <ChecksScreen
           importId={7}
           plan={current}
           onPlan={setCurrent}
+          group={address.group ?? null}
+          onGroup={(g) => setAddress((now) => ({ ...now, group: g }))}
           result={address.result}
           from={address.from}
           onFilters={(change) => {
@@ -117,7 +131,11 @@ describe("Checks, filtered from its address", () => {
     const control = screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement;
     expect(control.value).toBe("Couldn't check"); // the filter that is on, not "All results"
     expect(Array.from(control.options).map((o) => o.value)).toContain("Couldn't check");
-    // no card of the plan is listed, and the part says so; + Add test and Run all are still there
+    // 20 November 2026: a filter in the address opens the first tab with a match: Verify's claim that it couldn't check
+    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual(["verification"]);
+    expect(screen.getAllByTestId("check-row").map((r) => r.getAttribute("data-check"))).toEqual(["claim-3"]);
+    // on Crypto tests no card of the plan is listed, and the part says so; + Add test and Run all are still there
+    fireEvent.click(screen.getByRole("tab", { name: "Crypto tests" }));
     const line = await screen.findByTestId("plan-narrowed");
     expect(line.textContent).toBe(`No test of the plan reads Couldn't check now. Run all runs all ${plan.tests.length}.`);
     expect(screen.queryAllByTestId("test-card")).toHaveLength(0);
@@ -130,16 +148,34 @@ describe("Checks, filtered from its address", () => {
     const onFilters = vi.fn();
     render(<Harness onFilters={onFilters} />);
     await screen.findAllByTestId("group-section");
+    // (a filter changed here also names the open tab, so the tab stays where it is)
     fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "Failed" } });
-    expect(onFilters).toHaveBeenLastCalledWith({ result: "Failed" });
+    expect(onFilters).toHaveBeenLastCalledWith({ result: "Failed", group: "verification" });
     fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value: "retest" } });
-    expect(onFilters).toHaveBeenLastCalledWith({ from: "retest" });
+    expect(onFilters).toHaveBeenLastCalledWith({ from: "retest", group: "verification" });
     fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value: "all" } });
-    expect(onFilters).toHaveBeenLastCalledWith({ from: null });
+    expect(onFilters).toHaveBeenLastCalledWith({ from: null, group: "verification" });
     expect((screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement).value).toBe("Failed");
     fireEvent.click(screen.getByRole("button", { name: "the address changes" })); // Back, or a link, changed the address
     await waitFor(() => expect((screen.getByRole("combobox", { name: "Came from" }) as HTMLSelectElement).value).toBe("retest"));
     expect((screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement).value).toBe("all");
+  });
+
+  it("a filter changed on the page keeps the open tab; a filter the address names from elsewhere opens the first tab with a match", async () => {
+    mockApi(routes);
+    render(<Harness />);
+    await screen.findAllByTestId("group-section");
+    const shown = () => screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"));
+    expect(shown()).toEqual(["verification"]);
+    // on the page: the tab stays, and says that nothing in it reads Failed
+    fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "Failed" } });
+    expect(shown()).toEqual(["verification"]);
+    fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "all" } });
+    expect(shown()).toEqual(["verification"]);
+    // from elsewhere (Otto's "show me failed checks", a link): the tab of the failed checks opens
+    fireEvent.click(screen.getByRole("button", { name: "failed checks are asked for" }));
+    await waitFor(() => expect(shown()).toEqual(["encryption"]));
+    expect((screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement).value).toBe("Failed");
   });
 });
 
@@ -161,10 +197,13 @@ describe("the app, with a filter in the address", () => {
     render(<App />);
     const result = (await screen.findByRole("combobox", { name: "Result" })) as HTMLSelectElement;
     await waitFor(() => expect(result.value).toBe("Passed"));
+    // the first tab with a passed check is Crypto tests; a filter changed there keeps that tab in the address
+    expect((await screen.findByRole("tab", { name: "Crypto tests" })).getAttribute("aria-selected")).toBe("true");
     fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value: "retest" } });
-    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?result=Passed&from=retest"));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?group=encryption&result=Passed&from=retest"));
     fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "all" } });
-    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?from=retest"));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?group=encryption&from=retest"));
+    expect(screen.getByRole("tab", { name: "Crypto tests" }).getAttribute("aria-selected")).toBe("true");
     // the sidebar's link to the page is the page itself, with no filter
     expect(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Checks" }).getAttribute("href")).toBe("#/a/101/checks");
   });

@@ -16,7 +16,7 @@
 import { expect, test, type Locator, type Page, type Request } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { continueToChecks, enterApp, layoutProblems, openFreshAssessment, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
+import { continueToChecks, enterApp, layoutProblems, openFreshAssessment, openGroupTab, openPageGroup, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
 
 const SHOTS = screenshotFolder("phase5c-fixes");
 const RANGE = "Missing ECDSA signature range check";
@@ -194,8 +194,9 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await expectNoBannedWords(page, "Advisories, with a panel open");
     await shots(page, "02-advisory-panel-new-and-local-time");
 
-    // ================================================================ fixes 1 and 2: Checks, Encryption tests in four parts
-    await stepLink(page, "Checks").click();
+    // ================================================================ fixes 1 and 2: Checks, Crypto tests in four parts
+    // (since 20 November 2026 the work groups are tabs: the parts are on the Crypto tests tab)
+    await openPageGroup(page, "Checks", "Crypto tests");
     await expect(page.getByTestId("test-card")).toHaveCount(6);
     await expect(page.getByTestId("part-section")).toHaveCount(3);          // no server change was tried: no fourth part
     await expect(part(page, "plan").getByRole("heading", { level: 3 })).toContainText("Test plan");
@@ -226,8 +227,13 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await expect(part(page, "retests").getByTestId("part-empty")).toHaveText("No retest yet. Retest new version reruns every test in the plan on another version.");
     await expect(part(page, "retests").getByRole("button", { name: "Retest new version" })).toBeDisabled();   // nothing has run yet
     await expect(part(page, "proofs").getByTestId("part-count").first()).toHaveText("0 proofs");
-    // the other three groups have no parts
-    await expect(page.locator('[data-testid="group-section"]:not([data-group="encryption"]) [data-testid="part-section"]')).toHaveCount(0);
+    // the other three groups have no parts, each on its own tab
+    for (const other of ["Verification", "Migration", "Dependencies"]) {
+      await openGroupTab(page, other);
+      await expect(page.getByTestId("part-section"), other).toHaveCount(0);
+    }
+    await openGroupTab(page, "Crypto tests");
+    await expect(page.getByTestId("part-section")).toHaveCount(3);
     expect(await layoutProblems(page), "Checks before anything ran").toEqual([]);
     await expectNoBannedWords(page, "Checks");
     await shots(page, "03-checks-four-parts-before-any-run");
@@ -258,7 +264,7 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
     await expect(fix.getByTestId("fix-status")).toHaveAttribute("data-status", "ready", { timeout: 300_000 });
 
     // ---- Checks: the proof has its own block, with the changed code's version
-    await stepLink(page, "Checks").click();
+    await openPageGroup(page, "Checks", "Crypto tests");
     await expect(part(page, "proofs").getByTestId("part-count").first()).toHaveText("1 proof");
     const proof = part(page, "proofs").getByTestId("block-section");
     await expect(proof).toHaveCount(1);
@@ -304,7 +310,7 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
 
     // ================================================================ fix 3: Open in new tab, on every kind of panel
     // ---- a check (a row of the retest's block)
-    await stepLink(page, "Checks").click();
+    await openPageGroup(page, "Checks", "Crypto tests");
     await part(page, "retests").getByTestId("check-row").filter({ hasText: RANGE }).click();
     panel = page.getByTestId("detail-panel");
     await expect(panel.getByRole("heading", { level: 2 })).toHaveText(RANGE_CHECK);
@@ -357,7 +363,7 @@ test("the 5c fixes: Checks in four parts, Open in new tab, wording, times in the
         } },
       { name: "a result on Evidence", back: "Evidence", title: /\S/,
         open: async () => {
-          await page.goto(`/#/a/${assessment}/evidence`);
+          await page.goto(`/#/a/${assessment}/evidence?group=encryption`);
           await page.getByTestId("evidence-row").first().click();
           return page.getByTestId("detail-panel");
         } },

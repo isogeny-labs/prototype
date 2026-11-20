@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useState } from "react";
 import { usePanelStamp } from "../changes";
 import {
   api,
@@ -11,7 +11,23 @@ import {
   type RowStatus,
 } from "../api";
 import { DownloadStatus, downloadEvidence } from "./evidenceDownload";
-import { DataTable, DetailPanel, FilterSelect, GroupSection, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "./layout";
+import {
+  DataTable,
+  DetailPanel,
+  ItemPageContext,
+  FilterSelect,
+  GroupSection,
+  GroupTabs,
+  PageHeader,
+  SearchInput,
+  SummaryCards,
+  TableWithPanel,
+  Toolbar,
+  useGroupTab,
+  useShowGroups,
+  type Column,
+  type GroupNav,
+} from "./layout";
 import { AlsoChecks, CheckPanel, EarlierRuns } from "./checks/CheckPanel";
 import { CheckTable } from "./checks/CheckTable";
 import { LibraryPanel, LibraryTable } from "./checks/LibraryEvidence";
@@ -135,11 +151,16 @@ interface Props {
   onViewFix: (fixId: string) => void;
   /** Phase 5b: an item to open (from a link: test-<id>, claim-<id>, system-<key>, library-<row>, proof-<id>, ...). */
   openItem?: string | null;
-  /** Phase 5b: a work group to filter to. */
+  /** Phase 5b: the work group whose tab to open (from the address). */
   group?: string | null;
-  /** Phase 6b: the Result filter the address names, and how a change of it goes back into the address. */
+  /** Phase 6b: the Result filter the address names, and how a change of it goes back into the address (with the open
+   * tab, so the tab stays where it is). */
   result?: string | null;
-  onFilters?: (filters: { result?: string | null }) => void;
+  onFilters?: (filters: { result?: string | null; group?: string | null }) => void;
+  /** A tab chosen here: it goes into the address. */
+  onGroup?: (group: string) => void;
+  /** The open tab and the groups, for the sidebar. */
+  onGroupShown?: (nav: GroupNav) => void;
 }
 
 const OPEN_IN: Record<string, string> = {
@@ -165,7 +186,8 @@ function RunsFor({ planId, checkId }: { planId: number; checkId: string }) {
   return detail ? <EarlierRuns runs={detail.runs} /> : null;
 }
 
-export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = null, result = null, onFilters }: Props) {
+export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = null, result = null, onFilters, onGroup, onGroupShown }: Props) {
+  const tabIds = useId();
   const [lab, setLab] = useState<LabView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -174,17 +196,54 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
   const [statusFilter, setStatusFilterState] = useState<StatusFilter>((result as StatusFilter | null) ?? "all");
   const setStatusFilter = (value: StatusFilter) => {
     setStatusFilterState(value);
-    onFilters?.({ result: value === "all" ? null : value });
+    onFilters?.({ result: value === "all" ? null : value, group: active });
   };
   useEffect(() => setStatusFilterState((result as StatusFilter | null) ?? "all"), [result]);
   const [exported, setExported] = useState<EvidenceExport | null>(null);
   const [pollTick, setPollTick] = useState(0);
   // Phase 5b: every other kind of check, in the four groups.
   const [checks, setChecks] = useState<ChecksView | null>(null);
+  // (if the checks can't be read, the test results still show, as before the tabs)
+  const [checksFailed, setChecksFailed] = useState(false);
   const [openCheck, setOpenCheck] = useState<string | null>(null);
-  const [groupFilter, setGroupFilter] = useState<string>(group ?? "all");
-  const [folded, setFolded] = useState<Record<string, boolean>>({});
-  useEffect(() => setGroupFilter(group ?? "all"), [group]);
+  // 20 November 2026: the groups are tabs. Which to open: the one the address names; else the tab of the item the
+  // address names; else, with the Result filter in the address, Crypto tests (the filter is that table's own); else the
+  // first group with something in it. It is picked once the checks are in, so nothing moves under the cursor.
+  const [active, choose] = useGroupTab({
+    keys: (checks?.groups ?? []).map((g) => g.key),
+    group,
+    item: openItem,
+    filters: result ?? "",
+    onGroup,
+    pick: () => {
+      if (!checks || !lab) return null;
+      if (openItem) {
+        if (openItem.startsWith("test-") || openItem.startsWith("retest-")) return "encryption";
+        const holder = checks.groups.find((g) => g.rows.some((r) => r.id === openItem));
+        if (holder) return holder.key;
+        if (checks.libraries.some((l) => l.id === openItem)) return "dependencies";
+      }
+      if (result) return "encryption"; // (the Result filter the address names)
+      const filled = checks.groups.find((g) =>
+        g.key === "encryption" ? lab.rows.length > 0 || g.rows.length > 0 : g.key === "dependencies" ? checks.libraries.length > 0 : g.rows.length > 0,
+      );
+      return (filled ?? checks.groups[0])?.key ?? null;
+    },
+  });
+  useShowGroups(onGroupShown, active, checks?.groups ?? null);
+  // An item belongs to the tab it sits in: when another tab opens (on the page, from the sidebar, by Back), the panel of
+  // an item of another tab closes. Not on an item's own page, which is the panel itself.
+  const asPage = Boolean(useContext(ItemPageContext)?.asPage);
+  useEffect(() => {
+    if (asPage || !checks || active === null) return;
+    if (openRow !== null && active !== "encryption") setOpenRow(null); // (a test's result: the Crypto tests table)
+    if (openCheck !== null) {
+      const holder =
+        checks.groups.find((g) => g.rows.some((r) => r.id === openCheck))?.key ?? (checks.libraries.some((l) => l.id === openCheck) ? "dependencies" : null);
+      if (holder && holder !== active) setOpenCheck(null);
+    }
+    // (only when the tab changes: an item opened from a link opens its own tab with it)
+  }, [active]);
   useEffect(() => {
     if (!openItem) return;
     if (openItem.startsWith("test-") || openItem.startsWith("retest-")) {
@@ -224,8 +283,14 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
     let live = true;
     api
       .getChecks(planId)
-      .then((next) => live && setChecks(next))
-      .catch(() => undefined);
+      .then((next) => {
+        if (!live) return;
+        setChecks(next);
+        setChecksFailed(false);
+      })
+      .catch(() => {
+        if (live) setChecksFailed(true);
+      });
     return () => {
       live = false;
     };
@@ -522,10 +587,29 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
   const ledgerRows = (checks?.groups ?? []).flatMap((g) => g.rows);
   const openLedger = openCheck ? (ledgerRows.find((r) => r.id === openCheck) ?? null) : null;
   const openLibrary = openCheck && !openLedger ? (checks?.libraries.find((l) => l.id === openCheck) ?? null) : null;
-  const keepCheck = (r: { name: string; ran_on?: string; via_words?: string; answers_short?: string; result?: { label: string } | null; id: string }) =>
-    r.id === openCheck ||
-    !needle ||
-    [r.name, r.ran_on ?? "", r.via_words ?? "", r.answers_short ?? "", r.result?.label ?? ""].some((t) => t.toLowerCase().includes(needle));
+  type Searched = { name: string; ran_on?: string; via_words?: string; answers_short?: string; result?: { label: string } | null; id: string };
+  const fitsCheck = (r: Searched) =>
+    !needle || [r.name, r.ran_on ?? "", r.via_words ?? "", r.answers_short ?? "", r.result?.label ?? ""].some((t) => t.toLowerCase().includes(needle));
+  const keepCheck = (r: Searched) => r.id === openCheck || fitsCheck(r);
+  // The rows of Crypto tests that are not a test of the plan or its retest: the fix proofs and changes.
+  const extraOf = (g: { rows: ChecksView["groups"][number]["rows"] }) =>
+    g.rows.filter((r) => !["plan", "retest"].includes(r.came_from.key) && !r.id.startsWith("test-") && !r.id.startsWith("retest-"));
+  // While a search or the Result filter is on, a tab says how many of its rows match (the Result filter is the Crypto
+  // tests table's own, so with only that on, only that tab says so).
+  const matches =
+    checks && (needle || statusFilter !== "all")
+      ? Object.fromEntries(
+          checks.groups.flatMap((g): [string, number][] =>
+            g.key === "encryption"
+              ? [[g.key, visible.length + extraOf(g).filter(fitsCheck).length]]
+              : !needle
+                ? []
+                : g.key === "dependencies"
+                  ? [[g.key, checks.libraries.filter(fitsCheck).length]]
+                  : [[g.key, g.rows.filter(fitsCheck).length]],
+          ),
+        )
+      : null;
   const checkPanel = (
     <CheckPanel planId={current.plan_id} check={openLedger} onClose={closePanel}>
       {(detail) => (
@@ -556,17 +640,16 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
       <LibraryPanel library={openLibrary} onClose={closePanel} />
     </>
   );
-  const groupsShown = (checks?.groups ?? []).filter((g) => groupFilter === "all" || g.key === groupFilter);
+  const groupsShown = (checks?.groups ?? []).filter((g) => g.key === active);
+  const tabbed = { idBase: tabIds };
   const grouped = (
     <div>
       {groupsShown.map((g) => {
         const counts = checks?.evidence_counts[g.key] ?? g.counts;
-        const open = !folded[g.key];
-        const toggle = () => setFolded((f) => ({ ...f, [g.key]: !f[g.key] }));
         if (g.key === "encryption") {
-          const extra = g.rows.filter((r) => !["plan", "retest"].includes(r.came_from.key) && !r.id.startsWith("test-") && !r.id.startsWith("retest-")).filter(keepCheck);
+          const extra = extraOf(g).filter(keepCheck);
           return (
-            <GroupSection key={g.key} group={g} counts={counts} open={open} onToggle={toggle}>
+            <GroupSection key={g.key} group={g} counts={counts} tabbed={tabbed}>
               {listing}
               {extra.length > 0 ? (
                 <div className="mt-4">
@@ -583,7 +666,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
         if (g.key === "dependencies") {
           const libs = (checks?.libraries ?? []).filter(keepCheck);
           return (
-            <GroupSection key={g.key} group={g} counts={counts} open={open} onToggle={toggle}
+            <GroupSection key={g.key} group={g} counts={counts} tabbed={tabbed}
               emptyText={(checks?.libraries ?? []).length === 0 ? g.empty_text ?? null : null}>
               {libs.length > 0 ? (
                 <LibraryTable libraries={libs} selectedId={openCheck} onOpen={(id) => {
@@ -602,8 +685,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
             key={g.key}
             group={g}
             counts={counts}
-            open={open}
-            onToggle={toggle}
+            tabbed={tabbed}
             emptyText={g.rows.length === 0 ? g.empty_text : null}
             also={<AlsoChecks items={g.also ?? []} which="evidence_link" />}
           >
@@ -688,19 +770,39 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
         {current.disclaimer}
       </p>
 
+      {checks && active !== null ? (
+        <GroupTabs
+          groups={checks.groups}
+          active={active}
+          onChoose={choose}
+          idBase={tabIds}
+          matches={matches}
+        />
+      ) : null}
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} label="Search results" placeholder="Search tests and results" />
-        <FilterSelect
-          label="Group"
-          value={groupFilter}
-          options={[{ value: "all", label: "All groups" }, ...(checks?.groups ?? []).map((g) => ({ value: g.key, label: g.label }))]}
-          onChange={setGroupFilter}
-        />
+        {/* (the Result filter is the Crypto tests table's own) */}
         <FilterSelect label="Result" value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
       </Toolbar>
 
-      {/* (a result that is not a test, and a library, are looked up in the checks, which arrive after the results) */}
-      <TableWithPanel panelOpen={anyPanelOpen} settled={checks !== null} table={checks ? grouped : listing} panel={panels} />
+      {/* (a result that is not a test, and a library, are looked up in the checks, which arrive after the results; until
+          then the page says it is loading, and if they can't be read the test results show by themselves) */}
+      <TableWithPanel
+        panelOpen={anyPanelOpen}
+        settled={checks !== null || checksFailed}
+        table={
+          checks ? (
+            grouped
+          ) : checksFailed ? (
+            listing
+          ) : (
+            <p role="status" className="text-sm text-slate-400">
+              Loading…
+            </p>
+          )
+        }
+        panel={panels}
+      />
     </section>
   );
 }

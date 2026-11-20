@@ -850,26 +850,44 @@ const opensslRow: LibraryEvidenceRow = {
 
 const groupedChecks = { ...checksView, libraries: [opensslRow] };
 const withGroups = (extra: Routes = {}) => ({ "GET /api/plans/1/checks": { body: groupedChecks }, ...extra });
-const groupOf = (key: string) => screen.getAllByTestId("group-section").find((g) => g.getAttribute("data-group") === key)!;
+// 20 November 2026: the groups are tabs, one group's table at a time. A group's section is looked at on its own tab.
+const tabOf = (key: string) => screen.getAllByTestId("group-tab").find((t) => t.getAttribute("data-group") === key)!;
+const shownGroups = () => screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"));
+const groupOf = (key: string) => {
+  if (tabOf(key).getAttribute("aria-selected") !== "true") fireEvent.click(tabOf(key));
+  return screen.getAllByTestId("group-section").find((g) => g.getAttribute("data-group") === key)!;
+};
+/** Evidence with the four groups: the lab's results and the checks. */
+async function openGrouped(routes: Routes = withGroups(), props: Partial<Parameters<typeof EvidenceLabScreen>[0]> = {}) {
+  const fetchMock = mockApi({ "GET /api/plans/1/lab": { body: lab }, ...routes });
+  render(<EvidenceLabScreen planId={1} onViewFix={(fixId) => viewed.push(fixId)} {...props} />);
+  await screen.findAllByTestId("group-section");
+  return fetchMock;
+}
 
 describe("Evidence, the four work groups", () => {
-  it("puts today's results under Encryption tests and every other kind of check in its own group", async () => {
-    await open(lab, withGroups());
-    await screen.findAllByTestId("group-section");
-    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual([
-      "verification",
-      "encryption",
-      "migration",
-      "dependencies",
+  it("has the four groups as tabs, opens on the first with something in it, and puts today's results under Crypto tests", async () => {
+    await openGrouped();
+    expect(within(screen.getByRole("tablist", { name: "Work groups" })).getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "Verification",
+      "Crypto tests",
+      "Migration",
+      "Dependencies",
     ]);
-    // Encryption tests holds the results table as it was.
-    expect(within(groupOf("encryption")).getAllByTestId("evidence-row")).toHaveLength(rows().length);
+    // One group at a time: the first with something in it.
+    expect(shownGroups()).toEqual(["verification"]);
+    expect(screen.queryAllByTestId("evidence-row")).toHaveLength(0);
     // Verification: one row per claim checked, with Verify's own word.
     expect(within(groupOf("verification")).getAllByTestId("check-row").map((r) => r.getAttribute("data-check"))).toEqual([
       "claim-1",
       "claim-2",
       "claim-3",
     ]);
+    // Crypto tests holds the results table as it was, under its question.
+    expect(within(groupOf("encryption")).getAllByTestId("evidence-row")).toHaveLength(rows().length);
+    expect(shownGroups()).toEqual(["encryption"]);
+    expect(within(groupOf("encryption")).getByRole("heading", { level: 2, name: "Crypto tests" })).not.toBeNull();
+    expect(within(groupOf("encryption")).getByTestId("group-question").textContent).toBe("Is the cryptography built right?");
     // Dependencies: one row per library with its answers as Dependencies words them, and its Blocks marker.
     const lib = within(groupOf("dependencies")).getByTestId("library-row");
     expect(text(lib)).toContain("OpenSSL 3.0.22");
@@ -877,42 +895,94 @@ describe("Evidence, the four work groups", () => {
     expect(within(lib).getByTestId("blocks-marker").textContent).toBe("Blocks key exchange on localhost:8461");
     // An empty group says why.
     expect(within(groupOf("migration")).getByTestId("group-empty").textContent).toBe("Nothing measured yet. Measure status is on Migration.");
+    expect(screen.queryByRole("combobox", { name: "Group" })).toBeNull();
   });
 
-  it("filters to one group, and folds a group from its heading", async () => {
-    await open(lab, withGroups());
-    await screen.findAllByTestId("group-section");
-    fireEvent.change(screen.getByRole("combobox", { name: "Group" }), { target: { value: "dependencies" } });
-    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual(["dependencies"]);
-    expect(screen.queryAllByTestId("evidence-row")).toHaveLength(0);
-    fireEvent.change(screen.getByRole("combobox", { name: "Group" }), { target: { value: "all" } });
-    fireEvent.click(within(groupOf("encryption")).getByRole("button", { name: "Encryption tests" }));
-    expect(screen.queryAllByTestId("evidence-row")).toHaveLength(0);
+  it("opens the tab the address names, the tab of the item it names, and Crypto tests for a Result filter (that table's own)", async () => {
+    await openGrouped(withGroups(), { group: "dependencies" });
+    expect(shownGroups()).toEqual(["dependencies"]);
+    cleanup();
+    await openGrouped(withGroups(), { openItem: `test-${lab.rows[0]!.item_id}` });
+    expect(shownGroups()).toEqual(["encryption"]);
+    cleanup();
+    await openGrouped(withGroups(), { openItem: opensslRow.id });
+    expect(shownGroups()).toEqual(["dependencies"]);
+    expect(await screen.findByTestId("library-panel")).not.toBeNull();
+    cleanup();
+    await openGrouped(withGroups(), { result: "failed" });
+    expect(shownGroups()).toEqual(["encryption"]);
   });
 
-  it("a claim's panel links to where it started, with its every run; the test panel is unchanged", async () => {
+  it("a search says on each tab how many rows match; the Result filter counts on Crypto tests only, where it filters", async () => {
+    const said: { result?: string | null; group?: string | null }[] = [];
+    await openGrouped(withGroups(), { onFilters: (f) => said.push(f) });
+    const matches = () =>
+      Object.fromEntries(screen.getAllByTestId("group-tab").map((t) => [t.getAttribute("data-group"), within(t).queryByTestId("group-tab-matches")?.textContent]));
+    expect(screen.queryAllByTestId("group-tab-matches")).toHaveLength(0);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search results" }), { target: { value: "openssl" } });
+    expect(matches()).toEqual({ verification: "0", encryption: expect.any(String), migration: "0", dependencies: "1" });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search results" }), { target: { value: "" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "failed" } });
+    expect(matches()).toEqual({ verification: undefined, encryption: expect.any(String), migration: undefined, dependencies: undefined });
+    // the filter goes to the address with the open tab, so the tab stays where it is
+    expect(said.at(-1)).toEqual({ result: "failed", group: "verification" });
+    expect(shownGroups()).toEqual(["verification"]);
+  });
+
+  it("a claim's panel links to where it started, with its every run; it closes when another tab opens; the test panel is unchanged", async () => {
     const detail = { ...retestDetail, check: groupedChecks.groups[0]!.rows[0]!, runs: [retestDetail.runs[1]!] };
-    await open(lab, withGroups({ "GET /api/plans/1/checks/claim-1": { body: detail } }));
-    await screen.findAllByTestId("group-section");
+    await openGrouped(withGroups({ "GET /api/plans/1/checks/claim-1": { body: detail } }));
     fireEvent.click(within(groupOf("verification")).getAllByTestId("check-row")[0]!);
     const checkPanel = within(await screen.findByTestId("check-panel"));
     expect((await checkPanel.findByTestId("open-in")).textContent).toBe("Open where it started");
     expect(checkPanel.getByTestId("earlier-runs")).not.toBeNull();
-    // Opening a result row of Encryption tests closes the other panel and shows the test panel as before.
-    fireEvent.click(rows()[0]!);
+    // Another tab: the claim belongs to Verification, so its panel closes.
+    groupOf("encryption");
     expect(screen.queryByTestId("check-panel")).toBeNull();
+    // A result row of Crypto tests shows the test panel as before.
+    fireEvent.click(rows()[0]!);
     expect(within(panel()).getByRole("button", { name: "Mark reviewed" })).not.toBeNull();
   });
 
-  it("a library's panel shows each answer with its label and reason, its source, and Open in Dependencies", async () => {
-    await open(lab, withGroups());
+  it("a panel of another tab closes when the tab changes from outside the page (the sidebar's link, Back)", async () => {
+    mockApi({ "GET /api/plans/1/lab": { body: lab }, ...withGroups() });
+    const { rerender } = render(<EvidenceLabScreen planId={1} onViewFix={() => undefined} />);
     await screen.findAllByTestId("group-section");
+    fireEvent.click(within(groupOf("dependencies")).getByTestId("library-row"));
+    expect(await screen.findByTestId("library-panel")).not.toBeNull();
+    rerender(<EvidenceLabScreen planId={1} onViewFix={() => undefined} group="encryption" />);
+    expect(shownGroups()).toEqual(["encryption"]);
+    expect(screen.queryByTestId("library-panel")).toBeNull();
+    // a result of Crypto tests, then the sidebar's Verification: that panel closes too
+    fireEvent.click(rows()[0]!);
+    expect(screen.getByTestId("detail-panel")).not.toBeNull();
+    rerender(<EvidenceLabScreen planId={1} onViewFix={() => undefined} group="verification" />);
+    expect(screen.queryByTestId("lab-row")).toBeNull();
+  });
+
+  it("a library's panel shows each answer with its label and reason, its source, and Open in Dependencies", async () => {
+    await openGrouped();
     fireEvent.click(within(groupOf("dependencies")).getByTestId("library-row"));
     const lib = within(await screen.findByTestId("library-panel"));
     expect(lib.getByText("OpenSSL added this in 3.5.0; you have 3.0.22.")).not.toBeNull();
     expect(lib.getAllByText("Release notes say").length).toBeGreaterThan(0);
     expect(lib.getByRole("link", { name: "https://openssl-library.org/news/openssl-3.5-notes/" })).not.toBeNull();
     expect(lib.getByTestId("open-in").textContent).toBe("Open in Dependencies");
+  });
+
+  it("says it is loading until the checks are in, and shows the test results by themselves if they can't be read", async () => {
+    let answer: (r: Response) => void = () => {};
+    const late = new Promise<Response>((resolve) => (answer = resolve));
+    const fetchMock = mockApi({ "GET /api/plans/1/lab": { body: lab } });
+    const answered = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((input, init) => (String(input) === "/api/plans/1/checks" ? late : answered(input, init)));
+    render(screenUnderTest());
+    await screen.findByTestId("page-header");
+    await waitFor(() => expect(calls(fetchMock)).toContain("GET /api/plans/1/checks"));
+    expect(screen.queryAllByTestId("evidence-row")).toHaveLength(0);
+    expect(screen.queryAllByTestId("group-tab")).toHaveLength(0);
+    answer(new Response(JSON.stringify({ detail: "no" }), { status: 500, headers: { "Content-Type": "application/json" } }));
+    expect(await screen.findAllByTestId("evidence-row")).toHaveLength(lab.rows.length);
   });
 });
 
