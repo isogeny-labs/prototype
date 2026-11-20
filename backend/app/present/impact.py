@@ -16,8 +16,8 @@ TIE_WORDS = {"user": "set by you", "name_version": "tied by name and version"}
 ENVIRONMENT_NOTE = ("A dependency list says what is installed, not what a program really loads: that needs your environment.")
 NO_LIST_NOTE = ("This assessment has no dependency list, so only its scanner file was read. Add one on Migration, under "
                 "Dependencies, to see your own software that uses it.")
-CLOSED_NOTE = ("This assessment is closed, so only its own scanner file and dependency list are read: it shows what it "
-               "showed when it was closed.")
+CLOSED_NOTE = ("This assessment is closed, so other assessments are not read: only its own scanner file and dependency "
+               "list are.")
 APPLY_NOTE = "Apply changes this one server for every assessment that names it."
 COMPATIBLE_UNKNOWN = ("Not known. Your dependency list names the exact version installed, not the versions each part that uses it "
                       "accepts.")

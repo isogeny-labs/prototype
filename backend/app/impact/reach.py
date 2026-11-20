@@ -8,7 +8,7 @@ person's that reaches it, so they know what to check again after the change:
     software) that reaches it by any path, with that path and the system the top entry is tied to;
   - elsewhere in the organization: every other assessment whose scanner file or newest dependency list names the same
     thing, leaving out archived assessments, archived projects and projects in an archived folder. A closed
-    assessment shows only its own file and list, because it must show exactly what it showed when it was closed.
+    assessment reads only its own file and list, so what it shows no longer changes with other assessments.
 
 "The same thing" (each line says which rule matched):
   - a server: the same address;

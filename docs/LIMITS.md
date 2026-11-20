@@ -584,8 +584,9 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **The walk through a dependency list stops at the first top entry it meets.** Every top entry that reaches a library
   is named (unlike the table's one heading per library), but what uses that top entry is that entry's own question, so
   the thing the whole list describes is named only where it uses the part directly.
-- **A closed assessment shows only its own file and list**, so it keeps showing what it showed when it was closed. An
-  open one reads the other assessments as they are now; the block is not part of the signed evidence (the files and
+- **A closed assessment shows only its own file and list**, so what it shows no longer changes with other assessments
+  (the lines "Elsewhere in your organization" it showed while open are not shown once it is closed). An open one reads
+  the other assessments as they are now; the block is not part of the signed evidence (the files and
   lists it reads are).
 - **The client stand-ins run only inside a try**, on its first copy (the demo test copy, or the lab nginx for the lab
   nginx file): not on the real-nginx copy that a try adds in isolated mode, not again after Apply or Roll back, and

@@ -119,5 +119,11 @@ def test_a_control_misread_is_not_trusted_and_a_server_not_reached_today_is_coul
     assert unreached["verdict"]["code"] == "measured"
     assert {r["word"] for r in unreached["detail"]["stand_ins"]} == {"couldnt_check"}
     assert unreached["detail"]["today_problem"] == "The server did not answer."
+    # (separate review, 20 November 2026) a stand-in that couldn't be checked is never counted as one that doesn't break
+    assert words.summary(unreached["detail"]["counts"], False) == "4 couldn't be checked."
+    assert words.summary({"connects": 2, "couldnt_check": 2}, True) == (
+        "2 connect with hybrid or post-quantum key exchange; 2 couldn't be checked.")
+    assert words.summary({"breaks": 1, "couldnt_check": 3}, False) == "1 breaks, 3 couldn't be checked."
+    assert words.warning(unreached["detail"]["counts"]) is None
     problem = _review({"problem": {"code": "copy_unavailable", "text": "the copy could not be started"}})
     assert problem["verdict"]["code"] == "couldnt_run"

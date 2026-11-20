@@ -30,7 +30,9 @@ def _n(count: int, one: str, many: str) -> str:
 
 
 def summary(counts: dict, brings_post_quantum: bool) -> str:
-    """"1 breaks, 2 connect, 1 didn't connect before either." or "None break. 1 connects with hybrid ...; 2 fall back ...". """
+    """"1 breaks, 2 connect, 1 didn't connect before either." or "None break. 1 connects with hybrid ...; 2 fall back ...".
+    "None break." only when every stand-in has a clear word: a stand-in that couldn't be checked is not one that
+    doesn't break ("2 connect; 2 couldn't be checked.")."""
     rest = []
     if counts.get("connects"):
         rest.append(_n(counts["connects"], "connects", "connect") + (" with hybrid or post-quantum key exchange" if brings_post_quantum else ""))
@@ -43,6 +45,8 @@ def summary(counts: dict, brings_post_quantum: bool) -> str:
     if counts.get("breaks"):
         return ", ".join([_n(counts["breaks"], "breaks", "break"), *rest]) + "."
     joined = "; ".join(rest)
+    if counts.get("couldnt_check"):
+        return f"{joined[0].upper()}{joined[1:]}."
     return "None break." + (f" {joined[0].upper()}{joined[1:]}." if joined else "")
 
 

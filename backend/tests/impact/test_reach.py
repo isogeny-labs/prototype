@@ -201,7 +201,8 @@ def test_a_closed_assessment_reads_only_its_own_file_and_list_and_a_closed_one_e
     assert line["chip"] == "Closed"
     lab.update_assessment(made["assessment_id"], {"close": True, "signed_off_by": "Kevin"})
     block = _rows(lab.dependencies_view(pid))["elliptic 6.5.6"]["impact"]
-    assert block["elsewhere"]["lines"] == [] and block["elsewhere"]["none"].startswith("This assessment is closed")
+    assert block["elsewhere"]["lines"] == [] and block["elsewhere"]["none"] == (
+        "This assessment is closed, so other assessments are not read: only its own scanner file and dependency list are.")
     assert [line["text"] for line in block["here"]["lines"]] == ["acme-ledger 5.1.0"]
 
 
