@@ -88,7 +88,7 @@ class LedgerMixin:
     _result: Callable[..., dict | None]
     otto_result_blocks: Callable[..., dict[int, dict]]     # from ProposalsMixin (phase 5c)
     _migration_states: Callable[..., list[dict]]
-    dependencies_view: Callable[[int], dict]
+    dependencies_view: Callable[..., dict]
     fix_states: Callable[[int], list[dict]]
 
     # ---------------------------------------------------------------- the rows
@@ -201,7 +201,7 @@ class LedgerMixin:
     def _ledger_dependencies(self, plan_id: int) -> dict:
         """The Dependencies view's libraries: which measured run belongs to which row, and how many were answered."""
         try:
-            view = self.dependencies_view(plan_id)
+            view = self.dependencies_view(plan_id, with_impact=False)
         except NotFound:
             return {"rows": {}, "answered": 0, "listed": False, "libraries": 0, "measurable": 0, "by_run": {}}
         rows, by_run, answered, measurable = {}, {}, 0, 0

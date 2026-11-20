@@ -9789,6 +9789,17 @@
               }
             ],
             "description": "Phase 5c: the status a person accepted."
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Impact"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 4e: where this library is used."
           }
         },
         "additionalProperties": false,
@@ -10571,6 +10582,17 @@
             "title": "Apart",
             "description": "Phase 6d: listed under its group's own heading for a developer's change and never counted with the findings.",
             "default": false
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Impact"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 4e: what this change touches; null for Change watch's entry."
           }
         },
         "additionalProperties": false,
@@ -11496,6 +11518,188 @@
           "blockers"
         ],
         "title": "Headline"
+      },
+      "Impact": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"What this change touches\" on a fix, \"Where it is used\" on a library."
+          },
+          "part": {
+            "type": "string",
+            "title": "Part",
+            "description": "The part: \"localhost:8443\" | \"acme-sign 1.4.2\" | \"openssl 3.0.22\"."
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Systems of this assessment it reaches, plus one for each other project that names it."
+          },
+          "count_line": {
+            "type": "string",
+            "title": "Count Line"
+          },
+          "here": {
+            "$ref": "#/components/schemas/ImpactPart"
+          },
+          "elsewhere": {
+            "$ref": "#/components/schemas/ImpactPart"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "compatible": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImpactLineText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\"Can the parts that use it take 1.4.3?\" with \"Not known\" and why."
+          },
+          "connect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImpactLineText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\"Who can still connect\": whether a client check applies, and where it is."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "part",
+          "count",
+          "count_line",
+          "here",
+          "elsewhere",
+          "notes",
+          "compatible",
+          "connect"
+        ],
+        "title": "Impact",
+        "description": "Phase 4e: where the part a change touches is used. Read from the scanner files, the dependency lists and the\nknowledge base; it decides nothing."
+      },
+      "ImpactLine": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "\"acme-sign 1.4.2\" | \"Migration demo › Assessment 1\""
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub",
+            "description": "One plain sentence: what it is, and which rule matched it."
+          },
+          "tag": {
+            "type": "string",
+            "title": "Tag",
+            "description": "Where it came from: \"from your file\"."
+          },
+          "chip": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Open",
+                  "Closed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chip",
+            "description": "For another assessment: its status."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "sub",
+          "tag",
+          "chip",
+          "link"
+        ],
+        "title": "ImpactLine"
+      },
+      "ImpactLineText": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "text"
+        ],
+        "title": "ImpactLineText"
+      },
+      "ImpactPart": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "none": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "None",
+            "description": "Said in place of the lines when there are none."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "none"
+        ],
+        "title": "ImpactPart"
       },
       "Import": {
         "properties": {

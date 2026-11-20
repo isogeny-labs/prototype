@@ -5,6 +5,7 @@ import { FromOttoTag, ProposalCard } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
 import { withPlainName } from "../../plainNames";
 import { ProofChip, ResultBadge, SecondaryButton, SourceTag, StatusChip, StatusView, formatTime } from "../ui";
+import { ImpactBlock } from "../impact/ImpactBlock";
 
 /** One answer: the answer, its one label, the first version that can (on a no), the measurement state, agreement. */
 function Cell({ cell, title }: { cell: DependencyCell; title: string }) {
@@ -185,6 +186,14 @@ export function DependencyDetail({ row, questions, busy, detailsOpen, onDetailsO
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {/* Phase 4e: where this library is used: the software of yours that reaches it, and the other assessments that
+          name it. Links only; it runs and decides nothing. */}
+      {row.impact ? (
+        <div className="mt-3">
+          <ImpactBlock impact={row.impact} />
+        </div>
       ) : null}
 
       {/* Phase 5c: what the installed test packs' advisories say about this library, and what Otto proposes for it.

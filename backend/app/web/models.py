@@ -824,6 +824,39 @@ class FixDetailMergeDialog(Shape):
     cancel: str
 
 
+class ImpactLine(Shape):
+    text: str = Field(description='"acme-sign 1.4.2" | "Migration demo › Assessment 1"')
+    sub: str = Field(description="One plain sentence: what it is, and which rule matched it.")
+    tag: str = Field(description='Where it came from: "from your file".')
+    chip: Literal["Open", "Closed"] | None = Field(description="For another assessment: its status.")
+    link: ItemLink | None
+
+
+class ImpactPart(Shape):
+    title: str
+    lines: list[ImpactLine]
+    none: str | None = Field(description="Said in place of the lines when there are none.")
+
+
+class ImpactLineText(Shape):
+    title: str
+    text: str
+
+
+class Impact(Shape):
+    """Phase 4e: where the part a change touches is used. Read from the scanner files, the dependency lists and the
+    knowledge base; it decides nothing."""
+    title: str = Field(description='"What this change touches" on a fix, "Where it is used" on a library.')
+    part: str = Field(description='The part: "localhost:8443" | "acme-sign 1.4.2" | "openssl 3.0.22".')
+    count: int = Field(description="Systems of this assessment it reaches, plus one for each other project that names it.")
+    count_line: str
+    here: ImpactPart
+    elsewhere: ImpactPart
+    notes: list[str]
+    compatible: ImpactLineText | None = Field(description='"Can the parts that use it take 1.4.3?" with "Not known" and why.')
+    connect: ImpactLineText | None = Field(description='"Who can still connect": whether a client check applies, and where it is.')
+
+
 class FixDetail(Shape):
     id: str = Field(description='"fix-ecdsa-range-check" | "fix-tls-versions"')
     kind: Literal["code", "text"]
@@ -854,6 +887,7 @@ class FixDetail(Shape):
     fix_state: Literal["open", "in_progress", "done"] = "open"
     apart: bool = Field(default=False, description="Phase 6d: listed under its group's own heading for a developer's change and "
                                                     "never counted with the findings.")
+    impact: Impact | None = Field(default=None, description="Phase 4e: what this change touches; null for Change watch's entry.")
 
 
 class FixesView(Shape):
@@ -1384,6 +1418,7 @@ class DependencyRow(Shape):
     advisories: list["DependencyAdvisory"] = Field(default_factory=list, description='Phase 5c: "Named by advisory X: ..." lines.')
     otto_proposals: list["OttoProposal"] = Field(default_factory=list, description="Phase 5c: the proposals to change this library's status.")
     otto_status: "DependencyOttoStatus | None" = Field(default=None, description="Phase 5c: the status a person accepted.")
+    impact: Impact | None = Field(default=None, description="Phase 4e: where this library is used.")
 
 
 class DependencyGroup(Shape):
