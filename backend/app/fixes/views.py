@@ -18,6 +18,7 @@ from app.run import components
 from app.present import changes as present_changes
 from app.present import fixes as present_fixes
 from app.present import otto as present_otto
+from app.ledger import groups as G
 from app.ledger.fixes import group_fixes
 from app.engine import research
 from app.db import ImportRow, PlanItemRow, PlanRow, ReviewRow, TestRunRow, TestSpecRow
@@ -62,7 +63,8 @@ class FixesMixin:
                     or self.jobs.busy(("dependencies", plan.id)))
             pairs = self._fix_details(db, plan)
             shown = [detail for _, detail in pairs]
-            view = present_fixes.view(plan.id, bool(imp.is_demo), shown, busy or any(d["status"]["busy"] for d in shown))
+            view = present_fixes.view(plan.id, bool(imp.is_demo), shown, busy or any(d["status"]["busy"] for d in shown),
+                                      counted=sum(1 for state, _ in pairs if not G.fix_is_apart(state)))
             # Phase 5b: the four work groups, each fix's group and the links for where it came from.
             systems = {s["item_id"]: s["key"] for s in self._migration_states(db, plan)}
             # The libraries of the dependency list, asked only when a fix is about a real library.
@@ -103,7 +105,7 @@ class FixesMixin:
         proposals = ({p["id"]: p for p in self._proposals(db, plan, ("fix",), fixes=states)}       # type: ignore[attr-defined]
                      if any(fix.get("proposal") for fix in states) else {})
         answered = {fix["id"]: self._answered(db, fix) for fix in states
-                    if fix["kind"] == "text" and fix["source_kind"] not in ("migration", "applied_change", "dependency")}
+                    if fix["kind"] == "text" and fix["source_kind"] not in ("migration", "applied_change", "dependency", "developer_change")}
         server_findings = sum(1 for _, address in answered.values() if address is not None)
         claims = self._claims(db.get(ImportRow, plan.import_id))
         several = len(research.servers(claims)) > 1 or len(research.programs(claims)) > 1
@@ -115,6 +117,8 @@ class FixesMixin:
                 shown = self._migration_fix_view(db, plan, fix, is_demo)   # phase 4a: the migration plan's how-to and blockers
             elif fix["source_kind"] == "dependency":
                 shown = self._dependency_fix_view(db, plan, fix, is_demo)  # phase 4d: update a library that blocks a track
+            elif fix["source_kind"] == "developer_change":
+                shown = present_fixes.developer_change_fix(fix)            # phase 6d: a developer's change makes passing tests fail
             elif fix["source_kind"] == "applied_change":
                 change = next(c for c in tls_changes if c["key"] == fix["change_key"])     # phase 4b: an Apply still in force
                 rec = self._change_records(db, plan, change)

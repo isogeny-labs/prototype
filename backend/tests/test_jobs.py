@@ -156,3 +156,16 @@ def test_a_test_interrupted_by_closing_the_app_writes_no_record(tmp_path, monkey
         release.set()
         if not stopped:
             lab.stop()
+
+
+def test_a_row_never_shows_a_finished_job_without_its_result():
+    """A view reads the live jobs first and the stored records after. A job that was live then and has finished by
+    the time its row is made still reads running: its result was not there to be read, and the next read shows it."""
+    from types import SimpleNamespace
+
+    from app.lab.testlab import live_job_view
+    job = SimpleNamespace(status="running", progress_text="checking signature 3 of 9", progress_percent=30)
+    assert live_job_view(job) == {"status": "running", "progress_text": "checking signature 3 of 9", "progress_percent": 30}
+    job.status, job.progress_text, job.progress_percent = "done", "checking the result", 98       # it finished in between
+    assert live_job_view(job) == {"status": "running", "progress_text": "checking the result", "progress_percent": 98}
+    assert live_job_view(SimpleNamespace(status="waiting", progress_text=None, progress_percent=0))["status"] == "waiting"

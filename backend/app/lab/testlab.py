@@ -11,6 +11,7 @@ import threading
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy import func, select
 
@@ -22,7 +23,7 @@ from app.engine import research
 from app.canonical import canonical_bytes, sha256_hex
 from app.config import DEMO_HOSTNAME
 from app.db import (
-    AddressRow, ImportRow, PlanItemRow, PlanRow, ProofRow, ResearchRequestRow, RetestProgramRow, RetestRow, ReviewMarkRow,
+    AddressRow, ImportRow, PlanItemRow, PlanRow, ResearchRequestRow, RetestProgramRow, RetestRow, ReviewMarkRow,
     ReviewRow, RunCodeRow, TestRunRow, TestSpecRow, VerifyRunRow, iso,
 )
 from app.errors import BadRequest, Conflict, NotFound
@@ -44,7 +45,12 @@ UNCOVERED = {"cipher_suites": "its cipher-suite claim is checked in Verify only.
                               "add the Post-quantum readiness test.")}
 # Why nothing new can start for a plan while its jobs run. A proof (phase 3a, Fixes) has its own sentence.
 BUSY = {"tests": "Tests are still running. Wait until they have finished.",
-        "proof": "A proof is running in Fixes. Wait until it has finished."}
+        "proof": "A proof is running in Fixes. Wait until it has finished.",
+        "watch": "The tests picked for a change are running in Change watch. Wait until they have finished."}
+# Phase 6d (Change watch): the two phases of a watch run. "watch" runs a picked test on the change's code, "watch_base"
+# on the code the change starts from (only where no reviewed run on exactly that code exists yet). Both are kept apart
+# from the assessment's own results: nothing that reads "first", "retest" or "proof" runs ever sees them.
+WATCH_PHASES = ("watch", "watch_base")
 # What is kept about the code a run ran on (the columns of run_code, in the order they are shown and exported).
 CODE_KEYS = ("source", "component_name", "component_version", "file_sha256", "repository", "branch", "commit", "change_id",
              "pull_request_number")
@@ -65,6 +71,16 @@ def read_spec(row: TestSpecRow | None) -> tuple[dict, bool]:
     except (ValueError, TypeError, AttributeError):
         return {}, False
     return (spec if isinstance(spec, dict) else {}), bool(ok)
+
+
+def live_job_view(job: Any) -> dict:
+    """A job that was live when a view began, as one row of that view shows it. The view reads the live jobs first and
+    the stored records after, and puts a job on a row only where no reviewed run was stored for it: so as of that
+    read the job had not finished. The job itself goes on meanwhile and may read "done" by the time the row is made;
+    the row still says running, and the next read shows the result. (A row never shows a finished job without its
+    result: the full test set of 19 November 2026 met exactly that, once, on a busy machine.)"""
+    return {"status": job.status if job.status in ("waiting", "running") else "running",
+            "progress_text": job.progress_text, "progress_percent": job.progress_percent}
 
 
 def run_record(row: TestRunRow) -> dict:
@@ -91,6 +107,7 @@ class TestLabMixin:
     _dependency_blockers: Callable[..., dict[str, dict]]   # from DependenciesMixin (phase 4d); declared for the type check only
     _otto_cannot_run: Callable[..., str | None]            # from OttoMixin (phase 5c), as the two below; declared for the type check only
     _otto_after_review: Callable[..., None]
+    _watch_run_finished: Callable[[int], None]             # from ChangeWatchMixin (phase 6d); declared for the type check only
     otto_result_fix: Callable[..., dict | None]
     otto_keeps_in_plan: Callable[..., str | None]          # from ProposalsMixin (phase 5c)
     otto_result_blocks: Callable[..., dict[int, dict]]     # from ProposalsMixin (phase 5c): where an advisory check came from
@@ -364,7 +381,8 @@ class TestLabMixin:
                 spec, _, row = specs[item.id]
                 kind = row.kind if row else spec.get("kind")
                 job = self.jobs.get((item.id, "first"))
-                reruns = (self.jobs.get((item.id, "retest")), self.jobs.get((item.id, "proof")))
+                # (a retest, a proof or, since phase 6d, a run for a developer's change that is still going)
+                reruns = tuple(self.jobs.get((item.id, phase)) for phase in ("retest", "proof", *WATCH_PHASES))
                 card = {"id": item.id, "kind": kind, "title": research.title_of(kind, spec), "origin": item.origin,
                         "tag": research.MLDSA_LABEL if kind == "mldsa_compare" else None,
                         "description": (spec.get("card") or {}).get("description", ""), "why": (spec.get("card") or {}).get("why", ""),
@@ -535,7 +553,7 @@ class TestLabMixin:
             item = db.get(PlanItemRow, item_id)
             if item is None or item.plan_id != plan_id or item.removed or item.origin in HIDDEN_ORIGINS:
                 raise NotFound("That test is not in this plan.")
-            if any(j is not None and j.status != "done" for j in (self.jobs.get((item_id, phase)) for phase in ("first", "retest", "proof"))):
+            if any(j is not None and j.status != "done" for j in (self.jobs.get((item_id, phase)) for phase in ("first", "retest", "proof", *WATCH_PHASES))):
                 raise Conflict("This test is waiting or running. Remove it when it has finished.")
             kept = self.otto_keeps_in_plan(db, item_id)   # phase 5c: a check from one of Otto's proposals is undone on Advisories
             if kept:
@@ -574,11 +592,14 @@ class TestLabMixin:
         return self.plan_view(plan_id)
 
     def _running(self, plan_id: int) -> str | None:
-        """What is running for this plan now: "proof", "tests" (first runs or a retest), or None."""
+        """What is running for this plan now: "proof", "watch" (the tests picked for a change), "tests" (first runs or
+        a retest), or None."""
         live = self.jobs.live(plan_id)
         if not live:
             return None
-        return "proof" if any(j.key[1] == "proof" for j in live) else "tests"
+        if any(j.key[1] == "proof" for j in live):
+            return "proof"
+        return "watch" if any(j.key[1] in WATCH_PHASES for j in live) else "tests"
 
     def _compare_blocked(self, plan_id: int, items: list[PlanItemRow], missing: int) -> str | None:
         """Why the first results can't be compared with a rerun yet, or None. Retest, Connect demo code and
@@ -590,7 +611,8 @@ class TestLabMixin:
             return "Run every test in the plan first, so there is a result to compare with."
         return None
 
-    def _submit(self, plan: PlanRow, item: PlanItemRow, phase: str, rerun: RetestRow | ProofRow | None) -> Job:
+    def _submit(self, plan: PlanRow, item: PlanItemRow, phase: str, rerun: Any, baseline: str | None = None,
+                keep_baseline: bool = True) -> Job:
         """Queue one test. (For the multi-target demo file, its test servers are started first if they are not running.) `rerun` is the retest (phase "retest") or the proof (phase "proof") the run belongs to:
         it names the version to run, the plan's own version becomes the baseline, and its id is kept with the run."""
         self.ensure_extra_servers(plan.import_id)
@@ -615,7 +637,10 @@ class TestLabMixin:
         args = {"plan_id": plan.id, "import_id": plan.import_id, "item_id": item.id, "spec_hash": item.spec_hash, "phase": phase,
                 "retest_id": rerun.id if rerun else None, "component_name": program["component"] if program else None,
                 "component_version": version,
-                "baseline_version": (rerun.baseline_version if other is not None else plan.component_version) if swap else None,
+                # (phase 6d: a watch run compares with the code the change starts from, which it names itself; its run on
+                # that code compares with nothing)
+                "baseline_version": ((baseline if baseline is not None else rerun.baseline_version if other is not None
+                                      else plan.component_version) if swap and keep_baseline else None),
                 "own": own}  # the plan's own program: in a proof, only it runs the changed code
         try:
             group = (phase, plan.id) if phase in HIDDEN_ORIGINS else plan.id   # measuring doesn't make Tests "busy"
@@ -731,12 +756,17 @@ class TestLabMixin:
             db.commit()
         try:
             # Phase 5c: a reviewed run of an advisory check is bound to its locked test in the assessment's Otto ledger.
-            self._otto_after_review(run_id)
+            # (Phase 6d: not a watch run's. The ledger's pinned checker knows the phases of 5c only, and it is not
+            # changed; a watch run is kept with its change in the database, and Checks lists it under Change watch.)
+            if a["phase"] not in WATCH_PHASES:
+                self._otto_after_review(run_id)
         except Exception as exc:  # the run and its review are already stored: a ledger problem never loses them
             job.log(f"the Otto ledger entry for this run could not be written ({exc.__class__.__name__})")
         job.run_id = run_id
         if a["phase"] == "proof":
             self._proof_run_finished(a["retest_id"])  # the proof itself is reviewed when its last run has been
+        elif a["phase"] in WATCH_PHASES:
+            self._watch_run_finished(a["retest_id"])  # phase 6d: and so is a watch run
 
     def wait_until_idle(self, plan_id: int, timeout: float = 300.0) -> None:
         if not self.jobs.wait_idle(timeout, group=plan_id):

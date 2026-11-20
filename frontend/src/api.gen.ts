@@ -55,6 +55,18 @@ export type DependencyState = "measured" | "not_measured" | "couldnt_check" | "c
 export type DependencyTrack = "kex" | "auth" | "signatures";
 export type GroupKey = "verification" | "encryption" | "migration" | "dependencies";
 export type ItemState = "open" | "in_progress" | "done";
+export type ChangeStatusKey =
+  | "not_run"
+  | "running"
+  | "no_difference"
+  | "passed_before_fails_now"
+  | "failed_before_passes_now"
+  | "nothing_to_run"
+  | "cant_run"
+  | "couldnt_trust";
+export type ChangeOutcome =
+  "fails_now" | "passes_now" | "same" | "slower_now" | "not_slower" | "not_compared" | "not_trusted";
+export type AssistantThread = "testing" | "fixing" | "planning";
 
 export interface AddTestBody {
   catalog_id: string;
@@ -100,6 +112,10 @@ export interface AdvisoriesView {
   rows: AdvisoryRow[];
   empty: string | null;
   assessment_id: number | null;
+  /**
+   * Phase 6: the block New advisories. Always sent by the current backend.
+   */
+  lookup?: AdvisoryLookup | null;
 }
 export interface ItemLink {
   /**
@@ -148,6 +164,10 @@ export interface AdvisoryFilterOption {
 export interface AdvisoryRow {
   id: string;
   name: string;
+  /**
+   * Null for an advisory of an earlier pack (also one a later pack only updates).
+   */
+  new: AdvisoryNew | null;
   published: string;
   published_text: string;
   package: string;
@@ -159,6 +179,19 @@ export interface AdvisoryRow {
   result: AdvisoryResultCell;
   search: string;
   panel: AdvisoryPanel;
+}
+/**
+ * The 5c fixes: the tag beside an advisory that first arrived with the most recently installed test pack.
+ */
+export interface AdvisoryNew {
+  /**
+   * "New"
+   */
+  label: string;
+  /**
+   * Said on hover and to a screen reader: "Arrived with test pack 2026.11.2".
+   */
+  title: string;
 }
 export interface AdvisoryTestCell {
   key: "ready" | "not_offered" | "none";
@@ -423,6 +456,96 @@ export interface AdvisoryStep {
   prompt_sha256: string;
   answer_sha256: string;
 }
+/**
+ * Phase 6, Otto's research loop: the block "New advisories" of the Advisories page.
+ */
+export interface AdvisoryLookup {
+  title: string;
+  intro: string;
+  covers: string;
+  libraries_line: string;
+  look: LookupButton;
+  last: LookupLast | null;
+  research: LookupResearch;
+  /**
+   * A research run is going on: ask again in a few seconds.
+   */
+  busy: boolean;
+}
+export interface LookupButton {
+  label: string;
+  can: boolean;
+  blocked_reason: string | null;
+  dialog: LookupDialog;
+}
+/**
+ * The box a button opens first: what will be sent or started, and what will not.
+ */
+export interface LookupDialog {
+  title: string;
+  lines: string[];
+  confirm: string;
+  cancel: string;
+}
+export interface LookupLast {
+  line: string;
+  source_line: string;
+  notes: string[];
+  rows: LookupRow[];
+  empty: string | null;
+}
+/**
+ * One published advisory a look found, with where it stands. Information from the publisher, never a result.
+ */
+export interface LookupRow {
+  id: string;
+  /**
+   * The publisher's own title.
+   */
+  title: string;
+  library: string;
+  published: string;
+  /**
+   * What it says about the versions this assessment has.
+   */
+  fits: string;
+  state: LookupRowState;
+  /**
+   * Why there is no test yet, or where the advisory is now.
+   */
+  reason: string | null;
+  /**
+   * Its row on this page, once a test pack holds it.
+   */
+  link: ItemLink | null;
+  publisher: string;
+  url: string;
+}
+export interface LookupRowState {
+  key: "in_pack" | "in_waiting_pack" | "new" | "no_test" | "not_yours";
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+}
+export interface LookupResearch {
+  label: string;
+  can: boolean;
+  blocked_reason: string | null;
+  /**
+   * False until a look has been made.
+   */
+  shown: boolean;
+  dialog: LookupDialog;
+  progress: LookupProgress | null;
+}
+export interface LookupProgress {
+  line: string;
+  running: boolean;
+  title: string;
+  /**
+   * What the research command said, newest last.
+   */
+  lines: string[];
+}
 export interface AlgorithmName {
   technical: string;
   plain: string;
@@ -645,7 +768,7 @@ export interface AssessmentView {
    */
   blocks?: OverviewBlocks | null;
   /**
-   * Phase 5c: "Waiting for you": Otto's proposals nobody has decided yet.
+   * Phase 5c: "Waiting for you": the proposals nobody has decided yet.
    */
   waiting?: OttoWaiting | null;
 }
@@ -681,7 +804,7 @@ export interface Import {
    */
   settings?: ImportSetting[];
   /**
-   * Phase 5c: "Otto found N checks that may apply". Nothing runs on import.
+   * Phase 5c: "N checks may apply", marked From Otto. Nothing runs on import.
    */
   otto?: ImportOtto | null;
 }
@@ -712,7 +835,7 @@ export interface ImportSetting {
   text: string;
 }
 /**
- * Import: "Otto found N checks that may apply", with the way to Advisories. Nothing runs on import.
+ * Import: "N checks may apply", marked From Otto, with the way to Advisories. Nothing runs on import.
  */
 export interface ImportOtto {
   count: number;
@@ -766,7 +889,7 @@ export interface LastDownload {
   fingerprint: string;
 }
 /**
- * The Overview's "Waiting for you": Otto's proposals nobody has decided yet, each kind linking to its page.
+ * The Overview's "Waiting for you": the proposals nobody has decided yet, each kind linking to its page.
  */
 export interface OttoWaiting {
   title: string;
@@ -781,6 +904,493 @@ export interface OttoWaitingItem {
   text: string;
   link: ItemLink;
   page_label: string;
+}
+/**
+ * The request of the page's own button. The browser sends it on Confirm, through the same call the page uses.
+ */
+export interface AssistantAction {
+  type:
+    | "verify"
+    | "run"
+    | "run_all"
+    | "retest"
+    | "run_picked_tests"
+    | "connect"
+    | "run_proof_again"
+    | "open_pull_request"
+    | "retest_now"
+    | "try"
+    | "ask_approval"
+    | "measure_library"
+    | "measure_all"
+    | "measure_status"
+    | "open";
+  plan_id: number | null;
+  import_id: number | null;
+  /**
+   * A test of the plan (Run).
+   */
+  item_id: number | null;
+  fix_id: string | null;
+  /**
+   * A server change's key (Try on a test copy, Ask for approval), or the id of a developer's change (Run the picked tests).
+   */
+  change: string | null;
+  /**
+   * A library row (Measure on a public copy).
+   */
+  row: string | null;
+  version: string | null;
+  component: string | null;
+  /**
+   * The reviewers the page ticks by default.
+   */
+  reviewers: string[] | null;
+  /**
+   * "open": where it goes; opening a page needs no Confirm. "retest_now": where the page itself goes once its request is answered (Evidence, on the result the fix came from).
+   */
+  link: ItemLink | null;
+}
+export interface AssistantBadge {
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+}
+/**
+ * Phase 6b: the text box at the foot of the panel.
+ */
+export interface AssistantBox {
+  /**
+   * "Ask Otto, or tell it what to do" (phase 6c; in 6b alone it read "Tell Otto where to go or what to do")
+   */
+  label: string;
+  send: string;
+  max: number;
+  /**
+   * Up to three examples fitted to the page. A chip sends its own words.
+   */
+  chips: string[];
+  /**
+   * Phase 6c: up to three of the six fixed questions that fit the page and the open item.
+   */
+  questions: string[];
+  /**
+   * False in a closed assessment: what is typed there is answered and not kept.
+   */
+  kept: boolean;
+  kept_note: string | null;
+}
+export interface AssistantCan {
+  say: string;
+  about: string;
+  kind: "go" | "do";
+}
+/**
+ * The Confirm step: what will happen and what will not, and which button of which page it presses.
+ */
+export interface AssistantConfirm {
+  title: string;
+  lines: string[];
+  /**
+   * "This is the Run all button on Checks."
+   */
+  names: string;
+  /**
+   * "Confirm"
+   */
+  confirm: string;
+  /**
+   * "Cancel"
+   */
+  cancel: string;
+  /**
+   * Reject only: the optional reason.
+   */
+  reason: AssistantReason | null;
+}
+export interface AssistantReason {
+  /**
+   * "Reason (optional, one short line)"
+   */
+  label: string;
+  max: number;
+}
+/**
+ * One button of a suggestion: the page's own button, with the page's own reason when it is off.
+ */
+export interface AssistantDecision {
+  key: "accept" | "reject" | "undo" | "reconsider";
+  label: string;
+  can: boolean;
+  blocked_reason: string | null;
+  /**
+   * Null when the button is off: there is nothing to confirm.
+   */
+  confirm: AssistantConfirm | null;
+}
+export interface AssistantElsewhere {
+  /**
+   * "Elsewhere: 2 more"
+   */
+  title: string;
+  count: number;
+  lines: AssistantElsewhereLine[];
+  /**
+   * "Nothing from Otto is waiting for a decision." when nothing waits anywhere.
+   */
+  empty: string | null;
+}
+export interface AssistantElsewhereLine {
+  /**
+   * "Fixes: 1 proposed fix, Update elliptic to 6.5.7"
+   */
+  text: string;
+  count: number;
+  link: ItemLink;
+  thread: "testing" | "fixing" | "planning";
+}
+/**
+ * One entry of the panel: a suggestion (one of Otto's proposals), a next step (a button of a page) or what a
+ * result means; and, in a thread so far, a reviewed result or where a fix stands.
+ */
+export interface AssistantEntry {
+  id: string;
+  kind: "suggestion" | "next" | "meaning" | "result" | "fix_step" | "said";
+  /**
+   * Its line in the one table of kinds, e.g. "next:run_all".
+   */
+  what: string;
+  thread: ("testing" | "fixing" | "planning") | null;
+  /**
+   * "From Otto", "Next step", "What this means", "Result", "Fix" or (phase 6b) "You said"
+   */
+  mark: string;
+  title: string;
+  text: string | null;
+  /**
+   * When its cause happened (ISO): the order of a thread so far.
+   */
+  at: string | null;
+  badge: AssistantBadge | null;
+  /**
+   * Where it lives: "On Advisories", with the link.
+   */
+  where: LabeledLink | null;
+  links: LabeledLink[];
+  /**
+   * A suggestion: the proposal exactly as its page shows it.
+   */
+  proposal: OttoProposal | null;
+  decisions: AssistantDecision[];
+  step: AssistantStep | null;
+  /**
+   * It is about the item that is open on the page.
+   */
+  open_item: boolean;
+  /**
+   * Phase 6c: a kept answer to a fixed question: its facts.
+   */
+  facts?: AssistantFact[];
+}
+export interface LabeledLink {
+  label: string;
+  link: ItemLink;
+}
+export interface AssistantStep {
+  /**
+   * "nothing": it only opens a page, at once.
+   */
+  needs: "confirm" | "nothing";
+  action: AssistantAction;
+  can: boolean;
+  /**
+   * The page's own reason when its button is off.
+   */
+  blocked_reason: string | null;
+  running: boolean;
+  progress: string | null;
+  confirm: AssistantConfirm | null;
+}
+/**
+ * Phase 6c: one fact of an answer: a sentence the app already shows about the item, with the link to where.
+ */
+export interface AssistantFact {
+  text: string;
+  link: ItemLink | null;
+  /**
+   * What the link is called: "See the evidence", "Open the advisory", "View in Fixes".
+   */
+  label: string | null;
+}
+/**
+ * Where an answer leads: a page of this assessment (or Settings), one item on it, and the filters of its table.
+ */
+export interface AssistantGo {
+  page: string;
+  item: string | null;
+  group: string | null;
+  /**
+   * The page's own Result filter value.
+   */
+  result: string | null;
+  /**
+   * Checks: its Came from filter value.
+   */
+  came_from: string | null;
+  /**
+   * Advisories: its Decision filter value.
+   */
+  decision: string | null;
+}
+export interface AssistantOnPage {
+  title: string;
+  entries: AssistantEntry[];
+  empty: string | null;
+  empty_link: LabeledLink | null;
+}
+export interface AssistantOpen {
+  /**
+   * Which button of the card shows its Confirm step.
+   */
+  key: "accept" | "reject" | "undo" | "reconsider" | "step";
+  /**
+   * A reject's reason, cut from the person's own words. Nothing is sent before Confirm.
+   */
+  reason: string | null;
+}
+export interface AssistantOption {
+  label: string;
+  /**
+   * A sentence that names exactly this one. Choosing it sends these words.
+   */
+  say: string;
+}
+/**
+ * Phase 6b: Otto's answer to one typed sentence. Nothing has been decided or started by it: `went`, `page_only`
+ * and `tab` only move around, and `card` hands back an entry whose Confirm step the browser shows.
+ */
+export interface AssistantReply {
+  kind: "went" | "card" | "which" | "cannot" | "help" | "page_only" | "tab" | "closed" | "answer" | "whatif";
+  text: string;
+  go: AssistantGo | null;
+  entry: AssistantEntry | null;
+  open: AssistantOpen | null;
+  options: AssistantOption[];
+  /**
+   * What can be said on this page, from the one list.
+   */
+  can: AssistantCan[];
+  tab: AssistantTabChange | null;
+  /**
+   * The tab the exchange is filed under, if any.
+   */
+  thread: ("testing" | "fixing" | "planning") | null;
+  /**
+   * Phase 6c: the fixed question that was answered, in its own wording.
+   */
+  question?: string | null;
+  /**
+   * Phase 6c: where an answer is from: "From this assessment's records".
+   */
+  label?: string | null;
+  /**
+   * Phase 6c: an answer's facts, each with its link.
+   */
+  facts?: AssistantFact[];
+  /**
+   * Phase 6e: the four parts of a what-if.
+   */
+  whatif?: WhatIf | null;
+}
+export interface AssistantTabChange {
+  thread: "testing" | "fixing" | "planning";
+  how: "open" | "close";
+}
+/**
+ * Phase 6e, first half: what the app knows about updating one library to one version, in four parts. Facts by fixed
+ * rules; nothing here is a result, and nothing is started by reading it.
+ */
+export interface WhatIf {
+  plan_id: number;
+  asked: WhatIfName;
+  known: boolean;
+  library: WhatIfLibrary;
+  version: string;
+  version_read: boolean;
+  /**
+   * The versions of this library the assessment has (its dependency list, its scanner file).
+   */
+  have: string[];
+  title: string;
+  facts_title: string;
+  facts: WhatIfGroup[];
+  test_copy: WhatIfTry;
+  explanation: string;
+  hypotheses_title: string;
+  hypotheses_note: string;
+  hypotheses: WhatIfHypothesis[];
+}
+export interface WhatIfName {
+  library: string;
+  version: string;
+}
+export interface WhatIfLibrary {
+  key: string | null;
+  label: string;
+}
+export interface WhatIfGroup {
+  key: "used" | "needs" | "advisories" | "trial" | "post_quantum" | "blocks" | "own_results";
+  title: string;
+  lines: WhatIfLine[];
+  /**
+   * What is said when the app has nothing on this point.
+   */
+  none: string | null;
+}
+export interface WhatIfLine {
+  text: string;
+  /**
+   * Where it comes from: "From your file", "Package file says", "Release notes say", "Test pack 2026.11.2", ...
+   */
+  label: string | null;
+  /**
+   * Where the app shows it.
+   */
+  link: ItemLink | null;
+  source: WhatIfSource | null;
+}
+/**
+ * Where a fact is quoted from: the publisher's package file or release notes, or a test pack's copy of a publisher's line.
+ */
+export interface WhatIfSource {
+  title: string;
+  /**
+   * An https address of the publisher, or null where the line is quoted from an installed test pack.
+   */
+  url: string | null;
+  quote: string | null;
+  /**
+   * The day it was read, YYYY-MM-DD, where the source records one.
+   */
+  read_on: string | null;
+}
+/**
+ * The try on a test copy: Evidence's own Retest new version, pointed at this version.
+ */
+export interface WhatIfTry {
+  title: string;
+  /**
+   * "Retest new version": the button of Evidence it stands for.
+   */
+  button: string;
+  offered: boolean;
+  /**
+   * Why it is not offered, in the page's own words where the page has them.
+   */
+  reason: string | null;
+  component: string | null;
+  version: string;
+  /**
+   * What a retest changes in this assessment, said before anything is pressed.
+   */
+  changes: string[];
+}
+export interface WhatIfHypothesis {
+  text: string;
+}
+/**
+ * The one line under the title: what Settings says about Live Otto, with the way there when it is off.
+ */
+export interface AssistantStatus {
+  /**
+   * "Live Otto is off." or "Live Otto is on."
+   */
+  text: string;
+  live: boolean;
+  link: LabeledLink | null;
+}
+export interface AssistantTab {
+  key: "testing" | "fixing" | "planning";
+  label: string;
+  /**
+   * How many of this thread's suggestions nobody has decided yet.
+   */
+  waiting: number;
+  /**
+   * Changes when the thread gets a new entry: the browser keeps it for a closed tab and for the dot.
+   */
+  mark: string;
+  so_far_title: string;
+  so_far: AssistantEntry[];
+  so_far_empty: string | null;
+}
+export interface AssistantView {
+  assessment_id: number;
+  plan_id: number | null;
+  /**
+   * "Otto"
+   */
+  title: string;
+  status: AssistantStatus;
+  /**
+   * The closed sentence, and what Settings says when Otto is not installed.
+   */
+  notices: string[];
+  note: string;
+  recorded_as: OttoName;
+  page: string;
+  page_label: string;
+  /**
+   * The tab this page selects (null on the Overview).
+   */
+  thread: ("testing" | "fixing" | "planning") | null;
+  box: AssistantBox;
+  /**
+   * At most three, and only the open ones.
+   */
+  tabs: AssistantTab[];
+  on_page: AssistantOnPage;
+  elsewhere: AssistantElsewhere;
+  /**
+   * Undecided suggestions on this page plus elsewhere.
+   */
+  waiting: number;
+  /**
+   * Something is running: ask again in a second.
+   */
+  busy: boolean;
+}
+/**
+ * Who a decision is recorded as, and whether a name has been typed yet.
+ */
+export interface OttoName {
+  /**
+   * "Who decides"
+   */
+  title: string;
+  /**
+   * "Your name"
+   */
+  label: string;
+  /**
+   * The name a person typed; empty until then.
+   */
+  value: string;
+  /**
+   * The typed name, or "You".
+   */
+  recorded_as: string;
+  typed: boolean;
+  /**
+   * "Recorded as You, with the time."
+   */
+  line: string;
+  save: string;
+  note: string;
+  max: number;
+  /**
+   * The label of the field in the Otto panel's first Confirm step.
+   */
+  ask_label: string;
 }
 export interface Badge {
   code:
@@ -823,6 +1433,18 @@ export interface CatalogItem {
   tag: string | null;
   description: string;
 }
+export interface ChangeBlock {
+  before: DiffLine[];
+  after: DiffLine[];
+}
+/**
+ * One line of code in a before or after block. n is the line number in that version of the file.
+ */
+export interface DiffLine {
+  n: number;
+  mark: " " | "-" | "+";
+  text: string;
+}
 export interface ChangeBody {
   change: string;
 }
@@ -832,6 +1454,125 @@ export interface ChangeButton {
   primary: boolean;
   enabled: boolean;
   reason: string | null;
+}
+export interface ChangeFile {
+  name: string;
+  /**
+   * "Added", "Changed" or "Removed"
+   */
+  what: string;
+  /**
+   * "5 lines added"; null when the file is not text
+   */
+  counts: string | null;
+  /**
+   * the file of the program under test
+   */
+  is_program: boolean;
+  note: string | null;
+  /**
+   * each changed place, with the lines around it, before and after
+   */
+  blocks: ChangeBlock[];
+}
+/**
+ * Something to look at. Never a result.
+ */
+export interface ChangeFlag {
+  title: string;
+  text: string;
+  /**
+   * "The app has not tested what this line does."
+   */
+  note: string;
+  source: ChangeSource;
+}
+export interface ChangeSource {
+  title: string;
+  url: string;
+}
+export interface ChangeJob {
+  status: "not_run" | "waiting" | "running" | "done";
+  progress_text: string | null;
+  progress_percent: number | null;
+}
+export interface ChangePanel {
+  message: string;
+  starts_from: string | null;
+  /**
+   * which registered demo program the change's code is, or that it is none
+   */
+  gives: string | null;
+  files: ChangeFile[];
+  picked: ChangeTest[];
+  not_picked: ChangeTest[];
+  picked_empty: string | null;
+  run: ChangeRunButton;
+  last_run: string | null;
+  results: ChangeResult[];
+  flags: ChangeFlag[];
+  flags_note: string | null;
+  more_flags: string | null;
+  /**
+   * one line when Fixes has an entry for this change (tests that passed fail on it)
+   */
+  fix_line: string | null;
+  /**
+   * the way to that entry on Fixes
+   */
+  fix: ItemLink | null;
+}
+export interface ChangeTest {
+  item_id: number;
+  title: string;
+  /**
+   * the rule that picked it, or left it out, in one sentence
+   */
+  reason: string;
+  link: ItemLink;
+}
+export interface ChangeRunButton {
+  /**
+   * "Run the picked tests", then "Run again"
+   */
+  label: string;
+  can: boolean;
+  blocked_reason: string | null;
+  /**
+   * the tests the button runs, by name
+   */
+  will_run: string[];
+  note: string | null;
+}
+export interface ChangeResult {
+  item_id: number;
+  title: string;
+  before: ChangeResultSide | null;
+  /**
+   * where the result before comes from
+   */
+  before_note: string | null;
+  now: ChangeResultSide | null;
+  job: ChangeJob | null;
+  /**
+   * "Passed before, fails now", "Failed before, passes now", "Same as before", ...; null until reviewed
+   */
+  differs: string | null;
+  outcome: ("fails_now" | "passes_now" | "same" | "slower_now" | "not_slower" | "not_compared" | "not_trusted") | null;
+}
+/**
+ * The reviewer's word for one run, repeated: a watch run words no result of its own.
+ */
+export interface ChangeResultSide {
+  run_id: number;
+  label: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  plain: string;
+  ran_on: string | null;
+  /**
+   * where that run's evidence is shown
+   */
+  link: ItemLink | null;
 }
 export interface ChangePart {
   /**
@@ -852,13 +1593,52 @@ export interface StrongLabel {
   strong: string;
   rest: string;
 }
+export interface ChangeRow {
+  /**
+   * "change-" and the first twelve characters of its commit: it names the exact code
+   */
+  id: string;
+  title: string;
+  branch: string;
+  commit: string;
+  author: string | null;
+  /**
+   * a bundled demo change: drawn with the Demo data label
+   */
+  is_demo: boolean;
+  when: string | null;
+  files_line: string | null;
+  picked_line: string;
+  status: ChangeStatus;
+  flags_count: number;
+  panel: ChangePanel;
+}
 /**
- * One line of code in a before or after block. n is the line number in that version of the file.
+ * The status word of a developer's change. It is the change's, never a test result.
  */
-export interface DiffLine {
-  n: number;
-  mark: " " | "-" | "+";
-  text: string;
+export interface ChangeStatus {
+  key:
+    | "not_run"
+    | "running"
+    | "no_difference"
+    | "passed_before_fails_now"
+    | "failed_before_passes_now"
+    | "nothing_to_run"
+    | "cant_run"
+    | "couldnt_trust";
+  /**
+   * "Not run yet", "Running", "No difference found", "Passed before, fails now (1 test)", ...
+   */
+  word: string;
+  tone: "pass" | "fail" | "neutral" | "warn";
+  /**
+   * its picked tests are running: ask again in a second
+   */
+  busy: boolean;
+  /**
+   * one sentence under the word that says why
+   */
+  reason: string | null;
 }
 export interface ChangeSectionLine {
   place: string;
@@ -996,7 +1776,7 @@ export interface MeasurementResult {
    */
   advisories: Advisories | null;
   /**
-   * Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result.
+   * Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result.
    */
   otto?: OttoResultBlock | null;
 }
@@ -1120,10 +1900,6 @@ export interface OttoResultBlock {
   ledger: AdvisoryLedger;
   note: string;
 }
-export interface LabeledLink {
-  label: string;
-  link: ItemLink;
-}
 export interface OttoResultDecisions {
   title: string;
   count: number;
@@ -1131,21 +1907,67 @@ export interface OttoResultDecisions {
   footnote: string;
   empty: string | null;
 }
-export interface CheckDetail {
-  check: CheckRow;
+export interface ChangeWatchCode {
+  state: "no_code" | "not_connected" | "unreadable" | "connected";
   /**
-   * The newest run, worded as its page words it (null for a claim).
+   * what to do first, or why nothing can come in here; null once connected
    */
-  result: LabResult | null;
+  line: string | null;
+  link: ItemLink | null;
+  connected_line: string | null;
+}
+export interface ChangeWatchMenu {
   /**
-   * For a claim: its newest Verify result.
+   * "Bring in a demo change"
    */
-  verify: Result | null;
+  button: string;
+  note: string;
+  items: DemoChangeItem[];
+}
+export interface DemoChangeItem {
+  key: string;
+  title: string;
+  what_it_does: string;
+  can: boolean;
+  blocked_reason: string | null;
+}
+export interface ChangeWatchView {
+  plan_id: number;
   /**
-   * Newest first.
+   * "Change watch"
    */
-  runs: CheckRun[];
-  related: RelatedLine[];
+  title: string;
+  subline: string;
+  code: ChangeWatchCode;
+  menu: ChangeWatchMenu;
+  /**
+   * newest first; read from the connected repository on every ask
+   */
+  changes: ChangeRow[];
+  empty: string | null;
+  /**
+   * a change's picked tests are running: ask again in a second
+   */
+  busy: boolean;
+}
+/**
+ * The 5c fixes: one version a retest ran on, or one proof of a change, with the rows of its own runs.
+ */
+export interface CheckBlock {
+  /**
+   * "on-3" (the block retest 3 opened) or "proof-2".
+   */
+  key: string;
+  /**
+   * "acme-sign 1.4.3", or "acme-sign 1.4.3-otto (the changed code)".
+   */
+  title: string;
+  line: string;
+  /**
+   * The newest block is open; older ones are folded.
+   */
+  newest: boolean;
+  rows: CheckRow[];
 }
 export interface CheckRow {
   /**
@@ -1179,6 +2001,14 @@ export interface CheckRow {
    * Phase 5c: "From Otto" on an advisory check, with the way to its advisory.
    */
   from_otto?: CheckFromOtto | null;
+  /**
+   * The 5c fixes, in a retest's block: "tested again as it is" for a server, or a program the retest did not move.
+   */
+  mark?: string | null;
+  /**
+   * The 5c fixes: the older id of this row ("retest-12"), which still opens it while this is the newest block of its test.
+   */
+  alias?: string | null;
 }
 /**
  * Open where it started.
@@ -1242,6 +2072,22 @@ export interface CheckFromOtto {
   advisory: string;
   link: ItemLink;
 }
+export interface CheckDetail {
+  check: CheckRow;
+  /**
+   * The newest run, worded as its page words it (null for a claim).
+   */
+  result: LabResult | null;
+  /**
+   * For a claim: its newest Verify result.
+   */
+  verify: Result | null;
+  /**
+   * Newest first.
+   */
+  runs: CheckRun[];
+  related: RelatedLine[];
+}
 export interface LabResult {
   code:
     | "passed"
@@ -1295,7 +2141,7 @@ export interface LabResult {
    */
   advisories: Advisories | null;
   /**
-   * Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result.
+   * Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result.
    */
   otto?: OttoResultBlock | null;
 }
@@ -1367,10 +2213,80 @@ export interface CheckGroup {
    * Checks of another group linked from this group's foot ("Also relates to this group").
    */
   also?: SameMeasurement[];
+  /**
+   * The 5c fixes: set on the Encryption tests group only.
+   */
+  parts?: EncryptionParts | null;
 }
 export interface StartedOn {
   label: string;
   page: string;
+}
+/**
+ * The 5c fixes: Checks shows the Encryption tests group in four parts. A run shows in one part only.
+ */
+export interface EncryptionParts {
+  plan: CheckPart;
+  retests: CheckPart1;
+  proofs: CheckPart1;
+  /**
+   * Only when a server change was tried on a test copy.
+   */
+  tries: CheckPart1 | null;
+  /**
+   * Phase 6d: only when the tests picked for a developer's change were run.
+   */
+  changes?: CheckPart1 | null;
+}
+/**
+ * The test plan itself (drawn from the plan view); its heading names the version the file names.
+ */
+export interface CheckPart {
+  key: "plan" | "retests" | "proofs" | "tries" | "changes";
+  label: string;
+  count: number;
+  /**
+   * "8 tests", "1 version", "2 proofs", "1 try".
+   */
+  count_label: string;
+  note: string | null;
+  /**
+   * Set when the part has nothing yet: "No retest yet. ..."
+   */
+  empty_text: string | null;
+  /**
+   * Retests by version and Fix proofs: one block for each version, or each proof.
+   */
+  blocks: CheckBlock[];
+  /**
+   * Tries on a test copy: a plain list.
+   */
+  rows: CheckRow[];
+}
+/**
+ * The 5c fixes: one labelled, foldable part of the Encryption tests group on Checks, with its count.
+ */
+export interface CheckPart1 {
+  key: "plan" | "retests" | "proofs" | "tries" | "changes";
+  label: string;
+  count: number;
+  /**
+   * "8 tests", "1 version", "2 proofs", "1 try".
+   */
+  count_label: string;
+  note: string | null;
+  /**
+   * Set when the part has nothing yet: "No retest yet. ..."
+   */
+  empty_text: string | null;
+  /**
+   * Retests by version and Fix proofs: one block for each version, or each proof.
+   */
+  blocks: CheckBlock[];
+  /**
+   * Tries on a test copy: a plain list.
+   */
+  rows: CheckRow[];
 }
 export interface ChecksView {
   plan_id: number;
@@ -1654,7 +2570,7 @@ export interface DependencyRow {
    */
   advisories?: DependencyAdvisory[];
   /**
-   * Phase 5c: Otto's proposals to change this library's status.
+   * Phase 5c: the proposals to change this library's status.
    */
   otto_proposals?: OttoProposal[];
   /**
@@ -1855,6 +2771,10 @@ export interface FixDetail {
    */
   came_from_links?: FixCameFrom[];
   fix_state?: "open" | "in_progress" | "done";
+  /**
+   * Phase 6d: listed under its group's own heading for a developer's change and never counted with the findings.
+   */
+  apart?: boolean;
 }
 export interface FixStatus {
   key: "not_connected" | "proving" | "ready" | "failed" | "waiting" | "ready_to_merge" | "merged" | "text_only";
@@ -2126,13 +3046,33 @@ export interface FixGroup {
   key: "verification" | "encryption" | "migration" | "dependencies";
   label: string;
   question: string;
-  counts: StateCounts;
+  counts: StateCounts1;
   fix_ids: string[];
   empty_text: string | null;
+  /**
+   * Phase 6d: the group's entries for a developer's change, under their own heading; None when there are none.
+   */
+  apart?: FixGroupApart | null;
   /**
    * "Also relates to this group": fixes listed in another group.
    */
   also: FixGroupAlso[];
+}
+/**
+ * of fix_ids only: an entry listed apart is never counted
+ */
+export interface StateCounts1 {
+  open: number;
+  in_progress: number;
+  done: number;
+}
+export interface FixGroupApart {
+  /**
+   * "From a developer's change"
+   */
+  label: string;
+  note: string;
+  fix_ids: string[];
 }
 export interface FixGroupAlso {
   fix_id: string;
@@ -2149,7 +3089,7 @@ export interface FixesView {
   subline: string;
   disclaimer: string;
   /**
-   * "Open findings with a fix (2)"
+   * "Open findings with a fix (2)": the entries that are not listed apart
    */
   list_title: string;
   /**
@@ -2585,9 +3525,6 @@ export interface MigrationView {
   systems: MigrationSystem[];
   roadmap: MigrationRoadmap;
 }
-export interface NameBody {
-  name: string;
-}
 /**
  * Phase 5b: the New assessment box (and Rerun as new assessment). Every field may be left out.
  */
@@ -2652,6 +3589,39 @@ export interface OttoLiveSwitch {
    */
   can_turn_on: boolean;
   blocked_reason: string | null;
+}
+/**
+ * Phase 6a: who a decision on a proposal is recorded as. A name typed once, or "You".
+ */
+export interface OttoName1 {
+  /**
+   * "Who decides"
+   */
+  title: string;
+  /**
+   * "Your name"
+   */
+  label: string;
+  /**
+   * The name a person typed; empty until then.
+   */
+  value: string;
+  /**
+   * The typed name, or "You".
+   */
+  recorded_as: string;
+  typed: boolean;
+  /**
+   * "Recorded as You, with the time."
+   */
+  line: string;
+  save: string;
+  note: string;
+  max: number;
+  /**
+   * The label of the field in the Otto panel's first Confirm step.
+   */
+  ask_label: string;
 }
 export interface OttoPackCard {
   version: string;
@@ -2744,6 +3714,10 @@ export interface OttoSettingsView {
   harness: OttoHarnessLine;
   answers: OttoAnswersLine;
   live: OttoLiveSection;
+  /**
+   * Phase 6a: always sent by the current backend.
+   */
+  name?: OttoName1 | null;
 }
 export interface PackInstallBody {
   version: string;
@@ -2919,6 +3893,11 @@ export interface RetestBody {
   version: string;
   component?: string | null;
 }
+export interface SayBody {
+  text: string;
+  page: string;
+  item?: string | null;
+}
 export interface Session {
   setup_required: boolean;
   logged_in: boolean;
@@ -2936,9 +3915,27 @@ export interface VerifyRun {
   finished_at: string;
   results: Result[];
   /**
-   * Phase 5c: one sentence. Verify is unchanged and Otto proposes nothing on it yet.
+   * Phase 5c: one sentence. Verify is unchanged and nothing is proposed on it yet.
    */
   otto_note?: string;
+}
+export interface WhatIfTry1 {
+  title: string;
+  /**
+   * "Retest new version": the button of Evidence it stands for.
+   */
+  button: string;
+  offered: boolean;
+  /**
+   * Why it is not offered, in the page's own words where the page has them.
+   */
+  reason: string | null;
+  component: string | null;
+  version: string;
+  /**
+   * What a retest changes in this assessment, said before anything is pressed.
+   */
+  changes: string[];
 }
 export interface Workspace {
   organization: string;
@@ -2986,4 +3983,10 @@ export interface WorkspaceProject {
    */
   latest: AssessmentBrief | null;
   counts: AssessmentCounts;
+}
+export interface App_Web_Otto__NameBody {
+  name: string;
+}
+export interface App_Web_Projects__NameBody {
+  name: string;
 }

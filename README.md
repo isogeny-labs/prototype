@@ -24,8 +24,8 @@ Passing these tests doesn't prove a system secure. It shows these specific check
 | Connecting real code hosts (GitHub and others) | Not in this version: only the small demo repository that comes with the app |
 | Server setting change with proof (SPEC section 7c) | Built (phase 4b), on the Acme Pay demo server only |
 | Changing a server that isn't ours (connectors) | Not built (a later phase); Download change still works |
-| Change watch | Not built (phase 3c) |
-| Assistant panel | Empty panel only; the assistant is phase 3b. No AI model is connected to it (Otto, above, uses Claude for other jobs) |
+| Change watch (the plan's phase 3c, built as phase 6d) | First half built: the Changes view (a developer's change, the tests picked for it, a run on a click, flags, the entry in Fixes, the evidence part). The Watch list is not built |
+| The Otto panel (the assistant, phase 6) | First halves built: suggestions that fit the page and three thread tabs (6a), typed commands read by fixed rules (6b), six fixed questions answered from the assessment's records (6c), and a what-if about one library and one version (6e). Every decision and every start waits for Confirm. The panel asks no AI model in this version: free wording, an answer in free words and a test made from a hypothesis are not built |
 | Accuracy panel in the app | Not built (phase 3b); the accuracy check is a command for now |
 
 This table and the walk below were last brought up to date for phase 4c. Phases 4d, 5a and 5b (dependency
@@ -42,6 +42,7 @@ Screenshots are in [docs/screenshots/](docs/screenshots/).
 
 You need Python 3.12 and Node.js 20 or newer installed. Docker is optional. No internet is needed after the first run.
 Otto (phase 5c, below) is optional too: the first run fetches its harness if this computer may read its repository.
+In a GitHub Codespace all of this is already there: see "In a Codespace" below.
 
 ```
 ./run-demo.sh
@@ -97,6 +98,63 @@ open **http://127.0.0.1:8000** in your browser.
    It prints `Evidence verified`. Change any one character in a copy of the file and it fails.
 
 To stop the app, press Ctrl+C in the window where it is running.
+
+### In a Codespace
+
+A Codespace is a ready-made computer on GitHub that you use in your browser. This repository says what a new one
+is built from (`.devcontainer/devcontainer.json`): Microsoft's official Python 3.12 image, and three official
+add-ons that install Node.js 22, Docker and Git LFS. The image and the three add-ons are each pinned by their
+fingerprint, so every new Codespace starts from exactly the same four. (What an add-on installs is the current
+release of that program, so Node.js 22, Docker and Git LFS can be a little newer in a later Codespace.) In a new
+Codespace, `./run-demo.sh` is the only command you need.
+
+1. On the repository's page on GitHub, click **Code**, then the **Codespaces** tab, then create a codespace on
+   the branch you want.
+2. GitHub shows a page, "This codespace is requesting additional permissions". Click **Authorize and continue**.
+   That is what lets the Codespace read the private Otto repository.
+3. Wait until the editor has opened and the terminal at the bottom is ready for typing. This can take several
+   minutes: GitHub downloads the image and adds Node.js, Docker and Git LFS.
+4. In the terminal, type `./run-demo.sh` and press Enter.
+5. When it says "Isogeny Evidence Lab is starting", a box appears at the bottom right: "Your application running
+   on port 8000 is available". Click **Open in Browser**. If the box is gone, open the **Ports** tab next to the
+   terminal and click the globe icon in the row of port 8000.
+6. The app opens in a new browser tab and asks you to create a password. From here everything is as above.
+
+Things to know in a Codespace:
+
+- **Use the box or the Ports tab, not the address the script prints.** `http://127.0.0.1:8000` is an address
+  inside the Codespace; typed into the browser on your own computer it finds nothing. The address GitHub opens
+  for you is private: only you, signed in to GitHub, can open it. Leave it private.
+- **The first run takes the longest.** It installs the Python packages, builds the screens, fetches the Otto
+  harness and, because Docker is running, downloads and builds the test images for isolated mode (about 3 GB, see
+  "Real libraries" below). That can take several minutes; the script says what it is doing at each step. Later
+  starts take a few seconds.
+- **If Otto is missing**, the script says "could not fetch it" and "Otto harness: missing", and the app says
+  "Otto is not installed on this computer" with the reason. Everything else works; advisory checks can't be added
+  or run. The usual cause is that step 2 was skipped: make a new Codespace and click **Authorize and continue**.
+- **If Docker is missing or not running**, the script says so and the app starts in demo mode, and says that too.
+  Real libraries then say they need isolated mode.
+- **A Codespace made before this change** (19 November 2026), or from a branch that does not have it yet, still
+  has the old setup, in which `./run-demo.sh` stops at the Python step and says so. The simplest is to make a new
+  Codespace. (An old one also works once it has this change and is rebuilt: press F1, type `Rebuild` and choose
+  **Codespaces: Rebuild Container**.)
+- **Other ports.** GitHub may show the same box for port 8443, the app's own demo test server. You only need
+  port 8000.
+- **Live Otto is optional.** Its key is a Codespaces secret named `ANTHROPIC_API_KEY` (on GitHub: your
+  **Settings**, **Codespaces**, **Secrets**, with access to this repository). Never type the key into the app, a
+  file or the terminal.
+
+### Finding your way on a page (19 November 2026)
+
+- **Checks** lists every check of the assessment in four groups. The Encryption tests group is in four labelled
+  parts, each with a count: **Test plan** (the first runs, as two lists: Standard tests and Advisory checks),
+  **Retests by version** (one block for each version a retest ran on, the newest open; **Retest new version** is
+  here as well as on Evidence), **Fix proofs** (one block for each proof) and **Tries on a test copy** (only when a
+  server change was tried). Each run shows in one place only.
+- **Open in new tab.** Every side panel has **Open in new tab ↗** in its header. It opens that one item on a page of
+  its own, with an address you can bookmark and open again; **← Back** returns to the list with the panel open.
+- **Times** on screen are in your own time zone, like "18 November 2026, 7:46 pm EST". The evidence file, the
+  report and every download keep UTC, so a file reads the same wherever it is opened.
 
 ### A file with several servers and programs
 
@@ -202,16 +260,17 @@ come next. The rules are in [docs/SPEC.md](docs/SPEC.md), section 7f.
   adds it) and then **Advisories** in the sidebar. Each row is a real published advisory: its plain name, when it
   was published, which signing programs here it fits, and whether it has a test (**Test ready**, **No test yet** or
   **Not offered**, each with its reason). Open a row to read the publisher's own line, the test, and how the test
-  did when it was tried on public copies before the pack shipped. Where a test fits a signing program of your file,
-  Otto proposes its check, marked "From Otto": **Accept** adds that one check to the test plan and runs nothing;
+  did when it was tried on public copies before the pack shipped. An advisory that arrived with the newest pack
+  you installed has the tag "New" beside its name. Where a test fits a signing program of your file, its check is
+  proposed, marked "From Otto": **Accept** adds that one check to the test plan and runs nothing;
   **Reject** asks for an optional short reason and keeps the proposal on the record as "Not added (reason)". An
   accept can be undone until the check has run, and a rejection can be reconsidered. Every decision is recorded with
   who and when.
-- **Run them** on **Checks**, like any other test. Expected on the Acme Pay demo with both packs installed: three
-  advisory checks. The check for CVE-2022-21449 is **Failed** on `acme-sign` 1.4.2 (3 of 77 published cases wrong);
+- **Run them** on **Checks**, like any other test (the test plan lists them under "Advisory checks", apart from
+  the "Standard tests"). Expected on the Acme Pay demo with both packs installed: three advisory checks. The check for CVE-2022-21449 is **Failed** on `acme-sign` 1.4.2 (3 of 77 published cases wrong);
   the other two are **Passed**. Three of the six advisories read **No test yet**, each with its reason. A result says which cases got the wrong answer. It says nothing about how serious
   an advisory is.
-- **The fix.** In **Fixes**, Otto proposes its own change for `acme-sign`, labelled "Written by Otto". Accept the
+- **The fix.** In **Fixes**, a change for `acme-sign` is proposed, labelled "Written by Otto". Accept the
   proposal first (accepting runs nothing); then **Connect demo code** proves the change on a test copy, rerunning
   every locked test, the advisory checks among them. Open the pull request, approve, merge, and **Retest now**: the
   same locked check reads **Passed**. (The program Otto's recorded change gives is one line different from our own
@@ -220,8 +279,8 @@ come next. The rules are in [docs/SPEC.md](docs/SPEC.md), section 7f.
   version with the quoted source, and two rows, "Proven on public copies" (the trial before the pack shipped) and
   "Proven on your system" ("Not yet" until a retest on the updated version has run here).
 - **Everywhere else.** The Overview counts what is "Waiting for you"; Import says how many checks may apply;
-  Migration and Dependencies show Otto's proposals for the plan and for libraries that an advisory names. Otto
-  proposes; a person decides; nothing runs without a click.
+  Migration and Dependencies show the proposals (each marked "From Otto") for the plan and for libraries that an
+  advisory names. Each proposal is decided by a person; nothing runs without a click.
 - **Otto and Claude.** Otto uses Claude to read each advisory, design its test and propose its fix, and to write a
   change for your own program when an advisory check has failed on it. Nothing Claude writes is trusted by itself,
   and Claude never sets a result. What comes with the app are answers **recorded during the build**; tests,
@@ -282,7 +341,7 @@ Things to know:
 Stop the app first (the end-to-end test needs port 8443 for its own demo server).
 
 ```
-# Backend tests (the fast set, a few minutes) and the accuracy check
+# Backend tests (the fast set, under 5 minutes) and the accuracy check
 cd backend
 .venv/bin/python -m pytest -q tests
 .venv/bin/python -m app.accuracy
@@ -324,6 +383,176 @@ are skipped, with a message, when Docker is not running or the images are not pr
 (`cd backend && .venv/bin/python -m app.prepare`). Tests that need the Otto harness (phase 5c) are skipped where it
 is not installed, and the run says how many. No test reaches Claude's API or needs an API key. Lint, type check and
 the GitHub checks are described in [docs/LAYOUT.md](docs/LAYOUT.md).
+
+### The Otto panel (phase 6a, 19 November 2026)
+
+The panel on the right of every page of an assessment is titled **Otto**. It suggests what fits the page you are on:
+
+- **Suggestions** are Otto's proposals, marked "From Otto", with **Accept** and **Reject** (and **Undo** or
+  **Reconsider** where the page offers them). They are the same proposals the pages show.
+- **Next steps** are buttons of the page that are worth pressing now, under the button's own name (Run all, Verify
+  claims, Retest new version, Measure status and so on).
+- **What this means** repeats a result's own plain sentence, with a link to its evidence.
+
+Every button in the panel first shows what it will do and waits for **Confirm**. Confirm sends exactly what the
+page's own button sends, so a decision made in the panel is recorded like one made on the page, and the page shows it
+at once. Looking at the panel runs nothing. Approve, Merge pull request, Apply, Roll back and Close and sign off are
+never pressed from the panel: they stay on their pages.
+
+Up to three tabs collect what has happened: **Testing**, **Fixing** and **Planning**. A tab appears when its thread
+has something, shows how many suggestions wait, and can be closed with **×** (it comes back, with a dot, when there
+is something new). **Elsewhere: N more** lists what waits on other pages. The button in the top bar hides and shows
+the panel.
+
+The first time you confirm a decision, the panel asks for **your name**, once. Decisions are then recorded under it
+(leave it empty and they are recorded as "You", as before). You can change it in **Settings**, under **Who decides**.
+The app has one login and does not check who is at the keyboard.
+
+There is no AI model in the panel in this phase: with no API key, everything in it works. The status line under the
+title says whether Live Otto is on.
+
+### Telling Otto what to do (phase 6b, first half, 19 November 2026)
+
+At the foot of the Otto panel there is a text box: **Ask Otto, or tell it what to do**. Type a sentence and
+press Enter (or Send), or press one of the example chips above it.
+
+- **Moving around happens at once.** "show me failed checks" opens Checks with only the failed checks listed.
+  "open evidence", "open the Java fix" and "close the Fixing tab" work the same way. The answer says where it went.
+- **Anything that decides or starts something waits for Confirm.** "accept the Java fix" or "run all" shows that
+  suggestion's or that button's own card, with what will happen. Nothing is sent until you press **Confirm**.
+  "reject the Java fix: we stay on 17.0.2 until January" fills in your reason, in your own words.
+- **Otto never guesses.** If several things fit it asks "Which one?". If nothing fits it says "I can't do that."
+  and lists what you can say on this page. "What can you do?" shows the same list.
+- **Some things are only done on their page**: Approve, Merge pull request, Apply, Roll back, Close and sign off,
+  downloads and Settings. Otto opens the page and says so.
+
+In this version a sentence is read by fixed rules only, so it works the same with no API key. What you type in an
+open assessment is kept with it and shown in the panel's thread. A closed assessment keeps nothing.
+
+### Asking Otto a question (phase 6c, first half, 19 November 2026)
+
+The same text box takes six fixed questions. The ones that fit the page show as chips above the examples:
+
+- **Why did this check fail?**
+- **What does this result show, and what doesn't it?**
+- **Where did this suggestion come from?**
+- **What happens if I accept this?**
+- **What is this page for?**
+- **What should I do next?**
+
+You can also type one in your own words and name the item: "why did the range check fail?".
+
+The answer is a short list of facts, headed **From this assessment's records**. Each fact is a sentence the app
+already shows for that item (the result, what happened, the control, the advisory, the fix), with a link that opens
+the place where it is shown. Nothing in an answer can be pressed except the links. If several items fit, Otto asks
+"Which one?". If the records have nothing to answer from, it says so.
+
+These answers come from fixed rules, so they work the same with no API key, and in a closed assessment too. An
+answer written in free words by Claude is the second half of this phase and is not built yet.
+
+### Change watch (phase 6d, first half, 19 November 2026)
+
+**Change watch** is a page of every assessment, after Fixes. It shows what a developer's change to the connected
+demo code would do to the tests, before anyone merges it. Only its first view, **Changes**, is built.
+
+To try it on the Acme Pay demo:
+
+1. Run all tests, then on **Fixes** press **Connect demo code**, open the pull request, approve and merge it.
+2. Open **Change watch** and press **Bring in a demo change**. Pick "Revert the range check". It adds one branch
+   with one commit to the demo repository, as a push would. It runs nothing.
+3. Open the change. The panel shows the lines before and after, the tests picked for it and why, and the tests
+   left out and why.
+4. Press **Run the picked tests** (on the page, or on the card the Otto panel shows beside it, which waits for
+   Confirm). They run on the program the change gives, and each is compared with its result on the code before.
+   The change then reads "Passed before, fails now": the fix is gone again.
+5. Press **View in Fixes** in the change's panel. Fixes has one entry for the change, **Text only**: it names the
+   tests that fail on the change and shows the lines the change takes out. The app writes no change for a
+   developer's branch and never merges one.
+6. **Checks** and **Evidence** list the runs under Encryption tests, each saying "Came from: Change watch".
+7. Bring in the other demo change, "Allow TLS 1.0 for an old partner". It touches no program, so nothing is picked
+   and nothing can run. It carries one flag: the line that names TLS 1.0. A flag is something to look at, never a
+   result.
+8. **Download evidence**. The file has a part "Change watch" with both changes and the run, and the report has
+   part 9. The verify command checks that part against the runs in the file:
+
+```bash
+cd backend && .venv/bin/python -m evidence verify <the downloaded .json file>
+```
+
+These runs are kept apart. They never replace a result of the assessment's own tests. What is not built yet (the
+Watch list) and what the built part does not cover is listed in `docs/LIMITS.md`.
+
+### Asking "what if I update this library?" (phase 6e, first half, 19 November 2026)
+
+Type a what-if into the Otto panel's text box, on any page of an assessment:
+
+> What if I update elliptic to 6.5.7?
+
+The answer is one card in the **Fixing** tab, with four parts. No AI model is asked.
+
+1. **What the app knows.** Seven kinds of fact, each line with its label and a link to where it is shown: where
+   the library is used (your dependency list), what the new version declares it needs compared with the version
+   you have (the publisher's own package file, quoted), which published advisories the update answers and which
+   still name it (the installed test packs), what the pack's own trial showed on public copies, post-quantum
+   support of both versions, the migration track it blocks today, and this assessment's own results on it. Where
+   the app knows nothing on a point the line says so ("Not in our knowledge base yet", "Couldn't tell the
+   version", "Doesn't apply"). Nothing is guessed.
+2. **A try on a test copy.** Where Evidence could run **Retest new version** for that library and version, the card
+   offers that same button behind Confirm, and says first what a retest changes in the assessment. Where it could
+   not (the scanner file does not name the library, the app holds no public copy of that version, a real library
+   in demo mode), the part says why and has no button.
+3. **One sentence** in place of an explanation: "Live Otto is off. This is what the app knows."
+4. **Hypothesis.** What the facts do not show, in the app's own sentences. A hypothesis is no result.
+
+To see it on the Acme Pay demo: install both test packs in Settings, add the demo dependency list on Dependencies
+(`demo/dependencies-demo.cdx.json`), then ask the question above. For the try, ask "What if we upgrade acme-sign to
+1.4.3?" once the tests have run. What the card does not cover is in `docs/LIMITS.md` ("Limits of phase 6e, first
+half").
+
+### Looking for new advisories (Otto's research loop, 19 November 2026)
+
+On the **Advisories** page of an assessment there is a block called **New advisories**, with two buttons. Each one
+first opens a box that says what it will do. Nothing is sent or started until you press the button in that box.
+
+1. **Look for new advisories** asks OSV (osv.dev), a public database of published advisories, about the libraries
+   your assessment names. Only the package names are sent (for example `elliptic` and `ecdsa`): no version, no
+   address and no file. Which advisories name a version you have is worked out on your computer. Looking is free
+   and proposes nothing.
+2. **Design and prove tests** then takes the new advisories that can be tried here. For each one a test is
+   designed from published test cases and tried on public copies of the library, in isolated mode (Docker). A test
+   counts as proven only when it fails on the affected version, passes on the fixed version, and the control that
+   must fail does. What was found is signed into a test pack made on your computer, which the same click installs.
+   Each proven check then shows on the page as a proposal marked **From Otto**, with **Accept** and **Reject**.
+   An advisory with no proven test says why ("No test yet: ...").
+
+Nobody has to install a test pack to get new checks. The two shipped packs stay as the starting set.
+
+What it covers today, plainly: libraries the app knows that are published on npm, PyPI, Go, Maven, crates.io,
+NuGet or RubyGems, and a test only where the app has public copies of an affected and a fixed version (of those
+libraries, today python-ecdsa and elliptic, in the versions pinned in the app). So most newly published advisories will read
+"No test yet". `docs/LIMITS.md` has the full list.
+
+**To see the whole loop with no internet and no API key** (Docker must be running, for isolated mode):
+
+```bash
+cd backend && .venv/bin/python tools/research_demo.py /tmp/research-demo
+```
+
+It prepares a folder and prints one command. Run that command from the repository's top folder to start the app
+on it. Then: **New assessment**, bring in `demo/real-libraries.csv`, open **Advisories**, press **Look for new
+advisories** (three elliptic advisories are found, read from a recorded copy), then **Design and prove tests**.
+After a few minutes one check is proposed (proven on elliptic 6.5.6 and 6.5.7) and two advisories read "No test
+yet", each with its reason.
+
+With **Live Otto** on (Settings; it needs `ANTHROPIC_API_KEY`), a research run asks Claude to read each advisory
+and design its test, within the spending limit per run. With it off, only the answers recorded during the build
+are used. An advisory with none stays open and reads "No recorded answer: this needs Live Otto."; nothing is
+signed about it, and it can be tried again.
+
+Two things to know before you press **Design and prove tests**. Test packs install in one order, and the pack a
+run makes becomes the newest one, so a built-in pack that is published later can then not be installed in that
+data folder (the box says this too). And a run that could not settle an advisory (no answer, or a trial that did
+not finish) leaves it out of the pack, so you can try it again.
 
 ## Where things are
 

@@ -401,3 +401,49 @@ def test_a_plan_from_before_every_target_was_tested_says_what_it_lacks(tmp_path)
                 "tested only the first server and program. Import the file again to test it.") in items
     finally:
         lab.stop()
+
+
+# ------------------------------------------------------------------ phase 6c: the Otto panel, where tests share a title
+
+def test_the_panel_names_exactly_one_of_the_tests_that_share_a_title(flow):
+    """This file gives every server its own "Old TLS versions" and "Certificate strength". Where the panel must ask
+    "Which one?", every option says which server it means, no two options read the same, and choosing one settles it:
+    for a question, for Open and for Run. (Found by the separate review of phase 6c: before, the options were alike
+    and each asked "Which one?" again.)"""
+    lab = flow.lab
+    aid = lab.assessment_for(plan_id=flow.plan["id"]).id
+    rows = lab.lab_view(flow.plan["id"])["rows"]
+    tls = [r for r in rows if r["title"] == "Old TLS versions"]
+    assert len(tls) >= 2 and len({r["group"] for r in tls}) == len(tls)                      # one for each server that has it, under the same title
+
+    def settle(page: str, sentence: str, kinds: tuple[str, ...]) -> list[dict]:
+        which = lab.assistant_answer(aid, page, None, sentence)
+        assert which["kind"] == "which", (sentence, which["kind"], which["text"])
+        labels, says = [o["label"] for o in which["options"]], [o["say"] for o in which["options"]]
+        assert len(set(labels)) == len(labels) and len(set(says)) == len(says), labels          # no two options read the same
+        settled = []
+        for option in which["options"]:
+            again = lab.assistant_answer(aid, page, None, option["say"])
+            assert again["kind"] in kinds, (option["say"], again["kind"], again["text"])
+            settled.append(again)
+        return settled
+
+    # a question: each answer is about its own server's test
+    answers = settle("evidence", "what does the tls test show?", ("answer",))
+    firsts = [a["facts"][0]["text"] for a in answers]
+    assert len(set(firsts)) == len(firsts) == len(tls) and all("Old TLS versions on Server: localhost:" in text for text in firsts)
+    assert sorted(a["facts"][0]["link"]["item"] for a in answers) == sorted(f"test-{r['item_id']}" for r in tls)
+    # with nothing named and nothing open, every result is offered (eight at a time, and it says so), each under its own name
+    everything = lab.assistant_answer(aid, "evidence", None, "what does this result show, and what doesn't it?")
+    with_result = [r for r in rows if (r.get("after") or r.get("result")) is not None]
+    assert everything["kind"] == "which" and len(everything["options"]) == min(8, len(with_result))
+    assert len({o["say"] for o in everything["options"]}) == len(everything["options"])
+    if len(with_result) > 8:
+        assert everything["text"] == f"Which one? The first 8 of {len(with_result)} that fit are listed. Say more of its name to narrow it down."
+    for option in everything["options"]:
+        assert lab.assistant_answer(aid, "evidence", None, option["say"])["kind"] == "answer", option["say"]
+    # Open and Run: each option leads to its own test
+    opened = settle("checks", "open the tls test", ("went",))
+    assert sorted(o["go"]["item"] for o in opened) == sorted(f"test-{r['item_id']}" for r in tls)
+    ran = settle("checks", "run the tls test", ("card", "cannot"))
+    assert sorted(r["entry"]["step"]["action"]["item_id"] for r in ran) == sorted(r["item_id"] for r in tls)

@@ -52,8 +52,9 @@ export const publicNotProven = proofRow(
   TRIAL_LINK("CVE-2022-21449"),
   { ...researchLedger, entries: researchLedger.entries.slice(0, 1), count: 1 },
 );
-/** Where the retest is started: the row says "press Retest", and the button ("Retest new version") is on Evidence. */
-export const RETEST_LINK: FixProofRow["links"] = [{ label: "Retest new version is on Evidence", link: { page: "evidence", item: "test-7" } }];
+/** Where the retest is started: the row says "press Retest", and the button ("Retest new version") is on Checks, under
+ * Retests by version (the 5c fixes). */
+export const RETEST_LINK: FixProofRow["links"] = [{ label: "Retest new version is on Checks", link: { page: "checks", item: null, group: "encryption" } }];
 export const hereNotYet = proofRow("here", "Not yet", "neutral", "Update the library, then press Retest.", RETEST_LINK);
 export const herePassed = proofRow(
   "here",
@@ -66,7 +67,7 @@ export const herePassed = proofRow(
 export const UPDATE_FIX = "fix-advisory-cases-23";
 export const UPDATE_PROPOSAL = "fix-update-23";
 export const CODE_PROPOSAL = "fix-code-otto-cve-2022-21449";
-export const NOT_ACCEPTED = "Otto proposes this change. Accept the proposal first; accepting runs nothing.";
+export const NOT_ACCEPTED = "This change is a proposal. Accept it first; accepting runs nothing.";
 export const CONNECT_NOTE =
   "Connects a fresh copy of the small demo repository of acme-sign 1.4.2 that comes with the app (the source code and its history of changes, in git's format), for this imported file and every fix in it. The proof then starts by itself.";
 
@@ -78,7 +79,7 @@ export const updateProposal = (over: Partial<OttoProposal> = {}): OttoProposal =
     kind_label: "fix",
     title: "Update elliptic to 6.5.7",
     why: "The advisory check for CVE-2024-42460 (Wrongly encoded signature accepted) failed on elliptic 6.5.6, and its publisher names 6.5.7 as the fixed version.",
-    why_label: "Why Otto proposes it",
+    why_label: "Why it is proposed",
     lines: [
       "Update the elliptic npm package to version 6.5.7, which the advisory record gives as the fixed version.",
       "Proven on public copies: Passed. 6.5.6 fails the advisory check; 6.5.7 passes.",
@@ -152,9 +153,9 @@ export function codeProposal(over: Partial<OttoProposal> = {}): OttoProposal {
     kind_label: "fix",
     title: "Reject signatures with r or s out of range (CVE-2022-21449) (acme-sign)",
     why: "The advisory check for CVE-2022-21449 (Missing ECDSA signature range check) failed on acme-sign 1.4.2, which is your own code.",
-    why_label: "Why Otto proposes it",
+    why_label: "Why it is proposed",
     lines: [
-      "What the change does, in Otto's words: The verify command now rejects a signature unless both of its numbers, r and s, are from 1 to n - 1, where n is the curve order.",
+      "What it changes: The verify command now rejects a signature unless both of its numbers, r and s, are from 1 to n - 1, where n is the curve order.",
       "Written by Otto. Accepting it runs nothing and changes nothing: you then connect the code, and the proof reruns every locked test on the changed code before anything is offered for review.",
     ],
     note: "Accept records your decision. It runs nothing and changes nothing on any system.",

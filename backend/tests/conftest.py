@@ -40,7 +40,41 @@ SLOW_SHARED_WALKS = {
     # once for that file. The walk is short, but some thirty tests read it (the tamper cases of the verify command), and
     # with them the fast set had reached five minutes on a slow day.
     "test_otto_evidence.py": "ran",
+    # 19 November 2026 (Kevin's answer to the phase 6 plan's first open question: move the three oldest shared walks to
+    # the slow set, no new package). The fast set had reached five minutes. These three are the `flow` walks of phase
+    # 3a (the fix with its two proofs, pull request, merge and retest), phase 4a (the migration demo measured once) and
+    # phase 4b (a change tried, approved, applied and rolled back). Their tests still run with --full and in the nightly
+    # checks; the answers they stand on are also graded on every push by the accuracy check.
+    "test_fixes_evidence.py": "flow",
+    "test_migration.py": "flow",
+    "test_phase4b.py": "flow",
+    # 19 November 2026, phase 6: the Otto panel's shared walk (tests/assistant/assistant_walk.py). It takes about 40
+    # seconds to make (the Acme Pay demo verified, run, measured, with decisions and every typed sentence asked at
+    # each stage), and with it the fast set took 6 min 49 s on the build machine. By the rule above its readers are
+    # slow. What stays in the everyday run for the panel: the rules that read a sentence, the lists and the unit
+    # tests (about 120 tests that need no walk). Run the rest with: pytest -q tests/assistant --full (about 80 seconds).
+    "test_read.py": "assistant_walk",
+    "test_name.py": "assistant_walk",
+    "test_panel_decision.py": "assistant_walk",
+    "test_reads_only.py": "assistant_walk",
+    "test_commands.py": "assistant_walk",
+    "test_questions.py": "assistant_walk",
+    # 19 November 2026, phase 6d: three Change watch walks. The evidence file's walk is short, but some fifty tests read
+    # it (the tamper cases of the verify command and 400 damaged copies), as with test_otto_evidence.py above; the
+    # panel's and the page's walk each take three to four seconds to make. The rules of a watch run itself
+    # (test_watch_run.py, test_changes_read.py) stay in the everyday run. Run all of it with:
+    # pytest -q tests/changewatch --full (about a minute), whenever Change watch is touched.
+    "test_watch_evidence.py": "made",
+    "test_watch_panel.py": "beside",
+    "test_watch_view.py": "page",
 }
+# 19 November 2026: the whole demo, made once for the run (`demo_flow` below: Run all, then Retest on 1.4.3). It takes
+# about 49 seconds on the build machine (the published test cases twice and the speed test twice), and 41 tests in
+# eleven files read it. With the tests of phases 6a to 6e the fast set had reached seven minutes, so by the rule above
+# its readers are slow too, whatever file they are in. What they stand on is graded on every push all the same: the
+# accuracy check walks this same demo through the same path and compares its 18 answers with the answer key. The scan
+# for private keys has a short form of its own that stays in the everyday run (tests/test_secrets_scan.py).
+SLOW_SESSION_WALKS = {"demo_flow"}
 
 
 def pytest_collection_modifyitems(config, items):
@@ -50,7 +84,7 @@ def pytest_collection_modifyitems(config, items):
     checks can't fetch a private repository without a secret). Never a silent pass."""
     for item in items:
         fixtures = getattr(item, "fixturenames", ())
-        if "docker_ready" in fixtures or SLOW_SHARED_WALKS.get(item.path.name) in fixtures:
+        if "docker_ready" in fixtures or SLOW_SHARED_WALKS.get(item.path.name) in fixtures or SLOW_SESSION_WALKS.intersection(fixtures):
             item.add_marker(pytest.mark.slow)
     if not (config.getoption("--full") or config.getoption("markexpr")):
         slow = [item for item in items if item.get_closest_marker("slow")]
@@ -119,6 +153,21 @@ def no_call_to_claude(monkeypatch):
     def refuse(body, headers, timeout):
         raise ReachedClaude("a test tried to reach the Claude API; give the client a stand-in transport")
     monkeypatch.setattr(model, "_http_transport", refuse)
+
+
+class ReachedTheNetwork(BaseException):
+    """A test tried to read advisories from the public source. Not an ordinary error, for the same reason."""
+
+
+@pytest.fixture(autouse=True)
+def no_read_of_the_advisory_source(monkeypatch):
+    """Phase 6, the research loop: no test ever reaches osv.dev. The reader looks its transport up at the moment of a
+    request; here it is replaced by one that fails the test. Tests read recorded answers, or give a stand-in."""
+    from app.otto import lookup
+
+    def refuse(body, timeout):
+        raise ReachedTheNetwork("a test tried to read advisories from the network; use a recorded source or a stand-in transport")
+    monkeypatch.setattr(lookup, "_http_transport", refuse)
 
 
 @pytest.fixture
@@ -352,3 +401,34 @@ def demo_flow(tmp_path_factory):
         yield SimpleNamespace(lab=lab, plan=plan, verify=verify, first=first, after=after, most_at_once=most_at_once)
     finally:
         lab.stop()
+
+
+@pytest.fixture(scope="session")
+def _assistant_walk_made(tmp_path_factory):
+    """The walk itself, made once for the run. What it patched to be made (its own list of trusted pack keys, and the
+    wrapper that records Otto's prompts) is taken off again at once and handed on: for the rest of the run nothing of
+    it may stand between the tests of other files. (Left in place, every later test that needs the real shipped key
+    was refused its packs: found on 19 November 2026 by the first whole run of the fast set with Otto.)"""
+    from app.otto import model, packs
+    from tests.assistant import assistant_walk as made
+    walk, lab, patches = made.make_walk(tmp_path_factory)
+    held = {"keys": packs.TRUSTED_KEYS_FILE, "recorded": model.OttoModel.__dict__["recorded"]}
+    patches.undo()
+    try:
+        yield walk, held
+    finally:
+        lab.stop()
+
+
+@pytest.fixture
+def assistant_walk(_assistant_walk_made, monkeypatch):
+    """Phase 6a: one walk of a demo-mode Lab for the Otto panel's tests, with every page's read of the panel kept at
+    each stage (tests/assistant/assistant_walk.py). It needs Adam's Otto harness: decisions are recorded in its
+    ledger. A few seconds, once, for the tests that read it. The walk's own patches are put back for the one test
+    that reads it (its Lab is asked again by some), and taken off when that test ends."""
+    from app.otto import model, packs
+    walk, held = _assistant_walk_made
+    monkeypatch.delenv(model.KEY_ENV, raising=False)
+    monkeypatch.setattr(packs, "TRUSTED_KEYS_FILE", held["keys"])
+    monkeypatch.setattr(model.OttoModel, "recorded", held["recorded"])
+    return walk

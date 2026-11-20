@@ -35,13 +35,13 @@ import { acceptedProposal, proposal, rejectedProposal } from "./proposalFixtures
 
 // ---- Words and parts the answers share
 
-const SUBLINE: string = "Every published advisory in the installed test packs. Where one has a test that fits a signing program of this assessment, Otto proposes its check: you accept or reject it. A result shown here is the reviewer's, in its words.";
+const SUBLINE: string = "Every published advisory in the installed test packs. Where one has a test that fits a signing program of this assessment, its check is proposed: you accept or reject it. A result shown here is the reviewer's, in its words.";
 
 /** The standing line of the Advisories page: the only place the page says "secure". */
 export const STANDING_LINE: string = "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
 
 // "Waiting for you" on Advisories: Otto proposes, a person decides each one by itself. There is no button for several.
-const WAITING_NOTE: string = "Otto proposes; you decide each one by itself. Accepting adds a check to the test plan. It runs nothing.";
+const WAITING_NOTE: string = "You decide each one by itself. Accepting adds a check to the test plan. It runs nothing.";
 
 const ONE_WAITING: AdvisoriesView["waiting"] = {
   count: 1,
@@ -88,7 +88,7 @@ const FILTERS: AdvisoriesView["filters"] = {
   ],
 };
 
-const COLUMNS: string[] = ["Advisory", "Published", "Fits", "Test", "Otto's proposal", "Result here"];
+const COLUMNS: string[] = ["Advisory", "Published", "Fits", "Test", "Proposal", "Result here"];
 
 // The publisher's own line, as every advisory of the test packs quotes it.
 const QUOTE: AdvisoryQuote = {
@@ -161,15 +161,20 @@ const FIX_STEP: AdvisoryStep = {
 
 const CLAUDE_NOTE: string = "Every prompt and answer is in Otto's research ledger, with its SHA-256. What Claude writes is data: a quote must stand in the publisher's text, a design can only pick published cases, and a fix is offered only after its proof.";
 
-const CLAUDE_THREE_STEPS: AdvisoryClaude = { title: "What Otto asked Claude", steps: [READ_STEP, DESIGN_STEP, FIX_STEP], note: CLAUDE_NOTE };
+const CLAUDE_THREE_STEPS: AdvisoryClaude = { title: "What Claude was asked", steps: [READ_STEP, DESIGN_STEP, FIX_STEP], note: CLAUDE_NOTE };
 
-const CLAUDE_TWO_STEPS: AdvisoryClaude = { title: "What Otto asked Claude", steps: [READ_STEP, DESIGN_STEP], note: CLAUDE_NOTE };
+const CLAUDE_TWO_STEPS: AdvisoryClaude = { title: "What Claude was asked", steps: [READ_STEP, DESIGN_STEP], note: CLAUDE_NOTE };
 
 const NO_FIX_REASON: string = "No fix is offered: there is no test for this advisory to prove one with.";
 
 const HERE_TITLE: string = "Otto's proposed check, in this assessment";
 
-const HERE_NOTE: string = "Otto proposes; you decide for each program by itself. Accepting adds the check to the test plan and runs nothing.";
+const HERE_NOTE: string = "You decide for each program by itself. Accepting adds the check to the test plan and runs nothing.";
+
+// The 5c fixes: the tag "New" beside an advisory that first arrived with the newest installed pack. With one pack
+// installed every advisory is new; once a second pack is in, only the ones it brought are.
+export const NEW_WITH_FIRST_PACK: AdvisoryRow["new"] = { label: "New", title: "Arrived with test pack 2026.11.1" };
+export const NEW_WITH_SECOND_PACK: AdvisoryRow["new"] = { label: "New", title: "Arrived with test pack 2026.11.2" };
 
 const NO_TEST_HERE: AdvisoryRow["panel"]["here"] = { title: HERE_TITLE, rows: [], note: null, empty: "This advisory has no test, so there is nothing to run here." };
 
@@ -182,7 +187,7 @@ const NOT_IN_PLAN: AdvisoryRow["result"] = { key: "not_added", label: "Not in th
 export const CLOSED_REASON: string = "This assessment is closed. Start a new one to continue.";
 
 /** Why no decision can be recorded without Otto's harness: every button's reason there. */
-export const NO_OTTO_REASON: string = "Otto is not installed on this computer: it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the isogeny-labs/otto repository once. A decision on one of Otto's proposals is recorded in Otto's ledger, so nothing can be decided here.";
+export const NO_OTTO_REASON: string = "Otto is not installed on this computer: it has not been fetched on this computer. ./run-demo.sh fetches it; that needs read access to the isogeny-labs/otto repository once. A decision on a proposal is recorded in Otto's ledger, so nothing can be decided here.";
 
 const SENTENCE: string = "The program accepts a signature whose two numbers are zero or out of range.";
 
@@ -268,7 +273,7 @@ function decisionLedger(decisions: { id: string; at: string; what: string }[]): 
         kind: "Opened",
         id: "366b10921150",
         at: decisions[0]!.at,
-        what: "Proposal entry: names what Otto proposed, written with the first decision on it",
+        what: "Proposal entry: names what was proposed, written with the first decision on it",
       },
       ...decisions.flatMap((d, i) => [
         { seq: 2 + 2 * i, kind: "Recorded", id: d.id, at: d.at, what: `Decision ${i + 1}: ${d.what} by You` },
@@ -367,6 +372,7 @@ export const blankNotAdded: AdvisoryRow = {
   published_text: "1 November 2026",
   package: "acme-sign (demo)",
   pack: "2026.11.1",
+  new: NEW_WITH_FIRST_PACK,
   fits: ["acme-sign 1.4.2"],
   fits_text: "acme-sign 1.4.2",
   test: { key: "ready", label: "Test ready", tone: "pass", reason: TEST_READY_REASON },
@@ -445,7 +451,7 @@ export const blankNotRun: AdvisoryRow = {
         "The test pack carries a fix for acme-sign, the library this advisory is about: update it to 1.4.3 or later.",
         "Update acme-sign to 1.4.3, which checks that both numbers of a signature are in range.",
         "Proven on public copies: this advisory's check passed and all 3 pass-or-fail tests read Passed.",
-        "For your own code (acme-sign 1.4.2): if this advisory's check fails here, Fixes shows what can be offered. A change Otto wrote is offered only when it can be proven on this computer. Where it can't be, the fix template is offered if it answers the failure; if not, Fixes lists the failure with a plain suggestion and offers no code change.",
+        "For your own code (acme-sign 1.4.2): if this advisory's check fails here, Fixes shows what can be offered. A written change is offered only when it can be proven on this computer. Where it can't be, the fix template is offered if it answers the failure; if not, Fixes lists the failure with a plain suggestion and offers no code change.",
       ],
     },
   },
@@ -531,6 +537,7 @@ export const stopsNoTest: AdvisoryRow = {
   published_text: "1 November 2026",
   package: "acme-sign (demo)",
   pack: "2026.11.1",
+  new: NEW_WITH_FIRST_PACK,
   fits: [],
   fits_text: "",
   test: { key: "none", label: "No test yet", tone: "neutral", reason: "No test yet: no building block can show this weakness." },
@@ -577,6 +584,7 @@ export const zeroNotAdded: AdvisoryRow = {
   published_text: "1 November 2026",
   package: "elliptic (demo)",
   pack: "2026.11.2",
+  new: NEW_WITH_SECOND_PACK,
   fits: ["acme-sign 1.4.2"],
   fits_text: "acme-sign 1.4.2",
   test: { key: "ready", label: "Test ready", tone: "pass", reason: TEST_READY_REASON },
@@ -653,6 +661,7 @@ export const looseNotOffered: AdvisoryRow = {
   published_text: "1 November 2026",
   package: "elliptic (demo)",
   pack: "2026.11.2",
+  new: NEW_WITH_SECOND_PACK,
   fits: [],
   fits_text: "",
   test: { key: "not_offered", label: "Not offered", tone: "warn", reason: "Not offered: the design failed its own trial." },
@@ -768,10 +777,13 @@ export const advisoriesFailed: AdvisoriesView = {
 };
 
 /** A second pack is installed: four advisories, and one newly proposed check waiting for a decision. */
+/** With a second pack installed, an advisory of the first pack is no longer new: only the second pack's are. */
+const older = (row: AdvisoryRow): AdvisoryRow => ({ ...row, new: null });
+
 export const advisoriesTwoPacks: AdvisoriesView = {
   ...advisoriesNotAdded,
   packs_line: "Test packs installed: 2026.11.1, 2026.11.2.",
-  rows: [blankFailed, stopsNoTest, zeroNotAdded, looseNotOffered],
+  rows: [older(blankFailed), older(stopsNoTest), zeroNotAdded, looseNotOffered],
 };
 
 /** The same in a closed assessment: nothing more can be decided, and every button says so. */
@@ -779,7 +791,7 @@ export const advisoriesClosed: AdvisoriesView = {
   ...advisoriesTwoPacks,
   packs_line: "Test packs installed when this assessment was closed: 2026.11.1, 2026.11.2.",
   waiting: { ...ONE_WAITING, line: ONE_UNDECIDED, blocked_reason: "This assessment is closed, so nothing more can be decided in it." },
-  rows: [blankFailedBlocked(CLOSED_REASON, CHECK_LEDGER), stopsNoTest, zeroBlocked(CLOSED_REASON), looseNotOffered],
+  rows: [older(blankFailedBlocked(CLOSED_REASON, CHECK_LEDGER)), older(stopsNoTest), zeroBlocked(CLOSED_REASON), looseNotOffered],
 };
 
 /** The same on a computer without Otto's harness: a decision could not be recorded, so nothing can be decided. */
@@ -791,7 +803,7 @@ export const advisoriesOttoMissing: AdvisoriesView = {
     line: ONE_UNDECIDED,
     blocked_reason: "Otto is not installed on this computer, so nothing can be decided: a decision is recorded in Otto's ledger.",
   },
-  rows: [blankFailedNoLedger, stopsNoTest, zeroBlocked(NO_OTTO_REASON), looseNotOffered],
+  rows: [older(blankFailedNoLedger), older(stopsNoTest), zeroBlocked(NO_OTTO_REASON), looseNotOffered],
 };
 
 // ---- Settings: Test packs and Live Otto, state by state
@@ -806,7 +818,7 @@ const ANSWERS_RECORDED: OttoSettingsView["answers"] = { line: "Answers recorded 
 
 const ANSWERS_FOR_A_TEST: OttoSettingsView["answers"] = { line: "Answers written for a test, 17 November 2026", live: false };
 
-const LIVE_NOTE: string = "A run is one fix request in the app, or one research command. Otto adds up each call's cost from the tokens the API reports, and does not send a request that could pass the limit.";
+const LIVE_NOTE: string = "A run is one fix request in the app, or one research command. Each call's cost is added up from the tokens the API reports, and a request that could pass the limit is not sent.";
 
 const SENT_LINE: string = "What is sent to Claude when this is on: the advisory text and, for a fix to your own code, the source file of the failing program and the cases it got wrong. Nothing else leaves this computer.";
 
@@ -820,7 +832,7 @@ const LIVE_NO_KEY: OttoLiveSection = {
   switch: { label: "Use live Claude", on: false, can_turn_on: false, blocked_reason: "This can be turned on only when an API key is present." },
   limit: { label: "Spending limit per run (US dollars)", value: "2.00", save: "Save", note: LIVE_NOTE },
   sent_line: SENT_LINE,
-  status_line: "Live Otto is off: no API key is set on this computer. Otto works on the answers recorded during the build.",
+  status_line: "Live Otto is off: no API key is set on this computer. Only the answers recorded during the build are used.",
   price_line: PRICE_LINE,
 };
 
@@ -862,7 +874,7 @@ const UPDATE_ONE: OttoUpdate = {
       "It adds:",
       "Blank signature accepted (CVE-2022-21449): Test ready",
       "Stops on a bad signature (CVE-2019-14853): No test yet",
-      "Nothing in a pack runs. Installing adds no check to any assessment: Otto proposes its checks on the Advisories page, and you accept or reject each one.",
+      "Nothing in a pack runs. Installing adds no check to any assessment. Its checks are proposed on the Advisories page, and you accept or reject each one.",
       ORDER_NOTE,
     ],
     confirm: "Install",
@@ -882,7 +894,7 @@ const UPDATE_TWO: OttoUpdate = {
       "It adds:",
       "Missing leading zero accepted (CVE-2024-42460): Test ready",
       "Loose length accepted (CVE-2024-42461): Not offered",
-      "Nothing in a pack runs. Installing adds no check to any assessment: Otto proposes its checks on the Advisories page, and you accept or reject each one.",
+      "Nothing in a pack runs. Installing adds no check to any assessment. Its checks are proposed on the Advisories page, and you accept or reject each one.",
       ORDER_NOTE,
     ],
     confirm: "Install",
@@ -959,7 +971,7 @@ export const ottoLiveOn: OttoSettingsView = {
     key_line: "An API key is set on this computer.",
     switch: { label: "Use live Claude", on: true, can_turn_on: true, blocked_reason: null },
     limit: { label: "Spending limit per run (US dollars)", value: "3.50", save: "Save", note: LIVE_NOTE },
-    status_line: "Live Otto is on: when Otto needs an answer, it asks Claude through your key, within the spending limit.",
+    status_line: "Live Otto is on: when an answer is needed, Claude is asked through your key, within the spending limit.",
   },
 };
 
@@ -1231,7 +1243,7 @@ export const fixesWithTemplate: FixesView = {
           [
             {
               t: "text",
-              v: "Otto's own change is not offered here: No recorded answer: this needs Live Otto. The fix template is offered in its place.",
+              v: "A change “Written by Otto” is not offered here: No recorded answer: this needs Live Otto. The fix template is offered in its place.",
             },
           ],
         ],
@@ -1533,7 +1545,7 @@ export const nextStepVerify: AssessmentView["next_step"] = { page: "inventory/im
 export const nextStepAdvisories: AssessmentView["next_step"] = {
   page: "advisories",
   label: "Open advisories",
-  text: "Otto proposes 1 advisory check from the installed test packs. Accept or reject it: accepting runs nothing.",
+  text: "1 advisory check is proposed from the installed test packs. Accept or reject it: accepting runs nothing.",
 };
 
 /** After Check for updates met files it would not take: each file with the backend's one plain reason. */
@@ -1557,7 +1569,7 @@ export const ottoLiveOff: OttoSettingsView = {
   live: {
     ...ottoLiveOn.live,
     switch: { ...ottoLiveOn.live.switch, on: false },
-    status_line: "Live Otto is off: Otto works on the answers recorded during the build.",
+    status_line: "Live Otto is off: only the answers recorded during the build are used.",
   },
 };
 
@@ -1567,14 +1579,14 @@ export const ottoLiveOnNoKey: OttoSettingsView = {
   live: {
     ...LIVE_NO_KEY,
     switch: { ...LIVE_NO_KEY.switch, on: true },
-    status_line: "Live Otto is switched on, but no API key is set on this computer, so Otto works on the answers recorded during the build.",
+    status_line: "Live Otto is switched on, but no API key is set on this computer, so only the answers recorded during the build are used.",
   },
 };
 
-/** A pack built on this computer by the live research command: its line and its signer say so. */
+/** A pack built on this computer by the research command: its line and its signer say so. */
 export const packMadeHere: OttoPackCard = {
   ...PACK_TWO,
-  signer: "A key made on this computer by the live research command",
+  signer: "A key made on this computer by the research command",
   made_here: true,
   line: "Pack 2026.11.2, built 17 November 2026: 2 advisories, 1 test. Made on this computer.",
 };

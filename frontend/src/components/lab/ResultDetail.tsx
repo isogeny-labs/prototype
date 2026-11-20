@@ -179,6 +179,9 @@ interface Props {
   result: LabResult | MeasurementResult;
   /** Shown above the detail in the before/after view, e.g. "After: acme-sign 1.4.3, the merged fix (commit c41f0d2)". */
   heading?: string;
+  /** The result's one plain sentence, as its row in the Evidence table shows it. Beside an open panel that table is
+   * drawn narrow, without the sentence, so the panel of a row carries it (Evidence passes it; nothing else does). */
+  plain?: string | null;
   busy: boolean;
   /** Without these two (the Migration step), the Mark reviewed and Dig deeper buttons are not drawn. */
   onMarkReviewed?: (runId: number) => void;
@@ -187,7 +190,7 @@ interface Props {
 }
 
 /** Everything behind one reviewed result. All wording and every verdict come from the backend. */
-export function ResultDetail({ result, heading, busy, onMarkReviewed, onDigDeeper, onViewFix }: Props) {
+export function ResultDetail({ result, heading, plain, busy, onMarkReviewed, onDigDeeper, onViewFix }: Props) {
   const locked = result.locked_test;
   const record = result.run_record;
   const research = result.research;
@@ -204,6 +207,12 @@ export function ResultDetail({ result, heading, busy, onMarkReviewed, onDigDeepe
           <h3 className="text-xs font-medium uppercase tracking-wide text-slate-400">{heading}</h3>
           <ResultBadge label={result.label} tone={result.tone} />
         </div>
+      ) : null}
+
+      {plain ? (
+        <p data-testid="result-plain" className="break-words text-sm leading-snug text-slate-200">
+          {plain}
+        </p>
       ) : null}
 
       <p data-testid="technical-summary" className="text-[13px] text-slate-300">

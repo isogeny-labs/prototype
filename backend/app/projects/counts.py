@@ -40,7 +40,8 @@ def assessment_counts(lab: Any, import_id: int | None) -> dict:
         out["tests"] = {"run": len(ran), "failed": sum(1 for r in ran if r.get("code") == "failed"),
                         "passed": sum(1 for r in ran if r.get("code") == "passed")}
     if summary.get("has_results") or summary.get("has_migration"):
-        fixes = lab.fixes_view(plan_id)["fixes"]
+        # (phase 6d: a suggestion for a developer's change is listed apart on Fixes and is not counted with the findings)
+        fixes = [f for f in lab.fixes_view(plan_id)["fixes"] if not f.get("apart")]
         # Phase 5b: "open" means what it means on every group heading (Kevin's decision 8): not started on yet. A fix in
         # review, being tried or applied is in progress, not open.
         open_ = [f for f in fixes if f.get("fix_state", G.fix_state(f["status"]["word"])) == "open"]

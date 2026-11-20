@@ -14,7 +14,7 @@ const nextStepVerify: AssessmentView["next_step"] = { page: "inventory/import", 
 const nextStepAdvisories: AssessmentView["next_step"] = {
   page: "advisories",
   label: "Open advisories",
-  text: "Otto proposes 2 advisory checks from the installed test packs. Accept or reject each one: accepting runs nothing.",
+  text: "2 advisory checks are proposed from the installed test packs. Accept or reject each one: accepting runs nothing.",
 };
 
 /** "Waiting for you" (phase 5c) as the backend sends it: Otto's proposals nobody has decided yet, by kind. */
@@ -28,7 +28,7 @@ const WAITING: OttoWaiting = {
     { kind: "dependency", count: 1, text: "1 proposed dependency update", link: { page: "migration/dependencies", item: null }, page_label: "Dependencies" },
   ],
   line: "5 proposals from Otto wait for your decision.",
-  note: "Otto proposes; a person decides. Nothing is added, run or applied by itself.",
+  note: "Each proposal is decided by a person. Nothing is added, run or applied by itself.",
 };
 const NOTHING_WAITING: OttoWaiting = { ...WAITING, total: 0, items: [], line: "Nothing from Otto is waiting for a decision." };
 

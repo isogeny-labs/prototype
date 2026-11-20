@@ -391,11 +391,17 @@ DEPENDENCY_TABLES = ("dependency_lists", "dependency_ties")
 ASSESSMENT_TABLES = ("assessment_details", "assessment_signoffs", "import_files")   # phase 5b, tests/projects/test_rerun.py
 # Otto's records (phase 5c): tests/otto/test_customer.py::test_raw_sql_cannot_change_or_delete_ottos_records.
 OTTO_TABLES = ("otto_packs", "otto_checks", "otto_steps", "otto_decisions")
+# The research loop's looks and research runs (phase 6): tests/otto/test_discover.py::test_raw_sql_cannot_change_or_delete_a_look_or_a_research_run.
+RESEARCH_TABLES = ("otto_lookups", "otto_research")
+# What was said to Otto (phase 6b): tests/assistant/test_commands.py::test_raw_sql_cannot_change_or_delete_what_was_said.
+SAID_TABLES = ("assistant_messages",)
+# Change watch (phase 6d): tests/changewatch/test_watch_run.py::test_raw_sql_cannot_change_or_delete_a_watch_run_or_its_review.
+WATCH_TABLES = ("watch_runs", "watch_reviews")
 
 
 def test_every_append_only_table_is_covered_by_a_test():
     groups = (set(RUN_TABLES), set(FIX_TABLES), set(MIGRATION_TABLES), set(SYSTEM_CHANGE_TABLES), set(DEPENDENCY_TABLES),
-              set(ASSESSMENT_TABLES), set(OTTO_TABLES))
+              set(ASSESSMENT_TABLES), set(OTTO_TABLES), set(RESEARCH_TABLES), set(SAID_TABLES), set(WATCH_TABLES))
     assert set().union(*groups) == set(APPEND_ONLY_TABLES)
     assert sum(len(g) for g in groups) == len(set().union(*groups))     # no table is counted twice
 
@@ -443,6 +449,7 @@ def test_connect_is_refused_until_every_test_has_a_result_and_nothing_runs(lab):
     assert code_fix(lab.fix_states(plan.id))["status"] == "ready"
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_each_step_is_refused_before_its_time(lab):
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -496,6 +503,7 @@ def test_each_step_is_refused_before_its_time(lab):
     assert repo_of(lab, code_fix(lab.fix_states(plan.id))).branch("main") == main
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_failed_proof_is_not_offered_and_can_be_run_again(lab):
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -580,6 +588,7 @@ def test_nothing_runs_when_the_changed_code_is_not_a_registered_component(lab, m
     assert [r["kind"] for r in code["change"]["source"]["runs"]] == ["bad_signatures"]  # it answers only the signing failure
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_an_interrupted_proof_counts_as_failed_and_can_be_run_again(lab, monkeypatch):
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -675,6 +684,7 @@ def test_an_open_pull_request_does_not_shield_a_proof_that_no_longer_covers_the_
         assert db.query(ProofRow).count() == 3 and db.query(MergeRow).count() == 1
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_proof_that_never_ran_the_failed_test_the_change_is_for_is_not_offered(lab):
     """Review finding 1. The failed test the change answers is taken out of the plan and the proof is run again.
     Every test that proof ran can pass, and still no test in it gave the program a bad signature."""
@@ -715,6 +725,7 @@ def test_a_proof_that_never_ran_the_failed_test_the_change_is_for_is_not_offered
     assert code["actions"]["run_proof_again"] is None
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_plan_without_the_speed_test_is_proved_but_not_offered(lab):
     """Review finding 4. SPEC 7b item 3: every test in the plan "plus the speed comparison"."""
     plan = small_plan(lab, without=("official_vectors", "speed_size"))
@@ -739,6 +750,7 @@ def test_a_plan_without_the_speed_test_is_proved_but_not_offered(lab):
     assert (speed["first"]["code"], speed["proof"]["code"], speed["check"]["reason"]) == ("measured", "no_slowdown", "no_slowdown")
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_finding_is_open_only_while_the_newest_result_of_its_test_fails(lab):
     """Review finding 10. The server is put right between the first run and a retest: the test that failed
     passes in the "after" column, and its finding is no longer listed as open. A code fix is listed as before."""
@@ -913,6 +925,7 @@ def tamper(lab, *statements):
         db.commit()
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_changed_proof_review_is_not_believed(lab):
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -941,6 +954,7 @@ def test_a_changed_proof_review_is_not_believed(lab):
     assert code_fix(lab.fix_states(plan.id))["proof"]["review"]["problem"] == PROOF_CHANGED
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_changing_what_a_passed_proof_stands_on_is_caught(lab):
     plan = small_plan(lab)
     ready = proved(lab, plan)
@@ -998,6 +1012,7 @@ def test_changing_what_a_passed_proof_stands_on_is_caught(lab):
     assert lab.patch_file(plan.id, FIX) == patch
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_merge_is_refused_when_the_repository_moved(lab):
     plan = small_plan(lab)
     ready = proved(lab, plan)
@@ -1053,6 +1068,7 @@ def test_first_runs_and_retests_say_which_code_they_ran_on(lab):
     assert [a["run_id"] for a in code["answers"]] == [code["change"]["source"]["runs"][0]["run_id"], shown_now]
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_the_proof_is_reviewed_once_when_its_jobs_finish_together_and_never_while_closing(lab, monkeypatch):
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -1079,6 +1095,7 @@ def test_the_proof_is_reviewed_once_when_its_jobs_finish_together_and_never_whil
     assert code_fix(lab.fix_states(plan.id))["status"] == "ready"
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_a_folder_left_by_an_earlier_database_is_neither_reused_nor_removed(lab):
     plan = small_plan(lab)
     leftover = lab.settings.data_dir / "repos" / f"plan-{plan.id}" / "acme-sign.git"
@@ -1092,6 +1109,7 @@ def test_a_folder_left_by_an_earlier_database_is_neither_reused_nor_removed(lab)
             lab._repo(folder)
 
 
+@pytest.mark.slow      # makes a proof of its own (a long flow for one test)
 def test_connect_needs_the_bundled_repository_to_be_there(lab, monkeypatch, tmp_path):
     plan = small_plan(lab)
     lab.run_all(plan.id)
@@ -1155,3 +1173,41 @@ def test_the_proof_runs_are_checks_in_encryption_tests_that_open_their_fix(fix_f
     code = next(f for f in fixes["fixes"] if f["id"] == FIX)
     assert code["group"] == "encryption" and code["status"]["word"] == "Merged" and code["fix_state"] == "done"
     assert {link["link"]["page"] for link in code["came_from_links"]} == {"evidence"}
+
+
+# ---------------------------------------------------------------- the 5c fixes: Checks, Encryption tests in four parts
+
+@pytest.mark.slow
+def test_checks_shows_the_proof_in_its_own_block_and_the_retest_under_the_version_it_ran_on(fix_flow):
+    """After the whole fix (proof, merge, Retest now), Checks has one block for the proof, with the changed code's
+    version, and one block for the version the retest ran on. A retest started in Fixes shows on Checks like one
+    started on Evidence. Each run shows in one part only."""
+    from app.web import models
+    from tests.view_helpers import problems
+    lab, plan_id = fix_flow.lab, fix_flow.plan.id
+    view = lab.checks_view(plan_id)
+    assert problems(view, models.ChecksView, "checks") == []
+    parts = next(g for g in view["groups"] if g["key"] == "encryption")["parts"]
+    # the proof: one block, on the changed code, with a row for each test the proof reran
+    assert parts["proofs"]["count"] == 1 and parts["proofs"]["count_label"] == "1 proof"
+    [proof] = parts["proofs"]["blocks"]
+    assert proof["title"] == "acme-sign 1.4.3 (the changed code)" and proof["key"].startswith("proof-") and proof["newest"] is True
+    assert proof["line"].startswith("The proof reran the plan's locked tests on the changed code. It started ")
+    assert len(proof["rows"]) == len(fix_flow.plan.item) and all(r["came_from"]["key"] == "proof" for r in proof["rows"])
+    assert all(r["link"]["page"] == "fixes" and r["mark"] is None for r in proof["rows"])
+    software = [r for r in proof["rows"] if r["kind"] in ("official_vectors", "bad_signatures", "speed_size")]
+    assert software and all(r["ran_on"] == "acme-sign 1.4.3 (the changed code)" for r in software)
+    # the retest that Retest now (in Fixes) started: under its version, like any retest
+    assert parts["retests"]["count"] == 1
+    [retest] = parts["retests"]["blocks"]
+    assert retest["title"] == "acme-sign 1.4.3" and len(retest["rows"]) == len(fix_flow.plan.item)
+    assert {r["mark"] for r in retest["rows"] if r["kind"] in ("tls_versions", "certificate", "pq_readiness")} == {"tested again as it is"}
+    # nothing shows twice: every run of the plan is in exactly one place (the plan's own rows, the proof, the retest)
+    with lab.db() as db:
+        every = {r.id: r.phase for r in db.query(TestRunRow).filter(TestRunRow.plan_id == plan_id).all()}
+    seen: list[int] = []
+    for block in (proof, retest):
+        for row in block["rows"]:
+            seen += [r["run_id"] for r in lab.check_detail(plan_id, row["id"])["runs"]]
+    assert len(seen) == len(set(seen)) and {every[r] for r in seen} == {"proof", "retest"}
+    assert sorted(seen) == sorted(r for r, phase in every.items() if phase in ("proof", "retest"))

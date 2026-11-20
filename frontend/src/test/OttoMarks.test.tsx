@@ -6,7 +6,7 @@ import { ChecksScreen } from "../components/ChecksScreen";
 import { ResultDetail } from "../components/lab/ResultDetail";
 import { LinkProvider } from "../components/related";
 import { TestsScreen } from "../components/TestsScreen";
-import { checkGroups, checksView, planRows, retestDetail, retestRow } from "./checksFixtures";
+import { checkGroups, checksView, encryptionParts, newestBlock, planRows, retestDetail, retestRow } from "./checksFixtures";
 import { hereNotYet, publicPassed } from "./fixProposalFixtures";
 import { calls, cards, fixLines, mockApi, plan, text, vectorsResult } from "./fixtures";
 
@@ -18,7 +18,7 @@ const ADVISORY = "CVE-2022-21449";
 const TITLE = "Advisory check: Missing ECDSA signature range check (CVE-2022-21449)";
 const FROM_OTTO = { label: "From Otto", advisory: `Advisory ${ADVISORY}`, link: { page: "advisories", item: ADVISORY } };
 const REMOVE_BLOCKED =
-  "This check came from one of Otto's proposals. Until it has run, Undo on Advisories takes it out of the test plan; once it has run, it stays.";
+  "This check came from an accepted proposal. Until it has run, Undo on Advisories takes it out of the test plan. Once it has run, it stays.";
 
 describe("Evidence, the fix line of a library's fix from Otto", () => {
   const line: FixLine = {
@@ -67,10 +67,18 @@ describe("Evidence, the fix line of a library's fix from Otto", () => {
 
 describe("Checks, an advisory check that came from Otto", () => {
   const CHECKS = "GET /api/plans/1/checks";
-  // The advisory check as the plan lists it (shown as its card), and its retest (a row of the table).
+  // The advisory check as the plan lists it (shown as its card), and its retest: a row in the block of the version that
+  // retest ran on (the 5c fixes), beside the retest of a test that is not Otto's.
   const planCheck: CheckRow = { ...planRows[0]!, id: "test-6", name: TITLE, link: { page: "checks", item: "test-6" }, evidence_link: { page: "evidence", item: "test-6" }, from_otto: FROM_OTTO };
-  const retest: CheckRow = { ...retestRow, id: "retest-6", name: TITLE, link: { page: "evidence", item: "retest-6" }, evidence_link: { page: "evidence", item: "retest-6" }, from_otto: FROM_OTTO };
-  const view: ChecksView = { ...checksView, groups: checkGroups({ encryption: [...planRows, planCheck, retestRow, retest] }) };
+  const retest: CheckRow = { ...retestRow, id: "retest-6-on-2", alias: "retest-6", mark: null, name: TITLE, link: { page: "evidence", item: "retest-6" }, evidence_link: { page: "evidence", item: "retest-6" }, from_otto: FROM_OTTO };
+  const plainRetest: CheckRow = newestBlock.rows[0]!;
+  const view: ChecksView = {
+    ...checksView,
+    groups: checkGroups({
+      encryption: [...planRows, planCheck, retestRow, { ...retest, id: "retest-6" }],
+      parts: encryptionParts({ tests: 4, retests: [{ ...newestBlock, rows: [plainRetest, retest] }] }),
+    }),
+  };
   const detail = (check: CheckRow): CheckDetail => ({ ...retestDetail, check, runs: [], related: [] });
 
   function Harness({ item = null }: { item?: string | null }) {
@@ -86,9 +94,9 @@ describe("Checks, an advisory check that came from Otto", () => {
     const fetchMock = mockApi({
       [CHECKS]: { body: view },
       "GET /api/import/7/plan": { body: plan },
-      "GET /api/plans/1/checks/retest-6": { body: detail(retest) },
+      [`GET /api/plans/1/checks/${retest.id}`]: { body: detail(retest) },
       "GET /api/plans/1/checks/test-6": { body: detail(planCheck) },
-      [`GET /api/plans/1/checks/${retestRow.id}`]: { body: detail(retestRow) },
+      [`GET /api/plans/1/checks/${plainRetest.id}`]: { body: detail(plainRetest) },
     });
     render(<Harness item={item} />);
     await screen.findAllByTestId("group-section");
@@ -99,29 +107,29 @@ describe("Checks, an advisory check that came from Otto", () => {
 
   it("its row carries the tag and the advisory as a link; a check that is not Otto's carries neither", async () => {
     const fetchMock = await open();
-    const marked = within(row("retest-6"));
+    const marked = within(row(retest.id));
     expect(marked.getByTestId("from-otto").textContent).toBe("From Otto");
     const link = marked.getByTestId("check-from-otto");
     expect(link.textContent).toBe(`Advisory ${ADVISORY}`);
     expect(link.getAttribute("href")).toBe(`#/a/101/advisories?item=${ADVISORY}`);
-    expect(within(row(retestRow.id)).queryByTestId("check-from-otto-mark")).toBeNull();
+    expect(within(row(plainRetest.id)).queryByTestId("check-from-otto-mark")).toBeNull();
     // The link is a link: following it does not open the row's panel, and looking at the page started nothing.
     fireEvent.click(link);
     expect(screen.queryByTestId("check-panel")).toBeNull();
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
-    expect(calls(fetchMock).some((c) => c.includes("/checks/retest-6"))).toBe(false);
+    expect(calls(fetchMock).some((c) => c.includes(`/checks/${retest.id}`))).toBe(false);
   });
 
   it("the open check's panel says the same, and beside it the compact table keeps the mark under the name", async () => {
     await open();
-    fireEvent.click(row("retest-6"));
+    fireEvent.click(row(retest.id));
     const panel = within(await screen.findByTestId("check-panel"));
     const line = within(panel.getByTestId("check-from-otto-line"));
     expect(line.getByTestId("from-otto").textContent).toBe("From Otto");
     expect(line.getByTestId("check-from-otto").textContent).toBe(`Advisory ${ADVISORY}`);
     expect(line.getByTestId("check-from-otto").getAttribute("href")).toBe(`#/a/101/advisories?item=${ADVISORY}`);
     await waitFor(() => expect(screen.getAllByTestId("data-table").some((table) => table.getAttribute("data-compact") === "true")).toBe(true));
-    expect(within(row("retest-6")).getByTestId("check-from-otto").textContent).toBe(`Advisory ${ADVISORY}`);
+    expect(within(row(retest.id)).getByTestId("check-from-otto").textContent).toBe(`Advisory ${ADVISORY}`);
   });
 
   it("the plan's own advisory check, opened from a link, says it is from Otto in its panel", async () => {
@@ -134,10 +142,10 @@ describe("Checks, an advisory check that came from Otto", () => {
 
   it("a check that is not Otto's has no such line in its panel", async () => {
     const fetchMock = await open();
-    fireEvent.click(row(retestRow.id));
+    fireEvent.click(row(plainRetest.id));
     await screen.findByTestId("check-panel");
-    await waitFor(() => expect(calls(fetchMock)).toContain(`GET /api/plans/1/checks/${retestRow.id}`));
-    expect(screen.getByTestId("check-panel").getAttribute("data-check")).toBe(retestRow.id);
+    await waitFor(() => expect(calls(fetchMock)).toContain(`GET /api/plans/1/checks/${plainRetest.id}`));
+    expect(screen.getByTestId("check-panel").getAttribute("data-check")).toBe(plainRetest.id);
     expect(within(screen.getByTestId("check-panel")).queryByTestId("check-from-otto-line")).toBeNull();
   });
 });

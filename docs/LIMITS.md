@@ -542,6 +542,530 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
   also a rejection, before any check has run.
 
+## Limits of phase 6e, first half (what-if: what the app knows, and the try; 19 November 2026)
+
+- **Only the first half is built.** A what-if typed into the Otto panel gets one card: what the app knows, a try on
+  a test copy, one sentence in place of an explanation, and what the facts do not show. **Not built:** Claude's
+  explanation of the facts in plain sentences; **Turn this into a test** and **Add to Change watch** on a
+  hypothesis; hypothesis records, the Open hypotheses block on Change watch and the block "Proposed from your
+  questions" on Checks; the registration of a hypothesis test in Otto's ledger and its pinned checker. So success
+  step 14 of the overnight brief is met for the facts and the try, and its "every unproven point has two buttons"
+  is not: a hypothesis is a sentence with nothing to press.
+- **The question is read by fixed rules.** It needs a lead-in ("what if", "what happens if", "if", "suppose"), who
+  ("I", "we", ...), a verb of updating, one library and one version that starts with a digit. "Update elliptic to
+  6.5.7" by itself is no question and names no button, so it gets "I can't do that." "To the newest version" names
+  no version and is not read. Two updates in one sentence are not answered for the first one alone, whatever word
+  joins them ("and", "then", "or", "&", "with"); a number that is no version ("the move to 2027 plans") is no second
+  update. The panel's own everyday names are understood ("Java" for openjdk, "ecdsa" for python-ecdsa), and so is a
+  library's package name; "Python" is not read as python-ecdsa, because it is also the language. No model is asked,
+  with Live Otto on or off.
+- **A fact repeats a record; it is not a forecast.** Each line says what a list, a package file, a test pack or a
+  reviewed run says now. The card does not say what will happen on a system after the update.
+- **"Dependencies added or removed" is what two package files list, nothing more.** It compares what each version
+  itself declares it needs (the names and the version ranges, as written). It does not resolve the ranges, does not
+  look at what those packages need in turn, and says nothing about what a system really loads. It is filled for
+  four versions only: elliptic 6.5.6 and 6.5.7, python-ecdsa 0.13.2 and 0.13.3. Any other version of them reads
+  "Not in our knowledge base yet", a version that cannot be read "Couldn't tell the version", and Java and OpenSSL
+  "Doesn't apply" (they are no package with such a file). Nothing is worked out from a neighbouring version.
+- **Where those four entries came from.** They were read on 19 November 2026 from the pinned downloads the app
+  already holds for its real libraries (`backend/app/real_libraries.py`), each first checked against its pinned
+  fingerprint: `package.json` inside the npm package, the `METADATA` file inside the wheel. Each entry quotes the
+  lines, names the file's own SHA-256 and links the publisher's package. They were read by the build, not by a
+  person; this is decision 26 for Kevin (someone should compare the four entries with the publisher's files once).
+- **"The update answers this advisory" is said only for the version the publisher names as fixed.** Only where the
+  version asked about is exactly that version (6.5.7 for elliptic, also written "v6.5.7") does the line say that
+  the update answers the advisory "by the publisher's own statement". For any other version the line quotes the test
+  pack's reading of the affected versions and says that whether the version is among them is not worked out: a pack
+  holds the affected versions as words, and a range can have gaps (OpenJDK 18 is affected although its number is
+  past the fix, and versions from before a flaw was introduced were never affected). The separate review of 19
+  November 2026 found the earlier rule (at or past the fixed version) saying the opposite of the publisher. The app
+  has not tested any version for the what-if. What the pack's own trial showed is a line of its own, and only where
+  the trial was made for exactly that version.
+- **Post-quantum support of the new version is the knowledge base's answer** ("Release notes say"), unless the
+  dependency list already holds exactly that version: then it is that entry's answer as Dependencies shows it, a
+  measurement on a public copy included, and the line says so. Nothing is measured for a what-if.
+- **"Would no longer block the track" is by that answer.** The line about a migration track compares today's
+  blocker with the knowledge base's answer for the new version. It is not a measurement and moves nothing on
+  Migration.
+- **"Your own results" are the reviewed results Evidence shows now for a program the scanner file names by that
+  name**, on whichever version they ran (a first run, or a retest's run). A library that is only in the dependency
+  list has none.
+- **The try is Retest new version, and it is a real retest.** It reruns the assessment's locked tests for that
+  library on the public copy of the new version, and its results become this assessment's newest results "after":
+  a finding that passes can read as closed, "Proven on your system" reads the run, and an accepted update for the
+  library can then no longer be undone. The card says so before Confirm. It is offered only where Evidence would
+  offer the same retest: the scanner file names the library, the app holds a public copy of exactly that version
+  (the version as asked: "1.4.3-otto" is another program than "1.4.3"), nothing else is running, the assessment is
+  open, and (for a real library) the app is in isolated mode with its image prepared. In demo mode Evidence's own
+  menu still lists a real library's versions, but the try stays off there, because such a retest could only read
+  "Couldn't run". Otherwise the part gives the reason and has no button. Once its card is confirmed the part keeps
+  what a retest changes, and the panel says the request was sent. A try does not touch a system of yours: it runs a
+  public copy on this computer.
+- **A library the app holds nothing about** gets the same four parts, each saying that it knows nothing, and one
+  hypothesis: that everything about the update is open.
+- **Like every typed sentence, the question is kept.** In an open assessment the sentence, the title of the answer
+  and its facts are kept add-only and shown under "This thread so far" of the Fixing tab. A closed assessment
+  answers and keeps nothing, and its try is off.
+- **The walk is in demo mode only.** `e2e/tests/whatif.spec.ts` shows the elliptic question on the Acme Pay demo
+  (where the scanner file does not name elliptic, so the try is off with that reason) and the try behind Confirm
+  for the demo program the file names. The plan's part in isolated mode has no walk yet. That path is run by a
+  backend test of the slow set instead, in real containers (`backend/tests/whatif/test_whatif_real.py`: a file
+  that names elliptic 6.5.6, the try offered once the tests have run, the card's own request sent, the retest on
+  the public copy of 6.5.7, and its results shown by the same question as the assessment's own).
+- **The accuracy check reads the what-if as plain values.** For the fifth answer key the walk asks three updates on
+  the real libraries file (`docs/OTTO-KEY.md`). It reads names, ids and each answer's own word from
+  `whatif_plain`, which is worked out in the same pass as the card's lines; a test holds every value to the line
+  that says it. The card itself is sent the lines only.
+
+## Limits of phase 6d, first half (Change watch: the Changes view; 19 November 2026)
+
+- **Only the first half is built.** The Changes view: a developer's change is read, its tests are picked, they run
+  on a click, the reviewer's rule says what differs, added lines that name old cryptography are flagged; a run
+  shows on Checks and Evidence, a change that makes passing tests fail has an entry in Fixes, the Otto panel
+  offers the run behind Confirm, and the signed evidence file holds the changes and their runs. **Not built:** the
+  Watch list (watched items, their proposals and rechecks, and the new pinned checker the plan gives them); a
+  watch run's results and flags as entries of the panel's Testing thread; the Related block of a change.
+- **The entry in Fixes is a suggestion in words, and it follows the change's status.** It is there only while the
+  change reads "Passed before, fails now", and it says which tests fail on the change and which lines the change
+  takes out. It does not say that those lines are why the tests fail: the app has not tried the change with the
+  lines put back. It has no button, no proof and no pull request, and the app writes no change for a developer's
+  branch. It goes as soon as the change no longer reads so, also when only the test plan changed and the change
+  has not been run since. It is listed in Encryption tests under a heading of its own, "From a developer's
+  change", and it is counted nowhere: not in the page's "Open findings with a fix", not in its group's counts, not
+  on the Overview and not in the Projects row, and it never makes "Open fixes" the next step (the second review,
+  19 November 2026: before that it was counted as an open fix). The report lists it the same way. It is linked to
+  its change and to the failing runs; it has no Related block, and the failing results on Checks do not carry a
+  "View in Fixes" line of their own.
+- **What the verify command checks of the Change watch part, and what it takes as given.** It checks every run
+  record against its fingerprint and its review; that each run ran on the code its place says (the version, the
+  commit, the fingerprint of the program file and the kind of run, read from the run record itself, so a run on
+  the code before cannot stand where the run on the change belongs); the record the reviewer was given against
+  those runs; the reviewer's word for the change against that record, with its count (by the rule, written out a
+  second time in the verify command); that a review the file calls believed is under the name of the reviewer the
+  file names; that each change names the newest watch run of exactly its code, and that this run's files and
+  versions are the change's; whether that run is of the tests picked now, worked out again from the two lists;
+  that Fixes has an entry for exactly the changes that read "Passed before, fails now"; and every Change watch row
+  of the file's list of checks against the part. It takes as given what only the repository could show: that the
+  change's code was, byte for byte, the registered demo program that ran (the app made that comparison and wrote
+  it into the record), which tests were picked and which were not, the files and the flags. A change's title and
+  author, the times, the sentences beside a status and the results as they are worded for a reader are not
+  compared with anything either. All of those are covered by the file's own signature, like everything else in
+  it: someone who holds the app's key and rewrites a whole file so that every part still agrees is not caught by
+  this check, as for the rest of the file. A change is in the file as it was read when the file was made; a change
+  whose branch is gone is no longer listed, but its runs are kept. A run the app itself did not believe when the
+  file was made is said as that in the file, accepted as that and counted apart in the command's own lines.
+- **The check was tightened after the second review (19 November 2026).** Since then a picked test carries the
+  fingerprint of its locked plan in the file. An evidence file made by one of that night's earlier builds does not
+  carry it and fails the check. No such file was handed out, so nothing was done to read them.
+- **The rule for a watch run is written twice.** Once in the app's reviewer, once in the verify command, so that a
+  file is not checked with the code that made it. Whoever changes one must change the other; a test compares the
+  two over every combination of results and fails when they differ.
+- **In the Otto panel only the start is offered.** The card is the page's own Run the picked tests. The results of
+  a watch run and the flags are on the page; they do not arrive as entries of the Testing thread. The change's
+  entry in Fixes arrives in the Fixing thread as a text-only suggestion. Typed, "run the picked tests" without a
+  name means a change that can run; where several can, the panel asks which one. For a change that cannot run
+  (its code is not a registered program) the card says the page's word alone, with the button off and the page's
+  reason. Asked what Fixes is for, the panel counts as the page does and says the change's suggestion apart.
+- **A change comes in by a demo button only.** Connecting a real repository host is not in this version. **Bring
+  in a demo change** writes one of two bundled changes into the assessment's own copy of the demo repository, as a
+  push would. Whatever else is in that repository is listed too (the view reads it each time), but nothing in the
+  app puts another change there.
+- **Only a change that gives one of our registered demo programs can run.** The byte-for-byte check is strict: the
+  code a change leaves must be exactly one registered program (the same one file, the same bytes), and so must the
+  code it starts from. Any other edit reads "Can't run", and nothing of it runs. So of real developer changes only
+  the two that the demo is built around can show a run: the one that undoes the merged fix, and a change that is
+  the fix itself.
+- **Picking is by file, and coarse.** Any change to the program's file picks every test that runs that program. It
+  does not look at which lines changed. A change that touches no program file picks nothing, whatever it says.
+- **"Before" is a result that may be older than the change.** It is the newest reviewed run of the same locked test
+  on exactly the code the change starts from, whatever that run was made for (the assessment's own first run, a
+  retest, the proof of a fix). The panel says where it came from. Only where there is none does the test run on
+  that code again.
+- **The status word is about the change, not about a system.** "Passed before, fails now" says that a test which
+  passed on the code before fails on the change's code. A developer's change is not the system until someone merges
+  it: the Overview's findings, its facts and its counts of fixes, every proposal and the migration plan keep reading
+  the assessment's own results. Two figures on the Overview do move, and both count runs, not findings: "runs
+  recorded", and the checks of Encryption tests that are done (each run of a picked test is a row on Checks, under
+  Change watch).
+- **"Can't run" has two meanings.** Nothing of the change may run (its code is not a registered program), or a
+  picked test could not run (for example an advisory check where Otto is not installed). The sentence under the
+  word says which. The plan's list of statuses has no word of its own for the second; a stop is not a result, so it
+  is never "No difference found". This is decision 20 for Kevin.
+- **A watch run of an advisory check is not bound in the assessment's Otto ledger.** Every other run of an
+  advisory check is. The ledger's pinned checker from phase 5c knows three run phases and is not changed; the plan
+  gives watch runs a pinned checker of their own, with the Watch list. Until then such a run is reviewed like every
+  run and kept in the database with its change. Decision 19 for Kevin.
+- **A flag is a word on a line, nothing more.** The list is short and fixed (SSL 3.0, TLS 1.0, TLS 1.1, SHA-1, MD5,
+  RC4, 3DES, each with the publication that retired or restricted it). A flag says the name stands on a line the
+  change adds. The app has not tested what the line does, and says so on every flag. A name in a comment is flagged
+  like any other; a name written in a way the list does not know is missed; a removed line gives no flag. At most
+  fifty flags are listed for one change. The rule reads the name with what follows it, so a newer version written
+  with dashes ("TLS-1-2-2017-01") or a word that only begins like a name ("3 destinations", "description") is not
+  flagged. It can still be wrong both ways: "use ssl 3 times" is flagged, and an old name spelled out in words
+  ("the first TLS version") is not.
+- **The repository reader's limits are the Fixes step's:** files at the top level only, text in UTF-8, loose
+  objects. A file that is not text, or larger than 200,000 bytes, is listed without its lines. A branch is followed
+  back at most 100 commits to find where it left the connected branch.
+- **One watch run counts at a time.** The newest run of exactly this code and exactly the tests picked now sets the
+  status. An earlier run is kept and not shown. After the test plan changes, the change reads "Not run yet" again
+  and says why. Two changes can pick the same tests: while one change's tests run, every other change keeps what
+  its own run found.
+- **While a change's picked tests run, the plan's own tests wait** (Run all, a retest, a proof), with the reason,
+  and a test with a run going can't be removed from the plan. The page asks again every second while anything runs
+  for the assessment, and says so when a read fails.
+- **Speed in a watch run** is timed side by side with the code the change starts from, as in a retest. That one run
+  is the comparison: "Slowdown found" counts with the tests that fail now; anything else that is a result reads "No
+  slowdown against the code before". What the code before measured against something older is not compared.
+- **A watch run is no run of the assessment for Otto either.** No proposal is made, changed or moved by it, the
+  Project overview's line about advisory checks does not count it, and an accepted check can still be undone as if
+  it had not run.
+- **A file that names another version than the demo repository holds has no code to connect.** The bundled demo
+  repository holds acme-sign 1.4.2. For a file that names 1.4.3 the page says that no code can be connected, as
+  Fixes would refuse.
+
+## Limits of phase 6c, first half (six fixed questions, answered by rules; 19 November 2026)
+
+- **Six questions, and only those.** "Why did this check fail?", "What does this result show, and what doesn't
+  it?", "Where did this suggestion come from?", "What happens if I accept this?", "What is this page for?" and
+  "What should I do next?". Fixed rules read them in a few common wordings each
+  (`backend/app/assistant/questions.py`). Any other question gets "I can't do that." and the list of what can be
+  said on the page. The plan's second half, an answer in free words by Claude from a fact sheet, is not built, so
+  there is no "Hypothesis" part, no "Facts used" fold and no "What was sent" fold yet, and no model is asked for a
+  question with Live Otto on or off.
+- **An answer is a list of the app's own sentences.** Nothing is explained beyond what a page already says about
+  the item. For a failed check that is the reviewer's result, its plain sentence, up to three lines of what
+  happened, the control, where an advisory check came from and the fix; it does not list the single cases the
+  program got wrong (the link opens the result, where they are). Two kinds of sentence are the assistant's own: the
+  opening line that names the item and repeats its result word, and one standing sentence for each page ("What is
+  this page for?"). Those ten page sentences follow each page's own header sentence as closely as one line can
+  (`backend/app/assistant/words.py`); the Overview's and Evidence's are worded there because those pages word
+  their headers from the assessment's data.
+- **An answer never words a result of its own.** It repeats the result's word ("reads Slowdown found") and the
+  result's own sentences. Whether a result is a failure is read from the tone its page draws it in ("Failed", and
+  also "Slowdown found" after a retest); "Couldn't run" and "Couldn't trust this run" are neither a pass nor a
+  failure. Asked why a check failed that did not, the answer is its result word and plain sentence, and nothing
+  more.
+- **A name that nothing is called** gets "I can't do that. No test of the plan is called that." (or "No suggestion
+  here ..."), never "there is none". "No test of the plan reads Failed now" and "has a result yet" are said only
+  when nothing was named and that is so. They speak of the tests of the plan: Evidence also lists verified claims,
+  measurements and fix proofs, which these answers do not count.
+- **Tests that share a title** (one "Old TLS versions" for each server of a multi-target file) are named with
+  their target ("Old TLS versions on Server: localhost:8444") wherever a sentence must name exactly one; two that
+  still read the same get their number.
+- **"This check" is the open item, and nothing else.** With no item open, "Why did this check fail?" is about the
+  one failed check if there is exactly one; with several it asks "Which one?". On Advisories an open advisory
+  stands for its accepted check (with several accepted checks: "Which one?"). An open item that has no test result
+  of its own gets a sentence that says so, and the chips do not offer the question beside it: a test that has not
+  run ("has no result yet"), the row of a retest or of a fix proof on Checks ("The open row is the run of a retest
+  or of a fix proof ...": an answer is about a test's first result and its newest retest only), a claim, a fix or
+  an advisory with no check in the plan ("The open item is not a test of the plan ...").
+- **"Waits for a decision"** is counted as the Overview counts it: in a closed assessment, without Otto, or for a
+  proposal that is no longer made, nothing waits. A proposal that is no longer made says so in "Where did this
+  suggestion come from?", in its page's own words.
+- **Accepting, in the panel and on the page.** "What happens if I accept this?" ends with the difference: in the
+  panel Accept waits for Confirm; on its page the Accept button records the decision at the click.
+- **Where an answer shows.** The newest answer shows above the text box and stays there while you move around,
+  until the next sentence. The panel does not switch to the tab the answer belongs to; the kept answer is listed
+  in that tab under "This thread so far", with its facts as they were when asked. A fact is not refreshed later:
+  the kept answer says what the records said then.
+- **What is kept** is the question, the answer's one line and its facts. Like every exchange it is not in the
+  evidence file. A closed assessment answers and keeps nothing. Stored sentences hold their times in UTC words;
+  on screen only the times the app itself wrote are shown in the viewer's zone again (a time typed inside a
+  reason stays as typed). "What should I do next?" asked beside the Overview is listed in the tab of the page its
+  next step sends to; "What is this page for?" asked beside the Overview is kept and listed in no tab.
+- **A data folder made by the 6b build of this same night** has no column for an answer's facts; the app adds it
+  when it opens the folder (`ADDED_COLUMNS` in `backend/app/db.py`). This is the first column the app ever added
+  to an existing table that way; every other change of this run was a new table.
+- **The status line is unchanged**: "Live Otto is off." with the link to Settings, or "Live Otto is on.". The plan's
+  longer line ("Otto answers the fixed questions from this assessment's records. Free-form answers need Live
+  Otto.") is left for the second half: it promises free-form answers that are not built, and its wording says what
+  Otto does, which the wording rule of 19 November does not allow. This is on the list for Kevin.
+- **The text box's label** changed to "Ask Otto, or tell it what to do", as the plan words it for 6c.
+- **A title with a colon** ("Advisory check: ...") is said without the colon in the sentence behind a "Which one?"
+  option, because in a typed sentence the first colon starts a reason. Typed by hand with its colon after a
+  command ("reject Advisory check: Blank signature accepted"), what follows the colon is read as the reason; the
+  Confirm step shows it before anything is sent.
+
+## Limits of phase 6b, first half (commands by fixed rules; 19 November 2026)
+
+- **Only fixed rules read a sentence.** The plan's second half, passing other wording to Claude with Live Otto on,
+  is not built. A sentence the rules can't read gets "I can't do that." and the list of what can be said on the
+  page. The rules know a fixed set of verbs, page names and filter words; they are in
+  `backend/app/assistant/commands.py`, and each example the list shows is read by them.
+- **Names.** A thing is found by the words of its title and of what it is about (the advisory's id, the library,
+  the program), and by a few everyday names (Java for openjdk, Python or ecdsa for python-ecdsa). A name that fits
+  nothing gets "I can't do that."; one that fits several gets "Which one?". Nothing is guessed. A short name that
+  two things share asks, with two exceptions that are not guesses: the one of them that is the open item, and,
+  for a decision, the only one that button is offered for. A whole title, said word for word, is that thing,
+  whatever word of it could also name a kind ("Fix acme-sign 1.4.2 before ..." is a plan change). A "Which one?"
+  lists at most eight and says so when more fit.
+- **"The second suggestion"** counts the suggestions shown under "On this page" beside the page the sentence was
+  typed on, in the panel's own order. On a page with no suggestions there is nothing to count.
+- **Filters by a command** are: failed and passed (Checks, Evidence), true, false and couldn't check (Checks),
+  proposed, accepted and rejected (Advisories), and retests, fix proofs and tries (Checks). The count in the answer
+  ("2 checks") is worked out for Checks and Advisories; for Evidence the answer names the filter without a count.
+- **The Result filter on Checks now also narrows the test plan's cards.** Before, it filtered the rows under the
+  plan only. While it is on, moving a card with the arrow keys still moves it in the whole plan, past cards that
+  are not listed.
+- **The address holds the page's own filter value** (`result=Failed` on Checks, `result=failed` on Evidence,
+  `decision=proposed` on Advisories). A value the page does not have lists nothing. Fixes has no such filter.
+- **What is kept** is the sentence, the one line of the answer, the page, the open item, the thread, where it led,
+  the time, and the name decisions are recorded under ("You" until one is typed). The card an answer showed is not
+  kept: the thread shows the line only. A sentence that belongs to no thread (typed beside the Overview, or one
+  that opens Settings) is kept and listed in no tab; that is on the list for Kevin. A kept sentence does not
+  bring a closed tab back and puts no dot on a tab. "Open where it led" opens the page, without the filter the
+  sentence had set.
+- **The card in an answer** shows the suggestion or the button as it stood when the sentence was answered. As soon
+  as anything changes the assessment after that, the card is taken away and a line says "Something has changed
+  ... Say it again to see where it stands now." It is not refreshed in place.
+- **A closed assessment's sentences are not kept by the app, but the terminal shows them.** There the box asks
+  with a read whose address holds the sentence, and the app's own log line for each request (printed by
+  `./run-demo.sh` in its terminal, written to no file) shows that address. What was said is not in the evidence file (the plan
+  puts only Claude's steps there, and there are none yet).
+- **Done on its page only.** For Merge pull request, Apply and Roll back the answer repeats the page's own reason
+  where exactly one fix has that button; for Approve it says how many approvals are missing (none missing:
+  "Nothing on Fixes is waiting for that now."). For the others it only says that it is done on the page. In a
+  closed assessment the page opens and the answer is the closed sentence. "Open the pull request" asks to open a
+  new one; no sentence opens one that is already open (the fix's page shows it).
+- **With no file in**, only the Overview and Import can be opened, so "open checks" answers "Bring in a scanner
+  file first ...", and "What can you do?" lists only what moves around. The same list is shown in a closed
+  assessment.
+- **Checks narrowed by a command** says so in one line in the test plan ("1 of the plan's 6 tests is listed
+  (Result: Failed). Run all runs all 6."). The part's own heading still counts the whole plan. On Evidence the
+  Result filter narrows the Encryption tests table only; the other groups list every row.
+- **Words the rules no longer take**: "open" and "added" as a decision filter ("show open checks" is not read),
+  "apply the filter", "sign off the fix", "export the plan" and "tick Dana as reviewer" get "I can't do that."
+  instead of opening a page.
+- **The pictures of 6b and 6c** are in `docs/screenshots/phase6a/` (08b, 08c, 17b), with the walk they belong to;
+  there is no `phase6b/` or `phase6c/` folder.
+- **In a closed assessment** the box moves around and lists what can be said. Since phase 6c (first half) it also
+  answers the six fixed questions there.
+- **Eleven of the thirteen next-step screen tests** still compare the panel's request with a typed request, not
+  with the real page component (found by the reviewer of 6a; the two that do are Run and Run all).
+
+
+## Limits of Otto's research loop (phase 6; 19 November 2026)
+
+Built in the overnight run of 19 November 2026 from Kevin's brief ("Otto researches by itself"). SPEC section 7f,
+point 14, has the rules. What it does not do, plainly:
+
+- **The public source has not been read for real from the build machine.** The machine this was built on could not
+  reach `api.osv.dev`. The reader was written against the shape OSV documents and is tested with answers written in
+  that shape and with damaged copies of them (a seeded fuzz test). The first real look is Kevin's to make: one click
+  on **Look for new advisories** on a computer with internet, as the 15-minute live check list says. If OSV answers
+  in a way the reader does not expect, the look says "... is not in the shape it documents" and nothing is listed.
+- **Which libraries are asked about.** Only libraries the assessment names and OSV keeps by name: packages of npm,
+  PyPI, Go, Maven, crates.io, NuGet and RubyGems. Of the six libraries the app knows today that is python-ecdsa
+  (PyPI, as `ecdsa`), elliptic (npm) and Go's standard library (Go, as `stdlib`). Java (OpenJDK), OpenSSL and
+  BoringSSL are not packages of those ecosystems, so they are not asked about, and the box says so before the look.
+  Their advisories still come only from the built-in packs. A library the app does not know is not asked about
+  either, whatever a dependency list says: a look is about the libraries the app can say something about.
+- **Only the package's name is sent**, with its ecosystem. No version is sent, so the answer lists every advisory of
+  that package; which ones name a version you have is worked out here from the record's version ranges. A record
+  that gives its range only as source-code commits can't be matched to a version number: it reads "It could not be
+  told whether it names ..." and nothing is guessed.
+- **How much is read.** At most 3 pages of an answer for one package (each up to 8 MB); every record on them is
+  read. A look keeps 40 advisories: first those that name a version you have (or might: where a version can't be
+  read), then the newest of the others. The cut comes after that ranking, so an older advisory that fits is not
+  pushed out by newer ones that do not. When more pages existed, or more than 40 were read, the look says which.
+  A record that is taken back by its publisher, that says nothing about a version of the package, or that is not
+  in the documented shape is left out and counted ("N records were left out"). At most 200 version ranges of one
+  record are kept for matching.
+- **One fixed address, and no other.** The request goes to `https://api.osv.dev/v1/query`. A redirect is not
+  followed: it comes back as "answered with an error (HTTP 302)".
+- **A publisher's summary that rates the advisory is not shown as its title** (a line with "severity", "CVSS",
+  "critical" or a score). The title then reads "<publisher> record <id>"; the publisher's line stays among its
+  quoted text, which is shown as the publisher's.
+- **A file in the folder of recorded advisories is data.** Each advisory in it is held to the snapshot's exact
+  shape and used byte for byte, or left out; a damaged file lists nothing and breaks no page. Links must be https.
+- **No severity.** A record's rating of how serious a weakness is, and its score, are not read and not shown.
+- **A test can be proven only for a library with pinned public copies of an affected and of the fixed version**:
+  today openjdk 17.0.2 and 17.0.3, python-ecdsa 0.13.2 and 0.13.3, elliptic 6.5.6 and 6.5.7. An advisory fixed in
+  any other version reads "No test yet: a test is proven against the fixed version, ..., and this version of the
+  app has no public copy of it". So with today's pinned versions **most newly published advisories read "No test
+  yet"**. Pinning more versions (for example elliptic 6.6.0 and 6.6.1) needs a new container image and Kevin's OK,
+  like any dependency change.
+- **Only one kind of test can be designed**: published ECDSA P-256 signature cases (the building block of phase
+  5c). An advisory about anything else gets "No test yet" with the design's own reason.
+- **Proving needs isolated mode.** In demo mode **Design and prove tests** is off and says why: a real library runs
+  only in its own locked-down container.
+- **With Live Otto off, only the advisories of the dated snapshot have recorded answers.** A research run on any
+  other advisory leaves it open: it reads "Still open", with "No recorded answer: this needs Live Otto.", nothing
+  is signed about it, and it can be tried again (for example with Live Otto on). With Live Otto on, the run asks
+  Claude (read, design, propose a fix) within the spending limit per run; what is sent is the advisory's published
+  text. A live research run was not made during the build (no key on the build machine; no test may reach Claude).
+- **What a run settles, and what it leaves open.** Settled, and signed into the pack with its reason: a test that
+  was proven; a design that failed its trial; "no test fits"; no public copies to try on; an answer the pinned
+  checker refused. Left open, out of the pack, to be tried again: no answer for the reading or the design (no
+  recorded answer; or, with Live Otto on, a call that failed, was refused or met the spending limit), and a trial
+  on public copies that did not finish. A run that settles nothing makes no pack and says so. One thing is not
+  asked again: where the test was proven and no answer came for the publisher's fix, the pack says "No fix is
+  offered: There is no proposal for this advisory yet." and later runs leave that advisory alone.
+- **A pack made here is installed by the click that started the run**, after any built-in pack that is not
+  installed yet. This is the one case where a pack is installed without a click of its own; the box says so before
+  the run starts. A pack made here is signed with a key made on this computer and is trusted on this computer only.
+- **A pack made here becomes the newest pack, and a built-in pack published later can then not be installed.**
+  Test packs install in one order, each naming the one before. After a run made a pack, a built-in pack that
+  follows the last built-in one is refused ("does not follow the installed pack") in that data folder. The box
+  says so before the run starts. A pack made here also takes the next version number of its month (2026.11.3
+  after the built-in 2026.11.2), so a later built-in pack could carry the same number; the two differ by signer
+  and fingerprint, which the evidence file holds. Letting a built-in pack follow the last built-in one, and
+  giving packs made here names of their own, is a decision for Kevin.
+- **A pack made here that was never installed** (made by hand with the research command, or by a run that was cut
+  off after signing) is not installed by a later click: **Design and prove tests** is off and says "Test pack ...,
+  made on this computer, is waiting to be installed. Install it first: Settings, Test packs, Check for updates."
+  The click installs only the pack its own run made, and only if that pack holds nothing but advisories of that
+  run.
+- **One research run at a time**, for the whole app (two clicks at the same moment start one run; the second is
+  refused). It can take several minutes for each advisory. A run that is still going after four hours is ended.
+  If the app is stopped while a run goes on, the run is lost: the block says it was interrupted and made no
+  pack, names the built-in packs the click had installed before it started, and it can be started again. The research ledger of runs made here is in the data folder (`otto-research-lab/`), apart
+  from the shipped one in `research/lab/`, which is never written by the app.
+- **The proof is the research side's own**, as for a shipped pack: the trial on public copies and its replay by a
+  second author, which is a second role of the same build on the same computer and not an outside party.
+- **What the evidence file holds about a look and a run.** Each look: when, by whom, the source, the names sent,
+  the fingerprint of each answer, how many records were left out, and for each advisory found its id, its
+  library, the day it was published and the fingerprint of the page it was read from (not its text). Each
+  research run: its start and its end, the advisories, whether Live Otto was on, and the pack it made. That pack
+  is in the file whole, with its signature, whether or not one of its checks was accepted: the proof of a test is
+  in its pack. An assessment where a person only looked has an Otto part with the look and nothing else; its
+  Otto ledger has no entries, so the verify command has nothing to audit there and passes also on a computer
+  where Otto is not installed. The report (the readable copy) lists the looks and the runs too.
+- **The demonstration** (`backend/tools/research_demo.py`) uses the three elliptic advisories of the dated snapshot
+  as a recorded source, with only the first built-in pack present, so that the recorded answers fit. It shows the
+  loop end to end with no internet and no key: one advisory is proven and proposed, two read "No test yet".
+
+
+## Limits of phase 6a (the Otto assistant: suggestions and three tabs; 19 November 2026)
+
+What is real:
+
+- **The panel's one read is real, and it only reads.** It is worked out on every read from the same views the pages
+  draw from, so a button in the panel can be pressed exactly when its page's button can, and reads the same reason
+  when it cannot. A test compares every table row and every file of the data folder before and after a read, and
+  another reads the panel's code and fails if it imports or calls anything that decides, runs or changes.
+- **A decision in the panel is the page's own request.** There is one decision route. A test makes the same two
+  decisions on two copies of one assessment, on the page and in the panel, and compares the database rows, the Otto
+  ledger's entries and the evidence part field for field.
+- **The name you type is really recorded.** It goes into the database row, the Otto ledger entry and the evidence
+  file of each decision made after it was typed.
+
+What is limited:
+
+- **No AI model is in the panel in this phase.** It does not take commands or questions yet (phases 6b and 6c), and
+  it has no text box. Its suggestions, next steps and "What this means" come from fixed rules.
+- **The typed name is not an identity.** The app has one login. It does not check who is at the keyboard, and says
+  so where the name is asked for and in Settings. A decision recorded before a name was typed stays "You". Approvals
+  of a pull request and of a server change still use "You" and the two demo reviewers.
+- **The name is asked for once per browser.** If you leave it empty, the field does not come back in that browser;
+  Settings, **Who decides**, is where to type it later.
+- **Closed tabs and the dot are remembered in the browser, not by the app.** In another browser, or after clearing
+  the browser's data, every tab is open again and nothing counts as seen. Nothing about tabs is in the evidence.
+- **"This thread so far" is a list, not a history of everything.** It holds decided suggestions, the reviewed result
+  of each test (the first run and, where there is one, the newest retest, as Evidence shows them) and where each fix
+  stands now. Earlier states of a fix and older runs of a test are on their pages, not in the thread.
+- **A next step is offered for the buttons listed in the spec only.** Approve, Merge pull request, Apply, Roll back,
+  Close and sign off, the "I own this system" tick, a migration option, Mark reviewed and the downloads are never
+  in the panel. Open pull request and Ask for approval are sent with the reviewers the page ticks by default; to
+  pick others, use the page.
+- **The panel knows the open item only where the page has a side panel.** On pages without one (the Overview, the
+  Roadmap's bands) it knows the page only.
+- **A page's own first read can still write.** Opening the Migration page writes each system's measurement down and
+  locks it, once, as it has since phase 4a. The panel's read does not do that in its place: beside any page it
+  writes nothing (a test opens the panel on an assessment whose pages nobody has opened and compares everything).
+- **Two sentences differ from the plan's wording.** The plan had "Otto has nothing to suggest on this page." and
+  "Bring in a scanner file to start. Otto has nothing to suggest yet." Since the 5c fixes no sentence says what Otto
+  did or has, so the panel says "Nothing is suggested on this page." and "Bring in a scanner file to start. Nothing
+  is suggested yet." This is for Kevin to confirm.
+- **The panel's read takes about a quarter of a second on the Acme Pay demo**, because it works everything out
+  again each time. While something runs it asks again every two seconds, not every second.
+- **Reads take turns, while reads are quick (found by the long checks of 19 November 2026).** A page asks for
+  several views at once, and Python works several out side by side much more slowly than one after another: the
+  same twelve views took about 3 seconds in a row and about 7 seconds when six ran at once (measured on four
+  cores). With the panel beside every page, a quick walk through the pages queued up behind one another, and the
+  Overview's numbers arrived about five seconds late. Since then the app answers the reads under `/api` one at a
+  time, in the order they arrive (`backend/app/web/turns.py`). That is arrival order and nothing more: the panel's
+  read can come before the page's own. A request that changes something takes no turn and waits for none.
+  **What it costs:** a read waits behind the reads that arrived before it. A read can also be stuck for a reason
+  of its own: some reads wait for work a person started that takes long (a change being written with Live Otto
+  on, a setting being applied on a test server). So a turn ends after five seconds at most, and until the stuck
+  read has answered nobody waits for a turn; the reads then go side by side, as before. The worst a stuck read
+  costs the others is that one wait of five seconds. The app is made for one person on one computer. The reads
+  themselves are no faster than before: after everything has run, the Overview's own read takes about half a
+  second on the Acme Pay demo.
+- **A read that crossed a change is asked again.** Because a read can now be on its way for a while, it can land
+  after the answer to a change a person made in the meantime, holding what was there before the change. The
+  complete run of every walk showed it once: a test plan that listed six tests after a seventh was added, until
+  the page was opened again. Since then the browser asks such a read again (at most twice) before it gives it to
+  the page (`frontend/src/api.ts`). A request that changes something is never sent twice. What this does not
+  cover: a change made in another browser tab, which the open page learns of only when it reads again.
+- **The panel never asks about a page with the item of the page before.** It used to: the first read after a
+  change of page carried the item that had been open on the page left behind, and a second read corrected it. A
+  page that opens an item by itself (Systems selects the first system) still gives two reads, one without the
+  item and one with it.
+- **A result's own panel on Evidence starts with the result's plain sentence** (since the same review). Beside an
+  open panel the table is drawn narrow, without that sentence, so the sentence would otherwise leave the screen
+  when a result is opened. The panel's "Why did this check fail?" links that sentence to the result for that
+  reason.
+
+## Limits of the 5c fixes (19 November 2026)
+
+Six fixes after Kevin's review of phase 5c: a new Codespace starts the app, Checks in four parts, Open in new tab,
+wording, times, and the "New" tag. What they do is in `docs/SPEC.md` section 2. What they do not do:
+
+- **Times.** Only a time with a time of day is written in the viewer's own zone. A date with no time of day (a
+  pack's build date, an advisory's publication date, a review date) is shown as it is written, which for a build
+  date is the UTC day. The zone's short name is the browser's: United States zones read "EST" or "PDT"; many others
+  read as an offset ("GMT+1"). The evidence file, the report, every download and both of Otto's ledgers keep UTC,
+  and so does every answer to a script, because only the browser asks the server to mark its times
+  (`backend/app/present/times.py`). A time that a person typed into a reason is their text and is never changed.
+- **Open in new tab.** The item's own page keeps the list it belongs to loaded and hidden, so the page asks the
+  server for the same things as the list does. The Overview has no items, so it has no such page. A page that has
+  no list to look in (for example Import with no file) says "This item is not here" after about four seconds.
+  Since the review of the fixes, an item's own page carries the line every result screen carries ("Passing these
+  tests doesn't prove a system secure. It shows these specific checks passed."), on every page but Import, which
+  shows what a file says and no result. This includes an item of Checks, whose list page has no such line. The
+  reason a click was refused, which the hidden list would have shown, is drawn above the item.
+- **Checks.** While a retest runs, its block fills as each test finishes: a test that has not finished is not
+  listed in it yet, and the line above the blocks says how far the retest is. A block is one program in one
+  version: two retests on the same version share a block, and each row lists that block's runs. The older address
+  of a retest's check (`retest-12`) opens the newest block's row. Only the Encryption tests group has parts.
+  The **Came from** filter goes by each row's own "Came from": a retest's test whose newest run came right after
+  an Apply is found by "After Apply", in its block, and not by "Retest". With any filter on, a block that holds a
+  match is open and a block that holds none is left out.
+- **The test plan's two lists** are a way of showing one plan. The plan still has one order (Evidence lists results
+  in it); moving a card changes the order among the cards of its own list and nothing else.
+- **Wording.** The rule is about the listed phrases ("Otto wrote", "Otto proposes", "in Otto's words", "Why Otto
+  proposes it", "Otto found", "Otto has", "Otto's proposal", "Otto asked", "Otto no longer") and the same verbs in
+  another tense. Seven sentences that were not on the list also named Otto as the one acting. The separate review
+  of the fixes found them, and they were reworded the same way (Kevin, say so if any should go back): the Live
+  Otto status lines ("Otto works on the answers recorded during the build" is now "Only the answers recorded
+  during the build are used"; "when Otto needs an answer, it asks Claude" is now "when an answer is needed, Claude
+  is asked"), "Otto adds up each call's cost" ("Each call's cost is added up"), "Otto goes on working with the
+  answers recorded during the build" ("The answers recorded during the build go on being used"), "An advisory
+  Otto could not read" ("An advisory that could not be read"), "Otto's own change is not offered here" ("A change
+  “Written by Otto” is not offered here"), and in the evidence file's note about the app "test packs made by
+  Otto, which uses Claude to read advisories" ("test packs. For a pack, Claude is used to read advisories"). Three
+  reasons the pack builder writes into a new pack said "Otto has no answer / design / proposal for this advisory
+  yet" and now say "There is no …"; the two shipped packs hold none of them and were not rebuilt. The wording
+  test now reads the pack builder too. "Live Otto" is the name of a setting and stays ("Live Otto needs an API
+  key"). Titles kept their words ("Otto's notes on reading it", "Otto's proposed check, in this assessment",
+  "Have Otto write a change for …"). A decision recorded before
+  the fixes keeps the copy of the proposal it was made on, so the history of an older decision, in the app and in
+  an evidence file, shows the older words. The sentence the assessment's Otto ledger keeps about a proposal
+  ("Every decision a person records on Otto's proposal …") is a record and was not changed; no screen shows it.
+- **The "New" tag** goes by the order packs were installed on this computer. It does not know what a person has
+  already looked at, and it stays until a newer pack is installed.
+- **A Codespace.** The image and the three add-ons are pinned by fingerprint; what an add-on downloads when the
+  Codespace is built (the current Node.js 22, Docker, Git LFS) is not. On the build machine the add-ons could not
+  be installed (it may not reach the host their packages come from), so Docker inside a Codespace and isolated
+  mode there were not rehearsed: Kevin's own check in a new Codespace covers them (`docs/HANDOFF-overnight.md`).
+  The address `./run-demo.sh` prints (`http://127.0.0.1:8000`) is inside the Codespace; README says to use the
+  box GitHub shows, or the Ports tab.
+- **The fast test set.** To keep it under five minutes, the tests that read the three oldest shared walks still
+  in it (the phase 3a fix, the phase 4a migration demo, a phase 4b change) moved to the full set. They run with
+  `--full` and in the nightly checks.
+
 ## Limits of phase 5b (one connected assessment; 17 November 2026)
 
 - **The sign-off name is typed, not checked.** This app has one login, so whoever is at the keyboard records the name

@@ -19,7 +19,7 @@ const ERROR = (message: string, status = 409) => ({ status, body: { error: { mes
 const BLOCK = {
   title: "From Otto: proposed changes to this system's plan",
   note:
-    "Otto proposes these from results. Accept adds one to the plan as something to fix first; Reject keeps the plan as it was, with " +
+    "These are proposed from results. Accept adds one to the plan as something to fix first. Reject keeps the plan as it was, with " +
     "your reason. Neither changes a status or a measurement.",
 };
 const TITLE = "Fix acme-sign 1.4.2 before its signatures move to post-quantum";
@@ -32,9 +32,9 @@ const PLAN: Partial<OttoProposal> = {
   why:
     "acme-sign 1.4.2 gave the wrong answer on 3 published cases of the kind CVE-2022-21449 describes (Missing ECDSA signature range " +
     "check). Moving a program that checks signatures wrongly carries the fault along.",
-  why_label: "Why Otto proposes it",
+  why_label: "Why it is proposed",
   lines: [
-    "Otto proposes to add this to the migration plan, on the Signatures track, as something to fix first.",
+    "Proposed for the migration plan: something to fix first, on the Signatures track.",
     "Accepting changes nothing on any system and runs nothing. It is taken off again when a newer result of this check passes.",
   ],
   link: { page: "migration/systems", item: SIGN },
@@ -102,7 +102,7 @@ describe("Migration, Systems: Otto's proposed change to a system's plan", () => 
     expect(text(block().getByTestId("proposal-label"))).toBe("From Otto");
     expect(text(block().getByTestId("proposal-status"))).toBe("Proposed");
     expect(text(block().getByTestId("proposal-title"))).toBe(TITLE);
-    expect(text(block().getByTestId("proposal-why"))).toContain("Why Otto proposes it:");
+    expect(text(block().getByTestId("proposal-why"))).toContain("Why it is proposed:");
     expect(text(block().getByTestId("proposal-note"))).toContain("It runs nothing and changes nothing on any system.");
     expect((block().getByTestId("proposal-accept") as HTMLButtonElement).disabled).toBe(false);
     expect((block().getByTestId("proposal-reject") as HTMLButtonElement).disabled).toBe(false);
@@ -168,7 +168,7 @@ describe("Migration, Systems: Otto's proposed change to a system's plan", () => 
 
   it("a decision the backend refuses is shown in its words, and the view is not read again", async () => {
     const { fetchMock } = await open([withOtto(proposed, WAITING)], {
-      [decide("accept")]: ERROR("Otto is not installed on this computer. A decision on one of Otto's proposals is recorded in Otto's ledger, so nothing can be decided here."),
+      [decide("accept")]: ERROR("Otto is not installed on this computer. A decision on a proposal is recorded in Otto's ledger, so nothing can be decided here."),
     });
     fireEvent.click(card("acme-sign 1.4.2"));
     fireEvent.click(block().getByTestId("proposal-accept"));

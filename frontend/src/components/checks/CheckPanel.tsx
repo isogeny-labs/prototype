@@ -45,7 +45,7 @@ export function CheckPanel({
 
   const shown = detail && detail.check.id === id ? detail : null;
   return (
-    <DetailPanel open={check !== null} title={check?.name ?? ""} subtitle={check?.ran_on} onClose={onClose} testId="detail-panel">
+    <DetailPanel open={check !== null} item={check?.id ?? null} title={check?.name ?? ""} subtitle={check?.ran_on} onClose={onClose} testId="detail-panel">
       {check ? (
         <div data-testid="check-panel" data-check={check.id} className="space-y-4 text-sm">
           <div className="flex flex-wrap items-center gap-2">

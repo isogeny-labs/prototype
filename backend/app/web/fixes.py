@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
+from app.present import times
 from app.web import models
 from app.web.common import ApproveBody, PullRequestBody, download, known_shape, shows
 
@@ -49,7 +50,8 @@ def routes(lab, require_login) -> APIRouter:
 
     @router.get("/api/plans/{plan_id}/fixes/{fix_id}/patch", dependencies=[Depends(require_login)])
     def patch_file(plan_id: int, fix_id: str):
-        filename, data = lab.patch_file(plan_id, known_shape(fix_id))
+        with times.for_files():      # a download keeps UTC, whoever asks
+            filename, data = lab.patch_file(plan_id, known_shape(fix_id))
         return download(filename, data, "text/x-patch; charset=utf-8")
 
     return router

@@ -390,7 +390,7 @@ class OttoModel:
         tokens_in, tokens_out, cost = cost_of(model, data)
         self.budget.add(cost)           # a declined or cut-off answer was still paid for
         if data.get("stop_reason") == "refusal":
-            raise ModelRefused("Claude declined this request, so Otto has no answer for it. Nothing was made up in its place.")
+            raise ModelRefused("Claude declined this request, so there is no answer for it. Nothing was made up in its place.")
         if data.get("stop_reason") == "max_tokens":
             raise LiveCallFailed("Claude's answer was cut off before it ended, so it is not used. Nothing was changed.")
         blocks: list = data["content"] if isinstance(data.get("content"), list) else []

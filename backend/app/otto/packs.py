@@ -11,7 +11,7 @@ design in it can be run by this version, and it follows the pack installed befor
 fingerprint of the one before). Anything else is refused with one plain sentence.
 
 Trusted keys are part of the app (trusted-pack-keys.json beside this file), never read from the updates folder. A pack
-built on this computer by the live research command is signed with a key made here; its public half is in the data
+built on this computer by the research command is signed with a key made here; its public half is in the data
 folder and is trusted by this installation only.
 """
 from __future__ import annotations
@@ -110,7 +110,7 @@ def trusted_keys(data_dir: Path | None = None) -> dict[str, tuple[str, bool]]:
         except (OSError, ValueError):
             local = ""
         if _HEX64.match(local) and local not in out:
-            out[local] = ("A key made on this computer by the live research command", True)
+            out[local] = ("A key made on this computer by the research command", True)
     return out
 
 

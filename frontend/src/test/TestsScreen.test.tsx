@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { PlanView } from "../api";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
 import { LinkProvider } from "../components/related";
@@ -76,10 +76,11 @@ describe("Tests screen", () => {
     const list = await shownCards();
     expect(screen.queryByTestId("test-group")).toBeNull();
     expect(screen.queryByTestId("not-tested")).toBeNull();
-    // One table, straight under the screen, each row with its own level-2 title.
+    // One table for the plan's standard tests, each row with its own level-2 title. (The 5c fixes: the plan is two
+    // lists; with no advisory check in the plan, the second list says so and has no table.)
     const body = list[0]!.parentElement!;
     expect(body.tagName).toBe("TBODY");
-    expect(body.closest("table")!.getAttribute("aria-label")).toBe("Tests");
+    expect(body.closest("table")!.getAttribute("aria-label")).toBe("Tests: Standard tests");
     expect(body.children).toHaveLength(5);
     expect(screen.getAllByRole("table")).toHaveLength(1);
     expect(list.map((c) => within(c).getByRole("heading").tagName)).toEqual(["H2", "H2", "H2", "H2", "H2"]);
@@ -228,7 +229,7 @@ describe("Tests screen", () => {
     expect(body(fetchMock, "/api/plans/1/order")).toEqual({ order: [11, 13, 12, 14, 15] });
     expect(titles().slice(0, 3)).toEqual(["Old TLS versions", "Official test vectors", "Certificate strength"]);
     await waitFor(() => expect(document.activeElement).toBe(button(/^Reorder Official test vectors/)));
-    expect(screen.getByText("Official test vectors moved to position 2 of 5.")).not.toBeNull();
+    expect(screen.getByText("Official test vectors moved to position 2 of 5 in Standard tests.")).not.toBeNull();
   });
 
   it("does nothing when the first card is moved up or the last one down", async () => {
@@ -276,6 +277,45 @@ describe("Tests screen", () => {
     await waitFor(() => expect(screen.getAllByTestId("test-card")).toHaveLength(6));
     expect(body(fetchMock, "/api/plans/1/tests")).toEqual({ catalog_id: "pq_readiness" });
     expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("a read of the plan that was on its way while a test was added does not put the old list back", async () => {
+    // Inside Checks the plan is known already and is read again when the page opens. That read can still be on its way
+    // when a person adds a test (the reads take turns on the server). It then holds the plan from before the add and
+    // lands after the add's own answer: it is asked again (src/api.ts), so the card that was added stays.
+    const added = { ...plan, tests: [...cards, pqCard], catalog: [plan.catalog[1]!] };
+    let reads = 0;
+    const inner = mockApi({
+      "GET /api/import/7/plan": () => ({ body: reads++ === 0 ? plan : added }),
+      "POST /api/plans/1/tests": { body: added },
+    });
+    let land: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (land = resolve));
+    let first = true;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const answer = await inner(input, init); // (the answer is made now, from the plan as it is at this moment)
+      if (first && String(input) === "/api/import/7/plan") {
+        first = false;
+        await held; // ... and is on its way until the test lets it land
+      }
+      return answer;
+    });
+    function Embedded() {
+      const [current, setCurrent] = useState<PlanView | null>(plan);
+      return <TestsScreen importId={7} plan={current} onPlan={setCurrent} embedded />;
+    }
+    render(<Embedded />);
+    expect(await shownCards()).toHaveLength(5);
+
+    fireEvent.click(button("+ Add test"));
+    fireEvent.click(within(screen.getByRole("menu", { name: "Tests you can add" })).getByRole("menuitem", { name: /Post-quantum readiness/ }));
+    await waitFor(() => expect(screen.getAllByTestId("test-card")).toHaveLength(6));
+
+    land();
+    await waitFor(() => expect(calls(inner)).toEqual(["GET /api/import/7/plan", "POST /api/plans/1/tests", "GET /api/import/7/plan"]));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(titles()).toHaveLength(6);
+    expect(titles()).toContain("Post-quantum readiness");
   });
 
   it("closes the add-test list on Escape without adding anything", async () => {
@@ -336,7 +376,7 @@ describe("Tests screen", () => {
       fireEvent.keyDown(handles()[6]!, { key: "ArrowUp" });
       await waitFor(() => expect(calls(fetchMock)).toContain("POST /api/plans/1/order"));
       expect(body(fetchMock, "/api/plans/1/order")).toEqual({ order: [21, 22, 31, 32, 41, 43, 42] });
-      expect(screen.getByText("Speed and size moved to position 2 of 3 under Signing program: acme-sign 1.4.2.")).not.toBeNull();
+      expect(screen.getByText("Speed and size moved to position 2 of 3 in Standard tests under Signing program: acme-sign 1.4.2.")).not.toBeNull();
     });
 
     it("doesn't let a card be dropped into another group", async () => {
@@ -356,6 +396,115 @@ describe("Tests screen", () => {
       await waitFor(() => expect(calls(fetchMock)).toContain("POST /api/plans/1/order"));
       expect(body(fetchMock, "/api/plans/1/order")).toEqual({ order: [21, 22, 32, 31, 41, 42, 43] });
     });
+  });
+});
+
+// The 5c fixes: the test plan is two lists, Standard tests and Advisory checks. An advisory check is a test a person
+// accepted from a proposal; its list is marked From Otto. A card moves only within its own list.
+describe("Tests screen, the plan's two lists", () => {
+  const advisoryCard = (id: number, title: string) => ({
+    ...cards[3]!,
+    id,
+    kind: "advisory_cases" as const,
+    title,
+    origin: "added" as const,
+    from_otto: "From Otto",
+    advisory: { label: "From advisory CVE-2022-21449", link: { page: "advisories", item: "CVE-2022-21449" } },
+  });
+  // in the plan's own order the two kinds are mixed: 11, A (21), 12, 13, B (22), 14, 15
+  const mixed: PlanView = {
+    ...plan,
+    tests: [cards[0]!, advisoryCard(21, "Advisory check: A"), cards[1]!, cards[2]!, advisoryCard(22, "Advisory check: B"), cards[3]!, cards[4]!],
+  };
+  const lists = () => screen.getAllByTestId("plan-list");
+  const titlesIn = (el: HTMLElement) => within(el).getAllByTestId("test-card").map((c) => within(c).getByRole("heading").textContent);
+
+  it("shows Standard tests and Advisory checks as two lists, each with its count, and marks the second From Otto", async () => {
+    open({}, mixed);
+    await shownCards();
+    expect(lists().map((l) => l.getAttribute("data-list"))).toEqual(["standard", "advisory"]);
+    const [standard, advisory] = lists() as [HTMLElement, HTMLElement];
+    expect(within(standard).getByRole("heading", { level: 3 }).textContent).toContain("Standard tests");
+    expect(within(advisory).getByRole("heading", { level: 3 }).textContent).toContain("Advisory checks");
+    expect(within(standard).getByTestId("plan-list-count").textContent).toBe("5");
+    expect(within(advisory).getByTestId("plan-list-count").textContent).toBe("2");
+    expect(within(standard).queryByTestId("plan-list-from-otto")).toBeNull();
+    expect(within(advisory).getByTestId("plan-list-from-otto").textContent).toBe("From Otto");
+    // every card is in exactly one list, in the plan's order within that list
+    expect(titlesIn(standard)).toEqual(["Old TLS versions", "Certificate strength", "Official test vectors", "Bad signatures", "Speed and size"]);
+    expect(titlesIn(advisory)).toEqual(["Advisory check: A", "Advisory check: B"]);
+    expect(screen.getAllByTestId("test-card")).toHaveLength(7);
+    expect(screen.getAllByRole("table").map((t) => t.getAttribute("aria-label"))).toEqual(["Tests: Standard tests", "Tests: Advisory checks"]);
+    // a card's place is counted in its own list
+    expect(button(/^Reorder Advisory check: B/).getAttribute("aria-label")).toMatch(/position 2 of 2\./);
+    expect(button(/^Reorder Speed and size/).getAttribute("aria-label")).toMatch(/position 5 of 5\./);
+  });
+
+  it("moves a card with the arrow keys only within its own list, and every other card keeps its place in the plan", async () => {
+    const fetchMock = open({ "POST /api/plans/1/order": { body: mixed } }, mixed);
+    await shownCards();
+    // The first advisory check is second in the plan, but first in its list: it can't move up into the standard tests.
+    fireEvent.keyDown(button(/^Reorder Advisory check: A/), { key: "ArrowUp" });
+    // The last standard test can't move down into the advisory checks.
+    fireEvent.keyDown(button(/^Reorder Speed and size/), { key: "ArrowDown" });
+    expect(calls(fetchMock)).toEqual(["POST /api/import/7/plan"]);
+
+    // Within its list it moves: A and B swap the two places advisory checks hold in the plan; no standard test moves.
+    fireEvent.keyDown(button(/^Reorder Advisory check: A/), { key: "ArrowDown" });
+    await waitFor(() => expect(calls(fetchMock)).toContain("POST /api/plans/1/order"));
+    expect(body(fetchMock, "/api/plans/1/order")).toEqual({ order: [11, 22, 12, 13, 21, 14, 15] });
+    expect(screen.getByText("Advisory check: A moved to position 2 of 2 in Advisory checks.")).not.toBeNull();
+  });
+
+  it("doesn't let a card be dropped into the other list", async () => {
+    const fetchMock = open({ "POST /api/plans/1/order": { body: mixed } }, mixed);
+    await shownCards();
+    const dataTransfer = { setData: () => {}, effectAllowed: "", dropEffect: "" };
+    const [standard, advisory] = lists() as [HTMLElement, HTMLElement];
+    const standardCards = within(standard).getAllByTestId("test-card");
+    const advisoryCards = within(advisory).getAllByTestId("test-card");
+    // an advisory check dragged onto a standard test: no drop is offered, and nothing is sent
+    fireEvent.dragStart(button(/^Reorder Advisory check: B/), { dataTransfer });
+    fireEvent.dragOver(standardCards[0]!, { dataTransfer });
+    fireEvent.drop(standardCards[0]!, { dataTransfer });
+    fireEvent.dragEnd(button(/^Reorder Advisory check: B/), { dataTransfer });
+    // a standard test dragged onto an advisory check: the same
+    fireEvent.dragStart(button(/^Reorder Old TLS versions/), { dataTransfer });
+    fireEvent.dragOver(advisoryCards[1]!, { dataTransfer });
+    fireEvent.drop(advisoryCards[1]!, { dataTransfer });
+    fireEvent.dragEnd(button(/^Reorder Old TLS versions/), { dataTransfer });
+    expect(calls(fetchMock)).toEqual(["POST /api/import/7/plan"]);
+
+    // inside its own list a drop works, and only that list's places in the plan change
+    fireEvent.dragStart(button(/^Reorder Advisory check: B/), { dataTransfer });
+    fireEvent.dragOver(advisoryCards[0]!, { dataTransfer });
+    fireEvent.drop(advisoryCards[0]!, { dataTransfer });
+    await waitFor(() => expect(calls(fetchMock)).toContain("POST /api/plans/1/order"));
+    expect(body(fetchMock, "/api/plans/1/order")).toEqual({ order: [11, 22, 12, 13, 21, 14, 15] });
+  });
+
+  it("says so when no advisory check is in the plan, with the way to Advisories", async () => {
+    mockApi({ "POST /api/import/7/plan": { body: plan } });
+    render(
+      <LinkProvider assessmentId={101} planId={1}>
+        <Harness />
+      </LinkProvider>,
+    );
+    await shownCards();
+    const [, advisory] = lists() as [HTMLElement, HTMLElement];
+    expect(within(advisory).getByTestId("plan-list-count").textContent).toBe("0");
+    expect(within(advisory).queryByRole("table")).toBeNull();
+    expect(text(within(advisory).getByTestId("plan-list-empty"))).toBe(
+      "No advisory check is in the plan. A proposed check joins it when you accept it on Advisories.",
+    );
+    expect(within(advisory).getByRole("link", { name: "Advisories" }).getAttribute("href")).toBe("#/a/101/advisories");
+  });
+
+  it("under a target heading, a target with no advisory check shows no empty second list", async () => {
+    open({}, groupedPlan);
+    await shownCards();
+    expect(lists().map((l) => l.getAttribute("data-list"))).toEqual(["standard", "standard", "standard"]);
+    expect(screen.queryByTestId("plan-list-empty")).toBeNull();
   });
 });
 

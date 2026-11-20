@@ -92,9 +92,10 @@ def test_the_second_row_says_what_this_assessments_own_retest_showed():
         assert row["note"].startswith("This row is about a public copy, not the system you run.") and row["note"] not in row["line"]
         assert "The app has not checked that your own system was updated" in row["note"]
     assert present_otto.public_copies_row({**fix, "state": "proven", "trial": None}, None)["note"] is None
-    # "press Retest": the button is on Evidence ("Retest new version"), so the row links to this check's result there
+    # "press Retest": since the 5c fixes the button ("Retest new version") is on Checks too, under Retests by version, and
+    # the row links there
     with_item = present_otto.your_system_row(fix, {"state": "not_yet", "item_id": 12, "live": False})
-    assert with_item["links"] == [{"label": "Retest new version is on Evidence", "link": {"page": "evidence", "item": "test-12"}}]
+    assert with_item["links"] == [{"label": "Retest new version is on Checks", "link": {"page": "checks", "item": None, "group": "encryption"}}]
     assert with_item["line"] == not_yet["line"]                     # the row's own words stay Kevin's
     assert present_otto.your_system_row(fix, {"state": "not_yet", "item_id": 12, "live": True})["links"] == []
 
@@ -676,17 +677,17 @@ def test_fixes_says_where_a_plan_change_is_decided_and_asks_for_no_decision_wher
         return {"state": state, "actions": ({"accept": accept, "reject": accept} if state == "proposed" else {"undo": None})}
     line = present_otto.fixes_plan_line
     assert line([]) is None and line([proposal("rejected")]) is None
-    assert line([proposal("proposed")]) == ("Otto proposes 1 change to the migration plan from a result: you accept or reject it on "
+    assert line([proposal("proposed")]) == ("1 change to the migration plan is proposed from a result. You accept or reject it on "
                                             "Migration, under Systems.")
-    assert line([proposal("proposed"), proposal("proposed")]).startswith("Otto proposes 2 changes to the migration plan from a result: you "
+    assert line([proposal("proposed"), proposal("proposed")]).startswith("2 changes to the migration plan are proposed from a result. You "
                                                                          "accept or reject each one")
     off = "This assessment is closed, so nothing more can be decided in it."
     blocked = line([proposal("proposed", off)])
-    assert blocked == "1 change to the migration plan that Otto proposed from a result has no decision: it is on Migration, under Systems."
+    assert blocked == "1 change to the migration plan, proposed from a result, has no decision: it is on Migration, under Systems."
     assert "accept or reject" not in blocked
-    assert line([proposal("accepted")]) == "1 change of Otto's to the plan is accepted: it is on Migration, under Systems."
+    assert line([proposal("accepted")]) == "1 proposed change to the plan is accepted: it is on Migration, under Systems."
     both = line([proposal("proposed"), proposal("accepted"), proposal("accepted")])
-    assert both.startswith("Otto proposes 1 change") and both.endswith("2 changes of Otto's to the plan are accepted: they are on Migration, under Systems.")
+    assert both.startswith("1 change to the migration plan is proposed") and both.endswith("2 proposed changes to the plan are accepted: they are on Migration, under Systems.")
 
 
 def test_two_entries_for_the_same_update_of_a_library_name_each_other():

@@ -278,7 +278,7 @@ class Ledger:
             for entry in lab.ledger.entries():
                 rid, record = lab.ledger.record_id(entry), entry["payload"]
                 if rid == objective_id:
-                    what = "Proposal entry: names what Otto proposed, written with the first decision on it"
+                    what = "Proposal entry: names what was proposed, written with the first decision on it"
                 elif rid in claims:
                     art = record["artifact"]
                     what = f"Decision {art.get('number')}: {DECISION_WORDS.get(art.get('decision'), 'recorded')} by {art.get('by')}"

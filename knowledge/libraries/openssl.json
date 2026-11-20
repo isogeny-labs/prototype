@@ -138,5 +138,6 @@
       }
     }
   ],
-  "notes": "The 3.5 NEWS lists ML-KEM as a family; the parameter set ML-KEM-768 is not named on that line. Release line used: 3.5.0 (8 Apr 2025)."
+  "notes": "The 3.5 NEWS lists ML-KEM as a family; the parameter set ML-KEM-768 is not named on that line. Release line used: 3.5.0 (8 Apr 2025).",
+  "no_package_file": "OpenSSL is not a package with a file that declares what it needs: what it is built with is decided by whoever builds it."
 }

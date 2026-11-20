@@ -3,11 +3,35 @@ import type { AdvisoryRow } from "../../api";
 import { DataTable, type Column } from "../layout";
 import { StatusChip } from "../ui";
 
+/** The 5c fixes: the tag "New" beside an advisory that first arrived with the most recently installed test pack. Which
+ * pack that was is said on hover, and to a screen reader in place of the bare word ("New: arrived with test pack
+ * 2026.11.2"). The words are the view's. */
+export function NewTag({ tag }: { tag: AdvisoryRow["new"] }) {
+  if (!tag) return null;
+  return (
+    <span
+      data-testid="advisory-new"
+      data-title-skip=""
+      title={tag.title}
+      className="ml-0.5 inline-block whitespace-nowrap rounded border border-sky-400/50 bg-sky-400/10 px-1.5 py-px align-middle text-[11px] font-semibold leading-tight text-sky-100"
+    >
+      <span aria-hidden="true">{tag.label}</span>
+      <span className="sr-only">
+        {tag.label}: {tag.title.charAt(0).toLowerCase() + tag.title.slice(1)}
+      </span>
+    </span>
+  );
+}
+
 /** The advisory's plain name with its id under it. A name breaks only at a space, an id only at a dash. */
 function Name({ row }: { row: AdvisoryRow }) {
   return (
     <>
-      <span className="block font-medium text-slate-100">{row.name}</span>
+      <span className="block font-medium text-slate-100">
+        {row.name}
+        {row.new ? " " : null}
+        <NewTag tag={row.new} />
+      </span>
       <span className="block font-mono text-xs text-slate-400">{row.id}</span>
     </>
   );

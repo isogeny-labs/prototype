@@ -20,7 +20,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from app.config import REPO_ROOT
-from app.knowledge.model import CAPABILITIES, LibraryFile, Source
+from app.knowledge.model import CAPABILITIES, Declared, LibraryFile, Source
 from app.knowledge.versions import Version, at_least, key, read_version, shown
 
 KNOWLEDGE_DIR = REPO_ROOT / "knowledge" / "libraries"
@@ -45,6 +45,23 @@ class Answer:
         return {"capability": self.capability, "answer": self.answer, "label": self.label,
                 "first_version": self.first_version, "reason": self.reason,
                 "source": self.source.model_dump() if self.source else None}
+
+
+@dataclass(frozen=True)
+class Needs:
+    """What one version of a library declares it needs (phase 6e), or why that is not known."""
+
+    answer: str                    # declared | doesnt_apply | not_in_knowledge_base | couldnt_tell_version
+    version: str | None            # the version as it was read, when it could be
+    entry: Declared | None         # the knowledge-base entry, for "declared"
+    reason: str                    # one plain sentence saying why this is the answer
+
+    def as_dict(self) -> dict:
+        entry = self.entry
+        return {"answer": self.answer, "version": self.version, "reason": self.reason,
+                "needs": [n.model_dump() for n in entry.needs] if entry else None,
+                "file": entry.file if entry else None, "file_sha256": entry.file_sha256 if entry else None,
+                "source": entry.source.model_dump() if entry else None}
 
 
 def purl_base(purl: object) -> str | None:
@@ -97,6 +114,28 @@ class KnowledgeBase:
                           f"{no.source.title} says this was added in {no.versions.before}; this version is {shown(version)}, before that.")
         return Answer(capability, "not_in_knowledge_base", None, None, None,
                       "Our knowledge base has no official source for this question and this library.")
+
+    def declared_needs(self, purl: object, name: object, version_text: object) -> Needs:
+        """What this version of this library itself declares it needs, from its publisher's package file. The order of
+        the answers when it is not known is the lookup's: no file, no such package file, no readable version, no entry
+        for this version. Nothing is worked out from another version."""
+        entry = self.find(purl, name)
+        if entry is None:
+            return Needs("not_in_knowledge_base", None, None, "This library has no file in our knowledge base yet.")
+        if entry.no_package_file is not None:
+            return Needs("doesnt_apply", None, None, entry.no_package_file)
+        version = read_version(version_text)
+        if version is None:
+            return Needs("couldnt_tell_version", None, None,
+                         "The version can't be read as a released version number, so what it declares can't be looked up.")
+        found = next((d for d in entry.declared if key(read_version(d.version)) == key(version)), None)     # type: ignore[arg-type]
+        if found is None:
+            return Needs("not_in_knowledge_base", shown(version), None,
+                         f"Our knowledge base does not hold what {entry.label} {shown(version)} declares it needs.")
+        return Needs("declared", shown(version), found,
+                     f"{found.source.title} lists {len(found.needs)} {'package' if len(found.needs) == 1 else 'packages'} "
+                     f"that {entry.label} {found.version} needs." if found.needs else
+                     f"{found.source.title} lists no package that {entry.label} {found.version} needs.")
 
     def source_urls(self) -> tuple[str, ...]:
         """Every official source link in the knowledge base, in a fixed order (the evidence report may link to these)."""

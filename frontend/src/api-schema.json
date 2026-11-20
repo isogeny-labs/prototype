@@ -105,7 +105,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NameBody"
+                "$ref": "#/components/schemas/app__web__projects__NameBody"
               }
             }
           },
@@ -2186,10 +2186,99 @@
         }
       }
     },
+    "/api/otto/name": {
+      "post": {
+        "summary": "Decision Name",
+        "description": "Phase 6a: the name a person types once; their decisions on proposals are recorded under it from then on.",
+        "operationId": "decision_name_api_otto_name_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__web__otto__NameBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OttoSettingsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/plans/{plan_id}/advisories": {
       "get": {
         "summary": "Advisories",
         "operationId": "advisories_api_plans__plan_id__advisories_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvisoriesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/advisories/look": {
+      "post": {
+        "summary": "Look For Advisories",
+        "description": "Phase 6: Look for new advisories. One read of the public source about this assessment's libraries (package\nnames only are sent). It runs nothing and proposes nothing.",
+        "operationId": "look_for_advisories_api_plans__plan_id__advisories_look_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvisoriesView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/advisories/research": {
+      "post": {
+        "summary": "Design And Prove",
+        "description": "Phase 6: Design and prove tests, for the new advisories of the newest look, in the background.",
+        "operationId": "design_and_prove_api_plans__plan_id__advisories_research_post",
         "parameters": [
           {
             "name": "plan_id",
@@ -2294,6 +2383,281 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OttoProposal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assessments/{assessment_id}/assistant": {
+      "get": {
+        "summary": "Assistant",
+        "description": "What the panel shows beside this page of this assessment, with this item open: the open tabs, what fits the\npage, what waits elsewhere and the status line.",
+        "operationId": "assistant_api_assessments__assessment_id__assistant_get",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 60,
+              "default": "overview",
+              "title": "Page"
+            }
+          },
+          {
+            "name": "item",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Item"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/assessments/{assessment_id}/assistant/answer": {
+      "get": {
+        "summary": "Answer",
+        "description": "Otto's answer to one typed sentence, and nothing kept: where to go, or a card with its Confirm step.",
+        "operationId": "answer_api_assessments__assessment_id__assistant_answer_get",
+        "parameters": [
+          {
+            "name": "assessment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Assessment Id"
+            }
+          },
+          {
+            "name": "text",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "title": "Text"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 60,
+              "default": "overview",
+              "title": "Page"
+            }
+          },
+          {
+            "name": "item",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Item"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantReply"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/assistant/messages": {
+      "post": {
+        "summary": "Say",
+        "description": "The same answer, and the exchange kept with the assessment. It decides and starts nothing.",
+        "operationId": "say_api_plans__plan_id__assistant_messages_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SayBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistantReply"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/change-watch": {
+      "get": {
+        "summary": "Change Watch",
+        "description": "The Changes view: every developer's change in the connected demo repository, read now. It only reads.",
+        "operationId": "change_watch_api_plans__plan_id__change_watch_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeWatchView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/change-watch/demo/{name}": {
+      "post": {
+        "summary": "Bring In Demo Change",
+        "description": "Bring in a demo change (Demo data): one branch with one commit, written into this assessment's own copy of\nthe repository. It runs nothing. `name` is one of our own names for a bundled change, and nothing else.",
+        "operationId": "bring_in_demo_change_api_plans__plan_id__change_watch_demo__name__post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeWatchView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/change-watch/{change_id}/run": {
+      "post": {
+        "summary": "Run Picked Tests",
+        "description": "Run the picked tests (then: Run again). Sent by that button, or by its Confirm in the Otto panel.",
+        "operationId": "run_picked_tests_api_plans__plan_id__change_watch__change_id__run_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          },
+          {
+            "name": "change_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Change Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeWatchView"
                 }
               }
             }
@@ -2507,6 +2871,17 @@
               }
             ],
             "title": "Assessment Id"
+          },
+          "lookup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryLookup"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 6: the block New advisories. Always sent by the current backend."
           }
         },
         "additionalProperties": false,
@@ -2980,6 +3355,83 @@
         ],
         "title": "AdvisoryLedgerEntry"
       },
+      "AdvisoryLookup": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "intro": {
+            "type": "string",
+            "title": "Intro"
+          },
+          "covers": {
+            "type": "string",
+            "title": "Covers"
+          },
+          "libraries_line": {
+            "type": "string",
+            "title": "Libraries Line"
+          },
+          "look": {
+            "$ref": "#/components/schemas/LookupButton"
+          },
+          "last": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LookupLast"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "research": {
+            "$ref": "#/components/schemas/LookupResearch"
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "A research run is going on: ask again in a few seconds."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "intro",
+          "covers",
+          "libraries_line",
+          "look",
+          "last",
+          "research",
+          "busy"
+        ],
+        "title": "AdvisoryLookup",
+        "description": "Phase 6, Otto's research loop: the block \"New advisories\" of the Advisories page."
+      },
+      "AdvisoryNew": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"New\""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Said on hover and to a screen reader: \"Arrived with test pack 2026.11.2\"."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "title"
+        ],
+        "title": "AdvisoryNew",
+        "description": "The 5c fixes: the tag beside an advisory that first arrived with the most recently installed test pack."
+      },
       "AdvisoryNoTest": {
         "properties": {
           "label": {
@@ -3308,6 +3760,17 @@
             "type": "string",
             "title": "Name"
           },
+          "new": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvisoryNew"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for an advisory of an earlier pack (also one a later pack only updates)."
+          },
           "published": {
             "type": "string",
             "title": "Published"
@@ -3357,6 +3820,7 @@
         "required": [
           "id",
           "name",
+          "new",
           "published",
           "published_text",
           "package",
@@ -4479,7 +4943,7 @@
                 "type": "null"
               }
             ],
-            "description": "Phase 5c: \"Waiting for you\": Otto's proposals nobody has decided yet."
+            "description": "Phase 5c: \"Waiting for you\": the proposals nobody has decided yet."
           }
         },
         "additionalProperties": false,
@@ -4508,6 +4972,1323 @@
           "next_step"
         ],
         "title": "AssessmentView"
+      },
+      "AssistantAction": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "verify",
+              "run",
+              "run_all",
+              "retest",
+              "run_picked_tests",
+              "connect",
+              "run_proof_again",
+              "open_pull_request",
+              "retest_now",
+              "try",
+              "ask_approval",
+              "measure_library",
+              "measure_all",
+              "measure_status",
+              "open"
+            ],
+            "title": "Type"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "import_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Id"
+          },
+          "item_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id",
+            "description": "A test of the plan (Run)."
+          },
+          "fix_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix Id"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change",
+            "description": "A server change's key (Try on a test copy, Ask for approval), or the id of a developer's change (Run the picked tests)."
+          },
+          "row": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row",
+            "description": "A library row (Measure on a public copy)."
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "reviewers": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewers",
+            "description": "The reviewers the page ticks by default."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\"open\": where it goes; opening a page needs no Confirm. \"retest_now\": where the page itself goes once its request is answered (Evidence, on the result the fix came from)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "plan_id",
+          "import_id",
+          "item_id",
+          "fix_id",
+          "change",
+          "row",
+          "version",
+          "component",
+          "reviewers",
+          "link"
+        ],
+        "title": "AssistantAction",
+        "description": "The request of the page's own button. The browser sends it on Confirm, through the same call the page uses."
+      },
+      "AssistantBadge": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "tone"
+        ],
+        "title": "AssistantBadge"
+      },
+      "AssistantBox": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Ask Otto, or tell it what to do\" (phase 6c; in 6b alone it read \"Tell Otto where to go or what to do\")"
+          },
+          "send": {
+            "type": "string",
+            "title": "Send"
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          },
+          "chips": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Chips",
+            "description": "Up to three examples fitted to the page. A chip sends its own words."
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Questions",
+            "description": "Phase 6c: up to three of the six fixed questions that fit the page and the open item."
+          },
+          "kept": {
+            "type": "boolean",
+            "title": "Kept",
+            "description": "False in a closed assessment: what is typed there is answered and not kept."
+          },
+          "kept_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kept Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "send",
+          "max",
+          "chips",
+          "questions",
+          "kept",
+          "kept_note"
+        ],
+        "title": "AssistantBox",
+        "description": "Phase 6b: the text box at the foot of the panel."
+      },
+      "AssistantCan": {
+        "properties": {
+          "say": {
+            "type": "string",
+            "title": "Say"
+          },
+          "about": {
+            "type": "string",
+            "title": "About"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "go",
+              "do"
+            ],
+            "title": "Kind"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "say",
+          "about",
+          "kind"
+        ],
+        "title": "AssistantCan"
+      },
+      "AssistantConfirm": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "names": {
+            "type": "string",
+            "title": "Names",
+            "description": "\"This is the Run all button on Checks.\""
+          },
+          "confirm": {
+            "type": "string",
+            "title": "Confirm",
+            "description": "\"Confirm\""
+          },
+          "cancel": {
+            "type": "string",
+            "title": "Cancel",
+            "description": "\"Cancel\""
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reject only: the optional reason."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "names",
+          "confirm",
+          "cancel",
+          "reason"
+        ],
+        "title": "AssistantConfirm",
+        "description": "The Confirm step: what will happen and what will not, and which button of which page it presses."
+      },
+      "AssistantDecision": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "reject",
+              "undo",
+              "reconsider"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "confirm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantConfirm"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the button is off: there is nothing to confirm."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "can",
+          "blocked_reason",
+          "confirm"
+        ],
+        "title": "AssistantDecision",
+        "description": "One button of a suggestion: the page's own button, with the page's own reason when it is off."
+      },
+      "AssistantElsewhere": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Elsewhere: 2 more\""
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantElsewhereLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty",
+            "description": "\"Nothing from Otto is waiting for a decision.\" when nothing waits anywhere."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "count",
+          "lines",
+          "empty"
+        ],
+        "title": "AssistantElsewhere"
+      },
+      "AssistantElsewhereLine": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "\"Fixes: 1 proposed fix, Update elliptic to 6.5.7\""
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          },
+          "thread": {
+            "type": "string",
+            "enum": [
+              "testing",
+              "fixing",
+              "planning"
+            ],
+            "title": "Thread"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "count",
+          "link",
+          "thread"
+        ],
+        "title": "AssistantElsewhereLine"
+      },
+      "AssistantEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "suggestion",
+              "next",
+              "meaning",
+              "result",
+              "fix_step",
+              "said"
+            ],
+            "title": "Kind"
+          },
+          "what": {
+            "type": "string",
+            "title": "What",
+            "description": "Its line in the one table of kinds, e.g. \"next:run_all\"."
+          },
+          "thread": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "testing",
+                  "fixing",
+                  "planning"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread"
+          },
+          "mark": {
+            "type": "string",
+            "title": "Mark",
+            "description": "\"From Otto\", \"Next step\", \"What this means\", \"Result\", \"Fix\" or (phase 6b) \"You said\""
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At",
+            "description": "When its cause happened (ISO): the order of a thread so far."
+          },
+          "badge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantBadge"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "where": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabeledLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where it lives: \"On Advisories\", with the link."
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/LabeledLink"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoProposal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A suggestion: the proposal exactly as its page shows it."
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantDecision"
+            },
+            "type": "array",
+            "title": "Decisions"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantStep"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "open_item": {
+            "type": "boolean",
+            "title": "Open Item",
+            "description": "It is about the item that is open on the page."
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantFact"
+            },
+            "type": "array",
+            "title": "Facts",
+            "description": "Phase 6c: a kept answer to a fixed question: its facts."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "what",
+          "thread",
+          "mark",
+          "title",
+          "text",
+          "at",
+          "badge",
+          "where",
+          "links",
+          "proposal",
+          "decisions",
+          "step",
+          "open_item"
+        ],
+        "title": "AssistantEntry",
+        "description": "One entry of the panel: a suggestion (one of Otto's proposals), a next step (a button of a page) or what a\nresult means; and, in a thread so far, a reviewed result or where a fix stands."
+      },
+      "AssistantFact": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "What the link is called: \"See the evidence\", \"Open the advisory\", \"View in Fixes\"."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "link",
+          "label"
+        ],
+        "title": "AssistantFact",
+        "description": "Phase 6c: one fact of an answer: a sentence the app already shows about the item, with the link to where."
+      },
+      "AssistantGo": {
+        "properties": {
+          "page": {
+            "type": "string",
+            "title": "Page"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result",
+            "description": "The page's own Result filter value."
+          },
+          "came_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Came From",
+            "description": "Checks: its Came from filter value."
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision",
+            "description": "Advisories: its Decision filter value."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "page",
+          "item",
+          "group",
+          "result",
+          "came_from",
+          "decision"
+        ],
+        "title": "AssistantGo",
+        "description": "Where an answer leads: a page of this assessment (or Settings), one item on it, and the filters of its table."
+      },
+      "AssistantOnPage": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty"
+          },
+          "empty_link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabeledLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "entries",
+          "empty",
+          "empty_link"
+        ],
+        "title": "AssistantOnPage"
+      },
+      "AssistantOpen": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "reject",
+              "undo",
+              "reconsider",
+              "step"
+            ],
+            "title": "Key",
+            "description": "Which button of the card shows its Confirm step."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "A reject's reason, cut from the person's own words. Nothing is sent before Confirm."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "reason"
+        ],
+        "title": "AssistantOpen"
+      },
+      "AssistantOption": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "say": {
+            "type": "string",
+            "title": "Say",
+            "description": "A sentence that names exactly this one. Choosing it sends these words."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "say"
+        ],
+        "title": "AssistantOption"
+      },
+      "AssistantReason": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Reason (optional, one short line)\""
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "max"
+        ],
+        "title": "AssistantReason"
+      },
+      "AssistantReply": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "went",
+              "card",
+              "which",
+              "cannot",
+              "help",
+              "page_only",
+              "tab",
+              "closed",
+              "answer",
+              "whatif"
+            ],
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "go": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantGo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantEntry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "open": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantOpen"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantOption"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "can": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantCan"
+            },
+            "type": "array",
+            "title": "Can",
+            "description": "What can be said on this page, from the one list."
+          },
+          "tab": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantTabChange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thread": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "testing",
+                  "fixing",
+                  "planning"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread",
+            "description": "The tab the exchange is filed under, if any."
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question",
+            "description": "Phase 6c: the fixed question that was answered, in its own wording."
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "Phase 6c: where an answer is from: \"From this assessment's records\"."
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantFact"
+            },
+            "type": "array",
+            "title": "Facts",
+            "description": "Phase 6c: an answer's facts, each with its link."
+          },
+          "whatif": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WhatIf"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 6e: the four parts of a what-if."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "text",
+          "go",
+          "entry",
+          "open",
+          "options",
+          "can",
+          "tab",
+          "thread"
+        ],
+        "title": "AssistantReply",
+        "description": "Phase 6b: Otto's answer to one typed sentence. Nothing has been decided or started by it: `went`, `page_only`\nand `tab` only move around, and `card` hands back an entry whose Confirm step the browser shows."
+      },
+      "AssistantStatus": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "\"Live Otto is off.\" or \"Live Otto is on.\""
+          },
+          "live": {
+            "type": "boolean",
+            "title": "Live"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabeledLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "live",
+          "link"
+        ],
+        "title": "AssistantStatus",
+        "description": "The one line under the title: what Settings says about Live Otto, with the way there when it is off."
+      },
+      "AssistantStep": {
+        "properties": {
+          "needs": {
+            "type": "string",
+            "enum": [
+              "confirm",
+              "nothing"
+            ],
+            "title": "Needs",
+            "description": "\"nothing\": it only opens a page, at once."
+          },
+          "action": {
+            "$ref": "#/components/schemas/AssistantAction"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason",
+            "description": "The page's own reason when its button is off."
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "confirm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssistantConfirm"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "needs",
+          "action",
+          "can",
+          "blocked_reason",
+          "running",
+          "progress",
+          "confirm"
+        ],
+        "title": "AssistantStep"
+      },
+      "AssistantTab": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "testing",
+              "fixing",
+              "planning"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "waiting": {
+            "type": "integer",
+            "title": "Waiting",
+            "description": "How many of this thread's suggestions nobody has decided yet."
+          },
+          "mark": {
+            "type": "string",
+            "title": "Mark",
+            "description": "Changes when the thread gets a new entry: the browser keeps it for a closed tab and for the dot."
+          },
+          "so_far_title": {
+            "type": "string",
+            "title": "So Far Title"
+          },
+          "so_far": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantEntry"
+            },
+            "type": "array",
+            "title": "So Far"
+          },
+          "so_far_empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "So Far Empty"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "waiting",
+          "mark",
+          "so_far_title",
+          "so_far",
+          "so_far_empty"
+        ],
+        "title": "AssistantTab"
+      },
+      "AssistantTabChange": {
+        "properties": {
+          "thread": {
+            "type": "string",
+            "enum": [
+              "testing",
+              "fixing",
+              "planning"
+            ],
+            "title": "Thread"
+          },
+          "how": {
+            "type": "string",
+            "enum": [
+              "open",
+              "close"
+            ],
+            "title": "How"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "thread",
+          "how"
+        ],
+        "title": "AssistantTabChange"
+      },
+      "AssistantView": {
+        "properties": {
+          "assessment_id": {
+            "type": "integer",
+            "title": "Assessment Id"
+          },
+          "plan_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Otto\""
+          },
+          "status": {
+            "$ref": "#/components/schemas/AssistantStatus"
+          },
+          "notices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notices",
+            "description": "The closed sentence, and what Settings says when Otto is not installed."
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "recorded_as": {
+            "$ref": "#/components/schemas/OttoName",
+            "description": "Who a decision is recorded as, and whether a name has been typed yet."
+          },
+          "page": {
+            "type": "string",
+            "title": "Page"
+          },
+          "page_label": {
+            "type": "string",
+            "title": "Page Label"
+          },
+          "thread": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "testing",
+                  "fixing",
+                  "planning"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread",
+            "description": "The tab this page selects (null on the Overview)."
+          },
+          "box": {
+            "$ref": "#/components/schemas/AssistantBox"
+          },
+          "tabs": {
+            "items": {
+              "$ref": "#/components/schemas/AssistantTab"
+            },
+            "type": "array",
+            "title": "Tabs",
+            "description": "At most three, and only the open ones."
+          },
+          "on_page": {
+            "$ref": "#/components/schemas/AssistantOnPage"
+          },
+          "elsewhere": {
+            "$ref": "#/components/schemas/AssistantElsewhere"
+          },
+          "waiting": {
+            "type": "integer",
+            "title": "Waiting",
+            "description": "Undecided suggestions on this page plus elsewhere."
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "Something is running: ask again in a second."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "assessment_id",
+          "plan_id",
+          "title",
+          "status",
+          "notices",
+          "note",
+          "recorded_as",
+          "page",
+          "page_label",
+          "thread",
+          "box",
+          "tabs",
+          "on_page",
+          "elsewhere",
+          "waiting",
+          "busy"
+        ],
+        "title": "AssistantView"
       },
       "Badge": {
         "properties": {
@@ -4659,6 +6440,31 @@
         ],
         "title": "ChangeBadge"
       },
+      "ChangeBlock": {
+        "properties": {
+          "before": {
+            "items": {
+              "$ref": "#/components/schemas/DiffLine"
+            },
+            "type": "array",
+            "title": "Before"
+          },
+          "after": {
+            "items": {
+              "$ref": "#/components/schemas/DiffLine"
+            },
+            "type": "array",
+            "title": "After"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "before",
+          "after"
+        ],
+        "title": "ChangeBlock"
+      },
       "ChangeBody": {
         "properties": {
           "change": {
@@ -4722,6 +6528,296 @@
         ],
         "title": "ChangeButton"
       },
+      "ChangeFile": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "what": {
+            "type": "string",
+            "title": "What",
+            "description": "\"Added\", \"Changed\" or \"Removed\""
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counts",
+            "description": "\"5 lines added\"; null when the file is not text"
+          },
+          "is_program": {
+            "type": "boolean",
+            "title": "Is Program",
+            "description": "the file of the program under test"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeBlock"
+            },
+            "type": "array",
+            "title": "Blocks",
+            "description": "each changed place, with the lines around it, before and after"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "what",
+          "counts",
+          "is_program",
+          "note",
+          "blocks"
+        ],
+        "title": "ChangeFile"
+      },
+      "ChangeFlag": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "description": "\"The app has not tested what this line does.\""
+          },
+          "source": {
+            "$ref": "#/components/schemas/ChangeSource"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "text",
+          "note",
+          "source"
+        ],
+        "title": "ChangeFlag",
+        "description": "Something to look at. Never a result."
+      },
+      "ChangeJob": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_run",
+              "waiting",
+              "running",
+              "done"
+            ],
+            "title": "Status"
+          },
+          "progress_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Text"
+          },
+          "progress_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress Percent"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "progress_text",
+          "progress_percent"
+        ],
+        "title": "ChangeJob"
+      },
+      "ChangePanel": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "starts_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts From"
+          },
+          "gives": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gives",
+            "description": "which registered demo program the change's code is, or that it is none"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeFile"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "picked": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeTest"
+            },
+            "type": "array",
+            "title": "Picked"
+          },
+          "not_picked": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeTest"
+            },
+            "type": "array",
+            "title": "Not Picked"
+          },
+          "picked_empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Picked Empty"
+          },
+          "run": {
+            "$ref": "#/components/schemas/ChangeRunButton"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "flags": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeFlag"
+            },
+            "type": "array",
+            "title": "Flags"
+          },
+          "flags_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flags Note"
+          },
+          "more_flags": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "More Flags"
+          },
+          "fix_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix Line",
+            "description": "one line when Fixes has an entry for this change (tests that passed fail on it)"
+          },
+          "fix": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the way to that entry on Fixes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "message",
+          "starts_from",
+          "gives",
+          "files",
+          "picked",
+          "not_picked",
+          "picked_empty",
+          "run",
+          "last_run",
+          "results",
+          "flags",
+          "flags_note",
+          "more_flags",
+          "fix_line",
+          "fix"
+        ],
+        "title": "ChangePanel"
+      },
       "ChangePart": {
         "properties": {
           "title": {
@@ -4765,6 +6861,308 @@
           "after"
         ],
         "title": "ChangePart"
+      },
+      "ChangeResult": {
+        "properties": {
+          "item_id": {
+            "type": "integer",
+            "title": "Item Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeResultSide"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "before_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Note",
+            "description": "where the result before comes from"
+          },
+          "now": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeResultSide"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeJob"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "differs": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Differs",
+            "description": "\"Passed before, fails now\", \"Failed before, passes now\", \"Same as before\", ...; null until reviewed"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "fails_now",
+                  "passes_now",
+                  "same",
+                  "slower_now",
+                  "not_slower",
+                  "not_compared",
+                  "not_trusted"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "item_id",
+          "title",
+          "before",
+          "before_note",
+          "now",
+          "job",
+          "differs",
+          "outcome"
+        ],
+        "title": "ChangeResult"
+      },
+      "ChangeResultSide": {
+        "properties": {
+          "run_id": {
+            "type": "integer",
+            "title": "Run Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "plain": {
+            "type": "string",
+            "title": "Plain"
+          },
+          "ran_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ran On"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "where that run's evidence is shown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "label",
+          "tone",
+          "plain",
+          "ran_on",
+          "link"
+        ],
+        "title": "ChangeResultSide",
+        "description": "The reviewer's word for one run, repeated: a watch run words no result of its own."
+      },
+      "ChangeRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "\"change-\" and the first twelve characters of its commit: it names the exact code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "branch": {
+            "type": "string",
+            "title": "Branch"
+          },
+          "commit": {
+            "type": "string",
+            "title": "Commit"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "description": "a bundled demo change: drawn with the Demo data label"
+          },
+          "when": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "When"
+          },
+          "files_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files Line"
+          },
+          "picked_line": {
+            "type": "string",
+            "title": "Picked Line"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChangeStatus"
+          },
+          "flags_count": {
+            "type": "integer",
+            "title": "Flags Count"
+          },
+          "panel": {
+            "$ref": "#/components/schemas/ChangePanel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "branch",
+          "commit",
+          "author",
+          "is_demo",
+          "when",
+          "files_line",
+          "picked_line",
+          "status",
+          "flags_count",
+          "panel"
+        ],
+        "title": "ChangeRow"
+      },
+      "ChangeRunButton": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Run the picked tests\", then \"Run again\""
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "will_run": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Will Run",
+            "description": "the tests the button runs, by name"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "can",
+          "blocked_reason",
+          "will_run",
+          "note"
+        ],
+        "title": "ChangeRunButton"
       },
       "ChangeSectionLine": {
         "properties": {
@@ -4903,6 +7301,86 @@
         ],
         "title": "ChangeSectionText"
       },
+      "ChangeSource": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "url"
+        ],
+        "title": "ChangeSource"
+      },
+      "ChangeStatus": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "not_run",
+              "running",
+              "no_difference",
+              "passed_before_fails_now",
+              "failed_before_passes_now",
+              "nothing_to_run",
+              "cant_run",
+              "couldnt_trust"
+            ],
+            "title": "Key"
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "\"Not run yet\", \"Running\", \"No difference found\", \"Passed before, fails now (1 test)\", ..."
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "its picked tests are running: ask again in a second"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "one sentence under the word that says why"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "word",
+          "tone",
+          "busy",
+          "reason"
+        ],
+        "title": "ChangeStatus",
+        "description": "The status word of a developer's change. It is the change's, never a test result."
+      },
       "ChangeStep": {
         "properties": {
           "key": {
@@ -4944,6 +7422,35 @@
           "text"
         ],
         "title": "ChangeStep"
+      },
+      "ChangeTest": {
+        "properties": {
+          "item_id": {
+            "type": "integer",
+            "title": "Item Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "the rule that picked it, or left it out, in one sentence"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "item_id",
+          "title",
+          "reason",
+          "link"
+        ],
+        "title": "ChangeTest"
       },
       "ChangeView": {
         "properties": {
@@ -5068,6 +7575,191 @@
           "busy"
         ],
         "title": "ChangeView"
+      },
+      "ChangeWatchCode": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "no_code",
+              "not_connected",
+              "unreadable",
+              "connected"
+            ],
+            "title": "State"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line",
+            "description": "what to do first, or why nothing can come in here; null once connected"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "connected_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connected Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "state",
+          "line",
+          "link",
+          "connected_line"
+        ],
+        "title": "ChangeWatchCode"
+      },
+      "ChangeWatchMenu": {
+        "properties": {
+          "button": {
+            "type": "string",
+            "title": "Button",
+            "description": "\"Bring in a demo change\""
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DemoChangeItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "button",
+          "note",
+          "items"
+        ],
+        "title": "ChangeWatchMenu"
+      },
+      "ChangeWatchView": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Change watch\""
+          },
+          "subline": {
+            "type": "string",
+            "title": "Subline"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ChangeWatchCode"
+          },
+          "menu": {
+            "$ref": "#/components/schemas/ChangeWatchMenu"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeRow"
+            },
+            "type": "array",
+            "title": "Changes",
+            "description": "newest first; read from the connected repository on every ask"
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty"
+          },
+          "busy": {
+            "type": "boolean",
+            "title": "Busy",
+            "description": "a change's picked tests are running: ask again in a second"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "title",
+          "subline",
+          "code",
+          "menu",
+          "changes",
+          "empty",
+          "busy"
+        ],
+        "title": "ChangeWatchView"
+      },
+      "CheckBlock": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "\"on-3\" (the block retest 3 opened) or \"proof-2\"."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"acme-sign 1.4.3\", or \"acme-sign 1.4.3-otto (the changed code)\"."
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "newest": {
+            "type": "boolean",
+            "title": "Newest",
+            "description": "The newest block is open; older ones are folded."
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "line",
+          "newest",
+          "rows"
+        ],
+        "title": "CheckBlock",
+        "description": "The 5c fixes: one version a retest ran on, or one proof of a change, with the rows of its own runs."
       },
       "CheckDetail": {
         "properties": {
@@ -5209,6 +7901,17 @@
             "type": "array",
             "title": "Also",
             "description": "Checks of another group linked from this group's foot (\"Also relates to this group\")."
+          },
+          "parts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EncryptionParts"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The 5c fixes: set on the Encryption tests group only."
           }
         },
         "additionalProperties": false,
@@ -5224,6 +7927,87 @@
           "rows"
         ],
         "title": "CheckGroup"
+      },
+      "CheckPart": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "plan",
+              "retests",
+              "proofs",
+              "tries",
+              "changes"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "count_label": {
+            "type": "string",
+            "title": "Count Label",
+            "description": "\"8 tests\", \"1 version\", \"2 proofs\", \"1 try\"."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "empty_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Text",
+            "description": "Set when the part has nothing yet: \"No retest yet. ...\""
+          },
+          "blocks": {
+            "items": {
+              "$ref": "#/components/schemas/CheckBlock"
+            },
+            "type": "array",
+            "title": "Blocks",
+            "description": "Retests by version and Fix proofs: one block for each version, or each proof."
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRow"
+            },
+            "type": "array",
+            "title": "Rows",
+            "description": "Tries on a test copy: a plain list."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "count",
+          "count_label",
+          "note",
+          "empty_text",
+          "blocks",
+          "rows"
+        ],
+        "title": "CheckPart",
+        "description": "The 5c fixes: one labelled, foldable part of the Encryption tests group on Checks, with its count."
       },
       "CheckResult": {
         "properties": {
@@ -5369,6 +8153,30 @@
               }
             ],
             "description": "Phase 5c: \"From Otto\" on an advisory check, with the way to its advisory."
+          },
+          "mark": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mark",
+            "description": "The 5c fixes, in a retest's block: \"tested again as it is\" for a server, or a program the retest did not move."
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias",
+            "description": "The 5c fixes: the older id of this row (\"retest-12\"), which still opens it while this is the newest block of its test."
           }
         },
         "additionalProperties": false,
@@ -5791,6 +8599,47 @@
         },
         "type": "object",
         "title": "DecisionBody"
+      },
+      "DemoChangeItem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "what_it_does": {
+            "type": "string",
+            "title": "What It Does"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "what_it_does",
+          "can",
+          "blocked_reason"
+        ],
+        "title": "DemoChangeItem"
       },
       "DemoProjectsLoaded": {
         "properties": {
@@ -6928,7 +9777,7 @@
             },
             "type": "array",
             "title": "Otto Proposals",
-            "description": "Phase 5c: Otto's proposals to change this library's status."
+            "description": "Phase 5c: the proposals to change this library's status."
           },
           "otto_status": {
             "anyOf": [
@@ -7104,6 +9953,52 @@
         ],
         "title": "DiffLine",
         "description": "One line of code in a before or after block. n is the line number in that version of the file."
+      },
+      "EncryptionParts": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/CheckPart",
+            "description": "The test plan itself (drawn from the plan view); its heading names the version the file names."
+          },
+          "retests": {
+            "$ref": "#/components/schemas/CheckPart"
+          },
+          "proofs": {
+            "$ref": "#/components/schemas/CheckPart"
+          },
+          "tries": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckPart"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only when a server change was tried on a test copy."
+          },
+          "changes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckPart"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 6d: only when the tests picked for a developer's change were run."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan",
+          "retests",
+          "proofs",
+          "tries"
+        ],
+        "title": "EncryptionParts",
+        "description": "The 5c fixes: Checks shows the Encryption tests group in four parts. A run shows in one part only."
       },
       "Evidence": {
         "properties": {
@@ -7670,6 +10565,12 @@
             ],
             "title": "Fix State",
             "default": "open"
+          },
+          "apart": {
+            "type": "boolean",
+            "title": "Apart",
+            "description": "Phase 6d: listed under its group's own heading for a developer's change and never counted with the findings.",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -7916,7 +10817,8 @@
             "title": "Question"
           },
           "counts": {
-            "$ref": "#/components/schemas/StateCounts"
+            "$ref": "#/components/schemas/StateCounts",
+            "description": "of fix_ids only: an entry listed apart is never counted"
           },
           "fix_ids": {
             "items": {
@@ -7935,6 +10837,17 @@
               }
             ],
             "title": "Empty Text"
+          },
+          "apart": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FixGroupApart"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 6d: the group's entries for a developer's change, under their own heading; None when there are none."
           },
           "also": {
             "items": {
@@ -7981,6 +10894,34 @@
           "group_label"
         ],
         "title": "FixGroupAlso"
+      },
+      "FixGroupApart": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"From a developer's change\""
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "fix_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fix Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "note",
+          "fix_ids"
+        ],
+        "title": "FixGroupApart"
       },
       "FixLine": {
         "properties": {
@@ -8369,7 +11310,7 @@
           "list_title": {
             "type": "string",
             "title": "List Title",
-            "description": "\"Open findings with a fix (2)\""
+            "description": "\"Open findings with a fix (2)\": the entries that are not listed apart"
           },
           "empty_text": {
             "anyOf": [
@@ -8642,7 +11583,7 @@
                 "type": "null"
               }
             ],
-            "description": "Phase 5c: \"Otto found N checks that may apply\". Nothing runs on import."
+            "description": "Phase 5c: \"N checks may apply\", marked From Otto. Nothing runs on import."
           }
         },
         "additionalProperties": false,
@@ -8694,7 +11635,7 @@
           "link_label"
         ],
         "title": "ImportOtto",
-        "description": "Import: \"Otto found N checks that may apply\", with the way to Advisories. Nothing runs on import."
+        "description": "Import: \"N checks may apply\", marked From Otto, with the way to Advisories. Nothing runs on import."
       },
       "ImportSetting": {
         "properties": {
@@ -8985,7 +11926,7 @@
                 "type": "null"
               }
             ],
-            "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result."
+            "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result."
           }
         },
         "additionalProperties": false,
@@ -9649,6 +12590,319 @@
         ],
         "title": "LockedTestView"
       },
+      "LookupButton": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "dialog": {
+            "$ref": "#/components/schemas/LookupDialog"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "can",
+          "blocked_reason",
+          "dialog"
+        ],
+        "title": "LookupButton"
+      },
+      "LookupDialog": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "confirm": {
+            "type": "string",
+            "title": "Confirm"
+          },
+          "cancel": {
+            "type": "string",
+            "title": "Cancel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "confirm",
+          "cancel"
+        ],
+        "title": "LookupDialog",
+        "description": "The box a button opens first: what will be sent or started, and what will not."
+      },
+      "LookupLast": {
+        "properties": {
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "source_line": {
+            "type": "string",
+            "title": "Source Line"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/LookupRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "empty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "source_line",
+          "notes",
+          "rows",
+          "empty"
+        ],
+        "title": "LookupLast"
+      },
+      "LookupProgress": {
+        "properties": {
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines",
+            "description": "What the research command said, newest last."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "running",
+          "title",
+          "lines"
+        ],
+        "title": "LookupProgress"
+      },
+      "LookupResearch": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "shown": {
+            "type": "boolean",
+            "title": "Shown",
+            "description": "False until a look has been made."
+          },
+          "dialog": {
+            "$ref": "#/components/schemas/LookupDialog"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LookupProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "can",
+          "blocked_reason",
+          "shown",
+          "dialog",
+          "progress"
+        ],
+        "title": "LookupResearch"
+      },
+      "LookupRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "The publisher's own title."
+          },
+          "library": {
+            "type": "string",
+            "title": "Library"
+          },
+          "published": {
+            "type": "string",
+            "title": "Published"
+          },
+          "fits": {
+            "type": "string",
+            "title": "Fits",
+            "description": "What it says about the versions this assessment has."
+          },
+          "state": {
+            "$ref": "#/components/schemas/LookupRowState"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why there is no test yet, or where the advisory is now."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Its row on this page, once a test pack holds it."
+          },
+          "publisher": {
+            "type": "string",
+            "title": "Publisher"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "library",
+          "published",
+          "fits",
+          "state",
+          "reason",
+          "link",
+          "publisher",
+          "url"
+        ],
+        "title": "LookupRow",
+        "description": "One published advisory a look found, with where it stands. Information from the publisher, never a result."
+      },
+      "LookupRowState": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "in_pack",
+              "in_waiting_pack",
+              "new",
+              "no_test",
+              "not_yours"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "tone"
+        ],
+        "title": "LookupRowState"
+      },
       "MeasurementResult": {
         "properties": {
           "code": {
@@ -9868,7 +13122,7 @@
                 "type": "null"
               }
             ],
-            "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result."
+            "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result."
           }
         },
         "additionalProperties": false,
@@ -11159,20 +14413,6 @@
         ],
         "title": "MigrationView"
       },
-      "NameBody": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 200,
-            "title": "Name"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "title": "NameBody"
-      },
       "NewAssessmentBody": {
         "properties": {
           "name": {
@@ -11533,6 +14773,72 @@
           "blocked_reason"
         ],
         "title": "OttoLiveSwitch"
+      },
+      "OttoName": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"Who decides\""
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Your name\""
+          },
+          "value": {
+            "type": "string",
+            "title": "Value",
+            "description": "The name a person typed; empty until then."
+          },
+          "recorded_as": {
+            "type": "string",
+            "title": "Recorded As",
+            "description": "The typed name, or \"You\"."
+          },
+          "typed": {
+            "type": "boolean",
+            "title": "Typed"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line",
+            "description": "\"Recorded as You, with the time.\""
+          },
+          "save": {
+            "type": "string",
+            "title": "Save"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          },
+          "ask_label": {
+            "type": "string",
+            "title": "Ask Label",
+            "description": "The label of the field in the Otto panel's first Confirm step."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "label",
+          "value",
+          "recorded_as",
+          "typed",
+          "line",
+          "save",
+          "note",
+          "max",
+          "ask_label"
+        ],
+        "title": "OttoName",
+        "description": "Phase 6a: who a decision on a proposal is recorded as. A name typed once, or \"You\"."
       },
       "OttoPackCard": {
         "properties": {
@@ -12322,6 +15628,17 @@
           },
           "live": {
             "$ref": "#/components/schemas/OttoLiveSection"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 6a: always sent by the current backend."
           }
         },
         "additionalProperties": false,
@@ -12432,7 +15749,7 @@
           "note"
         ],
         "title": "OttoWaiting",
-        "description": "The Overview's \"Waiting for you\": Otto's proposals nobody has decided yet, each kind linking to its page."
+        "description": "The Overview's \"Waiting for you\": the proposals nobody has decided yet, each kind linking to its page."
       },
       "OttoWaitingItem": {
         "properties": {
@@ -14051,6 +17368,39 @@
         ],
         "title": "SameMeasurement"
       },
+      "SayBody": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "page": {
+            "type": "string",
+            "maxLength": 60,
+            "title": "Page"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "page"
+        ],
+        "title": "SayBody"
+      },
       "Session": {
         "properties": {
           "setup_required": {
@@ -14990,7 +18340,7 @@
           "otto_note": {
             "type": "string",
             "title": "Otto Note",
-            "description": "Phase 5c: one sentence. Verify is unchanged and Otto proposes nothing on it yet.",
+            "description": "Phase 5c: one sentence. Verify is unchanged and nothing is proposed on it yet.",
             "default": ""
           }
         },
@@ -15004,6 +18354,374 @@
           "results"
         ],
         "title": "VerifyRun"
+      },
+      "WhatIf": {
+        "properties": {
+          "plan_id": {
+            "type": "integer",
+            "title": "Plan Id"
+          },
+          "asked": {
+            "$ref": "#/components/schemas/WhatIfName"
+          },
+          "known": {
+            "type": "boolean",
+            "title": "Known"
+          },
+          "library": {
+            "$ref": "#/components/schemas/WhatIfLibrary"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "version_read": {
+            "type": "boolean",
+            "title": "Version Read"
+          },
+          "have": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Have",
+            "description": "The versions of this library the assessment has (its dependency list, its scanner file)."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "facts_title": {
+            "type": "string",
+            "title": "Facts Title"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/WhatIfGroup"
+            },
+            "type": "array",
+            "title": "Facts"
+          },
+          "test_copy": {
+            "$ref": "#/components/schemas/WhatIfTry",
+            "description": "The try on a test copy: Evidence's own Retest new version, pointed at this version."
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "hypotheses_title": {
+            "type": "string",
+            "title": "Hypotheses Title"
+          },
+          "hypotheses_note": {
+            "type": "string",
+            "title": "Hypotheses Note"
+          },
+          "hypotheses": {
+            "items": {
+              "$ref": "#/components/schemas/WhatIfHypothesis"
+            },
+            "type": "array",
+            "title": "Hypotheses"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "plan_id",
+          "asked",
+          "known",
+          "library",
+          "version",
+          "version_read",
+          "have",
+          "title",
+          "facts_title",
+          "facts",
+          "test_copy",
+          "explanation",
+          "hypotheses_title",
+          "hypotheses_note",
+          "hypotheses"
+        ],
+        "title": "WhatIf",
+        "description": "Phase 6e, first half: what the app knows about updating one library to one version, in four parts. Facts by fixed\nrules; nothing here is a result, and nothing is started by reading it."
+      },
+      "WhatIfGroup": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "used",
+              "needs",
+              "advisories",
+              "trial",
+              "post_quantum",
+              "blocks",
+              "own_results"
+            ],
+            "title": "Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/WhatIfLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "none": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "None",
+            "description": "What is said when the app has nothing on this point."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "title",
+          "lines",
+          "none"
+        ],
+        "title": "WhatIfGroup"
+      },
+      "WhatIfHypothesis": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "WhatIfHypothesis"
+      },
+      "WhatIfLibrary": {
+        "properties": {
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "WhatIfLibrary"
+      },
+      "WhatIfLine": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "Where it comes from: \"From your file\", \"Package file says\", \"Release notes say\", \"Test pack 2026.11.2\", ..."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the app shows it."
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WhatIfSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "label",
+          "link",
+          "source"
+        ],
+        "title": "WhatIfLine"
+      },
+      "WhatIfName": {
+        "properties": {
+          "library": {
+            "type": "string",
+            "title": "Library"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "library",
+          "version"
+        ],
+        "title": "WhatIfName"
+      },
+      "WhatIfSource": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "An https address of the publisher, or null where the line is quoted from an installed test pack."
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
+          "read_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read On",
+            "description": "The day it was read, YYYY-MM-DD, where the source records one."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "url",
+          "quote",
+          "read_on"
+        ],
+        "title": "WhatIfSource",
+        "description": "Where a fact is quoted from: the publisher's package file or release notes, or a test pack's copy of a publisher's line."
+      },
+      "WhatIfTry": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "button": {
+            "type": "string",
+            "title": "Button",
+            "description": "\"Retest new version\": the button of Evidence it stands for."
+          },
+          "offered": {
+            "type": "boolean",
+            "title": "Offered"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why it is not offered, in the page's own words where the page has them."
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "changes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changes",
+            "description": "What a retest changes in this assessment, said before anything is pressed."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "button",
+          "offered",
+          "reason",
+          "component",
+          "version",
+          "changes"
+        ],
+        "title": "WhatIfTry"
       },
       "Workspace": {
         "properties": {
@@ -15188,6 +18906,34 @@
           "counts"
         ],
         "title": "WorkspaceProject"
+      },
+      "app__web__otto__NameBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 400,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "NameBody"
+      },
+      "app__web__projects__NameBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "NameBody"
       },
       "ClaimKind": {
         "enum": [
@@ -15509,6 +19255,42 @@
         ],
         "type": "string",
         "title": "ItemState"
+      },
+      "ChangeStatusKey": {
+        "enum": [
+          "not_run",
+          "running",
+          "no_difference",
+          "passed_before_fails_now",
+          "failed_before_passes_now",
+          "nothing_to_run",
+          "cant_run",
+          "couldnt_trust"
+        ],
+        "type": "string",
+        "title": "ChangeStatusKey"
+      },
+      "ChangeOutcome": {
+        "enum": [
+          "fails_now",
+          "passes_now",
+          "same",
+          "slower_now",
+          "not_slower",
+          "not_compared",
+          "not_trusted"
+        ],
+        "type": "string",
+        "title": "ChangeOutcome"
+      },
+      "AssistantThread": {
+        "enum": [
+          "testing",
+          "fixing",
+          "planning"
+        ],
+        "type": "string",
+        "title": "AssistantThread"
       }
     }
   }

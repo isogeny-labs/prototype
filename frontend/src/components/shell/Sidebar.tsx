@@ -31,6 +31,8 @@ export const ASSESSMENT_ITEMS: Item[] = [
   { page: "checks", label: "Checks", icon: "tests" },
   { page: "evidence", label: "Evidence", icon: "evidence" },
   { page: "fixes", label: "Fixes", icon: "fixes" },
+  // Phase 6d: a developer's change in the connected demo repository, and the tests picked for it.
+  { page: "change-watch", label: "Change watch", icon: "watch" },
   {
     page: "migration/systems",
     label: "Migration",

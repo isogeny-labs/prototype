@@ -8,9 +8,9 @@ const CARD = "space-y-4 rounded-xl border border-slate-800 bg-slate-900/30 p-4 t
 const SMALL = "text-xs text-slate-400";
 
 /** Which call is on its way (every button of the two sections waits for its answer). */
-type Busy = "check" | "install" | "switch" | "limit";
+type Busy = "check" | "install" | "switch" | "limit" | "name";
 /** The section an error belongs to, so it is shown once, where it happened. */
-type Where = "packs" | "live";
+type Where = "packs" | "live" | "name";
 
 /** One installed test pack: the view's line about it, who signed it, and its fingerprint cut short (the whole value
  * shows on hover). A pack made on this computer says so in its own line. */
@@ -49,6 +49,9 @@ export function OttoSettings({ section }: { section: string | null }) {
   // The amount as typed; until the person types, the field shows the saved limit.
   const [typedLimit, setTypedLimit] = useState<string | null>(null);
   const [limitSaved, setLimitSaved] = useState(false);
+  // Phase 6a: the name as typed; until the person types, the field shows the saved one.
+  const [typedName, setTypedName] = useState<string | null>(null);
+  const [nameSaved, setNameSaved] = useState(false);
   const closeDialog = useCallback(() => setConfirming(false), []);
 
   useEffect(() => {
@@ -70,9 +73,10 @@ export function OttoSettings({ section }: { section: string | null }) {
   // its content is drawn.
   const loaded = view !== null;
   useEffect(() => {
-    if (section !== "test-packs") return;
+    // (phase 6a: the Otto panel's status line links to the Live Otto section the same way)
+    if (section !== "test-packs" && section !== "live-otto" && section !== "your-name") return;
     // jsdom has no scrollIntoView; a browser always does.
-    document.getElementById("test-packs")?.scrollIntoView?.({ block: "start" });
+    document.getElementById(section)?.scrollIntoView?.({ block: "start" });
   }, [section, loaded]);
 
   /** Makes one call and shows the view it answers with, or its refusal in the section it belongs to. `settled` runs in
@@ -108,6 +112,16 @@ export function OttoSettings({ section }: { section: string | null }) {
       // The field goes back to showing the limit as the backend now words it.
       setTypedLimit(null);
       setLimitSaved(true);
+    }
+  }
+
+  async function saveName(e: FormEvent, saved: string) {
+    e.preventDefault();
+    if (busy !== null) return;
+    const ok = await run("name", "name", () => api.setDecisionName(typedName ?? saved));
+    if (ok) {
+      setTypedName(null);
+      setNameSaved(true);
     }
   }
 
@@ -249,7 +263,46 @@ export function OttoSettings({ section }: { section: string | null }) {
         ) : null}
       </Section>
 
-      <Section title={live.title} testId="live-otto">
+      {view.name ? (
+        <Section title={view.name.title} id="your-name" testId="your-name">
+          <div className={CARD}>
+            <form onSubmit={(e) => void saveName(e, view.name?.value ?? "")}>
+              <label htmlFor="otto-your-name" className="block text-xs text-slate-400">
+                {view.name.label}
+              </label>
+              <div className="mt-1 flex flex-wrap items-center gap-3">
+                <input
+                  id="otto-your-name"
+                  data-testid="otto-your-name"
+                  autoComplete="name"
+                  value={typedName ?? view.name.value}
+                  onChange={(e) => {
+                    setTypedName(e.target.value);
+                    setNameSaved(false);
+                  }}
+                  maxLength={view.name.max}
+                  className="w-72 max-w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100"
+                />
+                <PrimaryButton type="submit" testId="otto-your-name-save" disabled={busy !== null && busy !== "name"} busy={busy === "name"}>
+                  {view.name.save}
+                </PrimaryButton>
+                {nameSaved ? (
+                  <p role="status" className={SMALL}>
+                    Saved.
+                  </p>
+                ) : null}
+              </div>
+            </form>
+            <p data-testid="otto-your-name-line" className="break-words text-slate-200">
+              {view.name.line}
+            </p>
+            <p className={`break-words ${SMALL}`}>{view.name.note}</p>
+            {errorBox("name")}
+          </div>
+        </Section>
+      ) : null}
+
+      <Section title={live.title} id="live-otto" testId="live-otto">
         <div className={CARD}>
           <p data-testid="live-otto-key-line" className="break-words">
             {live.key_line}

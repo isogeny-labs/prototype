@@ -32,7 +32,7 @@ from app.db import ImportRow, OttoCheckRow, OttoDecisionRow, PlanItemRow, PlanRo
 from app.engine import research
 from app.errors import BadRequest, Conflict, NotFound
 from app.knowledge.versions import at_least, read_version
-from app.lab.testlab import read_spec
+from app.lab.testlab import WATCH_PHASES, read_spec
 from app.otto import assurance, checks, designs, harness
 
 LABEL = "From Otto"
@@ -44,11 +44,12 @@ STEPS = {("proposed", "accept"): "accepted", ("proposed", "reject"): "rejected",
          ("accepted", "undo"): "proposed", ("rejected", "reconsider"): "proposed"}
 HOME = {"check": "advisories", "fix": "fixes", "plan": "migration/systems", "dependency": "migration/dependencies"}
 MAX_REASON = 300
-NO_OTTO_TAIL = " A decision on one of Otto's proposals is recorded in Otto's ledger, so nothing can be decided here."
+NO_OTTO_TAIL = " A decision on a proposal is recorded in Otto's ledger, so nothing can be decided here."
 CLOSED = "This assessment is closed. Start a new one to continue."
-NOT_CURRENT = "Otto no longer proposes this here: what it was about has changed since. It stays on the record."
+NOT_CURRENT = "This is no longer proposed here: what it was about has changed since. It stays on the record."
 LEGACY = "This check was added before decisions were recorded, so there is no accept to undo."
-DONE = "A newer result of this check has passed since, so this stays on the record as it is."
+DONE = "The check has passed since, so this can't be undone."
+DONE_REJECTED = "The check has passed since, so this can't be taken up again."
 
 
 def now_stamp() -> str:
@@ -149,6 +150,12 @@ def state_of(rows: list) -> str:
     return rows[-1].after if rows else "proposed"
 
 
+def accept_stands(proposal: dict) -> str | None:
+    """Why an accept of this proposal can no longer be undone (what it led to has run or been applied), or None. The
+    one rule, also read by the Otto panel (app/assistant), which only reads."""
+    return ProposalsMixin._otto_locked(proposal)
+
+
 class ProposalsMixin:
     """Mixed into `Lab`."""
 
@@ -170,6 +177,7 @@ class ProposalsMixin:
     _pack_advisories: Callable[..., list]
     _closed_at: Callable[..., Any]
     assessment_for: Callable[..., Any]
+    decision_name: Callable[..., str]
 
     # ---------------------------------------------------------------- the stored decisions
 
@@ -210,9 +218,11 @@ class ProposalsMixin:
             for program in fitting:
                 item = checks.existing_item(self, db, plan.id, digest, program["ref"])
                 in_plan = item is not None and not item.removed
-                runs = int(db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_item_id == item.id)) or 0) if item is not None else 0
+                # (its own runs: a run made for a developer's change, phase 6d, is kept apart and is not the check's run)
+                runs = int(db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_item_id == item.id,
+                                                                             TestRunRow.phase.not_in(WATCH_PHASES))) or 0) if item is not None else 0
                 live = item is not None and any(job is not None and job.status != "done"
-                                                for job in (self.jobs.get((item.id, phase)) for phase in ("first", "retest", "proof")))
+                                                for job in (self.jobs.get((item.id, phase)) for phase in ("first", "retest", "proof", *WATCH_PHASES)))
                 if program["component"] == package:
                     why = (f"The advisory is about {package}, and your file lists {program['label']}."
                            + (f" Its publisher names {fixed} as the fixed version." if fixed else ""))
@@ -253,7 +263,7 @@ class ProposalsMixin:
                 advisory = f"{otto['advisory']} ({otto.get('plain_name') or 'an advisory'})"
                 if otto.get("pending"):
                     title = f"Have Otto write a change for {otto['advisory']} in {component['name']}"
-                    lines = ["Live Otto is on: nothing is written yet. When you connect the code, Otto asks Claude to write the change, once, "
+                    lines = ["Live Otto is on: nothing is written yet. When you connect the code, Claude is asked to write the change, once, "
                              "within the spending limit.",
                              "What that click sends: the advisory text, the source file of the failing program and the cases it got wrong.",
                              "An answer that is not, byte for byte, one of our registered demo programs is refused."]
@@ -261,7 +271,7 @@ class ProposalsMixin:
                     title = f"{otto.get('title') or 'A change written by Otto'} ({component['name']})"
                     # (These lines stay on the card after the change is connected and merged, so they say what the change
                     # does and what Accept does, and nothing about where things stand: the card's own status line says that.)
-                    lines = ["What the change does, in Otto's words: " + str(otto.get("summary") or "").strip(),
+                    lines = ["What it changes: " + str(otto.get("summary") or "").strip(),
                              "Written by Otto. Accepting it runs nothing and changes nothing: you then connect the code, and the proof "
                              "reruns every locked test on the changed code before anything is offered for review."]
                 out.append(make("fix", code_fix_id(fix["id"][4:] if fix["id"].startswith("fix-") else fix["id"]), title=title,
@@ -325,7 +335,8 @@ class ProposalsMixin:
                 # decided earlier, and a newer result of the check passes now: it is told from the failure it came from
                 done = result
                 failed = db.scalars(select(TestRunRow).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
-                                    .where(TestRunRow.plan_item_id == item_id, ReviewRow.code == "failed")
+                                    .where(TestRunRow.plan_item_id == item_id, ReviewRow.code == "failed",
+                                           TestRunRow.phase.not_in(WATCH_PHASES))
                                     .order_by(TestRunRow.id.desc()).limit(1)).first()
                 if failed is None:
                     continue
@@ -345,8 +356,9 @@ class ProposalsMixin:
                 title=f"Fix {system['name']} before its signatures move to post-quantum",
                 why=(f"{program} gave the wrong answer on {counted} of the kind {advisory['id']} describes "
                      f"({advisory.get('plain_name') or 'an advisory'}). Moving a program that checks signatures wrongly carries the fault along."),
-                lines=["Otto proposes to add this to the migration plan, on the Signatures track, as something to fix first.",
-                       "Accepting changes nothing on any system and runs nothing. It is taken off again when a newer result of this check passes."],
+                lines=["Proposed for the migration plan: something to fix first, on the Signatures track.",
+                       "Accepting changes nothing on any system and runs nothing.",
+                       "When a newer result of this check passes, it comes off the to-do list. It stays in the history."],
                 about={"system": system["key"], "track": "signatures", "advisory": advisory["id"], "program": program, "item": item_id,
                        "run": result["run_id"], "fix": fix["id"] if fix else None},
                 proposed_at=run.finished_at if run is not None else None, item=system["key"],
@@ -434,7 +446,7 @@ class ProposalsMixin:
                          f"publisher names {fix['version']} as the fixed version."),
                     lines=[str(fix.get("summary") or ""), public["line"],
                            _later_line(rows_by_key.get(row_key), str(fix["version"])),
-                           "Otto proposes to mark this library “update first”. Accepting changes nothing on any system and runs nothing."],
+                           "Proposed: mark this library “update first”. Accepting changes nothing on any system and runs nothing."],
                     about={"library": n["library"], "version": n["version"], "fixed": fix["version"], "advisory": n["advisory"],
                            "pack": n["pack"], "public_copies": fix.get("state")},
                     proposed_at=(state or {}).get("list", {}).get("at"), item=n["row"],
@@ -518,7 +530,7 @@ class ProposalsMixin:
         elif state == "accepted":
             actions["undo"] = blocked or (LEGACY if legacy else None) or gone or self._otto_locked(proposal)
         else:
-            actions["reconsider"] = blocked or gone or (DONE if proposal["facts"].get("done") else None)
+            actions["reconsider"] = blocked or gone or (DONE_REJECTED if proposal["facts"].get("done") else None)
         history = [{"number": r.number, "decision": r.decision, "by": r.by, "at": r.at, "reason": r.reason, "before": r.before, "after": r.after,
                     "proposal_sha256": r.proposal_sha256, "ledger_entry": r.claim_id, "proposal": r.proposal} for r in rows]
         return {**proposal, "fingerprint": fingerprint(proposal), "state": state, "legacy": legacy, "actions": actions, "decisions": history,
@@ -602,7 +614,8 @@ class ProposalsMixin:
                     decided = [r for r in db.scalars(select(OttoDecisionRow).where(OttoDecisionRow.plan_id == plan_id)).all()
                                if _aware(r.created_at) >= _aware(last.installed_at)]
                     runs = db.scalars(select(TestRunRow).join(TestSpecRow, TestSpecRow.hash == TestRunRow.spec_hash)
-                                      .where(TestRunRow.plan_id == plan_id, TestSpecRow.kind == research.ADVISORY_KIND)
+                                      .where(TestRunRow.plan_id == plan_id, TestSpecRow.kind == research.ADVISORY_KIND,
+                                             TestRunRow.phase.not_in(WATCH_PHASES))
                                       .order_by(TestRunRow.id)).all()
                     newest: dict[int, TestRunRow] = {}
                     for run in runs:
@@ -687,10 +700,11 @@ class ProposalsMixin:
             about = dict(proposal["about"])
             earlier = self._decision_rows(db, plan_id).get(proposal_id, [])
             number, at = len(earlier) + 1, now_stamp()
+            by = self.decision_name()         # the name a person typed once (phase 6a), or "You"
             # Before anything is written, anywhere: the entry this decision would make, shown to the app's own pinned
             # checker. An entry it does not take is never put into the ledger, so "nothing was changed" is true.
             would_be = {"proposal": proposal_id, "proposal_kind": proposal["kind"], "proposal_sha256": proposal["fingerprint"],
-                        "title": proposal["title"], "decision": decision, "before": before, "after": after, "by": BY, "at": at, "reason": why,
+                        "title": proposal["title"], "decision": decision, "before": before, "after": after, "by": by, "at": at, "reason": why,
                         "number": number, "about": about}
             if assurance.run_checker({"kind": "decision", "proposal": proposal_id, "proposal_kind": proposal["kind"]}, would_be,
                                      assurance.DECISION_CHECKER) != "accept":
@@ -703,7 +717,7 @@ class ProposalsMixin:
             objective = next((r.objective_id for r in earlier if r.objective_id), None)
             objective, claim, verdict = ledger.record_decision(
                 objective_id=objective, proposal_id=proposal_id, kind=proposal["kind"], title=proposal["title"],
-                proposal_sha256=proposal["fingerprint"], decision=decision, before=before, after=after, by=BY, at=at, reason=why,
+                proposal_sha256=proposal["fingerprint"], decision=decision, before=before, after=after, by=by, at=at, reason=why,
                 number=number, about=about)
             if verdict != "accept":
                 # The checker took this entry a moment ago and gives no answer now (it did not run in time). The ledger
@@ -712,7 +726,7 @@ class ProposalsMixin:
                 raise Conflict("The decision was not recorded: Otto's ledger could not check its entry just now. The proposal stands as "
                                "it was; the attempt stays in the ledger, marked as not accepted. Try again.")
             db.add(OttoDecisionRow(plan_id=plan_id, proposal_id=proposal_id, kind=proposal["kind"], decision=decision, before=before, after=after,
-                                   number=number, reason=why, by=BY, at=at, proposal=content(proposal),
+                                   number=number, reason=why, by=by, at=at, proposal=content(proposal),
                                    proposal_sha256=proposal["fingerprint"], objective_id=objective, claim_id=claim))
             db.commit()
         return self.otto_proposal(plan_id, proposal_id)
@@ -749,7 +763,7 @@ class ProposalsMixin:
         item = db.get(PlanItemRow, proposal["facts"].get("item_id")) if proposal["facts"].get("item_id") is not None else None
         if item is None or item.plan_id != plan.id:
             raise Conflict("That check is not in the test plan.")
-        if db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_item_id == item.id)):
+        if db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_item_id == item.id, TestRunRow.phase.not_in(WATCH_PHASES))):
             raise Conflict("This check has run, so it stays in the test plan.")
         item.removed = True
 
@@ -765,8 +779,8 @@ class ProposalsMixin:
         proposal_id = check_id(check.advisory_id, check.design_sha256, str((spec.get("target") or {}).get("claim")))
         if self._otto_state(db, check.plan_id, proposal_id) != "accepted":
             return None
-        return ("This check came from one of Otto's proposals. Until it has run, Undo on Advisories takes it out of the test plan; "
-                "once it has run, it stays.")
+        return ("This check came from an accepted proposal. Until it has run, Undo on Advisories takes it out of the test plan. "
+                "Once it has run, it stays.")
 
 
 def _kind_of_id(proposal_id: str) -> str | None:

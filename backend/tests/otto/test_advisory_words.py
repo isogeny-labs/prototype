@@ -66,7 +66,7 @@ def test_a_result_after_a_retest_says_which_version_it_is_of():
 
 
 def test_the_fix_block_says_what_the_pack_carries_and_where_it_is_a_proposal():
-    """Found by the second review of 18 November 2026: the panel read "Otto proposes: update openjdk" with no Accept or
+    """Found by the second review of 18 November 2026: the panel read "Proposed: update openjdk" with no Accept or
     Reject, for a library the file did not name, and with a proof line in other words than the two rows use."""
     entry, made = helpers.pack_advisory(fix_state="not_proven")
     block = _row([], entry=entry, made=made)["panel"]["fix"]
@@ -152,7 +152,7 @@ def test_claudes_notes_are_labelled_as_claudes_and_say_which_kind_of_weakness_wa
     notes = _row([], entry=entry, made=made)["panel"]["notes"]
     assert set(notes) == {"title", "kind_line", "text", "caption"} and notes["title"] == "Otto's notes on reading it"
     # "the kind" the notes speak of is on the screen with them
-    assert notes["kind_line"] == ("Kind of weakness, as Otto recorded it: the affected software accepts a signature it must reject, "
+    assert notes["kind_line"] == ("Kind of weakness, as recorded: the affected software accepts a signature it must reject, "
                                   "when checking ECDSA signatures.")
     assert notes["text"] == entry["reading"]["notes"]
     assert notes["caption"].startswith("Claude's words from reading the advisory (Written for a test, not an answer from Claude)")
@@ -161,8 +161,8 @@ def test_claudes_notes_are_labelled_as_claudes_and_say_which_kind_of_weakness_wa
     entry["reading"].update(notes="", kind="other", area="other")
     plain = _row([], entry=entry, made=made)["panel"]["notes"]
     assert plain["text"] is None and "has a weakness of another kind, outside signature checking" in plain["kind_line"]
-    # an advisory Otto could not read has no notes at all
-    entry["reading"], entry["reading_refused"] = None, "Otto could not read this advisory: the quote is not in the publisher's text."
+    # an advisory that could not be read has no notes at all
+    entry["reading"], entry["reading_refused"] = None, "This advisory could not be read: the quote is not in the publisher's text."
     assert _row([], entry=entry, made=None)["panel"]["notes"] is None
 
 
@@ -251,11 +251,11 @@ def test_the_overviews_next_step_points_to_where_a_proposal_waits():
     step = ProjectsMixin._next_step
     one = step(brief, counts, None, {"check": 1})
     assert one["page"] == "advisories" and one["label"] == "Open advisories"
-    assert one["text"] == ("Otto proposes 1 advisory check from the installed test packs. Accept or reject it: accepting runs nothing.")
+    assert one["text"] == ("1 advisory check is proposed from the installed test packs. Accept or reject it: accepting runs nothing.")
     two = step(brief, counts, None, {"check": 2, "fix": 1})
-    assert two["page"] == "advisories" and "Otto proposes 2 advisory checks" in two["text"] and "each one" in two["text"]
+    assert two["page"] == "advisories" and "2 advisory checks are proposed" in two["text"] and "each one" in two["text"]
     fix = step(brief, counts, None, {"check": 0, "fix": 1})
-    assert fix["page"] == "fixes" and "Otto proposes a fix for a failed advisory check" in fix["text"] and "accepting runs nothing" in fix["text"]
+    assert fix["page"] == "fixes" and "A fix is proposed for a failed advisory check" in fix["text"] and "accepting runs nothing" in fix["text"]
     assert step(brief, counts, None, {"check": 0})["page"] == "fixes"                               # nothing waiting: as before
     assert step(brief, counts, None, None)["text"] == "Some failed tests or migration steps have a suggested fix waiting."
     no_fixes = {**counts, "fixes": {"open": 0}}

@@ -190,6 +190,9 @@ const oneOfTwoAccepted: AdvisoriesView = {
   waiting: advisoriesNotAdded.waiting,
 };
 
+/** A panel's heading by the advisory's name. (The 5c fixes: a new advisory's heading also holds the tag "New".) */
+const named = (name: string) => (accessible: string) => accessible === name || accessible.startsWith(`${name} New`);
+
 describe("Advisories, the page", () => {
   it("shows the title, the subline, the standing line, the packs line as a link to Settings, the answers line and Otto's line", async () => {
     const view = advisoriesTwoPacks;
@@ -363,8 +366,11 @@ describe("Advisories, the table", () => {
       const cells = Array.from(tr.children);
       expect(cells, row.id).toHaveLength(6);
       // The plain name, with the id under it in a fixed-width font.
-      const [name, id] = Array.from(cells[0]!.querySelectorAll("span"));
-      expect(name!.textContent, row.id).toBe(row.name);
+      // (The 5c fixes: an advisory that arrived with the newest pack has the tag "New" after its name.)
+      const name = cells[0]!.querySelector("span");
+      const id = cells[0]!.querySelector("span.font-mono");
+      expect(name!.firstChild!.textContent, row.id).toBe(row.name);
+      expect(within(cells[0] as HTMLElement).queryAllByTestId("advisory-new"), row.id).toHaveLength(row.new ? 1 : 0);
       expect(id!.textContent, row.id).toBe(row.id);
       expect(id!.className, row.id).toContain("font-mono");
       expect(text(cells[1]), row.id).toBe(row.published_text);
@@ -596,7 +602,7 @@ describe("Advisories, an advisory's panel", () => {
     const inPanel = await openRow(BLANK);
     await inPanel.findByTestId("advisory-related");
     // The plain name, the id and the day it was published head the panel.
-    const heading = inPanel.getByRole("heading", { level: 2, name: blankFailed.name });
+    const heading = inPanel.getByRole("heading", { level: 2, name: named(blankFailed.name) });
     expect(text(heading.parentElement)).toBe(`${blankFailed.name}${blankFailed.id}Published ${blankFailed.published_text}`);
     expect(heading.compareDocumentPosition(inPanel.getByTestId("advisory-sentence")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(partsInOrder()).toEqual([
@@ -949,7 +955,7 @@ describe("Advisories, an advisory's panel", () => {
     // Not in the samples (their advisories have neither): the fields are filled in here to see them drawn.
     const said = {
       title: "Otto's notes on reading it",
-      kind_line: "Kind of weakness, as Otto recorded it: the affected software accepts a signature it must reject, when checking ECDSA signatures.",
+      kind_line: "Kind of weakness, as recorded: the affected software accepts a signature it must reject, when checking ECDSA signatures.",
       text: "The publisher lists Java 15 to 18 as affected.",
       caption: "Claude's words from reading the advisory (Recorded during the build, not through the API). Information, not a result.",
     };
@@ -979,10 +985,10 @@ describe("Advisories, an advisory's panel", () => {
     expect(inPanel.queryByTestId("advisory-also-known-as")).toBeNull();
   });
 
-  it("draws no publisher's line for an advisory Otto could not read, and still lists its sources", async () => {
+  it("draws no publisher's line for an advisory that could not be read, and still lists its sources", async () => {
     const view = withFirstRow(advisoriesFailed, (r) => ({
       ...r,
-      name: "An advisory Otto could not read",
+      name: "An advisory that could not be read",
       panel: { ...r.panel, sentence: "The advisory's text could not be matched to its publisher's page.", publisher: null, affected: null },
     }));
     await open(view);
@@ -996,11 +1002,11 @@ describe("Advisories, an advisory's panel", () => {
   it("opens the advisory a link names, switches on a click on another row, and closes from its button or Escape", async () => {
     await open(advisoriesTwoPacks, {}, { item: LOOSE });
     await waitFor(() => expect(panel().getAttribute("data-advisory")).toBe(LOOSE));
-    expect(within(panel()).getByRole("heading", { level: 2, name: looseNotOffered.name })).not.toBeNull();
+    expect(within(panel()).getByRole("heading", { level: 2, name: named(looseNotOffered.name) })).not.toBeNull();
     // The shared panel of every table page, with its close button, is inside.
     expect(within(panel()).getByTestId("detail-panel")).not.toBeNull();
     await openRow(ZERO);
-    expect(within(panel()).getByRole("heading", { level: 2, name: zeroNotAdded.name })).not.toBeNull();
+    expect(within(panel()).getByRole("heading", { level: 2, name: named(zeroNotAdded.name) })).not.toBeNull();
     fireEvent.click(within(panel()).getByRole("button", { name: "Close details" }));
     expect(screen.queryByTestId("advisory-panel")).toBeNull();
     expect(within(screen.getByTestId("advisories-table")).getByTestId("data-table").getAttribute("data-compact")).toBeNull();
@@ -1638,7 +1644,7 @@ describe("Advisories in the app", () => {
     mockApi(appRoutes());
     render(<App />);
     await waitFor(() => expect(panel().getAttribute("data-advisory")).toBe(LOOSE));
-    expect(within(panel()).getByRole("heading", { level: 2, name: looseNotOffered.name })).not.toBeNull();
+    expect(within(panel()).getByRole("heading", { level: 2, name: named(looseNotOffered.name) })).not.toBeNull();
   });
 
   it("is off until a file is in, by the same rule as Checks", async () => {
@@ -1742,5 +1748,60 @@ describe("Advisories, the fixtures", () => {
     for (const state of [blankProposalAccepted, blankProposalRejected, blankProposalUndone, blankProposalReconsidered]) expect(state.id).toBe(blankProposal.id);
     expect(blankProposal.id).not.toBe(zeroProposal.id);
     expect(blankProposal.id).not.toBe(secondProposal.id);
+  });
+});
+
+// The 5c fixes: an advisory whose first arrival came with the most recently installed test pack carries the tag "New"
+// beside its name, in the table and in its panel's title. The pack is named on hover and to a screen reader.
+describe("Advisories, the New tag", () => {
+  const tagIn = (el: HTMLElement) => within(el).queryByTestId("advisory-new");
+  const row = (id: string) => screen.getAllByTestId("advisory-row").find((r) => r.getAttribute("data-advisory") === id)!;
+
+  async function show(view: AdvisoriesView, item: string | null = null) {
+    mockApi({ "GET /api/plans/1/advisories": { body: view }, "GET /api/plans/1/related?key=advisory%3ACVE-2024-42460": { body: { key: "", related: [] } } });
+    render(
+      <LinkProvider assessmentId={101} planId={1}>
+        <AdvisoriesScreen planId={1} openItem={item} />
+      </LinkProvider>,
+    );
+    await screen.findAllByTestId("advisory-row");
+  }
+
+  it("with one pack installed, every advisory is new, and the tag names that pack", async () => {
+    await show(advisoriesNotAdded);
+    for (const shown of advisoriesNotAdded.rows) {
+      const tag = tagIn(row(shown.id))!;
+      expect(tag, shown.id).not.toBeNull();
+      expect(tag.getAttribute("title")).toBe("Arrived with test pack 2026.11.1");
+      // what is seen is the one word; a screen reader is told which pack
+      expect(tag.querySelector("[aria-hidden='true']")!.textContent).toBe("New");
+      expect(tag.querySelector(".sr-only")!.textContent).toBe("New: arrived with test pack 2026.11.1");
+    }
+  });
+
+  it("with a second pack installed, only the advisories it brought are new", async () => {
+    await show(advisoriesTwoPacks);
+    const tagged = advisoriesTwoPacks.rows.filter((r) => tagIn(row(r.id)) !== null).map((r) => r.id);
+    expect(tagged).toEqual(advisoriesTwoPacks.rows.filter((r) => r.pack === "2026.11.2").map((r) => r.id));
+    expect(tagged).toHaveLength(2);
+    for (const id of tagged) expect(tagIn(row(id))!.getAttribute("title")).toBe("Arrived with test pack 2026.11.2");
+    // an advisory of the first pack is listed as before, with no tag
+    expect(tagIn(row(advisoriesTwoPacks.rows[0]!.id))).toBeNull();
+  });
+
+  it("the open advisory's panel carries the tag in its title too", async () => {
+    await show(advisoriesTwoPacks, zeroNotAdded.id);
+    const heading = within(await screen.findByTestId("detail-panel")).getByRole("heading", { level: 2 });
+    expect(heading.firstChild!.textContent).toBe(zeroNotAdded.name);
+    const tag = tagIn(heading)!;
+    expect(tag.getAttribute("title")).toBe("Arrived with test pack 2026.11.2");
+    expect(text(heading)).toBe(`${zeroNotAdded.name} NewNew: arrived with test pack 2026.11.2`);
+  });
+
+  it("an older advisory's panel has no tag", async () => {
+    await show(advisoriesTwoPacks, advisoriesTwoPacks.rows[0]!.id);
+    const heading = within(await screen.findByTestId("detail-panel")).getByRole("heading", { level: 2 });
+    expect(tagIn(heading)).toBeNull();
+    expect(text(heading)).toBe(advisoriesTwoPacks.rows[0]!.name);
   });
 });

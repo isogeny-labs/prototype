@@ -28,12 +28,12 @@ from app.engine import research
 from app.canonical import canonical_bytes
 from app.db import (
     ApprovalRow, ChangeRow, CodeConnectionRow, ImportRow, MergeRow, PlanItemRow, PlanRow, ProofReviewRow, ProofRow, PullRequestRow, RetestRow,
-    ReviewRow, TestRunRow, TestSpecRow, iso,
+    ReviewRow, TestRunRow, TestSpecRow, WatchRunRow, iso,
 )
 from app.errors import BadRequest, Conflict, NotFound
 from app.fixes.gitrepo import GitRepo, GitRepoError, Person, count_changes, format_patch
 from app.engine.reviewer import PROOF_SCHEMA, ReviewNotAllowed
-from app.lab.testlab import BUSY, read_spec
+from app.lab.testlab import BUSY, WATCH_PHASES, live_job_view, read_spec
 from app.otto import proposals as otto_proposals
 from app.otto.engine import OttoCouldNot
 
@@ -69,8 +69,8 @@ def _no_connect_of_ottos(state: str) -> str | None:
     if state == "accepted":
         return None
     if state == "rejected":
-        return "Otto's proposal was rejected, so its change is not added. Reconsider takes it up again."
-    return "Otto proposes this change. Accept the proposal first; accepting runs nothing."
+        return "This proposal was rejected, so its change is not added. Reconsider takes it up again."
+    return "This change is a proposal. Accept it first; accepting runs nothing."
 
 
 def _no_new_proof(fix: dict) -> str | None:
@@ -191,6 +191,7 @@ class ChangesMixin:
     _plan, _items, _latest_run, _result, _verdict, _compare_blocked, _submit, start_retest."""
 
     _fixes_for_dependencies: Callable[..., list[dict]]   # from DependenciesMixin (phase 4d); declared for the type check only
+    _fixes_for_developer_changes: Callable[..., list[dict]]   # from ChangeWatchMixin (phase 6d); declared for the type check only
     _otto_pack_fix: Callable[..., dict | None]            # from OttoMixin (phase 5c)
     _otto_state: Callable[..., str]                       # from ProposalsMixin (phase 5c): where a proposal stands
 
@@ -291,8 +292,9 @@ class ChangesMixin:
 
     def _fix_sources(self) -> list:
         """Where fixes come from, as an explicit list. Phase 3a has one source; phase 3c adds a developer's change."""
-        # phase 4a adds the migration plan's entries; phase 4d one entry per library that blocks a track
-        return [self._fixes_for_failed_tests, self._fixes_for_migration, self._fixes_for_dependencies]
+        # phase 4a adds the migration plan's entries; phase 4d one entry per library that blocks a track; phase 6d (the
+        # plan's 3c) one entry for each developer's change that makes tests fail which passed on the code before
+        return [self._fixes_for_failed_tests, self._fixes_for_migration, self._fixes_for_dependencies, self._fixes_for_developer_changes]
 
     def _fixes(self, db, plan: PlanRow) -> list[dict]:
         items = self._items(db, plan.id)
@@ -550,8 +552,7 @@ class ChangesMixin:
             job, check = (live.get(t["item_id"]) if t["proof"] is None else None), checks.get(t["item_id"])
             rows.append({"item_id": t["item_id"], "kind": t["kind"], "target": t["target"],
                          "first": _shown_verdict(t["first"]), "proof": _shown_verdict(t["proof"]),
-                         "job": {"status": job.status, "progress_text": job.progress_text,
-                                 "progress_percent": job.progress_percent} if job is not None else None,
+                         "job": live_job_view(job) if job is not None else None,
                          "check": {k: check[k] for k in ("group", "report_only", "ok", "reason")} if check is not None else None})
         state = "running" if live else "interrupted" if review is None else "passed" if review["offered"] else "failed"
         return {"id": proof.id, "baseline_version": proof.baseline_version, "version": proof.version,
@@ -623,6 +624,15 @@ class ChangesMixin:
                 connection = db.get(CodeConnectionRow, change.connection_id)
                 code.update(source="repository", repository=connection.repository, branch=change.branch,
                             commit=change.head_commit, change_id=change.id)
+                return code
+            if a["phase"] in WATCH_PHASES:
+                # Phase 6d: a watch run records the developer's branch and the commit whose code ran: the change's own
+                # commit, or (for the run on the code before) the commit the change starts from.
+                watch = db.get(WatchRunRow, a["retest_id"])
+                connection = db.scalars(select(CodeConnectionRow).where(CodeConnectionRow.plan_id == a["plan_id"])).first()
+                if watch is not None and connection is not None:
+                    code.update(source="repository", repository=connection.repository, branch=watch.branch,
+                                commit=watch.head_commit if a["phase"] == "watch" else watch.base_commit)
                 return code
             connection = db.scalars(select(CodeConnectionRow).where(CodeConnectionRow.plan_id == a["plan_id"])).first()
             if connection is None:

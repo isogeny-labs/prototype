@@ -305,6 +305,41 @@ class ProofReviewRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class WatchRunRow(Base):
+    """One run of the tests picked for a developer's change (phase 6d, Change watch). The change is named by its
+    branch and its two commits; no row of `changes` is written for it (that table is for the app's own changes).
+    `items`: [{"item_id", "spec_hash", "kind", "before_run_id"}] in plan order: the picked tests, each with the reviewed
+    run on exactly the code the change starts from that it is compared with (None: that test also runs on that code in
+    this watch run). Its runs are `test_runs` rows with this row's id in `retest_id`: phase "watch" on the change's
+    code, phase "watch_base" on the code before. They never stand in for a result of the assessment's own tests."""
+    __tablename__ = "watch_runs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    branch: Mapped[str] = mapped_column(String(100))
+    base_commit: Mapped[str] = mapped_column(String(40))        # the commit the change starts from
+    head_commit: Mapped[str] = mapped_column(String(40))        # the change's code
+    version: Mapped[str] = mapped_column(String(50))            # the registered demo program the change's code is; it is what runs
+    base_version: Mapped[str] = mapped_column(String(50))       # the registered demo program the code before is
+    files: Mapped[list] = mapped_column(JSON)                   # [{"name", "state", "old_sha256", "new_sha256"}]: what the change touches
+    items: Mapped[list] = mapped_column(JSON)
+    not_picked: Mapped[list] = mapped_column(JSON)              # [{"item_id", "kind", "rule"}]: the tests left out, and the rule
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class WatchReviewRow(Base):
+    """The reviewer's answer to "what differs from before?", written once, when the watch run's last test run is
+    reviewed. It sets the change's status word and nothing else. It is believed only while reviewing the stored records
+    again gives exactly this row."""
+    __tablename__ = "watch_reviews"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    watch_run_id: Mapped[int] = mapped_column(ForeignKey("watch_runs.id"), unique=True)
+    reviewer: Mapped[str] = mapped_column(String(64))
+    record_sha256: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(40))
+    detail: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 class PullRequestRow(Base):
     """A pull request inside the app, for one change, opened on one passed proof."""
     __tablename__ = "pull_requests"
@@ -636,6 +671,64 @@ class OttoDecisionRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
+class OttoLookupRow(Base):
+    """Phase 6, Otto's research loop: one look for new advisories. What was asked (package names only), of which
+    source, the fingerprint of each answer, and every advisory that came back, as data. Rows are only ever added."""
+    __tablename__ = "otto_lookups"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    at: Mapped[str] = mapped_column(String(40))
+    by: Mapped[str] = mapped_column(String(100))                  # the name the app records for the person at the keyboard
+    source: Mapped[str] = mapped_column(String(20))               # osv | recorded
+    sent: Mapped[list] = mapped_column(JSON)                      # exactly what was sent: package names, or nothing
+    asked: Mapped[list] = mapped_column(JSON)                     # [{library, ecosystem, name, records, sha256: [...]}]
+    found: Mapped[list] = mapped_column(JSON)                     # [{advisory (the snapshot's shape), ranges, versions, record_id}]
+    left_out: Mapped[int] = mapped_column(Integer, default=0)
+    cut: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class OttoResearchRow(Base):
+    """Phase 6, Otto's research loop: a research run started by a person ("Design and prove tests"). Two rows for a
+    run, each only ever added: `started`, and `finished` with how it ended, what it said and the pack it made."""
+    __tablename__ = "otto_research"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    run_key: Mapped[str] = mapped_column(String(80))
+    kind: Mapped[str] = mapped_column(String(12))                 # started | finished
+    at: Mapped[str] = mapped_column(String(40))
+    by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    lookup_id: Mapped[int] = mapped_column(Integer)
+    advisories: Mapped[list] = mapped_column(JSON)                # the ids that were handed to the research step
+    live: Mapped[bool] = mapped_column(Boolean, default=False)    # was Live Otto on (could Claude be asked)?
+    limit_nano: Mapped[int] = mapped_column(Integer, default=0)
+    installed_first: Mapped[list] = mapped_column(JSON)           # built-in packs the click installed before the run
+    exit_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pack_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    output: Mapped[list] = mapped_column(JSON)                    # what the research command said, line by line
+    reason: Mapped[str | None] = mapped_column(String(600), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class AssistantMessageRow(Base):
+    """Phase 6b: one sentence a person typed to Otto in an open assessment, and the answer it got. Kept with the
+    assessment and only ever added. It is a record of what was said: it decides nothing, and nothing reads it to act."""
+    __tablename__ = "assistant_messages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    at: Mapped[str] = mapped_column(String(40))
+    by: Mapped[str] = mapped_column(String(100))
+    page: Mapped[str] = mapped_column(String(60))                 # the page it was typed beside
+    item: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    thread: Mapped[str | None] = mapped_column(String(20), nullable=True)   # the tab it shows in (None: no tab)
+    said: Mapped[str] = mapped_column(Text)                       # the person's own words
+    kind: Mapped[str] = mapped_column(String(20))                 # what kind of answer: went, card, which, cannot, ...
+    reply: Mapped[str] = mapped_column(Text)                      # the answer's one line
+    go: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # where the answer led, if anywhere
+    facts: Mapped[list | None] = mapped_column(JSON, nullable=True)   # phase 6c: the facts of an answer to a fixed question
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 NO_DELETE_TABLES = ("folders", "projects", "assessments")
 
 
@@ -644,7 +737,10 @@ APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", 
                       "change_tries", "apply_requests", "apply_approvals", "applies", "rollbacks",
                       "dependency_lists", "dependency_ties",
                       "assessment_details", "assessment_signoffs", "import_files",   # phase 5b
-                      "otto_packs", "otto_checks", "otto_steps", "otto_decisions")    # phase 5c
+                      "otto_packs", "otto_checks", "otto_steps", "otto_decisions",    # phase 5c
+                      "otto_lookups", "otto_research",                                # phase 6: the research loop
+                      "assistant_messages",                                           # phase 6b: what was said to Otto
+                      "watch_runs", "watch_reviews")                                  # phase 6d: Change watch
 
 
 def create_append_only_triggers(engine) -> None:
@@ -660,9 +756,23 @@ def create_append_only_triggers(engine) -> None:
                               f"BEGIN SELECT RAISE(ABORT, '{table} are never deleted'); END;"))
 
 
+# A column that was added to a table after the table first shipped. A data folder made before then gets the column when
+# it is opened (adding a column changes no row; the add-only rules do not stand in its way).
+ADDED_COLUMNS = (("assistant_messages", "facts", "JSON"),)       # phase 6c: the facts of an answer to a fixed question
+
+
+def add_missing_columns(engine) -> None:
+    with engine.begin() as conn:
+        for table, column, kind in ADDED_COLUMNS:
+            have = {row[1] for row in conn.execute(text(f'PRAGMA table_info("{table}")'))}
+            if have and column not in have:
+                conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {kind}'))
+
+
 def make_session_factory(db_path: Path) -> sessionmaker:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False, "timeout": 30})
     Base.metadata.create_all(engine)
+    add_missing_columns(engine)
     create_append_only_triggers(engine)
     return sessionmaker(engine, expire_on_commit=False)

@@ -1,7 +1,7 @@
 import type { ChangePart, DiffLine, FixSection, StrongLabel } from "../../api";
 
 /** The lines of one version of the code. A changed line carries its mark as well as its tint. */
-function CodeLines({ lines }: { lines: DiffLine[] }) {
+export function CodeLines({ lines }: { lines: DiffLine[] }) {
   return (
     <div className="rounded bg-slate-900 py-1.5 font-mono text-xs leading-5">
       {lines.map((line) => {

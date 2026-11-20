@@ -79,6 +79,10 @@ class _Failed(Exception):
     pass
 
 
+class _NothingToAudit(Exception):
+    """The file's Otto ledger is empty: Otto's own audit has nothing to check."""
+
+
 def _plain(value: object, limit: int = 120) -> str:
     """Text from the file as it may be printed: printable characters only, and not too long."""
     text = " ".join("".join(ch if ch.isprintable() else "?" for ch in str(value)).split())
@@ -312,10 +316,10 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
         attempts = {rid for rid in decision_claims if rid not in accepted}
         if proposals is None:
             if set(decision_claims) - attempts:
-                raise _Failed("the ledger holds decisions on Otto's proposals, and the file does not show them.")
+                raise _Failed("the ledger holds decisions on proposals, and the file does not show them.")
         else:
             if not isinstance(proposals, list):
-                raise _Failed("the list of Otto's proposals in the file could not be read.")
+                raise _Failed("the list of proposals in the file could not be read.")
             # A check that was added before decisions were recorded stands as "accepted" with no decision. That is
             # allowed only for a check the file itself holds in the test plan: one such proposal for one such check.
             older_checks: dict[tuple, int] = {}
@@ -331,7 +335,7 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
             listed, count = set(), 0
             for proposal in proposals:
                 if not isinstance(proposal, dict):
-                    raise _Failed("the list of Otto's proposals in the file could not be read.")
+                    raise _Failed("the list of proposals in the file could not be read.")
                 title = _plain(proposal.get("title"))
                 state: object = "proposed"
                 for place, decision in enumerate(proposal.get("decisions") or [], start=1):
@@ -390,13 +394,36 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
                     # the copy its last decision was made on (which the ledger holds by its SHA-256)
                     raise _Failed(f"“{title}” is no longer proposed, and the file does not show it as its last decision was made on it.")
             if (set(decision_claims) - attempts) - listed:
-                raise _Failed("the ledger holds a decision on one of Otto's proposals that the file does not show.")
+                raise _Failed("the ledger holds a decision on a proposal that the file does not show.")
             if attempts:
                 out.lines.append(f"Note: the ledger holds {len(attempts)} attempted "
                                  f"{'entry' if len(attempts) == 1 else 'entries'} for a decision that the pinned checker did not accept. "
                                  "They are not decisions.")
-            out.lines.append(f"Decisions: {count} on {sum(1 for p in proposals if p.get('decisions'))} of Otto's {len(proposals)} "
+            out.lines.append(f"Decisions: {count} on {sum(1 for p in proposals if p.get('decisions'))} of the {len(proposals)} "
                              f"{'proposal' if len(proposals) == 1 else 'proposals'}, each in the ledger with who and when, in an order the app allows.")
+        # Phase 6, the research loop: the looks for new advisories and the research runs of this assessment. They are
+        # records (what was asked, the fingerprint of each answer, how a run ended); the proof of a test is in its pack.
+        looks = otto.get("lookups")
+        if looks is not None:
+            if not isinstance(looks, dict) or not isinstance(looks.get("looks"), list) or not isinstance(looks.get("research"), list):
+                raise _Failed("the record of the looks for new advisories is not in the form this version writes.")
+            for look in looks["looks"]:
+                asked = look.get("asked") if isinstance(look, dict) else None
+                if not isinstance(asked, list) or not all(isinstance(a, dict) and isinstance(a.get("sha256"), list)
+                                                          and all(isinstance(h, str) and _HEX64.fullmatch(h) for h in a["sha256"]) for a in asked):
+                    raise _Failed("a look for new advisories does not hold the fingerprint of each answer it read.")
+                if look.get("source") == "osv" and not all(isinstance(x, str) and len(x) <= 300 for x in look.get("sent") or []):
+                    raise _Failed("a look for new advisories does not say plainly what was sent.")
+            made_here = {_plain(p.get("version"), 40) for p in packs.values()}
+            for run in looks["research"]:
+                if not isinstance(run, dict) or run.get("what") not in ("started", "finished"):
+                    raise _Failed("a research run in the file is not in the form this version writes.")
+                if run.get("pack_version") is not None and _plain(run.get("pack_version"), 40) not in made_here:
+                    raise _Failed(f"a research run names test pack {_plain(run.get('pack_version'), 40)}, which is not in the file.")
+            if looks["looks"] or looks["research"]:
+                finished = sum(1 for run in looks["research"] if run.get("what") == "finished")
+                out.lines.append(f"Looks for new advisories: {len(looks['looks'])}, each with what was asked and the fingerprint of each "
+                                 f"answer; research runs: {finished} finished, each pack they made is in the file.")
         # 5. an older download
         if previous is not None:
             older = (previous.get("otto") or {}).get("ledger") if isinstance(previous, dict) else None
@@ -412,6 +439,11 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
         #    writes; then the harness audits the chain and the records without running any verifier, and our own
         #    pinned checker (the app's file, never one from the ledger) is run again on every checked entry.
         try:
+            if not entries and not list(ledger.get("lines") or []):
+                # A file whose Otto part holds no ledger entry at all (for example: looks for new advisories were made,
+                # and no check was ever accepted). The harness recorded nothing, so there is nothing for its audit to
+                # check, whether or not it is installed on this computer. The signature above covers this part.
+                raise _NothingToAudit
             from app.otto import assurance, harness
             foreign = assurance.only_our_checker(entries)
             if foreign == assurance.OTHER_VERSION:
@@ -430,6 +462,8 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
             named = otto.get("harness") or {}
             if named.get("commit") and named.get("commit") != pinned.commit:
                 out.lines.append(f"Note: the file was made with Otto commit {_plain(named.get('commit'), 7)[:7]}; this computer has {str(pinned.commit)[:7]}.")
+        except _NothingToAudit:
+            out.lines.append("Otto's ledger for this assessment has no entries, so there was nothing for Otto's own audit to check.")
         except ImportError:
             out.code, out.problem = NOT_CONFIRMED, "Otto's own audit was not run: the app's Otto adapter is not available here."
         except Exception as exc:

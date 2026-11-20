@@ -8,6 +8,8 @@ const PATHS: Record<string, string> = {
   tests: "M9 3h6M10 3v6l-5 9a1.5 1.5 0 0 0 1.3 2.2h11.4A1.5 1.5 0 0 0 19 18l-5-9V3",
   evidence: "M7 3h7l5 5v13H7zM14 3v5h5M10 14l2 2 4-4",
   fixes: "M14.5 5.5a4 4 0 0 0-5.3 5.3L4 16l4 4 5.2-5.2a4 4 0 0 0 5.3-5.3l-2.6 2.6-2.4-.6-.6-2.4z",
+  // (an eye: Change watch)
+  watch: "M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
   migration: "M4 7h11l-3-3m3 3-3 3M20 17H9l3 3m-3-3 3-3",
   systems: "M5 5h14v5H5zM5 14h14v5H5zM8 7.5h.01M8 16.5h.01",
   roadmap: "M4 6h6v4H4zM10 8h4M14 6h6v4h-6zM14 16h6v4h-6zM17 10v6",

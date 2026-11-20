@@ -123,7 +123,7 @@ class Import(Shape):
         default=None,
         description="Settings rows the file carries (not claims: nothing checks them). Optional: older stored answers may lack it.",
     )
-    otto: "ImportOtto | None" = Field(default=None, description='Phase 5c: "Otto found N checks that may apply". Nothing runs on import.')
+    otto: "ImportOtto | None" = Field(default=None, description='Phase 5c: "N checks may apply", marked From Otto. Nothing runs on import.')
 
 
 class ImportSetting(Shape):
@@ -162,7 +162,7 @@ class VerifyRun(Shape):
     started_at: str
     finished_at: str
     results: list[Result]
-    otto_note: str = Field(default="", description="Phase 5c: one sentence. Verify is unchanged and Otto proposes nothing on it yet.")
+    otto_note: str = Field(default="", description="Phase 5c: one sentence. Verify is unchanged and nothing is proposed on it yet.")
 
 
 # ---- Phase 2: test plan and Evidence Lab. All wording comes from the backend. ----
@@ -432,7 +432,7 @@ class LabResult(Badge):
     otto: OttoResultBlock | None = Field(
         default=None,
         description="Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, "
-                    "the decisions on Otto's proposal with who and when, and its Otto ledger entries. Records, never a result.",
+                    "the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result.",
     )
 
 
@@ -852,6 +852,8 @@ class FixDetail(Shape):
     group_label: str = ""
     came_from_links: list["FixCameFrom"] = Field(default_factory=list, description="Phase 5b: where it came from, as links.")
     fix_state: Literal["open", "in_progress", "done"] = "open"
+    apart: bool = Field(default=False, description="Phase 6d: listed under its group's own heading for a developer's change and "
+                                                    "never counted with the findings.")
 
 
 class FixesView(Shape):
@@ -860,7 +862,7 @@ class FixesView(Shape):
     title: str = Field(description='"Fixes"')
     subline: str
     disclaimer: str
-    list_title: str = Field(description='"Open findings with a fix (2)"')
+    list_title: str = Field(description='"Open findings with a fix (2)": the entries that are not listed apart')
     empty_text: str | None = Field(description="when no failed test has a fix: one plain sentence, and fixes is []")
     fixes: list[FixDetail] = Field(description="in list order; the list on the left is drawn from these too")
     busy: bool = Field(description="something is running: ask again in a second")
@@ -1380,7 +1382,7 @@ class DependencyRow(Shape):
     measurement: DependencyMeasurement | None
     job: RowStatus | None
     advisories: list["DependencyAdvisory"] = Field(default_factory=list, description='Phase 5c: "Named by advisory X: ..." lines.')
-    otto_proposals: list["OttoProposal"] = Field(default_factory=list, description="Phase 5c: Otto's proposals to change this library's status.")
+    otto_proposals: list["OttoProposal"] = Field(default_factory=list, description="Phase 5c: the proposals to change this library's status.")
     otto_status: "DependencyOttoStatus | None" = Field(default=None, description="Phase 5c: the status a person accepted.")
 
 
@@ -1580,13 +1582,166 @@ class AssessmentView(AssessmentBrief):
     counts: AssessmentCounts
     next_step: NextStep
     blocks: "OverviewBlocks | None" = Field(default=None, description="Phase 5b: the Overview's blocks (null before a file).")
-    waiting: "OttoWaiting | None" = Field(default=None, description='Phase 5c: "Waiting for you": Otto\'s proposals nobody has decided yet.')
+    waiting: "OttoWaiting | None" = Field(default=None, description='Phase 5c: "Waiting for you": the proposals nobody has decided yet.')
 
 
 # ---- Phase 5b: one connected assessment. Every word comes from the page each item lives on. ----
 
 GroupKey = Literal["verification", "encryption", "migration", "dependencies"]
 ItemState = Literal["open", "in_progress", "done"]
+
+
+# ---------------------------------------------------------------- phase 6d: Change watch
+
+ChangeStatusKey = Literal["not_run", "running", "no_difference", "passed_before_fails_now", "failed_before_passes_now",
+                          "nothing_to_run", "cant_run", "couldnt_trust"]
+ChangeOutcome = Literal["fails_now", "passes_now", "same", "slower_now", "not_slower", "not_compared", "not_trusted"]
+
+
+class ChangeStatus(Shape):
+    """The status word of a developer's change. It is the change's, never a test result."""
+
+    key: ChangeStatusKey
+    word: str = Field(description='"Not run yet", "Running", "No difference found", "Passed before, fails now (1 test)", ...')
+    tone: Tone
+    busy: bool = Field(description="its picked tests are running: ask again in a second")
+    reason: str | None = Field(description="one sentence under the word that says why")
+
+
+class ChangeBlock(Shape):
+    before: list["DiffLine"]
+    after: list["DiffLine"]
+
+
+class ChangeFile(Shape):
+    name: str
+    what: str = Field(description='"Added", "Changed" or "Removed"')
+    counts: str | None = Field(description='"5 lines added"; null when the file is not text')
+    is_program: bool = Field(description="the file of the program under test")
+    note: str | None
+    blocks: list[ChangeBlock] = Field(description="each changed place, with the lines around it, before and after")
+
+
+class ChangeTest(Shape):
+    item_id: int
+    title: str
+    reason: str = Field(description="the rule that picked it, or left it out, in one sentence")
+    link: "ItemLink"
+
+
+class ChangeResultSide(Shape):
+    """The reviewer's word for one run, repeated: a watch run words no result of its own."""
+
+    run_id: int
+    label: str
+    tone: Tone
+    plain: str
+    ran_on: str | None
+    link: "ItemLink | None" = Field(description="where that run's evidence is shown")
+
+
+class ChangeJob(Shape):
+    status: JobStatus
+    progress_text: str | None
+    progress_percent: int | None
+
+
+class ChangeResult(Shape):
+    item_id: int
+    title: str
+    before: ChangeResultSide | None
+    before_note: str | None = Field(description="where the result before comes from")
+    now: ChangeResultSide | None
+    job: ChangeJob | None
+    differs: str | None = Field(description='"Passed before, fails now", "Failed before, passes now", "Same as before", ...; null until reviewed')
+    outcome: ChangeOutcome | None
+
+
+class ChangeSource(Shape):
+    title: str
+    url: str
+
+
+class ChangeFlag(Shape):
+    """Something to look at. Never a result."""
+
+    title: str
+    text: str
+    note: str = Field(description='"The app has not tested what this line does."')
+    source: ChangeSource
+
+
+class ChangeRunButton(Shape):
+    label: str = Field(description='"Run the picked tests", then "Run again"')
+    can: bool
+    blocked_reason: str | None
+    will_run: list[str] = Field(description="the tests the button runs, by name")
+    note: str | None
+
+
+class ChangePanel(Shape):
+    message: str
+    starts_from: str | None
+    gives: str | None = Field(description="which registered demo program the change's code is, or that it is none")
+    files: list[ChangeFile]
+    picked: list[ChangeTest]
+    not_picked: list[ChangeTest]
+    picked_empty: str | None
+    run: ChangeRunButton
+    last_run: str | None
+    results: list[ChangeResult]
+    flags: list[ChangeFlag]
+    flags_note: str | None
+    more_flags: str | None
+    fix_line: str | None = Field(description="one line when Fixes has an entry for this change (tests that passed fail on it)")
+    fix: "ItemLink | None" = Field(description="the way to that entry on Fixes")
+
+
+class ChangeRow(Shape):
+    id: str = Field(description='"change-" and the first twelve characters of its commit: it names the exact code')
+    title: str
+    branch: str
+    commit: str
+    author: str | None
+    is_demo: bool = Field(description="a bundled demo change: drawn with the Demo data label")
+    when: str | None
+    files_line: str | None
+    picked_line: str
+    status: ChangeStatus
+    flags_count: int
+    panel: ChangePanel
+
+
+class ChangeWatchCode(Shape):
+    state: Literal["no_code", "not_connected", "unreadable", "connected"]
+    line: str | None = Field(description="what to do first, or why nothing can come in here; null once connected")
+    link: "ItemLink | None"
+    connected_line: str | None
+
+
+class DemoChangeItem(Shape):
+    key: str
+    title: str
+    what_it_does: str
+    can: bool
+    blocked_reason: str | None
+
+
+class ChangeWatchMenu(Shape):
+    button: str = Field(description='"Bring in a demo change"')
+    note: str
+    items: list[DemoChangeItem]
+
+
+class ChangeWatchView(Shape):
+    plan_id: int
+    title: str = Field(description='"Change watch"')
+    subline: str
+    code: ChangeWatchCode
+    menu: ChangeWatchMenu
+    changes: list[ChangeRow] = Field(description="newest first; read from the connected repository on every ask")
+    empty: str | None
+    busy: bool = Field(description="a change's picked tests are running: ask again in a second")
 
 
 class ItemLink(Shape):
@@ -1721,11 +1876,45 @@ class CheckRow(Shape):
     same_as: list[SameMeasurement] = Field(default_factory=list,
                                            description="Phase 5b: the same measurement made elsewhere (decisions 3 and 4); each keeps its own run.")
     from_otto: "CheckFromOtto | None" = Field(default=None, description='Phase 5c: "From Otto" on an advisory check, with the way to its advisory.')
+    mark: str | None = Field(default=None, description='The 5c fixes, in a retest\'s block: "tested again as it is" for a server, or a '
+                                                       "program the retest did not move.")
+    alias: str | None = Field(default=None, description='The 5c fixes: the older id of this row ("retest-12"), which still opens it '
+                                                        "while this is the newest block of its test.")
 
 
 class StartedOn(Shape):
     label: str
     page: str
+
+
+class CheckBlock(Shape):
+    """The 5c fixes: one version a retest ran on, or one proof of a change, with the rows of its own runs."""
+    key: str = Field(description='"on-3" (the block retest 3 opened) or "proof-2".')
+    title: str = Field(description='"acme-sign 1.4.3", or "acme-sign 1.4.3-otto (the changed code)".')
+    line: str
+    newest: bool = Field(description="The newest block is open; older ones are folded.")
+    rows: list[CheckRow]
+
+
+class CheckPart(Shape):
+    """The 5c fixes: one labelled, foldable part of the Encryption tests group on Checks, with its count."""
+    key: Literal["plan", "retests", "proofs", "tries", "changes"]
+    label: str
+    count: int
+    count_label: str = Field(description='"8 tests", "1 version", "2 proofs", "1 try".')
+    note: str | None
+    empty_text: str | None = Field(description='Set when the part has nothing yet: "No retest yet. ..."')
+    blocks: list[CheckBlock] = Field(description="Retests by version and Fix proofs: one block for each version, or each proof.")
+    rows: list[CheckRow] = Field(description="Tries on a test copy: a plain list.")
+
+
+class EncryptionParts(Shape):
+    """The 5c fixes: Checks shows the Encryption tests group in four parts. A run shows in one part only."""
+    plan: CheckPart = Field(description="The test plan itself (drawn from the plan view); its heading names the version the file names.")
+    retests: CheckPart
+    proofs: CheckPart
+    tries: CheckPart | None = Field(description="Only when a server change was tried on a test copy.")
+    changes: CheckPart | None = Field(default=None, description="Phase 6d: only when the tests picked for a developer's change were run.")
 
 
 class CheckGroup(Shape):
@@ -1739,6 +1928,7 @@ class CheckGroup(Shape):
     rows: list[CheckRow]
     also: list[SameMeasurement] = Field(default_factory=list,
                                         description="Checks of another group linked from this group's foot (\"Also relates to this group\").")
+    parts: "EncryptionParts | None" = Field(default=None, description="The 5c fixes: set on the Encryption tests group only.")
 
 
 class LibraryEvidenceRow(Shape):
@@ -1813,13 +2003,21 @@ class FixGroupAlso(Shape):
     group_label: str
 
 
+class FixGroupApart(Shape):
+    label: str = Field(description='"From a developer\'s change"')
+    note: str
+    fix_ids: list[str]
+
+
 class FixGroup(Shape):
     key: GroupKey
     label: str
     question: str
-    counts: StateCounts
+    counts: StateCounts = Field(description="of fix_ids only: an entry listed apart is never counted")
     fix_ids: list[str]
     empty_text: str | None
+    apart: FixGroupApart | None = Field(default=None, description="Phase 6d: the group's entries for a developer's change, under "
+                                                                  "their own heading; None when there are none.")
     also: list[FixGroupAlso] = Field(description='"Also relates to this group": fixes listed in another group.')
 
 
@@ -1918,6 +2116,21 @@ class OttoLiveSection(Shape):
     price_line: str
 
 
+class OttoName(Shape):
+    """Phase 6a: who a decision on a proposal is recorded as. A name typed once, or "You"."""
+
+    title: str = Field(description='"Who decides"')
+    label: str = Field(description='"Your name"')
+    value: str = Field(description="The name a person typed; empty until then.")
+    recorded_as: str = Field(description='The typed name, or "You".')
+    typed: bool
+    line: str = Field(description='"Recorded as You, with the time."')
+    save: str
+    note: str
+    max: int
+    ask_label: str = Field(description="The label of the field in the Otto panel's first Confirm step.")
+
+
 class OttoSettingsView(Shape):
     """Settings: the Test packs section, the two status lines and the Live Otto section (phase 5c)."""
 
@@ -1925,6 +2138,7 @@ class OttoSettingsView(Shape):
     harness: OttoHarnessLine
     answers: OttoAnswersLine
     live: OttoLiveSection
+    name: OttoName | None = Field(default=None, description="Phase 6a: always sent by the current backend.")
 
 
 class AdvisoryQuote(Shape):
@@ -2092,9 +2306,16 @@ class AdvisoryProposalCell(Shape):
     keys: list[str] = Field(default_factory=list, description="With several programs: every state among them.")
 
 
+class AdvisoryNew(Shape):
+    """The 5c fixes: the tag beside an advisory that first arrived with the most recently installed test pack."""
+    label: str = Field(description='"New"')
+    title: str = Field(description='Said on hover and to a screen reader: "Arrived with test pack 2026.11.2".')
+
+
 class AdvisoryRow(Shape):
     id: str
     name: str
+    new: AdvisoryNew | None = Field(description="Null for an advisory of an earlier pack (also one a later pack only updates).")
     published: str
     published_text: str
     package: str
@@ -2128,6 +2349,80 @@ class AdvisoryWaiting(Shape):
     note: str
 
 
+class LookupDialog(Shape):
+    """The box a button opens first: what will be sent or started, and what will not."""
+
+    title: str
+    lines: list[str]
+    confirm: str
+    cancel: str
+
+
+class LookupButton(Shape):
+    label: str
+    can: bool
+    blocked_reason: str | None
+    dialog: LookupDialog
+
+
+class LookupRowState(Shape):
+    key: Literal["in_pack", "in_waiting_pack", "new", "no_test", "not_yours"]
+    label: str
+    tone: Tone
+
+
+class LookupRow(Shape):
+    """One published advisory a look found, with where it stands. Information from the publisher, never a result."""
+
+    id: str
+    title: str = Field(description="The publisher's own title.")
+    library: str
+    published: str
+    fits: str = Field(description="What it says about the versions this assessment has.")
+    state: LookupRowState
+    reason: str | None = Field(description='Why there is no test yet, or where the advisory is now.')
+    link: ItemLink | None = Field(description="Its row on this page, once a test pack holds it.")
+    publisher: str
+    url: str
+
+
+class LookupLast(Shape):
+    line: str
+    source_line: str
+    notes: list[str]
+    rows: list[LookupRow]
+    empty: str | None
+
+
+class LookupProgress(Shape):
+    line: str
+    running: bool
+    title: str
+    lines: list[str] = Field(description="What the research command said, newest last.")
+
+
+class LookupResearch(Shape):
+    label: str
+    can: bool
+    blocked_reason: str | None
+    shown: bool = Field(description="False until a look has been made.")
+    dialog: LookupDialog
+    progress: LookupProgress | None
+
+
+class AdvisoryLookup(Shape):
+    """Phase 6, Otto's research loop: the block "New advisories" of the Advisories page."""
+
+    title: str
+    intro: str
+    covers: str
+    libraries_line: str
+    look: LookupButton
+    last: LookupLast | None
+    research: LookupResearch
+    busy: bool = Field(description="A research run is going on: ask again in a few seconds.")
+
+
 class AdvisoriesView(Shape):
     """The Advisories page of an assessment (phase 5c). It words no result and decides none."""
 
@@ -2144,6 +2439,7 @@ class AdvisoriesView(Shape):
     rows: list[AdvisoryRow]
     empty: str | None
     assessment_id: int | None
+    lookup: AdvisoryLookup | None = Field(default=None, description="Phase 6: the block New advisories. Always sent by the current backend.")
 
 
 # ---- Phase 5c, second part: Otto proposes, a person decides. Every word comes from the backend. ----
@@ -2261,7 +2557,7 @@ class OttoWaitingItem(Shape):
 
 
 class OttoWaiting(Shape):
-    """The Overview's "Waiting for you": Otto's proposals nobody has decided yet, each kind linking to its page."""
+    """The Overview's "Waiting for you": the proposals nobody has decided yet, each kind linking to its page."""
 
     title: str
     total: int
@@ -2308,7 +2604,7 @@ class OttoProjectBlock(Shape):
 
 
 class ImportOtto(Shape):
-    """Import: "Otto found N checks that may apply", with the way to Advisories. Nothing runs on import."""
+    """Import: "N checks may apply", marked From Otto, with the way to Advisories. Nothing runs on import."""
 
     count: int
     label: str
@@ -2347,6 +2643,291 @@ class DependencyOttoStatus(Shape):
     label: str
     tone: Tone
     lines: list[str]
+
+
+# ---- Phase 6a: the Otto panel beside every page of an assessment. One read; every word comes from the backend, and the
+# panel decides nothing: on Confirm the browser sends the request of the page's own button, which `step.action` names. ----
+
+AssistantThread = Literal["testing", "fixing", "planning"]
+
+
+class AssistantStatus(Shape):
+    """The one line under the title: what Settings says about Live Otto, with the way there when it is off."""
+
+    text: str = Field(description='"Live Otto is off." or "Live Otto is on."')
+    live: bool
+    link: LabeledLink | None
+
+
+class AssistantReason(Shape):
+    label: str = Field(description='"Reason (optional, one short line)"')
+    max: int
+
+
+class AssistantConfirm(Shape):
+    """The Confirm step: what will happen and what will not, and which button of which page it presses."""
+
+    title: str
+    lines: list[str]
+    names: str = Field(description='"This is the Run all button on Checks."')
+    confirm: str = Field(description='"Confirm"')
+    cancel: str = Field(description='"Cancel"')
+    reason: AssistantReason | None = Field(description="Reject only: the optional reason.")
+
+
+class AssistantDecision(Shape):
+    """One button of a suggestion: the page's own button, with the page's own reason when it is off."""
+
+    key: Literal["accept", "reject", "undo", "reconsider"]
+    label: str
+    can: bool
+    blocked_reason: str | None
+    confirm: AssistantConfirm | None = Field(description="Null when the button is off: there is nothing to confirm.")
+
+
+class AssistantAction(Shape):
+    """The request of the page's own button. The browser sends it on Confirm, through the same call the page uses."""
+
+    type: Literal["verify", "run", "run_all", "retest", "run_picked_tests", "connect", "run_proof_again", "open_pull_request", "retest_now", "try",
+                  "ask_approval", "measure_library", "measure_all", "measure_status", "open"]
+    plan_id: int | None
+    import_id: int | None
+    item_id: int | None = Field(description="A test of the plan (Run).")
+    fix_id: str | None
+    change: str | None = Field(description="A server change's key (Try on a test copy, Ask for approval), or the id of a developer's "
+                                           "change (Run the picked tests).")
+    row: str | None = Field(description="A library row (Measure on a public copy).")
+    version: str | None
+    component: str | None
+    reviewers: list[str] | None = Field(description="The reviewers the page ticks by default.")
+    link: ItemLink | None = Field(description='"open": where it goes; opening a page needs no Confirm. "retest_now": where the page itself '
+                                              "goes once its request is answered (Evidence, on the result the fix came from).")
+
+
+class AssistantStep(Shape):
+    needs: Literal["confirm", "nothing"] = Field(description='"nothing": it only opens a page, at once.')
+    action: AssistantAction
+    can: bool
+    blocked_reason: str | None = Field(description="The page's own reason when its button is off.")
+    running: bool
+    progress: str | None
+    confirm: AssistantConfirm | None
+
+
+class AssistantBadge(Shape):
+    label: str
+    tone: Tone
+
+
+class AssistantFact(Shape):
+    """Phase 6c: one fact of an answer: a sentence the app already shows about the item, with the link to where."""
+
+    text: str
+    link: ItemLink | None
+    label: str | None = Field(description='What the link is called: "See the evidence", "Open the advisory", "View in Fixes".')
+
+
+class AssistantEntry(Shape):
+    """One entry of the panel: a suggestion (one of Otto's proposals), a next step (a button of a page) or what a
+    result means; and, in a thread so far, a reviewed result or where a fix stands."""
+
+    id: str
+    kind: Literal["suggestion", "next", "meaning", "result", "fix_step", "said"]
+    what: str = Field(description='Its line in the one table of kinds, e.g. "next:run_all".')
+    thread: AssistantThread | None
+    mark: str = Field(description='"From Otto", "Next step", "What this means", "Result", "Fix" or (phase 6b) "You said"')
+    title: str
+    text: str | None
+    at: str | None = Field(description="When its cause happened (ISO): the order of a thread so far.")
+    badge: AssistantBadge | None
+    where: LabeledLink | None = Field(description='Where it lives: "On Advisories", with the link.')
+    links: list[LabeledLink]
+    proposal: OttoProposal | None = Field(description="A suggestion: the proposal exactly as its page shows it.")
+    decisions: list[AssistantDecision]
+    step: AssistantStep | None
+    open_item: bool = Field(description="It is about the item that is open on the page.")
+    facts: list[AssistantFact] = Field(default_factory=list, description="Phase 6c: a kept answer to a fixed question: its facts.")
+
+
+class AssistantTab(Shape):
+    key: AssistantThread
+    label: str
+    waiting: int = Field(description="How many of this thread's suggestions nobody has decided yet.")
+    mark: str = Field(description="Changes when the thread gets a new entry: the browser keeps it for a closed tab and for the dot.")
+    so_far_title: str
+    so_far: list[AssistantEntry]
+    so_far_empty: str | None
+
+
+class AssistantOnPage(Shape):
+    title: str
+    entries: list[AssistantEntry]
+    empty: str | None
+    empty_link: LabeledLink | None
+
+
+class AssistantElsewhereLine(Shape):
+    text: str = Field(description='"Fixes: 1 proposed fix, Update elliptic to 6.5.7"')
+    count: int
+    link: ItemLink
+    thread: AssistantThread
+
+
+class AssistantElsewhere(Shape):
+    title: str = Field(description='"Elsewhere: 2 more"')
+    count: int
+    lines: list[AssistantElsewhereLine]
+    empty: str | None = Field(description='"Nothing from Otto is waiting for a decision." when nothing waits anywhere.')
+
+
+class AssistantBox(Shape):
+    """Phase 6b: the text box at the foot of the panel."""
+
+    label: str = Field(description='"Ask Otto, or tell it what to do" (phase 6c; in 6b alone it read "Tell Otto where to go or what to do")')
+    send: str
+    max: int
+    chips: list[str] = Field(description="Up to three examples fitted to the page. A chip sends its own words.")
+    questions: list[str] = Field(description="Phase 6c: up to three of the six fixed questions that fit the page and the open item.")
+    kept: bool = Field(description="False in a closed assessment: what is typed there is answered and not kept.")
+    kept_note: str | None
+
+
+class AssistantGo(Shape):
+    """Where an answer leads: a page of this assessment (or Settings), one item on it, and the filters of its table."""
+
+    page: str
+    item: str | None
+    group: str | None
+    result: str | None = Field(description="The page's own Result filter value.")
+    came_from: str | None = Field(description="Checks: its Came from filter value.")
+    decision: str | None = Field(description="Advisories: its Decision filter value.")
+
+
+class AssistantOpen(Shape):
+    key: Literal["accept", "reject", "undo", "reconsider", "step"] = Field(description="Which button of the card shows its Confirm step.")
+    reason: str | None = Field(description="A reject's reason, cut from the person's own words. Nothing is sent before Confirm.")
+
+
+class AssistantOption(Shape):
+    label: str
+    say: str = Field(description="A sentence that names exactly this one. Choosing it sends these words.")
+
+
+class AssistantCan(Shape):
+    say: str
+    about: str
+    kind: Literal["go", "do"]
+
+
+class AssistantTabChange(Shape):
+    thread: AssistantThread
+    how: Literal["open", "close"]
+
+
+class WhatIfSource(Shape):
+    """Where a fact is quoted from: the publisher's package file or release notes, or a test pack's copy of a publisher's line."""
+
+    title: str
+    url: str | None = Field(description="An https address of the publisher, or null where the line is quoted from an installed test pack.")
+    quote: str | None
+    read_on: str | None = Field(description="The day it was read, YYYY-MM-DD, where the source records one.")
+
+
+class WhatIfLine(Shape):
+    text: str
+    label: str | None = Field(description='Where it comes from: "From your file", "Package file says", "Release notes say", "Test pack 2026.11.2", ...')
+    link: ItemLink | None = Field(description="Where the app shows it.")
+    source: WhatIfSource | None
+
+
+class WhatIfGroup(Shape):
+    key: Literal["used", "needs", "advisories", "trial", "post_quantum", "blocks", "own_results"]
+    title: str
+    lines: list[WhatIfLine]
+    none: str | None = Field(description="What is said when the app has nothing on this point.")
+
+
+class WhatIfTry(Shape):
+    title: str
+    button: str = Field(description='"Retest new version": the button of Evidence it stands for.')
+    offered: bool
+    reason: str | None = Field(description="Why it is not offered, in the page's own words where the page has them.")
+    component: str | None
+    version: str
+    changes: list[str] = Field(description="What a retest changes in this assessment, said before anything is pressed.")
+
+
+class WhatIfName(Shape):
+    library: str
+    version: str
+
+
+class WhatIfLibrary(Shape):
+    key: str | None
+    label: str
+
+
+class WhatIfHypothesis(Shape):
+    text: str
+
+
+class WhatIf(Shape):
+    """Phase 6e, first half: what the app knows about updating one library to one version, in four parts. Facts by fixed
+    rules; nothing here is a result, and nothing is started by reading it."""
+
+    plan_id: int
+    asked: WhatIfName
+    known: bool
+    library: WhatIfLibrary
+    version: str
+    version_read: bool
+    have: list[str] = Field(description="The versions of this library the assessment has (its dependency list, its scanner file).")
+    title: str
+    facts_title: str
+    facts: list[WhatIfGroup]
+    test_copy: WhatIfTry = Field(description="The try on a test copy: Evidence's own Retest new version, pointed at this version.")
+    explanation: str
+    hypotheses_title: str
+    hypotheses_note: str
+    hypotheses: list[WhatIfHypothesis]
+
+
+class AssistantReply(Shape):
+    """Phase 6b: Otto's answer to one typed sentence. Nothing has been decided or started by it: `went`, `page_only`
+    and `tab` only move around, and `card` hands back an entry whose Confirm step the browser shows."""
+
+    kind: Literal["went", "card", "which", "cannot", "help", "page_only", "tab", "closed", "answer", "whatif"]
+    text: str
+    go: AssistantGo | None
+    entry: AssistantEntry | None
+    open: AssistantOpen | None
+    options: list[AssistantOption]
+    can: list[AssistantCan] = Field(description="What can be said on this page, from the one list.")
+    tab: AssistantTabChange | None
+    thread: AssistantThread | None = Field(description="The tab the exchange is filed under, if any.")
+    question: str | None = Field(default=None, description="Phase 6c: the fixed question that was answered, in its own wording.")
+    label: str | None = Field(default=None, description='Phase 6c: where an answer is from: "From this assessment\'s records".')
+    facts: list[AssistantFact] = Field(default_factory=list, description="Phase 6c: an answer's facts, each with its link.")
+    whatif: WhatIf | None = Field(default=None, description="Phase 6e: the four parts of a what-if.")
+
+
+class AssistantView(Shape):
+    assessment_id: int
+    plan_id: int | None
+    title: str = Field(description='"Otto"')
+    status: AssistantStatus
+    notices: list[str] = Field(description="The closed sentence, and what Settings says when Otto is not installed.")
+    note: str
+    recorded_as: OttoName = Field(description="Who a decision is recorded as, and whether a name has been typed yet.")
+    page: str
+    page_label: str
+    thread: AssistantThread | None = Field(description="The tab this page selects (null on the Overview).")
+    box: AssistantBox
+    tabs: list[AssistantTab] = Field(description="At most three, and only the open ones.")
+    on_page: AssistantOnPage
+    elsewhere: AssistantElsewhere
+    waiting: int = Field(description="Undecided suggestions on this page plus elsewhere.")
+    busy: bool = Field(description="Something is running: ask again in a second.")
 
 
 def _rebuild_all() -> None:

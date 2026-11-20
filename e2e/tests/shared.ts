@@ -26,13 +26,28 @@ export const password: string = process.env.E2E_PASSWORD ?? "";
 if (!password) throw new Error("E2E_PASSWORD is not set; run the tests with `npm test` from the e2e folder.");
 
 export function screenshotFolder(
-  phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes" | "phase4a" | "phase4b" | "phase4c" | "phase4d" | "phase5a" | "phase5b" | "phase5c",
+  phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes" | "phase4a" | "phase4b" | "phase4c" | "phase4d" | "phase5a" | "phase5b" | "phase5c" | "phase5c-fixes" | "phase6a" | "phase6d" | "phase6e",
 ): string {
   return path.join(REPO, "docs/screenshots", phase);
 }
 
 /** Opens the app and gets past the password screen, whichever one this data folder shows. */
-export async function enterApp(page: Page): Promise<void> {
+/** Opens the app and logs in. `ottoPanel`: is the Otto panel shown beside the pages (the app's default)?
+ *
+ * Since phase 6 the panel repeats, under the same names, things a page shows: a next step is the page's own button
+ * ("Verify claims", "Run all"), an example chip says the same words, and a suggestion has the proposal's own Accept and
+ * Reject. A walk that is about the pages would find two of each. So a walk is given the panel only when it asks for it:
+ * the panel's own walk, the research loop's walk and the walk that measures the pages' widths beside it. The others
+ * start with the panel hidden, by the same setting the top bar's toggle keeps in the browser; a walk that presses the
+ * toggle itself keeps what it chose. */
+export async function enterApp(page: Page, options: { ottoPanel?: boolean } = {}): Promise<void> {
+  await page.addInitScript((shown: boolean) => {
+    try {
+      if (window.localStorage.getItem("evidence-lab-copilot") === null) window.localStorage.setItem("evidence-lab-copilot", shown ? "shown" : "hidden");
+    } catch {
+      /* (no storage: the app's default stands) */
+    }
+  }, options.ottoPanel ?? false);
   await page.goto("/");
   const create = page.getByRole("heading", { name: "Create your password" });
   const login = page.getByRole("heading", { name: "Log in" });
@@ -62,9 +77,9 @@ const STEP_PAGES: Record<string, string> = {
 };
 
 /** The sidebar's assessment pages, in order, once a file is in (Migration's three views open with it). */
-// Phase 5c: Advisories sits between Inventory and Checks.
-export const SIDEBAR_PAGES = ["Overview", "Inventory", "Import", "Verify", "Advisories", "Checks", "Evidence", "Fixes", "Migration", "Systems", "Roadmap",
-                              "Dependencies"];
+// Phase 5c: Advisories sits between Inventory and Checks. Phase 6d: Change watch comes after Fixes.
+export const SIDEBAR_PAGES = ["Overview", "Inventory", "Import", "Verify", "Advisories", "Checks", "Evidence", "Fixes", "Change watch", "Migration",
+                              "Systems", "Roadmap", "Dependencies"];
 
 /** The page an old step lands on, as the sidebar marks it current ("4. Evidence Lab" -> "Evidence"; "6. Migration"
  * opens Migration's first view, "Systems"). */
@@ -214,8 +229,11 @@ export async function startCopy(browser: Browser, offset: number, mode: "demo" |
                                          EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort), ...more };
   if (mode === "demo") env.EVIDENCE_LAB_MODE = "demo";
   for (const key of ["DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONTEXT", "XDG_RUNTIME_DIR"]) if (process.env[key]) env[key] = process.env[key] as string;
-  const app = spawn(PYTHON, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", "warning"],
-                    { cwd: BACKEND, stdio: "ignore", env });
+  // To look into a walk that failed: E2E_APP_LOG=/some/file keeps what this copy of the app prints, with one line for
+  // every request and its answer. Without it nothing is kept.
+  const log = process.env.E2E_APP_LOG ? fs.openSync(process.env.E2E_APP_LOG, "a") : null;
+  const app = spawn(PYTHON, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", log === null ? "warning" : "info"],
+                    { cwd: BACKEND, stdio: log === null ? "ignore" : ["ignore", log, log], env });
   const context = await browser.newContext({ baseURL: `http://127.0.0.1:${port}` });
   let session: { mode: string } | null = null;
   await expect
@@ -229,6 +247,18 @@ export async function startCopy(browser: Browser, offset: number, mode: "demo" |
     }, { timeout: 30_000 })
     .toBe(true);
   const page = await context.newPage();
+  if (log !== null) {
+    // (and, in the same file, each request the page made: when it ended, its answer and how long it took)
+    const started = Date.now();
+    const note = (line: string) => fs.writeSync(log, `[page +${((Date.now() - started) / 1000).toFixed(2)}s] ${line}\n`);
+    page.on("requestfinished", (request) => {
+      if (!request.url().includes("/api/")) return;
+      void request.response().then((response) =>
+        note(`${request.method()} ${new URL(request.url()).pathname}${new URL(request.url()).search} -> ${response?.status() ?? "no answer"} (${Math.round(request.timing().responseEnd)} ms)`));
+    });
+    page.on("requestfailed", (request) => note(`${request.method()} ${request.url()} failed: ${request.failure()?.errorText ?? "unknown"}`));
+    page.on("framenavigated", (frame) => (frame === page.mainFrame() ? note(`at ${new URL(frame.url()).hash}`) : undefined));
+  }
   return { app, context, page, dataDir, mode: (session as { mode: string } | null)?.mode ?? "demo", server: `localhost:${tlsPort}` };
 }
 

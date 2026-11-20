@@ -111,7 +111,7 @@ def test_the_otto_part_is_inside_what_is_signed(ran):
     assert waiting and all(p["decisions"] == [] and p["status"] == "Proposed" for p in waiting)
     run = otto["runs"][0]
     assert run["phase"] == "first" and run["record"]["spec_hash"] == check["spec_hash"] and run["lock_entry"] == check["lock_entry"]
-    assert "Advisory checks come from signed test packs made by Otto" in evidence["app"]["note"]
+    assert "Advisory checks come from signed test packs. For a pack, Claude is used to read advisories" in evidence["app"]["note"]
     # the same check is among the file's tests like any other, with its advisory box
     test = next(t for t in evidence["tests"] if t["item_id"] == ran.check_item)
     assert test["proposed_by"] == "isogeny.otto-pack/1" and test["runs"][0]["result"]["advisories"]["items"][0]["id"] == "CVE-2022-21449"
@@ -122,7 +122,7 @@ def test_the_otto_part_is_inside_what_is_signed(ran):
     _, report, _ = ran.evidence_file(ran.export_evidence(ran.plan.id)["id"], "html")
     page = report.decode()
     assert "8. Otto: test packs, the ledger and Claude" in page and "Advisory checks added from a test pack" in page
-    assert "proposals, and the decisions on them" in page and "Accepted by You" in page and "Nobody has decided this yet." in page
+    assert "Proposals from Otto, and the decisions on them" in page and "Accepted by You" in page and "Nobody has decided this yet." in page
     assert "<script" not in page.lower()
 
 
@@ -137,7 +137,7 @@ def test_the_command_checks_the_file_the_pack_and_the_ledger_together(ran, tmp_p
     for words in ("Otto: Test packs: 1 in the file, each whole and with a signature that holds from a pack key you trust.",
                   "Otto: Advisory checks: 1, each with its design in its pack and its lock entry in the ledger.",
                   "Otto: Ledger: 6 entries in one unbroken chain; 1 runs, each bound to a test locked before it.",
-                  "Otto: Decisions: 1 on 1 of Otto's 2 proposals, each in the ledger with who and when, in an order the app allows.",
+                  "Otto: Decisions: 1 on 1 of the 2 proposals, each in the ledger with who and when, in an order the app allows.",
                   "Otto's own audit"):
         assert words in ok.stdout, ok.stdout
     # a pack signed by a key this computer does not trust: consistent, but not confirmed, and that is not a pass
@@ -313,7 +313,7 @@ def test_without_otto_the_command_says_the_audit_was_not_run_and_that_is_not_a_p
     outcome = evidence_otto.check_otto(evidence, {ran.pack_key})
     assert outcome.code == evidence_otto.NOT_CONFIRMED and "Otto's own audit of the ledger was not run" in outcome.problem
     assert "Otto is not installed on this computer" in outcome.problem and len(outcome.lines) == 4      # the other checks were still made
-    assert any(line.startswith("Decisions: 1 on 1 of Otto's") for line in outcome.lines)
+    assert any(line.startswith("Decisions: 1 on 1 of the") for line in outcome.lines)
 
 
 def test_the_checker_reads_the_same_signing_context_as_the_pack_builder():

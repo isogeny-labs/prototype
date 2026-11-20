@@ -68,6 +68,19 @@ def group_of_fix(fix: dict) -> str:
     return "encryption"   # a failed test's fix: the code change, a server setting, a library's fixed version
 
 
+# Phase 6d: a suggestion that comes from a developer's change sits in its group under a heading of its own and is not
+# counted with the assessment's findings (the plan: "listed under their own heading and never count as findings"). A
+# developer's change is not the system until someone merges it.
+APART_LABEL = "From a developer's change"
+APART_NOTE = ("A developer's change is not the system until someone merges it. A suggestion listed here is not counted with "
+              "the assessment's findings.")
+
+
+def fix_is_apart(fix: dict) -> bool:
+    """True for an entry of Fixes that is listed apart and never counted (a fix state from `fix_states`)."""
+    return fix.get("source_kind") == "developer_change"
+
+
 def group_of_change(change_key: str | None) -> str:
     """A change's group: the Acme Pay server's TLS change came from a failed test; every other change is the migration
     plan's."""

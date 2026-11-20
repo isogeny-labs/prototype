@@ -34,6 +34,15 @@ PROOF_REVIEW_SCHEMA = "isogeny.proof-review/1"
 PROOF_PASS_CODES = {"official_vectors": "passed", "bad_signatures": "passed", "speed_size": "no_slowdown", "mldsa_compare": "measured",
                     "advisory_cases": "passed"}   # phase 5c: an advisory check runs the changed code and must pass on it
 REPORT_ONLY_CODE = "measured"
+# Phase 6d (Change watch): what a watch run is compared by. A result "fails" when its code is one of these; any other
+# code that is a result (passed, no slowdown, measured) does not. "Couldn't run" and "Couldn't trust this run" are not
+# results: a test with one of them, before or now, is not compared.
+WATCH_SCHEMA = "isogeny.watch-run/1"
+WATCH_REVIEW_SCHEMA = "isogeny.watch-review/1"
+WATCH_FAIL_CODES = ("failed", "slowdown")
+WATCH_NO_RESULT_CODES = ("couldnt_run", "couldnt_trust")
+# The status words of a reviewed watch run, most telling first: the first one that applies is the change's status.
+WATCH_STATUSES = ("couldnt_trust", "cant_run", "passed_before_fails_now", "failed_before_passes_now", "no_difference")
 SPEED_KIND = "speed_size"  # the test that makes the speed comparison a proof must hold
 
 # Why a test could not run, in plain words (the text inside "Couldn't run (...)").
@@ -678,7 +687,8 @@ class RuleReviewer:
         # A retest or a proof times the old and the new code side by side, but only for the plan's own program: another
         # program in the same file (phase 3a-fixes) is run again as it is, with no baseline, and measured like a first run.
         # (Every stored run record names its baseline_version; it is None exactly for those other programs.)
-        retest = run.get("phase") in ("retest", "proof") and not ("baseline_version" in run and run["baseline_version"] is None)
+        # (Phase 6d: a watch run on a change's code is timed side by side with the code the change starts from, the same way.)
+        retest = run.get("phase") in ("retest", "proof", "watch") and not ("baseline_version" in run and run["baseline_version"] is None)
         base_role = "new" if retest else "subject"
         base = self._series(benches, base_role, rounds, repeats)
         old = self._series(benches, "old", rounds, repeats) if retest else None
@@ -952,6 +962,71 @@ class RuleReviewer:
                 "offered": all(checks.values()), "checks": checks, "counts": counts,
                 "tests": [{k: t[k] for k in ("item_id", "kind", "group", "report_only", "ok", "reason")} for t in tests],
                 "answers": answers, "speed": speed}
+
+
+    def review_watch(self, record: dict) -> dict:
+        """What differs from before? (phase 6d, Change watch.) Decided from the watch record alone: for each picked
+        test, its reviewed run on the code the change starts from ("before") and its reviewed run on the change's code
+        ("now"). It sets the status word of the change and nothing else; it words no result and replaces none.
+
+        Each test is placed by the first of these that applies:
+          - "not_trusted": one of its two runs reads "Couldn't trust this run", or reached a result with a control
+            that did not behave as expected;
+          - "not_compared": one of its two runs is missing or could not run (a stop is not a result);
+          - "fails_now": the run before did not fail and the run on the change does;
+          - "passes_now": the run before failed and the run on the change does not;
+          - "same": neither of the above.
+        Speed and size is placed by its run on the change alone. That run times the change's code side by side with the
+        code it starts from, so its own verdict is the comparison: "Slowdown found" places it as "slower_now", anything
+        else that is a result as "not_slower". (The run before compared the code before with something older, which says
+        nothing about this change.)
+        The change's status is then: "couldnt_trust" if the changed code is not byte for byte one of our registered
+        demo programs (the caller made the comparison and passes the fact) or any test is "not_trusted"; else "cant_run"
+        if any test is "not_compared"; else "passed_before_fails_now" if any test fails now or is slower now; else
+        "failed_before_passes_now" if any test passes now; else "no_difference". With no test at all: "cant_run"."""
+        def control_ok(run: dict) -> bool:
+            return run.get("code") == "couldnt_run" or run.get("control_outcome") == "as_expected"
+
+        def fails(run: dict) -> bool:
+            return run.get("code") in WATCH_FAIL_CODES
+
+        tests = []
+        for test in record.get("tests") or []:
+            before, now = test.get("before"), test.get("now")
+            timed = test.get("kind") == SPEED_KIND
+            runs = [r for r in ((now,) if timed else (before, now)) if isinstance(r, dict)]
+            if any(r.get("code") == "couldnt_trust" or not control_ok(r) for r in runs):
+                outcome = "not_trusted"
+            elif len(runs) < (1 if timed else 2) or any(r.get("code") in WATCH_NO_RESULT_CODES or not r.get("code") for r in runs):
+                outcome = "not_compared"
+            elif timed:
+                outcome = "slower_now" if now.get("code") == "slowdown" else "not_slower"
+            elif fails(now) and not fails(before):
+                outcome = "fails_now"
+            elif fails(before) and not fails(now):
+                outcome = "passes_now"
+            else:
+                outcome = "same"
+            tests.append({"item_id": test.get("item_id"), "kind": test.get("kind"), "outcome": outcome,
+                          "before": before.get("code") if isinstance(before, dict) else None,
+                          "now": now.get("code") if isinstance(now, dict) else None})
+        counts = {name: sum(1 for t in tests if t["outcome"] == name)
+                  for name in ("not_trusted", "not_compared", "fails_now", "passes_now", "same", "slower_now", "not_slower")}
+        matches = record.get("matches")
+        code_is_ours = (isinstance(matches, dict) and bool(matches.get("name")) and bool(matches.get("version"))
+                        and matches.get("version") == record.get("version"))
+        if not code_is_ours or counts["not_trusted"]:
+            status = "couldnt_trust"
+        elif not tests or counts["not_compared"]:
+            status = "cant_run"
+        elif counts["fails_now"] or counts["slower_now"]:
+            status = "passed_before_fails_now"
+        elif counts["passes_now"]:
+            status = "failed_before_passes_now"
+        else:
+            status = "no_difference"
+        return {"reviewer": self.engine_id, "schema": WATCH_REVIEW_SCHEMA, "record_sha256": sha256_hex(record), "status": status,
+                "code_is_ours": bool(code_is_ours), "counts": {"tests": len(tests), **counts}, "tests": tests}
 
 
 # ---------------------------------------------------------------- phase 4b: a change tried on a test copy, then applied

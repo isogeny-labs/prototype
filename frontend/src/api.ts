@@ -5,6 +5,21 @@
 // `npm run gen:api` from src/api-schema.json); they are written once, in backend/app/web/models.py.
 
 export type {
+  AssistantFact,
+  AssistantReply,
+  WhatIf,
+  WhatIfGroup,
+  WhatIfLine,
+  AssistantGo,
+  AssistantBox,
+  AssistantView,
+  AssistantTab,
+  AssistantEntry,
+  AssistantDecision,
+  AssistantConfirm,
+  AssistantStep,
+  AssistantAction,
+  AssistantThread,
   ClaimKind,
   MeasurementResult,
   LocationKind,
@@ -168,6 +183,15 @@ export type {
   OttoLiveLimit,
   AdvisoriesView,
   AdvisoryWaiting,
+  ChangeWatchView,
+  ChangeRow,
+  ChangePanel,
+  ChangeFile,
+  ChangeTest,
+  ChangeResult,
+  ChangeResultSide,
+  ChangeFlag,
+  DemoChangeItem,
   AdvisoryProposalCell,
   OttoProposal,
   OttoProposalButton,
@@ -211,6 +235,8 @@ export type {
   AdvisoryClaude,
   AdvisoryStep,
 } from "./api.gen";
+import { notifyChanged } from "./changes";
+import { TIMES_ASK, TIMES_HEADER, withLocalTimes } from "./time";
 import type {
   Session,
   Address,
@@ -236,8 +262,11 @@ import type {
   ProjectOverview,
   OttoSettingsView,
   AdvisoriesView,
+  ChangeWatchView,
   OttoProposal,
   OttoProposalsView,
+  AssistantView,
+  AssistantReply,
 } from "./api.gen";
 
 export class ApiError extends Error {
@@ -292,28 +321,47 @@ interface RequestOptions {
   quiet401?: boolean;
 }
 
+/** How many requests that are not reads have been answered (or have failed) so far. */
+let changesAnswered = 0;
+/** A read is asked again at most this often (see `request`). */
+const MAX_ASKED_AGAIN = 2;
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const init: RequestInit = { method: options.method ?? "GET", credentials: "same-origin" };
+  // The 5c fixes: every request asks the server to mark the times in its sentences, and every answer has them written
+  // in the viewer's own time zone below, in this one place (src/time.ts). Downloads are plain links: they keep UTC.
+  const asksForTimes = { [TIMES_HEADER]: TIMES_ASK };
+  const isRead = (options.method ?? "GET") === "GET";
+  const init: RequestInit = { method: options.method ?? "GET", credentials: "same-origin", headers: asksForTimes };
   if (options.json !== undefined) {
-    init.headers = { "Content-Type": "application/json" };
+    init.headers = { "Content-Type": "application/json", ...asksForTimes };
     init.body = JSON.stringify(options.json);
   } else if (options.raw !== undefined) {
-    init.headers = { "Content-Type": "application/octet-stream" };
+    init.headers = { "Content-Type": "application/octet-stream", ...asksForTimes };
     init.body = options.raw;
   }
 
   let response: Response;
-  try {
-    response = await fetch(path, init);
-  } catch {
-    throw new ApiError(0, "Can't reach the app. Check that it is still running, then try again.");
-  }
-
   let body: unknown = null;
-  try {
-    body = await response.json();
-  } catch {
-    body = null;
+  // A read that was on its way while a change was answered may hold what was there before the change, and it would
+  // land after the change's own answer and put the old state back on the page (19 November 2026: a test plan that
+  // showed six tests after a seventh was added; the reads take turns on the server, so one can be on its way for a
+  // while). Such a read is asked again, so what it gives is never older than a change this browser already has the
+  // answer to. Nothing else is ever sent twice: a request that is not a read is sent once.
+  for (let askedAgain = 0; ; askedAgain += 1) {
+    const before = changesAnswered;
+    try {
+      response = await fetch(path, init);
+    } catch {
+      if (!isRead) changesAnswered += 1;
+      throw new ApiError(0, "Can't reach the app. Check that it is still running, then try again.");
+    }
+    if (!isRead) changesAnswered += 1;
+    try {
+      body = withLocalTimes(await response.json());
+    } catch {
+      body = null;
+    }
+    if (!isRead || before === changesAnswered || askedAgain >= MAX_ASKED_AGAIN) break;
   }
 
   if (!response.ok) {
@@ -322,6 +370,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
     throw toApiError(response.status, body);
   }
+  // Phase 6a: anything that is not a read may have changed the assessment, so the Otto panel (and, when the panel sent
+  // it, the open page) reads again. See src/changes.ts.
+  if ((options.method ?? "GET") !== "GET") notifyChanged();
   return body as T;
 }
 
@@ -417,8 +468,33 @@ export const api = {
   installPack: (version: string) => request<OttoSettingsView>("/api/otto/packs/install", { method: "POST", json: { version } }),
   /** Use live Claude on or off, and/or the spending limit per run (US dollars, as typed). */
   setLiveOtto: (change: { on?: boolean; limit?: string }) => request<OttoSettingsView>("/api/otto/live", { method: "POST", json: change }),
+  /** Phase 6a: the name a person types once; their decisions on proposals are recorded under it from then on. */
+  setDecisionName: (name: string) => request<OttoSettingsView>("/api/otto/name", { method: "POST", json: { name } }),
   getAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories`),
+  /** Phase 6, Otto's research loop: one read of the public source about this assessment's libraries (package names
+   * only are sent). It runs nothing and proposes nothing. Answers with the page's view as it now stands. */
+  lookForAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories/look`, { method: "POST" }),
+  /** Design and prove tests for the new advisories of the newest look, in the background. */
+  startResearch: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories/research`, { method: "POST" }),
   /** Every proposal of Otto's in this assessment, with the "Waiting for you" counts. */
+  /** Phase 6a: what the Otto panel shows beside this page of this assessment, with this item open. A read: it runs
+   * nothing and asks Claude nothing. */
+  getAssistant: (assessmentId: number, page: string, item?: string | null) => {
+    const params = new URLSearchParams({ page });
+    if (item) params.set("item", item);
+    return request<AssistantView>(`/api/assessments/${assessmentId}/assistant?${params.toString()}`);
+  },
+  /** Phase 6b: Otto's answer to one typed sentence, and nothing kept (a read: a closed assessment's text box, and an
+   * assessment with no file yet). It decides and starts nothing. */
+  getAnswer: (assessmentId: number, page: string, item: string | null, text: string) => {
+    const params = new URLSearchParams({ text, page });
+    if (item) params.set("item", item);
+    return request<AssistantReply>(`/api/assessments/${assessmentId}/assistant/answer?${params.toString()}`);
+  },
+  /** Phase 6b: the same answer, and the exchange kept with the assessment (what was typed and the one line of the
+   * answer). It decides and starts nothing: a card in the answer still waits for Confirm. */
+  say: (planId: number, page: string, item: string | null, text: string) =>
+    request<AssistantReply>(`/api/plans/${planId}/assistant/messages`, { method: "POST", json: { text, page, item } }),
   getProposals: (planId: number) => request<OttoProposalsView>(`/api/plans/${planId}/otto/proposals`),
   /** Otto proposes; a person decides: accept, reject (with an optional short reason), undo or reconsider one proposal.
    * It runs nothing. The answer is the proposal as it now stands. */
@@ -476,6 +552,15 @@ export const api = {
     }),
 
   exportEvidence: (planId: number) => request<EvidenceExport>(`/api/plans/${planId}/evidence`, { method: "POST" }),
+
+  // Change watch (phase 6d). The read, and its two actions; neither action sends anything but its own address.
+  getChangeWatch: (planId: number) => request<ChangeWatchView>(`/api/plans/${planId}/change-watch`),
+
+  bringInDemoChange: (planId: number, key: string) =>
+    request<ChangeWatchView>(`/api/plans/${planId}/change-watch/demo/${encodeURIComponent(key)}`, { method: "POST" }),
+
+  runPickedTests: (planId: number, changeId: string) =>
+    request<ChangeWatchView>(`/api/plans/${planId}/change-watch/${encodeURIComponent(changeId)}/run`, { method: "POST" }),
 
   // The Fixes step. Every call answers with the whole view as it now stands. Nothing here sends code.
   getFixes: (planId: number) => request<FixesView>(`/api/plans/${planId}/fixes`),

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Response
 
+from app.present import times
 from app.web import models
 from app.web.common import ApproveChangeBody, AskApprovalBody, ChangeBody, shows
 
@@ -33,7 +34,8 @@ def routes(lab, require_login) -> APIRouter:
 
     @router.get("/api/plans/{plan_id}/changes/download", dependencies=[Depends(require_login)])
     def change_download(plan_id: int, change: str = Query(max_length=700)):
-        filename, data = lab.change_download(plan_id, change)
+        with times.for_files():      # a download keeps UTC, whoever asks
+            filename, data = lab.change_download(plan_id, change)
         return Response(content=data, media_type="text/plain; charset=utf-8",
                         headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 

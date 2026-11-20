@@ -18,6 +18,10 @@ class LiveOttoBody(BaseModel):
     limit: StrictStr | None = Field(default=None, max_length=12)   # the spending limit per run, in US dollars
 
 
+class NameBody(BaseModel):
+    name: StrictStr = Field(max_length=400)                        # a person's name for their decisions (held to 60 after cleaning)
+
+
 class DecisionBody(BaseModel):
     reason: StrictStr | None = Field(default=None, max_length=2000)     # a reject's optional short reason (held to 300 after cleaning)
 
@@ -45,9 +49,25 @@ def routes(lab, require_login) -> APIRouter:
     def live_otto(body: LiveOttoBody):
         return lab.set_live_otto(body.on, body.limit)
 
+    @router.post("/api/otto/name", dependencies=login, responses=shows(models.OttoSettingsView))
+    def decision_name(body: NameBody):
+        """Phase 6a: the name a person types once; their decisions on proposals are recorded under it from then on."""
+        return lab.set_decision_name(body.name)
+
     @router.get("/api/plans/{plan_id}/advisories", dependencies=login, responses=shows(models.AdvisoriesView))
     def advisories(plan_id: int):
         return lab.advisories_view(plan_id)
+
+    @router.post("/api/plans/{plan_id}/advisories/look", dependencies=login, responses=shows(models.AdvisoriesView))
+    def look_for_advisories(plan_id: int):
+        """Phase 6: Look for new advisories. One read of the public source about this assessment's libraries (package
+        names only are sent). It runs nothing and proposes nothing."""
+        return lab.look_for_advisories(plan_id)
+
+    @router.post("/api/plans/{plan_id}/advisories/research", dependencies=login, responses=shows(models.AdvisoriesView))
+    def design_and_prove(plan_id: int):
+        """Phase 6: Design and prove tests, for the new advisories of the newest look, in the background."""
+        return lab.start_research(plan_id)
 
     @router.get("/api/plans/{plan_id}/otto/proposals", dependencies=login, responses=shows(models.OttoProposalsView))
     def proposals(plan_id: int):

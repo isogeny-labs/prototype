@@ -20,6 +20,9 @@ from app.present import migration as present_migration
 from app import real_libraries
 from app.run import runner
 from app.checks.addresses import AddressError, is_loopback_ip, parse_address, resolve_all
+from app.changewatch.state import ChangeWatchMixin
+from app.changewatch.views import ChangeWatchViewMixin
+from app.whatif.facts import WhatIfMixin
 from app.fixes.changes import ChangesMixin
 from app.config import DEMO_CBOM, DEMO_CBOM_PORT, DEMO_HOSTNAME, Settings
 from app.db import (
@@ -43,6 +46,9 @@ from app.names import clean_text
 from app.engine.research import RuleEngine
 from app.engine.reviewer import RuleReviewer
 from app.lab.testlab import TestLabMixin
+from app.assistant.engine import CopilotEngine, RuleCopilot
+from app.lab.said import SaidMixin
+from app.otto.discover import DiscoverMixin
 from app.otto.engine import OttoEngine
 from app.otto.proposals import ProposalsMixin
 from app.otto.state import OttoMixin
@@ -71,8 +77,8 @@ def import_json(i: ImportRow, settings: list[dict] | None = None) -> dict:
 
 
 # Phase 5c: Verify is unchanged (its trust gap is the next phase), and Otto proposes nothing on it yet. The page says so.
-VERIFY_OTTO_NOTE = ("Otto has no proposals here yet. In this version Otto's checks are for signing programs and libraries; "
-                    "its checks of servers come in a later phase. Verify works as before.")
+VERIFY_OTTO_NOTE = ("Nothing is proposed here yet. In this version the proposed checks are for signing programs and libraries; "
+                    "checks of servers come in a later phase. Verify works as before.")
 
 
 def run_json(r: VerifyRunRow) -> dict:
@@ -84,7 +90,8 @@ def run_json(r: VerifyRunRow) -> dict:
 
 
 class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin,
-          ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin, OttoMixin, ProposalsMixin):
+          ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin, OttoMixin, ProposalsMixin, DiscoverMixin, SaidMixin,
+          ChangeWatchMixin, ChangeWatchViewMixin, WhatIfMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -114,9 +121,12 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         # to it unchanged and is asked first only for a code change after an advisory check failed.
         self.engine = OttoEngine(RuleEngine(settings.speed_rounds, settings.speed_repeats), self)
         self.reviewer = RuleReviewer()                                             # the separate review step
+        # Phase 6a: the Otto panel. Rule-based, behind CopilotEngine; it reads and decides nothing.
+        self.copilot: CopilotEngine = RuleCopilot()
         self._init_testlab()
         self._init_changes()
         self._init_otto()
+        self._init_discover()       # phase 6: Look for new advisories, and the research run it can start
         try:
             # The evidence signing key: made once, on first start, kept in the data folder (mode 0600).
             ensure_signing_key(settings.data_dir)
@@ -140,6 +150,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         # A test still unfinished now is interrupted, not answered: it must write nothing, or it would record
         # "the server did not answer" about a demo server that we ourselves are about to stop.
         self._stopping = True
+        self.stop_research()        # (phase 6: a research run that is still going is ended with the app, never left behind)
         self.jobs.stop()
         self.demo.stop()
         self.extra.stop()
@@ -367,6 +378,10 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             placed = self.attach_import(db, row.id, assessment_id)
             db.commit()
             return {**import_json(row, self._file_settings(db, row)), "assessment_id": placed, "otto": self.otto_found(db, row)}
+
+    def assistant_view(self, assessment_id: int, page: str, item: str | None = None) -> dict:
+        """Phase 6a: what the Otto panel shows beside one page of an assessment. A read: nothing is started or stored."""
+        return self.copilot.read(self, assessment_id, page, item)
 
     def import_json_for(self, import_id: int) -> dict:
         with self.db() as db:

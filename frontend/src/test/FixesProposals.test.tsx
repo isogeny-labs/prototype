@@ -97,10 +97,10 @@ describe("Fixes, a library's fix from Otto: the two proof rows", () => {
     expect(text(ledger.querySelector("summary"))).toBe("Otto ledger entries (2)");
     expect(within(ledger).getAllByTestId("advisory-ledger-entry")).toHaveLength(publicPassed.ledger!.entries.length);
     expect(text(ledger)).toContain(publicPassed.ledger!.note);
-    // "Then press Retest": the button is on Evidence, so the row's one link goes to this check's result there.
+    // "Then press Retest": the button is on Checks, under Retests by version, so the row's one link goes there.
     const retest = within(here!).getByTestId("proof-row-link");
-    expect(retest.textContent).toBe("Retest new version is on Evidence");
-    expect(retest.getAttribute("href")).toBe("#/a/101/evidence?item=test-7");
+    expect(retest.textContent).toBe("Retest new version is on Checks");
+    expect(retest.getAttribute("href")).toBe("#/a/101/checks?group=encryption");
     expect(within(here!).queryByTestId("advisory-ledger")).toBeNull();
     // What the row is about (a public copy, not the reader's own system) comes right under its sentence, before the
     // link, at the size of the text: it qualifies the word in the chip and is never small print at the foot.
@@ -294,7 +294,7 @@ describe("Fixes, Otto's own change: nothing runs without a click", () => {
     const reason = "We fix this ourselves";
     const rejected = { ...updateRejected(reason), ...{ id: CODE_PROPOSAL, title: codeProposal().title, why: codeProposal().why, lines: codeProposal().lines } };
     const view = fixesWith([
-      { ...ottoCodeFix(rejected), actions: { buttons: [{ action: "connect", label: "Connect demo code", primary: true, enabled: false }], note: "Otto's proposal was rejected, so its change is not added. Reconsider takes it up again." } },
+      { ...ottoCodeFix(rejected), actions: { buttons: [{ action: "connect", label: "Connect demo code", primary: true, enabled: false }], note: "This proposal was rejected, so its change is not added. Reconsider takes it up again." } },
       tlsFix,
     ]);
     const fetchMock = await open(view, CODE_FIX);

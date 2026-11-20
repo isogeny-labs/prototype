@@ -238,15 +238,15 @@ def _otto_words(name: str, version: str | None, size: str, otto: dict) -> dict:
     summary (Claude's words, checked for plain text), and where the answer came from."""
     advisory = f"{otto['advisory']} ({otto.get('plain_name') or 'an advisory'})"
     if otto.get("pending"):
-        waiting = [_t("Live Otto is on. When you connect the code, Otto asks Claude to write a change for "), _m(otto["advisory"]),
+        waiting = [_t("Live Otto is on. When you connect the code, Claude is asked to write a change for "), _m(otto["advisory"]),
                    _t(" in "), _m(name),
                    _t("'s code. That sends this program's source file and the cases it got wrong to Claude, through your key and within "
                       "the spending limit. The answer is used only if it is a clean change that gives one of our bundled demo components "
                       "byte for byte, because only those can run in this version. Otherwise it is refused and nothing is connected, "
                       "although the request was still made on your key; where the fix template answers the failure, Fixes then offers "
-                      "it in Otto's place and says why. A change that is used is offered only after its proof: " + PROOF_RULE + ".")]
+                      "the template instead and says why. A change that is used is offered only after its proof: " + PROOF_RULE + ".")]
         return {"title": f"{name}: a change for {otto['advisory']}", "available": waiting, "changes": waiting, "fixes": waiting,
-                "intro": "Otto has not written this change yet."}
+                "intro": "This change is not written yet."}
     summary = str(otto.get("summary") or "").rstrip()
     # The registry's name for the program the change gives ("acme-sign 1.4.3-otto"). The program's own version line may
     # read differently, so this is never worded as what the program "reports".
@@ -255,9 +255,9 @@ def _otto_words(name: str, version: str | None, size: str, otto: dict) -> dict:
     return {
         "title": f"{name}: {otto.get('title') or 'a change written by Otto'}",
         # Claude's summary is written as if the change were in ("now rejects"): before a proof it is said as what the change would do
-        "available": [_t(f"Otto wrote a change for {advisory}. What it would change, in Otto's words: {summary} "
-                         "Nothing is changed until you accept it and connect the code: the change then goes on a branch and is proven.")],
-        "changes": [_t(f"For {advisory}. What it changes, in Otto's words: {summary}{registered} {size}.")],
+        "available": [_t(f"A change was written for {advisory}. What it would change: {summary} "
+                         "Nothing is changed until you accept it and connect the code. The change then goes on a branch and is proven.")],
+        "changes": [_t(f"For {advisory}. What it changes: {summary}{registered} {size}.")],
         "fixes": [_t(f"For {advisory}: {summary} The proof's tests show it: {PROOF_RULE}.{registered} {size}.")],
         "intro": (f"Written by Otto for {advisory}. Claude wrote these lines from the advisory, the cases the program got wrong and the "
                   f"program's source ({where}). What Claude writes is data: the app applied it to a copy of the code on a branch, and it "
@@ -690,7 +690,7 @@ def code_fix(fix: dict, *, plan_id: int, titles: list[str], server_findings: int
         worded = TEMPLATE_WORDS.get(fix["template_id"], _unknown_template_words)
         words = worded(component["name"], matches["version"] if matches else None, size_words(change) if connected else "")
     note = fix.get("otto_note")   # why the fix template is offered where Otto's own change could not be
-    extra = [[_t(f"Otto's own change is not offered here. {note} The fix template is offered in its place.")]] if note and not otto else []
+    extra = [[_t(f"A change “Written by Otto” is not offered here. {note} The fix template is offered in its place.")]] if note and not otto else []
     holds = f"{matches['name']} {matches['version']}" if matches else ""
     if connected:
         said = _proof_words(fix, rows, server_findings)
@@ -816,7 +816,7 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         o = fix["otto_fix"]
         if o["kind"] == "update":
             quote = o.get("quote") or {}
-            lines = [f"Otto proposes: update {o['library']} to {o['version']} or later. {o['summary']}"]
+            lines = [f"Proposed: update {o['library']} to {o['version']} or later. {o['summary']}"]
             if quote.get("text"):
                 lines.append(f"The publisher's own line: \u2018{quote['text']}\u2019 ({quote.get('source')}, read on {quote.get('read_on')}).")
             # Whether it is proven is said once, in the two proof rows of the summary (public copies, your system).
@@ -825,13 +825,13 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
                          "the same locked tests on the updated version.")
             proof_rows = o.get("rows")
             words = {"title": f"Update {o['library']} to {o['version']}",
-                     "line": "Otto's proposed fix, with its two proof rows",
+                     "line": "The proposed fix, with its two proof rows",
                      "what": (f"From Otto, for advisory {o['advisory']}: update the library to the version its publisher names as fixed. "
                               "This is other people's code: the app offers no code change and no pull request for it."),
                      "suggestion": {"intro": lines, "warning": None, "where": None, "options": None, "exact": None}}
         else:
-            words = {"title": f"{titles[0]}: {_lower(result['label'])}", "line": "What Otto can say about a fix",
-                     "what": f"Otto has no fix to propose for advisory {o['advisory']}. {o['reason']}",
+            words = {"title": f"{titles[0]}: {_lower(result['label'])}", "line": "What can be said about a fix",
+                     "what": f"No fix is proposed for advisory {o['advisory']}. {o['reason']}",
                      "suggestion": {"intro": [result["suggested_fix"] or o["reason"]], "warning": None, "where": None, "options": None, "exact": None}}
         approves = "Whoever looks after this software, outside this app."
     elif fix.get("real_library"):
@@ -872,6 +872,75 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         "sections_note": None, "change_box": None,
         # Phase 4c: the published advisories for a real library's version, with their links (information, never a result).
         "advisories": result.get("advisories") if fix.get("real_library") or fix.get("otto_fix") else None,
+    }
+
+
+# ------------------------------------------------------------------ phase 6d: a developer's change that makes passing tests fail
+
+DEVELOPER_CHANGE_OUTCOMES = {"fails_now": "passed on the code before ({before}) and fails on this change ({now})",
+                             "slower_now": "reads “Slowdown found” on this change ({now}), timed against the code before ({before})"}
+DEVELOPER_CHANGE_FIX_LINE = "A suggestion for this change is in Fixes. It is text only."
+
+
+def developer_change_fix(fix: dict) -> dict:
+    """One entry for a developer's change whose picked tests, run on a click in Change watch, show a test that passed on
+    the code before failing on the change. Text only: it names those tests and shows the lines the change takes out.
+    The app has written no change for a developer's branch, and it never merges one."""
+    change = fix["developer_change"]
+    program = change.get("program") or {}
+    name = str(program.get("name") or "the program")
+    before = f"{name} {(change.get('starts_from') or {}).get('version') or ''}".strip()
+    now = f"{name} {(change.get('gives') or {}).get('version') or ''}".strip()
+    tests = change["tests"]
+    said = [f"{t['title']} {DEVELOPER_CHANGE_OUTCOMES[t['outcome']].format(before=before, now=now)}." for t in tests]
+    n = len(tests)
+    parts = []
+    for file in change["files"]:
+        for block in file["blocks"]:
+            removed = sum(1 for line in block["before"] if line["mark"] == "-")
+            added = sum(1 for line in block["after"] if line["mark"] == "+")
+            if not removed:
+                continue                      # (this entry is about what the change takes out)
+            first = next(line["n"] for line in block["before"] if line["mark"] == "-")
+            parts.append({"title": f"{file['name']}, from line {first}", "why": "",
+                          "before_label": {"lead": "Before:", "strong": before if file["is_program"] else "the code before",
+                                           "rest": f", {removed} {_plural(removed, 'line')} that this change removes (marked −)"},
+                          "before": block["before"],
+                          "after_label": {"lead": "After:", "strong": "this change",
+                                          "rest": f", {added} {_plural(added, 'line')} added (marked +)" if added else ", nothing added here"},
+                          "after": block["after"]})
+    taken_out = sum(sum(1 for line in part["before"] if line["mark"] == "-") for part in parts)
+    sections: list[dict] = [{
+        "key": "suggestion", "title": "The suggestion", "line": "What to do with this change, in plain words", "open": True,
+        "suggestion": {"intro": [*said,
+                                 ("Keep the lines this change takes out, or change the branch so that the tests pass again. Then press "
+                                  "“Run again” on the change in Change watch."),
+                                 "A developer's change is not the system until someone merges it: this assessment's own results are as they were."],
+                       "warning": None, "where": None, "options": None, "exact": None}}]
+    if parts:
+        sections.append({"key": "change", "title": "What the change takes out",
+                         "line": f"{taken_out} {_plural(taken_out, 'line')} removed, in {len(parts)} {_plural(len(parts), 'place')}", "open": True,
+                         "intro": ("The lines the developer's change removes, with the lines around them, read from the connected demo "
+                                   "repository. Nothing here was written by the app."),
+                         "parts": parts})
+    return {
+        "id": fix["id"], "kind": "text",
+        "title": f"{change['title']}: {n} {_plural(n, 'test')} that passed now {'fails' if n == 1 else 'fail'}",
+        "list_source": f"Came from: developer's change {change['branch']}",
+        "source": [_t("Came from the developer's change "), _m(str(change["branch"])),
+                   _t(f" (commit {str(change['commit'])[:7]}), after its picked tests were run in Change watch.")],
+        "status": {"key": "text_only", "word": STATUS_WORDS["text_only"], "busy": False},
+        "labels": [], "is_demo": bool(change.get("is_demo")),
+        "what": {"label": "What it suggests", "server_line": None, "paragraphs": [[_t(
+            f"To look at this change again before anyone merges it: {n} {_plural(n, 'test')} that passed on the code before "
+            f"{'fails' if n == 1 else 'fail'} on it. A suggestion in plain words. The app has not changed the branch.")]]},
+        "proof": {"state": "none", "badge": None, "muted": None,
+                  "text": "None. This suggestion is text only: the app has not applied it or tested it. What the run showed is in Change watch."},
+        "proof_rows": None, "pull_request": None,
+        "approvers": {"text": "Whoever reviews this branch in your own repository, outside this app. The app never merges a developer's change.",
+                      "options": None, "rows": None, "footnote": None},
+        "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None,
+        "sections": sections, "sections_note": None, "change_box": None, "advisories": None,
     }
 
 
@@ -930,14 +999,17 @@ def link_same_updates(pairs: list[tuple[dict, dict]]) -> None:
                 continue
             shown["what"]["paragraphs"].append([_t(f"The same update is recommended by the entry “{other_shown['title']}” in this list, "
                                                    "for the other failed tests on this library. It is one update, not two.")])
-            other_shown["what"]["paragraphs"].append([_t(f"Otto proposes the same update for the advisory check that failed on this "
+            other_shown["what"]["paragraphs"].append([_t(f"The same update is proposed for the advisory check that failed on this "
                                                          f"library: “{shown['title']}” in this list. It is one update, not two.")])
 
 
 # ------------------------------------------------------------------ the whole step
 
-def view(plan_id: int, is_demo: bool, fixes: list[dict], busy: bool) -> dict:
+def view(plan_id: int, is_demo: bool, fixes: list[dict], busy: bool, counted: int | None = None) -> dict:
+    """`counted`: how many of `fixes` count as findings with a fix (phase 6d: a suggestion for a developer's change is
+    listed apart and is not counted). Every one of them, where it is not given."""
     from_migration = any(str(fix.get("list_source") or "").startswith(MIGRATION_SOURCE) for fix in fixes)
+    n = len(fixes) if counted is None else counted
     return {"plan_id": plan_id, "is_demo": is_demo, "title": TITLE, "subline": SUBLINE_WITH_MIGRATION if from_migration else SUBLINE,
             "disclaimer": present.DISCLAIMER,
-            "list_title": f"Open findings with a fix ({len(fixes)})", "empty_text": None if fixes else EMPTY, "fixes": fixes, "busy": busy}
+            "list_title": f"Open findings with a fix ({n})", "empty_text": None if fixes else EMPTY, "fixes": fixes, "busy": busy}

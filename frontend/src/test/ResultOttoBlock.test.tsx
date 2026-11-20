@@ -16,7 +16,7 @@ const block: OttoResultBlock = {
   label: "From Otto",
   title: "Where this check came from",
   line:
-    "Otto proposed this check from the advisory “Missing ECDSA signature range check (CVE-2022-21449)”, in test pack 2026.11.1. " +
+    "This check was proposed from the advisory “Missing ECDSA signature range check (CVE-2022-21449)”, in test pack 2026.11.1. " +
     "Accepted by You on 18 November 2026, 05:53 UTC.",
   advisory: { label: "Open the advisory", link: { page: "advisories", item: ADVISORY } },
   design: {
@@ -35,7 +35,7 @@ const block: OttoResultBlock = {
     ],
   },
   decisions: {
-    title: "Decisions on Otto's proposal",
+    title: "Decisions on this proposal",
     count: 3,
     rows: [
       {
@@ -76,7 +76,7 @@ const block: OttoResultBlock = {
     title: "Otto ledger entries for this check and its decisions",
     count: 4,
     entries: [
-      { seq: 0, kind: "Opened", id: "56182a377c5d", at: "2026-11-18T05:51:02+00:00", what: "Proposal entry: names what Otto proposed, written with the first decision on it" },
+      { seq: 0, kind: "Opened", id: "56182a377c5d", at: "2026-11-18T05:51:02+00:00", what: "Proposal entry: names what was proposed, written with the first decision on it" },
       { seq: 1, kind: "Recorded", id: "106a5f9110af", at: "2026-11-18T05:51:02+00:00", what: "Decision 1: rejected by You" },
       { seq: 5, kind: "Opened", id: "ddfe22721c13", at: "2026-11-18T05:53:46+00:00", what: "Lock entry: the test's fingerprint, its design and its pack, written before any run" },
       { seq: 8, kind: "Recorded", id: "a2011827a5af", at: "2026-11-18T05:54:10+00:00", what: "Run 1 (first run) bound to the locked test" },

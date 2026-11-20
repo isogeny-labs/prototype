@@ -35,6 +35,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from app.canonical import canonical_bytes, sha256_hex
 from app.config import REPO_ROOT, load_settings
 from app.otto import designs, harness, model, packs
+from app.present.lookup import LEFT_PREFIX, NO_PACK_PREFIX
 from ottolab import research, snapshot
 
 RESEARCH = REPO_ROOT / "research"
@@ -47,7 +48,11 @@ BACKEND = Path(__file__).resolve().parents[1]
 SHIP_PLAN = (("2026.11.1", ("CVE-2022-21449", "CVE-2019-14859", "CVE-2019-14853")),
              ("2026.11.2", ("CVE-2024-42460", "CVE-2024-42461", "CVE-2024-42459")))
 SHIP_SIGNER = "Isogeny Labs demo pack key (made when the packs were built; its private half was thrown away)"
-LOCAL_SIGNER = "A key made on this computer by the live research command"
+LOCAL_SIGNER = "A key made on this computer by the research command"
+# `next` ends with this code when it settled none of its advisories and so made no pack: not a failure of the command.
+EXIT_NOTHING_SETTLED = 3
+NO_ANSWER_LIVE = ("Claude gave no answer that could be used in this run: a call failed, was refused or met the spending limit. What "
+                  "the research run said has the reason.")
 LOCAL_KEY_PEM = "otto-local-pack-key.pem"
 MAX_STEPS = 400
 
@@ -190,6 +195,39 @@ def _ledger_entries(lab, st, advisory_id: str) -> list[dict]:
     return out
 
 
+def unsettled(lab, st, advisory_id: str, live: bool) -> str | None:
+    """Why this run left this advisory's test question open, as one sentence, or None when the run settled it.
+
+    Open: no answer came for the reading or for the design (with Live Otto off there is no recorded answer; with it on,
+    a call failed, was refused or met the spending limit), or the trial on public copies did not finish. None of these
+    is a finding about the advisory: a missing answer and an unfinished trial are stops, not results. A pack made on
+    this computer leaves such an advisory out, so nothing is signed about it and a later run can take it up.
+
+    Settled, and so in the pack with its reason: an answer the pinned checker refused, a design that says no test
+    fits, no public copies to try a design on, and a trial the harness judged, whatever it found."""
+    steps = [claim["artifact"]["step"]["step"] for _, claim in research.step_claims(st, advisory_id)]
+
+    def no_answer() -> str:
+        if not live:
+            return "No recorded answer: this needs Live Otto."
+        if not model.key_present():
+            return f"No recorded answer, and no API key is set on this computer ({model.KEY_ENV}): this needs Live Otto with a key."
+        return NO_ANSWER_LIVE
+    if "read_advisory" not in steps:
+        return no_answer()
+    if research.used_step(st, lab, advisory_id, "read_advisory") is None:
+        return None
+    if "design_test" not in steps:
+        return no_answer()
+    found = research.used_step(st, lab, advisory_id, "design_test")
+    if found is None or found[1]["artifact"]["parsed"]["decision"] == "no_test":
+        return None
+    trials = research.trials_of(st, advisory_id, "test", lab)
+    if trials and st.decision(trials[-1][0]) is None:
+        return "Its trial on public copies did not finish in this run."
+    return None
+
+
 def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
     """One advisory as a pack holds it, and its design when its test is ready."""
     aid, package = advisory["id"], advisory["package"]["name"]
@@ -207,7 +245,7 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
         if step["step"] == "read_advisory":
             reading, refused = (art["parsed"], None) if used else (None, steps[-1]["refusal"])
     if reading is None and refused is None:
-        refused = "Otto has no answer for this advisory yet."
+        refused = "There is no answer for this advisory yet."
     design, design_note = None, None
     found = research.used_step(st, lab, aid, "design_test")
     if found is not None:
@@ -218,7 +256,7 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
         test["reason"] = "No test yet: " + str(refused)
     elif design_note is None:
         note_refusal = next((s["refusal"] for s in steps if s["step"] == "design_test" and s["outcome"] == "refused"), None)
-        test["reason"] = "No test yet: " + (note_refusal or "Otto has no design for this advisory yet.")
+        test["reason"] = "No test yet: " + (note_refusal or "There is no design for this advisory yet.")
     elif design_note["decision"] == "no_test":
         test["reason"] = "No test yet: " + design_note["reason"]
     else:
@@ -253,7 +291,7 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
         fix["reason"] = "No fix is offered: there is no test for this advisory to prove one with."
     elif proposed is None:
         refusal = next((s["refusal"] for s in steps if s["step"] == "propose_fix" and s["outcome"] == "refused"), None)
-        fix["reason"] = "No fix is offered: " + (refusal or "Otto has no proposal for this advisory yet.")
+        fix["reason"] = "No fix is offered: " + (refusal or "There is no proposal for this advisory yet.")
     elif proposed[1]["artifact"]["parsed"]["fix"] == "none":
         fix["reason"] = "No fix is offered: " + proposed[1]["artifact"]["parsed"]["reason"]
     else:
@@ -359,9 +397,11 @@ def _day(stamp: str) -> str:
 
 def build_pack(lab, snap: dict, snapshot_path: Path, version: str, ids: tuple[str, ...], previous: str | None, key: Ed25519PrivateKey,
                signer: str, out_dir: Path, recorded: Path, live: bool, limit_nano: int, spent_file: Path,
-               earlier: list[dict] | None = None) -> packs.Pack:
+               earlier: list[dict] | None = None, leave_open: bool = False) -> packs.Pack | None:
     """`earlier`: the checks of the packs built before this one (`checks_of` each), so that a design which only repeats
-    one of them for the same library is refused, also when that pack came out of another lab."""
+    one of them for the same library is refused, also when that pack came out of another lab.
+    `leave_open` (a pack made on this computer): an advisory this run could not settle (`unsettled`) is left out of the
+    pack and named in one line, so a later run can take it up. With none left there is no pack: None."""
     snapshot_sha256 = hashlib.sha256(snapshot_path.read_bytes()).hexdigest()
     say(f"Pack {version}: {', '.join(ids)}")
     earlier_file = spent_file.with_name(f"earlier-checks-{version}.json")
@@ -371,6 +411,14 @@ def build_pack(lab, snap: dict, snapshot_path: Path, version: str, ids: tuple[st
     problems = lab.audit()
     if problems:
         raise research.ResearchError("Otto's audit of the research ledger found a problem: " + "; ".join(problems[:3]))
+    if leave_open:
+        st = lab.state()
+        left = {aid: why for aid in ids if (why := unsettled(lab, st, aid, live)) is not None}
+        for aid, why in left.items():
+            say(f"{LEFT_PREFIX}{aid}: {why}")
+        ids = tuple(aid for aid in ids if aid not in left)
+        if not ids:
+            return None
     raw = sign(assemble(lab, snap, snapshot_sha256, version, ids, previous, signer, earlier), key)
     made = packs.read_envelope(raw, {_public_hex(key): (signer, False)})   # the builder reads its own pack back exactly as the app will
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -413,6 +461,7 @@ def ship(args) -> int:
         for version, ids in todo:
             made = build_pack(lab, snap, SNAPSHOT, version, ids, previous, key, SHIP_SIGNER, PACKS, RECORDED, args.live, args.limit_nano,
                               spent_file, earlier)
+            assert made is not None          # (only a pack made on this computer leaves advisories out)
             previous = made.fingerprint
             earlier = earlier + checks_of(made.pack)
         say(_spent_line(spent_file, args.limit_nano))
@@ -477,10 +526,15 @@ def next_pack(args) -> int:
         spent_file = Path(scratch) / "spent.json"
         if args.live and not model.key_present():
             say(f"--live was given, but no API key is set on this computer ({model.KEY_ENV}). Only recorded answers are used.")
-        build_pack(lab, snap, files[0], version, ids, newest.fingerprint if newest else None, _local_key(data_dir), LOCAL_SIGNER, updates,
-                   recorded, args.live, args.limit_nano, spent_file, [check for pack in chain for check in checks_of(pack.pack)])
+        made = build_pack(lab, snap, files[0], version, ids, newest.fingerprint if newest else None, _local_key(data_dir), LOCAL_SIGNER,
+                          updates, recorded, args.live, args.limit_nano, spent_file,
+                          [check for pack in chain for check in checks_of(pack.pack)], leave_open=True)
         say(_spent_line(spent_file, args.limit_nano))
-    say("In the app: Settings, Test packs, Check for updates. The pack is shown as made on this computer.")
+    if made is None:
+        say(f"{NO_PACK_PREFIX}this run settled none of its advisories. Each one says why, and can be tried again.")
+        return EXIT_NOTHING_SETTLED
+    say(f"Test pack {made.version} was made on this computer. Started from the Advisories page, the app installs it now. Started by "
+        "hand: Settings, Test packs, Check for updates.")
     return 0
 
 

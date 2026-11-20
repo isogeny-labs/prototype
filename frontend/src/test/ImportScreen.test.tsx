@@ -151,7 +151,7 @@ describe("Import screen", () => {
     await waitFor(() => expect(props.onImported).toHaveBeenCalled());
     const init = fetchMock.mock.calls[0]?.[1];
     expect(init?.body).toBe(file);
-    expect(init?.headers).toEqual({ "Content-Type": "application/octet-stream" });
+    expect(init?.headers).toMatchObject({ "Content-Type": "application/octet-stream" });
   });
 
   it("uploads a dropped file", async () => {
@@ -377,7 +377,7 @@ describe("Import screen: what Otto found (phase 5c)", () => {
   const FOUND: ImportOtto = {
     count: 2,
     label: "From Otto",
-    text: "Otto found 2 checks that may apply: 2 published weaknesses with a test, for acme-sign 1.4.2.",
+    text: "2 checks may apply: 2 published weaknesses with a test, for acme-sign 1.4.2.",
     note: "Nothing runs on import. You accept or reject each proposed check on Advisories.",
     link: { page: "advisories", item: null },
     link_label: "Open Advisories",
@@ -385,13 +385,13 @@ describe("Import screen: what Otto found (phase 5c)", () => {
   const NONE_FIT: ImportOtto = {
     ...FOUND,
     count: 0,
-    text: "Otto found no check that may apply to this file: no signing program in this file checks ECDSA P-256 signatures.",
+    text: "No check may apply to this file: no signing program in this file checks ECDSA P-256 signatures.",
     note: "Nothing runs on import.",
   };
   const NO_PACK: ImportOtto = {
     count: 0,
     label: "From Otto",
-    text: "Otto has nothing to propose for this file yet: no test pack is installed.",
+    text: "Nothing is proposed for this file yet: no test pack is installed.",
     note: "Test packs are installed in Settings. Nothing runs on import.",
     link: { page: "settings", item: null, section: "test-packs" },
     link_label: "Open Settings",

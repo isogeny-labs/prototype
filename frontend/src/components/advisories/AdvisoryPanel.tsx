@@ -3,6 +3,7 @@ import { DetailPanel } from "../layout";
 import { ProposalCard } from "../otto/ProposalCard";
 import { ItemLinkView, RelatedBlock, useRelated } from "../related";
 import { formatTime, StatusChip } from "../ui";
+import { NewTag } from "./AdvisoryTable";
 import { BLOCK, BLOCK_TITLE, LedgerView, QuoteView, ShortHash, SourcesView, TrialView } from "./parts";
 
 const DT = "text-xs text-slate-500";
@@ -99,7 +100,14 @@ export function AdvisoryPanel({
     <div data-testid="advisory-panel" data-advisory={row.id} className="contents">
       <DetailPanel
         open
-        title={row.name}
+        item={row.id}
+        title={
+          <>
+            {row.name}
+            {row.new ? " " : null}
+            <NewTag tag={row.new} />
+          </>
+        }
         subtitle={
           // The table drops its Published column while the panel is open, so the day is said here too.
           <span className="flex flex-wrap gap-x-2">

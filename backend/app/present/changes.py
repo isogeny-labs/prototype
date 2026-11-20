@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from app.servers import lab_servers
 from app.fixes.changes import REVIEWERS
+from app.present import times
 from app.present.tracks import TRACK_LABELS, hybrid_client
 
 DEMO_REVIEWERS = ("a", "b")
@@ -48,7 +49,9 @@ def when(value) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     value = value.astimezone(timezone.utc)
-    return f"{value.day} {value.strftime('%b %Y, %H:%M')} UTC"
+    # For a file: the UTC words, as always. For a browser that asked: a mark, which the browser writes in the viewer's
+    # own time zone (app/present/times.py).
+    return times.written(value, f"{value.day} {value.strftime('%b %Y, %H:%M')} UTC")
 
 
 def _fact_words(fact: str, value) -> str:

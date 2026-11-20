@@ -60,7 +60,7 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   copy = await startCopy(browser, 6, "demo");
   page = copy.page;
   await page.setViewportSize({ width: 1440, height: 900 });
-  await enterApp(page);
+  await enterApp(page, { ottoPanel: true });
   await openFreshAssessment(page, "Layout walk");
 
   // Fill every page: the demo file, Verify, every test, Measure status, the demo dependency list.
@@ -69,17 +69,17 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   await measure("04-import", () => page.getByTestId("claim-row").first().click());
   await page.getByTestId("claim-panel").getByRole("button", { name: "Close details" }).click();
   await page.getByTestId("address-confirm").click();
-  await page.getByRole("button", { name: "Verify claims" }).click();
+  await page.getByTestId("page-content").getByRole("button", { name: "Verify claims" }).click();
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
   await measure("05-verify", () => page.getByTestId("result-row").first().getByTestId("verify-details-toggle").click());
   await page.getByTestId("detail-panel").getByRole("button", { name: "Close details" }).click();
   await page.getByRole("button", { name: "Continue to checks" }).click();
   await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
-  await page.getByRole("button", { name: "Run all" }).click();
+  await page.getByTestId("page-content").getByRole("button", { name: "Run all" }).click();
   await expect(page.getByTestId("test-card").getByTestId("result-badge")).toHaveCount(5, { timeout: 180_000 });
   await stepLink(page, "Systems").click();
-  await page.getByRole("button", { name: /^Measure status/ }).click();
-  await expect(page.getByRole("button", { name: /^Measure again/ })).toBeEnabled({ timeout: 120_000 });
+  await page.getByTestId("page-content").getByRole("button", { name: /^Measure status/ }).click();
+  await expect(page.getByTestId("page-content").getByRole("button", { name: /^Measure again/ })).toBeEnabled({ timeout: 120_000 });
   await stepLink(page, "Dependencies").click();
   await page.getByLabel("Choose a dependency list").setInputFiles(LIST);
   await expect(page.getByTestId("dependency-row").first()).toBeVisible({ timeout: 30_000 });
@@ -131,7 +131,7 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   await expect(page.getByRole("heading", { name: "Import", level: 1 })).toBeVisible();
   await expect(page.getByTestId("claim-row")).toHaveCount(3);
   await page.getByTestId("address-confirm").click();
-  await page.getByRole("button", { name: "Verify claims" }).click();
+  await page.getByTestId("page-content").getByRole("button", { name: "Verify claims" }).click();
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
 
   // ---- The Project overview: both assessments side by side, What changed between them, the shared systems

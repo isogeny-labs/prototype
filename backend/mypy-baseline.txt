@@ -152,8 +152,6 @@
 1	app/lab/testlab.py: Incompatible types in assignment (expression has type "str | None", variable has type "str") [assignment]
 2	app/lab/testlab.py: Invalid index type "str | None" for "dict[str, str]"; expected type "str" [index]
 1	app/lab/testlab.py: Invalid index type "str" for "str"; expected type "SupportsIndex | slice[SupportsIndex | None, SupportsIndex | None, SupportsIndex | None]" [index]
-2	app/lab/testlab.py: Item "None" of "RetestRow | ProofRow | None" has no attribute "baseline_version" [union-attr]
-1	app/lab/testlab.py: Item "None" of "RetestRow | ProofRow | None" has no attribute "version" [union-attr]
 1	app/lab/testlab.py: List comprehension has incompatible type List[tuple[Any, str, str, dict[Any, Any]]]; expected List[tuple[str, str, str, str]] [misc]
 1	app/lab/testlab.py: Value of type "dict[Any, Any] | None" is not indexable [index]
 3	app/main.py: Name "_app" is not defined [name-defined]

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { usePanelStamp } from "../changes";
 import {
   api,
   errorMessage,
@@ -18,6 +19,7 @@ import { ItemLinkView, RelatedFor } from "./related";
 import { VerifyResultDetails } from "./VerifyScreen";
 import type { CheckDetail, ChecksView } from "../api";
 import { ResultDetail } from "./lab/ResultDetail";
+import { RetestMenu } from "./lab/RetestMenu";
 import {
   AlsoNoticedList,
   DemoDataLabel,
@@ -26,11 +28,9 @@ import {
   ResultBadge,
   RichTextView,
   SecondaryButton,
-  SourceTag,
   StatusChip,
   StatusView,
   splitByGroup,
-  useDismiss,
 } from "./ui";
 
 const POLL_MS = 1000;
@@ -137,6 +137,9 @@ interface Props {
   openItem?: string | null;
   /** Phase 5b: a work group to filter to. */
   group?: string | null;
+  /** Phase 6b: the Result filter the address names, and how a change of it goes back into the address. */
+  result?: string | null;
+  onFilters?: (filters: { result?: string | null }) => void;
 }
 
 const OPEN_IN: Record<string, string> = {
@@ -162,14 +165,18 @@ function RunsFor({ planId, checkId }: { planId: number; checkId: string }) {
   return detail ? <EarlierRuns runs={detail.runs} /> : null;
 }
 
-export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = null }: Props) {
+export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = null, result = null, onFilters }: Props) {
   const [lab, setLab] = useState<LabView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [openRow, setOpenRow] = useState<number | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [statusFilter, setStatusFilterState] = useState<StatusFilter>((result as StatusFilter | null) ?? "all");
+  const setStatusFilter = (value: StatusFilter) => {
+    setStatusFilterState(value);
+    onFilters?.({ result: value === "all" ? null : value });
+  };
+  useEffect(() => setStatusFilterState((result as StatusFilter | null) ?? "all"), [result]);
   const [exported, setExported] = useState<EvidenceExport | null>(null);
   const [pollTick, setPollTick] = useState(0);
   // Phase 5b: every other kind of check, in the four groups.
@@ -188,13 +195,12 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
       setOpenCheck(openItem);
     }
   }, [openItem]);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const closeMenu = useCallback(() => setMenuOpen(false), []);
-  useDismiss(menuOpen, menuRef, closeMenu);
   const closePanel = useCallback(() => {
     setOpenRow(null);
     setOpenCheck(null);
   }, []);
+  // Phase 6a: a decision or a start sent from the Otto panel: this page reads its view again.
+  const panelStamp = usePanelStamp();
 
   useEffect(() => {
     let live = true;
@@ -209,7 +215,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
     return () => {
       live = false;
     };
-  }, [planId]);
+  }, [planId, panelStamp]);
 
   const labStamp = lab ? `${lab.busy}:${lab.rows.map((r) => `${r.result?.run_id ?? ""}/${r.after?.run_id ?? ""}`).join(",")}` : "";
   // Asked once the lab's own answer is in, and again whenever a result in it changes (or while something runs).
@@ -452,6 +458,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
   const panel = (
     <DetailPanel
       open={selected !== null}
+      item={selected ? `test-${selected.item_id}` : null}
       title={selected?.title ?? ""}
       subtitle={
         selected ? (
@@ -473,6 +480,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
                 <ResultDetail
                   result={selected.after}
                   heading={current.columns?.after_heading}
+                  plain={selected.after.plain}
                   busy={busy}
                   onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
                   onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
@@ -483,6 +491,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
                 <ResultDetail
                   result={selected.result}
                   heading={current.columns?.before_heading}
+                  plain={selected.result.plain}
                   busy={busy}
                   onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
                   onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
@@ -493,6 +502,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
           ) : selected.result ? (
             <ResultDetail
               result={selected.result}
+              plain={selected.result.plain}
               busy={busy}
               onMarkReviewed={(runId) => void act(() => api.markReviewed(runId))}
               onDigDeeper={(runId) => void act(() => api.digDeeper(runId))}
@@ -629,45 +639,19 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
           </>
         }
         actions={
-          <div ref={menuRef} className="relative flex shrink-0 flex-wrap gap-2.5">
-            <SecondaryButton expanded={menuOpen} disabled={busy || !retest.can_start} onClick={() => setMenuOpen((v) => !v)}>
-              Retest new version
-            </SecondaryButton>
+          <div className="flex shrink-0 flex-wrap gap-2.5">
+            {/* The 5c fixes: the same button and menu as on Checks (components/lab/RetestMenu.tsx). */}
+            <RetestMenu
+              retest={retest}
+              disabled={busy}
+              onChoose={(v) => {
+                setExported(null);
+                void act(() => api.retest(current.plan_id, v.version, v.component));
+              }}
+            />
             <SecondaryButton allowWhenClosed disabled={busy || !current.download.can_start} onClick={() => void download()}>
               Download evidence
             </SecondaryButton>
-            {menuOpen ? (
-              <div
-                role="menu"
-                aria-label={retest.menu_title}
-                className="absolute right-0 top-[46px] z-20 w-[420px] max-w-[calc(100vw-2rem)] rounded-[10px] border border-slate-600 bg-slate-900 p-1.5 shadow-2xl shadow-black/60"
-              >
-                <p className="px-2.5 pb-1.5 pt-2 text-xs text-slate-400">{retest.menu_title}</p>
-                {retest.versions.map((v) => (
-                  <button
-                    key={`${v.component ?? ""}/${v.version}`}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setExported(null);
-                      void act(() => api.retest(current.plan_id, v.version, v.component));
-                    }}
-                    className="block w-full rounded-md p-2.5 text-left hover:bg-slate-800 focus-visible:bg-slate-800"
-                  >
-                    <span className="text-sm font-semibold text-slate-100">{v.label}</span>
-                    {v.tag ? (
-                      <>
-                        {" "}
-                        <SourceTag>{v.tag}</SourceTag>
-                      </>
-                    ) : null}
-                    <span className="mt-0.5 block text-[13px] text-slate-400">{v.note}</span>
-                  </button>
-                ))}
-                <p className="mt-1.5 border-t border-slate-800 px-2.5 pb-1 pt-2 text-xs text-slate-400">{retest.menu_note}</p>
-              </div>
-            ) : null}
           </div>
         }
       />
@@ -715,7 +699,8 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
         <FilterSelect label="Result" value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
       </Toolbar>
 
-      <TableWithPanel panelOpen={anyPanelOpen} table={checks ? grouped : listing} panel={panels} />
+      {/* (a result that is not a test, and a library, are looked up in the checks, which arrive after the results) */}
+      <TableWithPanel panelOpen={anyPanelOpen} settled={checks !== null} table={checks ? grouped : listing} panel={panels} />
     </section>
   );
 }

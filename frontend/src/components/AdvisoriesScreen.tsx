@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { usePanelStamp } from "../changes";
+import { NewAdvisories } from "./advisories/NewAdvisories";
 import { api, errorMessage, type AdvisoriesView, type OttoProposal } from "../api";
 import { AdvisoryPanel } from "./advisories/AdvisoryPanel";
 import { AdvisoryTable } from "./advisories/AdvisoryTable";
@@ -13,6 +15,9 @@ interface Props {
   /** A decision was recorded (an accepted check joins the test plan, an undone one leaves it): the app reads its copy
    * of the plan again. */
   onPlanChanged?: () => void;
+  /** Phase 6b: the Decision filter the address names, and how a change of it goes back into the address. */
+  decision?: string | null;
+  onFilters?: (filters: { decision?: string | null }) => void;
 }
 
 /** The view with one proposal replaced by what the backend answered for it. */
@@ -34,17 +39,24 @@ function withProposal(view: AdvisoriesView, next: OttoProposal): AdvisoriesView 
  * Otto proposes; a person decides: each proposed check is accepted or rejected by itself, in the advisory's panel.
  * There is no button that decides several at once, and a decision runs nothing. Every word, label and tone is the
  * backend's: this page words no result and decides none. */
-export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Props) {
+export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged, decision = null, onFilters }: Props) {
   const [view, setView] = useState<AdvisoriesView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadError, setReloadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [testFilter, setTestFilter] = useState("all");
-  const [decisionFilter, setDecisionFilter] = useState("all");
+  const [decisionFilter, setDecisionFilterState] = useState(decision ?? "all");
+  const setDecisionFilter = (value: string) => {
+    setDecisionFilterState(value);
+    onFilters?.({ decision: value === "all" ? null : value });
+  };
+  useEffect(() => setDecisionFilterState(decision ?? "all"), [decision]);
   const [resultFilter, setResultFilter] = useState("all");
   const [openId, setOpenId] = useState<string | null>(openItem);
   // The newest request for the page's view: an answer that comes back after a newer one was asked for is dropped.
   const asked = useRef(0);
+  // Phase 6a: a decision or a start sent from the Otto panel: this page reads its view again.
+  const panelStamp = usePanelStamp();
 
   useEffect(() => setOpenId(openItem), [openItem]);
 
@@ -63,7 +75,24 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
     return () => {
       asked.current += 1;
     };
-  }, [planId]);
+  }, [planId, panelStamp]);
+
+  // Phase 6: while a research run goes on, ask again every few seconds (its progress, and at its end the new pack's
+  // advisories and proposals).
+  const researching = view?.lookup?.busy === true;
+  useEffect(() => {
+    if (!researching) return;
+    const mine = asked.current;
+    const timer = setTimeout(() => {
+      api
+        .getAdvisories(planId)
+        .then((next) => {
+          if (asked.current === mine) setView(next);
+        })
+        .catch(() => undefined);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [researching, view, planId]);
 
   /** A decision was recorded. The card's own answer is shown at once; then the whole page is read again, because a
    * decision also moves the row's cells, the waiting line and the check's place in the test plan; and the app is told,
@@ -165,6 +194,19 @@ export function AdvisoriesScreen({ planId, openItem = null, onPlanChanged }: Pro
           </div>
         ) : null}
       </div>
+
+      {/* Phase 6, Otto's research loop: look for newly published advisories, and prove a test for each on public copies. */}
+      {view.lookup ? (
+        <NewAdvisories
+          planId={planId}
+          lookup={view.lookup}
+          onView={(next) => {
+            asked.current += 1; // (an older read of the page must not land on top of this answer)
+            setView(next);
+            onPlanChanged?.();
+          }}
+        />
+      ) : null}
 
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} label="Search advisories" placeholder="Search advisories" testId="advisories-search" />

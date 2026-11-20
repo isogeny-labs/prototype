@@ -82,11 +82,11 @@ const DEP: Partial<OttoProposal> = {
   why:
     "Your dependency list has python-ecdsa 0.13.2. Advisory CVE-2019-14859 (Badly encoded signature accepted) is about python-ecdsa, " +
     "and its publisher names 0.13.3 as the fixed version.",
-  why_label: "Why Otto proposes it",
+  why_label: "Why it is proposed",
   lines: [
     "Update python-ecdsa to version 0.13.3, whose DER reader has checks that the 0.13.2 reader lacks.",
     "Proven on public copies: Passed. 0.13.2 fails the advisory check; 0.13.3 passes.",
-    "Otto proposes to mark this library “update first”. Accepting changes nothing on any system and runs nothing.",
+    "Proposed: mark this library “update first”. Accepting changes nothing on any system and runs nothing.",
   ],
   link: { page: "migration/dependencies", item: "row-1" },
 };

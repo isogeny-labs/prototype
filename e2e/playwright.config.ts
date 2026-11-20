@@ -39,6 +39,9 @@ export default defineConfig({
     browserName: "chromium",
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 2,
+    // The 5c fixes: every time on screen is written in the viewer's own time zone. The walks are a viewer in New York,
+    // so a time they read is visibly not UTC, and the same on every machine. Files keep UTC, whatever the browser.
+    timezoneId: "America/New_York",
     trace: "off",
     video: "off",
     screenshot: "off",

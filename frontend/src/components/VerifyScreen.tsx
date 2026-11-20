@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Evidence, Import, Result, ResultValue, Tone, VerifyRun } from "../api";
 import { DataTable, DetailPanel, PageHeader, TableWithPanel, type Column } from "./layout";
 import { ItemLinkView, RelatedFor } from "./related";
-import { AlsoNoticedList, DemoDataLabel, PrimaryButton, ResultBadge, SourceTag } from "./ui";
+import { AlsoNoticedList, DemoDataLabel, PrimaryButton, ResultBadge, SourceTag, formatTime } from "./ui";
 
 // "True" only means the claim matched what we measured, so it is drawn as a calm match, not as "safe". The chip
 // carries its words and a symbol, so nothing depends on colour alone.
@@ -11,11 +11,6 @@ const BADGES: Record<ResultValue, { tone: Tone; meaning: string }> = {
   False: { tone: "fail", meaning: "The claim doesn't match what we measured." },
   "Couldn't check": { tone: "warn", meaning: "We couldn't measure this, so there is no answer." },
 };
-
-function formatTime(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleString();
-}
 
 function EvidenceItem({ item }: { item: Evidence }) {
   return (
@@ -229,6 +224,7 @@ export function VerifyScreen({ imp, run, onContinue, openItem = null }: Props) {
         panel={
           <DetailPanel
             open={selected !== null}
+            item={selected ? `claim-${selected.claim_id}` : null}
             title={selected ? selected.claim.text : ""}
             subtitle={selected ? <ResultBadge label={selected.result} tone={BADGES[selected.result].tone} /> : undefined}
             onClose={close}

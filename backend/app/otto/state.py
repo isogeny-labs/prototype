@@ -37,6 +37,7 @@ from app.present import otto as present_otto
 from app.run import components
 
 LIVE_KEY, LIMIT_KEY = "otto_live", "otto_limit_nano"
+NAME_KEY, NAME_MAX = "decision_name", 60        # phase 6a: the name a person typed once, for the decisions they record
 # The tests a fix is held to besides its own advisory check: the ones that say pass or fail. Speed is left out, as it is
 # in the trial on public copies (timings hold only for the computer they are measured on).
 PASS_OR_FAIL_KINDS = ("official_vectors", "bad_signatures", research.ADVISORY_KIND)
@@ -136,7 +137,7 @@ class OttoMixin:
         return present_otto.settings_view(installed=[(iso(row.installed_at), pack) for row, pack in installed], update=update, refused=refused,
                                           unreadable=unreadable,
                                           scan_line=line, harness_status=harness.public_status(), live_on=live_on, limit_nano=limit,
-                                          key_present=model.key_present(), answers_line=answers)
+                                          key_present=model.key_present(), answers_line=answers, name=self._typed_name())
 
     def check_pack_updates(self) -> dict:
         return self.otto_view(scan=True)
@@ -153,12 +154,47 @@ class OttoMixin:
             db.commit()
         return self.otto_view(scan=True)
 
+    # ---------------------------------------------------------------- who decides: a name typed once (phase 6a)
+
+    def _typed_name(self) -> str | None:
+        with self.db() as db:
+            row = db.get(AppSettingRow, NAME_KEY)
+        return row.value if row is not None and row.value else None
+
+    def decision_name(self) -> str:
+        """The name a decision on one of Otto's proposals is recorded under: the one a person typed (asked once, kept
+        in Settings), or "You" until then. The app has one login and does not check who is at the keyboard."""
+        return self._typed_name() or otto_proposals.BY
+
+    def decision_name_view(self) -> dict:
+        """For the Otto panel's Confirm step: the name decisions are recorded under now, and whether one was typed."""
+        typed = self._typed_name()
+        return present_otto.name_view(typed)
+
+    def set_decision_name(self, name: object) -> dict:
+        """Keep the name a person typed for their decisions (Settings, or the panel's first Confirm). An empty name
+        goes back to "You". It changes no decision already recorded: each keeps the name it was made under."""
+        if not isinstance(name, str):
+            raise BadRequest("Type a name.", field="name")
+        text = " ".join("".join(ch if ch.isprintable() else " " for ch in name).split())
+        if len(text) > NAME_MAX:
+            raise BadRequest(f"Keep the name to {NAME_MAX} characters or fewer.", field="name")
+        with self.db() as db:
+            _set(db, NAME_KEY, text)
+            db.commit()
+        return self.otto_view()
+
     # ---------------------------------------------------------------- Live Otto: the switch and the spending limit
 
     @staticmethod
     def _otto_live_on(db) -> bool:
         row = db.get(AppSettingRow, LIVE_KEY)
         return row is not None and row.value == "on"
+
+    def otto_limit_words(self) -> str:
+        """The spending limit per run, as Settings shows it ("2.00"). A read: nothing is written and Claude is not asked."""
+        with self.db() as db:
+            return f"{self._otto_limit(db) / model.NANO:.2f}"
 
     @staticmethod
     def _otto_limit(db) -> int:
@@ -179,7 +215,7 @@ class OttoMixin:
             if on is not None:
                 if on and not model.key_present():
                     raise Conflict(f"Live Otto needs an API key on this computer, and none is set ({model.KEY_ENV}). "
-                                   "Otto goes on working with the answers recorded during the build.")
+                                   "The answers recorded during the build go on being used.")
                 _set(db, LIVE_KEY, "on" if on else "off")
             db.commit()
         return self.otto_view()
@@ -243,6 +279,14 @@ class OttoMixin:
             # Otto's proposals for this file: one for each ready test and each program it fits, with where a person's
             # decisions on it stand. (Worked out here; nothing is written by looking.)
             proposed = {p["id"]: p for p in self._proposals(db, plan, ("check",))}     # type: ignore[attr-defined]
+            # The 5c fixes: an advisory is "New" when the pack it first arrived with is the newest one installed (for a
+            # closed assessment: the newest one installed when it was closed). One that a later pack only updates
+            # arrived earlier, so it is not new.
+            arrived: dict[str, str] = {}
+            for _, each in installed:
+                for entry in each.pack["advisories"]:
+                    arrived.setdefault(entry["id"], each.version)
+            newest = installed[-1][1].version if installed else None
             rows = []
             for pack, advisory in entries:
                 here = []
@@ -269,13 +313,17 @@ class OttoMixin:
                 answering = [f for f in fixes if any(a.get("item_id") in item_ids for a in (states.get(f["id"]) or {}).get("answers") or [])]
                 # where several programs failed this check, the link goes to a fix that Otto proposes, if there is one
                 fix = next((f for f in answering if f.get("labels")), answering[0] if answering else None)
-                rows.append({"pack": pack, "advisory": advisory, "design": pack.design(design_sha) if design_sha else None, "here": here, "fix": fix})
+                rows.append({"pack": pack, "advisory": advisory, "design": pack.design(design_sha) if design_sha else None, "here": here, "fix": fix,
+                             "arrived": arrived.get(advisory["id"]), "new": arrived.get(advisory["id"]) == newest})
             a = self.assessment_for(plan_id=plan_id)
             answers = self._pack_answers_line(installed)
         status = harness.public_status()
-        return present_otto.advisories_view(rows=rows, packs=[pack for _, pack in installed], fitting=[p["label"] for p in fitting],
+        view = present_otto.advisories_view(rows=rows, packs=[pack for _, pack in installed], fitting=[p["label"] for p in fitting],
                                             closed=upto is not None, harness_status=status, answers_line=answers,
                                             assessment_id=a.id if a is not None else None)
+        # Phase 6, Otto's research loop: the block "New advisories" (Look for new advisories; Design and prove tests).
+        view["lookup"] = self.lookup_view(plan_id)        # type: ignore[attr-defined]
+        return view
 
     def otto_relations(self, plan_id: int) -> list[dict]:
         """For the Related block: every advisory of the installed packs with the plan's checks that came from it."""
@@ -292,7 +340,7 @@ class OttoMixin:
                 if advisory_id:
                     linked.setdefault(str(advisory_id), []).append(item.id)
             for _, advisory in self._pack_advisories(db, upto):
-                name = (advisory["reading"] or {}).get("plain_name") or "An advisory Otto could not read"
+                name = (advisory["reading"] or {}).get("plain_name") or "An advisory that could not be read"
                 out.append({"id": advisory["id"], "name": name, "sub": present_otto.TEST_LABELS[advisory["test"]["state"]][0],
                             "items": linked.get(advisory["id"], [])})
         return out
@@ -520,14 +568,19 @@ class OttoMixin:
         signed files, whole), the assessment's ledger with the hash of its latest entry, each advisory check's links
         into the ledger, and every Claude step taken in the app. None when the assessment has nothing of Otto's."""
         a = self.assessment_for(plan_id=plan_id)
+        # Phase 6, Otto's research loop: every look for new advisories and every research run of this assessment.
+        lookups = self.lookups_evidence(plan_id)                 # type: ignore[attr-defined]
+        made_by_runs = {str(run["pack_version"]) for run in lookups["research"] if run.get("pack_version")}
         with self.db() as db:
             added = self._otto_checks(db, plan_id)
             steps = db.scalars(select(OttoStepRow).where(OttoStepRow.plan_id == plan_id).order_by(OttoStepRow.id)).all()
             decided = db.scalar(select(func.count(OttoDecisionRow.id)).where(OttoDecisionRow.plan_id == plan_id)) or 0
-            if not added and not steps and not decided:
+            if not added and not steps and not decided and not lookups["looks"] and not lookups["research"]:
                 return None
+            # the packs this assessment's checks came from, and every pack a research run of this assessment made
+            # (the proof of what that run found is in its pack, whether or not a check of it was accepted)
             wanted = {c.pack_fingerprint for c in added}
-            envelopes = [json.loads(row.envelope) for row in self._pack_rows(db) if row.fingerprint in wanted]
+            envelopes = [json.loads(row.envelope) for row in self._pack_rows(db) if row.fingerprint in wanted or row.version in made_by_runs]
             checks_out = []
             for c in added:
                 row = db.get(TestSpecRow, c.spec_hash)
@@ -572,7 +625,8 @@ class OttoMixin:
                 # Otto proposes; a person decides: every proposal of this assessment as it stands, and every accept, reject,
                 # undo and reconsider on it, each with who and when and its entry in the ledger.
                 "proposals": self.otto_proposals_evidence(plan_id),      # type: ignore[attr-defined]
-                "decisions_note": ("Otto proposes; a person decides. A decision is recorded with who and when, in this file and in the "
+                "lookups": lookups,
+                "decisions_note": ("Each proposal is decided by a person. A decision is recorded with who and when, in this file and in the "
                                    "ledger. This version has one login: whoever is at the keyboard records each decision, under the name "
                                    "shown. A decision is not a result."),
                 "note": ("The ledger binds each run of an advisory check to the test that was locked before it, and shows that the reviewer was "

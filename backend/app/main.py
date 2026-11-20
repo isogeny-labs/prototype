@@ -16,10 +16,14 @@ from app import auth
 from app.config import FRONTEND_DIST, Settings, load_settings
 from app.importer.common import ImportFileError
 from app.lab.hub import BadRequest, Conflict, Lab, NotFound
+from app.present.times import MarkTimes
+from app.web import assistant as assistant_routes
+from app.web import changewatch as changewatch_routes
 from app.web import changes, checks, dependencies, fixes, importing, migration, projects, session
 from app.web import lab as lab_routes
 from app.web import otto as otto_routes
 from app.web import tests as test_routes
+from app.web.turns import OneReadAtATime
 from app.web.common import error_response
 
 
@@ -39,6 +43,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.lab = lab
     # Only answer requests addressed to this computer (stops other web pages reaching the app by a trick name).
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "testserver"])
+    # The 5c fixes: a browser asks for marked times with one header, and writes each in the viewer's own time zone.
+    # Without the header every sentence keeps its UTC words (scripts, the accuracy check, downloads).
+    app.add_middleware(MarkTimes)
+    # Reads take turns, first come, first served: several views worked out side by side are much slower than one after
+    # another (app/web/turns.py). Anything that changes something does not wait.
+    app.add_middleware(OneReadAtATime)
 
     @app.exception_handler(StarletteHTTPException)
     async def _http_error(_request: Request, exc: StarletteHTTPException):
@@ -89,6 +99,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(fixes.routes(lab, require_login), dependencies=guarded)
     app.include_router(checks.routes(lab, require_login), dependencies=guarded)   # phase 5b
     app.include_router(otto_routes.routes(lab, require_login), dependencies=guarded)   # phase 5c
+    app.include_router(assistant_routes.routes(lab, require_login), dependencies=guarded)   # phase 6a: the panel's read; 6b: a typed sentence
+    app.include_router(changewatch_routes.routes(lab, require_login), dependencies=guarded)   # phase 6d: Change watch
 
     @app.api_route("/api/{rest:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
     def no_such_api(rest: str):

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   errorMessage,
@@ -18,9 +18,10 @@ import { AdvisoriesScreen } from "./components/AdvisoriesScreen";
 import { ChecksScreen } from "./components/ChecksScreen";
 import { CloseBox, NewAssessmentBox } from "./components/pages/AssessmentBoxes";
 import { ProjectOverviewPage } from "./components/pages/ProjectOverviewPage";
+import { ChangeWatchScreen } from "./components/ChangeWatchScreen";
 import { LinkProvider } from "./components/related";
 import { LoginScreen, SetupScreen } from "./components/AuthScreens";
-import { CopilotPanel } from "./components/CopilotPanel";
+import { OttoPanel } from "./components/assistant/OttoPanel";
 import { EvidenceLabScreen } from "./components/EvidenceLabScreen";
 import { FixesScreen } from "./components/FixesScreen";
 import { ImportScreen } from "./components/ImportScreen";
@@ -36,7 +37,9 @@ import { VerifyScreen } from "./components/VerifyScreen";
 import { setAlgorithmNames } from "./plainNames";
 import { applyTheme, prefs, type Theme } from "./prefs";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "./readOnly";
-import { useRoute, type Page } from "./router";
+import { HiddenPageNotesContext, ItemMissing, ItemPageContext, type ItemPage, OpenItemContext } from "./components/layout";
+import { PAGE_NAMES, itemPageHref, pageHref, useRoute, type Page } from "./router";
+import { usePanelStamp } from "./changes";
 
 const ANOTHER_FILE =
   "This assessment already has a file. Bringing in another file starts a new assessment in this project; this one stays open, as it is.";
@@ -149,11 +152,14 @@ export default function App() {
   // exactly as it was left, because everything it holds is its own.
   const routeId = route.kind === "assessment" ? route.id : null;
   const loggedIn = session?.logged_in === true;
+  // (the fix an address names stays open: a link to one fix, or its own page, opened in a new browser tab)
+  const namedFix = route.kind === "assessment" && route.page === "fixes" && route.item ? route.item : null;
   useEffect(() => {
     if (!loggedIn || routeId === null) return;
     if (assessment?.id === routeId) return;
-    setFixId(null);
+    setFixId(namedFix);
     void loadAssessment(routeId);
+    // (only another assessment starts this; the fix the address names is read at that moment)
   }, [loggedIn, routeId, assessment?.id, loadAssessment]);
 
   const projectId = route.kind === "project" ? route.id : route.kind === "assessment" && assessment?.id === route.id ? assessment.project.id : null;
@@ -172,6 +178,35 @@ export default function App() {
   // Phase 5b: a link that names a fix opens it in Fixes.
   const routeItem = route.kind === "assessment" ? (route.item ?? null) : null;
   const routePage = route.kind === "assessment" ? route.page : null;
+  // The 5c fixes: "Open in new tab" in a side panel opens that item on a page of its own (…&view=page).
+  const asItemPage = route.kind === "assessment" && route.view === "page" && Boolean(route.item);
+  const [itemRoot, setItemRoot] = useState<HTMLElement | null>(null);
+  // (above the item: what the hidden list page has to say, such as the reason a click was refused)
+  const [itemNotes, setItemNotes] = useState<HTMLElement | null>(null);
+  const itemPageId = route.kind === "assessment" ? route.id : null;
+  // (a page that never draws the item, because it has no list to look in, says so after a few seconds)
+  const [itemLate, setItemLate] = useState(false);
+  useEffect(() => {
+    setItemLate(false);
+    if (!asItemPage) return;
+    const timer = setTimeout(() => setItemLate(true), 4000);
+    return () => clearTimeout(timer);
+  }, [asItemPage, itemPageId, routePage, routeItem]);
+  const itemPage = useMemo<ItemPage | null>(
+    () =>
+      itemPageId !== null && routePage !== null
+        ? {
+            asPage: asItemPage,
+            root: asItemPage ? itemRoot : null,
+            standing: routePage !== "inventory/import",
+            backHref: (item) => pageHref(itemPageId, routePage, item ?? routeItem),
+            listHref: pageHref(itemPageId, routePage),
+            backLabel: PAGE_NAMES[routePage],
+            hrefFor: (item) => itemPageHref(itemPageId, routePage, item),
+          }
+        : null,
+    [itemPageId, routePage, routeItem, asItemPage, itemRoot],
+  );
   // The Overview repeats what every page says now (tests run, systems measured, a list added since it was loaded), so
   // it asks for the assessment again each time it opens. It only reads.
   const loadedId = assessment?.id ?? null;
@@ -211,6 +246,28 @@ export default function App() {
   useEffect(() => {
     if (routePage === "fixes" && routeItem) setFixId(routeItem);
   }, [routePage, routeItem]);
+  // Phase 6a: a decision or a start sent from the Otto panel changed the assessment: what the app itself keeps of it
+  // (its summary, the latest Verify, the test plan) is read again, and so is the sidebar's list. Each page reads its
+  // own view again by the same signal (src/changes.ts).
+  // (the item open in the page's own side panel, as the panel itself reports it: by its address or by a click on a row)
+  // Until a panel has reported on this page, the item the address names stands in (the page is still loading).
+  // A report counts only for the visit it was made on (one arrival at a page of an assessment). So on the first
+  // drawing of the next page the item that was open on the page before is already forgotten, and the Otto panel never
+  // asks about a page with another page's item (it used to, and every change of page cost a second read). Coming
+  // back to a page later is a new visit: what its panel reported last time (that it closed) does not hide the item
+  // the address names now. A panel that stays open across a change of tab (a system, on Migration) reports again
+  // under the new tab, because the function it reports with is a new one.
+  const visit = useMemo(() => ({}), [routePage, routeId]);
+  const [reported, setReported] = useState<{ visit: object; item: string | null } | null>(null);
+  const setOpenItem = useCallback((item: string | null) => setReported({ visit, item }), [visit]);
+  const openItem = reported && reported.visit === visit ? reported.item : routeItem;
+  const panelStamp = usePanelStamp();
+  useEffect(() => {
+    if (panelStamp === 0 || !loggedIn || routeId === null) return;
+    void loadAssessment(routeId);
+    void loadWorkspace();
+    // (only the panel's signal starts this read; the other values are the newest at that moment)
+  }, [panelStamp]);
 
   const importId = imp?.id ?? null;
   const reloadPlan = useCallback(async () => {
@@ -266,6 +323,7 @@ export default function App() {
     checks: withFile,
     evidence: withFile,
     fixes: withFile,
+    "change-watch": withFile,
     "migration/systems": withFile,
     "migration/roadmap": withFile,
     "migration/dependencies": withFile,
@@ -276,6 +334,30 @@ export default function App() {
   function go(next: Page, item?: string | null) {
     if (!current) return;
     navigate({ kind: "assessment", id: current.id, page: next, item: item ?? null });
+  }
+
+  // Phase 6b: the Result, Came from and Decision filters of a page's table are part of its address. A filter changed
+  // on the page goes into the address (so Back returns to what was listed before); one named by the address, by a
+  // link or by a command to Otto, is the one the page starts with.
+  const filters = {
+    result: route.kind === "assessment" ? (route.result ?? null) : null,
+    from: route.kind === "assessment" ? (route.from ?? null) : null,
+    decision: route.kind === "assessment" ? (route.decision ?? null) : null,
+  };
+  function setFilters(change: { result?: string | null; from?: string | null; decision?: string | null }) {
+    if (route.kind !== "assessment") return;
+    navigate({ ...route, ...change });
+  }
+
+  /** Where an answer of Otto's leads (phase 6b): a page, one item on it, and the filters of its table; or Settings. */
+  function goTo(where: { page: string; item: string | null; group: string | null; result: string | null; came_from: string | null; decision: string | null }) {
+    if (where.page === "settings") {
+      navigate({ kind: "settings" });
+      return;
+    }
+    if (!current) return;
+    navigate({ kind: "assessment", id: current.id, page: where.page as Page, item: where.item, group: where.group, result: where.result,
+               from: where.came_from, decision: where.decision });
   }
 
   function openAssessment(id: number, next: Page = "overview") {
@@ -532,12 +614,32 @@ export default function App() {
   } else if (page === "advisories" && plan) {
     // Phase 5c: accepting one of Otto's proposed checks puts a test in the plan (and Undo takes it out), so the app's
     // copy of the plan is read again after every decision.
-    content = <AdvisoriesScreen planId={plan.id} openItem={routeItem} onPlanChanged={() => void reloadPlan()} />;
+    content = (
+      <AdvisoriesScreen planId={plan.id} openItem={routeItem} onPlanChanged={() => void reloadPlan()} decision={filters.decision} onFilters={setFilters} />
+    );
   } else if (page === "checks" && imp) {
-    content = <ChecksScreen importId={imp.id} plan={plan} onPlan={setPlan} openItem={routeItem} group={route.kind === "assessment" ? (route.group ?? null) : null} />;
+    content = (
+      <ChecksScreen
+        importId={imp.id}
+        plan={plan}
+        onPlan={setPlan}
+        openItem={routeItem}
+        group={route.kind === "assessment" ? (route.group ?? null) : null}
+        result={filters.result}
+        from={filters.from}
+        onFilters={setFilters}
+      />
+    );
   } else if (page === "evidence" && plan) {
     content = (
-      <EvidenceLabScreen planId={plan.id} onViewFix={viewFix} openItem={routeItem} group={route.kind === "assessment" ? (route.group ?? null) : null} />
+      <EvidenceLabScreen
+        planId={plan.id}
+        onViewFix={viewFix}
+        openItem={routeItem}
+        group={route.kind === "assessment" ? (route.group ?? null) : null}
+        result={filters.result}
+        onFilters={setFilters}
+      />
     );
   } else if (page === "fixes" && plan) {
     content = (
@@ -550,6 +652,9 @@ export default function App() {
         group={route.kind === "assessment" ? (route.group ?? null) : null}
       />
     );
+  } else if (page === "change-watch" && plan) {
+    // Phase 6d: a developer's change in the connected demo repository; its picked tests run only on a click.
+    content = <ChangeWatchScreen planId={plan.id} openItem={routeItem} />;
   } else if (migrationTab && imp) {
     content = (
       <MigrationScreen
@@ -631,17 +736,50 @@ export default function App() {
               <ReadOnlyProvider readOnly={closed}>
                 {current ? (
                   <LinkProvider assessmentId={current.id} planId={plan?.id ?? null}>
-                    {content}
+                    <ItemPageContext.Provider value={itemPage}>
+                     <OpenItemContext.Provider value={setOpenItem}>
+                      {/* The 5c fixes: an item on a page of its own ("Open in new tab"). The open panel draws itself in
+                          this place, and the list it belongs to is kept, hidden, so every button works as in the panel. */}
+                      {asItemPage ? (
+                        <>
+                          <div ref={setItemNotes} data-testid="item-page-notes" className="peer/notes" />
+                          <div ref={setItemRoot} data-testid="item-page-root" className="peer/root" />
+                          {/* Shown only while nothing is drawn above: the page is still loading, or (when it has no list
+                              to look in, or stays empty) the address names nothing that is here. Not shown under a reason
+                              the page gave, such as a page that could not be loaded. */}
+                          <div className="hidden peer-empty/root:peer-empty/notes:block">
+                            {itemPage && (content === null || itemLate) ? (
+                              <ItemMissing page={itemPage} named={false} />
+                            ) : (
+                              <p role="status" className="text-sm text-slate-400">
+                                Loading…
+                              </p>
+                            )}
+                          </div>
+                        </>
+                      ) : null}
+                      <div hidden={asItemPage || undefined} data-testid="page-content">
+                        <HiddenPageNotesContext.Provider value={asItemPage ? itemNotes : undefined}>{content}</HiddenPageNotesContext.Provider>
+                      </div>
+                     </OpenItemContext.Provider>
+                    </ItemPageContext.Provider>
                   </LinkProvider>
                 ) : (
                   content
                 )}
               </ReadOnlyProvider>
-              {guided && current && page && page !== "overview" ? <GuidedBar page={page} access={access} onGo={go} /> : null}
+              {guided && current && page && page !== "overview" && !asItemPage ? <GuidedBar page={page} access={access} onGo={go} /> : null}
             </div>
           </main>
-          {/* The assistant sits beside the steps of an assessment (it is about the step on screen), not beside Projects or Settings. */}
-          {copilotShown && current ? <CopilotPanel /> : null}
+          {/* Phase 6a: the Otto assistant sits beside the pages of an assessment (it is about the page on screen), not
+              beside Projects or Settings. The top bar's toggle hides and shows it. */}
+          {copilotShown && current && page ? (
+            <ReadOnlyProvider readOnly={closed}>
+              <LinkProvider assessmentId={current.id} planId={plan?.id ?? null}>
+                <OttoPanel assessmentId={current.id} page={page} item={openItem} onGo={(next, item) => go(next, item ?? null)} onGoTo={goTo} />
+              </LinkProvider>
+            </ReadOnlyProvider>
+          ) : null}
         </div>
       </div>
       {box && box.kind !== "close" ? (

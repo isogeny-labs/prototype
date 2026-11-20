@@ -1,0 +1,12 @@
+{
+  "schema": "evidence-lab-demo-change-1",
+  "key": "revert-range-check",
+  "title": "Revert the range check",
+  "what_it_does": "Undoes the merged fix. The program it gives is, byte for byte, acme-sign 1.4.2.",
+  "branch": "dev/revert-range-check",
+  "message": "Revert the range check\n\nA partner's test signatures were refused after the last release.\nPutting the old code back until we know why.",
+  "offered": "after_merge",
+  "files": [
+    {"name": "acme_sign.py", "registered": {"name": "acme-sign", "version": "1.4.2"}}
+  ]
+}

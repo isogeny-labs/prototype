@@ -11,6 +11,10 @@ Rules the model enforces (docs/SPEC.md section 7e):
   claim for it, and its lookup reads "Not in our knowledge base yet".
 - A library whose versions can't be looked up (each product ships its own copy) carries `needs_your_environment`
   with its reason and source, and no claims.
+- Phase 6e: `declared` holds, for single released versions, what that version itself declares it needs: read from
+  the publisher's own package file (package.json, a wheel's METADATA), with the file's name and fingerprint, the
+  lines quoted and the date it was read. It says what the package file lists, nothing about what a system loads.
+  A library that is not a package with such a file carries `no_package_file` with one sentence that says so.
 """
 from __future__ import annotations
 
@@ -24,7 +28,7 @@ from app.knowledge.versions import read_version
 CAPABILITIES = ("ml_kem_768", "x25519mlkem768", "ml_dsa_65")
 Capability = Literal["ml_kem_768", "x25519mlkem768", "ml_dsa_65"]
 Role = Literal["tls", "key_exchange", "signatures"]
-SourceKind = Literal["release_notes", "changelog", "official_docs", "project_repository"]
+SourceKind = Literal["release_notes", "changelog", "official_docs", "project_repository", "package_file"]
 ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 PURL = re.compile(r"pkg:[a-z0-9.+-]+/(?:[A-Za-z0-9._~%+-]+/)*[A-Za-z0-9._~%+-]+")
 
@@ -101,6 +105,43 @@ class EnvironmentOnly(Strict):
     source: Source
 
 
+class Need(Strict):
+    """One package a version lists as needed when it runs, exactly as its package file writes it."""
+
+    name: str = Field(min_length=1, max_length=120, pattern=r"^[A-Za-z0-9@][A-Za-z0-9@._/+-]*$")
+    wants: str = Field(max_length=120, description='The version range as written, e.g. "^4.11.9". Empty when the file gives none.')
+
+    @field_validator("wants")
+    @classmethod
+    def _one_line(cls, v: str) -> str:
+        if any(ord(c) < 32 for c in v):
+            raise ValueError("a version range is one line")
+        return v
+
+
+class Declared(Strict):
+    """What one released version itself declares it needs (phase 6e), from the publisher's own package file."""
+
+    version: str = Field(description="One released version, written in full.")
+    needs: list[Need] = Field(max_length=500, description="Empty when the package file lists none.")
+    file: str = Field(min_length=3, max_length=200, description="The package file that was read, as it is named inside the package.")
+    file_sha256: str = Field(pattern=r"^[0-9a-f]{64}$", description="The SHA-256 of that file as it was read.")
+    source: Source
+    note: str | None = Field(default=None, min_length=5, max_length=300,
+                             description="What the quoted lines cannot show, e.g. that the file has no line that lists a need.")
+
+    @model_validator(mode="after")
+    def _rules(self) -> "Declared":
+        if read_version(self.version) is None:
+            raise ValueError(f"{self.version!r} is not a version the reader can read")
+        if self.source.kind != "package_file":
+            raise ValueError("what a version declares is read from its package file: the source's kind must be package_file")
+        names = [n.name.lower() for n in self.needs]
+        if len(set(names)) != len(names):
+            raise ValueError("a package is listed twice among the needs of one version")
+        return self
+
+
 class LibraryFile(Strict):
     schema_: Literal["isogeny.knowledge/1"] = Field(alias="schema")
     library: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,40}$", description="Must equal the file name without .json.")
@@ -111,6 +152,9 @@ class LibraryFile(Strict):
     claims: list[Claim] = Field(default_factory=list)
     needs_your_environment: EnvironmentOnly | None = None
     notes: str | None = Field(default=None, max_length=600)
+    declared: list[Declared] = Field(default_factory=list, max_length=200, description="Phase 6e: what single versions declare they need.")
+    no_package_file: str | None = Field(default=None, min_length=10, max_length=300,
+                                        description="Phase 6e: one sentence, for a library that has no package file that declares what it needs.")
 
     @model_validator(mode="after")
     def _rules(self) -> "LibraryFile":
@@ -128,4 +172,9 @@ class LibraryFile(Strict):
                 raise ValueError(f"two {c.answer!r} claims for {c.capability}: their ranges would overlap")
         if "tls" not in self.roles and any(c.capability == "x25519mlkem768" for c in self.claims):
             raise ValueError("a hybrid TLS claim needs the tls role")
+        if self.no_package_file is not None and self.declared:
+            raise ValueError("a library with no package file carries no declared needs")
+        versions = [d.version for d in self.declared]
+        if len(set(versions)) != len(versions):
+            raise ValueError("two entries say what the same version declares")
         return self

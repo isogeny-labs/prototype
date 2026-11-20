@@ -309,3 +309,31 @@ describe("phase 5b: a work group's heading", () => {
     expect(within(section).queryByText("The rows")).toBeNull();
   });
 });
+
+// Phase 6a: an open panel tells the app which item it shows, so the Otto panel knows the open item on every page.
+describe("the open item", () => {
+  it("is reported when a panel opens on an item, when the item changes, and when the panel closes", async () => {
+    const { OpenItemContext } = await import("../components/layout");
+    const reported: (string | null)[] = [];
+    const tell = (item: string | null) => reported.push(item);
+    function Page({ open, item }: { open: boolean; item: string | null }) {
+      return (
+        <OpenItemContext.Provider value={tell}>
+          <DetailPanel open={open} item={item} title="An item" onClose={() => undefined}>
+            <p>Details</p>
+          </DetailPanel>
+        </OpenItemContext.Provider>
+      );
+    }
+    const page = render(<Page open={false} item={null} />);
+    expect(reported).toEqual([]);                       // a closed panel reports nothing
+    page.rerender(<Page open item="test-5" />);
+    expect(reported).toEqual(["test-5"]);
+    page.rerender(<Page open item="test-6" />);
+    expect(reported).toEqual(["test-5", null, "test-6"]);
+    page.rerender(<Page open={false} item="test-6" />);
+    expect(reported.at(-1)).toBeNull();
+    page.unmount();
+    expect(reported.at(-1)).toBeNull();
+  });
+});

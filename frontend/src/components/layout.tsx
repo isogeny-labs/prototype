@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { prefs } from "../prefs";
 
 /** Phase 5a: the parts every page is built from — a page header, summary cards, a table with search and filters, and
@@ -239,9 +240,119 @@ export function DataTable<T>({
   );
 }
 
+/** The 5c fixes: an item on a page of its own ("Open in new tab"). The app shell provides this for the page on screen.
+ * With `asPage`, the open item is drawn in `root` (a place the shell keeps above the page, which it then hides): the
+ * sidebar and the top bar stay, the item's content fills the width, and every button in it works as in the panel. */
+export interface ItemPage {
+  asPage: boolean;
+  /** Where the item is drawn when it has the page to itself. */
+  root: HTMLElement | null;
+  /** Whether an item of this page carries the one line every result screen carries (all pages but Import, which
+   * shows what a file says and no result). */
+  standing: boolean;
+  /** The list this item belongs to, with its panel open: "← Back to Checks". */
+  backHref: (item: string | null) => string;
+  /** The list by itself, for an address that names an item that is not there. */
+  listHref: string;
+  backLabel: string;
+  /** The address of an item on a page of its own. */
+  hrefFor: (item: string) => string;
+}
+
+export const ItemPageContext = createContext<ItemPage | null>(null);
+
+/** On an item's own page the list it belongs to is kept, hidden, so every button works as in the panel. What that
+ * hidden page has to say (the reason a click was refused, a page that could not be loaded) would be hidden with it,
+ * so an `ErrorBox` drawn there is shown in this place above the item instead. `undefined` everywhere else, and inside
+ * the item itself: there an error box is on screen where it is drawn. `null` until the place is there. */
+export const HiddenPageNotesContext = createContext<HTMLElement | null | undefined>(undefined);
+
+/** SPEC section 11: the one line every result screen carries. An item on a page of its own is one. */
+export const STANDING_LINE = "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
+
+/** A place in every panel's header for buttons that belong to the whole app, not to one page (kept for the Otto
+ * assistant of phase 6; nothing fills it yet). It is given the open item's id. */
+export const PanelHeaderSlotContext = createContext<((item: string | null) => ReactNode) | null>(null);
+
+/** Phase 6a: every open side panel tells the app which item it shows (and that it closed), so the Otto panel knows
+ * the open item on every page, whether it was opened by its address or by a click on a row. It changes nothing. */
+export const OpenItemContext = createContext<((item: string | null) => void) | null>(null);
+
+const APP_TITLE = "Isogeny Labs";
+
+/** The item's own page: "← Back to Checks", its title as the page's heading, then the same content as the panel. The
+ * browser tab is named after the item while it shows. */
+function ItemPageView({ page, item, title, subtitle, children, testId }: { page: ItemPage; item: string | null; title: ReactNode; subtitle?: ReactNode; children: ReactNode; testId: string }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  const slot = useContext(PanelHeaderSlotContext);
+  useEffect(() => {
+    // (the item's name without a tag drawn beside it, such as an advisory's "New")
+    const copy = heading.current?.cloneNode(true) as HTMLElement | undefined;
+    copy?.querySelectorAll("[data-title-skip]").forEach((el) => el.remove());
+    const name = (copy?.textContent ?? "").trim();
+    if (name) document.title = `${name} · ${APP_TITLE}`;
+    return () => {
+      document.title = APP_TITLE;
+    };
+  });
+  return (
+    <article data-testid="item-page" data-panel={testId} aria-label="Item" className="min-w-0">
+      <p className="mb-4 text-sm">
+        <a data-testid="item-page-back" href={page.backHref(item)} className="text-sky-300 hover:underline">
+          ← Back to {page.backLabel}
+        </a>
+      </p>
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-slate-800/80 pb-4">
+        <div className="min-w-0">
+          <h1 ref={heading} className="break-words text-2xl font-semibold tracking-tight text-slate-50">
+            {title}
+          </h1>
+          {subtitle ? <div className="mt-1 text-sm text-slate-400">{subtitle}</div> : null}
+        </div>
+        {slot ? <div data-testid="panel-header-slot" className="flex shrink-0 items-center gap-1">{slot(item)}</div> : null}
+      </header>
+      <HiddenPageNotesContext.Provider value={undefined}>
+        <div className="@container">{children}</div>
+      </HiddenPageNotesContext.Provider>
+      {page.standing ? (
+        <p data-testid="item-page-standing" className="mt-6 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+          {STANDING_LINE}
+        </p>
+      ) : null}
+    </article>
+  );
+}
+
+/** The item's own page when the address names something that is not in this assessment. */
+export function ItemMissing({ page, named = true }: { page: ItemPage; /** Whether the browser tab is named "Not found" while this shows. */ named?: boolean }) {
+  useEffect(() => {
+    if (!named) return;
+    document.title = `Not found · ${APP_TITLE}`;
+    return () => {
+      document.title = APP_TITLE;
+    };
+  }, [named]);
+  return (
+    <article data-testid="item-page-missing" aria-label="Item" className="min-w-0">
+      <p className="mb-4 text-sm">
+        <a data-testid="item-page-back" href={page.listHref} className="text-sky-300 hover:underline">
+          ← Back to {page.backLabel}
+        </a>
+      </p>
+      <h1 className="text-2xl font-semibold tracking-tight text-slate-50">This item is not here</h1>
+      <p className="mt-2 text-sm text-slate-400">
+        This address names an item that is not on {page.backLabel} in this assessment. It may belong to another assessment, or the address may
+        have been cut short.
+      </p>
+    </article>
+  );
+}
+
 /**
  * The right-side detail panel: today's detail, technical text and folded evidence for one row, beside the table
  * instead of under it. Escape or the close button shuts it, and focus goes back to where it was.
+ * The 5c fixes: its header has "Open in new tab", which opens the item on a page of its own (`item` is the id that
+ * goes into that address); opened that way, the same content is drawn as that page.
  */
 export function DetailPanel({
   open,
@@ -250,6 +361,7 @@ export function DetailPanel({
   onClose,
   children,
   testId = "detail-panel",
+  item = null,
 }: {
   open: boolean;
   title: ReactNode;
@@ -257,17 +369,29 @@ export function DetailPanel({
   onClose: () => void;
   children: ReactNode;
   testId?: string;
+  /** The item's id as its page's address names it ("test-5", "claim-3", an advisory's id). */
+  item?: string | null;
 }) {
   const ref = useRef<HTMLElement>(null);
   const before = useRef<Element | null>(null);
   const headingId = useId();
   const close = useRef(onClose);
+  const itemPage = useContext(ItemPageContext);
+  const slot = useContext(PanelHeaderSlotContext);
+  const asPage = Boolean(itemPage?.asPage);
   useEffect(() => {
     close.current = onClose;
   }, [onClose]);
+  const reportOpen = useContext(OpenItemContext);
+  const openItem = open ? item : null;
+  useEffect(() => {
+    if (!reportOpen || openItem === null) return;
+    reportOpen(openItem);
+    return () => reportOpen(null);
+  }, [reportOpen, openItem]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || asPage) return;
     before.current = document.activeElement;
     ref.current?.focus({ preventScroll: true });
     function onKey(e: KeyboardEvent) {
@@ -285,10 +409,21 @@ export function DetailPanel({
       const back = before.current;
       if (back instanceof HTMLElement && document.contains(back)) back.focus();
     };
-  }, [open]);
+  }, [open, asPage]);
 
   const panel = useContext(PanelContext);
   if (!open) return null;
+  if (itemPage && asPage) {
+    // On a page of its own: drawn where the shell keeps room for it (nothing until that place is there).
+    return itemPage.root
+      ? createPortal(
+          <ItemPageView page={itemPage} item={item} title={title} subtitle={subtitle} testId={testId}>
+            {children}
+          </ItemPageView>,
+          itemPage.root,
+        )
+      : null;
+  }
   return (
     <>
       <div aria-hidden="true" onClick={onClose} className="fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-[1px] xl:hidden" />
@@ -308,7 +443,20 @@ export function DetailPanel({
             </h2>
             {subtitle ? <div className="mt-0.5 text-xs text-slate-400">{subtitle}</div> : null}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+          {/* Phase 6's own buttons go here (see PanelHeaderSlotContext). */}
+          {slot ? <span data-testid="panel-header-slot" className="flex items-center gap-1">{slot(item)}</span> : null}
+          {itemPage && item ? (
+            <a
+              data-testid="open-in-new-tab"
+              href={itemPage.hrefFor(item)}
+              target="_blank"
+              rel="noopener"
+              className="whitespace-nowrap rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+            >
+              Open in new tab <span aria-hidden="true">↗</span>
+            </a>
+          ) : null}
           {panel ? (
             <>
               <button
@@ -386,13 +534,36 @@ function PanelEdge({ panel }: { panel: PanelState }) {
 /** Table on the left, the detail panel on the right when a row is open (on a wide screen; an overlay otherwise).
  * Phase 5b: the panel has the width the person chose (remembered for every page), and the table beside it switches to
  * its compact form. */
-export function TableWithPanel({ panelOpen, table, panel }: { panelOpen: boolean; table: ReactNode; panel: ReactNode }) {
+export function TableWithPanel({
+  panelOpen,
+  table,
+  panel,
+  settled = true,
+}: {
+  panelOpen: boolean;
+  table: ReactNode;
+  panel: ReactNode;
+  /** False while the page still waits for a list it looks an item up in (Evidence reads the checks after its own
+   * results). Until then an item's own page says nothing about an item that is not open yet: it may still be found. */
+  settled?: boolean;
+}) {
   const [width, setWidthState] = useState<number>(() => clampWidth(prefs.panelWidth()));
   const setWidth = useCallback((w: number) => {
     const next = clampWidth(w);
     setWidthState(next);
     prefs.setPanelWidth(next);
   }, []);
+  const itemPage = useContext(ItemPageContext);
+  if (itemPage?.asPage) {
+    // The 5c fixes: an item on a page of its own. The list is not drawn; the open panel draws itself as that page.
+    // When the page's data is here and nothing is open, the address names an item that is not in this assessment.
+    return (
+      <>
+        {panel}
+        {!panelOpen && settled && itemPage.root ? createPortal(<ItemMissing page={itemPage} />, itemPage.root) : null}
+      </>
+    );
+  }
   return (
     <PanelContext.Provider value={{ open: panelOpen, width, setWidth }}>
       <div
@@ -473,6 +644,89 @@ export function GroupSection({
           {also ? <div data-testid="group-also" className="mt-2 px-1 text-xs text-slate-400">{also}</div> : null}
         </div>
       ) : null}
+    </section>
+  );
+}
+
+/** The 5c fixes: one labelled part of a work group (on Checks, Encryption tests has four), with its count. It folds
+ * shut and open, may carry a button of its own beside its name, and says so when it has nothing yet. */
+export function PartSection({
+  part,
+  open,
+  onToggle,
+  actions,
+  children,
+}: {
+  part: { key: string; label: string; count_label: string; note?: string | null; empty_text?: string | null };
+  open: boolean;
+  onToggle: () => void;
+  actions?: ReactNode;
+  children?: ReactNode;
+}) {
+  const headingId = useId();
+  return (
+    <section data-testid="part-section" data-part={part.key} aria-labelledby={headingId} className="mb-4 rounded-xl border border-slate-800/80 bg-slate-950/30">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2">
+        <h3 id={headingId} className="m-0 min-w-0">
+          <button type="button" aria-expanded={open} onClick={onToggle} className="flex items-center gap-2 text-left text-sm font-semibold text-slate-100">
+            <span aria-hidden="true" className="inline-block w-3 text-slate-500">
+              {open ? "▾" : "▸"}
+            </span>
+            {part.label}
+            <span data-testid="part-count" className="whitespace-nowrap rounded-full border border-slate-700 px-2 py-0.5 text-[11px] font-medium tabular-nums text-slate-300">
+              {part.count_label}
+            </span>
+          </button>
+        </h3>
+        {actions ? <div className="ml-auto flex shrink-0 items-center gap-2">{actions}</div> : null}
+      </div>
+      {open ? (
+        <div className="border-t border-slate-800/80 px-3 py-3">
+          {part.note ? (
+            <p data-testid="part-note" className="mb-3 text-xs text-slate-400">
+              {part.note}
+            </p>
+          ) : null}
+          {part.empty_text ? (
+            <p data-testid="part-empty" className="text-sm text-slate-400">
+              {part.empty_text}
+            </p>
+          ) : null}
+          {children}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/** The 5c fixes: one block inside a part: a version a retest ran on, or one proof of a change. The newest is open; an
+ * older one is folded until it is opened. */
+export function BlockSection({
+  block,
+  open,
+  onToggle,
+  children,
+}: {
+  block: { key: string; title: string; line: string };
+  open: boolean;
+  onToggle: () => void;
+  children?: ReactNode;
+}) {
+  const headingId = useId();
+  return (
+    <section data-testid="block-section" data-block={block.key} aria-labelledby={headingId} className="mb-3 last:mb-0">
+      <h4 id={headingId} className="m-0">
+        <button type="button" aria-expanded={open} onClick={onToggle} className="flex w-full flex-wrap items-baseline gap-x-2 gap-y-0.5 text-left">
+          <span aria-hidden="true" className="inline-block w-3 text-slate-500">
+            {open ? "▾" : "▸"}
+          </span>
+          <span className="break-words text-sm font-semibold text-slate-200">{block.title}</span>
+          <span data-testid="block-line" className="text-xs font-normal text-slate-400">
+            {block.line}
+          </span>
+        </button>
+      </h4>
+      {open ? <div className="mt-2">{children}</div> : null}
     </section>
   );
 }

@@ -1511,6 +1511,7 @@ def test_the_views_decide_nothing_about_a_proof():
     assert "reviewer" not in imported and "changes" not in imported  # wording only: it is handed data, it fetches none
 
 
+@pytest.mark.slow      # waits on a proof that ends at a chosen moment (a timing test)
 def test_a_proof_that_ends_while_a_view_is_put_together_is_never_shown_as_failed_or_stuck(lab):
     """The screen asks once a second while a proof runs. Whatever moment the last test finishes at, an answer
     says "Proving, ask again" or the settled result: never "Proof failed" for a proof that passed, and never
@@ -1572,6 +1573,7 @@ def says_running(view: dict) -> bool:
             or any(status["status"] in ("waiting", "running") for status in statuses))
 
 
+@pytest.mark.slow      # waits on a proof that ends at a chosen moment (a timing test)
 def test_a_proof_that_ends_while_evidence_lab_is_put_together_never_leaves_the_screen_stuck(lab):
     """Review finding 5. The screen asks again for as long as an answer is marked busy, and only then. So an
     answer that still says something is running must be marked busy, whatever moment the proof ends at: the
@@ -1632,6 +1634,7 @@ def test_a_proof_that_ends_while_evidence_lab_is_put_together_never_leaves_the_s
     assert result_of(settled, "bad_signatures")["fix_line"]["lead"] == "Fix ready:" and settled["retest"]["can_start"] is True
 
 
+@pytest.mark.slow      # waits on a proof that ends at a chosen moment (a timing test)
 def test_evidence_lab_asks_again_while_a_proof_runs_even_when_no_row_shows_its_line(lab):
     """Second review, finding 1. The test a fix is for is taken out of the plan and the proof is run again. No
     row is left to carry the fix's line, so no row says that a proof is running. The answer is marked busy all the
@@ -1655,6 +1658,7 @@ def test_evidence_lab_asks_again_while_a_proof_runs_even_when_no_row_shows_its_l
     assert problems(view, models.LabView, "lab") == [] and problems(settled, models.LabView, "lab") == []
 
 
+@pytest.mark.slow      # waits on a proof that ends at a chosen moment (a timing test)
 def test_a_result_that_ends_while_evidence_lab_is_put_together_still_gets_its_line(lab):
     """Second review, finding 3. A failed test ends just after the answer was begun. The answer shows the new
     failed result with its one line in place of the "Suggested fix" text (the lines are worked out after the

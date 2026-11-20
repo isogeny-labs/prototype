@@ -385,7 +385,7 @@ describe("Settings, Live Otto", () => {
   });
 
   it("shows the backend's reason when turning it on is refused, and leaves the switch as it was", async () => {
-    const reason = "Live Otto needs an API key on this computer, and none is set (ANTHROPIC_API_KEY). Otto goes on working with the answers recorded during the build.";
+    const reason = "Live Otto needs an API key on this computer, and none is set (ANTHROPIC_API_KEY). The answers recorded during the build go on being used.";
     await open(ottoLiveOff, { [LIVE]: refusal(409, reason) });
     fireEvent.click(toggle());
     const error = await screen.findByTestId("otto-error");
@@ -527,7 +527,8 @@ describe("Settings in the app", () => {
       render(<App />);
       await screen.findByTestId("otto-installed-line");
       expect(screen.getByTestId("settings-page")).not.toBeNull();
-      expect(scrolled.at(-1)).toBe("test-packs:drawn");
+      // (the section is brought into view just after it is drawn: on a busy machine that is a moment later)
+      await waitFor(() => expect(scrolled.at(-1)).toBe("test-packs:drawn"));
       expect(scrolled.every((s) => s.startsWith("test-packs:"))).toBe(true);
       expect(within(screen.getByRole("navigation", { name: "Workspace" })).getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe("page");
     } finally {
@@ -543,5 +544,53 @@ describe("Settings in the app", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Settings" })).not.toBeNull();
     expect(calls(fetchMock).filter((c) => c === OTTO)).toHaveLength(1);
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+});
+
+// ---- Phase 6a: the name a person types once, for the decisions they record
+
+describe("Settings, Who decides", () => {
+  const name = (typed: string | null): NonNullable<OttoSettingsView["name"]> => ({
+    title: "Who decides",
+    label: "Your name",
+    value: typed ?? "",
+    recorded_as: typed ?? "You",
+    typed: typed !== null,
+    line: `Recorded as ${typed ?? "You"}, with the time.`,
+    save: "Save",
+    note: "Decisions on proposals are recorded under this name, with the time. This app has one login and does not check who is at the keyboard. Left empty, a decision is recorded as “You”. A decision already recorded keeps the name it was made under.",
+    max: 60,
+    ask_label: "Your name (asked once; kept in Settings)",
+  });
+  const NAME = "POST /api/otto/name";
+
+  it("shows who a decision is recorded as, and Save keeps the typed name", async () => {
+    const fetchMock = mockApi({ [OTTO]: { body: { ...ottoEmpty, name: name(null) } }, [NAME]: { body: { ...ottoEmpty, name: name("Kevin Singuyen") } } });
+    render(<Settings />);
+    const section = await screen.findByTestId("your-name");
+    expect(within(section).getByRole("heading", { name: "Who decides" })).not.toBeNull();
+    expect(text(within(section).getByTestId("otto-your-name-line"))).toBe("Recorded as You, with the time.");
+    expect(text(section)).toContain("This app has one login and does not check who is at the keyboard.");
+    const field = within(section).getByLabelText("Your name") as HTMLInputElement;
+    expect(field.value).toBe("");
+    expect(field.maxLength).toBe(60);
+    expect(calls(fetchMock)).toEqual([OTTO]); // looking sends nothing
+    fireEvent.change(field, { target: { value: "Kevin Singuyen" } });
+    fireEvent.click(within(section).getByTestId("otto-your-name-save"));
+    await waitFor(() => expect(text(within(section).getByTestId("otto-your-name-line"))).toBe("Recorded as Kevin Singuyen, with the time."));
+    expect(calls(fetchMock)).toEqual([OTTO, NAME]);
+    const sent = fetchMock.mock.calls.find(([input]) => String(input) === "/api/otto/name")?.[1];
+    expect(JSON.parse(String(sent?.body))).toEqual({ name: "Kevin Singuyen" });
+    expect(within(section).getByRole("status").textContent).toBe("Saved.");
+  });
+
+  it("shows the backend's reason when a name is refused, and keeps what was typed", async () => {
+    mockApi({ [OTTO]: { body: { ...ottoEmpty, name: name(null) } }, [NAME]: refusal(422, "Keep the name to 60 characters or fewer.", "name") });
+    render(<Settings />);
+    const section = await screen.findByTestId("your-name");
+    fireEvent.change(within(section).getByLabelText("Your name"), { target: { value: "A name" } });
+    fireEvent.click(within(section).getByTestId("otto-your-name-save"));
+    expect(text(await within(section).findByTestId("otto-error"))).toContain("Keep the name to 60 characters or fewer.");
+    expect((within(section).getByLabelText("Your name") as HTMLInputElement).value).toBe("A name");
   });
 });
