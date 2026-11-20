@@ -16,7 +16,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, PYTHON, REPO, enterApp, layoutProblems, openFreshAssessment, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
+import { BACKEND, PYTHON, REPO, enterApp, layoutProblems, openFreshAssessment, openPageGroup, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
 
 const SHOTS = screenshotFolder("phase6a");
 const DEPENDENCIES_FILE = path.join(REPO, "demo/dependencies-demo.cdx.json");
@@ -317,8 +317,8 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     await step.getByTestId("otto-reason").fill(REASON);
     await confirm(page, step, /\/otto\/proposals\/[^/]+\/reject$/);
 
-    // ---- Run all, from the panel: the page's own button, behind Confirm
-    await stepLink(page, "Checks").click();
+    // ---- Run all, from the panel: the page's own button, behind Confirm (the test plan is on Checks' Crypto tests tab)
+    await openPageGroup(page, "Checks", "Crypto tests");
     await expect(page.getByTestId("test-card")).toHaveCount(6);
     const runAll = entries(page, "next:run_all");
     step = await ask(page, runAll, "Run all");
@@ -385,7 +385,8 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     // ================================================================ phase 6c: a fixed question, answered from the records
     // On Evidence the question that fits is "Why did this check fail?". Several checks failed and none is open, so it
     // asks which one, and the option asks about that one. The answer is a list of facts with links: nothing to press.
-    await page.goto(`/#/a/${assessment}/evidence`);
+    // (the results table is Evidence's Crypto tests tab)
+    await page.goto(`/#/a/${assessment}/evidence?group=encryption`);
     await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
     await settled(page);
     await expect(panel.getByTestId("otto-question").first()).toHaveText("Why did this check fail?");
@@ -498,7 +499,7 @@ test("demo mode: one piece of work through Testing, Fixing and Planning, decided
     await expect(entries(page, "suggestion:plan").getByTestId("otto-entry-badge")).toHaveText("Accepted");
 
     // ================================================================ Evidence: what each result means; the Fixing tab has opened
-    await stepLink(page, "Evidence").click();
+    await openPageGroup(page, "Evidence", "Crypto tests");
     await expect(page.getByTestId("evidence-row").first()).toBeVisible();
     const meaning = entryTitled(page, "meaning:result", RANGE_CHECK);
     await expect(meaning.getByTestId("otto-entry-mark")).toHaveText("What this means");

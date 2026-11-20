@@ -234,7 +234,10 @@ class RuleCopilot:
             return []
         return [_entry("next:open", f"next:open:{step['page']}", page=step["page"], mark=words.MARK_NEXT, title=step["label"], text=step["text"],
                        where={"label": f"On {PAGE_LABELS['overview']}", "link": _link("overview")},
-                       step=_step({"type": "open", "link": _link(step["page"])}, can=True, reason=None, confirm=None, needs="nothing"))]
+                       # (the Overview's next step to Checks is "Run the suggested tests": like the Overview's own button,
+                       # it opens Crypto tests, where the test plan is: 20 November 2026)
+                       step=_step({"type": "open", "link": _link(step["page"], group="encryption" if step["page"] == "checks" else None)},
+                                  can=True, reason=None, confirm=None, needs="nothing"))]
 
     def _next_import(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
         if facts.verified() and not asked:
@@ -258,7 +261,9 @@ class RuleCopilot:
         return [_entry("next:open", "next:open:checks", page="checks", mark=words.MARK_NEXT, title="Continue to checks",
                        text="The test plan is on Checks. Opening it runs nothing.",
                        where={"label": "On Verify", "link": _link("inventory/verify")},
-                       step=_step({"type": "open", "link": _link("checks")}, can=True, reason=None, confirm=None, needs="nothing"))]
+                       # (like the page's own Continue to checks, it opens Crypto tests, where the test plan is: 20 November 2026)
+                       step=_step({"type": "open", "link": _link("checks", group="encryption")}, can=True, reason=None, confirm=None,
+                                  needs="nothing"))]
 
     def _next_checks(self, facts: "_Facts", page: str, item: str | None, asked: bool = False) -> list[dict]:
         plan = facts.plan()

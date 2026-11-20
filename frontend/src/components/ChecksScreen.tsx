@@ -193,6 +193,7 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
     keys: groupKeys,
     group,
     item: openItem,
+    filters: `${result ?? ""}\u0000${from ?? ""}`,
     onGroup,
     pick: () => {
       if (!view) return null;
@@ -202,8 +203,10 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
         );
         if (holder) return holder.key;
       }
-      if (fromFilter !== "all" || resultFilter !== "all") {
-        const match = view.groups.find((g) => tabRows(g).some(fits));
+      // (the address's own filters: a pick happens when the address changes, before the page's filters follow it)
+      if (from || result) {
+        const named = (r: CheckRow) => (!from || r.came_from.key === from) && (!result || r.result?.label === result);
+        const match = view.groups.find((g) => tabRows(g).some(named));
         if (match) return match.key;
       }
       return (view.groups.find((g) => g.key === "encryption" || g.rows.length > 0) ?? view.groups[0])?.key ?? null;

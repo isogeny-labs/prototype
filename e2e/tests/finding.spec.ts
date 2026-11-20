@@ -76,7 +76,8 @@ test("one finding, end to end: claim, check, evidence, fix, migration track and 
   await page.goForward();
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
 
-  // ---- 2. The same claim on Checks, in Verification, with the test that checks it in Related.
+  // ---- 2. The same claim on Checks, in Verification (the tab Checks opens on: the first group with something in it),
+  // with the test that checks it in Related.
   await stepLink(page, "Checks").click();
   const verification = page.getByTestId("group-section").filter({ has: page.getByRole("heading", { name: "Verification" }) });
   await verification.getByTestId("check-row").filter({ hasText: claim }).click();
@@ -98,11 +99,11 @@ test("one finding, end to end: claim, check, evidence, fix, migration track and 
   await shots(page, "finding-04-result-on-evidence");
   await evidencePanel.getByRole("button", { name: "View in Fixes" }).click();
 
-  // ---- 4. The fix on Fixes, in Encryption tests (it came from a failed test), with the system it is about.
+  // ---- 4. The fix on Fixes, in Crypto tests (it came from a failed test; its tab opens with it), with the system it is about.
   await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
   const fixPanel = page.getByTestId("detail-panel");
   await expect(fixPanel.getByRole("heading", { level: 2, name: "Server accepts TLS 1.2" })).toBeVisible();
-  const encryption = page.getByTestId("group-section").filter({ has: page.getByRole("heading", { name: "Encryption tests" }) });
+  const encryption = page.getByTestId("group-section").filter({ has: page.getByRole("heading", { name: "Crypto tests" }) });
   await expect(encryption.getByTestId("fix-row").filter({ hasText: "Server accepts TLS 1.2" })).toHaveAttribute("aria-selected", "true");
   await expect(related(page, "test", "Old TLS versions")).toHaveCount(1);
   const toSystem = related(page, "system", copy.server);

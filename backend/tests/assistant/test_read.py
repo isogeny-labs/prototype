@@ -294,6 +294,11 @@ def test_next_steps_are_the_pages_own_buttons_and_can_be_pressed_when_the_page_c
         want = at[stage].overview["next_step"]
         assert [(e["title"], e["text"], e["step"]["action"]["link"]["page"]) for e in steps] == [(want["label"], want["text"], want["page"])]
         assert steps[0]["step"]["needs"] == "nothing" and steps[0]["step"]["confirm"] is None and steps[0]["what"] == "next:open"
+        # (20 November 2026: the step to Checks opens Crypto tests, where the test plan is, as the Overview's button does)
+        assert steps[0]["step"]["action"]["link"]["group"] == ("encryption" if want["page"] == "checks" else None)
+    # Verify's Continue to checks opens Crypto tests too, as the page's own button does
+    to_checks = [e for stage in OPEN_STAGES for e in _steps(at[stage].pages["inventory/verify"]) if e["title"] == "Continue to checks"]
+    assert to_checks and all(e["step"]["action"]["link"] == {"page": "checks", "item": None, "group": "encryption"} for e in to_checks)
 
 
 def test_the_confirm_step_of_measure_status_says_what_the_two_locked_measurements_do(assistant_walk):

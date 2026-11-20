@@ -39,6 +39,9 @@ async function goTo(target: Page, step: string): Promise<void> {
   // Phase 5a: the steps are the sidebar's pages of the open assessment.
   await stepLink(target, step).click();
   await expect(stepNav(target).locator('[aria-current="page"]'), `expected the step "${step}" to open`).toHaveText(stepName(step));
+  // (the old steps Tests and Evidence Lab are the test plan and the results: since 20 November 2026 they are the
+  // Crypto tests tab of Checks and of Evidence)
+  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step)) await openGroupTab(target, "Crypto tests");
 }
 
 /** Upload demo/real-libraries.csv on Import (the drop zone's file input) and wait for the answer. */

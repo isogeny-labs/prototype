@@ -64,16 +64,22 @@ describe("Checks, filtered from its address", () => {
    * button stands for Back (or a link) changing the address from outside the page. */
   function Harness({ result = null, from = null, onFilters }: { result?: string | null; from?: string | null; onFilters?: (f: { result?: string | null; from?: string | null }) => void }) {
     const [current, setCurrent] = useState<PlanView | null>(plan);
-    const [address, setAddress] = useState<{ result: string | null; from: string | null }>({ result, from });
+    const [address, setAddress] = useState<{ result: string | null; from: string | null; group?: string | null }>({ result, from });
     return (
       <LinkProvider assessmentId={101} planId={1}>
         <button type="button" onClick={() => setAddress({ result: null, from: "retest" })}>
           the address changes
         </button>
+        {/* (what Otto's "show me failed checks" does: the same page, with the Result filter and no group in the address) */}
+        <button type="button" onClick={() => setAddress({ result: "Failed", from: null, group: null })}>
+          failed checks are asked for
+        </button>
         <ChecksScreen
           importId={7}
           plan={current}
           onPlan={setCurrent}
+          group={address.group ?? null}
+          onGroup={(g) => setAddress((now) => ({ ...now, group: g }))}
           result={address.result}
           from={address.from}
           onFilters={(change) => {
@@ -145,6 +151,23 @@ describe("Checks, filtered from its address", () => {
     fireEvent.click(screen.getByRole("button", { name: "the address changes" })); // Back, or a link, changed the address
     await waitFor(() => expect((screen.getByRole("combobox", { name: "Came from" }) as HTMLSelectElement).value).toBe("retest"));
     expect((screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement).value).toBe("all");
+  });
+
+  it("a filter changed on the page keeps the open tab; a filter the address names from elsewhere opens the first tab with a match", async () => {
+    mockApi(routes);
+    render(<Harness />);
+    await screen.findAllByTestId("group-section");
+    const shown = () => screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"));
+    expect(shown()).toEqual(["verification"]);
+    // on the page: the tab stays, and says that nothing in it reads Failed
+    fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "Failed" } });
+    expect(shown()).toEqual(["verification"]);
+    fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "all" } });
+    expect(shown()).toEqual(["verification"]);
+    // from elsewhere (Otto's "show me failed checks", a link): the tab of the failed checks opens
+    fireEvent.click(screen.getByRole("button", { name: "failed checks are asked for" }));
+    await waitFor(() => expect(shown()).toEqual(["encryption"]));
+    expect((screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement).value).toBe("Failed");
   });
 });
 

@@ -212,6 +212,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
     keys: (checks?.groups ?? []).map((g) => g.key),
     group,
     item: openItem,
+    filters: result ?? "",
     onGroup,
     pick: () => {
       if (!checks || !lab) return null;
@@ -221,7 +222,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
         if (holder) return holder.key;
         if (checks.libraries.some((l) => l.id === openItem)) return "dependencies";
       }
-      if (statusFilter !== "all") return "encryption";
+      if (result) return "encryption"; // (the Result filter the address names)
       const filled = checks.groups.find((g) =>
         g.key === "encryption" ? lab.rows.length > 0 || g.rows.length > 0 : g.key === "dependencies" ? checks.libraries.length > 0 : g.rows.length > 0,
       );

@@ -680,22 +680,26 @@ export const groupPanelId = (idBase: string, key: string) => `${safeId(idBase)}-
 /** Which tab a page shows (20 November 2026). The tab the address names wins; without one the page picks once, when its
  * data is in (`pick`: the tab of the item the address names, else the first tab a filter in the address matches, else
  * the first group with something in it), and keeps it while the data changes. A tab chosen on the page goes into the
- * address (`onGroup`), so Back returns and a link can name it. A new item or group in the address picks again. */
+ * address (`onGroup`), so Back returns and a link can name it. A new item, group or filter in the address (`filters`:
+ * the address's filters, as one string) picks again; a filter changed on the page names the open tab with it, so the
+ * tab stays where it is. */
 export function useGroupTab({
   keys,
   group,
   item,
+  filters = "",
   pick,
   onGroup,
 }: {
   keys: string[];
   group: string | null;
   item?: string | null;
+  filters?: string;
   /** The tab to start on, or null while the page's data is not in yet. */
   pick: () => string | null;
   onGroup?: (key: string) => void;
 }): [string | null, (key: string) => void] {
-  const stamp = `${group ?? ""}\u0000${item ?? ""}`;
+  const stamp = `${group ?? ""}\u0000${item ?? ""}\u0000${filters}`;
   const [state, setState] = useState<{ local: string | null; seen: string }>({ local: null, seen: stamp });
   let local = state.local;
   if (state.seen !== stamp) {

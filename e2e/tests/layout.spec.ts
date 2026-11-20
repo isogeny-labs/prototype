@@ -2,26 +2,36 @@
 // the page never scrolls sideways, no table scrolls sideways, and no name in a table is broken between letters (a name
 // may break only at a space or a dot, dash or slash). It also takes the phase 5b screenshots of every changed page, dark
 // and light, with and without the panel, into docs/screenshots/phase5b/.
+// Since 20 November 2026 Checks, Evidence and Fixes show the four work groups as tabs, one group's table at a time: every
+// tab of the three pages is measured the same way, its panel closed and open (where the tab has a row to open), and its
+// pictures, dark and light, go to docs/screenshots/group-tabs/.
 // It runs on a copy of the app of its own (own data folder and ports), so the main app is never touched.
 // Main-screen buttons only.
 import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { REPO, enterApp, layoutProblems, openFreshAssessment, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
+import { REPO, enterApp, layoutProblems, openFreshAssessment, openGroupTab, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
 
 const SHOTS = screenshotFolder("phase5b");
+const TAB_SHOTS = screenshotFolder("group-tabs");
+const GROUPS = [
+  { key: "verification", label: "Verification" },
+  { key: "encryption", label: "Crypto tests" },
+  { key: "migration", label: "Migration" },
+  { key: "dependencies", label: "Dependencies" },
+] as const;
 const LIST = path.join(REPO, "demo/dependencies-demo.cdx.json");
 let copy: Copy | null = null;
 let page: Page;
 
-async function shots(name: string): Promise<void> {
-  fs.mkdirSync(SHOTS, { recursive: true });
+async function shots(name: string, folder = SHOTS): Promise<void> {
+  fs.mkdirSync(folder, { recursive: true });
   await page.evaluate(() => window.scrollTo(0, 0));
   for (const theme of ["dark", "light"] as const) {
     await page.evaluate((t) => {
       document.documentElement.dataset.theme = t;
     }, theme);
-    await page.screenshot({ path: path.join(SHOTS, `${name}-${theme}.png`), fullPage: true, animations: "disabled" });
+    await page.screenshot({ path: path.join(folder, `${name}-${theme}.png`), fullPage: true, animations: "disabled" });
   }
   await page.evaluate(() => {
     document.documentElement.dataset.theme = "dark";
@@ -29,14 +39,14 @@ async function shots(name: string): Promise<void> {
 }
 
 /** Measures the page with its panel closed, then opens a row's panel and measures again; takes both screenshots. */
-async function measure(name: string, open?: () => Promise<void>): Promise<void> {
+async function measure(name: string, open?: () => Promise<void>, folder = SHOTS): Promise<void> {
   const panel = page.getByTestId("detail-panel").or(page.getByTestId("claim-panel"));
   if ((await panel.count()) > 0) {
     await panel.first().getByRole("button", { name: "Close details" }).click();
     await expect(panel).toHaveCount(0);
   }
   expect(await layoutProblems(page), `${name}, panel closed`).toEqual([]);
-  await shots(`${name}-panel-closed`);
+  await shots(`${name}-panel-closed`, folder);
   if (!open) return;
   await open();
   await expect(panel.first()).toBeVisible();
@@ -47,7 +57,25 @@ async function measure(name: string, open?: () => Promise<void>): Promise<void> 
   // The table (or the Roadmap's plan) beside the panel is in its compact form.
   await expect(page.locator('main [data-compact="true"]').first()).toBeVisible();
   expect(await layoutProblems(page), `${name}, panel open`).toEqual([]);
-  await shots(`${name}-panel-open`);
+  await shots(`${name}-panel-open`, folder);
+}
+
+/** Every tab of Checks, Evidence or Fixes, one after another: the tab's own table, measured with its panel closed and,
+ * where the tab lists a row, open on its first row. Returns how many rows each tab listed. */
+async function measureTabs(prefix: string, rowIds: string[]): Promise<Record<string, number>> {
+  const listed: Record<string, number> = {};
+  for (const [i, g] of GROUPS.entries()) {
+    await openGroupTab(page, g.label);
+    const shown = page.getByRole("tabpanel", { name: g.label });
+    await expect(shown).toHaveAttribute("data-group", g.key);
+    // one group's table at a time
+    await expect(page.getByTestId("group-section")).toHaveCount(1);
+    await page.waitForLoadState("networkidle");
+    const rows = shown.locator(rowIds.map((id) => `[data-testid="${id}"]`).join(", "));
+    listed[g.key] = await rows.count();
+    await measure(`${prefix}-${i + 1}-${g.key}`, listed[g.key] > 0 ? () => rows.first().click() : undefined, TAB_SHOTS);
+  }
+  return listed;
 }
 
 test.describe.configure({ mode: "serial", timeout: 900_000 });
@@ -84,22 +112,34 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   await page.getByLabel("Choose a dependency list").setInputFiles(LIST);
   await expect(page.getByTestId("dependency-row").first()).toBeVisible({ timeout: 30_000 });
 
-  // ---- Checks
+  // ---- Checks: each of its four tabs. It opens on the first group with something in it (claims were verified).
   await stepLink(page, "Checks").click();
-  await expect(page.getByTestId("group-section")).toHaveCount(4);
-  await measure("06-checks", () => page.getByTestId("check-row").first().click());
+  await expect(page.getByRole("tab", { name: "Verification", exact: true })).toHaveAttribute("aria-selected", "true");
+  const checks = await measureTabs("checks", ["check-row"]);
+  expect(checks.verification).toBe(3);
+  // (Crypto tests: the test plan's cards; its first runs show there, and no retest has run yet)
+  await openGroupTab(page, "Crypto tests");
+  await expect(page.getByRole("tabpanel", { name: "Crypto tests" }).getByTestId("test-card")).toHaveCount(5);
+  expect(checks.migration).toBeGreaterThan(0);
 
-  // ---- Evidence: a result, a claim's check, a library
+  // ---- Evidence: each tab (a claim's check, the results, a system's measurement, a library)
   await stepLink(page, "Evidence").click();
-  await expect(page.getByTestId("evidence-row")).toHaveCount(5);
-  await measure("07-evidence", () => page.getByTestId("evidence-row").first().click());
-  await measure("07-evidence-claim", () => page.getByTestId("check-row").first().click());
-  await measure("07-evidence-library", () => page.getByTestId("library-row").first().click());
+  await expect(page.getByRole("tab", { name: "Verification", exact: true })).toHaveAttribute("aria-selected", "true");
+  const evidence = await measureTabs("evidence", ["check-row", "evidence-row", "library-row"]);
+  expect(evidence).toMatchObject({ verification: 3, encryption: 5 });
+  expect(evidence.dependencies).toBeGreaterThan(0);
 
-  // ---- Fixes
+  // ---- Fixes: each tab. It opens on the first group with a fix (Verification has none of its own).
   await stepLink(page, "Fixes").click();
-  await expect(page.getByTestId("fix-row").first()).toBeVisible();
-  await measure("08-fixes", () => page.getByTestId("fix-row").first().click());
+  await expect(page.getByRole("tab", { name: "Crypto tests", exact: true })).toHaveAttribute("aria-selected", "true");
+  const fixes = await measureTabs("fixes", ["fix-row", "fix-apart-row"]);
+  expect(fixes.verification).toBe(0);
+  expect(fixes.encryption).toBeGreaterThan(0);
+  // A search says on each tab how many fixes match, and the tab strip still fits.
+  await page.getByRole("searchbox", { name: "Search fixes" }).fill("TLS");
+  await expect(page.getByTestId("group-tab-matches")).toHaveCount(4);
+  expect(await layoutProblems(page), "fixes, a search on").toEqual([]);
+  await page.getByRole("searchbox", { name: "Search fixes" }).fill("");
 
   // ---- Migration: Systems, Roadmap, Dependencies
   await stepLink(page, "Systems").click();
@@ -117,7 +157,7 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   await expect(page.getByTestId("overview-groups")).toBeVisible();
   // The Overview repeats what the pages say now: every test has run, the systems are measured, the list is in.
   const group = (name: string) => page.getByTestId("overview-group").filter({ has: page.getByRole("heading", { name }) });
-  await expect(group("Encryption tests")).toContainText("Checks: Open 0");
+  await expect(group("Crypto tests")).toContainText("Checks: Open 0");
   await expect(group("Migration")).not.toContainText("Nothing measured yet.");
   await expect(group("Dependencies").getByTestId("overview-fact").first()).toContainText("Libraries");
   await expect(page.getByTestId("brought-in")).toContainText("3 claims, 1 server named");

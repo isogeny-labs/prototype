@@ -764,7 +764,7 @@ the checks and tests decided.
   a link back to where it was started), the newest result in its home page's words, when it last ran, how many runs,
   and every run (`history`, newest first, each with its run record's SHA-256; a Verify run has no locked test, so no
   fingerprint). Hidden plan items (`HIDDEN_ORIGINS`) stay hidden.
-- **The four work groups** (`ledger/groups.py`): Verification, Encryption tests, Migration, Dependencies, in that order
+- **The four work groups** (`ledger/groups.py`): Verification, Crypto tests, Migration, Dependencies, in that order
   everywhere. An item sits in the group of the work it came from; one that relates to another group is named in that
   group's foot line ("Also relates to this group"), never shown or counted twice. Each group counts Open, In progress
   and Done; a fix's status word is sorted by `FIX_STATE_BY_WORD` (an unknown word counts as open). An empty group says
