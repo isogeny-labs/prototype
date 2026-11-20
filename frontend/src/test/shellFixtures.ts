@@ -107,8 +107,8 @@ export const OVERVIEW_BLOCKS: OverviewBlocks = {
     },
     {
       key: "encryption",
-      label: "Encryption tests",
-      question: "Is the encryption built right?",
+      label: "Crypto tests",
+      question: "Is the cryptography built right?",
       checks: { open: 0, in_progress: 0, done: 5 },
       fixes: { open: 1, in_progress: 1, done: 0 },
       facts: [

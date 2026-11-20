@@ -37,7 +37,7 @@ import { VerifyScreen } from "./components/VerifyScreen";
 import { setAlgorithmNames } from "./plainNames";
 import { applyTheme, prefs, type Theme } from "./prefs";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "./readOnly";
-import { HiddenPageNotesContext, ItemMissing, ItemPageContext, type ItemPage, OpenItemContext } from "./components/layout";
+import { type GroupNav, HiddenPageNotesContext, ItemMissing, ItemPageContext, type ItemPage, OpenItemContext } from "./components/layout";
 import { PAGE_NAMES, itemPageHref, pageHref, useRoute, type Page } from "./router";
 import { usePanelStamp } from "./changes";
 
@@ -61,6 +61,8 @@ export default function App() {
   const [plan, setPlan] = useState<PlanView | null>(null);
   // The fix that is open in Fixes. "View in Fixes" in Evidence or Migration sets it.
   const [fixId, setFixId] = useState<string | null>(null);
+  // 20 November 2026: the tab Checks, Evidence or Fixes shows, and its groups, for the sidebar (the page says them).
+  const [groupNav, setGroupNav] = useState<{ page: Page; nav: GroupNav } | null>(null);
   const [theme, setTheme] = useState<Theme>(prefs.theme);
   const [collapsed, setCollapsed] = useState(prefs.sidebarCollapsed);
   const [copilotShown, setCopilotShown] = useState(prefs.copilotShown);
@@ -331,9 +333,9 @@ export default function App() {
   // A page whose data is not there (yet) falls back to Import, as the step bar did.
   const page: Page | null = current && route.kind === "assessment" ? (access[route.page].open ? route.page : "inventory/import") : null;
 
-  function go(next: Page, item?: string | null) {
+  function go(next: Page, item?: string | null, group?: string | null) {
     if (!current) return;
-    navigate({ kind: "assessment", id: current.id, page: next, item: item ?? null });
+    navigate({ kind: "assessment", id: current.id, page: next, item: item ?? null, group: group ?? null });
   }
 
   // Phase 6b: the Result, Came from and Decision filters of a page's table are part of its address. A filter changed
@@ -344,10 +346,17 @@ export default function App() {
     from: route.kind === "assessment" ? (route.from ?? null) : null,
     decision: route.kind === "assessment" ? (route.decision ?? null) : null,
   };
-  function setFilters(change: { result?: string | null; from?: string | null; decision?: string | null }) {
+  function setFilters(change: { result?: string | null; from?: string | null; decision?: string | null; group?: string | null }) {
     if (route.kind !== "assessment") return;
     navigate({ ...route, ...change });
   }
+  // 20 November 2026: a tab chosen on Checks, Evidence or Fixes goes into the address, so Back returns to the tab before
+  // and the sidebar's link names it. The item the address named belonged to the tab before, so it goes.
+  function setGroup(group: string) {
+    if (route.kind !== "assessment") return;
+    navigate({ ...route, group, item: null, view: null });
+  }
+  const showGroups = (shownOn: Page) => (nav: GroupNav) => setGroupNav({ page: shownOn, nav });
 
   /** Where an answer of Otto's leads (phase 6b): a page, one item on it, and the filters of its table; or Settings. */
   function goTo(where: { page: string; item: string | null; group: string | null; result: string | null; came_from: string | null; decision: string | null }) {
@@ -503,6 +512,7 @@ export default function App() {
         pickProject(p);
       }}
       onNavigate={() => setMenuOpen(false)}
+      groups={page !== null && groupNav?.page === page ? groupNav.nav : null}
       projectId={projectId}
       assessments={projectView?.id === projectId ? projectView.assessments : []}
       onNewAssessment={() => {
@@ -573,7 +583,9 @@ export default function App() {
           prefs.setGuidedDemo(on);
           setGuided(on);
         }}
-        onGo={go}
+        // (the next step that opens Checks is "Run the suggested tests": like Continue to checks, it opens Crypto tests,
+        // where the test plan is)
+        onGo={(next) => go(next, null, next === "checks" ? "encryption" : null)}
         onOpenAssessment={(id) => {
           void loadWorkspace();
           openAssessment(id);
@@ -610,7 +622,8 @@ export default function App() {
       />
     );
   } else if (page === "inventory/verify" && imp) {
-    content = <VerifyScreen imp={imp} run={run} onContinue={() => go("checks")} openItem={routeItem} />;
+    // (Continue to checks opens Crypto tests, where the test plan and Run all are: Kevin's decision of 20 November 2026)
+    content = <VerifyScreen imp={imp} run={run} onContinue={() => go("checks", null, "encryption")} openItem={routeItem} />;
   } else if (page === "advisories" && plan) {
     // Phase 5c: accepting one of Otto's proposed checks puts a test in the plan (and Undo takes it out), so the app's
     // copy of the plan is read again after every decision.
@@ -628,6 +641,8 @@ export default function App() {
         result={filters.result}
         from={filters.from}
         onFilters={setFilters}
+        onGroup={setGroup}
+        onGroupShown={showGroups("checks")}
       />
     );
   } else if (page === "evidence" && plan) {
@@ -639,6 +654,8 @@ export default function App() {
         group={route.kind === "assessment" ? (route.group ?? null) : null}
         result={filters.result}
         onFilters={setFilters}
+        onGroup={setGroup}
+        onGroupShown={showGroups("evidence")}
       />
     );
   } else if (page === "fixes" && plan) {
@@ -650,6 +667,8 @@ export default function App() {
         onRetestStarted={(item) => go("evidence", item ?? null)}
         onPlanChanged={() => void reloadPlan()}
         group={route.kind === "assessment" ? (route.group ?? null) : null}
+        onGroup={setGroup}
+        onGroupShown={showGroups("fixes")}
       />
     );
   } else if (page === "change-watch" && plan) {

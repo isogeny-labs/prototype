@@ -85,7 +85,8 @@ describe("Checks, an advisory check that came from Otto", () => {
     const [current, setCurrent] = useState<PlanView | null>(plan);
     return (
       <LinkProvider assessmentId={101} planId={1}>
-        <ChecksScreen importId={7} plan={current} onPlan={setCurrent} openItem={item} />
+        {/* (a retest's rows are on the Crypto tests tab; a link that names a check opens the tab it sits in) */}
+        <ChecksScreen importId={7} plan={current} onPlan={setCurrent} openItem={item} group={item ? null : "encryption"} />
       </LinkProvider>
     );
   }

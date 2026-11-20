@@ -2,7 +2,9 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssessmentView, OttoWaiting } from "../api";
 import App from "../App";
-import { calls, mockApi, plan, session, text } from "./fixtures";
+import { calls, lab, mockApi, plan, session, text } from "./fixtures";
+import { checksView } from "./checksFixtures";
+import { fixesViews } from "./fixesFixtures";
 import { ONE_LOGIN_LINE, OVERVIEW_BLOCKS, acmeRoutes, assessmentView, closedAssessment, emptyAssessment, emptyWorkspace, openAssessment } from "./shellFixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
@@ -148,13 +150,42 @@ describe("Overview blocks", () => {
   });
 });
 
+describe("Overview links into a work group (20 November 2026: the groups are tabs)", () => {
+  it("a group's Checks and Fixes counts open that group's tab, and the sidebar marks it", async () => {
+    await show({ "GET /api/plans/1/checks": { body: checksView }, "GET /api/plans/1/lab": { body: lab }, "GET /api/plans/1/fixes": { body: fixesViews.ready } });
+    // Migration's checks: Checks opens on Migration, not on the first group with something in it
+    fireEvent.click(within(group("migration")).getByRole("link", { name: /^Checks:/ }));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?group=migration"));
+    expect((await screen.findByRole("tab", { name: "Migration" })).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual(["migration"]);
+    await waitFor(() =>
+      expect(within(screen.getByTestId("sidebar-groups")).getByRole("link", { name: "Migration on Checks" }).getAttribute("aria-current")).toBe("true"),
+    );
+    // Crypto tests' fixes: Fixes opens on Crypto tests, with its fixes
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Overview" }));
+    await screen.findByTestId("overview-page");
+    fireEvent.click(within(group("encryption")).getByRole("link", { name: /^Fixes:/ }));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/fixes?group=encryption"));
+    expect((await screen.findByRole("tab", { name: "Crypto tests" })).getAttribute("aria-selected")).toBe("true");
+    expect(await screen.findAllByTestId("fix-row")).toHaveLength(2);
+    // the open findings' "Failed tests" opens Evidence on Crypto tests, where the results table is
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Overview" }));
+    await screen.findByTestId("overview-page");
+    const failed = within(screen.getByTestId("open-findings")).getAllByTestId("finding-count").find((a) => a.getAttribute("href") === "#/a/101/evidence?group=encryption")!;
+    fireEvent.click(failed);
+    expect((await screen.findByRole("tab", { name: "Crypto tests" })).getAttribute("aria-selected")).toBe("true");
+    expect(await screen.findAllByTestId("evidence-row")).toHaveLength(lab.rows.length);
+  });
+});
+
 describe("Overview next step", () => {
   it("shows the next step and its button goes to that page", async () => {
     await show();
     const next = screen.getByTestId("next-step");
     expect(text(next)).toContain("Run the suggested tests");
     fireEvent.click(within(next).getByRole("button", { name: "Open checks" }));
-    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks"));
+    // (it opens Crypto tests, where the test plan is, as Continue to checks does)
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?group=encryption"));
   });
 
   it("goes to Import when the next step is the import", async () => {

@@ -18,7 +18,7 @@ PAGE_FOR = {
     "inventory/verify": "Verify checks each claim from the file against the real system and says True, False or Couldn't check, with the evidence.",
     "advisories": ("Advisories lists every published advisory in the installed test packs. Where one has a test that fits a signing program "
                    "of this assessment, its check is proposed: you accept or reject it."),
-    "checks": "Checks lists every check in this assessment, wherever it was started. The test plan is under Encryption tests.",
+    "checks": "Checks lists every check in this assessment, wherever it was started. The test plan is under Crypto tests.",
     "evidence": "Evidence holds every result: what was run, what came back, what it shows and what it doesn't. The signed evidence file is downloaded here.",
     "fixes": ("Fixes lists the fixes for the findings in Evidence, and what the migration plan needs done. A code change is ready for review "
               "only after its proof has passed."),

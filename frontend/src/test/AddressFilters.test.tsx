@@ -117,7 +117,11 @@ describe("Checks, filtered from its address", () => {
     const control = screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement;
     expect(control.value).toBe("Couldn't check"); // the filter that is on, not "All results"
     expect(Array.from(control.options).map((o) => o.value)).toContain("Couldn't check");
-    // no card of the plan is listed, and the part says so; + Add test and Run all are still there
+    // 20 November 2026: a filter in the address opens the first tab with a match: Verify's claim that it couldn't check
+    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual(["verification"]);
+    expect(screen.getAllByTestId("check-row").map((r) => r.getAttribute("data-check"))).toEqual(["claim-3"]);
+    // on Crypto tests no card of the plan is listed, and the part says so; + Add test and Run all are still there
+    fireEvent.click(screen.getByRole("tab", { name: "Crypto tests" }));
     const line = await screen.findByTestId("plan-narrowed");
     expect(line.textContent).toBe(`No test of the plan reads Couldn't check now. Run all runs all ${plan.tests.length}.`);
     expect(screen.queryAllByTestId("test-card")).toHaveLength(0);
@@ -130,12 +134,13 @@ describe("Checks, filtered from its address", () => {
     const onFilters = vi.fn();
     render(<Harness onFilters={onFilters} />);
     await screen.findAllByTestId("group-section");
+    // (a filter changed here also names the open tab, so the tab stays where it is)
     fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "Failed" } });
-    expect(onFilters).toHaveBeenLastCalledWith({ result: "Failed" });
+    expect(onFilters).toHaveBeenLastCalledWith({ result: "Failed", group: "verification" });
     fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value: "retest" } });
-    expect(onFilters).toHaveBeenLastCalledWith({ from: "retest" });
+    expect(onFilters).toHaveBeenLastCalledWith({ from: "retest", group: "verification" });
     fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value: "all" } });
-    expect(onFilters).toHaveBeenLastCalledWith({ from: null });
+    expect(onFilters).toHaveBeenLastCalledWith({ from: null, group: "verification" });
     expect((screen.getByRole("combobox", { name: "Result" }) as HTMLSelectElement).value).toBe("Failed");
     fireEvent.click(screen.getByRole("button", { name: "the address changes" })); // Back, or a link, changed the address
     await waitFor(() => expect((screen.getByRole("combobox", { name: "Came from" }) as HTMLSelectElement).value).toBe("retest"));
@@ -161,10 +166,13 @@ describe("the app, with a filter in the address", () => {
     render(<App />);
     const result = (await screen.findByRole("combobox", { name: "Result" })) as HTMLSelectElement;
     await waitFor(() => expect(result.value).toBe("Passed"));
+    // the first tab with a passed check is Crypto tests; a filter changed there keeps that tab in the address
+    expect((await screen.findByRole("tab", { name: "Crypto tests" })).getAttribute("aria-selected")).toBe("true");
     fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value: "retest" } });
-    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?result=Passed&from=retest"));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?group=encryption&result=Passed&from=retest"));
     fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "all" } });
-    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?from=retest"));
+    await waitFor(() => expect(window.location.hash).toBe("#/a/101/checks?group=encryption&from=retest"));
+    expect(screen.getByRole("tab", { name: "Crypto tests" }).getAttribute("aria-selected")).toBe("true");
     // the sidebar's link to the page is the page itself, with no filter
     expect(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Checks" }).getAttribute("href")).toBe("#/a/101/checks");
   });

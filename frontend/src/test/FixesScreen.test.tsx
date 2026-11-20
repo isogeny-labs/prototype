@@ -35,9 +35,9 @@ beforeEach(() => {
 });
 
 /** Holds the selected fix, as the app does. */
-function Harness({ start }: { start: string | null }) {
+function Harness({ start, group = null }: { start: string | null; group?: string | null }) {
   const [selected, setSelected] = useState(start);
-  return <FixesScreen planId={1} selectedId={selected} onSelect={setSelected} onRetestStarted={() => (handedOver += 1)} />;
+  return <FixesScreen planId={1} selectedId={selected} onSelect={setSelected} onRetestStarted={() => (handedOver += 1)} group={group} />;
 }
 
 async function open(view: FixesView, routes: Routes = {}, start: string | null = null) {
@@ -65,7 +65,13 @@ const listItems = () =>
   within(screen.getByRole("navigation", { name: /^Open findings with a fix/ }))
     .getAllByTestId("fix-row")
     .map((row) => within(row).getAllByRole("button")[0]!);
-const groupSection = (label: string) => screen.getByRole("region", { name: new RegExp(`^${label}`) });
+// 20 November 2026: the groups are tabs, one group's table at a time. A group's section is looked at on its own tab.
+const groupSection = (label: string) => {
+  const tab = screen.getByRole("tab", { name: label });
+  if (tab.getAttribute("aria-selected") !== "true") fireEvent.click(tab);
+  return screen.getByRole("tabpanel", { name: new RegExp(`^${label}`) });
+};
+const shownGroups = () => screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"));
 const rows = () => screen.getAllByTestId("fix-row");
 const selectedTitles = () => listItems().filter((b) => b.getAttribute("aria-current") === "true").map((b) => b.textContent);
 const sections = () => screen.queryAllByTestId("fix-section");
@@ -93,14 +99,9 @@ describe("Fixes, the page", () => {
       ["Server accepts TLS 1.2", "Text only"],
     ]);
     expect(listItems().map((b) => b.getAttribute("aria-current"))).toEqual(["true", null]);
-    // Both came from failed tests, so both sit in Encryption tests; the other groups say why they are empty.
-    expect(within(groupSection("Encryption tests")).getAllByTestId("fix-row")).toHaveLength(2);
-    expect(within(groupSection("Verification")).queryAllByTestId("fix-row")).toHaveLength(0);
-    expect(groupSection("Verification").textContent).toContain(
-      "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Encryption tests.",
-    );
-    expect(groupSection("Migration").textContent).toContain("No system's plan needs a change yet.");
-    expect(groupSection("Dependencies").textContent).toContain("No library blocks a track.");
+    // Both came from failed tests, so both sit in Crypto tests, the tab the page opens on (Verification has none).
+    expect(shownGroups()).toEqual(["encryption"]);
+    expect(within(groupSection("Crypto tests")).getAllByTestId("fix-row")).toHaveLength(2);
     expect(screen.getByTestId("detail-panel")).not.toBeNull();
 
     expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
@@ -115,6 +116,13 @@ describe("Fixes, the page", () => {
       "From a fix template",
       "Demo data",
     ]);
+    // The other groups, each on its tab, say why they are empty.
+    expect(within(groupSection("Verification")).queryAllByTestId("fix-row")).toHaveLength(0);
+    expect(groupSection("Verification").textContent).toContain(
+      "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Crypto tests.",
+    );
+    expect(groupSection("Migration").textContent).toContain("No system's plan needs a change yet.");
+    expect(groupSection("Dependencies").textContent).toContain("No library blocks a track.");
   });
 
   it("uses the word 'secure' exactly once, and has no score, no upload and nothing to type into", async () => {
@@ -124,9 +132,8 @@ describe("Fixes, the page", () => {
     expect(all.match(/secure/gi)).toHaveLength(1);
     expect(all).not.toMatch(/score|time.to.hack|upload|mockup/i);
     expect(document.querySelector('input:not([type="checkbox"]):not([type="search"]), textarea, form')).toBeNull();
-    // The only choice lists are the group and status filters of the table.
+    // The only choice list is the status filter of the table (the groups are tabs).
     expect(Array.from(document.querySelectorAll("select")).map((s) => s.closest("label")?.textContent?.match(/^(Group|Status)/)?.[0])).toEqual([
-      "Group",
       "Status",
     ]);
   });
@@ -160,10 +167,13 @@ describe("Fixes, the page", () => {
   it("shows one plain sentence, and no list or buttons, when no failed test has a fix", async () => {
     mockApi({ [`GET ${FIXES}`]: { body: noFixes } });
     render(<Harness start={null} />);
-    // Every group stays, and each says why it is empty; there is no fix to open and nothing to act on.
+    // Every group stays as its tab, and each says why it is empty; there is no fix to open and nothing to act on.
     await screen.findByTestId("fix-list");
-    expect(screen.getAllByTestId("group-empty").map((p) => p.textContent)).toEqual([
-      "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Encryption tests.",
+    expect(shownGroups()).toEqual(["verification"]); // nothing anywhere: the first tab
+    expect(
+      ["Verification", "Crypto tests", "Migration", "Dependencies"].map((label) => within(groupSection(label)).getByTestId("group-empty").textContent),
+    ).toEqual([
+      "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Crypto tests.",
       "No failed test has a fix.",
       "No system's plan needs a change yet.",
       "No library blocks a track.",
@@ -171,13 +181,9 @@ describe("Fixes, the page", () => {
     expect(screen.getByTestId("disclaimer").textContent).toBe(DISCLAIMER);
     expect(screen.queryAllByTestId("fix-row")).toHaveLength(0);
     expect(screen.queryByTestId("fix-summary")).toBeNull();
-    // The only buttons are the four group headings, which fold their group.
-    expect(screen.queryAllByRole("button").map((b) => b.textContent?.replace(/^[▾▸]/, ""))).toEqual([
-      "Verification",
-      "Encryption tests",
-      "Migration",
-      "Dependencies",
-    ]);
+    // Nothing to press but the four tabs.
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
   });
 
   it("says so when the fixes can't be loaded", async () => {
@@ -987,15 +993,12 @@ describe("Fixes, a text-only suggestion", () => {
     expect(summaryButtons()).toHaveLength(0);
     expect(inSummary().queryByTestId("fix-actions")).toBeNull();
     expect(screen.queryByRole("checkbox")).toBeNull();
-    // The only buttons left are the four group folds, the two findings, the fold of the suggestion and the panel's
-    // close button (and its width handle).
+    // The only buttons left are the two findings, the fold of the suggestion and the panel's close button (and its
+    // width handle); the groups are tabs.
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
     expect(screen.getAllByRole("button").map((b) => b.textContent?.replace(/^[▾▸]/, ""))).toEqual([
-      "Verification",
-      "Encryption tests",
       "acme-sign accepts out-of-range signatures",
       "Server accepts TLS 1.2",
-      "Migration",
-      "Dependencies",
       "Wider",
       "Narrower",
       "×",
@@ -1198,38 +1201,56 @@ describe("Fixes, while something runs", () => {
 });
 
 describe("Fixes, the four work groups", () => {
-  it("shows each group with its three counts, folds a group from its heading, and filters to one group", async () => {
+  it("shows each group as a tab with its three counts and its question, one at a time, opening on the first with a fix", async () => {
     mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
     render(<Harness start={null} />);
     await screen.findAllByTestId("fix-row");
-    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual([
-      "verification",
-      "encryption",
-      "migration",
-      "dependencies",
-    ]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
+    expect(shownGroups()).toEqual(["encryption"]);
     // The counts are the backend's, word for word: the code fix is in review, the text-only one is open.
-    expect(within(groupSection("Encryption tests")).getByTestId("group-counts").textContent).toBe("Open 1 · In progress 1 · Done 0");
+    expect(within(groupSection("Crypto tests")).getByTestId("group-counts").textContent).toBe("Open 1 · In progress 1 · Done 0");
+    expect(within(groupSection("Crypto tests")).getByTestId("group-question").textContent).toBe("Is the cryptography built right?");
+    expect(screen.queryByRole("combobox", { name: "Group" })).toBeNull();
+    // Another tab: one group only, and the fix that was open belongs to the tab before, so its panel closes.
     expect(within(groupSection("Migration")).getByTestId("group-counts").textContent).toBe("Open 0 · In progress 0 · Done 0");
-
-    // The heading folds its rows and opens them again.
-    const heading = within(groupSection("Encryption tests")).getByRole("button", { name: "Encryption tests" });
-    fireEvent.click(heading);
-    expect(heading.getAttribute("aria-expanded")).toBe("false");
+    expect(shownGroups()).toEqual(["migration"]);
     expect(screen.queryAllByTestId("fix-row")).toHaveLength(0);
-    fireEvent.click(heading);
+    expect(screen.queryByTestId("fix-summary")).toBeNull();
+    // Back on Crypto tests: the page opens on that tab's first fix, as it opens on the first fix.
+    groupSection("Crypto tests");
     expect(rows()).toHaveLength(2);
+    expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
+  });
 
-    // The group filter shows one group only; the others are not drawn.
-    fireEvent.change(screen.getByRole("combobox", { name: "Group" }), { target: { value: "migration" } });
-    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual(["migration"]);
-    fireEvent.change(screen.getByRole("combobox", { name: "Group" }), { target: { value: "all" } });
-    expect(screen.getAllByTestId("group-section")).toHaveLength(4);
+  it("opens the tab the address names, and the tab of the fix it names", async () => {
+    mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
+    const { unmount } = render(<Harness start={null} group="dependencies" />);
+    await screen.findByTestId("fix-list");
+    expect(shownGroups()).toEqual(["dependencies"]);
+    expect(screen.queryByTestId("fix-summary")).toBeNull();
+    unmount();
+    render(<Harness start={TLS_FIX} />);
+    await screen.findAllByTestId("fix-row");
+    expect(shownGroups()).toEqual(["encryption"]);
+    expect(summary().getAttribute("data-fix-id")).toBe(TLS_FIX);
+  });
+
+  it("a search or the status filter says on each tab how many fixes match", async () => {
+    mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
+    render(<Harness start={null} />);
+    await screen.findAllByTestId("fix-row");
+    const matches = () => screen.getAllByRole("tab").map((t) => within(t).queryByTestId("group-tab-matches")?.textContent ?? null);
+    expect(matches()).toEqual([null, null, null, null]);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), { target: { value: "TLS" } });
+    expect(matches()).toEqual(["0", "1", "0", "0"]);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), { target: { value: "" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), { target: { value: "Text only" } });
+    expect(matches()).toEqual(["0", "1", "0", "0"]);
   });
 
   it("with the panel closed shows where each fix came from, and names a fix of another group in a foot line, not twice", async () => {
     const groups = fixGroups(fixesViews.ready.fixes).map((g) =>
-      g.key === "migration" ? { ...g, also: [{ fix_id: TLS_FIX, title: "Server accepts TLS 1.2", group_label: "Encryption tests" }] } : g,
+      g.key === "migration" ? { ...g, also: [{ fix_id: TLS_FIX, title: "Server accepts TLS 1.2", group_label: "Crypto tests" }] } : g,
     );
     mockApi({ [`GET ${FIXES}`]: { body: { ...fixesViews.ready, groups } } });
     render(<Harness start={null} />);
@@ -1242,9 +1263,12 @@ describe("Fixes, the four work groups", () => {
     // The fix shows once, in its own group; Migration only links to it.
     expect(within(groupSection("Migration")).queryAllByTestId("fix-row")).toHaveLength(0);
     const also = within(groupSection("Migration")).getByTestId("group-also");
-    expect(also.textContent).toBe("Also relates to this group: Server accepts TLS 1.2 (in Encryption tests)");
+    expect(also.textContent).toBe("Also relates to this group: Server accepts TLS 1.2 (in Crypto tests)");
+    // Following the link opens the fix on its own group's tab.
     fireEvent.click(within(also).getByRole("button", { name: "Server accepts TLS 1.2" }));
     expect(summary().getAttribute("data-fix-id")).toBe(TLS_FIX);
+    expect(shownGroups()).toEqual(["encryption"]);
+    expect(selectedTitles()).toEqual(["Server accepts TLS 1.2"]);
   });
 });
 
@@ -1368,7 +1392,7 @@ describe("Fixes, a suggestion for a developer's change (phase 6d)", () => {
     const cards = screen.getAllByTestId("summary-card").map((c) => [c.querySelector("p")?.textContent, c.querySelector("p:nth-of-type(2)")?.textContent]);
     expect(cards[0]).toEqual(["Fixes", String(base.fixes.length)]);
     expect(cards.some(([label]) => label === "Text only")).toBe(base.fixes.some((f) => f.status.word === "Text only"));
-    const encryption = groupSection("Encryption tests");
+    const encryption = groupSection("Crypto tests");
     const sent = view.groups!.find((g) => g.key === "encryption")!.counts;
     expect(within(encryption).getByTestId("group-counts").textContent).toBe(
       `Open ${sent.open} · In progress ${sent.in_progress} · Done ${sent.done}`,
@@ -1401,7 +1425,7 @@ describe("Fixes, a suggestion for a developer's change (phase 6d)", () => {
     await screen.findAllByTestId("fix-apart-row");
     expect(screen.getByRole("heading", { name: "Open findings with a fix (0)" })).toBeTruthy();
     expect(screen.queryAllByTestId("summary-card")).toEqual([]);
-    const encryption = groupSection("Encryption tests");
+    const encryption = groupSection("Crypto tests");
     expect(within(encryption).getByTestId("group-counts").textContent).toBe("Open 0 · In progress 0 · Done 0");
     expect(within(encryption).getByTestId("group-empty").textContent).toBe("No failed test has a fix.");
     expect(within(encryption).getByTestId("fix-apart-title").textContent).toBe("From a developer's change (1)");

@@ -21,7 +21,7 @@ def test_the_overview_blocks_after_a_verify_count_only_what_the_pages_show(clien
     _demo_verified(client, aid)
     view = client.get(f"/api/assessments/{aid}").json()
     blocks = view["blocks"]
-    assert [g["label"] for g in blocks["groups"]] == ["Verification", "Encryption tests", "Migration", "Dependencies"]
+    assert [g["label"] for g in blocks["groups"]] == ["Verification", "Crypto tests", "Migration", "Dependencies"]
     verification = blocks["groups"][0]
     assert [(f["label"], f["value"]) for f in verification["facts"]] == [("True", 2), ("False", 1), ("Couldn't check", 0)]
     assert all(f["link"]["page"] == "inventory/verify" for f in verification["facts"])

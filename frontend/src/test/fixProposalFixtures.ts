@@ -188,7 +188,7 @@ export function ottoCodeFix(state: OttoProposal): FixDetail {
   };
 }
 
-/** A Fixes view that holds exactly these fixes (all from failed tests: Encryption tests). */
+/** A Fixes view that holds exactly these fixes (all from failed tests: Crypto tests). */
 export function fixesWith(fixes: FixDetail[]): FixesView {
   return {
     ...fixesViews.not_connected,

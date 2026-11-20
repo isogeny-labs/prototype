@@ -1,11 +1,11 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useState } from "react";
 import { usePanelStamp } from "../changes";
 import { api, errorMessage, type FixSection, type FixesView } from "../api";
 import { ChangeBox } from "./change/ChangeBox";
 import { FixTable } from "./fixes/FixTable";
 import { FixSections } from "./fixes/FixSections";
 import { FixSummary, type FixRequest } from "./fixes/FixSummary";
-import { DetailPanel, ItemPageContext, PageHeader, SummaryCards, TableWithPanel } from "./layout";
+import { DetailPanel, ItemPageContext, PageHeader, SummaryCards, TableWithPanel, useGroupTab, useShowGroups, type GroupNav } from "./layout";
 import { RelatedFor } from "./related";
 import { DemoDataLabel, ErrorBox } from "./ui";
 
@@ -20,12 +20,16 @@ interface Props {
   onRetestStarted: (item?: string | null) => void;
   /** A change was tried, approved, applied or rolled back: the app loads the plan again. */
   onPlanChanged?: () => void;
-  /** Phase 5b: a work group to start filtered to. */
+  /** Phase 5b: the work group whose tab to open (from the address). */
   group?: string | null;
+  /** 20 November 2026: a tab chosen here goes into the address; the open tab and the groups, for the sidebar. */
+  onGroup?: (group: string) => void;
+  onGroupShown?: (nav: GroupNav) => void;
 }
 
 /** The Fixes step. Every word, status and button comes from the backend; this screen works nothing out. */
-export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onPlanChanged, group = null }: Props) {
+export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onPlanChanged, group = null, onGroup, onGroupShown }: Props) {
+  const tabIds = useId();
   const [view, setView] = useState<FixesView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,6 +53,30 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
     setOpenId(null);
     setDismissed(true);
   }, []);
+
+  // 20 November 2026: the groups are tabs. Which to open: the one the address names; else the tab of the fix that is
+  // open; else the first group with something in it.
+  const fixGroups = view?.groups ?? [];
+  const [activeTab, chooseTab] = useGroupTab({
+    keys: fixGroups.map((g) => g.key),
+    group,
+    item: selectedId,
+    onGroup,
+    pick: () => {
+      if (!view) return null;
+      const holds = (g: (typeof fixGroups)[number], id: string) => g.fix_ids.includes(id) || (g.apart?.fix_ids ?? []).includes(id);
+      const named = selectedId !== null ? fixGroups.find((g) => holds(g, selectedId)) : undefined;
+      const filled = fixGroups.find((g) => g.fix_ids.length > 0 || (g.apart?.fix_ids ?? []).length > 0);
+      return (named ?? filled ?? fixGroups[0])?.key ?? null;
+    },
+  });
+  useShowGroups(onGroupShown, activeTab, view ? fixGroups : null);
+  // Another tab: the fix that was open belongs to the tab it came from, so its panel closes (the page then opens on the
+  // first fix of the new tab, as it opens on the first fix, unless the person closed the panel).
+  const openTab = (key: string) => {
+    chooseTab(key);
+    setOpenId(null);
+  };
 
   // Phase 6a: a decision or a start sent from the Otto panel: this page reads its view again.
   const panelStamp = usePanelStamp();
@@ -111,8 +139,11 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
   }
 
   const current = view;
+  // The first fix of the open tab (Fixes opens on it, as it opened on the first fix before the tabs).
+  const tabGroup = (current.groups ?? []).find((g) => g.key === activeTab);
+  const firstId = tabGroup ? (tabGroup.fix_ids[0] ?? tabGroup.apart?.fix_ids[0] ?? null) : (current.fixes[0]?.id ?? null);
   // (On a page of its own, the 5c fixes, only the fix the address names is shown: never the first one in its place.)
-  const fix = current.fixes.find((f) => f.id === openId) ?? (dismissed || asPage ? null : (current.fixes[0] ?? null));
+  const fix = current.fixes.find((f) => f.id === openId) ?? (dismissed || asPage ? null : (current.fixes.find((f) => f.id === firstId) ?? null));
   const choose = (fixId: string) => {
     setOpenId(fixId);
     setDismissed(false);
@@ -239,7 +270,9 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
                 groups={current.groups ?? []}
                 selectedId={fix?.id ?? null}
                 onSelect={choose}
-                group={group}
+                active={activeTab}
+                onChoose={openTab}
+                idBase={tabIds}
               />
             }
             panel={

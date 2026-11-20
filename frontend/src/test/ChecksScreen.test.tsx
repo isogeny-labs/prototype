@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import type { CheckDetail, CheckRow, ChecksView, PlanView } from "../api";
@@ -49,28 +49,41 @@ async function open(view: ChecksView = checksView, routes: Parameters<typeof moc
   return fetchMock;
 }
 
-const section = (key: string) => screen.getAllByTestId("group-section").find((g) => g.getAttribute("data-group") === key)!;
+// 20 November 2026: the groups are tabs, one group's table at a time. A group's section is looked at on its own tab.
+const tabOf = (key: string) => screen.getAllByTestId("group-tab").find((t) => t.getAttribute("data-group") === key)!;
+const showTab = (key: string) => {
+  if (tabOf(key).getAttribute("aria-selected") !== "true") fireEvent.click(tabOf(key));
+};
+const shownGroups = () => screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"));
+const section = (key: string) => {
+  showTab(key);
+  return screen.getAllByTestId("group-section").find((g) => g.getAttribute("data-group") === key)!;
+};
 const rowsIn = (key: string) => within(section(key)).queryAllByTestId("check-row");
 
 describe("Checks, the page", () => {
-  it("is named Checks, lists every check in the four work groups in order, and keeps the test plan under Encryption tests", async () => {
+  it("is named Checks, has the four work groups as tabs in order, opens on the first with something in it, and keeps the test plan under Crypto tests", async () => {
     const fetchMock = await open();
     expect(screen.getByRole("heading", { level: 1, name: "Checks" })).not.toBeNull();
     expect(text(screen.getByTestId("page-header"))).toContain(CHECKS_SUBLINE);
-    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual([
-      "verification",
-      "encryption",
-      "migration",
-      "dependencies",
-    ]);
+    const tabs = within(screen.getByRole("tablist", { name: "Work groups" })).getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
+    // One group's table at a time: the first group with something in it (claims were verified).
+    expect(tabs.map((t) => t.getAttribute("aria-selected"))).toEqual(["true", "false", "false", "false"]);
+    expect(shownGroups()).toEqual(["verification"]);
+    expect(screen.getByRole("tabpanel", { name: "Verification" }).getAttribute("data-group")).toBe("verification");
+    expect(within(section("verification")).getByTestId("group-question").textContent).toBe("Is the scanner file true?");
     // Verification: one row per claim checked, with the result in Verify's own words.
     expect(rowsIn("verification").map((r) => text(within(r).getByTestId("result-badge")))).toEqual(["False", "True", "? Couldn't check"].map((w) => expect.stringContaining(w.replace("? ", ""))));
-    // Encryption tests: the test plan exactly as it was (its cards and buttons), then the other runs (the retest, in
+    // Crypto tests: the test plan exactly as it was (its cards and buttons), then the other runs (the retest, in
     // the block of the version it ran on).
     expect(within(section("encryption")).getAllByTestId("test-card")).toHaveLength(plan.tests.length);
     expect(within(section("encryption")).getByRole("button", { name: "Run all" })).not.toBeNull();
     expect(within(section("encryption")).getByRole("button", { name: "+ Add test" })).not.toBeNull();
     expect(rowsIn("encryption").map((r) => r.getAttribute("data-check"))).toEqual(BLOCK_IDS);
+    expect(shownGroups()).toEqual(["encryption"]);
+    expect(within(section("encryption")).getByRole("heading", { level: 2, name: "Crypto tests" })).not.toBeNull();
+    expect(within(section("encryption")).getByTestId("group-question").textContent).toBe("Is the cryptography built right?");
     // An empty group stays and says why.
     expect(within(section("migration")).getByTestId("group-empty").textContent).toBe("Nothing measured yet. Measure status is on Migration.");
     expect(within(section("dependencies")).getByTestId("group-empty").textContent).toBe("No dependency list yet. Add one on Dependencies.");
@@ -101,11 +114,11 @@ describe("Checks, the page", () => {
     expect(document.body.textContent).not.toMatch(/\bscore\b|\bgrade\b|time to hack/i);
   });
 
-  it("filters by group, by where a check came from, by result and by search", async () => {
+  it("filters by where a check came from, by result and by search, within the open tab; the tabs say how many rows match", async () => {
     await open();
-    fireEvent.change(screen.getByRole("combobox", { name: "Group" }), { target: { value: "verification" } });
-    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual(["verification"]);
-    fireEvent.change(screen.getByRole("combobox", { name: "Group" }), { target: { value: "all" } });
+    // the tabs replace the Group filter
+    expect(screen.queryByRole("combobox", { name: "Group" })).toBeNull();
+    expect(screen.queryAllByTestId("group-tab-matches")).toHaveLength(0);
 
     fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value: "retest" } });
     expect(rowsIn("verification")).toHaveLength(0);
@@ -121,18 +134,88 @@ describe("Checks, the page", () => {
 
     fireEvent.change(screen.getByRole("searchbox", { name: "Search checks" }), { target: { value: "certificate" } });
     expect(rowsIn("verification").map((r) => r.getAttribute("data-check"))).toEqual(["claim-2"]);
+    // While a search is on, each tab says how many of its rows match, so nothing found hides behind another tab.
+    const matches = () =>
+      Object.fromEntries(screen.getAllByTestId("group-tab").map((t) => [t.getAttribute("data-group"), within(t).queryByTestId("group-tab-matches")?.textContent]));
+    expect(matches()).toEqual({ verification: "1", encryption: "0", migration: "0", dependencies: "0" });
+    expect(tabOf("verification").getAttribute("aria-describedby")).toBeTruthy();
+    expect(document.getElementById(tabOf("verification").getAttribute("aria-describedby")!)!.textContent).toBe("1 row matches");
+    // the tab's name is still the group's name
+    expect(screen.getByRole("tab", { name: "Verification" })).toBe(tabOf("verification"));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search checks" }), { target: { value: "official" } });
+    // (Crypto tests: the rows its parts list for the search, and the tests of its plan whose names match)
+    const said = matches().encryption;
+    expect(Number(said)).toBeGreaterThan(0);
+    expect(Number(said)).toBe(rowsIn("encryption").length + planRows.filter((r) => r.name.toLowerCase().includes("official")).length);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search checks" }), { target: { value: "" } });
+    expect(screen.queryAllByTestId("group-tab-matches")).toHaveLength(0);
   });
 
-  it("folds a group shut from its heading", async () => {
-    await open();
-    fireEvent.click(within(section("verification")).getByRole("button", { name: "Verification" }));
-    expect(rowsIn("verification")).toHaveLength(0);
-    expect(within(section("verification")).getByTestId("group-counts")).not.toBeNull();
+  it("switches tabs: one group at a time, by a click or the arrow keys, Home and End, and a click on the open tab changes nothing", async () => {
+    const tabsSaid: string[] = [];
+    const fetchMock = mockApi({ [CHECKS]: { body: checksView }, [LAB]: { body: lab }, "GET /api/import/7/plan": { body: plan } });
+    function Told() {
+      const [current, setCurrent] = useState<PlanView | null>(plan);
+      return (
+        <LinkProvider assessmentId={101} planId={1}>
+          <ChecksScreen importId={7} plan={current} onPlan={setCurrent} onGroup={(g) => tabsSaid.push(g)} />
+        </LinkProvider>
+      );
+    }
+    render(<Told />);
+    await screen.findAllByTestId("group-section");
+    fireEvent.click(screen.getByRole("tab", { name: "Migration" }));
+    expect(shownGroups()).toEqual(["migration"]);
+    expect(within(screen.getByRole("tabpanel")).getByTestId("group-empty").textContent).toBe("Nothing measured yet. Measure status is on Migration.");
+    // the tab chosen goes to the address (the app keeps it there, so Back returns)
+    expect(tabsSaid).toEqual(["migration"]);
+    // a click on the open tab: nothing
+    fireEvent.click(screen.getByRole("tab", { name: "Migration" }));
+    expect(tabsSaid).toEqual(["migration"]);
+    const list = screen.getByRole("tablist", { name: "Work groups" });
+    fireEvent.keyDown(list, { key: "ArrowRight" });
+    expect(shownGroups()).toEqual(["dependencies"]);
+    expect(document.activeElement).toBe(tabOf("dependencies"));
+    fireEvent.keyDown(list, { key: "ArrowRight" });
+    expect(shownGroups()).toEqual(["verification"]);
+    fireEvent.keyDown(list, { key: "End" });
+    expect(shownGroups()).toEqual(["dependencies"]);
+    fireEvent.keyDown(list, { key: "Home" });
+    expect(shownGroups()).toEqual(["verification"]);
+    fireEvent.keyDown(list, { key: "ArrowLeft" });
+    expect(shownGroups()).toEqual(["dependencies"]);
+    // only the open tab is in the keyboard's way; each tab names its panel
+    expect(screen.getAllByRole("tab").map((t) => t.tabIndex)).toEqual([-1, -1, -1, 0]);
+    expect(tabOf("dependencies").getAttribute("aria-controls")).toBe(screen.getByRole("tabpanel").id);
+    // switching tabs starts nothing
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
   });
 
-  it("starts filtered to the group a link names", async () => {
+  it("closes the panel of a check when another tab opens", async () => {
+    await open(checksView, { "GET /api/plans/1/checks/claim-1": { body: { ...retestDetail, check: verifyRows[0]! } } });
+    fireEvent.click(rowsIn("verification")[0]!);
+    expect(await screen.findByTestId("check-panel")).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Verification" })); // the open tab: the panel stays
+    expect(screen.queryByTestId("check-panel")).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Crypto tests" }));
+    expect(screen.queryByTestId("check-panel")).toBeNull();
+  });
+
+  it("opens the tab a link names (the Overview's, the sidebar's, Continue to checks)", async () => {
     await open(checksView, {}, { group: "encryption" });
-    expect(screen.getAllByTestId("group-section").map((g) => g.getAttribute("data-group"))).toEqual(["encryption"]);
+    expect(shownGroups()).toEqual(["encryption"]);
+    expect(screen.getByRole("tab", { name: "Crypto tests" }).getAttribute("aria-selected")).toBe("true");
+    cleanup();
+    await open(checksView, {}, { group: "dependencies" });
+    expect(shownGroups()).toEqual(["dependencies"]);
+  });
+
+  it("opens on Crypto tests when nothing is verified yet (it always holds the test plan), and on the tab of a check a link names", async () => {
+    await open({ ...checksView, groups: checkGroups({ verification: [] }) });
+    expect(shownGroups()).toEqual(["encryption"]);
+    cleanup();
+    await open(checksView, {}, { item: "claim-2" });
+    expect(shownGroups()).toEqual(["verification"]);
   });
 });
 
@@ -244,7 +327,7 @@ describe("Checks in a closed assessment", () => {
     expect(rowsIn("verification")).toHaveLength(3);
   });
 
-  it("shows an empty Encryption tests group's reason when nothing has run", async () => {
+  it("shows an empty Crypto tests group's reason when nothing has run", async () => {
     await open({ ...checksView, groups: checkGroups({ encryption: [] }) });
     // The test plan still shows (it is where tests start); there are no other runs yet.
     expect(within(section("encryption")).getAllByTestId("test-card")).toHaveLength(plan.tests.length);
@@ -346,7 +429,8 @@ describe("Checks, the test plan is drawn once: it is there before the list of ch
     const fetchMock = mockApi({ [LAB]: { body: lab }, "GET /api/import/7/plan": { body: plan } });
     const answered = fetchMock.getMockImplementation()!;
     fetchMock.mockImplementation((input, init) => (String(input) === "/api/plans/1/checks" ? late : answered(input, init)));
-    render(<Harness />);
+    // (Continue to checks opens Crypto tests: the address names it, so the plan is drawn before the list is here)
+    render(<Harness group="encryption" />);
     const add = await screen.findByRole("button", { name: "+ Add test" });
     expect(screen.queryAllByTestId("group-section")).toHaveLength(0); // the list is not here yet
     const cardsBefore = screen.getAllByTestId("test-card");
@@ -390,10 +474,10 @@ describe("Checks, the test plan is read fresh when the page opens", () => {
 });
 
 
-// The 5c fixes: only the Encryption tests group changes. It has four labelled, foldable parts, each with a count: Test
+// The 5c fixes: only the Crypto tests group changes. It has four labelled, foldable parts, each with a count: Test
 // plan, Retests by version, Fix proofs, and Tries on a test copy (only when a server change was tried). A run shows in
 // one part only.
-describe("Checks, Encryption tests in four parts", () => {
+describe("Checks, Crypto tests in four parts", () => {
   const parts = () => within(section("encryption")).getAllByTestId("part-section");
   const part = (key: string) => parts().find((p) => p.getAttribute("data-part") === key)!;
   const blocksIn = (key: string) => within(part(key)).queryAllByTestId("block-section");

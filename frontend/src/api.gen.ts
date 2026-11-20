@@ -2214,7 +2214,7 @@ export interface CheckGroup {
    */
   also?: SameMeasurement[];
   /**
-   * The 5c fixes: set on the Encryption tests group only.
+   * The 5c fixes: set on the Crypto tests group only.
    */
   parts?: EncryptionParts | null;
 }
@@ -2223,7 +2223,7 @@ export interface StartedOn {
   page: string;
 }
 /**
- * The 5c fixes: Checks shows the Encryption tests group in four parts. A run shows in one part only.
+ * The 5c fixes: Checks shows the Crypto tests group in four parts. A run shows in one part only.
  */
 export interface EncryptionParts {
   plan: CheckPart;
@@ -2264,7 +2264,7 @@ export interface CheckPart {
   rows: CheckRow[];
 }
 /**
- * The 5c fixes: one labelled, foldable part of the Encryption tests group on Checks, with its count.
+ * The 5c fixes: one labelled, foldable part of the Crypto tests group on Checks, with its count.
  */
 export interface CheckPart1 {
   key: "plan" | "retests" | "proofs" | "tries" | "changes";

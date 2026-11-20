@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FixDetail, FixGroup } from "../../api";
-import { DataTable, FilterSelect, GroupSection, SearchInput, Toolbar, type Column } from "../layout";
+import { DataTable, FilterSelect, GroupSection, GroupTabs, SearchInput, Toolbar, type Column } from "../layout";
 import { FromOttoTag, ProposalStatusChip } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
 import { StatusChip } from "./parts";
@@ -12,30 +12,30 @@ interface Props {
   groups: FixGroup[];
   selectedId: string | null;
   onSelect: (fixId: string) => void;
-  /** Phase 5b: a work group to start filtered to. */
-  group?: string | null;
+  /** 20 November 2026: the groups are tabs. The tab that is open (the page picks it), how another is chosen, and the id
+   * that ties the tabs to their panel. */
+  active: string | null;
+  onChoose: (group: string) => void;
+  idBase: string;
 }
 
-/** The findings that have a fix, in the four work groups: each with where it came from (as links) and its status, with
- * a search box, a group filter and a status filter. Phase 6d: a suggestion for a developer's change is listed in its
- * group under a heading of its own (`group.apart`); the group's counts are the backend's and leave it out. */
-export function FixTable({ title, fixes, groups, selectedId, onSelect, group = null }: Props) {
+/** The findings that have a fix, in the four work groups, one group's tab at a time: each with where it came from (as
+ * links) and its status, with a search box and a status filter. Phase 6d: a suggestion for a developer's change is listed
+ * in its group under a heading of its own (`group.apart`); the group's counts are the backend's and leave it out. */
+export function FixTable({ title, fixes, groups, selectedId, onSelect, active, onChoose, idBase }: Props) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [groupFilter, setGroupFilter] = useState(group ?? "all");
-  const [folded, setFolded] = useState<Record<string, boolean>>({});
   const needle = search.trim().toLowerCase();
 
   // One option for each status word the backend sent (several change-box statuses share one key, each its own word).
   const words = Array.from(new Set(fixes.map((fix) => fix.status.word)));
   const options = [{ value: "all", label: "All statuses" }, ...words.map((w) => ({ value: w, label: w }))];
 
+  const fits = (fix: FixDetail) =>
+    (statusFilter === "all" || fix.status.word === statusFilter) &&
+    (!needle || [fix.title, fix.list_source, fix.status.word, fix.proposal?.status.word ?? ""].some((t) => t.toLowerCase().includes(needle)));
   // The open fix stays listed whatever the search, as before the panel.
-  const keep = (fix: FixDetail) =>
-    fix.id === selectedId ||
-    ((statusFilter === "all" || fix.status.word === statusFilter) &&
-      (!needle ||
-        [fix.title, fix.list_source, fix.status.word, fix.proposal?.status.word ?? ""].some((t) => t.toLowerCase().includes(needle))));
+  const keep = (fix: FixDetail) => fix.id === selectedId || fits(fix);
 
   const columns: Column<FixDetail>[] = [
     {
@@ -95,35 +95,38 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, group = n
 
   const byId = new Map(fixes.map((f) => [f.id, f]));
   const shownGroups = groups.length > 0 ? groups : [];
+  const entries = (ids: string[]) => ids.map((id) => byId.get(id)).filter((f): f is FixDetail => f !== undefined);
+  // While a search or the status filter is on, each tab says how many of its entries match.
+  const matches =
+    needle || statusFilter !== "all"
+      ? Object.fromEntries(shownGroups.map((g) => [g.key, entries([...g.fix_ids, ...(g.apart?.fix_ids ?? [])]).filter(fits).length]))
+      : null;
+  const holderOf = (fixId: string) => shownGroups.find((g) => g.fix_ids.includes(fixId) || (g.apart?.fix_ids ?? []).includes(fixId))?.key;
   return (
     <nav aria-labelledby="fix-list-title" className="min-w-0">
       <h2 id="fix-list-title" className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
         {title}
       </h2>
+      {active !== null && shownGroups.length > 0 ? (
+        <GroupTabs groups={shownGroups} active={active} onChoose={onChoose} idBase={idBase} matches={matches} />
+      ) : null}
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} label="Search fixes" placeholder="Search fixes" />
-        <FilterSelect
-          label="Group"
-          value={groupFilter}
-          options={[{ value: "all", label: "All groups" }, ...shownGroups.map((g) => ({ value: g.key, label: g.label }))]}
-          onChange={setGroupFilter}
-        />
         <FilterSelect label="Status" value={statusFilter} options={options} onChange={setStatusFilter} />
       </Toolbar>
       <div data-testid="fix-list">
         {shownGroups
-          .filter((g) => groupFilter === "all" || g.key === groupFilter)
+          .filter((g) => g.key === active)
           .map((g) => {
-            const rows = g.fix_ids.map((id) => byId.get(id)).filter((f): f is FixDetail => f !== undefined).filter(keep);
-            const apartAll = (g.apart?.fix_ids ?? []).map((id) => byId.get(id)).filter((f): f is FixDetail => f !== undefined);
+            const rows = entries(g.fix_ids).filter(keep);
+            const apartAll = entries(g.apart?.fix_ids ?? []);
             const apartRows = apartAll.filter(keep);
             return (
               <GroupSection
                 key={g.key}
                 group={g}
                 counts={g.counts}
-                open={!folded[g.key]}
-                onToggle={() => setFolded((f) => ({ ...f, [g.key]: !f[g.key] }))}
+                tabbed={{ idBase }}
                 emptyText={g.fix_ids.length === 0 && apartAll.length === 0 ? g.empty_text : null}
                 also={
                   g.also.length > 0 ? (
@@ -132,7 +135,16 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, group = n
                       {g.also.map((a, i) => (
                         <span key={a.fix_id}>
                           {i > 0 ? ", " : ""}
-                          <button type="button" onClick={() => onSelect(a.fix_id)} className="text-sky-300 hover:underline">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              // the fix sits in its own group: its tab opens, with the fix
+                              const holder = holderOf(a.fix_id);
+                              if (holder) onChoose(holder);
+                              onSelect(a.fix_id);
+                            }}
+                            className="text-sky-300 hover:underline"
+                          >
                             {a.title}
                           </button>{" "}
                           (in {a.group_label})

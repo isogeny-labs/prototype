@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { AssessmentBrief, AssessmentView, Workspace, WorkspaceProject } from "../../api";
+import type { GroupNav } from "../layout";
 import { pageHref, type Page, type Route } from "../../router";
 import { StatusChip, useDismiss, Wordmark } from "../ui";
 import { Icon } from "./icons";
@@ -55,6 +56,8 @@ function NavLink({
   collapsed,
   nested,
   onNavigate,
+  ariaLabel,
+  currentKind = "page",
 }: {
   href: string;
   label: string;
@@ -65,6 +68,10 @@ function NavLink({
   collapsed: boolean;
   nested?: boolean;
   onNavigate?: () => void;
+  /** The name a screen reader says, when the label alone would be said twice in the sidebar. */
+  ariaLabel?: string;
+  /** What `current` means: the page (the default), or the open tab of a page. */
+  currentKind?: "page" | "true";
 }) {
   const base = `flex items-center gap-2.5 rounded-md text-sm transition-colors ${collapsed ? "justify-center p-2" : nested ? "py-1.5 pl-9 pr-2" : "px-2.5 py-1.5"}`;
   if (disabled) {
@@ -79,7 +86,8 @@ function NavLink({
     <a
       href={href}
       onClick={onNavigate}
-      aria-current={current ? "page" : undefined}
+      aria-current={current ? currentKind : undefined}
+      aria-label={ariaLabel}
       title={collapsed ? label : undefined}
       className={`${base} ${
         current ? "bg-slate-800/80 font-medium text-slate-50" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
@@ -171,6 +179,7 @@ export function Sidebar({
   projectId,
   assessments,
   onNewAssessment,
+  groups = null,
 }: {
   workspace: Workspace | null;
   assessment: AssessmentView | null;
@@ -185,6 +194,8 @@ export function Sidebar({
   onNewAssessment: () => void;
   /** Called after a link is followed (the narrow-screen menu closes itself). */
   onNavigate?: () => void;
+  /** 20 November 2026: the work groups of the open page (Checks, Evidence or Fixes) and its open tab, listed under it. */
+  groups?: GroupNav | null;
 }) {
   const page = route.kind === "assessment" ? route.page : null;
   const id = assessment?.id ?? null;
@@ -241,6 +252,27 @@ export function Sidebar({
                       collapsed={collapsed}
                       onNavigate={onNavigate}
                     />
+                    {/* The four work groups of the open page, each opening its tab (named with the page for a screen
+                        reader: "Migration" and "Dependencies" are pages of their own too). */}
+                    {!item.children && groups && page === item.page && !collapsed && access[item.page].open ? (
+                      <ul data-testid="sidebar-groups" aria-label={`${item.label} groups`} className="mt-0.5 space-y-0.5">
+                        {groups.groups.map((g) => (
+                          <li key={g.key}>
+                            <NavLink
+                              href={pageHref(id, item.page, null, g.key)}
+                              label={g.label}
+                              ariaLabel={`${g.label} on ${item.label}`}
+                              icon={item.icon}
+                              current={groups.active === g.key}
+                              currentKind="true"
+                              collapsed={collapsed}
+                              nested
+                              onNavigate={onNavigate}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                     {item.children && !collapsed && access[item.page].open ? (
                       <ul className="mt-0.5 space-y-0.5">
                         {item.children.map((c) => (

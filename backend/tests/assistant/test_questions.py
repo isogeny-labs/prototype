@@ -370,7 +370,7 @@ def test_the_page_sentences_say_what_the_pages_own_headers_say():
         assert phrase in words.PAGE_FOR["fixes"] and phrase in present_fixes.SUBLINE_WITH_MIGRATION
     assert "every track of every system" in words.PAGE_FOR["migration/roadmap"].lower()
     assert "Every track of every system has a place" in inspect.getsource(present_migration)
-    assert "wherever it was started" in words.PAGE_FOR["checks"] and "The test plan is under Encryption tests" in words.PAGE_FOR["checks"]
+    assert "wherever it was started" in words.PAGE_FOR["checks"] and "The test plan is under Crypto tests" in words.PAGE_FOR["checks"]
 
 
 def test_a_page_is_named_by_its_own_name_and_another_word_for_it_needs_the_word_page():

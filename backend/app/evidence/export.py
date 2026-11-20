@@ -1070,7 +1070,7 @@ def _dependencies_html(part: dict | None) -> list[_Safe]:
     return parts
 
 
-GROUP_WORDS = {"verification": "Verification", "encryption": "Encryption tests", "migration": "Migration",
+GROUP_WORDS = {"verification": "Verification", "encryption": "Crypto tests", "migration": "Migration",
                "dependencies": "Dependencies"}
 
 

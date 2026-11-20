@@ -1,4 +1,4 @@
-"""The four work groups (phase 5b), the same on Checks, Evidence, Fixes and the Overview, and how an item's state is
+"""The four work groups (phase 5b; since 20 November 2026 the second is called "Crypto tests", its key is still "encryption"), the same on Checks, Evidence, Fixes and the Overview, and how an item's state is
 counted (Open, In progress, Done). The counts decide nothing: they sort what the pages already say."""
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Iterable
 # (key, label, the question it answers), in the one order every page uses.
 GROUPS: tuple[tuple[str, str, str], ...] = (
     ("verification", "Verification", "Is the scanner file true?"),
-    ("encryption", "Encryption tests", "Is the encryption built right?"),
+    ("encryption", "Crypto tests", "Is the cryptography built right?"),
     ("migration", "Migration", "Where does each system stand on the move to post-quantum, and what must change?"),
     ("dependencies", "Dependencies", "What can your libraries do?"),
 )
@@ -26,7 +26,7 @@ EMPTY_CHECKS = {
 EMPTY_DEPENDENCIES_LISTED = "No library has been measured on a public copy yet. Measure on a public copy is on Dependencies."
 EMPTY_FIXES = {
     "verification": ("Verification has no fixes of its own. A false claim's fix sits with the test that checks it, "
-                     "under Encryption tests."),
+                     "under Crypto tests."),
     "encryption": "No failed test has a fix.",
     "migration": "No system's plan needs a change yet.",
     "dependencies": "No library blocks a track.",

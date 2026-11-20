@@ -1897,7 +1897,7 @@ class CheckBlock(Shape):
 
 
 class CheckPart(Shape):
-    """The 5c fixes: one labelled, foldable part of the Encryption tests group on Checks, with its count."""
+    """The 5c fixes: one labelled, foldable part of the Crypto tests group on Checks, with its count."""
     key: Literal["plan", "retests", "proofs", "tries", "changes"]
     label: str
     count: int
@@ -1909,7 +1909,7 @@ class CheckPart(Shape):
 
 
 class EncryptionParts(Shape):
-    """The 5c fixes: Checks shows the Encryption tests group in four parts. A run shows in one part only."""
+    """The 5c fixes: Checks shows the Crypto tests group in four parts. A run shows in one part only."""
     plan: CheckPart = Field(description="The test plan itself (drawn from the plan view); its heading names the version the file names.")
     retests: CheckPart
     proofs: CheckPart
@@ -1928,7 +1928,7 @@ class CheckGroup(Shape):
     rows: list[CheckRow]
     also: list[SameMeasurement] = Field(default_factory=list,
                                         description="Checks of another group linked from this group's foot (\"Also relates to this group\").")
-    parts: "EncryptionParts | None" = Field(default=None, description="The 5c fixes: set on the Encryption tests group only.")
+    parts: "EncryptionParts | None" = Field(default=None, description="The 5c fixes: set on the Crypto tests group only.")
 
 
 class LibraryEvidenceRow(Shape):
