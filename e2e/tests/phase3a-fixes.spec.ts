@@ -125,7 +125,7 @@ test("Run all tests every target, in parallel, within the job limit", async () =
 test("Evidence Lab: grouped results, each with its plain line; 9.9 is only under Not tested; the note on 8445", async () => {
   await stepLink(page, "4. Evidence Lab").click();
   await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
-  await openGroupTab(page, "Crypto tests");      // (the results are Evidence's Crypto tests tab)
+  await openGroupTab(page, "Crypto tests", "Evidence");      // (the results are Evidence's Crypto tests tab)
   await expect(page.getByTestId("lab-group")).toHaveCount(5);
   await expect(page.getByTestId("evidence-row")).toHaveCount(8);
   await expect(page.getByTestId("not-tested")).toContainText("acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.");

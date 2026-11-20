@@ -13,7 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { BACKEND, DISCLAIMER, enterApp, PYTHON, screenshotFolder, stepLink, openFreshAssessment, closeResult, evidenceRow, resultPanel, stepNav, stepName } from "./shared";
+import { BACKEND, DISCLAIMER, enterApp, PYTHON, screenshotFolder, stepLink, openFreshAssessment, closeResult, evidenceRow, resultPanel, stepNav, stepName, openGroupTab } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = screenshotFolder("phase4c");
@@ -41,7 +41,7 @@ async function goTo(target: Page, step: string): Promise<void> {
   await expect(stepNav(target).locator('[aria-current="page"]'), `expected the step "${step}" to open`).toHaveText(stepName(step));
   // (the old steps Tests and Evidence Lab are the test plan and the results: since 20 November 2026 they are the
   // Crypto tests tab of Checks and of Evidence)
-  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step)) await openGroupTab(target, "Crypto tests");
+  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step)) await openGroupTab(target, "Crypto tests", stepName(step) as "Checks" | "Evidence");
 }
 
 /** Upload demo/real-libraries.csv on Import (the drop zone's file input) and wait for the answer. */

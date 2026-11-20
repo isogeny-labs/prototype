@@ -217,7 +217,7 @@ test("Run all runs the tests in parallel and every card ends with a result", asy
 test("Evidence Lab lists the six results; every control behaved as expected", async () => {
   await stepLink(page, "4. Evidence Lab").click();
   await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
-  await openGroupTab(page, "Crypto tests");      // (the results are Evidence's Crypto tests tab)
+  await openGroupTab(page, "Crypto tests", "Evidence");      // (the results are Evidence's Crypto tests tab)
   const rows = page.getByTestId("evidence-row");
   await expect(rows).toHaveCount(6);
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
@@ -551,7 +551,7 @@ test("the HTML report is a static, readable copy that prints the same fingerprin
 test("nothing in the app takes outside software: no upload control on Tests or Evidence Lab, no such address", async () => {
   await expectNoSoftwareUpload();
   await stepLink(page, "3. Tests").click();
-  await openGroupTab(page, "Crypto tests");      // (the test plan is Checks' Crypto tests tab)
+  await openGroupTab(page, "Crypto tests", "Checks");      // (the test plan is Checks' Crypto tests tab)
   await expect(page.getByTestId("test-card")).toHaveCount(6);
   await expectNoSoftwareUpload();
   await page.getByRole("button", { name: "+ Add test" }).click();

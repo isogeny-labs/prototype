@@ -111,7 +111,7 @@ async function goTo(step: string): Promise<void> {
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText(stepName(step));
   // (the old steps Tests and Evidence Lab are the test plan and the results: since 20 November 2026 they are the
   // Crypto tests tab of Checks and of Evidence)
-  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step)) await openGroupTab(page, "Crypto tests");
+  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step)) await openGroupTab(page, "Crypto tests", stepName(step) as "Checks" | "Evidence");
 }
 
 /** Opens a result in Evidence Lab (if it is closed) and hands back its row. */

@@ -140,9 +140,18 @@ export async function importVerifyAndOpenTests(page: Page): Promise<void> {
 }
 
 /** 20 November 2026: Checks, Evidence and Fixes show the four work groups as tabs, one group's table at a time. Opens
- * the tab of one group by its name ("Crypto tests"), or keeps it open; the page's own tabs, never the Otto panel's. */
-export async function openGroupTab(page: Page, label: string): Promise<void> {
+ * the tab of one group by its name ("Crypto tests"), or keeps it open; the page's own tabs, never the Otto panel's.
+ * `on`: the page it is on, right after that page was opened. For a moment the page before may still be drawn, with tabs
+ * of its own (Evidence and Fixes have a Crypto tests tab too), and a page opened again from the sidebar picks its tab
+ * again: the sidebar's link to the group on that page ("Crypto tests on Evidence") exists only once that page is open,
+ * and the address it sets decides the tab, so it is followed first. */
+export async function openGroupTab(page: Page, label: string, on?: "Checks" | "Evidence" | "Fixes"): Promise<void> {
   const tab = page.getByRole("tablist", { name: "Work groups" }).getByRole("tab", { name: label, exact: true });
+  if (on) {
+    const link = stepNav(page).getByRole("link", { name: `${label} on ${on}`, exact: true });
+    await link.click();
+    await expect(link).toHaveAttribute("aria-current", "true");
+  }
   await expect(tab).toBeVisible();
   if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");
@@ -151,7 +160,7 @@ export async function openGroupTab(page: Page, label: string): Promise<void> {
 /** A sidebar link to a page, then the tab of one of its work groups: Checks, Evidence or Fixes on that group. */
 export async function openPageGroup(page: Page, step: string, label: string): Promise<void> {
   await stepLink(page, step).click();
-  await openGroupTab(page, label);
+  await openGroupTab(page, label, stepName(step) as "Checks" | "Evidence" | "Fixes");
 }
 
 /** Verify's Continue to checks (was Continue to tests): opens Checks on Crypto tests, where the test plan's cards are. */
@@ -210,7 +219,7 @@ export function resultPanel(page: Page): Locator {
 export async function openResult(page: Page, title: string, within?: Locator): Promise<Locator> {
   const heading = page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: title, exact: true });
   // (the test results are Evidence's Crypto tests table: its tab is opened first, unless a panel is open on it already)
-  if ((await heading.count()) === 0 && (await page.getByRole("tablist", { name: "Work groups" }).count()) > 0) await openGroupTab(page, "Crypto tests");
+  if ((await heading.count()) === 0 && (await page.getByRole("tablist", { name: "Work groups" }).count()) > 0) await openGroupTab(page, "Crypto tests", "Evidence");
   if ((await heading.count()) === 0) await evidenceRow(page, title, within).click();
   await expect(heading).toBeVisible();
   return resultPanel(page);

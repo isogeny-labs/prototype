@@ -7,7 +7,7 @@ import { expect, test, type BrowserContext, type Locator, type Page } from "@pla
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { enterApp, importVerifyAndOpenTests, screenshotFolder, stepLink, stepNav, openFreshAssessment, stepName, evidenceRow } from "./shared";
+import { enterApp, importVerifyAndOpenTests, screenshotFolder, stepLink, stepNav, openFreshAssessment, stepName, evidenceRow, openGroupTab } from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = screenshotFolder("phase4b");
@@ -60,7 +60,7 @@ async function goTo(step: string): Promise<void> {
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText(stepName(step));
   // (the old steps Tests and Evidence Lab are the test plan and the results: since 20 November 2026 they are the
   // Crypto tests tab of Checks and of Evidence)
-  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step)) await openGroupTab(page, "Crypto tests");
+  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step)) await openGroupTab(page, "Crypto tests", stepName(step) as "Checks" | "Evidence");
 }
 
 async function pickFix(title: string): Promise<void> {
