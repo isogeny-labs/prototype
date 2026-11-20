@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useState } from "react";
 import { usePanelStamp } from "../changes";
 import {
   api,
@@ -14,6 +14,7 @@ import { DownloadStatus, downloadEvidence } from "./evidenceDownload";
 import {
   DataTable,
   DetailPanel,
+  ItemPageContext,
   FilterSelect,
   GroupSection,
   GroupTabs,
@@ -230,6 +231,19 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
     },
   });
   useShowGroups(onGroupShown, active, checks?.groups ?? null);
+  // An item belongs to the tab it sits in: when another tab opens (on the page, from the sidebar, by Back), the panel of
+  // an item of another tab closes. Not on an item's own page, which is the panel itself.
+  const asPage = Boolean(useContext(ItemPageContext)?.asPage);
+  useEffect(() => {
+    if (asPage || !checks || active === null) return;
+    if (openRow !== null && active !== "encryption") setOpenRow(null); // (a test's result: the Crypto tests table)
+    if (openCheck !== null) {
+      const holder =
+        checks.groups.find((g) => g.rows.some((r) => r.id === openCheck))?.key ?? (checks.libraries.some((l) => l.id === openCheck) ? "dependencies" : null);
+      if (holder && holder !== active) setOpenCheck(null);
+    }
+    // (only when the tab changes: an item opened from a link opens its own tab with it)
+  }, [active]);
   useEffect(() => {
     if (!openItem) return;
     if (openItem.startsWith("test-") || openItem.startsWith("retest-")) {
@@ -760,11 +774,7 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
         <GroupTabs
           groups={checks.groups}
           active={active}
-          onChoose={(key) => {
-            // (an item belongs to the tab it sits in: its panel closes when another tab opens)
-            closePanel();
-            choose(key);
-          }}
+          onChoose={choose}
           idBase={tabIds}
           matches={matches}
         />

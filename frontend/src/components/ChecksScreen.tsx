@@ -1,10 +1,24 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePanelStamp } from "../changes";
 import { api, errorMessage, type CheckGroup, type CheckRow, type ChecksView, type LabView, type PlanView } from "../api";
 import { CheckPanel } from "./checks/CheckPanel";
 import { CheckTable } from "./checks/CheckTable";
-import { BlockSection, FilterSelect, GroupSection, GroupTabs, PageHeader, PartSection, SearchInput, TableWithPanel, Toolbar, useGroupTab, useShowGroups, type GroupNav } from "./layout";
+import {
+  BlockSection,
+  FilterSelect,
+  GroupSection,
+  GroupTabs,
+  ItemPageContext,
+  PageHeader,
+  PartSection,
+  SearchInput,
+  TableWithPanel,
+  Toolbar,
+  useGroupTab,
+  useShowGroups,
+  type GroupNav,
+} from "./layout";
 import { AlsoChecks } from "./checks/CheckPanel";
 import { RetestMenu, RetestStatus } from "./lab/RetestMenu";
 import { ItemLinkView } from "./related";
@@ -213,6 +227,15 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
     },
   });
   useShowGroups(onGroupShown, active, view?.groups ?? null);
+  // A check belongs to the tab it sits in: when another tab opens (on the page, from the sidebar, by Back), the panel of a
+  // check of another tab closes. Not on an item's own page, which is the panel itself.
+  const asPage = Boolean(useContext(ItemPageContext)?.asPage);
+  useEffect(() => {
+    if (asPage || !view || active === null || openId === null) return;
+    const holder = view.groups.find((g) => [...g.rows, ...tabRows(g)].some((r) => r.id === openId || (r.alias != null && r.alias === openId)));
+    if (holder && holder.key !== active) setOpenId(null);
+    // (only when the tab changes: a check opened from a link opens its own tab with it)
+  }, [active]);
   // While a search or a filter is on, each tab says how many of its rows match.
   const narrowedAny = needle !== "" || fromFilter !== "all" || resultFilter !== "all";
   const matches = useMemo(
@@ -359,11 +382,7 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
         <GroupTabs
           groups={view.groups}
           active={active}
-          onChoose={(key) => {
-            // (a check belongs to the tab it sits in: its panel closes when another tab opens)
-            setOpenId(null);
-            choose(key);
-          }}
+          onChoose={choose}
           idBase={tabIds}
           matches={matches}
         />

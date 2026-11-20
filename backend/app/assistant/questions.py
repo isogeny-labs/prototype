@@ -74,6 +74,11 @@ def fact(text: str, link: dict | None = None, label: str | None = None) -> dict:
     return {"text": " ".join(str(text).split()), "link": where, "label": (label or "Open") if where else None}
 
 
+# Where the test plan is on Checks: its Crypto tests tab (20 November 2026: the work groups are tabs; a link to Checks that
+# names no group opens the first group with something in it).
+PLAN_TAB = "encryption"
+
+
 def _link(page: str, item: object = None, group: str | None = None) -> dict:
     return {"page": page, "item": str(item) if item is not None else None, "group": group}
 
@@ -223,7 +228,7 @@ def _pick_row(rest: str, item: str | None, lab_view: dict, names: dict[int, str]
             if len(found) == 1:
                 return _no_result(found[0], names[found[0]["item_id"]])
             return ("say", f"None of the {len(found)} tests that fit has a result yet. Results come from running the test plan on Checks.",
-                    _link("checks"), "Open Checks")
+                    _link("checks", group=PLAN_TAB), "Open Checks")
         if len(have) == 1:
             return ("row", have[0])
         if failed_first:
@@ -239,12 +244,12 @@ def _pick_row(rest: str, item: str | None, lab_view: dict, names: dict[int, str]
     if kind == "rows":
         have = [r for r in what if _newest(r) is not None]
         if not have:
-            return ("say", "The checks of this advisory have no result yet. They get one when they are run, on Checks.", _link("checks"), "Open Checks")
+            return ("say", "The checks of this advisory have no result yet. They get one when they are run, on Checks.", _link("checks", group=PLAN_TAB), "Open Checks")
         return ("row", have[0]) if len(have) == 1 else ("which", have)
     if kind == "other_run":
         return ("say", OTHER_RUN, _link("evidence"), "Open Evidence")
     if kind == "not_a_test":
-        return ("say", NOT_A_TEST, _link("checks"), "Open Checks")
+        return ("say", NOT_A_TEST, _link("checks", group=PLAN_TAB), "Open Checks")
     # nothing is open
     with_result = [r for r in rows if _newest(r) is not None]
     pool = [r for r in with_result if _failed(_newest(r))] if failed_first else with_result
@@ -252,7 +257,7 @@ def _pick_row(rest: str, item: str | None, lab_view: dict, names: dict[int, str]
         return ("row", pool[0])
     if pool:
         return ("which", pool)
-    return ("say", NONE_FAILED if failed_first and with_result else NO_RESULTS, _link("checks"), "Open Checks")
+    return ("say", NONE_FAILED if failed_first and with_result else NO_RESULTS, _link("checks", group=PLAN_TAB), "Open Checks")
 
 
 def _evidence(row: dict) -> dict:

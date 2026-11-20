@@ -944,6 +944,22 @@ describe("Evidence, the four work groups", () => {
     expect(within(panel()).getByRole("button", { name: "Mark reviewed" })).not.toBeNull();
   });
 
+  it("a panel of another tab closes when the tab changes from outside the page (the sidebar's link, Back)", async () => {
+    mockApi({ "GET /api/plans/1/lab": { body: lab }, ...withGroups() });
+    const { rerender } = render(<EvidenceLabScreen planId={1} onViewFix={() => undefined} />);
+    await screen.findAllByTestId("group-section");
+    fireEvent.click(within(groupOf("dependencies")).getByTestId("library-row"));
+    expect(await screen.findByTestId("library-panel")).not.toBeNull();
+    rerender(<EvidenceLabScreen planId={1} onViewFix={() => undefined} group="encryption" />);
+    expect(shownGroups()).toEqual(["encryption"]);
+    expect(screen.queryByTestId("library-panel")).toBeNull();
+    // a result of Crypto tests, then the sidebar's Verification: that panel closes too
+    fireEvent.click(rows()[0]!);
+    expect(screen.getByTestId("detail-panel")).not.toBeNull();
+    rerender(<EvidenceLabScreen planId={1} onViewFix={() => undefined} group="verification" />);
+    expect(screen.queryByTestId("lab-row")).toBeNull();
+  });
+
   it("a library's panel shows each answer with its label and reason, its source, and Open in Dependencies", async () => {
     await openGrouped();
     fireEvent.click(within(groupOf("dependencies")).getByTestId("library-row"));

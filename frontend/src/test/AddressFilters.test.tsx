@@ -39,6 +39,14 @@ describe("the address of a filtered table", () => {
     const plain = parseRoute("#/a/12/checks?item=test-5");
     expect("result" in plain || "from" in plain || "decision" in plain).toBe(false);
   });
+
+  it("the phase 5a address of Tests still opens the test plan: Checks on its Crypto tests tab (20 November 2026)", () => {
+    expect(parseRoute("#/a/12/tests")).toMatchObject({ page: "checks", group: "encryption" });
+    expect(parseRoute("#/a/12/tests?group=migration")).toMatchObject({ page: "checks", group: "migration" });
+    // (an item it names opens the tab that holds it, as on Checks)
+    expect(parseRoute("#/a/12/tests?item=claim-1")).toMatchObject({ page: "checks", item: "claim-1", group: null });
+    expect(parseRoute("#/a/12/checks")).toMatchObject({ page: "checks", group: null });
+  });
 });
 
 describe("Checks, filtered from its address", () => {

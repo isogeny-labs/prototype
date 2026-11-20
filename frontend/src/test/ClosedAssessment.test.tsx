@@ -49,8 +49,8 @@ describe("closed assessment banner", () => {
   });
 
   it("is not shown for an open assessment, and its buttons work", async () => {
-    // (the test plan is on Checks' Crypto tests tab; the old address of Tests still opens Checks)
-    window.history.replaceState(null, "", "#/a/101/tests?group=encryption");
+    // (the old address of Tests still opens the test plan: Checks' Crypto tests tab)
+    window.history.replaceState(null, "", "#/a/101/tests");
     mockApi(routes());
     render(<App />);
     await screen.findByRole("button", { name: "Run all" });

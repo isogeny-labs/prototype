@@ -96,11 +96,10 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
   const byId = new Map(fixes.map((f) => [f.id, f]));
   const shownGroups = groups.length > 0 ? groups : [];
   const entries = (ids: string[]) => ids.map((id) => byId.get(id)).filter((f): f is FixDetail => f !== undefined);
-  // While a search or the status filter is on, each tab says how many of its entries match.
+  // While a search or the status filter is on, each tab says how many of its fixes match. An entry listed apart (a
+  // developer's change) is counted nowhere (CLAUDE.md), so not here either; the search still lists it under its heading.
   const matches =
-    needle || statusFilter !== "all"
-      ? Object.fromEntries(shownGroups.map((g) => [g.key, entries([...g.fix_ids, ...(g.apart?.fix_ids ?? [])]).filter(fits).length]))
-      : null;
+    needle || statusFilter !== "all" ? Object.fromEntries(shownGroups.map((g) => [g.key, entries(g.fix_ids).filter(fits).length])) : null;
   const holderOf = (fixId: string) => shownGroups.find((g) => g.fix_ids.includes(fixId) || (g.apart?.fix_ids ?? []).includes(fixId))?.key;
   return (
     <nav aria-labelledby="fix-list-title" className="min-w-0">

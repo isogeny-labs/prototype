@@ -201,6 +201,17 @@ describe("Checks, the page", () => {
     expect(screen.queryByTestId("check-panel")).toBeNull();
   });
 
+  it("closes it too when the tab changes from outside the page (the sidebar's link, Back)", async () => {
+    mockApi({ [CHECKS]: { body: checksView }, [LAB]: { body: lab }, "GET /api/import/7/plan": { body: plan }, "GET /api/plans/1/checks/claim-1": { body: { ...retestDetail, check: verifyRows[0]! } } });
+    const { rerender } = render(<Harness />);
+    await screen.findAllByTestId("group-section");
+    fireEvent.click(rowsIn("verification")[0]!);
+    expect(await screen.findByTestId("check-panel")).not.toBeNull();
+    rerender(<Harness group="migration" />);
+    expect(shownGroups()).toEqual(["migration"]);
+    expect(screen.queryByTestId("check-panel")).toBeNull();
+  });
+
   it("opens the tab a link names (the Overview's, the sidebar's, Continue to checks)", async () => {
     await open(checksView, {}, { group: "encryption" });
     expect(shownGroups()).toEqual(["encryption"]);

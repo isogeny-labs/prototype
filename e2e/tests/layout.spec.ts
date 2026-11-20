@@ -120,6 +120,17 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   // (Crypto tests: the test plan's cards; its first runs show there, and no retest has run yet)
   await openGroupTab(page, "Crypto tests");
   await expect(page.getByRole("tabpanel", { name: "Crypto tests" }).getByTestId("test-card")).toHaveCount(5);
+  // A link to a test of the plan (Advisories' Open in Checks, a Related line, Otto's On Checks) opens its panel beside
+  // the plan's cards: Crypto tests measured with its panel open too.
+  const firstTest = await page.getByTestId("test-card").first().getAttribute("data-test");
+  const assessmentId = /#\/a\/(\d+)\//.exec(new URL(page.url()).hash)![1];
+  await page.goto(`/#/a/${assessmentId}/checks?item=test-${firstTest}`);
+  await expect(page.getByRole("tab", { name: "Crypto tests", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("check-panel")).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByTestId("check-panel").getByTestId("earlier-runs")).toBeVisible();
+  expect(await layoutProblems(page), "checks, Crypto tests, panel open").toEqual([]);
+  await shots("checks-2-encryption-panel-open", TAB_SHOTS);
   expect(checks.migration).toBeGreaterThan(0);
 
   // ---- Evidence: each tab (a claim's check, the results, a system's measurement, a library)

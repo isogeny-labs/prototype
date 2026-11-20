@@ -1222,6 +1222,15 @@ describe("Fixes, the four work groups", () => {
     expect(summary().getAttribute("data-fix-id")).toBe(CODE_FIX);
   });
 
+  it("closes the open fix's panel when the tab changes from outside the page (the sidebar's link, Back)", async () => {
+    mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
+    const { rerender } = render(<Harness start={TLS_FIX} />);
+    expect((await screen.findByTestId("fix-summary")).getAttribute("data-fix-id")).toBe(TLS_FIX);
+    rerender(<Harness start={TLS_FIX} group="migration" />);
+    expect(shownGroups()).toEqual(["migration"]);
+    expect(screen.queryByTestId("fix-summary")).toBeNull();
+  });
+
   it("opens the tab the address names, and the tab of the fix it names", async () => {
     mockApi({ [`GET ${FIXES}`]: { body: fixesViews.ready } });
     const { unmount } = render(<Harness start={null} group="dependencies" />);
@@ -1443,6 +1452,8 @@ describe("Fixes, a suggestion for a developer's change (phase 6d)", () => {
     expect(screen.getByTestId("fix-apart-title").textContent).toBe("From a developer's change (1)");
     fireEvent.change(screen.getByRole("searchbox", { name: "Search fixes" }), { target: { value: "revert-range-check" } });
     await waitFor(() => expect(screen.getAllByTestId("fix-apart-row")).toHaveLength(1));
+    // it is counted nowhere, not in the number the tab shows while a search is on either: the tab counts its fixes
+    expect(within(screen.getByRole("tab", { name: "Crypto tests" })).getByTestId("group-tab-matches").textContent).toBe("0");
   });
 });
 

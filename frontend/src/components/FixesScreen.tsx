@@ -71,12 +71,16 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
     },
   });
   useShowGroups(onGroupShown, activeTab, view ? fixGroups : null);
-  // Another tab: the fix that was open belongs to the tab it came from, so its panel closes (the page then opens on the
-  // first fix of the new tab, as it opens on the first fix, unless the person closed the panel).
-  const openTab = (key: string) => {
-    chooseTab(key);
-    setOpenId(null);
-  };
+  // Another tab (on the page, from the sidebar, by Back): a fix that was open belongs to the tab it sits in, so its panel
+  // closes, and the page opens on the first fix of the new tab, as it opens on the first fix, unless the person closed
+  // the panel. Not on a fix's own page, which is the panel itself.
+  useEffect(() => {
+    if (asPage || !view || activeTab === null || openId === null) return;
+    const holder = fixGroups.find((g) => g.fix_ids.includes(openId) || (g.apart?.fix_ids ?? []).includes(openId));
+    if (holder && holder.key !== activeTab) setOpenId(null);
+    // (only when the tab changes: a fix opened from a link opens its own tab with it)
+  }, [activeTab]);
+  const openTab = chooseTab;
 
   // Phase 6a: a decision or a start sent from the Otto panel: this page reads its view again.
   const panelStamp = usePanelStamp();

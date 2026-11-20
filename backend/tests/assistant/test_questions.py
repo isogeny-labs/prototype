@@ -304,6 +304,8 @@ def test_this_check_is_the_open_item_and_nothing_else(assistant_walk):
         for item in ("claim-1", "fix-otto-cve-2022-21449", "CVE-2019-14853"):       # a claim, a fix, an advisory with no check in the plan
             reply = lab.assistant_answer(aid, "checks", item, question)
             assert [f["text"] for f in reply["facts"]] == [questions.NOT_A_TEST], (item, question)
+            # (its link opens the test plan: Checks' Crypto tests tab, 20 November 2026)
+            assert reply["facts"][0]["link"] == {"page": "checks", "item": None, "group": "encryption"}, (item, question)
     # and the chips follow the same rule: no "Why did this check fail?" beside an open item that has no failed result of its own
     view = lab.lab_view(pid)
     proposals = lab.otto_proposals(pid)
