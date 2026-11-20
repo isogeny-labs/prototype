@@ -19,13 +19,13 @@ _(none pinned — set one with `/goal <text>`)_
 <!-- One line per task, added as the task's first step with its draft PR:
 - [ ] <task> (<runtime>, started YYYY-MM-DD, branch <branch>, PR #<n>) -->
 
-- [ ] Work-group sub-tabs on Checks, Evidence and Fixes, and the group "Encryption tests" renamed "Crypto tests" (the key stays `encryption`) — plan given, waiting for Kevin's OK before any code (claude, started 2026-11-20, branch claude/nice-carson-s5k8hk)
-- [ ] Overnight run: the 5c fixes, then phase 6 (the Otto assistant, 6a to 6e) and Otto's research loop — **stopped unfinished on 2026-11-19, at a green, pushed branch** (claude, started 2026-11-19, branch overnight/fixes-and-phase6, PR #7, a draft). Kevin approved the plan in advance and reviews the next day; `docs/HANDOFF-overnight.md` says after every step what is done, what is left and the exact next action. Never merged into `mvp/crypto-simple` by the session.
+- [ ] Work-group sub-tabs on Checks, Evidence and Fixes, and the group "Encryption tests" renamed "Crypto tests" (the key stays `encryption`) — in progress; Kevin approved the plan on 2026-11-20 (first non-empty group, "Continue to checks" opens Crypto tests) (claude, started 2026-11-20, branch claude/nice-carson-s5k8hk, PR #8, a draft)
+- [x] Overnight run: the 5c fixes, then phase 6 (the Otto assistant, 6a to 6e) and Otto's research loop — **merged** (claude, started 2026-11-19; branch overnight/fixes-and-phase6, PR #7, merged into `mvp/crypto-simple` by Kevin; ticked 2026-11-20 on his word). What it left for later (the second halves of 6b to 6e) and the owner's decisions are in `docs/HANDOFF-overnight.md`.
 - [x] Phase 5c: Otto in Evidence Lab — **done and merged** (claude, started 2026-11-17, finished 2026-11-18; branch wip/5c-otto, PR #6). The first build, and the owner's acceptance criteria of 2026-11-18 (Otto proposes, a person accepts or rejects; two proof rows; Otto on every tab), are built, checked and reviewed three times; counts and what the reviews found are in docs/HANDOFF.md, the walk's pictures in docs/screenshots/phase5c/, and the plain-English report is the doc "Phase 5c report: Otto in Evidence Lab". What is left is the owner's: the questions below.
 
 ## Blocked / questions for the owner
 
-From the overnight run (PR #7, a draft; never merged by the session): the run stopped when its usage limit was reached. What is left (6e's separate review, the long checks, the second halves of 6b to 6e) and 32 decisions for the owner are in `docs/HANDOFF-overnight.md`.
+From the overnight run (PR #7, since merged by Kevin): what it left for later (the second halves of 6b to 6e) and the decisions for the owner are in `docs/HANDOFF-overnight.md`.
 
 From phase 5c (details in `docs/HANDOFF.md` and in the doc "Phase 5c report: Otto in Evidence Lab", under "Yours to decide"). None blocked the merge of PR #6; each is the owner's to decide:
 
