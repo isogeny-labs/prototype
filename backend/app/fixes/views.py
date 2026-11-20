@@ -110,6 +110,7 @@ class FixesMixin:
         claims = self._claims(db.get(ImportRow, plan.import_id))
         several = len(research.servers(claims)) > 1 or len(research.programs(claims)) > 1
         tls_changes = self._tls_changes(db, plan)
+        impact_ctx: dict = {}    # phase 4e: what every fix's "What this change touches" shares, read once
         out = []
         for fix in states:
             titles = list(dict.fromkeys(self._answer_title(db, a) for a in fix["answers"]))
@@ -139,6 +140,8 @@ class FixesMixin:
             shown.setdefault("change_box", None)
             shown.setdefault("advisories", None)   # phase 4c: only a text fix for a real library carries any
             shown.setdefault("proof_rows", None)   # phase 5c: only a library's fix from Otto has the two rows
+            # Phase 4e: where the part this fix changes is used (it reads; it decides and changes nothing)
+            shown["impact"] = self._fix_impact(db, plan, fix, answered, impact_ctx)       # type: ignore[attr-defined]
             proposal = proposals.get((fix.get("proposal") or {}).get("id"))
             shown["proposal"] = (present_otto.proposal_view(proposal, self.otto_ledger_about(plan.id, proposal.get("objective_id")))   # type: ignore[attr-defined]
                                  if proposal is not None else None)

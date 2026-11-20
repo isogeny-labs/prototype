@@ -34,7 +34,8 @@ from app.checks.verify import AddressCheck, DemoContext
 RUNNER_ID = "isogeny.runner/1"
 MIGRATION_ORIGIN = "migration"   # a plan item that is a Migration measurement (phase 4a), and the phase of its runs
 DEPENDENCY_ORIGIN = "dependencies"   # a plan item that is a library's capability check (phase 4d), and the phase of its runs
-HIDDEN_ORIGINS = (MIGRATION_ORIGIN, DEPENDENCY_ORIGIN)   # measurements the Tests step never shows
+CLIENTS_ORIGIN = "clients"   # phase 4e: a "Who can still connect" test, run only inside a try on a test copy
+HIDDEN_ORIGINS = (MIGRATION_ORIGIN, DEPENDENCY_ORIGIN, CLIENTS_ORIGIN)   # measurements the Tests step never shows
 RUN_SCHEMA = "isogeny.run/1"
 SOFTWARE_KINDS = research.SOFTWARE_TEST_KINDS + ("signing_status",)
 NOT_DEMO_PROGRAM = "Its tests can't run: only our own demo components can run in this version."
@@ -705,7 +706,9 @@ class TestLabMixin:
                          else (lambda address: self._address_check(a["import_id"], address)))
             ctx = RunContext(settings=self.settings, mode=self.mode, runner=self.component_runner, gate=self.jobs.gate,
                              progress=job.progress, log=job.log, address_check=check_for,
-                             component=component, baseline_version=a["baseline_version"])
+                             component=component, baseline_version=a["baseline_version"],
+                             # phase 4e: a run on a test copy may also reach the server as it is today (its own gate)
+                             today_check=((lambda address: self._address_check(a["import_id"], address)) if a.get("copy") else None))
             try:
                 raw = execute(spec, ctx)
             except BaseException as exc:  # execute() already catches; this is the last line of defence

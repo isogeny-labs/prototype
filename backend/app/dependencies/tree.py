@@ -107,6 +107,48 @@ def build_tree(dl: DependencyList, programs: list[tuple[str, str]]) -> Tree:
     return Tree(format=dl.format, tops=shown, rows=rows, not_libraries=not_libraries)
 
 
+def top_keys(dl: DependencyList, programs: list[tuple[str, str]]) -> set[str]:
+    """Every component that is a top entry by the rule above (the thing the list describes, an application or a
+    container, or a component whose name and version equal a signing program of the file). The same rule as
+    build_tree's, before it leaves out headings with nothing under them."""
+    wanted = {(n.casefold(), v) for n, v in programs}
+    return {c.key for c in dl.components.values()
+            if c.key == dl.described or c.kind in TOP_TYPES or (c.name.casefold(), c.version) in wanted}
+
+
+def reached_from(dl: DependencyList, key: str, tops: set[str]) -> list[tuple[str, list[str]]]:
+    """Change impact (phase 4e): every top entry from which the component `key` can be reached, each with its shortest
+    path (the labels of the components in between, nearest the top entry first). Unlike the grouping of build_tree
+    (each row under one heading only), EVERY top entry that reaches it is listed. A path stops at the first top entry
+    it meets: that one is the customer's software that uses it, and whatever uses that software is that software's
+    own question (so the thing the whole list describes is not named on every row). In file order of the top
+    entries; the component itself is never listed as reaching itself."""
+    users: dict[str, list[str]] = {}
+    for parent, children in dl.edges.items():
+        for child in children:
+            users.setdefault(child, []).append(parent)
+    comps = dl.components
+    nearer: dict[str, str | None] = {key: None}     # component -> the next component on its shortest way down to `key`
+    queue: deque[str] = deque([key])
+    while queue:
+        here = queue.popleft()
+        if here != key and here in tops:
+            continue                               # a top entry: the walk up stops here
+        for up in users.get(here, []):
+            if up in nearer or up not in comps:
+                continue
+            nearer[up] = here
+            queue.append(up)
+    out = []
+    for top in sorted((t for t in nearer if t in tops and t != key), key=lambda t: comps[t].order):
+        via, step = [], nearer[top]
+        while step is not None and step != key:
+            via.append(label(comps[step]))
+            step = nearer[step]
+        out.append((top, via))
+    return out
+
+
 def to_store(dl: DependencyList) -> dict:
     """What is kept of a list in the database: enough to rebuild the tree, and nothing that could run."""
     return {"format": dl.format, "described": dl.described,

@@ -542,6 +542,61 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
   also a rejection, before any check has run.
 
+## Limits of phase 4e, first half (change impact: "What breaks if I make this change?"; 20 November 2026)
+
+### What is real
+
+- **Where it is used** reads what the app holds and nothing else: each assessment's scanner file, its newest dependency
+  list, the person's ties (Part of) and the knowledge base. Nothing is connected to, fetched or run to answer it.
+- **Who can still connect** makes real TLS handshakes (handshakes only, no data) with the app's own OpenSSL (the copy
+  inside the `cryptography` library, the same as every post-quantum handshake of the app), to our own servers only: the
+  server as it is today (one of our demo servers or the lab nginx, the only servers a try works on), the test copy the try
+  started, and our own two control servers started for the run. In demo mode, without Docker.
+- Each stand-in's word is the separate reviewer's (`RuleReviewer._client_reach`, one rule added on 20 November 2026 with
+  Kevin's OK; no existing rule changed), from the run record, after the control read right. Tests cover every combination
+  of what a stand-in did today and on the copy.
+
+### What is demo
+
+- **The four client stand-ins are demo data**, the same four for every server: Payment terminal, old firmware; Partner
+  system, classical only; Payment terminal, new firmware; Post-quantum-only client (`backend/app/clients/profiles.py`). A
+  stand-in is NOT the device it is named after. It offers exactly the TLS versions, key-exchange groups (in its order) and
+  certificate signature types its profile lists, and checks no certificate's trust. A real device can differ in ways a
+  stand-in does not show: its TLS library's own bugs, how it handles a HelloRetryRequest, a size limit on the first
+  message, a certificate it does not trust.
+- **In the demo a Hybrid change breaks no stand-in, by design**: it keeps every classical key exchange and TLS version
+  the server had, so what connected before still connects (some fall back). Breaks shows on a change that takes something
+  away: TLS 1.3 only on the Acme Pay demo server (the old firmware breaks) and Full post-quantum on 8451 (three break).
+
+### Limits
+
+- **Whether the parts that use a library take its new version is not checked.** The app holds no data on the versions
+  each part accepts: a CycloneDX or SPDX list names the exact version installed, and the knowledge base's `declared`
+  entries (phase 6e) say what a library version needs, the other direction. Every library or program fix says "Not
+  known" with that reason. A later phase needs, for each part that uses a library, the range it accepts, read from its
+  own package file (quoted, with its link, the date and fingerprint), and a reader for each way of writing a range.
+- **"Elsewhere in your organization" is matched by what the files name**, not by what runs: two assessments that name
+  `localhost:8443` name the same address; two that name `acme-sign 1.4.2` name the same program by name and version. A
+  library the knowledge base knows is matched by its package address, or by the knowledge base's recognition, at the same
+  version as the app reads versions (a distribution's package as its upstream version); our own software by the exact
+  version text (`acme-sign 1.4.3-otto` is not `1.4.3`). It does not show which server really loads a library: that needs
+  your environment, and the block says so.
+- **The walk through a dependency list stops at the first top entry it meets.** Every top entry that reaches a library
+  is named (unlike the table's one heading per library), but what uses that top entry is that entry's own question, so
+  the thing the whole list describes is named only where it uses the part directly.
+- **A closed assessment shows only its own file and list**, so what it shows no longer changes with other assessments
+  (the lines "Elsewhere in your organization" it showed while open are not shown once it is closed). An open one reads
+  the other assessments as they are now; the block is not part of the signed evidence (the files and
+  lists it reads are).
+- **The client stand-ins run only inside a try**, on its first copy (the demo test copy, or the lab nginx for the lab
+  nginx file): not on the real-nginx copy that a try adds in isolated mode, not again after Apply or Roll back, and
+  never on a server this app can't make a copy of (there the try is off, with its reason).
+- **Not built:** a list of your own clients per server; real pinned client programs (old OpenSSL, curl, Java) in
+  containers; a network device between client and server (the "one proxy" of spec 4e, which is where a bigger first
+  message is dropped); a check of the machines that verify a signing program's signatures; Where it is used on the
+  Systems panel, the Roadmap, the Otto panel or Change watch's entry; and the verify command writing the client rule out
+  a second time (the runs are in the signed file like every run).
+
 ## Limits of phase 6e, first half (what-if: what the app knows, and the try; 19 November 2026)
 
 - **Only the first half is built.** A what-if typed into the Otto panel gets one card: what the app knows, a try on

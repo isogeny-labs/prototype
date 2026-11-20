@@ -43,7 +43,7 @@ class RelationsMixin:
     fixes_view: Callable[[int], dict]
     fix_states: Callable[[int], list[dict]]
     migration_view: Callable[[int], dict]
-    dependencies_view: Callable[[int], dict]
+    dependencies_view: Callable[..., dict]
     _migration_states: Callable[..., list[dict]]
     _systems: Callable[[list[dict]], list[dict]]
 
@@ -120,7 +120,7 @@ class RelationsMixin:
             if change and f"change:{change['id']}" not in alias:
                 alias[f"change:{change['id']}"] = f"system:{s['key']}"
         try:
-            dview = self.dependencies_view(plan_id)
+            dview = self.dependencies_view(plan_id, with_impact=False)
         except NotFound:
             dview = {"groups": []}
         for g in dview.get("groups") or []:

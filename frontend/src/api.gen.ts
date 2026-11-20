@@ -1693,6 +1693,10 @@ export interface TryView {
   rows: TryViewRow[];
   notes: string[];
   results: TryViewResult[];
+  /**
+   * Phase 4e: who can still connect; null for a try made before it.
+   */
+  clients?: TryClients | null;
 }
 export interface RowStatus {
   status: "not_run" | "waiting" | "running" | "done";
@@ -1906,6 +1910,69 @@ export interface OttoResultDecisions {
   rows: OttoDecisionLine[];
   footnote: string;
   empty: string | null;
+}
+/**
+ * Phase 4e: who can still connect, measured on the try's first copy. Information: it decides nothing about the try.
+ */
+export interface TryClients {
+  title: string;
+  running: RowStatus | null;
+  /**
+   * "1 breaks, 2 connect, 1 didn't connect before either."
+   */
+  summary: string | null;
+  /**
+   * "Sort out the 1 that breaks before you apply this change." Holds nothing off.
+   */
+  warning: string | null;
+  columns: string[];
+  rows: TryClientRow[];
+  note: string;
+  /**
+   * That it is information and holds Apply off nothing.
+   */
+  decides: string;
+  control: string | null;
+  /**
+   * Set when the stand-ins' run gave no answer (it could not run, or its control misread).
+   */
+  no_answer: string | null;
+}
+export interface TryClientRow {
+  /**
+   * The stand-in: "old-terminal" | "partner-classical" | "new-terminal" | "pq-only".
+   */
+  id: string;
+  /**
+   * "Payment terminal, old firmware"
+   */
+  name: string;
+  /**
+   * What its profile offers, in one plain line.
+   */
+  offers: string;
+  /**
+   * "Demo data"
+   */
+  label: string;
+  /**
+   * Its handshake with the server as it is today: "TLS 1.2, classical (X25519)" | "Refused (protocol version)".
+   */
+  today: string;
+  /**
+   * Its handshake with the test copy, in the same words.
+   */
+  on_copy: string;
+  /**
+   * The reviewer's word: Connects, Falls back, Breaks, Didn't connect before either, Couldn't check.
+   */
+  word: string;
+  word_key: "connects" | "falls_back" | "breaks" | "not_before" | "couldnt_check";
+  tone: "pass" | "fail" | "neutral" | "warn";
+  /**
+   * "New: it can't connect today." when it connects only on the copy.
+   */
+  note: string | null;
 }
 export interface ChangeWatchCode {
   state: "no_code" | "not_connected" | "unreadable" | "connected";
@@ -2577,6 +2644,10 @@ export interface DependencyRow {
    * Phase 5c: the status a person accepted.
    */
   otto_status?: DependencyOttoStatus | null;
+  /**
+   * Phase 4e: where this library is used.
+   */
+  impact?: Impact | null;
 }
 export interface DependencyMeasure {
   label: string;
@@ -2632,6 +2703,67 @@ export interface DependencyOttoStatus {
   label: string;
   tone: "pass" | "fail" | "neutral" | "warn";
   lines: string[];
+}
+/**
+ * Phase 4e: where the part a change touches is used. Read from the scanner files, the dependency lists and the
+ * knowledge base; it decides nothing.
+ */
+export interface Impact {
+  /**
+   * "What this change touches" on a fix, "Where it is used" on a library.
+   */
+  title: string;
+  /**
+   * The part: "localhost:8443" | "acme-sign 1.4.2" | "openssl 3.0.22".
+   */
+  part: string;
+  /**
+   * Systems of this assessment it reaches, plus one for each other project that names it.
+   */
+  count: number;
+  count_line: string;
+  here: ImpactPart;
+  elsewhere: ImpactPart;
+  notes: string[];
+  /**
+   * "Can the parts that use it take 1.4.3?" with "Not known" and why.
+   */
+  compatible: ImpactLineText | null;
+  /**
+   * "Who can still connect": whether a client check applies, and where it is.
+   */
+  connect: ImpactLineText | null;
+}
+export interface ImpactPart {
+  title: string;
+  lines: ImpactLine[];
+  /**
+   * Said in place of the lines when there are none.
+   */
+  none: string | null;
+}
+export interface ImpactLine {
+  /**
+   * "acme-sign 1.4.2" | "Migration demo › Assessment 1"
+   */
+  text: string;
+  /**
+   * One plain sentence: what it is, and which rule matched it.
+   */
+  sub: string;
+  /**
+   * Where it came from: "from your file".
+   */
+  tag: string;
+  /**
+   * For another assessment: its status.
+   */
+  chip: ("Open" | "Closed") | null;
+  link: ItemLink | null;
+}
+export interface ImpactLineText {
+  title: string;
+  text: string;
 }
 export interface DependencyMeasureBody {
   row?: string | null;
@@ -2775,6 +2907,10 @@ export interface FixDetail {
    * Phase 6d: listed under its group's own heading for a developer's change and never counted with the findings.
    */
   apart?: boolean;
+  /**
+   * Phase 4e: what this change touches; null for Change watch's entry.
+   */
+  impact?: Impact | null;
 }
 export interface FixStatus {
   key: "not_connected" | "proving" | "ready" | "failed" | "waiting" | "ready_to_merge" | "merged" | "text_only";

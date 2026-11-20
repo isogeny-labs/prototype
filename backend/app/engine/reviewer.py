@@ -1028,6 +1028,16 @@ class RuleReviewer:
         return {"reviewer": self.engine_id, "schema": WATCH_REVIEW_SCHEMA, "record_sha256": sha256_hex(record), "status": status,
                 "code_is_ours": bool(code_is_ours), "counts": {"tests": len(tests), **counts}, "tests": tests}
 
+    # ---------------------------------------------------------------- phase 4e: who can still connect
+
+    def _client_reach(self, spec, raw, run, review):
+        """Phase 4e, the "Who can still connect" test, run inside a try on a test copy: each demo client stand-in's
+        word, once the control (the same stand-ins on our own hybrid and classical test servers) read right. Its code
+        is "measured": it is information. Whether the try passed stays the system's own measurement, and no other
+        result, gate or rule reads this one (client_reach_review, at the end of this file)."""
+        review["control"], review["detail"] = client_reach_review(spec, raw)
+        return ("measured", None)
+
 
 # ---------------------------------------------------------------- phase 4b: a change tried on a test copy, then applied
 # Pure functions over reviewed measurements (each already through the read gate). Nothing here is stored: the
@@ -1107,3 +1117,82 @@ def rollback_outcome(before: dict | None, after: dict | None) -> dict:
     differences = [{"fact": key, "before": b.get(key), "after": a.get(key)} for key in ("kex", "auth", "classical_client", "tls")
                    if b.get(key) is not None and b.get(key) != a.get(key)]
     return {"code": "as_before" if not differences else "differs", "differences": differences}
+
+
+# ---------------------------------------------------------------- phase 4e: who can still connect
+# Each demo client stand-in's word, from its handshake with the server as it is today and with the test copy of a
+# change. Information only: no try verdict, no Apply gate and no other result reads it. Silence is never read as Breaks.
+
+CLIENT_WORDS = ("connects", "falls_back", "breaks", "not_before", "couldnt_check")
+
+
+def client_kind(handshake: object) -> str:
+    """One stand-in's handshake: hybrid, post_quantum (ML-KEM by itself) or classical when it completed; refused for a
+    clear TLS refusal; unclear for anything else (no answer, a dropped connection, an unclear error, nothing recorded)."""
+    if not isinstance(handshake, dict):
+        return "unclear"
+    if handshake.get("outcome") == "completed":
+        group = handshake.get("group")
+        return "hybrid" if group in HYBRID_GROUPS else "post_quantum" if group in PURE_GROUPS else "classical"
+    return "refused" if handshake.get("outcome") == "refused" else "unclear"
+
+
+def client_word(today: str, on_copy: str, brings_post_quantum: bool) -> tuple[str, bool]:
+    """(word, new) for one stand-in. new: it can't connect today and does on the test copy.
+    connects      - the copy completes the handshake and, where the change brings post-quantum key exchange, uses it;
+    falls_back    - the copy completes it with classical key exchange, on a change that brings post-quantum key exchange;
+    breaks        - it completes today and the copy clearly refuses it;
+    not_before    - refused today and on the copy (not caused by this change);
+    couldnt_check - either side gave no clear answer."""
+    if today == "unclear" or on_copy == "unclear":
+        return "couldnt_check", False
+    if on_copy in ("hybrid", "post_quantum"):
+        return "connects", today == "refused"
+    if on_copy == "classical":
+        return ("falls_back" if brings_post_quantum else "connects"), today == "refused"
+    return ("not_before" if today == "refused" else "breaks"), False
+
+
+def client_reach_review(spec: dict, raw: dict) -> tuple[dict, dict]:
+    """(control outcome, detail) of one "Who can still connect" run. The control: every stand-in did on each of our two
+    control servers exactly what the locked test says it must (its kind of connection, and its TLS version)."""
+    stand_ins = [s for s in spec["inputs"]["stand_ins"] if isinstance(s, dict)]
+    must = spec["control"]["must"]
+    brings = bool(spec["inputs"].get("brings_post_quantum"))
+    control = raw.get("control")
+    if not isinstance(control, dict) or not isinstance(control.get("hybrid"), dict) or not isinstance(control.get("classical"), dict):
+        why = control.get("error") if isinstance(control, dict) else None
+        control_out = {"outcome": "errored", "reason": str(why or "the control servers could not be started or read")}
+    else:
+        wrong = []
+        for s in stand_ins:
+            for server in ("hybrid", "classical"):
+                seen = control[server].get(s["id"])
+                want = must[s["id"]][server]
+                got_version = seen.get("tls_version") if isinstance(seen, dict) and seen.get("outcome") == "completed" else None
+                if client_kind(seen) != want["kind"] or got_version != want["version"]:
+                    wrong.append(f"{s['id']} on the {server} control")
+        control_out = ({"outcome": "as_expected", "reason": "every_stand_in_read_correctly_on_the_controls"} if not wrong else
+                       {"outcome": "not_as_expected", "reason": "a stand-in was misread on a control server: " + ", ".join(wrong)})
+    subject = raw["subject"]
+    today_raw = subject.get("today")
+    today: dict = today_raw if isinstance(today_raw, dict) else {}
+    today_handshakes = today.get("handshakes")
+    today_seen: dict = today_handshakes if today.get("reached") and isinstance(today_handshakes, dict) else {}
+    copy_seen: dict = (subject.get("copy") or {}).get("handshakes") or {}
+    rows, counts = [], {word: 0 for word in CLIENT_WORDS}
+    for s in stand_ins:
+        before, after = today_seen.get(s["id"]), copy_seen.get(s["id"])
+        before_kind, after_kind = client_kind(before), client_kind(after)
+        word, new = client_word(before_kind, after_kind, brings)
+        counts[word] += 1
+
+        def facts(h: object) -> dict:
+            return ({"tls_version": h.get("tls_version"), "group": h.get("group"), "alert": h.get("alert")}
+                    if isinstance(h, dict) else {"tls_version": None, "group": None, "alert": None})
+        rows.append({"id": s["id"], "word": word, "new": new, "today": {"kind": before_kind, **facts(before)},
+                     "copy": {"kind": after_kind, **facts(after)},
+                     "unclear": [side for side, kind in (("today", before_kind), ("copy", after_kind)) if kind == "unclear"]})
+    detail = {"stand_ins": rows, "counts": counts, "brings_post_quantum": brings, "today_reached": bool(today.get("reached")),
+              "today_problem": None if today.get("reached") else str(today.get("problem") or "no answer from the server as it is today")}
+    return control_out, detail

@@ -31,11 +31,13 @@ from app.db import (
 )
 from app.errors import BadRequest, Conflict, NotFound
 from app.engine.reviewer import apply_outcome, change_try_outcome, meets_promise, rollback_outcome
-from app.lab.testlab import MIGRATION_ORIGIN, read_spec
+from app.clients import design as clients_design
+from app.lab.testlab import CLIENTS_ORIGIN, MIGRATION_ORIGIN, read_spec
 
 LAB_NGINX_SETTINGS = {"groups": "X25519:P-256", "versions": ["TLS 1.2", "TLS 1.3"], "certificate": "ecdsa-p256"}
 DEMO_SERVER_SETTINGS = {"groups": "P-256", "versions": ["TLS 1.2", "TLS 1.3"], "certificate": "ecdsa-p256"}   # demo_server.DEMO_GROUP
 TRY_PHASES = ("try", "try_nginx")
+CLIENTS_PHASE = "try_clients"   # phase 4e: the "Who can still connect" run of a try, on its first copy
 NO_CONNECTOR = ("Try on a test copy and Apply need a connector to this server, which comes in a later phase. Download the change "
                 "and apply it yourself; then press Measure again.")
 COPY_WORDS = {"demo_test_server": "a test copy with the change", "lab_nginx": "a copy of the lab nginx with the change",
@@ -272,7 +274,7 @@ class SystemChangesMixin:
         tries = db.scalars(select(ChangeTryRow).where(ChangeTryRow.plan_id == plan.id, ChangeTryRow.change_key == key,
                                                       ChangeTryRow.change_fp == fp).order_by(ChangeTryRow.id.desc())).all()
         latest = tries[0] if tries else None
-        rec: dict = {"try": None, "try_outcome": None, "try_copies": [], "try_before": None, "request": None, "approvals": {},
+        rec: dict = {"try": None, "try_outcome": None, "try_copies": [], "try_before": None, "clients": None, "request": None, "approvals": {},
                      "applies": [], "in_force": None, "apply": None, "apply_after": None, "apply_outcome": None, "rollback": None,
                      "rollback_after": None, "rollback_outcome": None, "busy": False, "latest": None, "in_place": None}
         live = {j.key for j in self.jobs.live(("changes", plan.id))} | {j.key for j in self.jobs.live(("migration", plan.id))} | \
@@ -294,6 +296,8 @@ class SystemChangesMixin:
                 copies.append((copy["label"], measured, None))
                 rec["try_copies"].append({**copy, "measured": measured})
             rec["try_outcome"] = {"code": "running"} if running else change_try_outcome(change["promise"], copies)
+            # Phase 4e: who can still connect, measured on the try's first copy. It decides nothing about the try.
+            rec["clients"] = self._clients_of_try(db, plan, latest, rec["busy"])
         req = db.scalars(select(ApplyRequestRow).where(ApplyRequestRow.plan_id == plan.id, ApplyRequestRow.change_key == key,
                                                        ApplyRequestRow.change_fp == fp).order_by(ApplyRequestRow.id.desc())).first()
         if req is not None:
@@ -405,16 +409,42 @@ class SystemChangesMixin:
                                    change={k: v for k, v in change.items() if not k.startswith("_")}, item_id=change["_item_id"],
                                    before_run_id=change["_run_id"], copies=copies)
                 db.add(row)
+                # Phase 4e: the "Who can still connect" test of this change on this server, locked before it runs
+                clients = self._clients_item(db, plan, change)
                 db.commit()
                 try_id = row.id
                 item = db.get(PlanItemRow, change["_item_id"])
                 db.expunge(item)
-            for copy in copies:
+                db.expunge(clients)
+            for n, copy in enumerate(copies):
                 if copy["skipped"]:
                     continue
                 starter = self._copy_starter(change, copy["phase"])
-                self._submit_copy(plan, item, copy["phase"], try_id, copy["label"], starter)
+                self._submit_copy(plan, item, copy["phase"], try_id, copy["label"], starter, clients=clients if n == 0 else None)
         return {"ok": True}
+
+    def _clients_item(self, db, plan: PlanRow, change: dict) -> PlanItemRow:
+        """Phase 4e: the hidden plan item of the "Who can still connect" test of this change on this server (the same
+        change on the same server is the same test). Written down and locked here, before any run."""
+        spec = clients_design.design(address=change["address"], change=change)
+        spec_hash = self._lock_spec(db, spec, proposed_by=clients_design.PROPOSED_BY)      # type: ignore[attr-defined]
+        item = db.scalars(select(PlanItemRow).where(PlanItemRow.plan_id == plan.id, PlanItemRow.origin == CLIENTS_ORIGIN,
+                                                    PlanItemRow.spec_hash == spec_hash)).first()
+        if item is None:
+            item = PlanItemRow(plan_id=plan.id, spec_hash=spec_hash, position=30_000, origin=CLIENTS_ORIGIN, removed=False)
+            db.add(item)
+            db.flush()
+        return item
+
+    def _clients_of_try(self, db, plan: PlanRow, tried: ChangeTryRow, busy: bool) -> dict | None:
+        """Phase 4e: the reviewed "Who can still connect" run of one try, through the read gate: {"run": measured}, or
+        {"running": True} while its job runs, or None for a try made before this check existed."""
+        run = db.scalars(select(TestRunRow).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
+                         .where(TestRunRow.plan_id == plan.id, TestRunRow.phase == CLIENTS_PHASE, TestRunRow.retest_id == tried.id)
+                         .order_by(TestRunRow.id.desc()).limit(1)).first()
+        if run is not None:
+            return {"run": self._measured(db, run), "spec": read_spec(db.get(TestSpecRow, run.spec_hash))[0]}
+        return {"running": True} if busy else None
 
     def _copy_starter(self, change: dict, phase: str):
         target, after = change["target"], change["settings_after"]
@@ -436,19 +466,32 @@ class SystemChangesMixin:
         finally:
             server.close()
 
-    def _submit_copy(self, plan: PlanRow, item: PlanItemRow, phase: str, try_id: int, label: str, starter) -> None:
+    def _submit_copy(self, plan: PlanRow, item: PlanItemRow, phase: str, try_id: int, label: str, starter,
+                     clients: PlanItemRow | None = None) -> None:
+        """`clients` (phase 4e): the "Who can still connect" test, run on the same copy right after the system's own
+        measurement, while the copy is still up (it decides nothing about the try)."""
         args = {"plan_id": plan.id, "import_id": plan.import_id, "item_id": item.id, "spec_hash": item.spec_hash, "phase": phase,
                 "retest_id": try_id, "component_name": None, "component_version": None, "baseline_version": None, "own": False,
                 "copy_label": label}
+        stand_ins = ({**args, "item_id": clients.id, "spec_hash": clients.spec_hash, "phase": CLIENTS_PHASE}
+                     if clients is not None else None)
 
         def job_fn(job):
             job.progress("starting the copy", 5)
             try:
                 with starter() as copy:
                     self._run_one(job, {**args, "copy": copy})
+                    if stand_ins is not None:
+                        job.progress("connecting the client stand-ins", 90)
+                        try:
+                            self._run_one(job, {**stand_ins, "copy": copy})
+                        except Exception as exc:   # never a second measurement of the copy: the stand-ins' run alone is lost
+                            job.log(f"the client stand-ins could not be run ({exc.__class__.__name__})")
             except (lab_nginx.NginxUnavailable, OSError, Exception) as exc:   # the copy could not start: recorded, never a crash
                 text = str(exc) if isinstance(exc, lab_nginx.NginxUnavailable) else f"the copy could not be started ({exc.__class__.__name__})"
                 self._run_one(job, {**args, "copy_problem": text})
+                if stand_ins is not None:
+                    self._run_one(job, {**stand_ins, "copy_problem": text})
         try:
             self.jobs.submit((item.id, phase), job_fn, group=("changes", plan.id))
         except ValueError as exc:
@@ -604,7 +647,8 @@ def change_history(lab, db, plan: PlanRow, current: list[dict] | None = None) ->
         running = any(c["measured"] is None and not c["skipped"] for c in shown)
         outcome = {"code": "running"} if running else change_try_outcome((t.change or {}).get("promise") or {}, copies)
         before = lab._measured(db, db.get(TestRunRow, t.before_run_id)) if t.before_run_id else None
-        entry = {"row": t, "copies": shown, "outcome": outcome, "before": before}
+        entry = {"row": t, "copies": shown, "outcome": outcome, "before": before,
+                 "clients": lab._clients_of_try(db, plan, t, False)}     # phase 4e: who can still connect (None before it)
         h["tries"].append(entry)
         by_id[t.id] = entry
     for change in current or []:
