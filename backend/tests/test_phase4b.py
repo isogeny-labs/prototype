@@ -554,3 +554,39 @@ def test_the_change_routes_refuse_what_they_must(client):
     assert client.post("/api/plans/999/changes/try", json={"change": "x"}).status_code == 404
     assert client.post("/api/plans/999/changes/ask-approval", json={"change": "x", "reviewers": ["m" * 20]}).status_code == 422
     assert client.get("/api/plans/999/changes/download", params={"change": "x"}).status_code == 404
+
+
+@pytest.mark.slow  # about 5 s (a measured migration demo of its own); runs with --full
+def test_a_change_entry_gone_from_the_plan_between_two_reads_is_left_out_of_fixes(tmp_path, monkeypatch):
+    """Fixes lists each system's change from one read of the migration plan and words it from a second read. When a
+    setting, a choice or a measurement lands in between, the second read may find no change for that system (here the
+    plan of 8452 becomes Keep classical by recommendation, which has no change). That entry is left out of that read of
+    Fixes; the read itself, its counts and the evidence download still work (seen once in the phase 4a walk as a
+    server error on a Related read, 20 November 2026)."""
+    ports = _ports()
+    lab = make_lab(tmp_path, migration_ports=ports, lab_nginx_port=free_port())
+    try:
+        imp = lab.import_file("migration-demo.csv", migration_servers.file_for(ports))
+        for a in imp["addresses"]:
+            lab.confirm_address(imp["id"], a["address"], True)
+        pid = lab.ensure_plan(imp["id"])["id"]
+        lab.measure_migration(pid)
+        lab.wait_until_measured(pid, 300)
+        system = f"server:localhost:{ports[1]}"
+        with lab.db() as db:
+            stale = lab._fixes(db, lab._plan(db, pid))        # the first read: 8452's change (Hybrid, recommended) is listed
+        gone = [f for f in stale if (f.get("migration") or {}).get("system") == system and f["migration"]["what"] == "howto"]
+        assert gone, "8452's change should be listed before the plan changes"
+        lab.set_migration_setting(pid, system, "exposure", "internal")
+        lab.set_migration_setting(pid, system, "lifespan", "short")   # now Keep classical by recommendation: no change
+        monkeypatch.setattr(lab, "_fixes", lambda db, plan: [dict(f) for f in stale])   # the second read sees the plan as it is now
+        view = lab.fixes_view(pid)
+        assert problems(view, models.FixesView, "fixes") == []
+        assert gone[0]["id"] not in {f["id"] for f in view["fixes"]}
+        assert view["fixes"], "the other entries are still listed"
+        monkeypatch.undo()
+        assert gone[0]["id"] not in {f["id"] for f in lab.fixes_view(pid)["fixes"]}   # and the next read lists the plan as it is
+        export = lab.export_evidence(pid)
+        assert export["fingerprint"]
+    finally:
+        lab.stop()
