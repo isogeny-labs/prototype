@@ -1,4 +1,5 @@
-# The Playwright end-to-end walks on every push and pull request, and pictures of what a pull request changes.
+# The Playwright end-to-end walks on every pull request and every push to the default branch, and pictures of what a
+# pull request changes.
 # This repository is public: no secrets are used or needed.
 #
 # The walks run in demo mode: the isolated-mode test images are not prepared here, so the walks that need them, and
@@ -11,7 +12,9 @@
 name: End-to-end
 
 on:
+  # A branch with a pull request is walked by its pull_request run; a push outside one would only repeat it.
   push:
+    branches: [mvp/crypto-simple]
   pull_request:
 
 permissions:

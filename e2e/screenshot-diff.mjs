@@ -15,6 +15,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 const THRESHOLD = 24;
+// A picture counts as "noticeably changed" when its size changed or at least this share of its pixels moved.
+// Measured on this repository on 21 November 2026 (pull request #12, which changes no page): two runs of the same
+// code differed in 65 of 244 pictures, 59 of them below 1% (times and ids on the page) and 6 between 0.6% and 10%
+// (pictures taken while something is still running, whose height varies). So small differences are shown apart.
+const NOTICEABLE = 0.01;
 const [beforeDir, afterDir, outDir] = process.argv.slice(2);
 if (!beforeDir || !afterDir || !outDir) {
   console.error("usage: node screenshot-diff.mjs BEFORE_DIR AFTER_DIR OUT_DIR");
@@ -152,21 +157,31 @@ const sizeNote = ({ sizes }) =>
     ? ` (size ${sizes[0] / 2}×${sizes[1] / 2} → ${sizes[2] / 2}×${sizes[3] / 2})`
     : "";
 
+const noticeable = changed.filter((c) => c.share >= NOTICEABLE || sizeNote(c) !== "");
+const small = changed.filter((c) => !noticeable.includes(c));
+const table = (rows) => [
+  "| Changed picture | Pixels changed |",
+  "| --- | --- |",
+  ...rows.map((c) => `| \`${c.rel}\` | ${pct(c.share)}${sizeNote(c)} |`),
+];
 const lines = [
   "## Screenshots of the change",
   "",
   `${both.length + added.length} pictures taken by the end-to-end walks; compared with the same walks on the base.`,
   "",
-  `- **Changed:** ${changed.length}`,
+  `- **Noticeably changed** (size changed, or ${NOTICEABLE * 100}% of pixels or more): ${noticeable.length}`,
+  `- **Small differences** (under ${NOTICEABLE * 100}% of pixels): ${small.length}`,
   `- **New:** ${added.length}`,
   `- **No longer taken:** ${removed.length}`,
   `- **Unchanged:** ${both.length - changed.length}`,
   "",
+  "Two runs of the same code already differ a little: times and ids on a page, and pictures taken while something is",
+  "still running. A difference here is something to look at, not a finding.",
+  "",
 ];
-if (changed.length > 0) {
-  lines.push("| Changed picture | Pixels changed |", "| --- | --- |");
-  for (const c of changed) lines.push(`| \`${c.rel}\` | ${pct(c.share)}${sizeNote(c)} |`);
-  lines.push("");
+if (noticeable.length > 0) lines.push(...table(noticeable), "");
+if (small.length > 0) {
+  lines.push("<details><summary>Small differences</summary>", "", ...table(small), "", "</details>", "");
 }
 if (added.length > 0) lines.push("New pictures: " + added.map((p) => `\`${p}\``).join(", "), "");
 if (removed.length > 0) lines.push("No longer taken: " + removed.map((p) => `\`${p}\``).join(", "), "");
@@ -183,15 +198,18 @@ const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">"
 const src = (side, rel) => esc(`${side}/${rel}`);
 const figure = (label, side, rel) =>
   `<figure><figcaption>${label}</figcaption><a href="${src(side, rel)}"><img loading="lazy" src="${src(side, rel)}" alt="${label}: ${esc(rel)}"></a></figure>`;
+const changedSection = (c) =>
+  `<section><h2>${esc(c.rel)} <small>${pct(c.share)} of pixels changed${esc(sizeNote(c))}</small></h2><div class="row">` +
+  figure("Before", "before", c.rel) +
+  figure("After", "after", c.rel) +
+  figure("Changed pixels in red", "diff", c.rel) +
+  `</div></section>`;
 const sections = [
-  ...changed.map(
-    (c) =>
-      `<section><h2>${esc(c.rel)} <small>${pct(c.share)} of pixels changed${esc(sizeNote(c))}</small></h2><div class="row">` +
-      figure("Before", "before", c.rel) +
-      figure("After", "after", c.rel) +
-      figure("Changed pixels in red", "diff", c.rel) +
-      `</div></section>`,
-  ),
+  ...noticeable.map(changedSection),
+  ...(small.length > 0
+    ? [`<h1 class="tier">Small differences (under ${NOTICEABLE * 100}% of pixels; often times or ids)</h1>`]
+    : []),
+  ...small.map(changedSection),
   ...added.map(
     (rel) =>
       `<section><h2>${esc(rel)} <small>new</small></h2><div class="row">${figure("After", "after", rel)}</div></section>`,
@@ -214,9 +232,10 @@ const html = `<!doctype html>
   figure { margin: 0; } figcaption { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
   img { width: 100%; border: 1px solid var(--line); display: block; }
   p.none { color: var(--muted); }
+  h1.tier { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); }
 </style></head><body>
 <h1>Screenshots of the change</h1>
-<p>${changed.length} changed, ${added.length} new, ${removed.length} no longer taken, ${both.length - changed.length} unchanged. Click a picture for full size.</p>
+<p>${noticeable.length} noticeably changed, ${small.length} with small differences, ${added.length} new, ${removed.length} no longer taken, ${both.length - changed.length} unchanged. Click a picture for full size.</p>
 ${sections.join("\n") || '<p class="none">No picture changed.</p>'}
 </body></html>
 `;
