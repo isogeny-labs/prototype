@@ -138,6 +138,9 @@ def test_settings_from_the_environment(monkeypatch, tmp_path):
     monkeypatch.setenv("EVIDENCE_LAB_GITHUB_ALLOWED_ORGS", "Isogeny-Labs, other")
     s = load_settings()
     assert s.database == "postgresql://u@db/evidence"
+    monkeypatch.setenv("EVIDENCE_LAB_DATABASE_PASSWORD", "p@ss/word")   # from a secret store, kept apart from the URL
+    assert load_settings().database == "postgresql://u:p%40ss%2Fword@db/evidence"
+    monkeypatch.delenv("EVIDENCE_LAB_DATABASE_PASSWORD")
     assert s.github and s.github.allowed_orgs == frozenset({"isogeny-labs", "other"}) and not s.github.open_to_anyone
     assert not s.password_login    # with the GitHub login set up, the password login is off unless asked for
     monkeypatch.setenv("EVIDENCE_LAB_PASSWORD_LOGIN", "on")

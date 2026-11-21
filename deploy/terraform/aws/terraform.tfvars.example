@@ -1,0 +1,24 @@
+# Copy to terraform.tfvars (git ignores it) and fill in.
+
+name   = "evidence-lab"
+region = "us-east-1"
+
+# HTTPS on your own address (both needed). Leave empty to try it on the load balancer's own name over HTTP.
+domain_name     = "" # e.g. "lab.example.com"
+route53_zone_id = "" # the hosted zone that holds it
+
+# Who can reach it at all. Narrow this until the open questions in docs/HOSTING.md are settled.
+allowed_cidrs = ["0.0.0.0/0"]
+
+# The GitHub App (docs/HOSTING.md). Empty client id: the app asks for a password instead.
+# Set the secret through the environment rather than in this file:  export TF_VAR_github_client_secret=...
+github_client_id     = ""
+github_app_slug      = ""
+github_allowed_orgs  = [] # e.g. ["isogeny-labs"]
+github_allowed_users = [] # GitHub logins or numeric ids
+github_allow_anyone  = false
+
+image_tag = "latest"
+
+# false only for a throwaway copy: lets terraform destroy remove the database, bucket and images.
+protect_data = true

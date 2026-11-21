@@ -133,6 +133,17 @@ def _env_bool(name: str, default: bool) -> bool:
     raise SystemExit(f"{name} must be on or off")
 
 
+def _database_url() -> str | None:
+    """EVIDENCE_LAB_DATABASE_URL, with EVIDENCE_LAB_DATABASE_PASSWORD put in when given (a secret store can then hand
+    over the password alone, and the URL holds none)."""
+    url = (os.environ.get("EVIDENCE_LAB_DATABASE_URL") or "").strip() or None
+    password = os.environ.get("EVIDENCE_LAB_DATABASE_PASSWORD")
+    if url and password:
+        from sqlalchemy.engine import make_url
+        url = make_url(url).set(password=password).render_as_string(hide_password=False)
+    return url
+
+
 def load_github_settings() -> GitHubSettings | None:
     client_id = (os.environ.get("EVIDENCE_LAB_GITHUB_CLIENT_ID") or "").strip()
     client_secret = (os.environ.get("EVIDENCE_LAB_GITHUB_CLIENT_SECRET") or "").strip()
@@ -180,7 +191,7 @@ def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int 
                     otto_updates_dir=Path(updates).resolve() if updates else None,
                     otto_recorded_dir=Path(recorded).resolve() if recorded else None,
                     advisory_source_dir=Path(advisory_source).resolve() if advisory_source else None,
-                    database_url=(os.environ.get("EVIDENCE_LAB_DATABASE_URL") or "").strip() or None,
+                    database_url=_database_url(),
                     redis_url=(os.environ.get("EVIDENCE_LAB_REDIS_URL") or "").strip() or None,
                     storage_url=(os.environ.get("EVIDENCE_LAB_STORAGE_URL") or "").strip() or None,
                     public_url=(os.environ.get("EVIDENCE_LAB_PUBLIC_URL") or "").strip().rstrip("/") or None,

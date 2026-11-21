@@ -11,3 +11,4 @@ docs/
 e2e/
 .env
 .git
+deploy/

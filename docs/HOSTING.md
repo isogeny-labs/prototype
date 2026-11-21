@@ -28,11 +28,19 @@ The app runs in **demo mode** in its container: isolated mode starts containers 
 host, which the container does not have. Otto's harness is not in the image (it is private and fetched by
 `./run-demo.sh`), so the app says "Otto is not installed" there, as it does on any computer without it.
 
+## Run it on AWS
+
+`deploy/terraform/aws/` creates one copy on AWS: ECS Fargate behind a load balancer (HTTPS on your own address),
+RDS PostgreSQL, ElastiCache Redis, an S3 bucket, EFS for the data folder, and the secrets in Secrets Manager. Its
+README has the three steps. The database password then comes from Secrets Manager as `EVIDENCE_LAB_DATABASE_PASSWORD`
+and is put into `EVIDENCE_LAB_DATABASE_URL`, which holds none.
+
 ## The settings
 
 | Setting | What it does | Default |
 | --- | --- | --- |
 | `EVIDENCE_LAB_DATABASE_URL` | `postgresql://user:password@host:5432/db` (PostgreSQL 14 or newer), or `sqlite:///path` | the SQLite file in the data folder |
+| `EVIDENCE_LAB_DATABASE_PASSWORD` | the database password, kept apart from the URL (a secret store hands it over) | |
 | `EVIDENCE_LAB_REDIS_URL` | `redis://host:6379/0` | a cache in memory (one process) |
 | `EVIDENCE_LAB_STORAGE_URL` | `s3://bucket/prefix`, `gs://bucket/prefix`, or a folder | none: no copies are made |
 | `EVIDENCE_LAB_S3_ENDPOINT_URL` | another S3-compatible server (SeaweedFS, MinIO, R2; GCS through `https://storage.googleapis.com` with HMAC keys) | AWS |
