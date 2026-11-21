@@ -3235,6 +3235,20 @@ export interface LiveOttoBody {
   on?: boolean | null;
   limit?: string | null;
 }
+export interface LoginMethods {
+  /**
+   * The local password login is on (EVIDENCE_LAB_PASSWORD_LOGIN).
+   */
+  password: boolean;
+  /**
+   * Logging in with the GitHub App is set up.
+   */
+  github: boolean;
+  /**
+   * Where to install the GitHub App, when its name is known.
+   */
+  github_install_url: string | null;
+}
 export interface MigrationChoiceBody {
   system: string;
   option: string;
@@ -3901,12 +3915,22 @@ export interface SayBody {
 export interface Session {
   setup_required: boolean;
   logged_in: boolean;
+  login: LoginMethods;
+  /**
+   * Who is logged in with GitHub; null for the password login.
+   */
+  user: SessionUser | null;
   mode: "demo" | "isolated";
   /**
    * The sentence under the header saying how software is run, written by the backend.
    */
   mode_line: string;
   demo_server: DemoServer;
+}
+export interface SessionUser {
+  login: string;
+  name: string | null;
+  avatar_url: string | null;
 }
 export interface VerifyRun {
   id: number;

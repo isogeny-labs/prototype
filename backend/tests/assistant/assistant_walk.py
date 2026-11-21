@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy import inspect as sa_inspect
 
 from app.assistant.threads import PAGES
 from app.otto import model
@@ -131,8 +132,8 @@ def everything_kept(lab) -> dict:
     """A fingerprint of everything the app keeps for its assessments: every row of every table, and every file of the
     data folder with its content (the Otto ledgers, the connected repositories, the evidence downloads)."""
     with lab.db() as db:
-        tables = [r[0] for r in db.execute(text("select name from sqlite_master where type = 'table' order by name"))]
-        rows = {t: hashlib.sha256(repr(db.execute(text(f'select * from "{t}"')).fetchall()).encode()).hexdigest() for t in tables}
+        tables = sorted(sa_inspect(db.get_bind()).get_table_names())   # every table, on SQLite or PostgreSQL
+        rows = {t: hashlib.sha256(repr(sorted(map(repr, db.execute(text(f'select * from "{t}"')).fetchall()))).encode()).hexdigest() for t in tables}
     files = {}
     for path in sorted(Path(lab.settings.data_dir).rglob("*")):
         if path.is_file() and not path.name.endswith(("-wal", "-shm", "-journal")) and path.suffix != ".db":

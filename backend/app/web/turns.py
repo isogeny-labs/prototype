@@ -26,6 +26,10 @@ import weakref
 LIMIT = 5.0   # seconds one read may hold its turn; an ordinary view takes well under two
 
 
+# Hosting: the health check (a load balancer's probe) and the GitHub login (which waits on GitHub) read no view.
+UNQUEUED = frozenset({"/api/health", "/api/auth/github/start", "/api/auth/github/callback"})
+
+
 class _Turns:
     """The turns of one event loop."""
 
@@ -52,7 +56,9 @@ class OneReadAtATime:
         return turns
 
     async def __call__(self, scope, receive, send) -> None:
-        if not (scope.get("type") == "http" and scope.get("method") == "GET" and str(scope.get("path") or "").startswith("/api/")):
+        path = str(scope.get("path") or "")
+        if (not (scope.get("type") == "http" and scope.get("method") == "GET" and path.startswith("/api/"))
+                or path in UNQUEUED):
             await self.app(scope, receive, send)
             return
         turns = self._for_this_loop()

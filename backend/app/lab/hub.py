@@ -24,6 +24,8 @@ from app.changewatch.state import ChangeWatchMixin
 from app.changewatch.views import ChangeWatchViewMixin
 from app.whatif.facts import WhatIfMixin
 from app.fixes.changes import ChangesMixin
+from app.infra.cache import make_cache
+from app.infra.storage import make_store, put_quietly, safe_name
 from app.config import DEMO_CBOM, DEMO_CBOM_PORT, DEMO_HOSTNAME, Settings
 from app.db import (
     AddressRow, AssessmentRow, ClaimRow, ImportClearedRow, ImportFileRow, ImportRow, SkippedRow, SystemSettingRow, VerifyRunRow, iso, make_session_factory, now_utc,
@@ -99,7 +101,13 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             os.chmod(settings.data_dir, 0o700)  # the data folder (database, demo test key) is for this user only
         except OSError:
             pass
-        self.db = make_session_factory(db_path or settings.db_path)
+        factory = make_session_factory(db_path or settings.database)
+        self.db = factory
+        self.db_engine = factory.kw["bind"]   # hosting: the health check pings it; stop() gives its connections back
+        # Hosting (app/infra/): a cache (Redis, or memory) and, when one is named, a place for copies of stored files
+        # (S3, GCS or a folder; None by default).
+        self.cache = make_cache(settings.redis_url)
+        self.store = make_store(settings.storage_url)
         self.adopt_unfiled_imports()   # phase 5a: imports from before projects existed get an assessment, so nothing disappears
         self.demo = DemoServer(settings.data_dir, settings.demo_tls_port)
         self.extra = ExtraServers(settings.extra_ports)  # the multi-target demo file's test servers, started on import only
@@ -156,14 +164,22 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         self.extra.stop()
         self.migration_servers.stop()
         self.lab_nginx_server.stop()
+        self.db_engine.dispose()   # hosting: give the database connections back (PostgreSQL counts them)
 
     # ---------------------------------------------------------------- session / login
 
     def session_json(self, token: str | None) -> dict:
         with self.db() as db:
+            methods = self.settings.login_methods
+            user = auth.session_user(db, token, methods)
+            github = self.settings.github
             return {
-                "setup_required": auth.setup_required(db),
-                "logged_in": auth.session_valid(db, token),
+                "setup_required": self.settings.password_login and auth.setup_required(db),
+                "logged_in": auth.session_valid(db, token, methods),
+                "login": {"password": self.settings.password_login, "github": github is not None,
+                          "github_install_url": (f"{github.web_url}/apps/{github.app_slug}/installations/new"
+                                                 if github and github.app_slug else None)},
+                "user": ({"login": user.login, "name": user.name, "avatar_url": user.avatar_url} if user else None),
                 "mode": self.mode.name,
                 "mode_line": self.mode.line,
                 "demo_server": {"address": self.settings.demo_address, "running": self.demo.running,
@@ -377,6 +393,11 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             # Phase 5a: the import goes into its assessment (or, with none given, the "Imported without a project" project).
             placed = self.attach_import(db, row.id, assessment_id)
             db.commit()
+            if data is not None and self.store is not None:
+                # Hosting: a copy in the file store named by EVIDENCE_LAB_STORAGE_URL, once the record is in the
+                # database (which stays the record). None is named by default: then nothing is copied.
+                put_quietly(self.store, f"imports/{hashlib.sha256(data).hexdigest()}/{safe_name(filename)}",
+                            bytes(data), "application/octet-stream")
             return {**import_json(row, self._file_settings(db, row)), "assessment_id": placed, "otto": self.otto_found(db, row)}
 
     def assistant_view(self, assessment_id: int, page: str, item: str | None = None) -> dict:

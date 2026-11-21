@@ -11,6 +11,7 @@ Passing these tests doesn't prove a system secure. It shows these specific check
 | Part | Status |
 | --- | --- |
 | Log in (you create your own password the first time) | Built |
+| Hosting: log in with a GitHub App, PostgreSQL, Redis, S3 or GCS file storage, `docker compose up` (all off by default; [docs/HOSTING.md](docs/HOSTING.md)) | Built, not yet approved by Kevin (new packages in `backend/requirements-infra.lock`) |
 | 1. Import (demo file, CycloneDX 1.6 CBOM `.json`, CSV template `.csv`) | Built |
 | 2. Verify (True / False / Couldn't check, one plain sentence on top, Also noticed notes, with evidence) | Built |
 | 3. Tests (five suggested tests for the demo, every server and signing program in a file tested, grouped by target, with what isn't tested and why; add from a short catalog, reorder, remove, run one or all at once) | Built |

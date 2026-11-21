@@ -170,6 +170,65 @@ def no_read_of_the_advisory_source(monkeypatch):
     monkeypatch.setattr(lookup, "_http_transport", refuse)
 
 
+class ReachedGitHub(BaseException):
+    """A test tried to reach GitHub for a login. Not an ordinary error, for the same reason."""
+
+
+@pytest.fixture(autouse=True)
+def no_login_at_github(monkeypatch):
+    """Hosting: no test reaches GitHub. Tests of the GitHub login give a stand-in transport."""
+    from app import github_login
+
+    def refuse():
+        raise ReachedGitHub("a test tried to reach GitHub; give the login a stand-in transport")
+    monkeypatch.setattr(github_login, "_http_client", refuse)
+
+
+@pytest.fixture(autouse=True, scope="session")
+def database_per_lab(request):
+    """Hosting: with EVIDENCE_LAB_TEST_DATABASE_URL=postgresql://user@host/any, the whole suite runs on PostgreSQL.
+    Every data folder gets a database of its own, made on that server and dropped at the end. Tests that open the
+    SQLite file itself or use SQLite's own SQL (triggers dropped, json_set) fail there by design."""
+    import os
+    import uuid
+
+    url = os.environ.get("EVIDENCE_LAB_TEST_DATABASE_URL")
+    if not url:
+        yield
+        return
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.engine import make_url
+
+    from app import db as app_db
+    from app.infra.database import normalise_url
+    from app.lab import hub
+
+    server = make_url(normalise_url(url))
+    admin = create_engine(server.set(database="postgres"), isolation_level="AUTOCOMMIT")
+    made: dict[str, str] = {}
+    original = app_db.make_session_factory
+
+    def fresh(database):
+        # One database per data folder: an app started again on the same folder finds its records, as with SQLite.
+        key = str(database)
+        if key not in made:
+            made[key] = "evlab_test_" + uuid.uuid4().hex[:16]
+            with admin.connect() as conn:
+                conn.execute(text(f'CREATE DATABASE "{made[key]}"'))
+        return original(server.set(database=made[key]).render_as_string(hide_password=False))
+
+    patcher = pytest.MonkeyPatch()
+    patcher.setattr(hub, "make_session_factory", fresh)
+    try:
+        yield
+    finally:
+        patcher.undo()
+        with admin.connect() as conn:
+            for name in made.values():
+                conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
+        admin.dispose()
+
+
 @pytest.fixture
 def settings(tmp_path):
     # Tests run in demo mode unless they ask for the docker_ready fixture; the speed test uses fewer pairs

@@ -30,6 +30,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlalchemy import select
 
+from app.infra.storage import BlobStore, put_quietly
 from app.run import components
 from app.present import plain
 from app.present import times
@@ -1379,6 +1380,8 @@ def _export_view(row: EvidenceExportRow) -> dict:
 class EvidenceMixin:
     """Mixed into Lab: Download evidence."""
 
+    store: BlobStore | None   # set by Lab (app/infra/storage.py): copies of each download go there, when named
+
     def export_evidence(self, plan_id: int) -> dict:
         view = self.lab_view(plan_id)  # NotFound for an unknown plan
         if not view["download"]["can_start"]:
@@ -1396,6 +1399,10 @@ class EvidenceMixin:
             row = EvidenceExportRow(plan_id=plan_id, created_at=created, fingerprint=fingerprint, json_bytes=raw, html_bytes=report)
             db.add(row)
             db.commit()
+            if self.store is not None:
+                # Hosting: copies in the file store named by EVIDENCE_LAB_STORAGE_URL; the row above stays the record.
+                put_quietly(self.store, f"evidence/{plan_id}/{fingerprint}.json", raw, "application/json")
+                put_quietly(self.store, f"evidence/{plan_id}/{fingerprint}.html", report, "text/html; charset=utf-8")
             return _export_view(row)
 
     def evidence_file(self, export_id: int, which: str) -> tuple[str, bytes, str]:

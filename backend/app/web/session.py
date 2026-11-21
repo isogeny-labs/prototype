@@ -17,6 +17,8 @@ def routes(lab, set_cookie) -> APIRouter:
 
     @router.post("/api/setup", responses=shows(models.Ok))
     def setup(body: PasswordBody, response: Response):
+        if not lab.settings.password_login:
+            return error_response(404, "This app is set up for logging in with GitHub only.")
         with lab.db() as db:
             if not auth.setup_required(db):
                 return error_response(409, "A password has already been created. Log in with it.")
@@ -29,6 +31,8 @@ def routes(lab, set_cookie) -> APIRouter:
 
     @router.post("/api/login", responses=shows(models.Ok))
     def login(body: PasswordBody, response: Response):
+        if not lab.settings.password_login:
+            return error_response(404, "This app is set up for logging in with GitHub only.")
         with lab.db() as db:
             if not auth.password_matches(db, body.password):
                 return error_response(401, "That password is not right.", field="password")

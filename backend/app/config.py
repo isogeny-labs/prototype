@@ -52,6 +52,30 @@ class Settings:
     # Phase 6, Otto's research loop: "Look for new advisories" reads the public source (OSV) unless this names a folder
     # of recorded answers on this computer (tests, the walks, a demo with no internet). Then nothing is sent anywhere.
     advisory_source_dir: Path | None = None    # EVIDENCE_LAB_ADVISORY_SOURCE
+    # Hosting (app/infra/): where the database, the cache and stored files live, and who may log in. None of these
+    # is needed for the demo on one computer: unset, the app keeps its SQLite file and folders in the data folder, a
+    # cache in memory, and the password login, exactly as before.
+    database_url: str | None = None            # EVIDENCE_LAB_DATABASE_URL: sqlite:///... or postgresql://...
+    redis_url: str | None = None               # EVIDENCE_LAB_REDIS_URL: redis://host:6379/0
+    storage_url: str | None = None             # EVIDENCE_LAB_STORAGE_URL: s3://bucket/prefix, gs://bucket/prefix or a folder
+    public_url: str | None = None              # EVIDENCE_LAB_PUBLIC_URL: https://lab.example.com (the address people open)
+    allowed_hosts: tuple[str, ...] = ()        # EVIDENCE_LAB_ALLOWED_HOSTS: extra host names the app answers, comma-separated
+    password_login: bool = True                # EVIDENCE_LAB_PASSWORD_LOGIN (default: off when the GitHub login is set up)
+    github: GitHubSettings | None = None       # EVIDENCE_LAB_GITHUB_*: the GitHub App used to log in
+
+    @property
+    def database(self) -> str:
+        """The SQLAlchemy URL of the database: the one named, or the SQLite file in the data folder."""
+        return self.database_url or f"sqlite:///{self.db_path}"
+
+    @property
+    def login_methods(self) -> frozenset[str]:
+        return frozenset({"password"} if self.password_login else set()) | (
+            frozenset({"github"}) if self.github is not None else frozenset())
+
+    @property
+    def secure_cookies(self) -> bool:
+        return bool(self.public_url and self.public_url.startswith("https://"))
 
     @property
     def db_path(self) -> Path:
@@ -75,6 +99,62 @@ class Settings:
         return self.otto_recorded_dir or OTTO_RECORDED_DIR
 
 
+@dataclass(frozen=True)
+class GitHubSettings:
+    """A GitHub App that people log in with (its "user-to-server" login). Only the client id and secret are needed;
+    the App's private key is not, since this app only asks who the person is (and, if `allowed_orgs` is set, which
+    organizations they belong to)."""
+    client_id: str
+    client_secret: str
+    app_slug: str | None = None                 # EVIDENCE_LAB_GITHUB_APP_SLUG: for the "install the app" link
+    allowed_users: frozenset[str] = frozenset()  # EVIDENCE_LAB_GITHUB_ALLOWED_USERS: GitHub logins or numeric ids
+    allowed_orgs: frozenset[str] = frozenset()   # EVIDENCE_LAB_GITHUB_ALLOWED_ORGS: organization logins, comma-separated
+    allow_anyone: bool = False                   # EVIDENCE_LAB_GITHUB_ALLOW_ANYONE: on lets every GitHub account in
+    web_url: str = "https://github.com"         # EVIDENCE_LAB_GITHUB_WEB_URL (GitHub Enterprise, or tests)
+    api_url: str = "https://api.github.com"     # EVIDENCE_LAB_GITHUB_API_URL
+
+    @property
+    def open_to_anyone(self) -> bool:
+        return self.allow_anyone
+
+
+def _csv(raw: str | None) -> tuple[str, ...]:
+    return tuple(part.strip() for part in (raw or "").split(",") if part.strip())
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = (os.environ.get(name) or "").strip().lower()
+    if not raw:
+        return default
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    raise SystemExit(f"{name} must be on or off")
+
+
+def load_github_settings() -> GitHubSettings | None:
+    client_id = (os.environ.get("EVIDENCE_LAB_GITHUB_CLIENT_ID") or "").strip()
+    client_secret = (os.environ.get("EVIDENCE_LAB_GITHUB_CLIENT_SECRET") or "").strip()
+    if not client_id and not client_secret:
+        return None
+    if not client_id or not client_secret:
+        raise SystemExit("EVIDENCE_LAB_GITHUB_CLIENT_ID and EVIDENCE_LAB_GITHUB_CLIENT_SECRET must be set together")
+    users = frozenset(u.lower() for u in _csv(os.environ.get("EVIDENCE_LAB_GITHUB_ALLOWED_USERS")))
+    orgs = frozenset(o.lower() for o in _csv(os.environ.get("EVIDENCE_LAB_GITHUB_ALLOWED_ORGS")))
+    anyone = _env_bool("EVIDENCE_LAB_GITHUB_ALLOW_ANYONE", False)
+    if not users and not orgs and not anyone:
+        # Every login sees and can change the same assessments: who may log in is never left open by accident.
+        raise SystemExit("The GitHub login needs EVIDENCE_LAB_GITHUB_ALLOWED_USERS or EVIDENCE_LAB_GITHUB_ALLOWED_ORGS "
+                         "(or EVIDENCE_LAB_GITHUB_ALLOW_ANYONE=on to let every GitHub account in)")
+    return GitHubSettings(
+        client_id=client_id, client_secret=client_secret,
+        app_slug=(os.environ.get("EVIDENCE_LAB_GITHUB_APP_SLUG") or "").strip() or None,
+        allowed_users=users, allowed_orgs=orgs, allow_anyone=anyone,
+        web_url=(os.environ.get("EVIDENCE_LAB_GITHUB_WEB_URL") or "https://github.com").rstrip("/"),
+        api_url=(os.environ.get("EVIDENCE_LAB_GITHUB_API_URL") or "https://api.github.com").rstrip("/"))
+
+
 def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int | None = None) -> Settings:
     if data_dir is None:
         data_dir = os.environ.get("EVIDENCE_LAB_DATA_DIR") or (REPO_ROOT / "data")
@@ -93,12 +173,25 @@ def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int 
         raise SystemExit("EVIDENCE_LAB_MODE must be demo, isolated or auto")
     updates, recorded = os.environ.get("EVIDENCE_LAB_OTTO_UPDATES"), os.environ.get("EVIDENCE_LAB_OTTO_RECORDED")
     advisory_source = os.environ.get("EVIDENCE_LAB_ADVISORY_SOURCE")
-    return Settings(data_dir=Path(data_dir).resolve(), demo_tls_port=demo_tls_port,
+    github = load_github_settings()
+    settings = Settings(data_dir=Path(data_dir).resolve(), demo_tls_port=demo_tls_port,
                     max_jobs=_env_int("EVIDENCE_LAB_MAX_JOBS", 4, 1, 16), force_mode=force_mode,
                     speed_rounds=_env_int("EVIDENCE_LAB_SPEED_ROUNDS", 40, 2, 50),
                     otto_updates_dir=Path(updates).resolve() if updates else None,
                     otto_recorded_dir=Path(recorded).resolve() if recorded else None,
-                    advisory_source_dir=Path(advisory_source).resolve() if advisory_source else None)
+                    advisory_source_dir=Path(advisory_source).resolve() if advisory_source else None,
+                    database_url=(os.environ.get("EVIDENCE_LAB_DATABASE_URL") or "").strip() or None,
+                    redis_url=(os.environ.get("EVIDENCE_LAB_REDIS_URL") or "").strip() or None,
+                    storage_url=(os.environ.get("EVIDENCE_LAB_STORAGE_URL") or "").strip() or None,
+                    public_url=(os.environ.get("EVIDENCE_LAB_PUBLIC_URL") or "").strip().rstrip("/") or None,
+                    allowed_hosts=_csv(os.environ.get("EVIDENCE_LAB_ALLOWED_HOSTS")),
+                    # With the GitHub login set up, the password login is off unless asked for: on a hosted copy the
+                    # first visitor would otherwise choose the password.
+                    password_login=_env_bool("EVIDENCE_LAB_PASSWORD_LOGIN", github is None),
+                    github=github)
+    if not settings.password_login and settings.github is None:
+        raise SystemExit("EVIDENCE_LAB_PASSWORD_LOGIN=off needs the GitHub login (EVIDENCE_LAB_GITHUB_CLIENT_ID and _SECRET)")
+    return settings
 
 
 def _env_int(name: str, default: int, low: int, high: int) -> int:

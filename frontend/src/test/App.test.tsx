@@ -75,6 +75,32 @@ describe("first run and login", () => {
     fireEvent.click(screen.getByRole("button", { name: "Log in" }));
     expect(text(await screen.findByRole("alert"))).toContain("That password isn't right");
   });
+
+  it("offers Log in with GitHub beside the password when the GitHub App is set up", async () => {
+    const fetchMock = mockApi({
+      "GET /api/session": {
+        body: { ...session, logged_in: false, login: { password: true, github: true, github_install_url: null } },
+      },
+    });
+    render(<App />);
+    const link = await screen.findByRole("link", { name: "Log in with GitHub" });
+    // A plain link to the server, which sends the browser on to GitHub: nothing is sent before the click.
+    expect(link.getAttribute("href")).toBe("/api/auth/github/start");
+    expect(screen.getByLabelText("Password")).not.toBeNull();
+    expect(calls(fetchMock)).toEqual(["GET /api/session"]);
+  });
+
+  it("shows only Log in with GitHub when the password login is off", async () => {
+    mockApi({
+      "GET /api/session": {
+        body: { ...session, logged_in: false, login: { password: false, github: true, github_install_url: null } },
+      },
+    });
+    render(<App />);
+    expect(await screen.findByRole("link", { name: "Log in with GitHub" })).not.toBeNull();
+    expect(screen.queryByLabelText("Password")).toBeNull();
+    expect(screen.queryAllByRole("button")).toEqual([]);
+  });
 });
 
 

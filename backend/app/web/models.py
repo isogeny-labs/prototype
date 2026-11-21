@@ -64,9 +64,23 @@ class DemoServer(Shape):
 Mode = Literal["demo", "isolated"]
 
 
+class LoginMethods(Shape):
+    password: bool = Field(description="The local password login is on (EVIDENCE_LAB_PASSWORD_LOGIN).")
+    github: bool = Field(description="Logging in with the GitHub App is set up.")
+    github_install_url: str | None = Field(description="Where to install the GitHub App, when its name is known.")
+
+
+class SessionUser(Shape):
+    login: str
+    name: str | None
+    avatar_url: str | None
+
+
 class Session(Shape):
     setup_required: bool
     logged_in: bool
+    login: LoginMethods
+    user: SessionUser | None = Field(description="Who is logged in with GitHub; null for the password login.")
     mode: Mode
     mode_line: str = Field(description="The sentence under the header saying how software is run, written by the backend.")
     demo_server: DemoServer

@@ -25,6 +25,7 @@ At the top (commands and parts shared by everything):
 - `main.py` creates the app and includes the routers. `__main__.py` starts it.
 - Commands: `accuracy.py` (+ `accuracy_real.py`, `accuracy_deps.py` since phase 4d and `accuracy_otto.py` since phase 5c), `prepare.py` (since phase 5c it also fetches the pinned Otto harness; `--otto` does only that), `blind.py`, `demo_repo.py`.
 - Shared: `config.py`, `db.py`, `errors.py`, `auth.py`, `jobs.py`, `names.py`, `canonical.py`.
+- Hosting (docs/HOSTING.md): `infra/` (`database.py`: SQLite or PostgreSQL by URL, with the append-only triggers for both; `cache.py`: Redis or memory; `storage.py`: S3, GCS or a folder), `github_login.py` (log in with a GitHub App), `web/hosting.py` (the GitHub login routes, `/api/logout`, `/api/health`); `tools/fake_github.py` stands in for GitHub on one computer. `Dockerfile`, `docker-compose.yml` and `.env.example` are at the top of the repository; `tests/hosting/` holds their tests.
 - `real_libraries.py` lists the real libraries, their pins and advisories. It stays at the top because a safety rule names it.
 
 Folders:
