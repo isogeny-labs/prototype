@@ -76,6 +76,85 @@ jobs:
         working-directory: backend
         run: .venv/bin/python -m app.accuracy --mode demo
 
+  style:
+    name: Lint and code style
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+          persist-credentials: false
+          # A pull request is checked out as its merge commit: its first parent is the base the change is compared with.
+          fetch-depth: 2
+
+      - name: Work out what the change is compared with
+        id: base
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            base=$(git rev-parse HEAD^1)
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+               && git fetch --quiet --depth=1 origin "$BEFORE"; then
+            base=$BEFORE
+          else
+            # A new branch: compare with the default branch.
+            git fetch --quiet --depth=1 origin "$DEFAULT_BRANCH"
+            base=$(git rev-parse FETCH_HEAD)
+          fi
+          echo "Compared with $base"
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Reuse the saved Python downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-dev-${{ runner.os }}-${{ hashFiles('backend/requirements-dev.lock') }}
+
+      - name: Install the pinned development tools (ruff)
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install --disable-pip-version-check --require-hashes -r backend/requirements-dev.lock
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: lint/package-lock.json
+
+      - name: Install the pinned lint tools (ESLint, Prettier)
+        working-directory: lint
+        run: npm ci
+
+      # Findings that were there when this check was added are in lint/eslint-suppressions.json; a new one fails.
+      - name: "Frontend and end-to-end tests: lint (ESLint)"
+        working-directory: lint
+        run: npm run lint -- frontend e2e lint
+
+      # Files the change adds must be formatted; files it edits get a warning only (tools/ci_style.py says why).
+      - name: "Code style of the changed files (ruff format, Prettier)"
+        run: python3 tools/ci_style.py "${{ steps.base.outputs.sha }}"
+
+      - name: "GitHub workflow files: lint (actionlint)"
+        run: |
+          version=1.7.12
+          sum=8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+          curl -sSfL -o "$RUNNER_TEMP/actionlint.tgz" \
+            "https://github.com/rhysd/actionlint/releases/download/v${version}/actionlint_${version}_linux_amd64.tar.gz"
+          echo "$sum  $RUNNER_TEMP/actionlint.tgz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/actionlint.tgz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+
   frontend:
     name: Frontend
     runs-on: ubuntu-24.04
