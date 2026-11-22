@@ -112,14 +112,16 @@ class LiveRegistry:
     key = "live"
 
     def __init__(self, transport: Transport | None = None) -> None:
-        self._transport = transport or _http
+        # None means this module's _http, looked up at the moment of a request (so the test suite can put a refusal
+        # there once, for every reader: no test ever reaches a registry).
+        self._transport = transport
 
     def _get(self, registry: str, url: str, limit: int, what: str) -> bytes:
         host = url.split("/", 3)[2] if url.startswith("https://") else ""
         if host not in HOSTS[registry]:
             raise RegistryError(f"{what} is at an address that is not one of the registry's own hosts, so it was not fetched.")
         try:
-            data = self._transport(url, TIMEOUT_SECONDS, limit)
+            data = (self._transport or _http)(url, TIMEOUT_SECONDS, limit)
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
                 raise RegistryError(f"{WORDS[registry]} has no {what}.") from None

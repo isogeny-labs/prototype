@@ -4,7 +4,7 @@ nothing. With the switch off there is no Watch list, and every action is refused
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from watch_helpers import ITEM, record, rows, watch_lab, with_events, write_source
 
 from app.db import OttoLookupRow, WatchListMarkRow
@@ -241,5 +241,24 @@ def test_the_overview_says_how_many_have_no_fix_only_while_the_switch_is_on_and_
         assert blocks["watch_list"]["link"] == {"page": "change-watch", "item": None, "section": "watch-list"}
         lab.set_sandbox(on=False)
         assert "watch_list" not in lab.assessment_blocks(import_id, pid)            # off: the Overview is as before
+    finally:
+        lab.stop()
+
+
+@pytest.mark.parametrize("statement", ["UPDATE watchlist_marks SET reason = 'x'", "DELETE FROM watchlist_marks"])
+def test_raw_sql_cannot_change_or_delete_a_stop_or_a_watch_again(tmp_path, monkeypatch, statement):
+    """The record of who stopped watching what, and why, only accepts new rows: the database itself refuses a change
+    or a removal."""
+    lab, pid, _ = watch_lab(tmp_path, monkeypatch)
+    try:
+        lab.watch_list_look(pid)
+        lab.watch_list_mark(pid, ITEM, stop=True, reason="Not used in production")
+        with lab.db() as db:
+            assert db.execute(text("SELECT COUNT(*) FROM watchlist_marks")).scalar() == 1
+            with pytest.raises(Exception, match="append-only"):
+                db.execute(text(statement))
+                db.commit()
+            db.rollback()
+            assert db.execute(text("SELECT COUNT(*) FROM watchlist_marks")).scalar() == 1
     finally:
         lab.stop()

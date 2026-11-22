@@ -125,7 +125,8 @@ def test_run_one_then_the_lab_then_mark_and_dig(client):
     result = row["result"]
     assert set(result) == {"run_id", "component", "mode", "finished_at", "duration_ms", "code", "label", "tone", "summary", "short", "plain", "also_noticed", "also_noticed_title",
                            "control", "what_happened", "shows_title", "shows", "evidence", "run_record", "locked_test", "fix_title",
-                           "suggested_fix", "fix_line", "reviewed", "research", "real", "advisories", "source_tag"}
+                           "suggested_fix", "fix_line", "reviewed", "research", "real", "advisories", "source_tag", "sandbox_copy"}
+    assert result["sandbox_copy"] is False            # (sandbox research is off: no run is on a sandbox copy)
     # where it came from (22 November 2026): the attacker tricks run a copy of the signing program here
     assert result["source_tag"]["label"] == "Proven in the lab"
     # a failed result whose fix is in the Fixes step shows one line in place of the "Suggested fix" text
@@ -221,7 +222,11 @@ def test_there_is_no_route_that_accepts_software(client):
                       "/api/otto/name": "NameBody",
                       # Phase 6b: one sentence a person typed to Otto (500 characters at most), with the page and the item it
                       # was typed beside. It is read by fixed rules as data, kept as text, and nothing in it runs
-                      "/api/plans/{plan_id}/assistant/messages": "SayBody"}
+                      "/api/plans/{plan_id}/assistant/messages": "SayBody",
+                      # Sandbox research (a prototype): the switch, its tick and two spending limits in US dollars (never a key);
+                      # and on the Watch list, the key of an item the app itself listed, with a short reason in words for a stop
+                      "/api/otto/sandbox": "SandboxBody",
+                      "/api/plans/{plan_id}/watch-list/stop": "WatchStopBody", "/api/plans/{plan_id}/watch-list/watch": "WatchAgainBody"}
     assert {k: v for k, v in with_json_body.items() if k in allowed_bodies} == allowed_bodies
     extra = set(with_json_body) - set(allowed_bodies)
     assert all(p.startswith("/api/evidence") or p.endswith("/evidence") for p in extra), extra

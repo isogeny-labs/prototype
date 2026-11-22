@@ -58,7 +58,8 @@ def test_a_result_after_a_retest_says_which_version_it_is_of():
     assert row["result"]["text"] == "Retest on acme-sign 1.4.3-otto. First run on acme-sign 1.4.2: Failed."
     here, = row["panel"]["here"]["rows"]
     assert here["result"]["ran_on"] == "This is the retest, on acme-sign 1.4.3-otto. The first run, on acme-sign 1.4.2, read Failed."
-    assert set(here["result"]) == {"label", "tone", "plain", "component", "finished_at", "ran_on", "source_tag"}
+    assert set(here["result"]) == {"label", "tone", "plain", "component", "finished_at", "ran_on", "source_tag", "sandbox_copy"}
+    assert here["result"]["sandbox_copy"] is False        # (sandbox research is off: no run is on a sandbox copy)
     # (22 November 2026: an advisory check runs a copy of the program on this computer: Proven in the lab)
     assert here["result"]["source_tag"]["label"] == "Proven in the lab" and row["result"]["source_tag"] == here["result"]["source_tag"]
     # a first run is of the version the row names: no such line

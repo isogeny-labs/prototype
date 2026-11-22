@@ -150,3 +150,11 @@ def test_seeded_fuzz_of_damaged_registry_answers_is_a_plain_refusal_or_a_normal_
                         assert str(refused)
             except registries.RegistryError as refused:
                 assert str(refused)
+
+
+def test_no_test_can_reach_a_registry():
+    """The suite puts a refusal where the reader's own transport stands (tests/conftest.py): a reader made with no
+    stand-in can't be used to reach the network by mistake."""
+    from conftest import ReachedTheNetwork
+    with pytest.raises(ReachedTheNetwork):
+        registries.LiveRegistry().project("pypi", "thing")

@@ -34,6 +34,25 @@ def walked(tmp_path, monkeypatch):
         lab.stop()
 
 
+@pytest.fixture(scope="module")
+def walked_evidence(tmp_path_factory):
+    """The evidence of that same history, made once for the tests that only read a copy of it. Its stand-ins are taken
+    off again at once, and its lab is stopped: nothing of it is left for a later test."""
+    with pytest.MonkeyPatch.context() as patch:
+        lab, pid, folder = watch_lab(tmp_path_factory.mktemp("watch-evidence"), patch)
+        try:
+            lab.watch_list_look(pid)
+            lab.watch_list_look(pid)
+            write_source(folder, [with_events(record(), FIXED)])
+            lab.watch_list_look(pid)
+            lab.watch_list_mark(pid, ITEM, True, "Not used for signing here.")
+            lab.watch_list_mark(pid, ITEM, False)
+            from app.evidence.export import build_evidence
+            return build_evidence(lab, pid)
+        finally:
+            lab.stop()
+
+
 def test_the_file_holds_the_list_and_the_verify_commands_own_rule_gives_the_same(walked):
     _, _, evidence = walked
     part = evidence["watch_list"]
@@ -64,9 +83,8 @@ def test_the_file_holds_the_list_and_the_verify_commands_own_rule_gives_the_same
     ("a test proposed with no pack", lambda p: p["items"][0].update(test={"key": "test_proposed", "word": "Test proposed"})),
     ("not a list", lambda p: p.update(items="none")),
 ])
-def test_a_changed_part_does_not_verify(walked, what, change):
-    _, _, evidence = walked
-    changed = copy.deepcopy(evidence)
+def test_a_changed_part_does_not_verify(walked_evidence, what, change):
+    changed = copy.deepcopy(walked_evidence)
     change(changed["watch_list"])
     outcome = check.check_watch_list(changed)
     assert not outcome.ok and outcome.problem, what

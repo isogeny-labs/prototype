@@ -173,6 +173,18 @@ def no_read_of_the_advisory_source(monkeypatch):
     monkeypatch.setattr(lookup, "_http_transport", refuse)
 
 
+@pytest.fixture(autouse=True)
+def no_read_of_a_package_registry(monkeypatch):
+    """Sandbox research (a prototype): no test ever reaches npm or PyPI. The reader looks its transport up at the moment
+    of a request; here it is replaced by one that fails the test. Tests read a folder of recorded answers, or give a
+    stand-in. (A research command a test starts as a process of its own is given EVIDENCE_LAB_REGISTRY_SOURCE.)"""
+    from app.sandbox import registries
+
+    def refuse(url, timeout, limit):
+        raise ReachedTheNetwork("a test tried to read a package registry; use a recorded registry or a stand-in transport")
+    monkeypatch.setattr(registries, "_http", refuse)
+
+
 @pytest.fixture
 def settings(tmp_path):
     # Tests run in demo mode unless they ask for the docker_ready fixture; the speed test uses fewer pairs
