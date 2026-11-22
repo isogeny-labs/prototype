@@ -223,6 +223,7 @@ def database_per_lab(request):
     patcher = pytest.MonkeyPatch()
     patcher.setattr(hub, "make_session_factory", fresh)
     try:
+        yield
     finally:
         patcher.undo()
         with admin.connect() as conn:
