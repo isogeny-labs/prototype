@@ -42,7 +42,14 @@ async function shots(name: string, folder = SHOTS): Promise<void> {
 async function measure(name: string, open?: () => Promise<void>, folder = SHOTS): Promise<void> {
   const panel = page.getByTestId("detail-panel").or(page.getByTestId("claim-panel"));
   if ((await panel.count()) > 0) {
-    await panel.first().getByRole("button", { name: "Close details" }).click();
+    // The panel can close by itself just now: a check belongs to its tab, so when another tab opens the page closes the
+    // panel of the old tab's check (ChecksScreen). Click only while it is still there. A plain click raced with that
+    // close once on GitHub (21 November 2026): the button was removed mid-click and the click waited for it until the
+    // walk's 15 minutes ran out.
+    const close = panel.first().getByRole("button", { name: "Close details" });
+    await close.click({ timeout: 10_000 }).catch(async (error: unknown) => {
+      if ((await panel.count()) > 0) throw error;
+    });
     await expect(panel).toHaveCount(0);
   }
   expect(await layoutProblems(page), `${name}, panel closed`).toEqual([]);
