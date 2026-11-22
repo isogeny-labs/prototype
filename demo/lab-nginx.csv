@@ -1,0 +1,4 @@
+location,type,claim,value
+localhost:8461,tls,post_quantum,classical
+localhost:8461,system,exposure,internet-facing
+localhost:8461,system,data_lifespan,long-lived

@@ -1,0 +1,6 @@
+{
+  "openssl-3.5.9": ["/usr/local/bin/python", "-I", "-X", "pycache_prefix=/scratch/pyc", "/opt/evidence-lab/real/openssl_adapter.py"],
+  "control-slow:openssl-3.5.9": ["/usr/local/bin/python", "-I", "-X", "pycache_prefix=/scratch/pyc", "/opt/evidence-lab/real/openssl_adapter.py", "--slow"],
+  "control-pq-wrong-answer": ["/usr/local/bin/python", "-I", "-X", "pycache_prefix=/scratch/pyc", "/opt/evidence-lab/real/pq_controls.py", "wrong-answer"],
+  "control-pq-skip-key-check": ["/usr/local/bin/python", "-I", "-X", "pycache_prefix=/scratch/pyc", "/opt/evidence-lab/real/pq_controls.py", "skip-key-check"]
+}

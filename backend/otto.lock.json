@@ -1,0 +1,8 @@
+{
+  "repository": "isogeny-labs/otto",
+  "url": "https://github.com/isogeny-labs/otto",
+  "commit": "aa4a6fd55a153de76f11d51ceb65196007525f92",
+  "version": "0.1.0",
+  "tree_sha256": "b50e0bf622e1bf23815f49716718636e47d3a6d1f2b1486e1b81bdab05be5cea",
+  "note": "One exact commit of Adam's Otto harness. Fetched by app.prepare into backend/.otto/<commit>/, never copied into this repository. Move it with tools/otto_pin.py, on purpose."
+}

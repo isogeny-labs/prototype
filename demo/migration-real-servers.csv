@@ -1,0 +1,4 @@
+location,type,claim,value
+pq.cloudflareresearch.com:443,tls,post_quantum,hybrid
+ecc256.badssl.com:443,tls,post_quantum,classical
+tls-v1-2.badssl.com:1012,tls,post_quantum,classical

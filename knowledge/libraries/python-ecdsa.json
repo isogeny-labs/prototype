@@ -1,0 +1,50 @@
+{
+  "schema": "isogeny.knowledge/1",
+  "library": "python-ecdsa",
+  "label": "python-ecdsa",
+  "roles": [
+    "signatures",
+    "key_exchange"
+  ],
+  "packages": [
+    {
+      "ecosystem": "pypi",
+      "purl": "pkg:pypi/ecdsa"
+    }
+  ],
+  "match_names": [
+    "python-ecdsa"
+  ],
+  "claims": [],
+  "notes": "No official source says python-ecdsa added ML-KEM or ML-DSA in any version, so there is no claim.",
+  "declared": [
+    {
+      "version": "0.13.2",
+      "needs": [],
+      "file": "ecdsa-0.13.2.dist-info/METADATA",
+      "file_sha256": "8eb5cb1d25239a029509e2e19b1a65146f37b9e4047419466270ad8075d98681",
+      "source": {
+        "title": "The METADATA file of ecdsa 0.13.2 (the wheel on PyPI)",
+        "url": "https://files.pythonhosted.org/packages/23/a8/8aa68e70959e1287da9154e5164bb8bd5dd7025e41ae54e8d177b8d165c9/ecdsa-0.13.2-py2.py3-none-any.whl",
+        "quote": "Name: ecdsa\nVersion: 0.13.2",
+        "kind": "package_file",
+        "checked": "2026-11-19"
+      },
+      "note": "The file has no Requires-Dist line: it lists no package that this version needs."
+    },
+    {
+      "version": "0.13.3",
+      "needs": [],
+      "file": "ecdsa-0.13.3.dist-info/METADATA",
+      "file_sha256": "f09ebd00b6c17533e674ac432f98aae0473ee80063bdc51662e5ae2c91c483e6",
+      "source": {
+        "title": "The METADATA file of ecdsa 0.13.3 (the wheel on PyPI)",
+        "url": "https://files.pythonhosted.org/packages/a6/81/2b170b460c84fdc8700cf08aa077ac6a9ff41f4ad3f05d0b3a64ba9f8f2e/ecdsa-0.13.3-py2.py3-none-any.whl",
+        "quote": "Name: ecdsa\nVersion: 0.13.3",
+        "kind": "package_file",
+        "checked": "2026-11-19"
+      },
+      "note": "The file has no Requires-Dist line: it lists no package that this version needs."
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "_about": "Answer key for phase 4d (demo/dependencies-demo.cdx.json and its SPDX copy, plus rules for the real Syft file). Written by Isogeny Labs from the approved plan and official sources, not by the build; the build must never edit it. Adam to review. Decisions taken (Kevin, 15 Nov 2026): 1) a lookup says 'no' only when an official source names the version that added the capability; 2) python-ecdsa 0.13.2 is listed under acme-ledger 5.1.0, not acme-sign 1.4.2, because the real acme-sign demo program uses only Python's standard library; acme-sign 1.4.2 stays in the list as a top entry with no libraries; 3) the Syft file is graded by rule. Fixed words follow the plan's 'What the answer key needs to hold'.",
+  "sources": {
+    "openssl": "OpenSSL 3.5 NEWS (github.com/openssl/openssl, NEWS.md, 3.5.0): 'Support for PQC algorithms (ML-KEM, ML-DSA and SLH-DSA)' and X25519MLKEM768 in the default TLS keyshares. First version for all three questions: 3.5.0.",
+    "jdk_mlkem": "JEP 496 (openjdk.org/jeps/496), ML-KEM, delivered in JDK 24.",
+    "jdk_mldsa": "JEP 497 (openjdk.org/jeps/497), ML-DSA, delivered in JDK 24.",
+    "jdk_hybrid": "JEP 527 (openjdk.org/jeps/527), X25519MLKEM768 hybrid key exchange for TLS 1.3, in JDK 27 (openjdk.org/projects/jdk/27; release note JDK-8377391; JDK 27 GA 15 Sep 2026).",
+    "go_mlkem_hybrid": "Go 1.24 release notes (go.dev/doc/go1.24): new crypto/mlkem package implementing ML-KEM-768; X25519MLKEM768 supported and on by default in crypto/tls.",
+    "go_mldsa": "Go 1.27 release notes (go.dev/doc/go1.27): new crypto/mldsa package (FIPS 204); pkg.go.dev/crypto/mldsa lists MLDSA65."
+  },
+  "demo_list": {
+    "top_entries": [
+      {"name": "acme-sign 1.4.2", "tie": "tied by name and version, by the app", "libraries": []},
+      {"name": "acme-pay-server 1.0.0", "tie": "localhost:8443, set by the person (Part of)", "libraries": ["D2", "D3"]},
+      {"name": "acme-ledger 5.1.0", "tie": "untied", "libraries": ["D1", "D4", "D5", "D6", "D7", "D8", "D9", "D10"]}
+    ],
+    "note": "Top entries are group headings and are not graded beyond their tie."
+  },
+  "rows": [
+    {"id": "D1", "library": "python-ecdsa 0.13.2", "under": "acme-ledger 5.1.0", "via": "direct",
+     "lookup": {"ml_kem_768": "not_in_knowledge_base", "x25519mlkem768": "doesnt_apply", "ml_dsa_65": "not_in_knowledge_base"},
+     "demo_mode": {"state": {"ml_kem_768": "couldnt_check", "x25519mlkem768": "not_offered", "ml_dsa_65": "couldnt_check"}},
+     "isolated_mode": {"answer": {"ml_kem_768": "no", "x25519mlkem768": "doesnt_apply", "ml_dsa_65": "no"}, "label": "public_copy", "first_version": "none_known", "state": {"ml_kem_768": "measured", "x25519mlkem768": "not_offered", "ml_dsa_65": "measured"}, "controls": "as_expected", "agreement": "none (the lookup gives no yes or no)"},
+     "blocks": []},
+    {"id": "D2", "library": "python 3.12.3", "under": "acme-pay-server 1.0.0", "via": "direct",
+     "lookup": {"ml_kem_768": "not_in_knowledge_base", "x25519mlkem768": "not_in_knowledge_base", "ml_dsa_65": "not_in_knowledge_base"},
+     "state_both_modes": "not_offered", "blocks": []},
+    {"id": "D3", "library": "openssl 3.0.x (Debian's build, exact version read in the first build step)", "under": "acme-pay-server 1.0.0", "via": "through python 3.12.3",
+     "lookup": {"ml_kem_768": "no", "x25519mlkem768": "no", "ml_dsa_65": "no"}, "lookup_label": "release_notes", "first_version": {"ml_kem_768": "3.5.0", "x25519mlkem768": "3.5.0", "ml_dsa_65": "3.5.0"},
+     "demo_mode": {"state": {"ml_kem_768": "couldnt_check", "x25519mlkem768": "couldnt_check", "ml_dsa_65": "couldnt_check"}},
+     "isolated_mode": {"answer": {"ml_kem_768": "no", "x25519mlkem768": "no", "ml_dsa_65": "no"}, "label": "public_copy", "state": "measured on all three", "controls": "as_expected (the result says one control is this same copy)", "agreement": {"ml_kem_768": "agrees", "x25519mlkem768": "agrees", "ml_dsa_65": "agrees"}},
+     "blocks": [{"system": "localhost:8443", "track": "key_exchange"}, {"system": "localhost:8443", "track": "authentication"}], "blocks_in": "both modes"},
+    {"id": "D4", "library": "openjdk 17.0.2", "under": "acme-ledger 5.1.0", "via": "direct",
+     "lookup": {"ml_kem_768": "no", "x25519mlkem768": "no", "ml_dsa_65": "no"}, "lookup_label": "release_notes", "first_version": {"ml_kem_768": "24", "x25519mlkem768": "27", "ml_dsa_65": "24"},
+     "demo_mode": {"state": {"ml_kem_768": "couldnt_check", "x25519mlkem768": "not_offered", "ml_dsa_65": "couldnt_check"}},
+     "isolated_mode": {"answer": {"ml_kem_768": "no", "x25519mlkem768": "no", "ml_dsa_65": "no"}, "label": {"ml_kem_768": "public_copy", "x25519mlkem768": "release_notes", "ml_dsa_65": "public_copy"}, "state": {"ml_kem_768": "measured", "x25519mlkem768": "not_offered", "ml_dsa_65": "measured"}, "controls": "as_expected", "agreement": {"ml_kem_768": "agrees", "ml_dsa_65": "agrees"}},
+     "blocks": []},
+    {"id": "D5", "library": "elliptic 6.5.6", "under": "acme-ledger 5.1.0", "via": "direct", "same_as": "D1"},
+    {"id": "D6", "library": "openssl 3.5.9", "under": "acme-ledger 5.1.0", "via": "direct",
+     "lookup": {"ml_kem_768": "yes", "x25519mlkem768": "yes", "ml_dsa_65": "yes"}, "lookup_label": "release_notes",
+     "demo_mode": {"state": {"ml_kem_768": "couldnt_check", "x25519mlkem768": "couldnt_check", "ml_dsa_65": "couldnt_check"}},
+     "isolated_mode": {"answer": {"ml_kem_768": "yes", "x25519mlkem768": "yes", "ml_dsa_65": "yes"}, "label": "public_copy", "state": "measured on all three", "controls": "as_expected (the result says one control is this same copy)", "agreement": {"ml_kem_768": "agrees", "x25519mlkem768": "agrees", "ml_dsa_65": "agrees"}},
+     "blocks": []},
+    {"id": "D7", "library": "wolfssl 5.7.2", "under": "acme-ledger 5.1.0", "lookup": "not_in_knowledge_base on all three", "state_both_modes": "not_offered", "blocks": []},
+    {"id": "D8", "library": "Go standard library devel", "under": "acme-ledger 5.1.0", "lookup": "couldnt_tell_version on all three", "state_both_modes": "not_offered", "blocks": []},
+    {"id": "D9", "library": "boringssl <commit id>", "under": "acme-ledger 5.1.0", "lookup": "needs_your_environment on all three", "state_both_modes": "not_offered", "blocks": []},
+    {"id": "D10", "library": "Go standard library 1.23.4", "under": "acme-ledger 5.1.0", "via": "direct",
+     "lookup": {"ml_kem_768": "no", "x25519mlkem768": "no", "ml_dsa_65": "no"}, "lookup_label": "release_notes", "first_version": {"ml_kem_768": "1.24", "x25519mlkem768": "1.24", "ml_dsa_65": "1.27"},
+     "state_both_modes": "not_offered", "blocks": []}
+  ],
+  "labels_rule": "'your_environment' never appears anywhere, in either mode.",
+  "per_system": [
+    {"system": "localhost:8443", "dependency_blockers": {"key_exchange": ["openssl 3.0.x, through python 3.12.3, release_notes (demo) / public_copy (isolated), 3.5.0 or later"], "authentication": ["the same library"]}, "roadmap_band": "unchanged from demo/expected.json and today's rules (Phase 2, internal server); the note names the blocker", "fixes": [{"library": "openssl", "update_to": "3.5.0", "link": "the knowledge base's official OpenSSL source"}], "libraries_without_answer": 1},
+    {"system": "acme-sign 1.4.2", "dependency_blockers": {"signatures": []}, "note": "its own existing blocker (can't make post-quantum signatures) stays as today", "fixes_added": 0, "libraries_without_answer": 0}
+  ],
+  "spdx_copy": "demo/dependencies-demo.spdx.json gives the same answer as the CycloneDX file for every row, tie, blocker and Fixes entry, in both modes.",
+  "real_syft_file": {
+    "graded_by_rule": [
+      "Every OpenSSL package in the file (for example Debian's libssl3 or openssl) gets answers that follow its upstream version by the knowledge-base rule: before 3.5.0 is 'no' with first version 3.5.0; 3.5.0 or later is 'yes'; label release_notes.",
+      "Every other package reads not_in_knowledge_base, except a recognised one on the seed list, which follows its own claims.",
+      "Cross-check with phase 4b: the lab nginx on localhost:8461 completed a measured hybrid handshake in 4b. If the file's OpenSSL lookup says 'no' for X25519MLKEM768, the report must say the list and the measurement disagree, and the measurement wins. It must not be hidden."
+    ],
+    "not_graded": "all other rows; the build reports them."
+  },
+  "broken_files": "Each file in demo/dependencies-broken/ is refused with one plain sentence; an earlier list stays in place.",
+  "existing_keys_unchanged": "demo/expected.json (18), demo/expected-migration.json (47) and demo/expected-real-libraries.json (33) still match in both modes."
+}

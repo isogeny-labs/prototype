@@ -1,0 +1,104 @@
+{
+  "schema": "isogeny.knowledge/1",
+  "library": "go-stdlib",
+  "label": "Go standard library (crypto/tls)",
+  "roles": [
+    "tls",
+    "key_exchange",
+    "signatures"
+  ],
+  "packages": [
+    {
+      "ecosystem": "golang",
+      "purl": "pkg:golang/stdlib"
+    }
+  ],
+  "match_names": [],
+  "claims": [
+    {
+      "capability": "ml_kem_768",
+      "versions": {
+        "from": "1.24"
+      },
+      "answer": "yes",
+      "source": {
+        "title": "Go 1.24 Release Notes",
+        "url": "https://go.dev/doc/go1.24",
+        "quote": "The new crypto/mlkem package implements ML-KEM-768 and ML-KEM-1024.",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "ml_kem_768",
+      "versions": {
+        "before": "1.24"
+      },
+      "answer": "no",
+      "source": {
+        "title": "Go 1.24 Release Notes",
+        "url": "https://go.dev/doc/go1.24",
+        "quote": "The new crypto/mlkem package implements ML-KEM-768 and ML-KEM-1024.",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "x25519mlkem768",
+      "versions": {
+        "from": "1.24"
+      },
+      "answer": "yes",
+      "source": {
+        "title": "Go 1.24 Release Notes",
+        "url": "https://go.dev/doc/go1.24",
+        "quote": "The new post-quantum X25519MLKEM768 key exchange mechanism is now supported and is enabled by default when Config.CurvePreferences is nil.",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "x25519mlkem768",
+      "versions": {
+        "before": "1.24"
+      },
+      "answer": "no",
+      "source": {
+        "title": "Go 1.24 Release Notes",
+        "url": "https://go.dev/doc/go1.24",
+        "quote": "The new post-quantum X25519MLKEM768 key exchange mechanism is now supported and is enabled by default when Config.CurvePreferences is nil.",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "ml_dsa_65",
+      "versions": {
+        "from": "1.27"
+      },
+      "answer": "yes",
+      "source": {
+        "title": "Go 1.27 Release Notes",
+        "url": "https://go.dev/doc/go1.27",
+        "quote": "The new crypto/mldsa package implements the post-quantum ML-DSA signature scheme specified in FIPS 204.",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "ml_dsa_65",
+      "versions": {
+        "before": "1.27"
+      },
+      "answer": "no",
+      "source": {
+        "title": "Go 1.27 Release Notes",
+        "url": "https://go.dev/doc/go1.27",
+        "quote": "The new crypto/mldsa package implements the post-quantum ML-DSA signature scheme specified in FIPS 204.",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    }
+  ],
+  "notes": "The Go 1.27 notes name ML-DSA (and the MLDSA65 signature scheme value) but not the parameter set on the package line; the claim rests on the crypto/mldsa package line."
+}

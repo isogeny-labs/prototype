@@ -1,0 +1,143 @@
+{
+  "schema": "isogeny.knowledge/1",
+  "library": "openssl",
+  "label": "OpenSSL",
+  "roles": [
+    "tls",
+    "key_exchange",
+    "signatures"
+  ],
+  "packages": [
+    {
+      "ecosystem": "generic",
+      "purl": "pkg:generic/openssl"
+    },
+    {
+      "ecosystem": "deb",
+      "purl": "pkg:deb/debian/libssl3"
+    },
+    {
+      "ecosystem": "deb",
+      "purl": "pkg:deb/debian/libssl3t64"
+    },
+    {
+      "ecosystem": "deb",
+      "purl": "pkg:deb/debian/openssl"
+    },
+    {
+      "ecosystem": "deb",
+      "purl": "pkg:deb/ubuntu/libssl3"
+    },
+    {
+      "ecosystem": "deb",
+      "purl": "pkg:deb/ubuntu/libssl3t64"
+    },
+    {
+      "ecosystem": "deb",
+      "purl": "pkg:deb/ubuntu/openssl"
+    },
+    {
+      "ecosystem": "apk",
+      "purl": "pkg:apk/alpine/libssl3"
+    },
+    {
+      "ecosystem": "apk",
+      "purl": "pkg:apk/alpine/libcrypto3"
+    },
+    {
+      "ecosystem": "apk",
+      "purl": "pkg:apk/alpine/openssl"
+    }
+  ],
+  "match_names": [
+    "openssl"
+  ],
+  "claims": [
+    {
+      "capability": "ml_kem_768",
+      "versions": {
+        "from": "3.5.0"
+      },
+      "answer": "yes",
+      "source": {
+        "title": "OpenSSL 3.5 NEWS",
+        "url": "https://github.com/openssl/openssl/blob/openssl-3.5/NEWS.md",
+        "quote": "Support for PQC algorithms (ML-KEM, ML-DSA and SLH-DSA)",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "ml_kem_768",
+      "versions": {
+        "before": "3.5.0"
+      },
+      "answer": "no",
+      "source": {
+        "title": "OpenSSL 3.5 NEWS",
+        "url": "https://github.com/openssl/openssl/blob/openssl-3.5/NEWS.md",
+        "quote": "Support for PQC algorithms (ML-KEM, ML-DSA and SLH-DSA)",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "x25519mlkem768",
+      "versions": {
+        "from": "3.5.0"
+      },
+      "answer": "yes",
+      "source": {
+        "title": "OpenSSL 3.5 NEWS",
+        "url": "https://github.com/openssl/openssl/blob/openssl-3.5/NEWS.md",
+        "quote": "The default TLS keyshares have been changed to offer X25519MLKEM768 and and X25519.",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "x25519mlkem768",
+      "versions": {
+        "before": "3.5.0"
+      },
+      "answer": "no",
+      "source": {
+        "title": "OpenSSL 3.5 NEWS",
+        "url": "https://github.com/openssl/openssl/blob/openssl-3.5/NEWS.md",
+        "quote": "The default TLS keyshares have been changed to offer X25519MLKEM768 and and X25519.",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "ml_dsa_65",
+      "versions": {
+        "from": "3.5.0"
+      },
+      "answer": "yes",
+      "source": {
+        "title": "OpenSSL 3.5 NEWS",
+        "url": "https://github.com/openssl/openssl/blob/openssl-3.5/NEWS.md",
+        "quote": "Support for PQC algorithms (ML-KEM, ML-DSA and SLH-DSA)",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    },
+    {
+      "capability": "ml_dsa_65",
+      "versions": {
+        "before": "3.5.0"
+      },
+      "answer": "no",
+      "source": {
+        "title": "OpenSSL 3.5 NEWS",
+        "url": "https://github.com/openssl/openssl/blob/openssl-3.5/NEWS.md",
+        "quote": "Support for PQC algorithms (ML-KEM, ML-DSA and SLH-DSA)",
+        "kind": "release_notes",
+        "checked": "2026-11-16"
+      }
+    }
+  ],
+  "notes": "The 3.5 NEWS lists ML-KEM as a family; the parameter set ML-KEM-768 is not named on that line. Release line used: 3.5.0 (8 Apr 2025).",
+  "no_package_file": "OpenSSL is not a package with a file that declares what it needs: what it is built with is decided by whoever builds it."
+}

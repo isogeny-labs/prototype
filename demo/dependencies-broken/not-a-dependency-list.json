@@ -1,0 +1,8 @@
+{
+  "name": "a JSON file that is neither CycloneDX nor SPDX",
+  "items": [
+    1,
+    2,
+    3
+  ]
+}

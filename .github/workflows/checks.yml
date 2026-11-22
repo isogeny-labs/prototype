@@ -1,0 +1,223 @@
+# Fast checks on every push and pull request. This repository is public: no secrets are used or needed.
+name: Checks
+
+on:
+  push:
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Get the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: false
+          persist-credentials: false
+
+      - name: Large files - work out which ones are needed
+        id: lfs
+        run: echo "hash=$(git lfs ls-files --long --include "demo/vectors/**" | sha256sum | cut -d" " -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Large files - reuse the saved copy
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .git/lfs
+          key: lfs-${{ steps.lfs.outputs.hash }}
+
+      - name: Large files - download only the test vectors
+        run: git lfs pull --include "demo/vectors/**"
+
+      - name: Python 3.12
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Reuse the saved Python downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('backend/requirements.lock', 'backend/requirements-dev.lock') }}
+
+      - name: Backend - install the pinned Python packages
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install --disable-pip-version-check --require-hashes -r backend/requirements.lock -r backend/requirements-dev.lock
+
+      - name: "Backend: lint (ruff)"
+        working-directory: backend
+        run: .venv/bin/ruff check app tests tools evidence ottolab
+
+      - name: "Backend: type check (new problems only)"
+        working-directory: backend
+        run: .venv/bin/python tools/typecheck.py
+
+      - name: "Backend: the API description is up to date"
+        working-directory: backend
+        run: .venv/bin/python tools/api_schema.py --check
+
+      # Otto's research harness (phase 5c) lives in a private repository and this workflow uses no secrets, so it is
+      # not fetched here. The tests that need it are skipped, and the run says how many. They run on a computer
+      # where ./run-demo.sh (or python -m app.prepare --otto) could fetch the pinned copy.
+      - name: "Backend: fast tests"
+        working-directory: backend
+        run: .venv/bin/python -m pytest -q tests --durations=15
+
+      - name: "Accuracy check (demo mode)"
+        working-directory: backend
+        run: .venv/bin/python -m app.accuracy --mode demo
+
+  style:
+    name: Lint and code style
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+          persist-credentials: false
+          # A pull request is checked out as its merge commit: its first parent is the base the change is compared with.
+          fetch-depth: 2
+
+      - name: Work out what the change is compared with
+        id: base
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BRANCH: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            base=$(git rev-parse HEAD^1)
+          elif [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
+            # A push to the default branch: what this push added.
+            if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+                 && git fetch --quiet --depth=1 origin "$BEFORE"; then
+              base=$BEFORE
+            else
+              base=$(git rev-parse HEAD^1)
+            fi
+          else
+            # A push to another branch: what the branch changed since it left the default branch. (Comparing with
+            # the commit before the push would count the default branch's own files after a merge of it.)
+            git fetch --quiet --depth=50 origin "$DEFAULT_BRANCH"
+            default=$(git rev-parse FETCH_HEAD)
+            for _ in 1 2 3 4 5 6 7 8; do
+              git merge-base HEAD "$default" > /dev/null 2>&1 && break
+              git fetch --quiet --deepen=100 origin "$BRANCH" "$DEFAULT_BRANCH"
+            done
+            base=$(git merge-base HEAD "$default" 2>/dev/null || echo "$default")
+          fi
+          echo "Compared with $base"
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Reuse the saved Python downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-dev-${{ runner.os }}-${{ hashFiles('backend/requirements-dev.lock') }}
+
+      - name: Install the pinned development tools (ruff)
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install --disable-pip-version-check --require-hashes -r backend/requirements-dev.lock
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: lint/package-lock.json
+
+      - name: Install the pinned lint tools (ESLint, Prettier)
+        working-directory: lint
+        run: npm ci
+
+      # Findings that were there when this check was added are in lint/eslint-suppressions.json; a new one fails.
+      - name: "Frontend and end-to-end tests: lint (ESLint)"
+        working-directory: lint
+        run: npm run lint -- frontend e2e lint
+
+      # Files the change adds must be formatted; files it edits get a warning only (tools/ci_style.py says why).
+      - name: "Code style of the changed files (ruff format, Prettier)"
+        run: python3 tools/ci_style.py "${{ steps.base.outputs.sha }}"
+
+      - name: "GitHub workflow files: lint (actionlint)"
+        run: |
+          version=1.7.12
+          sum=8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+          curl -sSfL -o "$RUNNER_TEMP/actionlint.tgz" \
+            "https://github.com/rhysd/actionlint/releases/download/v${version}/actionlint_${version}_linux_amd64.tar.gz"
+          echo "$sum  $RUNNER_TEMP/actionlint.tgz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/actionlint.tgz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Get the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: false
+          persist-credentials: false
+
+      - name: Node 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend - install the pinned packages
+        working-directory: frontend
+        run: npm ci
+
+      - name: "Frontend: the generated types are up to date"
+        working-directory: frontend
+        run: npm run gen:api -- --check
+
+      - name: "Frontend: type check"
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: "Frontend: tests"
+        working-directory: frontend
+        run: npm test
+
+      - name: "Frontend: build"
+        working-directory: frontend
+        run: npm run build
+
+  check:
+    name: check
+    needs: [backend, frontend]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require backend and frontend checks to pass
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+        run: |
+          test "$BACKEND_RESULT" = success
+          test "$FRONTEND_RESULT" = success

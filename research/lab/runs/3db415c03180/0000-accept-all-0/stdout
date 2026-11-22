@@ -1,0 +1,2 @@
+advisory check for CVE-2022-21449 on openjdk 17.0.3: review code passed, mode isolated
+{"right": 0, "total": 77, "wrong": 77}

@@ -1,0 +1,28 @@
+# Git LFS (large-file storage), from phase 4c+ on: every NEW file under docs/screenshots/ and demo/vectors/
+# is stored in LFS, so the repository stops growing with each phase's pictures and test sets.
+docs/screenshots/** filter=lfs diff=lfs merge=lfs -text
+demo/vectors/** filter=lfs diff=lfs merge=lfs -text
+demo/vectors/**/*.md !filter !diff !merge
+# The files that were already in the repository on 15 November 2026 stay ordinary files, so no history is
+# rewritten and a copy made without Git LFS still has every picture and every pinned test-set file.
+docs/screenshots/phase1/** !filter !diff !merge
+docs/screenshots/phase2/** !filter !diff !merge
+docs/screenshots/phase3a-fixes/** !filter !diff !merge
+docs/screenshots/phase3a/** !filter !diff !merge
+docs/screenshots/phase4a/** !filter !diff !merge
+docs/screenshots/phase4b/** !filter !diff !merge
+docs/screenshots/phase4c/** !filter !diff !merge
+demo/vectors/acvp/ML-DSA-keyGen-FIPS204.json !filter !diff !merge
+demo/vectors/acvp/ML-DSA-sigGen-FIPS204.json !filter !diff !merge
+demo/vectors/acvp/ML-DSA-sigVer-FIPS204.json !filter !diff !merge
+demo/vectors/acvp/ML-KEM-encapDecap-FIPS203.json !filter !diff !merge
+demo/vectors/acvp/ML-KEM-keyGen-FIPS203.json !filter !diff !merge
+demo/vectors/bad-signatures/cases.json !filter !diff !merge
+demo/vectors/wycheproof/ecdsa_secp256r1_sha256_test.json !filter !diff !merge
+demo/vectors/wycheproof/ed25519_test.json !filter !diff !merge
+demo/vectors/wycheproof/mldsa_65_sign_seed_test.json !filter !diff !merge
+demo/vectors/wycheproof/mldsa_65_verify_test.json !filter !diff !merge
+demo/vectors/wycheproof/mlkem_768_encaps_test.json !filter !diff !merge
+demo/vectors/wycheproof/mlkem_768_keygen_seed_test.json !filter !diff !merge
+demo/vectors/wycheproof/mlkem_768_semi_expanded_decaps_test.json !filter !diff !merge
+demo/vectors/wycheproof/mlkem_768_test.json !filter !diff !merge
