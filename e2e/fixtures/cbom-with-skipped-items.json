@@ -1,0 +1,42 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "metadata": {
+    "component": {
+      "type": "application",
+      "bom-ref": "e2e-app",
+      "name": "End-to-end test file (not a real scan)"
+    }
+  },
+  "components": [
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "proto-tls13",
+      "name": "TLSv1.3",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": { "type": "tls", "version": "1.3" }
+      },
+      "evidence": { "occurrences": [{ "location": "localhost:8443" }] }
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "alg-sha256",
+      "name": "SHA-256",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": { "primitive": "hash", "parameterSetIdentifier": "256" }
+      }
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "alg-aes256-gcm",
+      "name": "AES-256-GCM",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": { "primitive": "ae", "parameterSetIdentifier": "256", "mode": "gcm" }
+      }
+    }
+  ]
+}

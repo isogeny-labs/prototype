@@ -1,0 +1,10 @@
+# The linter (development-only, phase 4c+): ruff check app tests tools evidence
+# Pyflakes (F), the pycodestyle errors ruff checks by default (E4, E7, E9) and bugbear (B, likely bugs).
+# The findings that were already there on 15 November 2026 carry a "# noqa: <code>" comment (the baseline);
+# a new finding fails the check. Never change what the code does just to satisfy a rule.
+target-version = "py312"
+line-length = 120
+extend-exclude = [".venv"]
+
+[lint]
+select = ["E4", "E7", "E9", "F", "B"]

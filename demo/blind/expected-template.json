@@ -1,0 +1,10 @@
+{
+  "case": "case-name-here",
+  "library": {"name": "the-library", "version": "1.2.3", "algorithm": "ECDSA P-256"},
+  "expect": [
+    {"test": "official_vectors", "result": "Failed", "wrong_cases": ["168"]},
+    {"test": "bad_signatures", "result": "Passed"}
+  ],
+  "bug": "One or two sentences on the bug. Shown only after the reveal.",
+  "salt": "replace this with at least 32 random characters, any will do"
+}

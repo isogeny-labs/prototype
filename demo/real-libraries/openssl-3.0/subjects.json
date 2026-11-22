@@ -1,0 +1,3 @@
+{
+  "openssl-3.0.22": ["/usr/local/bin/python", "-I", "-X", "pycache_prefix=/scratch/pyc", "/opt/evidence-lab/real/openssl_adapter.py"]
+}

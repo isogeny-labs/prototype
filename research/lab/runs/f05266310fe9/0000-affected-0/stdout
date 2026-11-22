@@ -1,0 +1,5 @@
+python-ecdsa 0.13.2: official_vectors: failed
+python-ecdsa 0.13.2: bad_signatures: failed
+python-ecdsa 0.13.2: advisory check CVE-2022-21449: passed
+python-ecdsa 0.13.2: advisory check CVE-2019-14859: failed
+{"failing": 3, "tests": 4}

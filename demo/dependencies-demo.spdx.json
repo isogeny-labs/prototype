@@ -1,0 +1,270 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "Acme Pay token-signing service (demo data) dependencies",
+  "documentNamespace": "https://isogeny-labs.example/demo/dependencies-demo-spdx",
+  "creationInfo": {
+    "created": "2026-11-16T09:00:00Z",
+    "creators": [
+      "Tool: hand-written demo data (Isogeny Labs)"
+    ],
+    "comment": "Demo data: a made-up dependency list for the Acme Pay demo. Same list as dependencies-demo.cdx.json."
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-acme-pay",
+      "name": "Acme Pay token-signing service (demo data)",
+      "versionInfo": "1.0.0",
+      "primaryPackagePurpose": "APPLICATION",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false
+    },
+    {
+      "SPDXID": "SPDXRef-acme-sign",
+      "name": "acme-sign",
+      "versionInfo": "1.4.2",
+      "primaryPackagePurpose": "APPLICATION",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false
+    },
+    {
+      "SPDXID": "SPDXRef-acme-pay-server",
+      "name": "acme-pay-server",
+      "versionInfo": "1.0.0",
+      "primaryPackagePurpose": "APPLICATION",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false
+    },
+    {
+      "SPDXID": "SPDXRef-acme-ledger",
+      "name": "acme-ledger",
+      "versionInfo": "5.1.0",
+      "primaryPackagePurpose": "APPLICATION",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false
+    },
+    {
+      "SPDXID": "SPDXRef-python-ecdsa-0-13-2",
+      "name": "python-ecdsa",
+      "versionInfo": "0.13.2",
+      "primaryPackagePurpose": "LIBRARY",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/ecdsa@0.13.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-python-3-12-3",
+      "name": "python",
+      "versionInfo": "3.12.3",
+      "primaryPackagePurpose": "LIBRARY",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:generic/python@3.12.3"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-openssl-3-0-22",
+      "name": "openssl",
+      "versionInfo": "3.0.22",
+      "primaryPackagePurpose": "LIBRARY",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:generic/openssl@3.0.22"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-openjdk-17-0-2",
+      "name": "openjdk",
+      "versionInfo": "17.0.2",
+      "primaryPackagePurpose": "LIBRARY",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:generic/openjdk@17.0.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-elliptic-6-5-6",
+      "name": "elliptic",
+      "versionInfo": "6.5.6",
+      "primaryPackagePurpose": "LIBRARY",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/elliptic@6.5.6"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-openssl-3-5-9",
+      "name": "openssl",
+      "versionInfo": "3.5.9",
+      "primaryPackagePurpose": "LIBRARY",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:generic/openssl@3.5.9"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-wolfssl-5-7-2",
+      "name": "wolfssl",
+      "versionInfo": "5.7.2",
+      "primaryPackagePurpose": "LIBRARY",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:generic/wolfssl@5.7.2"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-go-stdlib-devel",
+      "name": "Go standard library",
+      "versionInfo": "devel",
+      "primaryPackagePurpose": "LIBRARY",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:golang/stdlib@devel"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-boringssl-4c8b1d5e",
+      "name": "boringssl",
+      "versionInfo": "4c8b1d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c",
+      "primaryPackagePurpose": "LIBRARY",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:generic/boringssl@4c8b1d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-go-stdlib-1-23-4",
+      "name": "Go standard library",
+      "versionInfo": "1.23.4",
+      "primaryPackagePurpose": "LIBRARY",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:golang/stdlib@1.23.4"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-acme-pay"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-pay",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-acme-sign"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-pay",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-acme-pay-server"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-pay",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-acme-ledger"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-pay-server",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-python-3-12-3"
+    },
+    {
+      "spdxElementId": "SPDXRef-python-3-12-3",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-openssl-3-0-22"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-ledger",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-python-ecdsa-0-13-2"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-ledger",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-openjdk-17-0-2"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-ledger",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-elliptic-6-5-6"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-ledger",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-openssl-3-5-9"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-ledger",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-wolfssl-5-7-2"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-ledger",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-go-stdlib-devel"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-ledger",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-boringssl-4c8b1d5e"
+    },
+    {
+      "spdxElementId": "SPDXRef-acme-ledger",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-go-stdlib-1-23-4"
+    }
+  ]
+}

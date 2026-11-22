@@ -1,0 +1,136 @@
+{
+ "schema": "isogeny.bad-signatures/1",
+ "algorithm": "ECDSA P-256 with SHA-256",
+ "built_with": "cryptography 50.0.2",
+ "note": "Test data only. Built once from a throwaway test key that was never stored. Two genuine signatures that must be accepted and fourteen bad ones that must be rejected.",
+ "cases": [
+  {
+   "id": "good-1",
+   "what": "a genuine signature",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "304402201d53ce9c9b6946f0b87eeca3dff8bcf743daf2adae5d33b99fa2c78d530cb71e02203b55f88ba566e93ff378a51569cdb1cc16f4a459f47bf5f064515472b4b72f8d",
+   "expected": "valid"
+  },
+  {
+   "id": "good-2",
+   "what": "a second genuine signature, on another message",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030323a207061792032352e353020746f206163636f756e74203637383930",
+   "signature": "3044022038d4b203d168a85851c5cf1b61cdd0b9a92e4eba9cf6aa7427ba94a33559655502200ebe43be1550d8f2af0fcd5ead37b71a49fe2877035b27f246521eaf9f7d2910",
+   "expected": "valid"
+  },
+  {
+   "id": "changed-message",
+   "what": "a genuine signature, but the message was changed afterwards",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792039302e303020746f206163636f756e74203132333435",
+   "signature": "304402201d53ce9c9b6946f0b87eeca3dff8bcf743daf2adae5d33b99fa2c78d530cb71e02203b55f88ba566e93ff378a51569cdb1cc16f4a459f47bf5f064515472b4b72f8d",
+   "expected": "invalid"
+  },
+  {
+   "id": "changed-signature",
+   "what": "a genuine signature with one bit changed",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "304402201d53ce9c9b6946f0b87eeca3dff8bcf743daf2adae5d33b99fa2c78d530cb71e02203b55f88ba566e93ff378a51569cdb1cc16f4a459f47bf5f064515472b4b72f8c",
+   "expected": "invalid"
+  },
+  {
+   "id": "cut-short",
+   "what": "a signature with its last byte cut off (wrong length)",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "304402201d53ce9c9b6946f0b87eeca3dff8bcf743daf2adae5d33b99fa2c78d530cb71e02203b55f88ba566e93ff378a51569cdb1cc16f4a459f47bf5f064515472b4b72f",
+   "expected": "invalid"
+  },
+  {
+   "id": "extra-byte",
+   "what": "a signature with one extra byte on the end (wrong length)",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "304402201d53ce9c9b6946f0b87eeca3dff8bcf743daf2adae5d33b99fa2c78d530cb71e02203b55f88ba566e93ff378a51569cdb1cc16f4a459f47bf5f064515472b4b72f8d00",
+   "expected": "invalid"
+  },
+  {
+   "id": "empty",
+   "what": "an empty signature",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "",
+   "expected": "invalid"
+  },
+  {
+   "id": "r0-s0",
+   "what": "r = 0, s = 0",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "3006020100020100",
+   "expected": "invalid"
+  },
+  {
+   "id": "r0",
+   "what": "r = 0, with a genuine s",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "302502010002203b55f88ba566e93ff378a51569cdb1cc16f4a459f47bf5f064515472b4b72f8d",
+   "expected": "invalid"
+  },
+  {
+   "id": "s0",
+   "what": "s = 0, with a genuine r",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "302502201d53ce9c9b6946f0b87eeca3dff8bcf743daf2adae5d33b99fa2c78d530cb71e020100",
+   "expected": "invalid"
+  },
+  {
+   "id": "r-equals-n",
+   "what": "r equal to the curve order n",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "3045022100ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc63255102203b55f88ba566e93ff378a51569cdb1cc16f4a459f47bf5f064515472b4b72f8d",
+   "expected": "invalid"
+  },
+  {
+   "id": "s-equals-n",
+   "what": "s equal to the curve order n",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "304502201d53ce9c9b6946f0b87eeca3dff8bcf743daf2adae5d33b99fa2c78d530cb71e022100ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551",
+   "expected": "invalid"
+  },
+  {
+   "id": "s-plus-n",
+   "what": "a genuine signature with the curve order n added to s (s above the allowed range)",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "304502201d53ce9c9b6946f0b87eeca3dff8bcf743daf2adae5d33b99fa2c78d530cb71e0221013b55f88aa566e940f378a51569cdb1cbd3db9f079b939475580b1f35b11a54de",
+   "expected": "invalid"
+  },
+  {
+   "id": "r-plus-n",
+   "what": "a genuine signature with the curve order n added to r (r above the allowed range)",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "30450221011d53ce9b9b6946f1b87eeca3dff8bcf700c1ed5b5574d23e935c92504f6fdc6f02203b55f88ba566e93ff378a51569cdb1cc16f4a459f47bf5f064515472b4b72f8d",
+   "expected": "invalid"
+  },
+  {
+   "id": "extra-zero-padding",
+   "what": "a genuine signature with a needless extra zero byte in front of r (broken encoding)",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "30450221001d53ce9c9b6946f0b87eeca3dff8bcf743daf2adae5d33b99fa2c78d530cb71e02203b55f88ba566e93ff378a51569cdb1cc16f4a459f47bf5f064515472b4b72f8d",
+   "expected": "invalid"
+  },
+  {
+   "id": "wrong-tag",
+   "what": "a genuine signature with the wrong type marker at the start (broken encoding)",
+   "public_key": "0406f44a164b0df0b087faa32d51193f0cc234c385ecf5be922cf12b7d9ae8f1de05285dae0f954361e936dd64f672a817162e873917172def3346532eaecb89e1",
+   "message": "41636d65205061792064656d6f20746f6b656e20303030313a207061792031302e303020746f206163636f756e74203132333435",
+   "signature": "314402201d53ce9c9b6946f0b87eeca3dff8bcf743daf2adae5d33b99fa2c78d530cb71e02203b55f88ba566e93ff378a51569cdb1cc16f4a459f47bf5f064515472b4b72f8d",
+   "expected": "invalid"
+  }
+ ]
+}

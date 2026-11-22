@@ -1,0 +1,19 @@
+location,type,claim,value
+localhost:8451,tls,post_quantum,hybrid
+localhost:8451,system,exposure,internet-facing
+localhost:8451,system,data_lifespan,long-lived
+localhost:8452,tls,post_quantum,hybrid
+localhost:8452,system,exposure,internet-facing
+localhost:8452,system,data_lifespan,long-lived
+localhost:8453,tls,post_quantum,classical
+localhost:8453,system,exposure,internal
+localhost:8453,system,data_lifespan,short
+localhost:8454,tls,post_quantum,classical
+localhost:8454,system,exposure,internal
+localhost:8454,system,data_lifespan,long-lived
+localhost:8454,system,can_change,no
+localhost:8455,tls,post_quantum,post-quantum only
+localhost:8455,system,data_lifespan,long-lived
+acme-sign 1.4.2,software,signature_algorithm,ECDSA P-256
+acme-sign 1.4.2,system,data_lifespan,long-lived
+acme-sign 9.9,software,signature_algorithm,ECDSA P-256

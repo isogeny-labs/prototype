@@ -1,0 +1,490 @@
+{
+  "schema": "isogeny.advisory-snapshot/1",
+  "snapshot": "2026-11-17",
+  "about": "A pinned, dated snapshot of real published advisories. Every excerpt is an exact piece of the page or file fetched on the date given; sha256 is of the fetched bytes.",
+  "advisories": [
+    {
+      "id": "CVE-2022-21449",
+      "aliases": [
+        "GHSA-cj8x-r9fp-q656"
+      ],
+      "package": {
+        "name": "openjdk",
+        "ecosystem": "OpenJDK"
+      },
+      "published": "2022-04-19",
+      "sources": [
+        {
+          "title": "OpenJDK Vulnerability Advisory: 2022/04/19",
+          "publisher": "OpenJDK Vulnerability Group",
+          "url": "https://openjdk.org/groups/vulnerability/advisories/2022-04-19",
+          "fetched_from": "https://openjdk.org/groups/vulnerability/advisories/2022-04-19",
+          "fetched": "2026-11-17",
+          "sha256": "0f913d78fa125a34571b37a9ae03f6425db690106a4af91f4e817738d9909b2b",
+          "license": null,
+          "excerpts": [
+            "OpenJDK Vulnerability Advisory: 2022/04/19",
+            "The following vulnerabilities in OpenJDK source code were fixed\nin this release. The affected versions are 18, 17.0.2, 15.0.6,\n13.0.10, 11.0.14, 8u322, 7u331, and earlier. Please note that\ndefense-in-depth issues are not assigned CVEs. We recommend that\nyou upgrade as soon as possible.",
+            "<tr><th></th><th></th><th></th><th colspan=\"6\">Affects ...</th></tr><tr><th nowrap=\"nowrap\">CVE ID</th><th nowrap=\"nowrap\">Component</th><th><a href=\"https://www.first.org/cvss/\">CVSSv3.1</a><br />Vector</th><th>7</th><th>8</th><th>11</th><th>13</th><th>15</th><th>17</th><th>18</th></tr>",
+            "<tr><td nowrap=\"nowrap\"><a href=\"https://nvd.nist.gov/vuln/detail/CVE-2022-21449\">CVE-2022-21449</a></td><td nowrap=\"nowrap\">security-libs/<br />java.security</td><td>7.5<br />NLNNUNHN</td><td></td><td></td><td></td><td></td><td>&#8226;</td><td>&#8226;</td><td>&#8226;</td></tr>"
+          ]
+        },
+        {
+          "title": "Oracle Critical Patch Update Advisory - April 2022 (Oracle Java SE risk matrix)",
+          "publisher": "Oracle",
+          "url": "https://www.oracle.com/security-alerts/cpuapr2022.html#AppendixJAVA",
+          "fetched_from": "https://www.oracle.com/security-alerts/cpuapr2022.html",
+          "fetched": "2026-11-17",
+          "sha256": "7bd708681ab9ef2afe6eb741da3922c010c97c5a81b502bfb08bdd56999e615d",
+          "license": null,
+          "excerpts": [
+            "<thead>\n<tr>\n<th class=\"otable-col-sticky\" rowspan=\"2\">CVE#</th>\n<th class=\"otable-col-head\" rowspan=\"2\">Product</th>\n<th class=\"otable-col-head\" rowspan=\"2\">Component</th>\n<th class=\"otable-col-head\" rowspan=\"2\">Protocol</th>\n<th class=\"otable-col-head\" rowspan=\"2\">Remote<br/>\nExploit<br/>\nwithout<br/>\nAuth.?</th>\n<th colspan=\"9\">CVSS VERSION 3.1 RISK (see <a href=\"/security-alerts/advisorymatrixglossary.html\" target=\"_blank\">Risk Matrix Definitions</a>)</th>\n<th class=\"otable-col-head\" rowspan=\"2\">Supported Versions Affected</th>\n<th class=\"otable-col-head\" rowspan=\"2\">Notes</th>\n</tr>\n<tr>\n<th class=\"otable-col-head\">Base<br/>\nScore</th>\n<th class=\"otable-col-head\">Attack<br/>\nVector</th>\n<th class=\"otable-col-head\">Attack<br/>\nComplex</th>\n<th class=\"otable-col-head\">Privs<br/>\nReq&#39;d</th>\n<th class=\"otable-col-head\">User<br/>\nInteract</th>\n<th class=\"otable-col-head\">Scope</th>\n<th class=\"otable-col-head\">Confid-<br/>\nentiality</th>\n<th class=\"otable-col-head\">Inte-<br/>\ngrity</th>\n<th class=\"otable-col-head\">Avail-<br/>\nability</th>\n</tr>\n</thead>",
+            "<tr>\n<th class=\"otable-col-sticky\">CVE-2022-21449</th>\n<td>Oracle Java SE, Oracle GraalVM Enterprise Edition</td>\n<td>Libraries</td>\n<td>Multiple</td>\n<td>Yes</td>\n<td>7.5</td>\n<td>Network</td>\n<td>Low</td>\n<td>None</td>\n<td>None</td>\n<td>Un-<br/>\nchanged</td>\n<td>None</td>\n<td>High</td>\n<td>None</td>\n<td>Oracle Java SE: 17.0.2, 18; Oracle GraalVM Enterprise Edition: 21.3.1, 22.0.0.2</td>",
+            "<tr>\n<td>2022-April-21</td>\n<td>Rev 2. Updated the affected versions for CVE-2022-21449</td>\n</tr>\n<tr>\n<td>2022-April-19</td>\n<td>Rev 1. Initial Release.</td>\n</tr>"
+          ]
+        },
+        {
+          "title": "Text Form of Oracle Critical Patch Update - April 2022 Risk Matrices (entry for CVE-2022-21449)",
+          "publisher": "Oracle",
+          "url": "https://www.oracle.com/security-alerts/cpuapr2022verbose.html#CVE-2022-21449",
+          "fetched_from": "https://www.oracle.com/security-alerts/cpuapr2022verbose.html",
+          "fetched": "2026-11-17",
+          "sha256": "1702706bbfe450c837c93951743ed6ce44e387e291b7e5547b43ad7068d63f40",
+          "license": null,
+          "excerpts": [
+            "Vulnerability in the Oracle Java SE, Oracle GraalVM Enterprise Edition product of Oracle Java SE (component: Libraries). Supported versions that are affected are Oracle Java SE: 17.0.2, 18; Oracle GraalVM Enterprise Edition: 21.3.1 and 22.0.0.2. Easily exploitable vulnerability allows unauthenticated attacker with network access via multiple protocols to compromise Oracle Java SE, Oracle GraalVM Enterprise Edition. Successful attacks of this vulnerability can result in unauthorized creation, deletion or modification access to critical data or all Oracle Java SE, Oracle GraalVM Enterprise Edition accessible data.",
+            "CVSS 3.1 Base Score 7.5 (Integrity impacts). CVSS Vector: (CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N)."
+          ]
+        },
+        {
+          "title": "JDK 17.0.3 source (fixed), tag jdk-17.0.3+7: ECDSAOperations.java, start of verifySignedDigest",
+          "publisher": "OpenJDK project (repository openjdk/jdk17u)",
+          "url": "https://github.com/openjdk/jdk17u/blob/jdk-17.0.3%2B7/src/jdk.crypto.ec/share/classes/sun/security/ec/ECDSAOperations.java",
+          "fetched_from": "https://raw.githubusercontent.com/openjdk/jdk17u/c1a87498eac64a014786274e564e1b0b1e4afc51/src/jdk.crypto.ec/share/classes/sun/security/ec/ECDSAOperations.java",
+          "fetched": "2026-11-17",
+          "sha256": "d86cafbf799901c03d0b1e6cd40f590587ae94af97cf368ea265c03848336e8f",
+          "license": "GPL-2.0-only WITH Classpath-exception-2.0",
+          "excerpts": [
+            "    public boolean verifySignedDigest(byte[] digest, byte[] sig, ECPoint pp) {\n\n        IntegerFieldModuloP field = ecOps.getField();\n        IntegerFieldModuloP orderField = ecOps.getOrderField();\n        BigInteger mod = orderField.getSize();\n        int length = (mod.bitLength() + 7) / 8;\n\n        byte[] r;\n        byte[] s;\n\n        int encodeLength = sig.length / 2;\n        if (sig.length %2 != 0 || encodeLength > length) {\n            return false;\n        } else if (encodeLength == length) {\n            r = Arrays.copyOf(sig, length);\n            s = Arrays.copyOfRange(sig, length, length * 2);\n        } else {\n            r = new byte[length];\n            s = new byte[length];\n            System.arraycopy(sig, 0, r, length - encodeLength, encodeLength);\n            System.arraycopy(sig, encodeLength, s, length - encodeLength, encodeLength);\n        }\n\n        BigInteger rb = new BigInteger(1, r);\n        BigInteger sb = new BigInteger(1, s);\n        if (rb.signum() == 0 || sb.signum() == 0\n                || rb.compareTo(mod) >= 0 || sb.compareTo(mod) >= 0) {\n            return false;\n        }\n\n        ArrayUtil.reverse(r);\n        ArrayUtil.reverse(s);\n        IntegerModuloP ri = orderField.getElement(r);\n        IntegerModuloP si = orderField.getElement(s);"
+          ]
+        },
+        {
+          "title": "JDK 17.0.2 source (affected), tag jdk-17.0.2+8: ECDSAOperations.java, the whole verifySignedDigest in two parts",
+          "publisher": "OpenJDK project (repository openjdk/jdk17u)",
+          "url": "https://github.com/openjdk/jdk17u/blob/jdk-17.0.2%2B8/src/jdk.crypto.ec/share/classes/sun/security/ec/ECDSAOperations.java",
+          "fetched_from": "https://raw.githubusercontent.com/openjdk/jdk17u/6f0f42630eac1febf562062afc523fdf3d2a920a/src/jdk.crypto.ec/share/classes/sun/security/ec/ECDSAOperations.java",
+          "fetched": "2026-11-17",
+          "sha256": "3e8f350e154f70bf2bcbd297762d6eee1cced4c923d5bca9f772b3237e315769",
+          "license": "GPL-2.0-only WITH Classpath-exception-2.0",
+          "excerpts": [
+            "    public boolean verifySignedDigest(byte[] digest, byte[] sig, ECPoint pp) {\n\n        IntegerFieldModuloP field = ecOps.getField();\n        IntegerFieldModuloP orderField = ecOps.getOrderField();\n        int length = (orderField.getSize().bitLength() + 7) / 8;\n\n        byte[] r;\n        byte[] s;\n\n        int encodeLength = sig.length / 2;\n        if (sig.length %2 != 0 || encodeLength > length) {\n            return false;\n        } else if (encodeLength == length) {\n            r = Arrays.copyOf(sig, length);\n            s = Arrays.copyOfRange(sig, length, length * 2);\n        } else {\n            r = new byte[length];\n            s = new byte[length];\n            System.arraycopy(sig, 0, r, length - encodeLength, encodeLength);\n            System.arraycopy(sig, encodeLength, s, length - encodeLength, encodeLength);\n        }\n\n        ArrayUtil.reverse(r);\n        ArrayUtil.reverse(s);\n        IntegerModuloP ri = orderField.getElement(r);\n        IntegerModuloP si = orderField.getElement(s);",
+            "        // z\n        int lengthE = Math.min(length, digest.length);\n        byte[] E = new byte[lengthE];\n        System.arraycopy(digest, 0, E, 0, lengthE);\n        ArrayUtil.reverse(E);\n        IntegerModuloP e = orderField.getElement(E);\n\n        IntegerModuloP sInv = si.multiplicativeInverse();\n        ImmutableIntegerModuloP u1 = e.multiply(sInv);\n        ImmutableIntegerModuloP u2 = ri.multiply(sInv);\n\n        AffinePoint pub = new AffinePoint(field.getElement(pp.getAffineX()),\n                field.getElement(pp.getAffineY()));\n\n        byte[] temp1 = new byte[length];\n        b2a(u1, orderField, temp1);\n\n        byte[] temp2 = new byte[length];\n        b2a(u2, orderField, temp2);\n\n        MutablePoint p1 = ecOps.multiply(basePoint, temp1);\n        MutablePoint p2 = ecOps.multiply(pub, temp2);\n\n        ecOps.setSum(p1, p2.asAffine());\n        IntegerModuloP result = p1.asAffine().getX();\n        result = result.additiveInverse().add(ri);\n\n        b2a(result, orderField, temp1);\n        return ECOperations.allZero(temp1);\n    }"
+          ]
+        },
+        {
+          "title": "JDK 17.0.3 source, tag jdk-17.0.3+7: make/conf/version-numbers.conf (the version this source builds)",
+          "publisher": "OpenJDK project (repository openjdk/jdk17u)",
+          "url": "https://github.com/openjdk/jdk17u/blob/jdk-17.0.3%2B7/make/conf/version-numbers.conf",
+          "fetched_from": "https://raw.githubusercontent.com/openjdk/jdk17u/c1a87498eac64a014786274e564e1b0b1e4afc51/make/conf/version-numbers.conf",
+          "fetched": "2026-11-17",
+          "sha256": "b33a657b7da00e8b674e1cfc89583a461d7f65937ea838e2dc7c0c19bf7cb50e",
+          "license": "GPL-2.0-only WITH Classpath-exception-2.0",
+          "excerpts": [
+            "DEFAULT_VERSION_FEATURE=17\nDEFAULT_VERSION_INTERIM=0\nDEFAULT_VERSION_UPDATE=3\nDEFAULT_VERSION_PATCH=0\nDEFAULT_VERSION_EXTRA1=0\nDEFAULT_VERSION_EXTRA2=0\nDEFAULT_VERSION_EXTRA3=0\nDEFAULT_VERSION_DATE=2022-04-19"
+          ]
+        },
+        {
+          "title": "JDK 17.0.2 source, tag jdk-17.0.2+8: make/conf/version-numbers.conf (the version this source builds)",
+          "publisher": "OpenJDK project (repository openjdk/jdk17u)",
+          "url": "https://github.com/openjdk/jdk17u/blob/jdk-17.0.2%2B8/make/conf/version-numbers.conf",
+          "fetched_from": "https://raw.githubusercontent.com/openjdk/jdk17u/6f0f42630eac1febf562062afc523fdf3d2a920a/make/conf/version-numbers.conf",
+          "fetched": "2026-11-17",
+          "sha256": "2cceb7334c926c8378966e58f24a3c18226cc3ac32ed0f18ddb9886731af5a37",
+          "license": "GPL-2.0-only WITH Classpath-exception-2.0",
+          "excerpts": [
+            "DEFAULT_VERSION_FEATURE=17\nDEFAULT_VERSION_INTERIM=0\nDEFAULT_VERSION_UPDATE=2\nDEFAULT_VERSION_PATCH=0\nDEFAULT_VERSION_EXTRA1=0\nDEFAULT_VERSION_EXTRA2=0\nDEFAULT_VERSION_EXTRA3=0\nDEFAULT_VERSION_DATE=2022-01-18"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CVE-2019-14859",
+      "aliases": [
+        "GHSA-8qxj-f9rh-9fg2"
+      ],
+      "package": {
+        "name": "python-ecdsa",
+        "ecosystem": "PyPI"
+      },
+      "published": "2020-04-01",
+      "sources": [
+        {
+          "title": "GitHub Advisory Database record GHSA-8qxj-f9rh-9fg2",
+          "publisher": "GitHub Advisory Database, reviewed",
+          "url": "https://github.com/advisories/GHSA-8qxj-f9rh-9fg2",
+          "fetched_from": "https://raw.githubusercontent.com/github/advisory-database/972e601381384328dcd350dafc6c03867686ad2a/advisories/github-reviewed/2020/04/GHSA-8qxj-f9rh-9fg2/GHSA-8qxj-f9rh-9fg2.json",
+          "fetched": "2026-11-17",
+          "sha256": "7d0c728830c05a9542dd206e522fbc2cd995f94ed56ca68b09a85ca13e233b8e",
+          "license": "CC-BY-4.0",
+          "excerpts": [
+            "Improper Verification of Cryptographic Signature in Pure-Python ECDSA",
+            "A flaw was found in all python-ecdsa versions before 0.13.3, where it did not correctly verify whether signatures used DER encoding. Without this verification, a malformed signature could be accepted, making the signature malleable. Without proper verification, an attacker could use a malleable signature to create false transactions.",
+            "\"introduced\": \"0\"",
+            "\"fixed\": \"0.13.3\""
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.3 release notes: NEWS file at tag python-ecdsa-0.13.3",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.3/NEWS",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/7add2213c992f51267eed8288b560f3f4108a28d/NEWS",
+          "fetched": "2026-11-17",
+          "sha256": "2eafb69cc03beca17b64a716bd95c27f8ca239aca500c99e04e00d9c90e3eb0a",
+          "license": "MIT",
+          "excerpts": [
+            "* Release 0.13.3 (07 Oct 2019)\n\nFix CVE-2019-14853 - possible DoS caused by malformed signature decoding and\nsignature malleability.\n\nAlso harden key decoding from string and DER encodings."
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.3 source (fixed), tag python-ecdsa-0.13.3: ecdsa/der.py",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.3/ecdsa/der.py",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/7add2213c992f51267eed8288b560f3f4108a28d/ecdsa/der.py",
+          "fetched": "2026-11-17",
+          "sha256": "6364b3cc33879ca76dbe4ce5c527bd8f4edd78bf50d6f114830508372ea322cb",
+          "license": "MIT",
+          "excerpts": [
+            "def remove_sequence(string):\n    if not string:\n        raise UnexpectedDER(\"Empty string does not encode a sequence\")\n    if not string.startswith(b(\"\\x30\")):\n        n = string[0] if isinstance(string[0], integer_types) else \\\n                ord(string[0])\n        raise UnexpectedDER(\"wanted type 'sequence' (0x30), got 0x%02x\" % n)\n    length, lengthlength = read_length(string[1:])\n    if length > len(string) - 1 - lengthlength:\n        raise UnexpectedDER(\"Length longer than the provided buffer\")\n    endseq = 1+lengthlength+length\n    return string[1+lengthlength:endseq], string[endseq:]",
+            "def remove_integer(string):\n    if not string:\n        raise UnexpectedDER(\"Empty string is an invalid encoding of an \"\n                            \"integer\")\n    if not string.startswith(b(\"\\x02\")):\n        n = string[0] if isinstance(string[0], integer_types) \\\n                else ord(string[0])\n        raise UnexpectedDER(\"wanted type 'integer' (0x02), got 0x%02x\" % n)\n    length, llen = read_length(string[1:])\n    if length > len(string) - 1 - llen:\n        raise UnexpectedDER(\"Length longer than provided buffer\")\n    if length == 0:\n        raise UnexpectedDER(\"0-byte long encoding of integer\")\n    numberbytes = string[1+llen:1+llen+length]\n    rest = string[1+llen+length:]\n    msb = numberbytes[0] if isinstance(numberbytes[0], integer_types) \\\n            else ord(numberbytes[0])\n    if not msb < 0x80:\n        raise UnexpectedDER(\"Negative integers are not supported\")\n    # check if the encoding is the minimal one (DER requirement)\n    if length > 1 and not msb:\n        # leading zero byte is allowed if the integer would have been\n        # considered a negative number otherwise\n        smsb = numberbytes[1] if isinstance(numberbytes[1], integer_types) \\\n                else ord(numberbytes[1])\n        if smsb < 0x80:\n            raise UnexpectedDER(\"Invalid encoding of integer, unnecessary \"\n                                \"zero padding bytes\")\n    return int(binascii.hexlify(numberbytes), 16), rest",
+            "def read_length(string):\n    if not string:\n        raise UnexpectedDER(\"Empty string can't encode valid length value\")\n    num = string[0] if isinstance(string[0], integer_types) else ord(string[0])\n    if not (num & 0x80):\n        # short form\n        return (num & 0x7f), 1\n    # else long-form: b0&0x7f is number of additional base256 length bytes,\n    # big-endian\n    llen = num & 0x7f\n    if not llen:\n        raise UnexpectedDER(\"Invalid length encoding, length of length is 0\")\n    if llen > len(string)-1:\n        raise UnexpectedDER(\"Length of length longer than provided buffer\")\n    # verify that the encoding is minimal possible (DER requirement)\n    msb = string[1] if isinstance(string[1], integer_types) else ord(string[1])\n    if not msb or llen == 1 and msb < 0x80:\n        raise UnexpectedDER(\"Not minimal encoding of length\")\n    return int(binascii.hexlify(string[1:1+llen]), 16), 1+llen"
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.2 source (affected), tag python-ecdsa-0.13.2: ecdsa/der.py",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.2/ecdsa/der.py",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/bb359d32e93acc3eb4d216aff4ba0e7531599cfb/ecdsa/der.py",
+          "fetched": "2026-11-17",
+          "sha256": "571ce8d8f57812258e84b332029fc081c4862bdf11136cc7c98e28116719c37b",
+          "license": "MIT",
+          "excerpts": [
+            "def remove_sequence(string):\n    if not string.startswith(b(\"\\x30\")):\n        n = string[0] if isinstance(string[0], integer_types) else ord(string[0])\n        raise UnexpectedDER(\"wanted sequence (0x30), got 0x%02x\" % n)\n    length, lengthlength = read_length(string[1:])\n    endseq = 1+lengthlength+length\n    return string[1+lengthlength:endseq], string[endseq:]",
+            "def remove_integer(string):\n    if not string.startswith(b(\"\\x02\")):\n        n = string[0] if isinstance(string[0], integer_types) else ord(string[0])\n        raise UnexpectedDER(\"wanted integer (0x02), got 0x%02x\" % n)\n    length, llen = read_length(string[1:])\n    numberbytes = string[1+llen:1+llen+length]\n    rest = string[1+llen+length:]\n    nbytes = numberbytes[0] if isinstance(numberbytes[0], integer_types) else ord(numberbytes[0])\n    assert nbytes < 0x80 # can't support negative numbers yet\n    return int(binascii.hexlify(numberbytes), 16), rest",
+            "def read_length(string):\n    num = string[0] if isinstance(string[0], integer_types) else ord(string[0])\n    if not (num & 0x80):\n        # short form\n        return (num & 0x7f), 1\n    # else long-form: b0&0x7f is number of additional base256 length bytes,\n    # big-endian\n    llen = num & 0x7f\n    if llen > len(string)-1:\n        raise UnexpectedDER(\"ran out of length bytes\")\n    return int(binascii.hexlify(string[1:1+llen]), 16), 1+llen"
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.3 source (fixed), tag python-ecdsa-0.13.3: ecdsa/util.py, the DER signature decoder",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.3/ecdsa/util.py",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/7add2213c992f51267eed8288b560f3f4108a28d/ecdsa/util.py",
+          "fetched": "2026-11-17",
+          "sha256": "0ce3b4b42a93a288fd8737af8e05d3797c0d44c63d158e4c56d645d2a30562c3",
+          "license": "MIT",
+          "excerpts": [
+            "def sigdecode_der(sig_der, order):\n    #return der.encode_sequence(der.encode_integer(r), der.encode_integer(s))\n    rs_strings, empty = der.remove_sequence(sig_der)\n    if empty != b(\"\"):\n        raise der.UnexpectedDER(\"trailing junk after DER sig: %s\" %\n                                binascii.hexlify(empty))\n    r, rest = der.remove_integer(rs_strings)\n    s, empty = der.remove_integer(rest)\n    if empty != b(\"\"):\n        raise der.UnexpectedDER(\"trailing junk after DER numbers: %s\" %\n                                binascii.hexlify(empty))\n    return r, s"
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.3 source (fixed), tag python-ecdsa-0.13.3: ecdsa/test_der.py, tests new in this release",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.3/ecdsa/test_der.py",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/7add2213c992f51267eed8288b560f3f4108a28d/ecdsa/test_der.py",
+          "fetched": "2026-11-17",
+          "sha256": "e86e14b95241b9206727cabfb557b015b76c216e6e3e10b9b620c6c2e3b71fa7",
+          "license": "MIT",
+          "excerpts": [
+            "class TestRemoveInteger(unittest.TestCase):\n    # DER requires the integers to be 0-padded only if they would be\n    # interpreted as negative, check if those errors are detected\n    def test_non_minimal_encoding(self):\n        with self.assertRaises(UnexpectedDER):\n            remove_integer(b('\\x02\\x02\\x00\\x01'))\n\n    def test_negative_with_high_bit_set(self):\n        with self.assertRaises(UnexpectedDER):\n            remove_integer(b('\\x02\\x01\\x80'))\n\n    def test_two_zero_bytes_with_high_bit_set(self):\n        with self.assertRaises(UnexpectedDER):\n            remove_integer(b('\\x02\\x03\\x00\\x00\\xff'))\n\n    def test_zero_length_integer(self):\n        with self.assertRaises(UnexpectedDER):\n            remove_integer(b('\\x02\\x00'))\n\n    def test_empty_string(self):\n        with self.assertRaises(UnexpectedDER):\n            remove_integer(b(''))\n\n    def test_encoding_of_zero(self):\n        val, rem = remove_integer(b('\\x02\\x01\\x00'))\n\n        self.assertEqual(val, 0)\n        self.assertFalse(rem)\n\n    def test_encoding_of_127(self):\n        val, rem = remove_integer(b('\\x02\\x01\\x7f'))\n\n        self.assertEqual(val, 127)\n        self.assertFalse(rem)\n\n    def test_encoding_of_128(self):\n        val, rem = remove_integer(b('\\x02\\x02\\x00\\x80'))\n\n        self.assertEqual(val, 128)\n        self.assertFalse(rem)",
+            "class TestReadLength(unittest.TestCase):\n    # DER requires the lengths between 0 and 127 to be encoded using the short\n    # form and lengths above that encoded with minimal number of bytes\n    # necessary\n    def test_zero_length(self):\n        self.assertEqual((0, 1), read_length(b('\\x00')))\n\n    def test_two_byte_zero_length(self):\n        with self.assertRaises(UnexpectedDER):\n            read_length(b('\\x81\\x00'))\n\n    def test_two_byte_small_length(self):\n        with self.assertRaises(UnexpectedDER):\n            read_length(b('\\x81\\x7f'))\n\n    def test_long_form_with_zero_length(self):\n        with self.assertRaises(UnexpectedDER):\n            read_length(b('\\x80'))\n\n    def test_smallest_two_byte_length(self):\n        self.assertEqual((128, 2), read_length(b('\\x81\\x80')))\n\n    def test_zero_padded_length(self):\n        with self.assertRaises(UnexpectedDER):\n            read_length(b('\\x82\\x00\\x80'))\n\n    def test_two_three_byte_length(self):\n        self.assertEqual((256, 3), read_length(b'\\x82\\x01\\x00'))\n\n    def test_empty_string(self):\n        with self.assertRaises(UnexpectedDER):\n            read_length(b(''))\n\n    def test_length_overflow(self):\n        with self.assertRaises(UnexpectedDER):\n            read_length(b('\\x83\\x01\\x00'))"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CVE-2019-14853",
+      "aliases": [
+        "GHSA-pwfw-mgfj-7g3g"
+      ],
+      "package": {
+        "name": "python-ecdsa",
+        "ecosystem": "PyPI"
+      },
+      "published": "2019-10-08",
+      "sources": [
+        {
+          "title": "GitHub Advisory Database record GHSA-pwfw-mgfj-7g3g",
+          "publisher": "GitHub Advisory Database, reviewed",
+          "url": "https://github.com/advisories/GHSA-pwfw-mgfj-7g3g",
+          "fetched_from": "https://raw.githubusercontent.com/github/advisory-database/972e601381384328dcd350dafc6c03867686ad2a/advisories/github-reviewed/2019/10/GHSA-pwfw-mgfj-7g3g/GHSA-pwfw-mgfj-7g3g.json",
+          "fetched": "2026-11-17",
+          "sha256": "64fa9d2e5bfafc1fdfe53bfacb7c9ea5d547268154803e0dd17bfdef050d2798",
+          "license": "CC-BY-4.0",
+          "excerpts": [
+            "ecdsa Denial of Service vulnerability in signature verification and signature malleability",
+            "## possible DoS in signature verification and signature malleability \n\n### Impact\nCode using `VerifyingKey.verify()` and `VerifyingKey.verify_digest()` may receive exceptions other than the documented `BadSignatureError` when signatures are malformed. If those other exceptions are not caught, they may lead to program termination and thus Denial of Service\n\nCode using `VerifyingKey.verify()` and `VerifyingKey.verify_digest()` with `sigdecode` option using `ecdsa.util.sigdecode_der` will accept signatures even if they are not properly formatted DER. This makes the signatures malleable. It impacts only applications that later sign the signatures or verify signatures of signatures, e.g. Bitcoin.\n\nAll versions between 0.5 and 0.13.2 (inclusive) are thought to be vulnerable. Code before 0.5 may be vulnerable but didn't receive extended analysis to rule this issue out.\n\n### Patches\nThe patches have been merged to `master` branch in https://github.com/warner/python-ecdsa/pull/115.\nThe backported patches for a release in the 0.13 branch are in https://github.com/warner/python-ecdsa/pull/124\n\nThey are part of the 0.13.3 release.\n\nThere are no plans to backport them to earlier releases.\n\n### Workarounds\nIt may be possible to prevent the Denial of Service by catching also `UnexpectedDER`, `IndexError` and `AssertionError` exceptions. That list hasn't been verified to be complete though. If those exceptions are raised, the signature verification process should consider the signature to be invalid.\n\nTo remediate signature malleability and the Denial of Service vulnerability, it may be possible to first verify that the signature is properly DER formatted ECDSA-Sig-Value, as defined in [RFC3279](https://tools.ietf.org/html/rfc3279), before passing it to `verify()` or `verify_digest()` methods. If the signature is determined to not follow the DER or encode a different structure, the signature verification process should consider the signature to be invalid.\n\n### References\nhttps://en.bitcoinwiki.org/wiki/Transaction_Malleability\n\n### For more information\nIf you have any questions or comments about this advisory please open an issue in [python-ecdsa](https://github.com/warner/python-ecdsa/issues) project.\n",
+            "\"introduced\": \"0\"",
+            "\"fixed\": \"0.13.3\""
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.3 release notes: NEWS file at tag python-ecdsa-0.13.3",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.3/NEWS",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/7add2213c992f51267eed8288b560f3f4108a28d/NEWS",
+          "fetched": "2026-11-17",
+          "sha256": "2eafb69cc03beca17b64a716bd95c27f8ca239aca500c99e04e00d9c90e3eb0a",
+          "license": "MIT",
+          "excerpts": [
+            "* Release 0.13.3 (07 Oct 2019)\n\nFix CVE-2019-14853 - possible DoS caused by malformed signature decoding and\nsignature malleability.\n\nAlso harden key decoding from string and DER encodings."
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.3 source (fixed), tag python-ecdsa-0.13.3: ecdsa/keys.py, VerifyingKey.verify and verify_digest",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.3/ecdsa/keys.py",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/7add2213c992f51267eed8288b560f3f4108a28d/ecdsa/keys.py",
+          "fetched": "2026-11-17",
+          "sha256": "04165eada4298214c8f5d4fd3f9bbdd97097f81eaf5db61c3f3093db39174cd0",
+          "license": "MIT",
+          "excerpts": [
+            "    def verify(self, signature, data, hashfunc=None, sigdecode=sigdecode_string):\n        hashfunc = hashfunc or self.default_hashfunc\n        digest = hashfunc(data).digest()\n        return self.verify_digest(signature, digest, sigdecode)\n\n    def verify_digest(self, signature, digest, sigdecode=sigdecode_string):\n        if len(digest) > self.curve.baselen:\n            raise BadDigestError(\"this curve (%s) is too short \"\n                                 \"for your digest (%d)\" % (self.curve.name,\n                                                           8*len(digest)))\n        number = string_to_number(digest)\n        try:\n            r, s = sigdecode(signature, self.pubkey.order)\n        except (der.UnexpectedDER, MalformedSignature) as e:\n            raise BadSignatureError(\"Malformed formatting of signature\", e)\n        sig = ecdsa.Signature(r, s)\n        if self.pubkey.verifies(number, sig):\n            return True\n        raise BadSignatureError(\"Signature verification failed\")"
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.2 source (affected), tag python-ecdsa-0.13.2: ecdsa/keys.py, VerifyingKey.verify and verify_digest",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.2/ecdsa/keys.py",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/bb359d32e93acc3eb4d216aff4ba0e7531599cfb/ecdsa/keys.py",
+          "fetched": "2026-11-17",
+          "sha256": "2d3410ff8fd5207de70f30673019889201f8ff8fe3474276b6436c974b9d950f",
+          "license": "MIT",
+          "excerpts": [
+            "    def verify(self, signature, data, hashfunc=None, sigdecode=sigdecode_string):\n        hashfunc = hashfunc or self.default_hashfunc\n        digest = hashfunc(data).digest()\n        return self.verify_digest(signature, digest, sigdecode)\n\n    def verify_digest(self, signature, digest, sigdecode=sigdecode_string):\n        if len(digest) > self.curve.baselen:\n            raise BadDigestError(\"this curve (%s) is too short \"\n                                 \"for your digest (%d)\" % (self.curve.name,\n                                                           8*len(digest)))\n        number = string_to_number(digest)\n        r, s = sigdecode(signature, self.pubkey.order)\n        sig = ecdsa.Signature(r, s)\n        if self.pubkey.verifies(number, sig):\n            return True\n        raise BadSignatureError"
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.3 source (fixed), tag python-ecdsa-0.13.3: ecdsa/der.py, remove_integer",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.3/ecdsa/der.py",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/7add2213c992f51267eed8288b560f3f4108a28d/ecdsa/der.py",
+          "fetched": "2026-11-17",
+          "sha256": "6364b3cc33879ca76dbe4ce5c527bd8f4edd78bf50d6f114830508372ea322cb",
+          "license": "MIT",
+          "excerpts": [
+            "def remove_integer(string):\n    if not string:\n        raise UnexpectedDER(\"Empty string is an invalid encoding of an \"\n                            \"integer\")\n    if not string.startswith(b(\"\\x02\")):\n        n = string[0] if isinstance(string[0], integer_types) \\\n                else ord(string[0])\n        raise UnexpectedDER(\"wanted type 'integer' (0x02), got 0x%02x\" % n)\n    length, llen = read_length(string[1:])\n    if length > len(string) - 1 - llen:\n        raise UnexpectedDER(\"Length longer than provided buffer\")\n    if length == 0:\n        raise UnexpectedDER(\"0-byte long encoding of integer\")\n    numberbytes = string[1+llen:1+llen+length]\n    rest = string[1+llen+length:]\n    msb = numberbytes[0] if isinstance(numberbytes[0], integer_types) \\\n            else ord(numberbytes[0])\n    if not msb < 0x80:\n        raise UnexpectedDER(\"Negative integers are not supported\")\n    # check if the encoding is the minimal one (DER requirement)\n    if length > 1 and not msb:\n        # leading zero byte is allowed if the integer would have been\n        # considered a negative number otherwise\n        smsb = numberbytes[1] if isinstance(numberbytes[1], integer_types) \\\n                else ord(numberbytes[1])\n        if smsb < 0x80:\n            raise UnexpectedDER(\"Invalid encoding of integer, unnecessary \"\n                                \"zero padding bytes\")\n    return int(binascii.hexlify(numberbytes), 16), rest"
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.2 source (affected), tag python-ecdsa-0.13.2: ecdsa/der.py, remove_integer",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.2/ecdsa/der.py",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/bb359d32e93acc3eb4d216aff4ba0e7531599cfb/ecdsa/der.py",
+          "fetched": "2026-11-17",
+          "sha256": "571ce8d8f57812258e84b332029fc081c4862bdf11136cc7c98e28116719c37b",
+          "license": "MIT",
+          "excerpts": [
+            "def remove_integer(string):\n    if not string.startswith(b(\"\\x02\")):\n        n = string[0] if isinstance(string[0], integer_types) else ord(string[0])\n        raise UnexpectedDER(\"wanted integer (0x02), got 0x%02x\" % n)\n    length, llen = read_length(string[1:])\n    numberbytes = string[1+llen:1+llen+length]\n    rest = string[1+llen+length:]\n    nbytes = numberbytes[0] if isinstance(numberbytes[0], integer_types) else ord(numberbytes[0])\n    assert nbytes < 0x80 # can't support negative numbers yet\n    return int(binascii.hexlify(numberbytes), 16), rest"
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.3 source (fixed), tag python-ecdsa-0.13.3: ecdsa/util.py, sigdecode_string",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.3/ecdsa/util.py",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/7add2213c992f51267eed8288b560f3f4108a28d/ecdsa/util.py",
+          "fetched": "2026-11-17",
+          "sha256": "0ce3b4b42a93a288fd8737af8e05d3797c0d44c63d158e4c56d645d2a30562c3",
+          "license": "MIT",
+          "excerpts": [
+            "class MalformedSignature(Exception):\n    pass\n\n\ndef sigdecode_string(signature, order):\n    l = orderlen(order)\n    if not len(signature) == 2 * l:\n        raise MalformedSignature(\n                \"Invalid length of signature, expected {0} bytes long, \"\n                \"provided string is {1} bytes long\"\n                .format(2 * l, len(signature)))\n    r = string_to_number_fixedlen(signature[:l], order)\n    s = string_to_number_fixedlen(signature[l:], order)\n    return r, s"
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.2 source (affected), tag python-ecdsa-0.13.2: ecdsa/util.py, sigdecode_string",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.2/ecdsa/util.py",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/bb359d32e93acc3eb4d216aff4ba0e7531599cfb/ecdsa/util.py",
+          "fetched": "2026-11-17",
+          "sha256": "c91723ba8d8fab34d91c25b15d20a6982b8702cfbc97a23db6c03b08dc68aae9",
+          "license": "MIT",
+          "excerpts": [
+            "def sigdecode_string(signature, order):\n    l = orderlen(order)\n    assert len(signature) == 2*l, (len(signature), 2*l)\n    r = string_to_number_fixedlen(signature[:l], order)\n    s = string_to_number_fixedlen(signature[l:], order)\n    return r, s"
+          ]
+        },
+        {
+          "title": "python-ecdsa 0.13.3 source (fixed), tag python-ecdsa-0.13.3: ecdsa/test_malformed_sigs.py, tests new in this release",
+          "publisher": "python-ecdsa project (repository tlsfuzzer/python-ecdsa)",
+          "url": "https://github.com/tlsfuzzer/python-ecdsa/blob/python-ecdsa-0.13.3/ecdsa/test_malformed_sigs.py",
+          "fetched_from": "https://raw.githubusercontent.com/tlsfuzzer/python-ecdsa/7add2213c992f51267eed8288b560f3f4108a28d/ecdsa/test_malformed_sigs.py",
+          "fetched": "2026-11-17",
+          "sha256": "2ff29cc6e34b15635440cb6ea76e911b6c3be881fda0e403e636f93aa360c212",
+          "license": "MIT",
+          "excerpts": [
+            "der_sigs = []\nexample_data = b(\"some data to sign\")\n\n# Just NIST256p with SHA256 is 560 test cases, all curves with all hashes is\n# few thousand slow test cases; execute the most interesting only\n\n#for curve in curves:\nfor curve in [NIST521p]:\n    #for hash_alg in [\"md5\", \"sha1\", \"sha224\", \"sha256\", \"sha384\", \"sha512\"]:\n    for hash_alg in [\"sha256\"]:\n        key = SigningKey.generate(curve)\n        signature = key.sign(example_data, hashfunc=getattr(hashlib, hash_alg),\n                             sigencode=sigencode_der)\n        for pos in range(len(signature)):\n            for xor in (1<<i for i in range(8)):\n                der_sigs.append(pytest.param(\n                    key.verifying_key, hash_alg,\n                    signature, pos, xor,\n                    id=\"{0}-{1}-pos-{2}-xor-{3}\".format(\n                        curve.name, hash_alg, pos, xor)))\n\n\n@pytest.mark.parametrize(\"verifying_key,hash_alg,signature,pos,xor\", der_sigs)\ndef test_fuzzed_der_signatures(verifying_key, hash_alg, signature, pos, xor):\n    # check if a malformed DER encoded signature causes the same exception\n    # to be raised irrespective of the type of error\n    sig = bytearray(signature)\n    sig[pos] ^= xor\n    sig = binary_type(sig)\n\n    try:\n        verifying_key.verify(sig, example_data, getattr(hashlib, hash_alg),\n                             sigdecode_der)\n        assert False\n    except BadSignatureError:\n        assert True",
+            "str_sigs = []\n\n#for curve in curves:\nfor curve in [NIST256p]:\n    #for hash_alg in [\"md5\", \"sha1\", \"sha224\", \"sha256\", \"sha384\", \"sha512\"]:\n    for hash_alg in [\"sha256\"]:\n        key = SigningKey.generate(curve)\n        signature = key.sign(example_data, hashfunc=getattr(hashlib, hash_alg),\n                             sigencode=sigencode_string)\n        for trunc in range(len(signature)):\n            str_sigs.append(pytest.param(\n                key.verifying_key, hash_alg,\n                signature, trunc,\n                id=\"{0}-{1}-trunc-{2}\".format(\n                    curve.name, hash_alg, trunc)))\n\n\n@pytest.mark.parametrize(\"verifying_key,hash_alg,signature,trunc\", str_sigs)\ndef test_truncated_string_signatures(verifying_key, hash_alg, signature, trunc):\n    # check if a malformed string encoded signature causes the same exception\n    # to be raised irrespective of the type of error\n    sig = bytearray(signature)\n    sig = sig[:trunc]\n    sig = binary_type(sig)\n\n    try:\n        verifying_key.verify(sig, example_data, getattr(hashlib, hash_alg),\n                             sigdecode_string)\n        assert False\n    except BadSignatureError:\n        assert True"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CVE-2024-42460",
+      "aliases": [
+        "GHSA-977x-g7h5-7qgw"
+      ],
+      "package": {
+        "name": "elliptic",
+        "ecosystem": "npm"
+      },
+      "published": "2024-08-02",
+      "sources": [
+        {
+          "title": "GitHub Advisory Database record GHSA-977x-g7h5-7qgw",
+          "publisher": "GitHub Advisory Database, reviewed",
+          "url": "https://github.com/advisories/GHSA-977x-g7h5-7qgw",
+          "fetched_from": "https://raw.githubusercontent.com/github/advisory-database/972e601381384328dcd350dafc6c03867686ad2a/advisories/github-reviewed/2024/08/GHSA-977x-g7h5-7qgw/GHSA-977x-g7h5-7qgw.json",
+          "fetched": "2026-11-17",
+          "sha256": "9639e8e3919c0f26ac5d639683670f95b0c4a9589ddfeed6baae58649a09ca9e",
+          "license": "CC-BY-4.0",
+          "excerpts": [
+            "Elliptic's ECDSA missing check for whether leading bit of r and s is zero",
+            "In the Elliptic package 6.5.6 for Node.js, ECDSA signature malleability occurs because there is a missing check for whether the leading bit of r and s is zero.",
+            "\"introduced\": \"2.0.0\"",
+            "\"fixed\": \"6.5.7\"",
+            "\"last_known_affected_version_range\": \"<= 6.5.6\""
+          ]
+        },
+        {
+          "title": "elliptic v6.5.7 source (fixed), tag v6.5.7: lib/elliptic/ec/signature.js, the whole _importDER in two parts",
+          "publisher": "elliptic project (repository indutny/elliptic)",
+          "url": "https://github.com/indutny/elliptic/blob/v6.5.7/lib/elliptic/ec/signature.js",
+          "fetched_from": "https://raw.githubusercontent.com/indutny/elliptic/3e46a48fdd2ef2f89593e5e058d85530578c9761/lib/elliptic/ec/signature.js",
+          "fetched": "2026-11-17",
+          "sha256": "e22eb27aa99f94f09f07446779a63ddddcc0023a248ce8040e8acd17ae748e72",
+          "license": "MIT",
+          "excerpts": [
+            "Signature.prototype._importDER = function _importDER(data, enc) {\n  data = utils.toArray(data, enc);\n  var p = new Position();\n  if (data[p.place++] !== 0x30) {\n    return false;\n  }\n  var len = getLength(data, p);\n  if (len === false) {\n    return false;\n  }\n  if ((len + p.place) !== data.length) {\n    return false;\n  }\n  if (data[p.place++] !== 0x02) {\n    return false;\n  }\n  var rlen = getLength(data, p);\n  if (rlen === false) {\n    return false;\n  }\n  if ((data[p.place] & 128) !== 0) {\n    return false;\n  }\n  var r = data.slice(p.place, rlen + p.place);\n  p.place += rlen;\n  if (data[p.place++] !== 0x02) {\n    return false;\n  }\n  var slen = getLength(data, p);\n  if (slen === false) {\n    return false;\n  }\n  if (data.length !== slen + p.place) {\n    return false;\n  }\n  if ((data[p.place] & 128) !== 0) {\n    return false;\n  }\n  var s = data.slice(p.place, slen + p.place);",
+            "  if (r[0] === 0) {\n    if (r[1] & 0x80) {\n      r = r.slice(1);\n    } else {\n      // Leading zeroes\n      return false;\n    }\n  }\n  if (s[0] === 0) {\n    if (s[1] & 0x80) {\n      s = s.slice(1);\n    } else {\n      // Leading zeroes\n      return false;\n    }\n  }\n\n  this.r = new BN(r);\n  this.s = new BN(s);\n  this.recoveryParam = null;\n\n  return true;\n};"
+          ]
+        },
+        {
+          "title": "elliptic v6.5.6 source (affected), tag v6.5.6: lib/elliptic/ec/signature.js, the whole _importDER in two parts",
+          "publisher": "elliptic project (repository indutny/elliptic)",
+          "url": "https://github.com/indutny/elliptic/blob/v6.5.6/lib/elliptic/ec/signature.js",
+          "fetched_from": "https://raw.githubusercontent.com/indutny/elliptic/03e06e135c8e44a2da560fa197d0ba1e1e2759e9/lib/elliptic/ec/signature.js",
+          "fetched": "2026-11-17",
+          "sha256": "2640d437e1852a70d1eef14e8ec47248cb6ddced1d52c3b6a904d10195588ffa",
+          "license": "MIT",
+          "excerpts": [
+            "Signature.prototype._importDER = function _importDER(data, enc) {\n  data = utils.toArray(data, enc);\n  var p = new Position();\n  if (data[p.place++] !== 0x30) {\n    return false;\n  }\n  var len = getLength(data, p);\n  if (len === false) {\n    return false;\n  }\n  if ((len + p.place) !== data.length) {\n    return false;\n  }\n  if (data[p.place++] !== 0x02) {\n    return false;\n  }\n  var rlen = getLength(data, p);\n  if (rlen === false) {\n    return false;\n  }\n  var r = data.slice(p.place, rlen + p.place);\n  p.place += rlen;\n  if (data[p.place++] !== 0x02) {\n    return false;\n  }\n  var slen = getLength(data, p);\n  if (slen === false) {\n    return false;\n  }\n  if (data.length !== slen + p.place) {\n    return false;\n  }\n  var s = data.slice(p.place, slen + p.place);",
+            "  if (r[0] === 0) {\n    if (r[1] & 0x80) {\n      r = r.slice(1);\n    } else {\n      // Leading zeroes\n      return false;\n    }\n  }\n  if (s[0] === 0) {\n    if (s[1] & 0x80) {\n      s = s.slice(1);\n    } else {\n      // Leading zeroes\n      return false;\n    }\n  }\n\n  this.r = new BN(r);\n  this.s = new BN(s);\n  this.recoveryParam = null;\n\n  return true;\n};"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CVE-2024-42461",
+      "aliases": [
+        "GHSA-49q7-c7j4-3p7m"
+      ],
+      "package": {
+        "name": "elliptic",
+        "ecosystem": "npm"
+      },
+      "published": "2024-08-02",
+      "sources": [
+        {
+          "title": "GitHub Advisory Database record GHSA-49q7-c7j4-3p7m",
+          "publisher": "GitHub Advisory Database, reviewed",
+          "url": "https://github.com/advisories/GHSA-49q7-c7j4-3p7m",
+          "fetched_from": "https://raw.githubusercontent.com/github/advisory-database/972e601381384328dcd350dafc6c03867686ad2a/advisories/github-reviewed/2024/08/GHSA-49q7-c7j4-3p7m/GHSA-49q7-c7j4-3p7m.json",
+          "fetched": "2026-11-17",
+          "sha256": "352a9731a96617ee23b625c19cbf6896584d9ef2babc7a4f2790db928a945bd8",
+          "license": "CC-BY-4.0",
+          "excerpts": [
+            "Elliptic allows BER-encoded signatures",
+            "In the Elliptic package 6.5.6 for Node.js, ECDSA signature malleability occurs because BER-encoded signatures are allowed.",
+            "\"introduced\": \"5.2.1\"",
+            "\"fixed\": \"6.5.7\"",
+            "\"last_known_affected_version_range\": \"<= 6.5.6\""
+          ]
+        },
+        {
+          "title": "elliptic v6.5.7 source (fixed), tag v6.5.7: lib/elliptic/ec/signature.js, getLength (reads a DER length)",
+          "publisher": "elliptic project (repository indutny/elliptic)",
+          "url": "https://github.com/indutny/elliptic/blob/v6.5.7/lib/elliptic/ec/signature.js",
+          "fetched_from": "https://raw.githubusercontent.com/indutny/elliptic/3e46a48fdd2ef2f89593e5e058d85530578c9761/lib/elliptic/ec/signature.js",
+          "fetched": "2026-11-17",
+          "sha256": "e22eb27aa99f94f09f07446779a63ddddcc0023a248ce8040e8acd17ae748e72",
+          "license": "MIT",
+          "excerpts": [
+            "function getLength(buf, p) {\n  var initial = buf[p.place++];\n  if (!(initial & 0x80)) {\n    return initial;\n  }\n  var octetLen = initial & 0xf;\n\n  // Indefinite length or overflow\n  if (octetLen === 0 || octetLen > 4) {\n    return false;\n  }\n\n  if(buf[p.place] === 0x00) {\n    return false;\n  }\n\n  var val = 0;\n  for (var i = 0, off = p.place; i < octetLen; i++, off++) {\n    val <<= 8;\n    val |= buf[off];\n    val >>>= 0;\n  }\n\n  // Leading zeroes\n  if (val <= 0x7f) {\n    return false;\n  }\n\n  p.place = off;\n  return val;\n}"
+          ]
+        },
+        {
+          "title": "elliptic v6.5.6 source (affected), tag v6.5.6: lib/elliptic/ec/signature.js, getLength (reads a DER length)",
+          "publisher": "elliptic project (repository indutny/elliptic)",
+          "url": "https://github.com/indutny/elliptic/blob/v6.5.6/lib/elliptic/ec/signature.js",
+          "fetched_from": "https://raw.githubusercontent.com/indutny/elliptic/03e06e135c8e44a2da560fa197d0ba1e1e2759e9/lib/elliptic/ec/signature.js",
+          "fetched": "2026-11-17",
+          "sha256": "2640d437e1852a70d1eef14e8ec47248cb6ddced1d52c3b6a904d10195588ffa",
+          "license": "MIT",
+          "excerpts": [
+            "function getLength(buf, p) {\n  var initial = buf[p.place++];\n  if (!(initial & 0x80)) {\n    return initial;\n  }\n  var octetLen = initial & 0xf;\n\n  // Indefinite length or overflow\n  if (octetLen === 0 || octetLen > 4) {\n    return false;\n  }\n\n  var val = 0;\n  for (var i = 0, off = p.place; i < octetLen; i++, off++) {\n    val <<= 8;\n    val |= buf[off];\n    val >>>= 0;\n  }\n\n  // Leading zeroes\n  if (val <= 0x7f) {\n    return false;\n  }\n\n  p.place = off;\n  return val;\n}"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "CVE-2024-42459",
+      "aliases": [
+        "GHSA-f7q4-pwc6-w24p"
+      ],
+      "package": {
+        "name": "elliptic",
+        "ecosystem": "npm"
+      },
+      "published": "2024-08-02",
+      "sources": [
+        {
+          "title": "GitHub Advisory Database record GHSA-f7q4-pwc6-w24p",
+          "publisher": "GitHub Advisory Database, reviewed",
+          "url": "https://github.com/advisories/GHSA-f7q4-pwc6-w24p",
+          "fetched_from": "https://raw.githubusercontent.com/github/advisory-database/972e601381384328dcd350dafc6c03867686ad2a/advisories/github-reviewed/2024/08/GHSA-f7q4-pwc6-w24p/GHSA-f7q4-pwc6-w24p.json",
+          "fetched": "2026-11-17",
+          "sha256": "ed07a0b9edcab3504f26b697cd3c58b306024059d08f0a4648d7d53034f927a9",
+          "license": "CC-BY-4.0",
+          "excerpts": [
+            "Elliptic's EDDSA missing signature length check",
+            "In the Elliptic package 6.5.6 for Node.js, EDDSA signature malleability occurs because there is a missing signature length check, and thus zero-valued bytes can be removed or appended.",
+            "\"introduced\": \"4.0.0\"",
+            "\"fixed\": \"6.5.7\"",
+            "\"last_known_affected_version_range\": \"<= 6.5.6\""
+          ]
+        },
+        {
+          "title": "elliptic v6.5.7 source (fixed), tag v6.5.7: lib/elliptic/eddsa/signature.js, the EdDSA Signature constructor",
+          "publisher": "elliptic project (repository indutny/elliptic)",
+          "url": "https://github.com/indutny/elliptic/blob/v6.5.7/lib/elliptic/eddsa/signature.js",
+          "fetched_from": "https://raw.githubusercontent.com/indutny/elliptic/3e46a48fdd2ef2f89593e5e058d85530578c9761/lib/elliptic/eddsa/signature.js",
+          "fetched": "2026-11-17",
+          "sha256": "867e563e9804ba4502f70704bdadc8b14a792cceb968a2e9460bb72f456281a0",
+          "license": "MIT",
+          "excerpts": [
+            "function Signature(eddsa, sig) {\n  this.eddsa = eddsa;\n\n  if (typeof sig !== 'object')\n    sig = parseBytes(sig);\n\n  if (Array.isArray(sig)) {\n    assert(sig.length === eddsa.encodingLength * 2, 'Signature has invalid size');\n    sig = {\n      R: sig.slice(0, eddsa.encodingLength),\n      S: sig.slice(eddsa.encodingLength),\n    };\n  }\n\n  assert(sig.R && sig.S, 'Signature without R or S');\n\n  if (eddsa.isPoint(sig.R))\n    this._R = sig.R;\n  if (sig.S instanceof BN)\n    this._S = sig.S;\n\n  this._Rencoded = Array.isArray(sig.R) ? sig.R : sig.Rencoded;\n  this._Sencoded = Array.isArray(sig.S) ? sig.S : sig.Sencoded;\n}"
+          ]
+        },
+        {
+          "title": "elliptic v6.5.6 source (affected), tag v6.5.6: lib/elliptic/eddsa/signature.js, the EdDSA Signature constructor",
+          "publisher": "elliptic project (repository indutny/elliptic)",
+          "url": "https://github.com/indutny/elliptic/blob/v6.5.6/lib/elliptic/eddsa/signature.js",
+          "fetched_from": "https://raw.githubusercontent.com/indutny/elliptic/03e06e135c8e44a2da560fa197d0ba1e1e2759e9/lib/elliptic/eddsa/signature.js",
+          "fetched": "2026-11-17",
+          "sha256": "25cae20a9200380975c6447650275d765329be829db88cbdbd00139795595d5b",
+          "license": "MIT",
+          "excerpts": [
+            "function Signature(eddsa, sig) {\n  this.eddsa = eddsa;\n\n  if (typeof sig !== 'object')\n    sig = parseBytes(sig);\n\n  if (Array.isArray(sig)) {\n    sig = {\n      R: sig.slice(0, eddsa.encodingLength),\n      S: sig.slice(eddsa.encodingLength),\n    };\n  }\n\n  assert(sig.R && sig.S, 'Signature without R or S');\n\n  if (eddsa.isPoint(sig.R))\n    this._R = sig.R;\n  if (sig.S instanceof BN)\n    this._S = sig.S;\n\n  this._Rencoded = Array.isArray(sig.R) ? sig.R : sig.Rencoded;\n  this._Sencoded = Array.isArray(sig.S) ? sig.S : sig.Sencoded;\n}"
+          ]
+        }
+      ]
+    }
+  ]
+}

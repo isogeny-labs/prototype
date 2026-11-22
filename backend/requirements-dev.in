@@ -1,0 +1,6 @@
+# Development-only tools (approved by Kevin for phase 4c+). The app never imports them; they are not in the demo.
+# Installed by the GitHub checks and by hand (see CLAUDE.md, Commands); ./run-demo.sh does not install them.
+-c requirements.lock
+ruff
+mypy
+pip-tools

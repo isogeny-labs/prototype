@@ -1,0 +1,362 @@
+{
+  "$defs": {
+    "Claim": {
+      "additionalProperties": false,
+      "properties": {
+        "capability": {
+          "enum": [
+            "ml_kem_768",
+            "x25519mlkem768",
+            "ml_dsa_65"
+          ],
+          "title": "Capability",
+          "type": "string"
+        },
+        "versions": {
+          "$ref": "#/$defs/Versions"
+        },
+        "answer": {
+          "enum": [
+            "yes",
+            "no"
+          ],
+          "title": "Answer",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        }
+      },
+      "required": [
+        "capability",
+        "versions",
+        "answer",
+        "source"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "Declared": {
+      "additionalProperties": false,
+      "description": "What one released version itself declares it needs (phase 6e), from the publisher's own package file.",
+      "properties": {
+        "version": {
+          "description": "One released version, written in full.",
+          "title": "Version",
+          "type": "string"
+        },
+        "needs": {
+          "description": "Empty when the package file lists none.",
+          "items": {
+            "$ref": "#/$defs/Need"
+          },
+          "maxItems": 500,
+          "title": "Needs",
+          "type": "array"
+        },
+        "file": {
+          "description": "The package file that was read, as it is named inside the package.",
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "File",
+          "type": "string"
+        },
+        "file_sha256": {
+          "description": "The SHA-256 of that file as it was read.",
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "File Sha256",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "minLength": 5,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What the quoted lines cannot show, e.g. that the file has no line that lists a need.",
+          "title": "Note"
+        }
+      },
+      "required": [
+        "version",
+        "needs",
+        "file",
+        "file_sha256",
+        "source"
+      ],
+      "title": "Declared",
+      "type": "object"
+    },
+    "EnvironmentOnly": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "maxLength": 400,
+          "minLength": 10,
+          "title": "Reason",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/Source"
+        }
+      },
+      "required": [
+        "reason",
+        "source"
+      ],
+      "title": "EnvironmentOnly",
+      "type": "object"
+    },
+    "Need": {
+      "additionalProperties": false,
+      "description": "One package a version lists as needed when it runs, exactly as its package file writes it.",
+      "properties": {
+        "name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9@][A-Za-z0-9@._/+-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "wants": {
+          "description": "The version range as written, e.g. \"^4.11.9\". Empty when the file gives none.",
+          "maxLength": 120,
+          "title": "Wants",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "wants"
+      ],
+      "title": "Need",
+      "type": "object"
+    },
+    "Package": {
+      "additionalProperties": false,
+      "properties": {
+        "ecosystem": {
+          "maxLength": 40,
+          "minLength": 2,
+          "title": "Ecosystem",
+          "type": "string"
+        },
+        "purl": {
+          "description": "The package address without a version, e.g. pkg:deb/debian/libssl3.",
+          "maxLength": 200,
+          "title": "Purl",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ecosystem",
+        "purl"
+      ],
+      "title": "Package",
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "maxLength": 200,
+          "minLength": 3,
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "maxLength": 500,
+          "title": "Url",
+          "type": "string"
+        },
+        "quote": {
+          "description": "The exact line from the source, word for word.",
+          "maxLength": 600,
+          "minLength": 3,
+          "title": "Quote",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "release_notes",
+            "changelog",
+            "official_docs",
+            "project_repository",
+            "package_file"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "checked": {
+          "description": "The date the source was opened and checked, YYYY-MM-DD.",
+          "title": "Checked",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "url",
+        "quote",
+        "kind",
+        "checked"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "Versions": {
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "From"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Before"
+        }
+      },
+      "title": "Versions",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "isogeny.knowledge/1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "library": {
+      "description": "Must equal the file name without .json.",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,40}$",
+      "title": "Library",
+      "type": "string"
+    },
+    "label": {
+      "maxLength": 60,
+      "minLength": 2,
+      "title": "Label",
+      "type": "string"
+    },
+    "roles": {
+      "description": "tls: answers the hybrid TLS question; signatures and key_exchange as named.",
+      "items": {
+        "enum": [
+          "tls",
+          "key_exchange",
+          "signatures"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Roles",
+      "type": "array"
+    },
+    "packages": {
+      "items": {
+        "$ref": "#/$defs/Package"
+      },
+      "minItems": 1,
+      "title": "Packages",
+      "type": "array"
+    },
+    "match_names": {
+      "description": "Bare names safe to match when a component has no purl.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Match Names",
+      "type": "array"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/Claim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "needs_your_environment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EnvironmentOnly"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "maxLength": 600,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    },
+    "declared": {
+      "description": "Phase 6e: what single versions declare they need.",
+      "items": {
+        "$ref": "#/$defs/Declared"
+      },
+      "maxItems": 200,
+      "title": "Declared",
+      "type": "array"
+    },
+    "no_package_file": {
+      "anyOf": [
+        {
+          "maxLength": 300,
+          "minLength": 10,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Phase 6e: one sentence, for a library that has no package file that declares what it needs.",
+      "title": "No Package File"
+    }
+  },
+  "required": [
+    "schema",
+    "library",
+    "label",
+    "roles",
+    "packages"
+  ],
+  "title": "One library in the Isogeny Evidence Lab knowledge base",
+  "type": "object",
+  "$id": "isogeny.knowledge/1"
+}

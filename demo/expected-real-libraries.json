@@ -1,0 +1,68 @@
+{
+  "_about": "Answer key for demo/real-libraries.csv (phase 4c). Written by Isogeny Labs, not by the build; the build must never edit it. Adam to review. The 'expected' answers come from public sources (advisories, release notes, official test sets). Exact counts of wrong cases are listed separately under 'regression': they come from the build's own trial runs, so they are a consistency check, not independent proof. Rule for 'no' (Kevin's decision 1): an error raised by the library counts as 'not accepted'; a general crash is shown as an 'Also noticed' note, never as a result.",
+  "sources": {
+    "CVE-2022-21449": "https://nvd.nist.gov/vuln/detail/CVE-2022-21449 (Java 15 to 18 accept a blank ECDSA signature; fixed in 17.0.3, April 2022)",
+    "CVE-2019-14859": "https://github.com/advisories/GHSA-8qxj-f9rh-9fg2 (python-ecdsa accepts malformed signature encodings; fixed in 0.13.3)",
+    "CVE-2019-14853": "https://nvd.nist.gov/vuln/detail/CVE-2019-14853 (python-ecdsa crashes on malformed signatures; fixed in 0.13.3)",
+    "CVE-2024-42460": "https://github.com/advisories/GHSA-977x-g7h5-7qgw (elliptic: missing check on the leading bit of r and s; fixed in 6.5.7)",
+    "CVE-2024-42461": "https://github.com/advisories/GHSA-49q7-c7j4-3p7m (elliptic: BER-encoded signatures allowed; fixed in 6.5.7)",
+    "CVE-2024-42459": "https://github.com/advisories/GHSA-f7q4-pwc6-w24p (elliptic: EdDSA signature length; fixed in 6.5.7)",
+    "wycheproof": "C2SP/wycheproof commit 65ca494, ecdsa_secp256r1_sha256 file (484 cases) and the mlkem_768 / mldsa_65 files",
+    "acvp": "usnistgov/ACVP-Server commit 975de31, ML-KEM FIPS 203 and ML-DSA FIPS 204 files"
+  },
+  "verify": [
+    {"id": "RV1", "component": "openjdk 17.0.2", "claim": "ECDSA P-256", "expected": "True"},
+    {"id": "RV2", "component": "python-ecdsa 0.13.2", "claim": "ECDSA P-256", "expected": "True"},
+    {"id": "RV3", "component": "elliptic 6.5.6", "claim": "ECDSA P-256", "expected": "True"},
+    {"id": "RV4", "component": "openssl 3.5.9", "claim": "ECDSA P-256", "expected": "True"},
+    {"id": "RV5", "component": "openssl 3.5.9", "claim": "ML-DSA-65", "expected": "True"},
+    {"id": "RV6", "component": "openssl 3.5.9", "claim": "ML-KEM-768", "expected": "True"}
+  ],
+  "ecdsa_tests": [
+    {"id": "RE1", "component": "openjdk 17.0.2", "test": "Independent exam (Wycheproof)", "expected": "Failed", "must_include": "case 168 (blank signature r = 0, s = 0) accepted", "source": "CVE-2022-21449"},
+    {"id": "RE2", "component": "openjdk 17.0.2", "test": "Attacker tricks", "expected": "Failed", "must_include": "r = 0, s = 0 accepted", "source": "CVE-2022-21449"},
+    {"id": "RE3", "component": "openjdk 17.0.3", "test": "Independent exam (Wycheproof)", "expected": "Failed", "must_include": "case 168 rejected (the advisory's bug is fixed); the result says which cases are still wrong", "source": "CVE-2022-21449 fix; the Wycheproof file is the yardstick for the rest"},
+    {"id": "RE4", "component": "openjdk 17.0.3", "test": "Attacker tricks", "expected": "Passed", "source": "CVE-2022-21449 fix"},
+    {"id": "RE5", "component": "python-ecdsa 0.13.2", "test": "Independent exam (Wycheproof)", "expected": "Failed", "must_include": "malformed encodings accepted", "source": "CVE-2019-14859"},
+    {"id": "RE6", "component": "python-ecdsa 0.13.2", "test": "Attacker tricks", "expected": "Failed", "source": "CVE-2019-14859"},
+    {"id": "RE7", "component": "python-ecdsa 0.13.3", "test": "Independent exam (Wycheproof)", "expected": "Passed", "note": "with an 'Also noticed' note for any general crashes (decision 1)", "source": "release 0.13.3"},
+    {"id": "RE8", "component": "python-ecdsa 0.13.3", "test": "Attacker tricks", "expected": "Passed", "source": "release 0.13.3"},
+    {"id": "RE9", "component": "elliptic 6.5.6", "test": "Independent exam (Wycheproof)", "expected": "Failed", "must_include": "a signature with a missing leading zero accepted", "source": "CVE-2024-42460"},
+    {"id": "RE10", "component": "elliptic 6.5.6", "test": "Attacker tricks", "expected": "Passed", "note": "a known miss: our short list has no missing-zero case; the result and LIMITS say so", "source": "the build's plan; not tuned"},
+    {"id": "RE11", "component": "elliptic 6.5.7", "test": "Independent exam (Wycheproof)", "expected": "Passed", "source": "release 6.5.7"},
+    {"id": "RE12", "component": "elliptic 6.5.7", "test": "Attacker tricks", "expected": "Passed", "source": "release 6.5.7"},
+    {"id": "RE13", "component": "openssl 3.5.9", "test": "Independent exam (Wycheproof)", "expected": "Passed", "source": "the Wycheproof file"},
+    {"id": "RE14", "component": "openssl 3.5.9", "test": "Attacker tricks", "expected": "Passed"}
+  ],
+  "post_quantum_tests": [
+    {"id": "RP1", "component": "openssl 3.5.9", "test": "Key exchange exam (ML-KEM-768)", "expected": "Passed", "parts": "key generation, encapsulate, decapsulate all match the published answers and refuse every bad key", "source": "NIST ACVP FIPS 203 files; Wycheproof mlkem_768 files"},
+    {"id": "RP2", "component": "openssl 3.5.9", "test": "Signature exam (ML-DSA-65)", "expected": "Passed", "parts": "key generation, sign (exact published signatures), verify (accept genuine, reject forged)", "note": "pre-hash (HashML-DSA) cases are left out and the result says so", "source": "NIST ACVP FIPS 204 files; Wycheproof mldsa_65 files"},
+    {"id": "RP3", "test": "Every post-quantum control", "expected": "Each broken copy fails for its stated reason (wrong answers; accepts the bad keys it should refuse); otherwise the run reads 'Couldn't trust this run'"}
+  ],
+  "before_and_after": [
+    {"id": "RB1", "change": "openjdk 17.0.2 -> 17.0.3", "expected": "Attacker tricks Failed -> Passed; Independent exam stays Failed with fewer wrong cases, and case 168 is fixed"},
+    {"id": "RB2", "change": "python-ecdsa 0.13.2 -> 0.13.3", "expected": "Independent exam Failed -> Passed; Attacker tricks Failed -> Passed"},
+    {"id": "RB3", "change": "elliptic 6.5.6 -> 6.5.7", "expected": "Independent exam Failed -> Passed; Attacker tricks Passed -> Passed"},
+    {"id": "RB4", "change": "any retest", "expected": "Speed and size: either 'no slowdown beyond measured noise' or a measured slowdown; both accepted"}
+  ],
+  "fixes": [
+    {"id": "RF1", "expected": "Each failing real library gets a text-only 'Update to the fixed version' entry with its advisory link; no code patch or pull request is offered for other people's code"},
+    {"id": "RF2", "expected": "openjdk 17.0.3 still failing says no fixed version is known to this app"}
+  ],
+  "migration": [
+    {"id": "RM1", "component": "openssl 3.5.9 (ECDSA P-256)", "expected": "Signatures: Classical, not blocked (it can make ML-DSA-65 signatures, measured); next: sign with both"},
+    {"id": "RM2", "component": "openssl 3.5.9 (ML-DSA-65)", "expected": "Signatures: Post-quantum, at the target"},
+    {"id": "RM3", "component": "openjdk 17.0.2, python-ecdsa 0.13.2, elliptic 6.5.6", "expected": "Signatures: Classical, blocked (can't make post-quantum signatures)"}
+  ],
+  "demo_mode": {"id": "RD1", "expected": "Without Docker every real component reads Couldn't check / Couldn't run with 'needs isolated mode'; nothing from a real library runs as a local program"},
+  "regression": {
+    "_note": "Counts from the build's trial runs. Not independent; a change here means something changed, not that the key was right.",
+    "openjdk 17.0.2 exam wrong": 13,
+    "openjdk 17.0.3 exam wrong": 3,
+    "python-ecdsa 0.13.2 exam wrongly accepted": 24,
+    "elliptic 6.5.6 exam wrong": 1,
+    "openssl 3.5.9 ML-KEM-768 cases right": "655 of 655",
+    "openssl 3.5.9 ML-DSA-65 cases right": "475 of 475"
+  },
+  "existing_keys_unchanged": "demo/expected.json (18 answers) and demo/expected-migration.json (47 answers) still match in both modes."
+}

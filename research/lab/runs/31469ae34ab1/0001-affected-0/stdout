@@ -1,0 +1,2 @@
+advisory check for CVE-2024-42460 on elliptic 6.5.6: review code failed, mode isolated
+{"right": 0, "total": 1, "wrong": 1}

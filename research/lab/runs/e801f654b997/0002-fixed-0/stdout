@@ -1,0 +1,2 @@
+advisory check for CVE-2019-14859 on python-ecdsa 0.13.3: review code passed, mode isolated
+{"right": 9, "total": 9, "wrong": 0}

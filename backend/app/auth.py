@@ -1,114 +1,70 @@
-"""Basic authentication and project access control.
+"""The single local login: a password the owner creates on first start.
 
-* Passwords: PBKDF2-HMAC-SHA256 (stdlib), 390k iterations, per-user salt.
-* Sessions: random 256-bit bearer tokens; only the SHA-256 of the token is stored.
-* Roles per project: owner > editor > reviewer > viewer. Admins bypass membership.
-Secrets never appear in logs (see logging filter in main.py).
+Only a scrypt hash and a random salt are stored. The password is never logged, printed or returned.
 """
 from __future__ import annotations
 
 import hashlib
 import hmac
-import os
 import secrets
 from datetime import timedelta
 
-from fastapi import Depends, Header, HTTPException, status
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .config import SESSION_TTL_HOURS
-from .db import get_db
-from .models import User, SessionToken, ProjectMember, Project, utcnow
+from app.db import AuthRow, SessionRow, now_utc
 
-ROLE_RANK = {"viewer": 1, "reviewer": 2, "editor": 3, "owner": 4}
+MIN_PASSWORD_LENGTH = 8
+MAX_PASSWORD_LENGTH = 1024
+SESSION_LIFETIME = timedelta(hours=12)
+COOKIE_NAME = "evidence_lab_session"
 
 
-def hash_password(password: str) -> str:
+def _hash(password: str, salt: bytes) -> bytes:
+    return hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2 ** 15, r=8, p=1, dklen=32, maxmem=2 ** 27)
+
+
+def setup_required(db: Session) -> bool:
+    return db.get(AuthRow, 1) is None
+
+
+def create_password(db: Session, password: str) -> None:
     salt = secrets.token_bytes(16)
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 390_000)
-    return f"pbkdf2_sha256$390000${salt.hex()}${dk.hex()}"
+    db.add(AuthRow(id=1, salt=salt, password_hash=_hash(password, salt)))
+    db.commit()
 
 
-def verify_password(password: str, stored: str) -> bool:
-    try:
-        _, iters, salt_hex, dk_hex = stored.split("$")
-        dk = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt_hex), int(iters))
-        return hmac.compare_digest(dk.hex(), dk_hex)
-    except Exception:
+def password_matches(db: Session, password: str) -> bool:
+    row = db.get(AuthRow, 1)
+    if row is None or not isinstance(password, str) or len(password) > MAX_PASSWORD_LENGTH:
         return False
+    return hmac.compare_digest(_hash(password, row.salt), row.password_hash)
 
 
 def _token_hash(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def create_session(db: Session, user: User) -> str:
+def new_session(db: Session) -> str:
+    """Create a login session and return its random token (goes only into the HttpOnly cookie)."""
     token = secrets.token_urlsafe(32)
-    db.add(SessionToken(token_hash=_token_hash(token), user_id=user.id,
-                        expires_at=utcnow() + timedelta(hours=SESSION_TTL_HOURS)))
+    cutoff = now_utc() - SESSION_LIFETIME
+    for old in db.query(SessionRow).all():
+        created = old.created_at if old.created_at.tzinfo else old.created_at.replace(tzinfo=cutoff.tzinfo)
+        if created < cutoff:
+            db.delete(old)
+    db.add(SessionRow(token_hash=_token_hash(token)))
     db.commit()
     return token
 
 
-def revoke_session(db: Session, token: str):
-    st = db.scalar(select(SessionToken).where(SessionToken.token_hash == _token_hash(token)))
-    if st:
-        db.delete(st)
-        db.commit()
-
-
-def current_user(authorization: str | None = Header(default=None), db: Session = Depends(get_db)) -> User:
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing bearer token")
-    token = authorization.split(" ", 1)[1].strip()
-    st = db.scalar(select(SessionToken).where(SessionToken.token_hash == _token_hash(token)))
-    if not st:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid session")
-    exp = st.expires_at
-    if exp.tzinfo is None:
-        from datetime import timezone
-        exp = exp.replace(tzinfo=timezone.utc)
-    if exp < utcnow():
-        db.delete(st)
-        db.commit()
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "session expired")
-    user = db.get(User, st.user_id)
-    if not user:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "unknown user")
-    return user
-
-
-def role_in_project(db: Session, user: User, project_id: str) -> str | None:
-    if user.is_admin:
-        return "owner"
-    m = db.scalar(select(ProjectMember).where(ProjectMember.project_id == project_id,
-                                              ProjectMember.user_id == user.id))
-    return m.role if m else None
-
-
-def require_project_role(db: Session, user: User, project_id: str, minimum: str = "viewer") -> Project:
-    project = db.get(Project, project_id)
-    if not project:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
-    role = role_in_project(db, user, project_id)
-    if minimum == "reviewer":  # approval is a distinct duty: reviewers and owners only, not editors
-        if role not in ("reviewer", "owner"):
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "requires the reviewer (or owner) role")
-        return project
-    if role is None or ROLE_RANK[role] < ROLE_RANK[minimum]:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, f"requires project role >= {minimum}")
-    return project
-
-
-def accessible_project_ids(db: Session, user: User) -> list[str]:
-    if user.is_admin:
-        return [p.id for p in db.scalars(select(Project)).all()]
-    return [m.project_id for m in db.scalars(select(ProjectMember).where(ProjectMember.user_id == user.id)).all()]
-
-
-def redact(value: str) -> str:
-    """Redact anything that looks like a secret for logs."""
-    if not value:
-        return value
-    return value[:4] + "…" + "*" * 6
+def session_valid(db: Session, token: str | None) -> bool:
+    if not token or len(token) > 200:
+        return False
+    wanted = _token_hash(token)
+    cutoff = now_utc() - SESSION_LIFETIME
+    ok = False
+    for row in db.query(SessionRow).all():  # compare every stored hash in constant time
+        created = row.created_at if row.created_at.tzinfo else row.created_at.replace(tzinfo=cutoff.tzinfo)
+        if hmac.compare_digest(row.token_hash, wanted) and created >= cutoff:
+            ok = True
+    return ok

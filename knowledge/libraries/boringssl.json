@@ -1,0 +1,34 @@
+{
+  "schema": "isogeny.knowledge/1",
+  "library": "boringssl",
+  "label": "BoringSSL",
+  "roles": [
+    "tls",
+    "key_exchange",
+    "signatures"
+  ],
+  "packages": [
+    {
+      "ecosystem": "generic",
+      "purl": "pkg:generic/boringssl"
+    },
+    {
+      "ecosystem": "github",
+      "purl": "pkg:github/google/boringssl"
+    }
+  ],
+  "match_names": [
+    "boringssl"
+  ],
+  "claims": [],
+  "needs_your_environment": {
+    "reason": "BoringSSL has no released versions to look up: each product builds and ships its own copy, so only a test on the copy you run can answer.",
+    "source": {
+      "title": "BoringSSL README",
+      "url": "https://github.com/google/boringssl/blob/main/README.md",
+      "quote": "Doing so is likely to be frustrating because there are no guarantees of API or ABI stability. Programs ship their own copies of BoringSSL when they use it and we update everything as needed when deciding to make API changes.",
+      "kind": "project_repository",
+      "checked": "2026-11-16"
+    }
+  }
+}

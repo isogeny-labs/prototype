@@ -1,0 +1,11 @@
+location,type,claim,value
+openjdk 17.0.2,software,signature_algorithm,ECDSA P-256
+python-ecdsa 0.13.2,software,signature_algorithm,ECDSA P-256
+elliptic 6.5.6,software,signature_algorithm,ECDSA P-256
+openssl 3.5.9,software,signature_algorithm,ECDSA P-256
+openssl 3.5.9,software,signature_algorithm,ML-DSA-65
+openssl 3.5.9,software,key_exchange,ML-KEM-768
+openjdk 17.0.2,system,data_lifespan,long-lived
+python-ecdsa 0.13.2,system,data_lifespan,long-lived
+elliptic 6.5.6,system,data_lifespan,long-lived
+openssl 3.5.9,system,data_lifespan,long-lived

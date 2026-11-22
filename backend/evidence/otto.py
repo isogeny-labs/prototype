@@ -1,0 +1,486 @@
+"""The Otto part of an evidence file (phase 5c), checked after the file's own signature held.
+
+In order:
+  1. every test pack in the file is whole (its fingerprint matches) and its signature holds, and its signer is a
+     pack key you trust: the keys shipped with the app, this computer's own pack key, or one given with --pack-key;
+  2. every advisory check names a pack that is in the file, its design is in that pack and matches its SHA-256, its
+     locked test matches its fingerprint and names that design and that pack, and its lock entry is in the ledger
+     with the same three fingerprints;
+  3. the ledger is one unbroken hash chain, written exactly as Otto writes it, and its latest entry is the one the
+     signed evidence names (so the evidence signature covers the whole ledger);
+  4. every run the ledger binds is in the file with its record and its review, both matching the SHA-256 the ledger
+     holds, bound to a lock entry of one of the file's checks, and accepted by the pinned checker; every run of an
+     advisory check that the file holds is bound in the ledger (a run that never started because Otto was not
+     installed is the one exception: it could not be recorded, and it says so); every Claude step in the file
+     matches its SHA-256 and has its entry in the ledger;
+     Every decision a person recorded on one of Otto's proposals (accept, reject, undo, reconsider) is in the ledger
+     with the same proposal, decision, name, time and reason, accepted by the pinned checker for decisions; the copy
+     of the proposal it was made on matches its SHA-256; the decisions on a proposal follow one another as the app
+     allows, and the proposal stands where its last decision left it; and the ledger holds no decision that the file
+     does not show. A proposal may stand as accepted with no decision only where the file holds the check it stands
+     for (one added before decisions were recorded); the word the report prints for where a proposal stands is the
+     word of that state; and a proposal Otto no longer makes is shown as its last decision was made on it. An entry
+     for a decision that the pinned checker did not accept is an attempt, not a decision, and is said as that. What
+     the ledger knows nothing of is an undecided proposal: that part is covered by the file's own signature only.
+     A file made before decisions were recorded has none, and is checked as before;
+  5. with --previous OLDER.json: the older file's latest ledger entry is still in this chain, at the same place, so
+     the history the older file held was not cut or rewritten. Entries added after the older download are not
+     covered by this comparison;
+  6. Otto's own audit of the ledger's chain and records, and this app's pinned record checker run again on every
+     checked entry. This needs the pinned Otto harness on this computer. Without it, steps 1 to 5 are still made, the
+     command says that Otto's own audit was not run, and it ends with the "not confirmed" code. That is not a pass.
+
+What the ledger shows is binding: that each run belongs to a test locked before it and that the reviewer was not the
+proposer. It holds no result.
+
+This module reads the file as data only, and nothing the file names is ever run. Asked to check entries again,
+Otto's harness would start the verifier an entry names (and a verifier can name a command), so the harness is never
+asked to. `assurance.only_our_checker` first holds every entry to the exact form this app writes; the harness then
+audits the chain and the records without running any verifier; and the one program that is started is this app's
+own record checker, the file that ships with the app, with the entry given to it as data. Text from the file is
+shown with anything that is not a plain printable character taken out, so it can't redraw a terminal line.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+from app.canonical import canonical_bytes, loads_strict
+
+PACK_CONTEXT = b"isogeny-evidence-lab/test-pack/v1\n"
+OTTO_SCHEMA = "isogeny.otto-evidence/1"
+SHIPPED_KEYS_FILE = Path(__file__).resolve().parents[1] / "app" / "otto" / "trusted-pack-keys.json"
+LOCAL_KEY_FILE = "otto-local-pack-key.pub"
+PACK_ID = "isogeny.otto-pack/1"
+NOT_RECORDED_REASON = "otto_not_installed"      # the reviewer's reason for an advisory check that could not start without Otto
+_HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
+_HEX128 = re.compile(r"\A[0-9a-f]{128}\Z")
+OK, FAILED, NOT_CONFIRMED = 0, 1, 2
+# (the state before, the decision) -> the state after: the only steps a decision on one of Otto's proposals can be
+DECISION_STEPS = {("proposed", "accept"): "accepted", ("proposed", "reject"): "rejected",
+                  ("accepted", "undo"): "proposed", ("rejected", "reconsider"): "proposed"}
+
+
+@dataclass
+class OttoOutcome:
+    code: int = OK
+    lines: list[str] = field(default_factory=list)       # what was checked, one plain line each
+    problem: str | None = None                           # why it failed, or what could not be confirmed
+
+
+class _Failed(Exception):
+    pass
+
+
+class _NothingToAudit(Exception):
+    """The file's Otto ledger is empty: Otto's own audit has nothing to check."""
+
+
+def _plain(value: object, limit: int = 120) -> str:
+    """Text from the file as it may be printed: printable characters only, and not too long."""
+    text = " ".join("".join(ch if ch.isprintable() else "?" for ch in str(value)).split())
+    return text if len(text) <= limit else text[:limit] + "..."
+
+
+def _sha(obj: object) -> str:
+    return hashlib.sha256(canonical_bytes(obj)).hexdigest()
+
+
+def _record_id(obj: object) -> str:
+    return "sha256:" + _sha(obj)
+
+
+def pack_keys(data_dir: Path | None, extra: list[str] | None = None) -> set[str]:
+    """The pack signing keys you trust: the ones shipped with the app, this computer's own, and any given by hand."""
+    keys = {k.lower() for k in extra or [] if _HEX64.match(k.lower())}
+    try:
+        shipped = json.loads(SHIPPED_KEYS_FILE.read_text(encoding="utf-8"))
+        keys |= {str(k.get("public_key")) for k in shipped.get("keys") or [] if isinstance(k, dict) and _HEX64.match(str(k.get("public_key")))}
+    except (OSError, ValueError, AttributeError):
+        pass
+    if data_dir is not None:
+        try:
+            local = (Path(data_dir) / LOCAL_KEY_FILE).read_text(encoding="ascii").strip()
+            if _HEX64.match(local):
+                keys.add(local)
+        except (OSError, ValueError):
+            pass
+    return keys
+
+
+def _chain(lines: object) -> list[dict]:
+    """The ledger's entries, if the lines are one unbroken chain written exactly as Otto writes it."""
+    if not isinstance(lines, list) or not all(isinstance(line, str) for line in lines):
+        raise _Failed("the ledger in the file is not a list of lines.")
+    entries, prev = [], None
+    for number, raw in enumerate(lines):
+        try:
+            entry = loads_strict(raw.encode("utf-8"))
+        except (ValueError, RecursionError):
+            raise _Failed(f"ledger line {number + 1} is not valid JSON, or is nested too deeply to read.") from None
+        if not isinstance(entry, dict) or set(entry) != {"seq", "prev", "kind", "payload", "ts", "hash"} \
+                or type(entry["seq"]) is not int or not isinstance(entry["ts"], str) or not isinstance(entry["kind"], str):
+            raise _Failed(f"ledger line {number + 1} does not have the parts of a ledger entry.")
+        try:
+            as_written = canonical_bytes(entry).decode("utf-8")
+        except (ValueError, TypeError, RecursionError):
+            as_written = None
+        if as_written != raw:
+            raise _Failed(f"ledger line {number + 1} is not written exactly as the ledger writes it.")
+        if entry["seq"] != number or entry["prev"] != prev:
+            raise _Failed(f"the ledger's chain is broken at line {number + 1}: an entry was removed, added or moved.")
+        if entry["hash"] != _record_id({k: entry[k] for k in ("seq", "prev", "kind", "payload", "ts")}):
+            raise _Failed(f"ledger line {number + 1} was changed after it was written (its hash does not match).")
+        prev = entry["hash"]
+        entries.append(entry)
+    return entries
+
+
+def _pack(envelope: object, trusted: set[str]) -> tuple[dict, str, bool]:
+    """(the pack's content, its fingerprint, is its signer trusted?) if the pack is whole and its signature holds."""
+    if not isinstance(envelope, dict) or set(envelope) != {"pack", "fingerprint", "public_key", "signature"}:
+        raise _Failed("a test pack in the file does not have the four parts of a signed pack.")
+    fingerprint, key, signature = envelope["fingerprint"], envelope["public_key"], envelope["signature"]
+    if not (isinstance(fingerprint, str) and _HEX64.match(fingerprint) and isinstance(key, str) and _HEX64.match(key)
+            and isinstance(signature, str) and _HEX128.match(signature)) or not isinstance(envelope["pack"], dict):
+        raise _Failed("a test pack in the file has a fingerprint, key or signature that is not in the form it must have.")
+    if _sha(envelope["pack"]) != fingerprint:
+        raise _Failed(f"test pack {_plain(envelope['pack'].get('version'), 40)} was changed after it was signed (its fingerprint does not match).")
+    try:
+        Ed25519PublicKey.from_public_bytes(bytes.fromhex(key)).verify(bytes.fromhex(signature), PACK_CONTEXT + fingerprint.encode("ascii"))
+    except (InvalidSignature, ValueError):
+        raise _Failed(f"the signature of test pack {_plain(envelope['pack'].get('version'), 40)} does not hold.") from None
+    return envelope["pack"], fingerprint, key in trusted
+
+
+def _runs_in_file(evidence: dict) -> list[tuple[object, dict]]:
+    """Every reviewed run of a test that the file holds, as (the test's plan item id, the run): the runs shown for each
+    test, its earlier runs, and the runs of every fix proof."""
+    out: list[tuple[object, dict]] = []
+    for test in evidence.get("tests") or []:
+        if isinstance(test, dict):
+            for run in list(test.get("runs") or []) + list(test.get("earlier_runs") or []):
+                if isinstance(run, dict):
+                    out.append((test.get("item_id"), run))
+
+    # a fix's proofs hold one row per test, each with its proof run; they are looked for without recursion, so a
+    # file nested very deeply is walked like any other
+    todo = [evidence.get("fixes")]
+    while todo:
+        value = todo.pop()
+        if isinstance(value, dict):
+            if "item_id" in value and isinstance(value.get("run"), dict):
+                out.append((value["item_id"], value["run"]))
+            todo.extend(value.values())
+        elif isinstance(value, list):
+            todo.extend(value)
+    return out
+
+
+def needs_otto_part(evidence: object) -> bool:
+    """Does this evidence hold an advisory check? A file from this app that does always has an Otto part."""
+    tests = evidence.get("tests") if isinstance(evidence, dict) else None
+    return any(isinstance(t, dict) and (t.get("kind") == "advisory_cases" or t.get("proposed_by") == PACK_ID)
+               for t in (tests if isinstance(tests, list) else []))
+
+
+def check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | None = None) -> OttoOutcome:
+    """Check the Otto part of an evidence record whose own signature already held. `previous` is the evidence record
+    of an older download of the same assessment (or None). Every line that comes back is safe to print: text from
+    the file is in it only as plain printable characters."""
+    out = _check_otto(evidence, trusted_pack_keys, previous)
+    out.lines = [_plain(line, 600) for line in out.lines]
+    out.problem = _plain(out.problem, 900) if out.problem is not None else None
+    return out
+
+
+def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | None) -> OttoOutcome:
+    out = OttoOutcome()
+    otto = evidence.get("otto")
+    try:
+        if not isinstance(otto, dict) or otto.get("schema") != OTTO_SCHEMA:
+            raise _Failed("the Otto part of the file is not in the form this version knows.")
+        # 1. the packs
+        packs, untrusted = {}, []
+        for envelope in otto.get("packs") or []:
+            pack, fingerprint, trusted = _pack(envelope, trusted_pack_keys)
+            packs[fingerprint] = pack
+            if not trusted:
+                untrusted.append(_plain(pack.get("version"), 40))
+        out.lines.append(f"Test packs: {len(packs)} in the file, each whole and with a signature that holds"
+                         + (" from a pack key you trust." if not untrusted else "."))
+        # 3. the chain (needed by 2 and 4)
+        ledger = otto.get("ledger") or {}
+        entries = _chain(ledger.get("lines"))
+        head = entries[-1]["hash"] if entries else None
+        if ledger.get("height") != len(entries) or ledger.get("head") != head:
+            raise _Failed("the ledger's lines are not the ledger the signed evidence names (its latest entry or its length differs).")
+        records = {_record_id(e["payload"]): e for e in entries}
+        objectives = {rid: e["payload"] for rid, e in records.items() if e["kind"] == "objective"}
+        claims = {rid: e["payload"] for rid, e in records.items() if e["kind"] == "claim"}
+        accepted = {e["payload"].get("claim_id") for e in entries if e["kind"] == "verdict" and e["payload"].get("status") == "accept"}
+        # 2. the checks
+        checks = otto.get("checks") or []
+        locks = set()
+        for check in checks:
+            title = _plain(check.get("title"))
+            came_from = packs.get(check.get("pack_fingerprint"))
+            if came_from is None:
+                raise _Failed(f"the pack that “{title}” came from is not in the file.")
+            design = next((t.get("design") for t in came_from.get("tests") or [] if t.get("design_sha256") == check.get("design_sha256")), None)
+            if design is None or _sha(design) != check.get("design_sha256"):
+                raise _Failed(f"the design of “{title}” is not in its test pack.")
+            spec = check.get("spec")
+            if not isinstance(spec, dict) or _sha(spec) != check.get("spec_hash"):
+                raise _Failed(f"the locked test of “{title}” does not match its fingerprint.")
+            named = ((spec.get("inputs") or {}).get("advisory") or {})
+            if named.get("design_sha256") != check.get("design_sha256") or named.get("pack_fingerprint") != check.get("pack_fingerprint") \
+                    or (spec.get("inputs") or {}).get("cases") != (design.get("cases") or {}).get("ids"):
+                raise _Failed(f"the locked test of “{title}” does not name its design and its pack.")
+            lock = objectives.get(check.get("lock_entry"))
+            params = ((lock or {}).get("verifier") or {}).get("params") or {}
+            if (params.get("test"), params.get("design"), params.get("pack")) != (check.get("spec_hash"), check.get("design_sha256"), check.get("pack_fingerprint")):
+                raise _Failed(f"the lock entry of “{title}” is not in the ledger with the same fingerprints.")
+            locks.add(check.get("lock_entry"))
+        out.lines.append(f"Advisory checks: {len(checks)}, each with its design in its pack and its lock entry in the ledger.")
+        # 4. the bound runs and the Claude steps
+        run_claims = {rid: c for rid, c in claims.items() if isinstance(c.get("artifact"), dict) and "run_id" in c["artifact"]}
+        shown = {r.get("ledger_entry"): r for r in otto.get("runs") or [] if isinstance(r, dict)}
+        for rid, claim in run_claims.items():
+            art, run = claim["artifact"], shown.get(rid)
+            if claim.get("objective_id") not in locks:
+                raise _Failed("the ledger binds a run to a lock entry that is not one of the file's advisory checks.")
+            if run is None:
+                raise _Failed(f"the ledger binds run {_plain(art.get('run_id'), 40)}, and that run is not in the file.")
+            review = {k: v for k, v in (run.get("review") or {}).items() if k != "created_at"}
+            if _sha(run.get("record")) != art.get("run_sha256") or _sha(review) != art.get("review_sha256"):
+                raise _Failed(f"run {_plain(art.get('run_id'), 40)} or its review is not the one the ledger binds (a SHA-256 differs).")
+            lock_params = objectives[claim["objective_id"]]["verifier"]["params"]
+            if (run.get("record") or {}).get("spec_hash") != lock_params.get("test") or art.get("test") != lock_params.get("test"):
+                raise _Failed(f"run {_plain(art.get('run_id'), 40)} is not a run of the test its lock entry locked.")
+            if art.get("proposed_by") != PACK_ID or not art.get("reviewer") or art.get("reviewer") == art.get("proposed_by"):
+                raise _Failed(f"run {_plain(art.get('run_id'), 40)} was not reviewed by someone other than its proposer.")
+            if rid not in accepted:
+                raise _Failed(f"the ledger entry of run {_plain(art.get('run_id'), 40)} was not accepted by the pinned checker.")
+        if set(shown) - set(run_claims):
+            raise _Failed("the file lists a run as bound that the ledger does not bind.")
+        # ... and the other way round: every run of an advisory check that the file holds is bound in the ledger, and
+        # is the very run the ledger binds: its record and its review match the SHA-256 the ledger holds. (The copies
+        # under `otto.runs` were compared above; these are the ones the file's own list of tests shows.)
+        bound: dict[object, dict] = {}
+        for claim in run_claims.values():
+            number = claim["artifact"].get("run_id")
+            if type(number) is not int or number in bound:
+                raise _Failed("the ledger binds a run with no number, or binds one run twice.")
+            bound[number] = claim["artifact"]
+        titles = {check.get("item_id"): _plain(check.get("title")) for check in checks}
+        for item_id, run in _runs_in_file(evidence):
+            if item_id not in titles:
+                continue
+            art = bound.get(run.get("run_id")) if type(run.get("run_id")) is int else None
+            if art is not None:
+                review = {k: v for k, v in (run.get("review") or {}).items() if k != "created_at"}
+                if _sha(run.get("record")) != art.get("run_sha256") or _sha(review) != art.get("review_sha256"):
+                    raise _Failed(f"run {_plain(run.get('run_id'), 40)} of “{titles[item_id]}” in the file's list of tests is not the "
+                                  "run Otto's ledger binds under that number (a SHA-256 differs).")
+                continue
+            if ((run.get("review") or {}).get("verdict") or {}).get("reason_code") == NOT_RECORDED_REASON:
+                continue      # it never started: without Otto it could not be recorded, and its result says so
+            raise _Failed(f"run {_plain(run.get('run_id'), 40)} of “{titles[item_id]}” is in the file, but Otto's ledger does not bind it.")
+        out.lines.append(f"Ledger: {len(entries)} entries in one unbroken chain; {len(run_claims)} runs, each bound to a test locked before it.")
+        steps = otto.get("steps") or []
+        for step in steps:
+            if hashlib.sha256(str(step.get("prompt")).encode("utf-8")).hexdigest() != step.get("prompt_sha256") \
+                    or hashlib.sha256(str(step.get("answer")).encode("utf-8")).hexdigest() != step.get("answer_sha256"):
+                raise _Failed("a Claude step in the file does not match its SHA-256.")
+            kept = ((claims.get(step.get("ledger_entry")) or {}).get("artifact") or {}).get("step") or {}
+            if (kept.get("prompt_sha256"), kept.get("answer_sha256")) != (step.get("prompt_sha256"), step.get("answer_sha256")):
+                raise _Failed("a Claude step in the file has no matching entry in the ledger.")
+            if step.get("ledger_entry") not in accepted:
+                raise _Failed("the ledger entry of a Claude step in the file was not accepted by the pinned checker.")
+        if steps:
+            out.lines.append(f"Claude steps: {len(steps)}, each with its prompt and answer matching its SHA-256 and its entry in the ledger, "
+                             "accepted by the pinned checker.")
+        # 4b. the decisions on Otto's proposals (a file made before decisions were recorded has no such part)
+        proposals = otto.get("proposals")
+        decision_claims = {rid: c for rid, c in claims.items() if isinstance(c.get("artifact"), dict) and "decision" in c["artifact"]}
+        # An entry the pinned checker did not accept is an attempt, not a decision (the app writes no database row for
+        # it and the proposal stands as it was). Only accepted entries are decisions, and each must be in the file.
+        attempts = {rid for rid in decision_claims if rid not in accepted}
+        if proposals is None:
+            if set(decision_claims) - attempts:
+                raise _Failed("the ledger holds decisions on proposals, and the file does not show them.")
+        else:
+            if not isinstance(proposals, list):
+                raise _Failed("the list of proposals in the file could not be read.")
+            # A check that was added before decisions were recorded stands as "accepted" with no decision. That is
+            # allowed only for a check the file itself holds in the test plan: one such proposal for one such check.
+            older_checks: dict[tuple, int] = {}
+            for check in checks:
+                if isinstance(check, dict) and check.get("in_plan") is True:
+                    pair = (check.get("advisory"), check.get("design_sha256"))
+                    older_checks[pair] = older_checks.get(pair, 0) + 1
+            for proposal in proposals:      # (a check that a recorded accept put in the plan is not an older one)
+                if isinstance(proposal, dict) and proposal.get("kind") == "check" and proposal.get("legacy") is not True \
+                        and isinstance(proposal.get("about"), dict) and proposal.get("state") == "accepted":
+                    pair = (proposal["about"].get("advisory"), proposal["about"].get("design"))
+                    older_checks[pair] = older_checks.get(pair, 0) - 1
+            listed, count = set(), 0
+            for proposal in proposals:
+                if not isinstance(proposal, dict):
+                    raise _Failed("the list of proposals in the file could not be read.")
+                title = _plain(proposal.get("title"))
+                state: object = "proposed"
+                for place, decision in enumerate(proposal.get("decisions") or [], start=1):
+                    if not isinstance(decision, dict):
+                        raise _Failed(f"a decision on “{title}” could not be read.")
+                    entry_id = str(decision.get("ledger_entry"))
+                    art = (decision_claims.get(entry_id) or {}).get("artifact")
+                    if art is None or entry_id in listed:
+                        raise _Failed(f"decision {place} on “{title}” has no entry of its own in the ledger.")
+                    listed.add(entry_id)
+                    same = {"proposal": proposal.get("id"), "proposal_kind": proposal.get("kind"), "decision": decision.get("decision"),
+                            "before": decision.get("before"), "after": decision.get("after"), "by": decision.get("by"), "at": decision.get("at"),
+                            "reason": decision.get("reason"), "number": decision.get("number"), "proposal_sha256": decision.get("proposal_sha256")}
+                    if any(art.get(key) != value for key, value in same.items()):
+                        raise _Failed(f"decision {place} on “{title}” is not the one the ledger holds (who, when, what or why differs).")
+                    if decision.get("number") != place or decision.get("before") != state \
+                            or DECISION_STEPS.get((str(decision.get("before")), str(decision.get("decision")))) != decision.get("after"):
+                        raise _Failed(f"the decisions on “{title}” do not follow one another as the app allows.")
+                    if _sha(decision.get("proposal")) != decision.get("proposal_sha256"):
+                        raise _Failed(f"the copy of “{title}” that decision {place} was made on does not match its SHA-256.")
+                    named = ((objectives.get(decision_claims[entry_id].get("objective_id")) or {}).get("verifier") or {}).get("params") or {}
+                    if (named.get("kind"), named.get("proposal"), named.get("proposal_kind")) != ("decision", proposal.get("id"), proposal.get("kind")):
+                        raise _Failed(f"decision {place} on “{title}” is filed under another proposal in the ledger.")
+                    if entry_id not in accepted:
+                        raise _Failed(f"the ledger entry of decision {place} on “{title}” was not accepted by the pinned checker.")
+                    state = decision["after"]
+                    count += 1
+                decided = proposal.get("decisions") or []
+                stands = state
+                if proposal.get("legacy") is True:
+                    named_in = proposal.get("about")
+                    about: dict = named_in if isinstance(named_in, dict) else {}
+                    pair = (about.get("advisory"), about.get("design"))
+                    if decided or proposal.get("kind") != "check" or older_checks.get(pair, 0) < 1:
+                        raise _Failed(f"“{title}” is marked as added before decisions were recorded, and the file holds no such check "
+                                      "in the test plan.")
+                    older_checks[pair] -= 1
+                    stands = "accepted"
+                elif proposal.get("legacy") not in (False, None):
+                    raise _Failed(f"“{title}” could not be read.")
+                if proposal.get("state") != stands:
+                    raise _Failed(f"“{title}” does not stand where its last decision left it.")
+                # the word the report prints for where it stands must be the word of that state
+                last = decided[-1] if decided else {}
+                word = ("Proposed" if stands == "proposed" else
+                        ("Added" if proposal.get("kind") == "check" else "Accepted") if stands == "accepted" else
+                        f"Not added ({last.get('reason')})" if last.get("reason") else "Not added (no reason given)")
+                if proposal.get("status") != word:
+                    raise _Failed(f"“{title}” is worded as “{_plain(proposal.get('status'), 60)}”, which is not where it stands.")
+                content = {k: proposal.get(k) for k in ("id", "kind", "title", "why", "lines", "about")}
+                if proposal.get("current") is True:
+                    if _sha(content) != proposal.get("fingerprint"):
+                        raise _Failed(f"“{title}” does not match its own fingerprint.")
+                elif not decided or content != decided[-1].get("proposal"):
+                    # a proposal Otto no longer makes is in a file only because someone decided on it, and it is shown as
+                    # the copy its last decision was made on (which the ledger holds by its SHA-256)
+                    raise _Failed(f"“{title}” is no longer proposed, and the file does not show it as its last decision was made on it.")
+            if (set(decision_claims) - attempts) - listed:
+                raise _Failed("the ledger holds a decision on a proposal that the file does not show.")
+            if attempts:
+                out.lines.append(f"Note: the ledger holds {len(attempts)} attempted "
+                                 f"{'entry' if len(attempts) == 1 else 'entries'} for a decision that the pinned checker did not accept. "
+                                 "They are not decisions.")
+            out.lines.append(f"Decisions: {count} on {sum(1 for p in proposals if p.get('decisions'))} of the {len(proposals)} "
+                             f"{'proposal' if len(proposals) == 1 else 'proposals'}, each in the ledger with who and when, in an order the app allows.")
+        # Phase 6, the research loop: the looks for new advisories and the research runs of this assessment. They are
+        # records (what was asked, the fingerprint of each answer, how a run ended); the proof of a test is in its pack.
+        looks = otto.get("lookups")
+        if looks is not None:
+            if not isinstance(looks, dict) or not isinstance(looks.get("looks"), list) or not isinstance(looks.get("research"), list):
+                raise _Failed("the record of the looks for new advisories is not in the form this version writes.")
+            for look in looks["looks"]:
+                asked = look.get("asked") if isinstance(look, dict) else None
+                if not isinstance(asked, list) or not all(isinstance(a, dict) and isinstance(a.get("sha256"), list)
+                                                          and all(isinstance(h, str) and _HEX64.fullmatch(h) for h in a["sha256"]) for a in asked):
+                    raise _Failed("a look for new advisories does not hold the fingerprint of each answer it read.")
+                if look.get("source") == "osv" and not all(isinstance(x, str) and len(x) <= 300 for x in look.get("sent") or []):
+                    raise _Failed("a look for new advisories does not say plainly what was sent.")
+            made_here = {_plain(p.get("version"), 40) for p in packs.values()}
+            for run in looks["research"]:
+                if not isinstance(run, dict) or run.get("what") not in ("started", "finished"):
+                    raise _Failed("a research run in the file is not in the form this version writes.")
+                if run.get("pack_version") is not None and _plain(run.get("pack_version"), 40) not in made_here:
+                    raise _Failed(f"a research run names test pack {_plain(run.get('pack_version'), 40)}, which is not in the file.")
+            if looks["looks"] or looks["research"]:
+                finished = sum(1 for run in looks["research"] if run.get("what") == "finished")
+                out.lines.append(f"Looks for new advisories: {len(looks['looks'])}, each with what was asked and the fingerprint of each "
+                                 f"answer; research runs: {finished} finished, each pack they made is in the file.")
+        # 5. an older download
+        if previous is not None:
+            older = (previous.get("otto") or {}).get("ledger") if isinstance(previous, dict) else None
+            if not isinstance(older, dict) or not isinstance(older.get("height"), int):
+                raise _Failed("the older file has no Otto ledger to compare with.")
+            height, old_head = older["height"], older.get("head")
+            if height > len(entries) or (height > 0 and entries[height - 1]["hash"] != old_head):
+                raise _Failed("the older file's latest ledger entry is not in this ledger at the same place: history was cut or rewritten "
+                              "between the two downloads.")
+            out.lines.append(f"Compared with the older file: its {height} ledger entries are still here, unchanged; "
+                             f"{len(entries) - height} were added since (those are not covered by this comparison).")
+        # 6. Otto's own audit. Nothing the ledger names is run: every entry must first be in the exact form this app
+        #    writes; then the harness audits the chain and the records without running any verifier, and our own
+        #    pinned checker (the app's file, never one from the ledger) is run again on every checked entry.
+        try:
+            if not entries and not list(ledger.get("lines") or []):
+                # A file whose Otto part holds no ledger entry at all (for example: looks for new advisories were made,
+                # and no check was ever accepted). The harness recorded nothing, so there is nothing for its audit to
+                # check, whether or not it is installed on this computer. The signature above covers this part.
+                raise _NothingToAudit
+            from app.otto import assurance, harness
+            foreign = assurance.only_our_checker(entries)
+            if foreign == assurance.OTHER_VERSION:
+                out.code = NOT_CONFIRMED
+                out.problem = f"Otto's own audit of the ledger was not run: {foreign}. The checks above were made without it."
+                return out
+            if foreign is not None:
+                raise _Failed(f"{foreign}. Nothing was run.")
+            with tempfile.TemporaryDirectory(prefix="evidence-otto-") as scratch:
+                problems = assurance.verify_lines(list(ledger.get("lines") or []), Path(scratch) / "lab")
+            if problems:
+                raise _Failed("Otto's own audit of the ledger found a problem: " + _plain("; ".join(str(p) for p in problems[:3]), 600))
+            pinned = harness.status()
+            out.lines.append(f"Otto's own audit (harness {pinned.version}, commit {str(pinned.commit)[:7]}): chain and records intact, and "
+                             "this app's pinned checker run again on every checked entry.")
+            named = otto.get("harness") or {}
+            if named.get("commit") and named.get("commit") != pinned.commit:
+                out.lines.append(f"Note: the file was made with Otto commit {_plain(named.get('commit'), 7)[:7]}; this computer has {str(pinned.commit)[:7]}.")
+        except _NothingToAudit:
+            out.lines.append("Otto's ledger for this assessment has no entries, so there was nothing for Otto's own audit to check.")
+        except ImportError:
+            out.code, out.problem = NOT_CONFIRMED, "Otto's own audit was not run: the app's Otto adapter is not available here."
+        except Exception as exc:
+            if isinstance(exc, _Failed):
+                raise
+            if exc.__class__.__name__ == "OttoNotInstalled":
+                out.code = NOT_CONFIRMED
+                out.problem = (f"Otto's own audit of the ledger was not run: Otto is not installed on this computer ({exc}). "
+                               "The checks above were made without it.")
+            else:
+                raise _Failed(f"Otto's own audit could not be completed ({exc.__class__.__name__}).") from None
+        if untrusted and out.code == OK:
+            out.code = NOT_CONFIRMED
+            out.problem = (f"The signer of test pack {', '.join(untrusted)} could not be confirmed: its key is not one you trust. Give it "
+                           "with --pack-key, or use the app that installed the pack.")
+    except _Failed as exc:
+        out.code, out.problem = FAILED, str(exc)
+    except (KeyError, TypeError, AttributeError, ValueError, RecursionError):
+        out.code, out.problem = FAILED, "the Otto part of the file could not be read."
+    return out

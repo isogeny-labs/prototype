@@ -1,7 +1,26 @@
+# App data (database, demo test certificate and key). Never commit.
 data/
+*.sqlite3*
+.env
+
+# Adam's Otto harness: one pinned commit, fetched by the prepare step (backend/otto.lock.json). Never commit.
+backend/.otto/
+
+# Python
+.venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-*.sqlite3*
-.env
+.mypy_cache/
+.ruff_cache/
+
+# Node / frontend build
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Playwright output
+test-results/
+playwright-report/
+
 site/

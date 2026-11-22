@@ -1,0 +1,1017 @@
+"""The words of the Fixes step, and of what Evidence Lab says about a fix and about the code a result ran on.
+
+Wording only. Nothing here decides anything: where a fix stands, what its proof found and which code a run ran
+on arrive as data worked out from the stored records (changes.fix_states, the reviewer's proof review, the
+worded results). Every number and name in a sentence is taken from that data, never typed in.
+
+Until the proof of a change has passed, nothing here says the change fixes anything and nothing calls a fix
+"ready": the tests have not shown it yet. The heading then reads "What it changes", and the line about the
+server finding is the "is for the signing program only" one."""
+from __future__ import annotations
+
+from datetime import datetime
+
+from app.present import results as present
+from app.engine.research import CHANGE_LABEL, TITLES, join_and
+
+TITLE = "Fixes"
+SUBLINE = "Fixes for the findings in Evidence Lab. A code change is ready for review only after its proof has passed."
+# Phase 4a: the same line when the list also holds entries from the migration plan (the how-to for a change, a blocker).
+SUBLINE_WITH_MIGRATION = ("Fixes for the findings in Evidence Lab, and what the migration plan needs done. A code change is ready for "
+                          "review only after its proof has passed.")
+MIGRATION_SOURCE = "Migration plan: "
+EMPTY = "No failed test has a fix. Fixes for failed tests show here."
+STATUS_WORDS = {"not_connected": "Code not connected", "proving": "Proving", "ready": "Ready for review", "failed": "Proof failed",
+                "waiting": "Waiting for approval", "ready_to_merge": "Ready to merge", "merged": "Merged", "text_only": "Text only"}
+VIEW_IN_FIXES = "View in Fixes"
+ONE_LOGIN = "This version has one login and no separate accounts. Whoever is at the keyboard records each approval, under the name shown."
+LOGGED_IN = "(the person logged in)"
+NOT_OFFERED = "The change is not offered."
+SECTIONS_NOTE = "The change, its proof and the technical details appear below once the code is connected."
+RAN_ON_NOTE = ("This version of Evidence Lab only ever runs our own demo software. If a change produced anything else, the app would "
+               "run nothing and would not offer the change.")
+# What the rule check found for one test of a proof (the reviewer's reason), in a word or two.
+CHECK_WORDS = {"passed": "Passed", "no_slowdown": "No slowdown", "ran": "Ran (reports only)", "same_as_before": "Same as before",
+               "did_not_pass": "Did not pass", "control_misbehaved": "Control did not behave", "changed": "Not the same as before",
+               "no_run": "Did not run", "nothing_to_compare": "Nothing to compare with"}
+# The cipher suites the "keep TLS 1.2" option leaves on: ECDHE with AES-GCM or ChaCha20-Poly1305 (checked on real
+# nginx and Apache, docs/HANDOFF.md "Server TLS suggestion").
+STRONG_SUITES = ("ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:"
+                 "ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305")
+
+
+def _t(value: str) -> dict:
+    return {"t": "text", "v": value}
+
+
+def _m(value: str) -> dict:
+    return {"t": "mono", "v": value}
+
+
+DEMO_DATA = "Demo data"
+_DEMO = {"t": "demo", "v": DEMO_DATA}
+
+
+def _plural(n: int, one: str, many: str | None = None) -> str:
+    return one if n == 1 else (many or one + "s")
+
+
+def _series(parts: list[str]) -> str:
+    """The parts of one sentence: "a", "a and b", "a, b, and c"."""
+    return " and ".join(parts) if len(parts) <= 2 else ", ".join(parts[:-1]) + ", and " + parts[-1]
+
+
+def _lower(sentence: str) -> str:
+    return sentence[:1].lower() + sentence[1:]
+
+
+def size_words(change: dict) -> str:
+    """How big a change is: "3 lines added and 1 removed", counted over its files."""
+    added, removed = sum(f["added"] for f in change["files"]), sum(f["removed"] for f in change["files"])
+    return f"{added} {_plural(added, 'line')} added and {removed} removed"
+
+
+def proven(fix: dict) -> bool:
+    """Has this code fix's proof passed, as the records stand now? Only then is it called a fix, or ready."""
+    return (fix["status"] in ("ready", "waiting", "ready_to_merge", "merged")
+            and fix["proof"] is not None and fix["proof"]["state"] == "passed")
+
+
+def _duration(started: str, finished: str) -> str:
+    seconds = (datetime.fromisoformat(finished.replace("Z", "+00:00")) - datetime.fromisoformat(started.replace("Z", "+00:00"))).total_seconds()
+    return f"{seconds:.1f} s" if seconds < 60 else f"{int(seconds // 60)} min {int(seconds % 60)} s"
+
+
+# ------------------------------------------------------------------ why a change is not offered
+
+def _stopped(fix: dict) -> dict | None:
+    """Why a code fix has no proof result to go by, or None when its proof ran to the end and was reviewed.
+    `line` is for Evidence Lab's one line, `badge` and `text` for the summary, `fold` for the folded Proof line."""
+    change, proof = fix["change"], fix["proof"]
+    if change["problem"]:  # the stored change itself can't be believed, so neither can anything proved about it
+        problem = change["problem"]
+        return {"line": _lower(problem).rstrip("."), "badge": "Proof can't be trusted", "text": problem,
+                "fold": f"Can't be trusted: {_lower(problem)}"}
+    if change["built"]["matches"] is None or proof is None:
+        return {"line": "the changed code is not one of our demo components", "badge": "Nothing was run",
+                "text": "The changed code is not the same as one of our demo components, byte for byte, so nothing was run.",
+                "fold": "Nothing was run: the changed code is not one of our demo components."}
+    if proof["state"] == "interrupted":
+        finished = f"{proof['finished']} of {proof['total']} {_plural(proof['total'], 'test')} finished"
+        return {"line": "the proof did not finish", "badge": "Proof did not finish",
+                "text": f"The proof was interrupted before every test had run: {finished}.", "fold": f"Did not finish: {finished}."}
+    if proof["review"] is not None and not proof["review"]["believed"]:
+        problem = proof["review"]["problem"]
+        return {"line": _lower(problem).rstrip("."), "badge": "Proof can't be trusted", "text": problem,
+                "fold": f"Can't be trusted: {_lower(problem)}"}
+    if proof["state"] == "passed" and not proof["covers_plan"] and fix["merge"] is None:
+        # (with or without a pull request: an open one does not shield a proof that no longer covers the plan.
+        # After the merge nothing changes: "Merged" is a fact, whatever happens to the plan later.)
+        return {"line": "the test plan changed after the proof", "badge": "Proof out of date",
+                "text": "The test plan has changed since the proof ran, so the proof no longer covers exactly the tests in your plan.",
+                "fold": "Out of date: the test plan has changed since the proof ran."}
+    return None
+
+
+# ------------------------------------------------------------------ Evidence Lab: the one line, and the code notes
+
+def fix_line(fix: dict) -> dict:
+    """The one line Evidence Lab shows on a failed result that has a fix. A fix is called ready only once its
+    proof has passed; while the proof runs it is "prepared", and after a proof that did not pass, "not offered"."""
+    def line(lead: str, rest: str, look: str, busy: bool = False) -> dict:
+        return {"fix_id": fix["id"], "lead": lead, "rest": rest, "look": look, "busy": busy, "button": VIEW_IN_FIXES}
+    if fix["kind"] != "code" and (fix.get("otto_fix") or {}).get("kind") == "update":
+        # Phase 5c: a library's fix from Otto. The same two proof rows as in Fixes, word for word.
+        o = fix["otto_fix"]
+        return {**line("From Otto:", f"update {o['library']} to {o['version']}", "dashed"), "rows": [row["line"] for row in o.get("rows") or []]}
+    if fix["kind"] != "code" and fix.get("real_library"):   # phase 4c: a real library; the fix is its publisher's fixed version
+        return line("Text-only suggestion:", "update to the fixed version" if fix["real_library"]["fixed"] else "no fixed version is known", "dashed")
+    if fix["kind"] != "code":
+        return line("Text-only suggestion:", "a server setting" if fix.get("test_kind", "tls_versions" if fix["id"] == "fix-tls-versions" else None) == "tls_versions" else "see the suggestion", "dashed")
+    if fix["status"] == "not_connected":
+        return line("Fix available,", "code not connected", "plain")
+    size = size_words(fix["change"])
+    if fix["status"] == "proving":
+        return line("Fix prepared:", f"{size}, proof running", "plain", busy=True)
+    if proven(fix):
+        return line("Fix merged:", f"{size}, proof passed", "plain") if fix["status"] == "merged" else line("Fix ready:", f"{size}, proof passed", "pass")
+    why = (_stopped(fix) or {"line": "the proof did not pass"})["line"]
+    return line("Fix merged:", f"{size}, {why}", "fail") if fix["status"] == "merged" else line("Fix not offered:", why, "fail")
+
+
+def _code_note(code: dict | None) -> list[dict]:
+    """Which code one side of before and after ran on, in a few words (the second line under its heading)."""
+    if code is None:
+        return []
+    if code["source"] != "repository":
+        return [_t("the bundled demo version")]
+    commit = _m(present.short_commit(code["commit"]))
+    if code["pull_request_number"] is not None:
+        return [_t("the merged fix, commit "), commit]
+    lead = "the change on branch " if code["change_id"] is not None else "branch "
+    return [_t(lead), _m(code["branch"]), _t(", commit "), commit]
+
+
+def _code_heading(heading: str, code: dict | None) -> str:
+    """The heading of one side's opened details: the column heading, then which code it ran on."""
+    if code is None:
+        return heading
+    if code["source"] != "repository":
+        return f"{heading}, the bundled demo version"
+    commit = present.short_commit(code["commit"])
+    if code["pull_request_number"] is not None:
+        return f"{heading}, the merged fix (commit {commit})"
+    lead = "the change on branch" if code["change_id"] is not None else "branch"
+    return f"{heading}, {lead} {code['branch']} (commit {commit})"
+
+
+def code_columns(before: str, after: str, before_code: dict | None, after_code: dict | None) -> dict:
+    """The before and after headings of Evidence Lab, each with the code that side ran on. A code is None when
+    the results on that side did not all run on the same code; nothing is said about it then."""
+    return {"before": before, "after": after, "before_note": _code_note(before_code), "after_note": _code_note(after_code),
+            "before_heading": _code_heading(before, before_code), "after_heading": _code_heading(after, after_code)}
+
+
+def code_line(before_code: dict | None, after_code: dict | None) -> list[dict] | None:
+    """The sentence under Evidence Lab's subline that says in full which code each side ran on."""
+    if before_code is None or after_code is None:
+        return None
+    return [_t(f"Code they ran on: before, {present.code_words(before_code)}; after, {present.code_words(after_code)}.")]
+
+
+# ------------------------------------------------------------------ where a fix came from
+
+def _came_from(titles: list[str]) -> str:
+    return f"Came from {len(titles)} failed {_plural(len(titles), 'test')}"
+
+
+def _list_source(titles: list[str]) -> str:
+    return f"{_came_from(titles)}: {', '.join(titles)}"
+
+
+def _source(titles: list[str], where: str, what: str, tail: str = "") -> list[dict]:
+    return [_t(f"{_came_from(titles)} on {where} "), _m(what), _t(f": {join_and(titles)}.{tail}")]
+
+
+# ------------------------------------------------------------------ the fix template's own words
+# Only the template knows what its change is about, so what a screen says about that change is kept by template.
+
+def _range_check_words(name: str, version: str | None, size: str) -> dict:
+    numbered = f", and gives the changed program the version number {version}" if version else ""
+    reports = f" The changed program reports version {version}." if version else ""
+    return {
+        "title": f"{name} accepts out-of-range signatures",
+        "available": [_t("A fix template exists for this failure: a ready-made change for a missing range check on the two signature "
+                         "numbers (r and s), written for "), _m(name), _t("'s code. Connect the code to prepare the change and prove it.")],
+        "changes": [_t("Adds a range check on the two signature numbers (r and s) to "), _m(name),
+                    _t(f"'s signature check{numbered}. {size}.")],
+        "fixes": [_t("Adds the missing range check to "), _m(name),
+                  _t(f"'s signature check, so it now rejects signatures such as r = 0, s = 0, as the proof's tests show.{reports} {size}.")],
+        "intro": ("Written from a fix template: a ready-made change for one known kind of bug, a missing range check when checking an "
+                  "ECDSA signature. It was not written by an AI model, and it applies only where the code has exactly the lines it expects."),
+    }
+
+
+def _unknown_template_words(name: str, version: str | None, size: str) -> dict:
+    """For a stored change that names a fix template this version does not have. Such a change is never
+    believed (changes.py), so these words only have to describe it without claiming anything."""
+    plain = [_t("A code change to "), _m(name), _t(f". {size}." if size else ".")]
+    return {"title": f"A code change to {name}", "available": plain, "changes": plain, "fixes": plain,
+            "intro": "The stored record of this change names a fix template that this version of the app does not have."}
+
+
+TEMPLATE_WORDS = {"ecdsa-range-check": _range_check_words}
+
+# Phase 5c: a change Otto wrote (Claude, recorded or live) for an advisory whose check failed on the customer's own code.
+OTTO_LABEL = "Written by Otto"
+# What a passed proof of a code change means, in the proof's own two groups (the tables under it): a test of the server, or
+# of another program in the file, is rerun too and only has to come out as before, also when that is "Failed".
+# (Not "passed": the speed test reads "No slowdown beyond measured noise", and a comparison that only reports numbers only has to run.)
+PROOF_RULE = ("every locked test that runs the changed code did what the proof asks of it (each pass-or-fail test passed), and "
+              "every test that does not run it came out the same as before")
+OTTO_PENDING_LABEL = "Not written yet"     # Live Otto is on and nobody has asked Claude yet: nothing is Otto's until it is written
+OTTO_FIX_LABEL = "From Otto"
+
+
+def _otto_words(name: str, version: str | None, size: str, otto: dict) -> dict:
+    """The words for a change Otto wrote. `otto` is what was kept about it: the advisory, the change's own title and
+    summary (Claude's words, checked for plain text), and where the answer came from."""
+    advisory = f"{otto['advisory']} ({otto.get('plain_name') or 'an advisory'})"
+    if otto.get("pending"):
+        waiting = [_t("Live Otto is on. When you connect the code, Claude is asked to write a change for "), _m(otto["advisory"]),
+                   _t(" in "), _m(name),
+                   _t("'s code. That sends this program's source file and the cases it got wrong to Claude, through your key and within "
+                      "the spending limit. The answer is used only if it is a clean change that gives one of our bundled demo components "
+                      "byte for byte, because only those can run in this version. Otherwise it is refused and nothing is connected, "
+                      "although the request was still made on your key; where the fix template answers the failure, Fixes then offers "
+                      "the template instead and says why. A change that is used is offered only after its proof: " + PROOF_RULE + ".")]
+        return {"title": f"{name}: a change for {otto['advisory']}", "available": waiting, "changes": waiting, "fixes": waiting,
+                "intro": "This change is not written yet."}
+    summary = str(otto.get("summary") or "").rstrip()
+    # The registry's name for the program the change gives ("acme-sign 1.4.3-otto"). The program's own version line may
+    # read differently, so this is never worded as what the program "reports".
+    registered = f" The changed code is byte for byte one of the app's registered demo programs, {name} {version}." if version else ""
+    where = str(otto.get("how") or "")
+    return {
+        "title": f"{name}: {otto.get('title') or 'a change written by Otto'}",
+        # Claude's summary is written as if the change were in ("now rejects"): before a proof it is said as what the change would do
+        "available": [_t(f"A change was written for {advisory}. What it would change: {summary} "
+                         "Nothing is changed until you accept it and connect the code. The change then goes on a branch and is proven.")],
+        "changes": [_t(f"For {advisory}. What it changes: {summary}{registered} {size}.")],
+        "fixes": [_t(f"For {advisory}: {summary} The proof's tests show it: {PROOF_RULE}.{registered} {size}.")],
+        "intro": (f"Written by Otto for {advisory}. Claude wrote these lines from the advisory, the cases the program got wrong and the "
+                  f"program's source ({where}). What Claude writes is data: the app applied it to a copy of the code on a branch, and it "
+                  f"is offered only after its proof: {PROOF_RULE}."),
+    }
+
+
+# ------------------------------------------------------------------ the proof: its rows, what the rule check found
+
+def proof_cell(result: dict | None, kind: str, side: str) -> dict | None:
+    """A result badge and one line under it, for the proof table: `side` is "before" (the first result the proof
+    is compared with) or "proof" (the run on the changed code). The download's report uses the same cells."""
+    if result is None:
+        return None
+    short = result["short"]
+    if kind == "speed_size" and side == "before" and result["code"] == "measured":
+        # The proof times the old version again, side by side with the new one, so its numbers for the old
+        # version differ a little from these: say which run these are from.
+        short = short.replace("(medians).", "(medians, first run).")
+    if kind == "speed_size" and side == "proof" and result["code"] in ("no_slowdown", "slowdown"):
+        short = result["summary"]  # the fuller sentence names the side-by-side measurement the rule compares
+    return {"label": result["label"], "tone": result["tone"], "short": short}
+
+
+def _waiting(job: dict | None) -> dict | None:
+    if job is None:
+        return None
+    if job["status"] == "waiting":
+        return {"text": "Waiting", "detail": None, "percent": None}
+    shown = present.status_view("running", job["progress_text"], job["progress_percent"])
+    return {"text": shown["status_text"], "detail": shown["progress"]["text"], "percent": shown["progress"]["percent"]}
+
+
+def _rule_check(row: dict, running: bool) -> dict:
+    check = row["check"]
+    if check is not None:
+        return {"ok": bool(check["ok"]), "text": CHECK_WORDS.get(check["reason"], "Did not pass")}
+    if row["proof"] is None:
+        return {"ok": None, "text": "Not finished yet" if running else "Did not run"}
+    return {"ok": None, "text": "Not checked yet" if running else "Not checked"}
+
+
+def _proof_rows(rows: list[dict], group: str, running: bool) -> list[dict]:
+    return [{"kind": r["kind"], "title": r["title"], "before": proof_cell(r["first"], r["kind"], "before"),
+             "proof": proof_cell(r["proof"], r["kind"], "proof"), "waiting": _waiting(r["job"]) if r["proof"] is None else None,
+             "control": r["proof"]["control"]["line"] if r["proof"] is not None else "", "check": _rule_check(r, running)}
+            for r in rows if r["group"] == group]
+
+
+def _tables(fix: dict, rows: list[dict]) -> list[dict]:
+    proof = fix["proof"]
+    running = proof["state"] == "running"
+    code, server = _proof_rows(rows, "code", running), _proof_rows(rows, "server", running)
+    need = "Each of these must pass, and its control must behave as expected."
+    if any(r["kind"] == "mldsa_compare" for r in code):
+        need += f" The {TITLES['mldsa_compare']} only reports numbers, so it only has to run."
+    tables = []
+    if code:
+        tables.append({"heading": "Tests that run the changed code", "tag": "measured", "need": need,
+                       "columns": ["Test", f"Before: {fix['component']['name']} {proof['baseline_version']}", "On the changed code", "Rule check"],
+                       "rows": code})
+    if server:
+        others = any(r.get("target") == "other_program" for r in rows)
+        tables.append({"heading": "Tests that don't run this code (they test the server" + (" and the other programs in the file)" if others else ")"),
+                       "tag": "measured",
+                       "need": "A code change can't affect these. They are rerun anyway and must come out the same as before.",
+                       "columns": ["Test", "Before", "Rerun for this proof", "Rule check"], "rows": server})
+    return tables
+
+
+def _named(rows: list[dict]) -> str:
+    """The tests a check did not hold for, each with the result its proof run got."""
+    return "; ".join(f"{r['title']}, {r['proof']['label'] if r['proof'] is not None else 'no result'}" for r in rows)
+
+
+def _did_not(missed: int, total: int, one: str, many: str) -> str:
+    """How many of a group did not do what the rule asks: "The 1 test ...", "The 2 tests ..." when it is every
+    one of them, and "1 of the 3 tests ..." otherwise."""
+    if total == 1:
+        return f"The 1 {one}"
+    return f"The {total} {many}" if missed == total else f"{missed} of the {total} {many}"
+
+
+def _checks(proof: dict, rows: list[dict]) -> list[dict]:
+    """The reviewer's answer to its questions about a proof, as sentences. Each: {"ok", "text", "short"};
+    `short` leaves out which tests, for the folded line. Nothing is worked out here: every "ok" is one of the
+    reviewer's checks, and the numbers are its counts."""
+    review = proof["review"]
+    counts, checks = review["counts"], review["checks"]
+    out = []
+
+    def missed(group: str, report_only: bool) -> list[dict]:
+        return [r for r in rows if r["group"] == group and r["check"] is not None and not r["check"]["ok"]
+                and bool(r["check"]["report_only"]) is report_only]
+
+    def add(ok: bool, short: str, named: list[dict] | None = None, text: str | None = None) -> None:
+        out.append({"ok": ok, "short": short, "text": text or (f"{short}: {_named(named)}." if named else f"{short}.")})
+
+    if not checks["code_is_ours"]:
+        add(False, "The changed code is not the same as one of our demo components")
+    # the tests with a pass or fail that run the changed code (a report-only test is not counted among them)
+    n = counts["code"]
+    if checks["changed_code_passed"]:
+        add(True, "The 1 test that runs the changed code passed" if n == 1 else f"All {n} tests that run the changed code passed")
+    elif n == 0 and counts["report_only"]:
+        add(False, "No test that can pass or fail runs the changed code in this proof, so it shows nothing about the change")
+    elif n == 0:
+        add(False, "No test in this proof runs the changed code, so it shows nothing about the change")
+    else:
+        failed = missed("code", False)
+        add(False, _did_not(len(failed), n, "test that runs the changed code did not pass", "tests that run the changed code did not pass"), failed)
+    n = counts["report_only"]
+    if n and checks["report_only_ran"]:
+        add(True, f"The {n} report-only {_plural(n, 'test')} ran")
+    elif n:
+        failed = missed("code", True)
+        add(False, _did_not(len(failed), n, "report-only test did not run", "report-only tests did not run"), failed)
+    if checks["controls_behaved"]:
+        # A test that could not run has no control result, so the sentence then speaks only of the tests that ran.
+        every = all(r["proof"] is not None and r["proof"]["code"] != "couldnt_run" for r in rows)
+        add(True, "Every control behaved as expected" + ("" if every else " in the tests that ran"))
+    else:
+        wrong = [r["title"] for r in rows if r["check"] is not None and r["check"]["reason"] == "control_misbehaved"]
+        add(False, f"The control did not behave as expected in {len(wrong)} {_plural(len(wrong), 'test')}: {join_and(wrong)}")
+    n = counts["server"]
+    # (with another program from the same file among them, they are named for what they are: tests that don't run this code)
+    which = "server" if not any(r.get("target") == "other_program" for r in rows) else "other"
+    one, many = ("server test", "server tests") if which == "server" else ("test that doesn't run this code", "tests that don't run this code")
+    if n and checks["server_unchanged"]:
+        add(True, f"The {n} {_plural(n, one, many)} came out the same as before")
+    elif n:
+        failed = missed("server", False)
+        add(False, _did_not(len(failed), n, f"{one} did not come out the same as before",
+                            f"{many} did not come out the same as before"), failed)
+    # The failed tests the change is for. One that ran and did not pass is already named above; one that was
+    # not in the proof at all is named here, because then no test in it showed that the failure is gone.
+    if not checks["answered_tests_passed"]:
+        answers = review["answers"]
+        absent = [TITLES.get(a["kind"], str(a["kind"])) for a in answers if a["reason"] == "not_in_proof"]
+        if absent:
+            which = ("the failed test the change is for" if len(answers) == 1 else "the failed tests the change is for"
+                     if len(absent) == len(answers) else f"{len(absent)} of the {len(answers)} failed tests the change is for")
+            short = f"This proof did not run {which}"
+            add(False, short, text=f"{short}: {join_and(absent)}. Add {'it' if len(absent) == 1 else 'them'} back in Tests and run the proof again.")
+        elif not answers:
+            add(False, "This change names no failed test that it is for, so the proof can't show that it fixes one")
+    # The speed comparison. A speed test that ran and did not come out as "no slowdown" is already named above.
+    if not checks["speed_compared"] and review["speed"]["reason"] == "not_in_proof":
+        short = "No speed comparison was made"
+        add(False, short, text=f"{short}, because this proof ran no {TITLES['speed_size']} test. Add it in Tests and run the proof again.")
+    if not review["offered"] and all(c["ok"] for c in out):
+        add(False, "The proof did not pass")  # (not reached by any record the app writes: each check that fails has its sentence)
+    return out
+
+
+def _shows(rows: list[dict], server_findings: int) -> list[str]:
+    """What a passed proof shows and what it doesn't, from its own rows."""
+    now_pass = sum(1 for r in rows if r["group"] == "code" and r["first"] is not None and r["first"]["code"] == "failed"
+                   and r["proof"] is not None and r["proof"]["code"] == "passed")
+    parts = []
+    if now_pass:
+        parts.append(f"the {present.number_word(now_pass)} failed {_plural(now_pass, 'test passes', 'tests pass')}")
+    if any(r["kind"] == "speed_size" and r["proof"] is not None and r["proof"]["code"] == "no_slowdown" for r in rows):
+        parts.append("no slowdown beyond measured noise was found")
+    if any(r["group"] == "server" for r in rows):
+        parts.append("the server tests came out as before")
+    if not parts:
+        parts.append("every test that runs the changed code did what the rule asks of it")
+    server = f", and it does nothing about the server {_plural(server_findings, 'finding')}" if server_findings else ""
+    return [f"It shows that with this change {_series(parts)}.", f"It doesn't show that the change is free of other faults{server}."]
+
+
+def _proof_words(fix: dict, rows: list[dict], server_findings: int) -> dict:
+    """Everything said about the latest proof of a connected code fix: the summary's proof row (`state`, `badge`,
+    `text`, `muted`), the folded line (`fold`) and the box under the tables (`verdict`)."""
+    proof, stopped = fix["proof"], _stopped(fix)
+    if proof is not None and proof["state"] == "running" and not fix["change"]["problem"]:
+        running = f"Running: {proof['finished']} of {proof['total']} {_plural(proof['total'], 'test')} finished."
+        return {"state": "running", "badge": None, "text": running, "muted": "Not offered yet.", "fold": running, "verdict": None}
+    checks = _checks(proof, rows) if proof is not None and proof["review"] is not None and proof["review"]["believed"] else []
+    if stopped is None and proof["review"]["offered"]:
+        passed = _series([checks[0]["short"]] + [_lower(c["short"]) for c in checks[1:]]) + "."
+        return {"state": "passed", "badge": {"label": "Proof passed", "tone": "pass"}, "text": passed, "muted": None,
+                "fold": f"Passed: {_lower(passed)}",
+                "verdict": {"tone": "pass", "title": "Why it is ready for review", "checks": [{"ok": c["ok"], "text": c["text"]} for c in checks],
+                            "shows_title": "What this proof shows, and what it doesn't", "shows": _shows(rows, server_findings)}}
+    if stopped is None:
+        missed = [c for c in checks if not c["ok"]]
+        stopped = {"badge": "Proof did not pass", "text": " ".join(c["text"] for c in missed),
+                   "fold": "Did not pass: " + "; ".join(_lower(c["short"]) for c in missed) + "."}
+        tone, reasons = "fail", checks
+    else:
+        # The proof record itself still stands when only the plan has changed since: its checks are shown under the reason.
+        tone, reasons = "warn", [{"ok": False, "text": stopped["text"]}] + checks
+    return {"state": "failed", "badge": {"label": stopped["badge"], "tone": tone}, "text": f"{stopped['text']} {NOT_OFFERED}", "muted": None,
+            "fold": stopped["fold"],
+            "verdict": {"tone": "fail", "title": "Why this change is not offered", "checks": [{"ok": c["ok"], "text": c["text"]} for c in reasons],
+                        "shows_title": None, "shows": []}}
+
+
+def proof_outcome(review: dict | None) -> str:
+    """One proof in a sentence, for the download's report, which lists every proof of a change and not only the
+    latest. `review` is the proof's review as the read gate lets it through (None when the proof has none)."""
+    if review is None:
+        return "This proof has no review: it was interrupted before every test had run."
+    if review["offered"]:
+        return "The proof passed."
+    return review["problem"] or "The proof did not pass."
+
+
+# ------------------------------------------------------------------ a code fix: the summary
+
+def _approvers(fix: dict, reviewers: dict[str, str]) -> dict:
+    request = fix["pull_request"]
+    if request is not None:
+        open_for_approval = fix["status"] == "waiting"
+        rows = [{"id": a["reviewer"], "name": a["name"], "note": LOGGED_IN if a["reviewer"] == "you" else None, "demo": a["reviewer"] != "you",
+                 "approved_at": a["approved_at"], "approved_text": "Approved" if a["approved_at"] else None,
+                 "approve_label": (None if a["approved_at"] or not open_for_approval else
+                                   "Approve" if a["reviewer"] == "you" else f"Approve as {a['name']}"),
+                 "primary": a["reviewer"] == "you"} for a in request["approvals"]]
+        return {"text": None, "options": None, "rows": rows, "footnote": ONE_LOGIN}
+    if fix["status"] == "ready":
+        options = [{"id": key, "name": name, "note": LOGGED_IN if key == "you" else None, "demo": key != "you", "checked": key == "you"}
+                   for key, name in reviewers.items()]
+        return {"text": None, "options": options, "rows": None, "footnote": ONE_LOGIN}
+    text = ("Nobody yet: a change that is not offered can't get a pull request." if fix["status"] == "failed"
+            else "You pick the reviewers once the proof has passed.")
+    return {"text": text, "options": None, "rows": None, "footnote": None}
+
+
+def _pull_request(fix: dict, holds: str) -> dict | None:
+    request, merge = fix["pull_request"], fix["merge"]
+    if request is None:
+        return None
+    if merge is not None:
+        text = [_t("Merged "), {"t": "time", "v": merge["merged_at"]}, _t(" by the person logged in, after confirming. The demo repository's "),
+                _m(fix["connection"]["branch"]), _t(" branch now holds "), _m(holds), _t(". Nothing was deployed.")]
+    else:
+        tail = " Every reviewer has approved. Not merged yet." if fix["status"] == "ready_to_merge" else ""
+        text = [_t("Open since "), {"t": "time", "v": request["opened_at"]},
+                _t(f". It stays inside the app; nothing is sent anywhere else.{tail}")]
+    return {"title": f"#{request['number']} {request['title']}.", "text": text}
+
+
+def _button(action: str, label: str, primary: bool, enabled: bool) -> dict:
+    return {"action": action, "label": label, "primary": primary, "enabled": enabled}
+
+
+def _actions(fix: dict, plan_tests: int, holds: str) -> dict:
+    """The buttons that apply to this fix now, and the sentence under them. A button that would be refused right
+    now is switched off, and the sentence then is the refusal itself."""
+    status, refused, name = fix["status"], fix["actions"], fix["component"]["name"]
+    patch = _button("download_patch", "Download patch", False, refused["download_patch"] is None)
+    if status == "not_connected":
+        note = (f"Connects a fresh copy of the small demo repository of {name} {fix['component']['version']} that comes with the app "
+                "(the source code and its history of changes, in git's format), for this imported file and every fix in it. "
+                "The proof then starts by itself.")
+        return {"buttons": [_button("connect", "Connect demo code", True, refused["connect"] is None)],
+                "note": f"{refused['connect']} {note}" if refused["connect"] else note}
+    if status == "ready":
+        return {"buttons": [_button("open_pull_request", "Open pull request", True, refused["open_pull_request"] is None)],
+                "note": "Nothing goes into the main copy of the code until the reviewers you pick approve and you confirm the merge."}
+    if status == "failed" and fix["proof"] is not None:
+        again = _button("run_proof_again", "Run proof again", False, refused["run_proof_again"] is None)
+        if fix["pull_request"] is None:
+            every = "the 1 test" if plan_tests == 1 else f"all {plan_tests} tests"
+            return {"buttons": [again], "note": refused["run_proof_again"] or f"Reruns {every} in your plan. The change is offered only if the proof passes."}
+        # A pull request is open, and the latest proof no longer stands (the plan changed, the proof did not pass,
+        # or its records changed). Merging and the patch wait for a new proof that passes; the approvals stay.
+        gone = refused["merge"]
+        note = (f"{gone} Nothing more can be recorded on this pull request until a proof has passed." if refused["run_proof_again"] is None
+                else gone if refused["run_proof_again"] == gone else f"{refused['run_proof_again']} {gone}")
+        return {"buttons": [again, _button("merge", "Merge pull request", True, False), patch], "note": note}
+    if status in ("waiting", "ready_to_merge"):
+        waiting = [a["name"] for a in fix["pull_request"]["approvals"] if a["approved_at"] is None]
+        never = "The app never merges on its own: you press the button and confirm."
+        if waiting:
+            note = f'"Merge pull request" unlocks when every reviewer has approved: waiting for {join_and(waiting)}. {never}'
+        else:
+            note = f"Every reviewer has approved. {never}"
+        return {"buttons": [_button("merge", "Merge pull request", True, refused["merge"] is None), patch], "note": note}
+    if status == "merged":
+        note = (f"Reruns the same locked tests on {holds}, the code now on {fix['connection']['branch']}, and shows before and after in "
+                'Evidence Lab. It does the same as "Retest new version" there.')
+        return {"buttons": [_button("retest_now", "Retest now", True, refused["retest_now"] is None), patch],
+                "note": refused["retest_now"] or note}
+    return {"buttons": [], "note": None}
+
+
+def _merge_dialog(fix: dict, holds: str) -> dict | None:
+    if fix["status"] != "ready_to_merge":
+        return None
+    connection = fix["connection"]
+    return {"title": f"Merge pull request #{fix['pull_request']['number']}?",
+            "paragraphs": [[_t("This puts the change on the "), _m(connection["branch"]),
+                            _t(" branch of the app's own copy of the demo repository "), _m(connection["repository"]),
+                            _t(". After the merge, that branch holds "), _m(holds), _t(".")],
+                           [_t("Every reviewer has approved. The app deploys nothing, and a merge can't be undone here.")]],
+            "confirm": "Confirm merge", "cancel": "Cancel"}
+
+
+def _server_line(fix: dict, server_findings: int) -> str | None:
+    """Kevin's line about the server finding. It says "fixes" only once the proof has passed."""
+    if not server_findings:
+        return None
+    lead = "This fixes the signing program." if proven(fix) else "This change is for the signing program only."
+    return f"{lead} The server {_plural(server_findings, 'finding is', 'findings are')} separate and still open."
+
+
+# ------------------------------------------------------------------ a code fix: the folded sections
+
+def _change_section(fix: dict, words: dict, parts: list[dict] | None) -> dict:
+    change, before = fix["change"], f"{fix['component']['name']} {fix['component']['version']}"
+    names = [f["name"] for f in change["files"]]
+    shown = []
+    for number, part in enumerate(parts or [], start=1):
+        removed, added = part["removed"], part["added"]
+        shown.append({
+            "title": f"{number}. {part['title']}", "why": part["why"],
+            "before_label": {"lead": "Before:", "strong": before, "rest": (f", {removed} {_plural(removed, 'line')} removed (marked −)"
+                                                                         if removed else ", nothing removed here")},
+            "before": part["before"],
+            "after_label": {"lead": "After:", "strong": "this change", "rest": (f", {added} {_plural(added, 'line')} added (marked +)"
+                                                                               if added else ", nothing added here")},
+            "after": part["after"]})
+    intro = words["intro"] if parts is not None else "The changed lines could not be read from the app's copy of the repository."
+    return {"key": "change", "title": "The change", "open": True, "intro": intro, "parts": shown,
+            "line": f"{size_words(change)}, in {len(names)} {_plural(len(names), 'file')} ({', '.join(names)})"}
+
+
+def _proof_section(fix: dict, rows: list[dict], said: dict) -> dict:
+    timed = ", with the old and the new version timed side by side" if any(r["kind"] == "speed_size" for r in rows) else ""
+    # "every locked test in your plan" is said only while the proof covers the plan as it is now
+    reran = "every locked test in your plan" if fix["proof"] is None or fix["proof"]["covers_plan"] else "every locked test that was in your plan at the time"
+    steps = ("the same steps as your first results: the same test runner, then the same automatic check that decides each "
+             f"result from what the run recorded. {'Otto' if fix.get('otto') else 'The fix template'} has no say in any result.")
+    intro = f"The app applied this change on a new branch of its own copy of the code, then reran {reran}{timed}. The runs went through {steps}"
+    if fix["proof"] is None:
+        intro = "No test was run for this change: only our own demo components ever run, and the changed code is not one of them."
+    elif fix["proof"]["state"] == "running":  # said in the present while it runs: nothing has been "rerun" yet
+        intro = (f"The app applied this change on a new branch of its own copy of the code and is now rerunning {reran}{timed}. "
+                 f"The runs go through {steps}")
+    elif fix["proof"]["state"] == "interrupted":  # not every test ran, so it must not say that every test was rerun
+        intro = (f"The app applied this change on a new branch of its own copy of the code and started to rerun {reran}{timed}, "
+                 f"but the proof was interrupted before every test had run. The runs that finished went through {steps}")
+    return {"key": "proof", "title": "Proof", "line": said["fold"], "open": False, "intro": intro,
+            "tables": _tables(fix, rows) if fix["proof"] is not None else [], "verdict": said["verdict"]}
+
+
+def _details_section(fix: dict, modes: list[str], ran_sha256: str | None) -> dict:
+    connection, change, proof, request, merge = fix["connection"], fix["change"], fix["proof"], fix["pull_request"], fix["merge"]
+    review = proof["review"] if proof is not None else None
+    short = present.short_commit
+    started_on = f"{connection['component']['name']} {connection['component']['version']}"
+    repository = [_m(connection["repository"]), _t(" ")] + ([_DEMO] if connection["is_demo"] else [])
+
+    def fact(label: str, value: list[dict], fingerprint: bool = False) -> dict:
+        return {"label": label, "value": value, "fingerprint": fingerprint}
+
+    facts = [fact("Repository", repository + [_t(", the app's own copy. Nothing is sent anywhere else.")]),
+             fact("Starting point", [_t("branch "), _m(connection["branch"]), _t(", commit "), _m(short(change["base_commit"])),
+                                     _t(" ("), _m(started_on), _t(")")]),
+             fact("Change branch", [_m(change["branch"]), _t(", commit "), _m(short(change["head_commit"]))])]
+    facts += [fact("File changed", [_m(f["name"]), _t(f": {f['added']} {_plural(f['added'], 'line')} added and {f['removed']} removed")])
+              for f in change["files"]]
+    if request is not None:
+        value = [_t(f"#{request['number']}, opened "), {"t": "time", "v": request["opened_at"]}]
+        if merge is not None:
+            value += [_t("; merged "), {"t": "time", "v": merge["merged_at"]}, _t(" (merge commit "), _m(short(merge["merge_commit"])), _t(")")]
+        facts.append(fact("Pull request", value))
+    if review is not None:
+        facts.append(fact("Proof finished", [{"t": "time", "v": review["reviewed_at"]},
+                                             _t(f", after {_duration(proof['started_at'], review['reviewed_at'])} "),
+                                             # (timed on this computer, while the changed code ran here: the lab's look)
+                                             {"t": "tag", "v": "measured", "s": "lab"}]))
+    elif proof is not None and proof["state"] == "interrupted":
+        facts.append(fact("Proof started", [{"t": "time", "v": proof["started_at"]}, _t(". It was interrupted before every test had run.")]))
+    facts.append(fact("Mode", [_t(join_and([present.MODE_WORDS.get(mode, mode) for mode in modes]))]))
+    fingerprint = review["record_sha256"] if review is not None else None
+    if fingerprint:
+        facts.append(fact("Evidence fingerprint of the proof (SHA-256)", [_t(fingerprint)], fingerprint=True))
+    note = ("A branch is a separate line of work inside the repository, so the main copy stays untouched until a merge. A commit is "
+            f"one saved state of the code, named by a short id such as {short(change['head_commit'])}.")
+    if fingerprint:
+        note += (' The full record of every run in this proof is in the files saved by "Download evidence", where the evidence '
+                 "fingerprint of the proof can be checked. That fingerprint is listed inside the evidence file; it is not the "
+                 "fingerprint of the file itself.")
+    if fix["actions"]["download_patch"] is None:
+        note += ' "Download patch" saves this change as one file that a developer can apply to another copy of the code.'
+    return {"key": "details", "title": "Technical details", "line": "Repository, branches, commits, fingerprints and mode", "open": False,
+            "facts": facts, "note": note, "ran_on": _ran_on(fix, ran_sha256)}
+
+
+def _ran_on(fix: dict, ran_sha256: str | None) -> dict:
+    """What the proof's tests ran on: never the changed file, always the registered demo component it is identical
+    to. `ran_sha256` is that component's SHA-256 (None when the change is identical to none, and nothing ran)."""
+    change, proof = fix["change"], fix["proof"]
+    built, matches = change["built"], change["built"]["matches"]
+    measured = {"label": "The built file (SHA-256)", "value": built["sha256"] or "", "tag": "measured"}
+    if matches is None or proof is None:
+        return {"title": "What the tests ran on",
+                "text": [_t("Nothing. The file built from branch "), _m(change["branch"]),
+                         _t(" is not the same as any of our bundled demo components, byte for byte, so the app ran no test on it.")],
+                "fingerprints": [measured], "note": "This version of Evidence Lab only ever runs our own demo software."}
+    component = f"{matches['name']} {matches['version']}"
+    same = ("is exactly the same as that bundled component, byte for byte: the two fingerprints below match." if ran_sha256 == built["sha256"]
+            else "is the same as that bundled component. The two fingerprints below should match, and they do not.")
+    return {"title": "What the tests are running on" if proof["state"] == "running" else "What the tests ran on",
+            "text": [_t("Our own bundled demo component, "), _m(component),
+                     _t(". Before running anything, the app checked that the file built from branch "), _m(change["branch"]), _t(f" {same}")],
+            "fingerprints": [measured, {"label": f"Bundled {component} (SHA-256)", "value": ran_sha256 or "", "tag": "demo"}],
+            "note": RAN_ON_NOTE}
+
+
+# ------------------------------------------------------------------ a code fix, whole
+
+def code_fix(fix: dict, *, plan_id: int, titles: list[str], server_findings: int, plan_tests: int, reviewers: dict[str, str],
+             patch_name: str | None, parts: list[dict] | None, rows: list[dict], modes: list[str], ran_sha256: str | None) -> dict:
+    """One code fix as the Fixes step shows it. `fix` is its entry in changes.fix_states; the rest is what the
+    words need besides: the titles of the failed tests it answers, how many server findings are open, how many
+    tests the plan has, the reviewer list, the patch's file name, the changed lines (`parts`, None when they
+    could not be read), the proof's tests with their worded results (`rows`), the modes its runs ran in, and
+    the SHA-256 of the registered component that ran."""
+    change, component = fix["change"], fix["component"]
+    connected = change is not None
+    matches = change["built"]["matches"] if connected else None
+    otto = fix.get("otto")   # phase 5c: set when Otto wrote (or will write) this change
+    if otto:
+        words = _otto_words(component["name"], matches["version"] if matches else None, size_words(change) if connected else "", otto)
+    else:
+        worded = TEMPLATE_WORDS.get(fix["template_id"], _unknown_template_words)
+        words = worded(component["name"], matches["version"] if matches else None, size_words(change) if connected else "")
+    note = fix.get("otto_note")   # why the fix template is offered where Otto's own change could not be
+    extra = [[_t(f"A change “Written by Otto” is not offered here. {note} The fix template is offered in its place.")]] if note and not otto else []
+    holds = f"{matches['name']} {matches['version']}" if matches else ""
+    if connected:
+        said = _proof_words(fix, rows, server_findings)
+        what = words["fixes"] if proven(fix) else words["changes"]
+        proof = {k: said[k] for k in ("state", "badge", "text", "muted")}
+        sections = [_change_section(fix, words, parts), _proof_section(fix, rows, said), _details_section(fix, modes, ran_sha256)]
+    else:
+        what, sections = words["available"], []
+        proof = {"state": "not_started", "badge": None, "muted": None,
+                 "text": ("Not started. It starts by itself once the code is connected: every locked test in your plan is rerun on the "
+                          "changed code. This takes about a minute.")}
+    return {
+        "id": fix["id"], "kind": "code", "title": words["title"], "list_source": _list_source(titles),
+        "source": _source(titles, "signing component", f"{component['name']} {component['version']}"),
+        "status": {"key": fix["status"], "word": STATUS_WORDS[fix["status"]], "busy": fix["status"] == "proving"},
+        # "Written by Otto" only for a change that exists and can be proven here; before the click nothing is written
+        "labels": [(OTTO_PENDING_LABEL if otto.get("pending") else OTTO_LABEL) if otto else CHANGE_LABEL],
+        "is_demo": fix["connection"]["is_demo"] if connected else True,
+        "what": {"label": "What it fixes" if proven(fix) else "What it changes", "paragraphs": [what] + extra,
+                 "server_line": _server_line(fix, server_findings)},
+        "proof": proof, "pull_request": _pull_request(fix, holds), "approvers": _approvers(fix, reviewers),
+        "actions": _actions(fix, plan_tests, holds),
+        "patch": ({"url": f"/api/plans/{plan_id}/fixes/{fix['id']}/patch", "filename": patch_name}
+                  if patch_name and fix["actions"]["download_patch"] is None else None),
+        "merge_dialog": _merge_dialog(fix, holds), "sections": sections, "sections_note": None if connected else SECTIONS_NOTE, "advisories": None,
+        "change_box": None,
+    }
+
+
+# ------------------------------------------------------------------ a text-only fix
+
+def _old_suite(suite: str | None) -> bool:
+    """Is this one of the old cipher suites the suggestion may name? Only a suite whose name ends in "-SHA":
+    in OpenSSL's names those are the ones that use SHA-1 with a CBC (or older) cipher, such as
+    ECDHE-ECDSA-AES128-SHA. The test records only the suite each handshake used; it does not scan for others."""
+    return bool(suite) and suite.endswith("-SHA")
+
+
+def _join_or(items: list[str]) -> str:
+    return "".join(items) if len(items) <= 1 else ", ".join(items[:-1]) + " or " + items[-1]
+
+
+def _tls_words(tls: dict, box: str) -> dict:
+    """The server TLS finding's own words, built from the failed test's recorded outcome. `tls`: the address, what
+    the file claims, the versions accepted outside the claim, and the cipher suite each of those handshakes used.
+    The fuller suggestion (where the setting lives, two options, exact settings) was written and checked for one
+    case: the file claims TLS 1.3 only and the server also accepts TLS 1.2. Any other case gets the plain
+    sentence (`box`, what the "Suggested fix" box said) with the same warning."""
+    claimed, accepted = join_and(tls["claimed"]), join_and(tls["accepted"])
+    # A suite is named only when exactly one version was accepted outside the claim: the sentence then speaks of
+    # that one recorded handshake, and of no other.
+    suite = tls["suites"].get(tls["accepted"][0]) if len(tls["accepted"]) == 1 else None
+    suite = suite if _old_suite(suite) else None
+    with_suite = f", with the older cipher suite (the set of algorithms a connection uses) `{suite}`" if suite else ""
+    intro = f"This is usually a server setting, not a code change. The server accepted {accepted}{with_suite}. The file claims {claimed} only."
+    warning = {"title": f"Before you switch {accepted} off:",
+               "text": f"older clients and partner systems that can't use {_join_or(tls['claimed'])} will no longer be able to connect."}
+    title = f"Server accepts {accepted}"
+    if (tls["claimed"], tls["accepted"]) != (["TLS 1.3"], ["TLS 1.2"]):
+        return {"title": title, "line": "A warning first, then what to change",
+                "what": f"A server setting, not a code change: stop accepting {accepted}, or correct the scanner file if it is meant to stay on.",
+                "suggestion": {"intro": [intro, box], "warning": warning, "where": None, "options": None, "exact": None}}
+    where = {
+        "title": "Where the setting lives", "note": "Use the row that matches how TLS is handled for this server.",
+        "columns": ["Where TLS is set up", "The setting", f"To accept {claimed} only"],
+        "rows": [
+            {"place": "nginx", "setting": "the `ssl_protocols` line (often in the `http` block of `nginx.conf`)", "lead": "",
+             "code": "ssl_protocols TLSv1.3;"},
+            {"place": "Apache", "setting": "the `SSLProtocol` line (in the main server config, or in every virtual host on the address)",
+             "lead": "", "code": "SSLProtocol -all +TLSv1.3"},
+            {"place": "A cloud load balancer",
+             "setting": ("the security policy (also called a TLS or SSL policy) on the load balancer's HTTPS or TLS listener, the part "
+                         "that accepts incoming connections"),
+             "lead": (f"Choose a policy that allows {claimed} only (not every provider has one), and check it in your provider's own "
+                      "list. On an AWS Application or Network Load Balancer, for example:"),
+             "code": "ELBSecurityPolicy-TLS13-1-3-2021-06"},
+            {"place": "Your own application", "setting": "the minimum TLS version in your application's own TLS settings",
+             "lead": f"Set the minimum to {claimed}. In Python, for example:", "code": "context.minimum_version = ssl.TLSVersion.TLSv1_3"},
+        ],
+        "after": ["For either option, change every existing line, including any in a site's own block, rather than adding another one. "
+                  "Make sure every site on that address is covered, then reload the server."]}
+    both = join_and(tls["accepted"] + tls["claimed"])
+    keep_strong = (f"Remove the older cipher suite this test found, `{suite}`, and keep only strong ones. The exact settings are below." if suite
+                   else f"Keep only strong cipher suites (the sets of algorithms a connection uses) for {accepted}. The exact settings are below.")
+    options = {"title": "Two ways to fix it", "items": [
+        {"title": f"Option 1: switch {accepted} off", "when": f"Choose this when nothing still connects with {accepted}.",
+         "steps": [f"Check the access logs of the server or load balancer for connections that used {accepted}. Many servers do not log "
+                   "the TLS version until you add it (nginx: `$ssl_protocol`; Apache: `%{SSL_PROTOCOL}x`).",
+                   f"If the log shows only {claimed} over a normal period of use, apply the setting above.",
+                   "Run this test again."],
+         "note": ""},
+        {"title": f"Option 2: keep {accepted}, with strong settings only", "when": f"Choose this when some clients or partners still need {accepted}.",
+         "steps": [keep_strong, f"Correct the scanner file so that it says {both}.", "Import the corrected file and run the tests again."],
+         "note": ("This test checks TLS versions only. It will not show " +
+                  ("whether the old cipher suite is gone." if suite else "which cipher suites the server accepts."))}]}
+    exact = {"title": "Option 2: the exact settings",
+             "note": (f"These keep {both}. For {accepted} they keep only cipher suites that use ECDHE with AES-GCM or ChaCha20-Poly1305, "
+                      f"the same kinds of encryption {claimed} uses. Copy each setting exactly, as one line, even where it wraps here."),
+             "blocks": [{"place": "nginx", "code": f"ssl_protocols TLSv1.2 TLSv1.3;\nssl_ciphers {STRONG_SUITES};"},
+                        {"place": "Apache", "code": f"SSLProtocol -all +TLSv1.2 +TLSv1.3\nSSLCipherSuite {STRONG_SUITES}"},
+                        {"place": "AWS Application or Network Load Balancer (security policy)", "code": "ELBSecurityPolicy-TLS13-1-2-Res-2021-06"}]}
+    return {"title": title, "line": "A warning first, where the setting lives, and two ways to fix it",
+            "what": (f"A server setting, not a code change: stop accepting {accepted}, or keep it with strong settings only and correct the "
+                     "scanner file. The suggestion below says where the setting lives and gives two ways to do it."),
+            "suggestion": {"intro": [intro], "warning": warning, "where": where, "options": options, "exact": exact}}
+
+
+def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, address: str | None, tls: dict | None,
+             name_target: bool = False) -> dict:
+    """One text-only fix as the Fixes step shows it: a suggestion in words that the app has not made or tested.
+    `result` is the worded failed result it answers; `address` is the server it is about (None for a test of the
+    signing component); `tls` is the recorded outcome of a failed "Old TLS versions" test, when it is that."""
+    on_server = address is not None
+    proof_rows = None      # phase 5c: a library's fix from Otto has two proof rows in place of the one Proof line
+    claims = f" The file claims {join_and(tls['claimed'])} only." if tls else ""
+    source = _source(titles, "server" if on_server else "signing component", address if on_server else str(result["component"]), claims)
+    if tls:
+        words = _tls_words(tls, result["suggested_fix"])
+        approves = "Your own server team, outside this app. The app never changes your server."
+    elif fix.get("otto_fix"):
+        # Phase 5c: a failed advisory check on a library other people wrote. The fix is Otto's, from the test pack: the
+        # publisher's fixed version with its quoted source, and how the update did when it was tried on public copies.
+        o = fix["otto_fix"]
+        if o["kind"] == "update":
+            quote = o.get("quote") or {}
+            lines = [f"Proposed: update {o['library']} to {o['version']} or later. {o['summary']}"]
+            if quote.get("text"):
+                lines.append(f"The publisher's own line: \u2018{quote['text']}\u2019 ({quote.get('source')}, read on {quote.get('read_on')}).")
+            # Whether it is proven is said once, in the two proof rows of the summary (public copies, your system).
+            lines += [row["line"] for row in o.get("rows") or []]
+            lines.append("To prove it here: whoever owns the software updates it; then press \u201cRetest new version\u201d, which reruns "
+                         "the same locked tests on the updated version.")
+            proof_rows = o.get("rows")
+            words = {"title": f"Update {o['library']} to {o['version']}",
+                     "line": "The proposed fix, with its two proof rows",
+                     "what": (f"From Otto, for advisory {o['advisory']}: update the library to the version its publisher names as fixed. "
+                              "This is other people's code: the app offers no code change and no pull request for it."),
+                     "suggestion": {"intro": lines, "warning": None, "where": None, "options": None, "exact": None}}
+        else:
+            words = {"title": f"{titles[0]}: {_lower(result['label'])}", "line": "What can be said about a fix",
+                     "what": f"No fix is proposed for advisory {o['advisory']}. {o['reason']}",
+                     "suggestion": {"intro": [result["suggested_fix"] or o["reason"]], "warning": None, "where": None, "options": None, "exact": None}}
+        approves = "Whoever looks after this software, outside this app."
+    elif fix.get("real_library"):
+        # Phase 4c: a real library written by others. The fix is its publisher's fixed version; the app offers no code
+        # change and no pull request for other people's code.
+        lib = fix["real_library"]
+        words = {"title": (f"Update {lib['name']} to the fixed version ({lib['fixed']})" if lib["fixed"]
+                           else f"{lib['name']} {lib['version']}: no fixed version is known"),
+                 "line": "What to do, in plain words",
+                 "what": ("Update the library to the version in which its publisher fixed the fault the advisory describes, then retest "
+                          "to see what, if anything, remains. This is other people's code: the app offers no code change and no pull "
+                          "request for it." if lib["fixed"] else
+                          "No fixed version of this library is known to this app. This is other people's code: the app offers no code "
+                          "change and no pull request for it."),
+                 "suggestion": {"intro": [result["suggested_fix"]], "warning": None, "where": None, "options": None, "exact": None}}
+        approves = "Whoever looks after this software, outside this app."
+    else:
+        words = {"title": f"{titles[0]}: {_lower(result['label'])}", "line": "What to change, in plain words",
+                 "what": "A suggestion in plain words. The app has not made a change for this finding.",
+                 "suggestion": {"intro": [result["suggested_fix"]], "warning": None, "where": None, "options": None, "exact": None}}
+        approves = ("Your own server team, outside this app. The app never changes your server." if on_server
+                    else "Whoever looks after this software, outside this app.")
+    return {
+        # In a file with several servers or programs, the list names which one each suggestion is for.
+        "id": fix["id"], "kind": "text", "title": words["title"],
+        "list_source": _list_source(titles) + (f" on {address if on_server else result['component']}" if name_target else ""), "source": source,
+        "status": {"key": "text_only", "word": STATUS_WORDS["text_only"], "busy": False},
+        # "From Otto" is on a fix Otto proposes; where Otto has none to propose, there is nothing of Otto's to label.
+        "labels": [OTTO_FIX_LABEL] if (fix.get("otto_fix") or {}).get("kind") == "update" else [], "is_demo": is_demo,
+        "what": {"label": "What it suggests", "paragraphs": [[_t(words["what"])]], "server_line": None},
+        "proof": {"state": "none", "badge": None, "muted": None,
+                  "text": ("In the two rows below: on public copies, and in this assessment." if proof_rows else
+                           "None. This suggestion is text only: the app has not applied it or tested it.")},
+        "proof_rows": proof_rows,
+        "pull_request": None, "approvers": {"text": approves, "options": None, "rows": None, "footnote": None},
+        "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None,
+        "sections": [{"key": "suggestion", "title": "The suggestion", "line": words["line"], "open": True, "suggestion": words["suggestion"]}],
+        "sections_note": None, "change_box": None,
+        # Phase 4c: the published advisories for a real library's version, with their links (information, never a result).
+        "advisories": result.get("advisories") if fix.get("real_library") or fix.get("otto_fix") else None,
+    }
+
+
+# ------------------------------------------------------------------ phase 6d: a developer's change that makes passing tests fail
+
+DEVELOPER_CHANGE_OUTCOMES = {"fails_now": "passed on the code before ({before}) and fails on this change ({now})",
+                             "slower_now": "reads “Slowdown found” on this change ({now}), timed against the code before ({before})"}
+DEVELOPER_CHANGE_FIX_LINE = "A suggestion for this change is in Fixes. It is text only."
+
+
+def developer_change_fix(fix: dict) -> dict:
+    """One entry for a developer's change whose picked tests, run on a click in Change watch, show a test that passed on
+    the code before failing on the change. Text only: it names those tests and shows the lines the change takes out.
+    The app has written no change for a developer's branch, and it never merges one."""
+    change = fix["developer_change"]
+    program = change.get("program") or {}
+    name = str(program.get("name") or "the program")
+    before = f"{name} {(change.get('starts_from') or {}).get('version') or ''}".strip()
+    now = f"{name} {(change.get('gives') or {}).get('version') or ''}".strip()
+    tests = change["tests"]
+    said = [f"{t['title']} {DEVELOPER_CHANGE_OUTCOMES[t['outcome']].format(before=before, now=now)}." for t in tests]
+    n = len(tests)
+    parts = []
+    for file in change["files"]:
+        for block in file["blocks"]:
+            removed = sum(1 for line in block["before"] if line["mark"] == "-")
+            added = sum(1 for line in block["after"] if line["mark"] == "+")
+            if not removed:
+                continue                      # (this entry is about what the change takes out)
+            first = next(line["n"] for line in block["before"] if line["mark"] == "-")
+            parts.append({"title": f"{file['name']}, from line {first}", "why": "",
+                          "before_label": {"lead": "Before:", "strong": before if file["is_program"] else "the code before",
+                                           "rest": f", {removed} {_plural(removed, 'line')} that this change removes (marked −)"},
+                          "before": block["before"],
+                          "after_label": {"lead": "After:", "strong": "this change",
+                                          "rest": f", {added} {_plural(added, 'line')} added (marked +)" if added else ", nothing added here"},
+                          "after": block["after"]})
+    taken_out = sum(sum(1 for line in part["before"] if line["mark"] == "-") for part in parts)
+    sections: list[dict] = [{
+        "key": "suggestion", "title": "The suggestion", "line": "What to do with this change, in plain words", "open": True,
+        "suggestion": {"intro": [*said,
+                                 ("Keep the lines this change takes out, or change the branch so that the tests pass again. Then press "
+                                  "“Run again” on the change in Change watch."),
+                                 "A developer's change is not the system until someone merges it: this assessment's own results are as they were."],
+                       "warning": None, "where": None, "options": None, "exact": None}}]
+    if parts:
+        sections.append({"key": "change", "title": "What the change takes out",
+                         "line": f"{taken_out} {_plural(taken_out, 'line')} removed, in {len(parts)} {_plural(len(parts), 'place')}", "open": True,
+                         "intro": ("The lines the developer's change removes, with the lines around them, read from the connected demo "
+                                   "repository. Nothing here was written by the app."),
+                         "parts": parts})
+    return {
+        "id": fix["id"], "kind": "text",
+        "title": f"{change['title']}: {n} {_plural(n, 'test')} that passed now {'fails' if n == 1 else 'fail'}",
+        "list_source": f"Came from: developer's change {change['branch']}",
+        "source": [_t("Came from the developer's change "), _m(str(change["branch"])),
+                   _t(f" (commit {str(change['commit'])[:7]}), after its picked tests were run in Change watch.")],
+        "status": {"key": "text_only", "word": STATUS_WORDS["text_only"], "busy": False},
+        "labels": [], "is_demo": bool(change.get("is_demo")),
+        "what": {"label": "What it suggests", "server_line": None, "paragraphs": [[_t(
+            f"To look at this change again before anyone merges it: {n} {_plural(n, 'test')} that passed on the code before "
+            f"{'fails' if n == 1 else 'fail'} on it. A suggestion in plain words. The app has not changed the branch.")]]},
+        "proof": {"state": "none", "badge": None, "muted": None,
+                  "text": "None. This suggestion is text only: the app has not applied it or tested it. What the run showed is in Change watch."},
+        "proof_rows": None, "pull_request": None,
+        "approvers": {"text": "Whoever reviews this branch in your own repository, outside this app. The app never merges a developer's change.",
+                      "options": None, "rows": None, "footnote": None},
+        "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None,
+        "sections": sections, "sections_note": None, "change_box": None, "advisories": None,
+    }
+
+
+# ------------------------------------------------------------------ phase 4b (SPEC 7c): the demo server's TLS fix as a change
+
+def with_change_box(shown: dict, box: dict) -> dict:
+    """The demo server's TLS fix once it is a change the app can try on a test copy and apply: the summary points to
+    the change box below it, and its status is the box's."""
+    return {**shown, "change_box": box, "status": {**shown["status"], "word": box["badge"]["label"], "busy": box["busy"]},
+            "proof": {**shown["proof"], "text": "In the change box below: a try on a test copy of the demo server comes first, "
+                                                "then the approvals, then Apply."},
+            "approvers": {**shown["approvers"], "text": "Pick them in the change box below. The app changes the demo server only "
+                                                        "when a person presses Apply."}}
+
+
+def applied_change_fix(fix: dict, box: dict, address: str, is_demo: bool) -> dict:
+    """An Apply still in force on our demo server, made from another import of the file: its own entry, so that its Roll
+    back is always on a screen. The results of this file show the server as it is now."""
+    return {
+        "id": fix["id"], "kind": "text", "title": f"TLS 1.3 only is applied to {address}",
+        "list_source": "Applied from another import of this file", "labels": [], "is_demo": is_demo,
+        "source": [_t("This app applied a change to the demo server "), {"t": "mono", "v": address},
+                   _t(" from another import of this file, and it is still in force. This file's results show the server as it is now.")],
+        "status": {"key": "text_only", "word": box["badge"]["label"], "busy": box["busy"]},
+        "what": {"label": "What it is", "server_line": None, "paragraphs": [[_t(
+            "The server accepts TLS 1.3 only. Roll back puts TLS 1.2 back, as the demo starts, and the app measures again.")]]},
+        "proof": {"state": "none", "badge": None, "muted": None, "text": "In the change box below: the Apply in force and its Roll back."},
+        "pull_request": None,
+        "approvers": {"text": "Roll back needs no approval.", "options": None, "rows": None, "footnote": None},
+        "actions": {"buttons": [], "note": None}, "patch": None, "merge_dialog": None, "sections": [], "sections_note": None, "advisories": None,
+        "change_box": box,
+    }
+
+
+def server_change_line(line: dict) -> dict:
+    """Evidence Lab's one line for that fix."""
+    return {**line, "lead": "Server setting change:", "rest": "try it on a test copy, then apply"}
+
+
+def link_same_updates(pairs: list[tuple[dict, dict]]) -> None:
+    """Two entries can recommend one and the same update of a real library: the entry for its failed tests (phase 4c:
+    the publisher's fixed version, from the advisories the app knows) and Otto's proposal for a failed advisory check
+    (phase 5c, from a test pack). Each then says so and names the other (in place), so nobody reads them as two
+    updates. They stay two entries: they answer different tests, and only Otto's is a proposal to accept or reject."""
+    def same(a: object, b: object) -> bool:
+        return str(a or "").casefold() == str(b or "").casefold()
+    for state, shown in pairs:
+        o = state.get("otto_fix") or {}
+        if state.get("kind") != "text" or o.get("kind") != "update":
+            continue
+        for other, other_shown in pairs:
+            lib = other.get("real_library") or {}
+            if other is state or other.get("otto_fix") or not lib.get("fixed"):
+                continue
+            if not same(lib.get("name"), o.get("library")) or str(lib.get("fixed")) != str(o.get("version")):
+                continue
+            shown["what"]["paragraphs"].append([_t(f"The same update is recommended by the entry “{other_shown['title']}” in this list, "
+                                                   "for the other failed tests on this library. It is one update, not two.")])
+            other_shown["what"]["paragraphs"].append([_t(f"The same update is proposed for the advisory check that failed on this "
+                                                         f"library: “{shown['title']}” in this list. It is one update, not two.")])
+
+
+# ------------------------------------------------------------------ the whole step
+
+def view(plan_id: int, is_demo: bool, fixes: list[dict], busy: bool, counted: int | None = None) -> dict:
+    """`counted`: how many of `fixes` count as findings with a fix (phase 6d: a suggestion for a developer's change is
+    listed apart and is not counted). Every one of them, where it is not given."""
+    from_migration = any(str(fix.get("list_source") or "").startswith(MIGRATION_SOURCE) for fix in fixes)
+    n = len(fixes) if counted is None else counted
+    return {"plan_id": plan_id, "is_demo": is_demo, "title": TITLE, "subline": SUBLINE_WITH_MIGRATION if from_migration else SUBLINE,
+            "disclaimer": present.DISCLAIMER,
+            "list_title": f"Open findings with a fix ({n})", "empty_text": None if fixes else EMPTY, "fixes": fixes, "busy": busy}
