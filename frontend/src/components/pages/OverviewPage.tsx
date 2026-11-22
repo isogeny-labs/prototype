@@ -39,10 +39,10 @@ function SourceCounts({ counts }: { counts: SourceCount[] }) {
       <span>Where these came from:</span>{" "}
       {counts.map((c, i) => (
         <span key={c.key} data-testid="overview-source-count" data-source={c.key} className="inline-flex items-center gap-1">
-          {i > 0 ? <span aria-hidden="true">·</span> : null}
-          {i > 0 ? " " : null}
           <span className="tabular-nums text-slate-300">{c.count}</span>{" "}
-          <WhereFromTag tag={{ key: c.key, label: c.label, meaning: c.meaning, note: null }} testId="overview-source-tag" />{" "}
+          <WhereFromTag tag={{ key: c.key, label: c.label, meaning: c.meaning, note: null }} testId="overview-source-tag" />
+          {/* the dot ends an item, so a wrapped line starts with its number */}
+          {i < counts.length - 1 ? <span aria-hidden="true"> ·</span> : null}{" "}
         </span>
       ))}
     </p>
