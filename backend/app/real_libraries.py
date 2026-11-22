@@ -14,6 +14,7 @@ only from the tests."""
 from __future__ import annotations
 
 from app.config import DEMO_DIR, OPENSSL_IMAGE
+from app.sandbox import copies as sandbox_copies
 
 REAL_DIR = DEMO_DIR / "real-libraries"
 NEEDS_ISOLATED = "Real software from outside runs only in isolated mode (Docker)"
@@ -130,11 +131,39 @@ def capability_copy(name: object, version: object) -> dict | None:
 
 
 def library(name: object, version: object) -> dict | None:
-    """Exact match on name and version only, as for the demo components."""
+    """Exact match on name and version only, as for the demo components. The pinned libraries above always come first.
+    Only with Sandbox research on (a prototype for Isogeny's own sandbox, off by default) is a public copy that was made
+    on this computer found here too, in the same shape, marked "sandbox": it runs the same way, in isolated mode only,
+    in its own image. With the switch off this is the pinned table and nothing else."""
     if not isinstance(name, str) or not isinstance(version, str):
         return None
     found = LIBRARIES.get(name)
-    return found if found is not None and version in found["versions"] else None
+    if found is not None and version in found["versions"]:
+        return found
+    return sandbox_copies.library(name, version)
+
+
+def known(name: object) -> dict | None:
+    """A library by its name alone: a pinned one, or (Sandbox research on) the newest sandbox copy set of that name."""
+    if not isinstance(name, str):
+        return None
+    if name in LIBRARIES:
+        return LIBRARIES[name]
+    found = sandbox_copies.named(name)
+    return sandbox_copies.as_library(found) if found is not None else None
+
+
+def is_sandbox(name: object, version: object) -> bool:
+    found = library(name, version)
+    return bool(found) and bool(found.get("sandbox"))
+
+
+def family_label(family: object) -> str:
+    """A family's name on screen: a pinned family's label, or the library of a sandbox copy set."""
+    if isinstance(family, str) and family in FAMILIES:
+        return str(FAMILIES[family]["label"])
+    found = sandbox_copies.by_family(family)
+    return f"{found['library']} ({sandbox_copies.LABEL_TAIL})" if found is not None else str(family)
 
 
 def subject_key(name: str, version: str) -> str:
@@ -158,7 +187,7 @@ def family_of_subject(key: str) -> str | None:
         for v, copy in copies.items():
             if bare == f"{name}-{v}":
                 return copy["family"]
-    return None
+    return sandbox_copies.family_of_subject(bare)
 
 
 def advisories(name: object, version: object) -> list[dict]:

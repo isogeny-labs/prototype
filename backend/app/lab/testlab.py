@@ -270,7 +270,10 @@ class TestLabMixin:
             return ("This is real software from outside. It runs only in isolated mode (Docker), and this run is in demo mode, "
                     "so its tests can't run here.")
         if not self.mode.real_images.get(family):
-            return (f"This is real software from outside. Its container image ({real_libraries.FAMILIES[family]['label']}) is not prepared on "
+            if real_libraries.is_sandbox(program["component"], program["version"]):
+                return ("This is a sandbox copy of real software from outside. Its container image is not on this computer, so its "
+                        "tests can't run. A research run (Design and prove tests, on Advisories) makes it again.")
+            return (f"This is real software from outside. Its container image ({real_libraries.family_label(family)}) is not prepared on "
                     "this computer, so its tests can't run. ./run-demo.sh prepares it (it needs internet once).")
         return None
 
@@ -1106,7 +1109,7 @@ class TestLabMixin:
                     note = ("The demo version these results are for." if v == current
                             else "The corrected demo version." if versions.index(v) > versions.index(current) else "An earlier demo version.")
                 else:
-                    fixes = [cve for cve in (real_libraries.LIBRARIES[name]["advisories"].get(current, ()))
+                    fixes = [cve for cve in ((real_libraries.known(name) or {}).get("advisories", {}).get(current, ()))
                              if real_libraries.fixed_version(name, current) == v]
                     note = ("The version these results are for." if v == current
                             else f"The version its publisher fixed {research.join_and(fixes)} in." if fixes

@@ -88,7 +88,7 @@ def versions_of(name: object) -> list[str]:
     """The versions a retest can choose between for this program, oldest first. Nothing outside can add to it."""
     if isinstance(name, str) and name in VERSIONS:
         return list(VERSIONS[name])
-    found = real_libraries.LIBRARIES.get(name) if isinstance(name, str) else None
+    found = real_libraries.known(name)       # (a pinned library; or, with Sandbox research on, a sandbox copy set)
     return list(found["versions"]) if found else []
 
 
@@ -306,7 +306,7 @@ def verify_real_claim(name: str, version: str, claimed_algorithm: str, runner=No
         return out(COULDNT, "The library was not run.", real_libraries.NEEDS_ISOLATED + ", and this run is in demo mode.")
     if not runner.mode.real_images.get(family):
         return out(COULDNT, "The library was not run.",
-                   f"The container image for {real_libraries.FAMILIES[family]['label']} is not prepared on this computer "
+                   f"The container image for {real_libraries.family_label(family)} is not prepared on this computer "
                    "(./run-demo.sh prepares it; it needs internet once).")
     subject, tool_version = f"{name}-{version}", f"image {runner.mode.real_images[family]}"
     algorithm = normalize_algorithm(claimed_algorithm) or claimed_algorithm
@@ -332,6 +332,12 @@ def verify_real_claim(name: str, version: str, claimed_algorithm: str, runner=No
     if isinstance(verdict, dict):
         return verdict
     reported = verdict
+    if (real_libraries.library(name, version) or {}).get("checks_only"):
+        # Sandbox research (prototype): the asking code of this public copy only checks signatures. It makes no key and
+        # signs nothing, so the round trip that would check the claim can't be made. Said plainly; never a guess.
+        return out(COULDNT, f"The library reports itself as {reported}.",
+                   "This is a sandbox copy. Its asking code only answers signature checks, so the sign-and-verify round trip that "
+                   "checks this claim was not run. Its tests still run.")
     if key_exchange != (algorithm == "ML-KEM-768"):
         return out(COULDNT, f"The library reports itself as {reported}.",
                    "The file's claim and the algorithm are not the same kind (a signature and a key exchange), so the round trip was not run.")

@@ -33,7 +33,11 @@ def is_real(component: dict | None) -> bool:
 
 def code_words(name: str, version: str) -> str:
     """Which code a run on a real library ran on: the library's own files, in its own container image."""
-    lib = real_libraries.LIBRARIES[name]
+    lib = real_libraries.library(name, version) or real_libraries.LIBRARIES[name]
+    if lib.get("sandbox"):
+        # Sandbox research (prototype): a public copy made on this computer, not one of the pinned libraries.
+        return (f"{name} {version} (sandbox copy): the library's own files from its public package registry, checked against the "
+                "registry's fingerprint, in its own container image")
     build = lib["distribution"].get(version)
     return (f"{lib['label']} {version}" + (f" ({build})" if build else "") +
             ": the library's own files from its pinned source, in its own container image")

@@ -21,6 +21,7 @@ from sqlalchemy import select
 from app.db import AppSettingRow, OttoResearchRow
 from app.errors import BadRequest, Conflict
 from app.otto import harness, model
+from app.sandbox import copies as sandbox_copies
 from app.present import sandbox as present_sandbox
 
 ON_KEY, BY_ITSELF_KEY = "sandbox_on", "sandbox_by_itself"
@@ -62,6 +63,17 @@ class SandboxMixin:
         with self.db() as db:
             stored = _get(db, ON_KEY) == "on"
         return stored and not self.sandbox_blocked()
+
+    def sandbox_refresh(self) -> None:
+        """Bring the table of images this app may run up to date with the copy sets of this computer: with the switch on,
+        a set whose image is here and is the one its record names (by the image's own id) can run; with it off, or when
+        an image is gone or is another one, it can't. Only this table changes; nothing is built or fetched here."""
+        sandbox_copies.forget_cache()
+        present = sandbox_copies.images_present() if self.sandbox_on() and self.mode.name == "isolated" else {}
+        images = self.mode.real_images
+        for family in [f for f in images if f.startswith(sandbox_copies.FAMILY_PREFIX) and f not in present]:
+            images.pop(family, None)
+        images.update(present)
 
     def sandbox_by_itself(self) -> bool:
         """May a research run be started with no click? Only with the switch on, the tick set and Live Otto ready."""
@@ -140,6 +152,8 @@ class SandboxMixin:
             db.commit()
         if on is False:
             self.stop_research()                             # nothing of the sandbox goes on with the switch off
+        if on is not None:
+            self.sandbox_refresh()
         return self.otto_view()
 
 

@@ -48,7 +48,7 @@ def real_problem(ctx: RunContext) -> dict | None:
     if ctx.mode.name != "isolated":
         return problem("needs_isolated_mode", real_libraries.NEEDS_ISOLATED + ", and this run is in demo mode.")
     if not ctx.mode.real_images.get(family):
-        return problem("real_image_missing", f"The container image for {real_libraries.FAMILIES[family]['label']} is not prepared on this computer.")
+        return problem("real_image_missing", f"The container image for {real_libraries.family_label(family)} is not prepared on this computer.")
     return None
 
 
