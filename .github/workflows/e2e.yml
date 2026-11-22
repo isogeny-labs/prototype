@@ -1,0 +1,177 @@
+# The Playwright end-to-end walks on every pull request and every push to the default branch, and pictures of what a
+# pull request changes.
+# This repository is public: no secrets are used or needed.
+#
+# The walks run in demo mode: the isolated-mode test images are not prepared here, so the walks that need them, and
+# those that need Otto's harness (a private repository), skip themselves and say so. "Slow checks" still runs
+# everything nightly, isolated mode included.
+#
+# "Screenshots of the change" (pull requests only): the same walks run on the pull request's base, and the pictures
+# of both runs are compared pixel by pixel (e2e/screenshot-diff.mjs). The result is a list in the job summary and a
+# before / after / diff gallery in the artifact "screenshots-of-the-change". It shows; it never fails the check.
+name: End-to-end
+
+on:
+  # A branch with a pull request is walked by its pull_request run; a push outside one would only repeat it.
+  push:
+    branches: [mvp/crypto-simple]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  walks:
+    name: ${{ matrix.side == 'after' && 'End-to-end walks (demo mode)' || 'End-to-end walks on the base (for screenshots)' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        # "after" is the code of this push or pull request; "before" (pull requests only) is the base it is compared with.
+        side: ${{ github.event_name == 'pull_request' && fromJSON('["after", "before"]') || fromJSON('["after"]') }}
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+          persist-credentials: false
+          ref: ${{ matrix.side == 'before' && github.event.pull_request.base.sha || '' }}
+
+      - name: Large files - work out which ones are needed
+        id: lfs
+        run: echo "hash=$(git lfs ls-files --long --include "demo/vectors/**" | sha256sum | cut -d" " -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Large files - reuse the saved copy
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ steps.lfs.outputs.hash }}
+
+      - name: Large files - download only the test vectors
+        run: git lfs pull --include "demo/vectors/**"
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Reuse the saved Python downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('backend/requirements.lock', 'backend/requirements-dev.lock') }}
+
+      - name: Backend - install the pinned Python packages
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install --disable-pip-version-check --require-hashes -r backend/requirements.lock
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - name: Frontend - install the pinned packages
+        working-directory: frontend
+        run: npm ci
+
+      - name: End-to-end test - install the pinned packages
+        working-directory: e2e
+        run: npm ci
+
+      - name: Browser for the end-to-end test
+        working-directory: e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Mark the start, to find the pictures this run takes
+        run: touch "$RUNNER_TEMP/walks-started"
+
+      # On the base, a failing walk must not stop the comparison: its pictures are simply missing (and listed so).
+      - name: "End-to-end test (demo mode)"
+        id: walks
+        working-directory: e2e
+        continue-on-error: ${{ matrix.side == 'before' }}
+        # Otto's harness is not fetched here: the walks that need it skip themselves and say so.
+        run: npm test
+
+      - name: Collect the pictures this run took
+        if: always() && steps.walks.outcome != 'skipped'
+        run: |
+          mkdir -p "$RUNNER_TEMP/screenshots"
+          cd docs/screenshots
+          find . -name '*.png' -newer "$RUNNER_TEMP/walks-started" -print0 \
+            | xargs -0 --no-run-if-empty cp --parents --target-directory "$RUNNER_TEMP/screenshots"
+          echo "$(find "$RUNNER_TEMP/screenshots" -name '*.png' | wc -l) pictures taken."
+
+      - name: Keep the pictures
+        if: always() && steps.walks.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ matrix.side }}
+          path: ${{ runner.temp }}/screenshots/
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Keep the end-to-end results if something failed
+        if: failure() && matrix.side == 'after'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: e2e/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  screenshots:
+    name: Screenshots of the change
+    if: always() && github.event_name == 'pull_request'
+    needs: walks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+          persist-credentials: false
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install the pinned packages and the browser that compares the pictures
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Get the pictures of both runs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: screenshots-*
+          path: ${{ runner.temp }}/shots
+
+      - name: Compare them
+        working-directory: e2e
+        run: |
+          mkdir -p "$RUNNER_TEMP/shots/screenshots-before" "$RUNNER_TEMP/shots/screenshots-after"
+          node screenshot-diff.mjs "$RUNNER_TEMP/shots/screenshots-before" "$RUNNER_TEMP/shots/screenshots-after" \
+            "$RUNNER_TEMP/screenshots-of-the-change"
+
+      - name: Keep the gallery (before, after and diff side by side; open index.html)
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-of-the-change
+          path: ${{ runner.temp }}/screenshots-of-the-change/
+          retention-days: 14
