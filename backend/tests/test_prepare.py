@@ -104,8 +104,10 @@ def test_only_prepare_can_build_or_pull():
     assert '["build", "--pull=false", "--network", "none"' in maker and not re.search(r"""["']pull["']|buildx|["']load["']""", maker)
     assert pattern.search((APP / "prepare.py").read_text())
     run_flags = (APP / "run" / "runner.py").read_text()
-    assert '"--pull", "never"' in run_flags  # a missing image is an error, never a download
-    assert '"--pull", "never"' in (APP / "servers" / "lab_nginx.py").read_text()   # the lab nginx too (phase 4b)
+    # (the formatter may put the flag and its value on two lines)
+    never = re.compile(r'"--pull",\s*"never"')
+    assert never.search(run_flags)  # a missing image is an error, never a download
+    assert never.search((APP / "servers" / "lab_nginx.py").read_text())   # the lab nginx too (phase 4b)
     assert NGINX_IMAGE.startswith("nginx@sha256:") and len(NGINX_IMAGE.split("@sha256:")[1]) == 64
 
 
