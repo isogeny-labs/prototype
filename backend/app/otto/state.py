@@ -582,7 +582,11 @@ class OttoMixin:
         # Sandbox research (a prototype): a watched weakness that reads "Test proposed" says so because an installed
         # pack holds a proven test for it. That pack goes into the file with the list, whichever assessment's run made
         # it, so the file itself shows what the word rests on (and the verify command can check it).
+        # (Only where the list itself goes into the file: with the switch on, or where a person's stop or watch again is
+        #  kept. With the switch off and no such mark the file is exactly what it was.)
         watched = self.watch_list_evidence(plan_id)          # type: ignore[attr-defined]
+        if watched is not None and not (self.sandbox_on() or watched["marks"]):      # type: ignore[attr-defined]
+            watched = None
         proposed = {str(i).upper() for item in (watched or {}).get("items") or [] if item["test"]["key"] == "test_proposed" for i in item["ids"]}
         with self.db() as db:
             added = self._otto_checks(db, plan_id)

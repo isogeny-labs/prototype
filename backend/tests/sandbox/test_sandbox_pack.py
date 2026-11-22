@@ -227,5 +227,10 @@ def test_the_pack_a_watched_items_test_proposed_rests_on_is_in_the_evidence_file
         # (and with that pack taken out of the file, the same list does not hold: the word has to rest on something in the file)
         evidence["otto"]["packs"] = [e for e in evidence["otto"]["packs"] if e["pack"]["version"] != "2026.11.3"]
         assert not check.check_watch_list(evidence).ok
+        # with the switch off the file is what it always was: no Watch list in it, and no pack because of one
+        lab.set_sandbox(on=False)
+        plain = build_evidence(lab, plan)
+        assert "watch_list" not in plain
+        assert "2026.11.3" not in [e["pack"]["version"] for e in (plain.get("otto") or {}).get("packs") or []]
     finally:
         lab.stop()
