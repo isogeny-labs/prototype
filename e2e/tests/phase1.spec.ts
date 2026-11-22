@@ -117,7 +117,8 @@ test("Use demo file shows the three claims, labelled Demo data", async () => {
   await expect(claims.nth(1)).toContainText("localhost:8443 certificate is ECDSA P-256");
   await expect(claims.nth(2)).toContainText("signing component is acme-sign 1.4.2 implementing ECDSA P-256");
   await expect(page.getByText("Demo data", { exact: true })).toBeVisible();
-  await expect(claims.nth(0).getByText("from the file", { exact: true })).toBeVisible();
+  // (22 November 2026: where it came from, the claim rests on the file until Verify checks it)
+  await expect(claims.nth(0).getByTestId("source-tag")).toHaveText("From your file");
 
   // The demo server must really be up, or the results below would mean nothing.
   await expect(page.getByText("isn't running")).toHaveCount(0);
