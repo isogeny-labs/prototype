@@ -543,6 +543,15 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
 - **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
   also a rejection, before any check has run.
 
+## Limits of the source tags ("where it came from"; 22 November 2026)
+
+- **The tag is chosen, not measured.** One rule (`backend/app/present/source.py`) picks it from what the app already recorded about how a line was made: what a test runs on, how a claim was checked, what kind of system was measured, the label an answer already carries, what a fix came from. It checks nothing new and decides nothing; a result reads the same with or without it.
+- **"Observed live" means the address in your file, not production.** It says the line was read from the system at an address in the file that a person confirmed, with handshakes only. In the demo every such system is one of the app's own demo servers on this computer: it is "live" in the sense that it is the system the file names, not a copy made for the test.
+- **"Proven in the lab" in demo mode is a plain process.** In demo mode a program's copy runs as a local process, not in a locked-down container, and the item's sentence says so ("in demo mode (a plain process on this computer, not isolated)"); in isolated mode it says the container. A library's public copy runs only in isolated mode.
+- **Who can still connect carries one tag.** Its stand-ins connect to the test copy (the try, Proven in the lab) and, to compare, to the server as it is today with handshakes only. The row carries the try's tag, Proven in the lab, and its sentence says that the server today was also read.
+- **"Published" also covers "Doesn't apply".** An answer that a question does not apply to a kind of library comes from the knowledge base, which is built from what the library's maker publishes, so it reads Published; the app has not measured it.
+- **Where the tag is not.** The signed evidence file, the report and the verify command are as they were: the tag is words on the pages only, and every run in the file already records what it ran on. The Otto panel's cards and answers do not draw it in this version. There is no filter by source.
+
 ## Limits of phase 4e, first half (change impact: "What breaks if I make this change?"; 20 November 2026)
 
 ### What is real
