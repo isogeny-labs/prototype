@@ -151,8 +151,9 @@ class FixesMixin:
                      if fix["source_kind"] == "applied_change" else None)
             shown["source_tag"] = present_source.of_fix(fix, where)
             # (only a proof that ran and was believed; one that was not run, can't be trusted or did not finish has no tag)
-            if shown.get("proof"):
-                shown["proof"]["source_tag"] = present_source.of_proof(shown["proof"])
+            proof_source = present_source.of_proof(shown.get("proof"))
+            if proof_source is not None:
+                shown["proof"]["source_tag"] = proof_source
             # Phase 4e: where the part this fix changes is used (it reads; it decides and changes nothing)
             shown["impact"] = self._fix_impact(db, plan, fix, answered, impact_ctx)       # type: ignore[attr-defined]
             proposal = proposals.get((fix.get("proposal") or {}).get("id"))
