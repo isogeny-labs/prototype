@@ -68,6 +68,16 @@ def test_npm_gives_the_file_its_fingerprint_and_what_it_needs_and_an_install_scr
         registries.read_release("npm", "thing", "1.0.0", _npm(integrity="sha1-abc"), None)
 
 
+def test_an_npm_entry_whose_install_scripts_are_not_a_table_reads_the_same():
+    """What an entry says about install scripts is never read, whatever is there: a number in that place used to stop
+    the read with an error of the program's own, not a refusal."""
+    plain = registries.read_release("npm", "thing", "1.0.0", _npm(), None)
+    for odd in (7, True, ["postinstall"], "postinstall", None, {"install": 5}):
+        doc = json.loads(_npm())
+        doc["versions"]["1.0.0"]["scripts"] = odd
+        assert registries.read_release("npm", "thing", "1.0.0", json.dumps(doc).encode(), None) == plain
+
+
 def test_what_a_python_release_needs_is_read_and_a_condition_is_never_guessed():
     release_doc = json.dumps({"info": {"requires_dist": ["six (>=1.9.0)", "gmpy2 ; extra == 'gmpy2'", "typing ; python_version < '3.5'", 7]}}).encode()
     release = registries.read_release("pypi", "thing", "1.0.0", _pypi(), release_doc)

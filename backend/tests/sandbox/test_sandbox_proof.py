@@ -162,6 +162,25 @@ def test_a_run_on_a_sandbox_copy_must_be_in_an_image_a_pack_in_the_file_describe
         verify.check_runs([_run(tag, name="python-ecdsa")], [envelope()])
 
 
+def test_a_damaged_run_or_copy_set_is_a_plain_refusal_never_an_error_of_the_program():
+    """The file is data, and so is every part of it: a run that is no table, a version that is a list, a copy set whose
+    versions are not a list of tables. Each is refused in a sentence or read as usual."""
+    tag = envelope()["pack"]["advisories"][0]["test"]["sandbox"]["set"]["image"]["tag"]
+    assert "1 run on a sandbox copy" in verify.check_runs([7, "text", None, [tag], _run(tag)], [envelope()])[0]
+    for odd in ([], {}, ["2.0.0"], 2, None, True):
+        with pytest.raises(verify.SandboxProblem, match="does not hold the library version the run names"):
+            verify.check_runs([_run(tag, version=odd)], [envelope()])
+        with pytest.raises(verify.SandboxProblem, match="does not hold the library version the run names"):
+            verify.check_runs([_run(tag, name=odd)], [envelope()])
+    for odd in ("2.0.0", 7, None, ["2.0.0"], [7, None], {"version": "2.0.0"}):
+        bent = envelope()
+        bent["pack"]["advisories"][0]["test"]["sandbox"]["set"]["versions"] = odd
+        with pytest.raises(verify.SandboxProblem, match="does not hold the library version the run names"):
+            verify.check_runs([_run(tag)], [bent])
+    assert verify.check_runs([_run(tag)], [7, None, "text", {"pack": 7}, {"pack": {"schema": verify.PACK_SCHEMA_2, "advisories": [7, {"test": 7}]}},
+                                           envelope()])[0].startswith("Sandbox research: 1 run")
+
+
 def test_a_file_with_a_sandbox_run_must_have_its_otto_part():
     tag = envelope()["pack"]["advisories"][0]["test"]["sandbox"]["set"]["image"]["tag"]
     evidence = {"tests": [{"item_id": 1, "kind": "official_vectors", "runs": [_run(tag)]}]}

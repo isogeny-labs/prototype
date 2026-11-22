@@ -277,29 +277,28 @@ def read_release(registry: str, package: str, version: str, project_raw: bytes, 
         if chosen is None:
             raise RegistryError(f"PyPI lists no plain-Python file for {package} {version} (a wheel for every computer, or its source package).")
         release = _load(release_raw, registry) if release_raw is not None else {}
-        info = release.get("info") if isinstance(release.get("info"), dict) else {}
-        needs, unreadable = _pypi_needs(info.get("requires_dist"))
+        info = release.get("info")
+        needs, unreadable = _pypi_needs(info.get("requires_dist") if isinstance(info, dict) else None)
         day = next((d["published"] for d in read_versions(registry, project_raw) if d["version"] == version), None)
         return Release(registry, package, version, day, chosen, needs, unreadable)
     project = _load(project_raw, registry)
     entry = (project.get("versions") or {}).get(version) if isinstance(project.get("versions"), dict) else None
-    dist = entry.get("dist") if isinstance(entry, dict) and isinstance(entry.get("dist"), dict) else None
-    if dist is None:
+    if not isinstance(entry, dict) or not isinstance(entry.get("dist"), dict):
         raise RegistryError(f"npm lists no version {version} of {package}.")
+    dist = entry["dist"]
     url, integrity = dist.get("tarball"), dist.get("integrity")
     if not (isinstance(url, str) and isinstance(integrity, str) and integrity.startswith("sha512-") and len(integrity) < 200):
         raise RegistryError(f"npm gives no SHA-512 fingerprint for {package} {version}, so its file can't be checked.")
     name = url.rsplit("/", 1)[-1]
     if not _FILE.match(name):
         raise RegistryError(f"The file of {package} {version} has a name this version does not take.")
-    if entry.get("scripts") and any(k in entry["scripts"] for k in ("preinstall", "install", "postinstall")):
-        pass        # (an install script is never run here: the files are unpacked as data, and that is all)
+    # (whatever install scripts the entry names are never run here, and are not even read: the files are unpacked as data)
     needs, unreadable = [], []
     for helper, wanted in (entry.get("dependencies") or {}).items() if isinstance(entry.get("dependencies"), dict) else []:
         if isinstance(helper, str) and _NAME.match(helper) and isinstance(wanted, str) and len(wanted) <= 200:
             needs.append((helper, wanted))
         else:
             unreadable.append(str(helper)[:80])
-    times = project.get("time") if isinstance(project.get("time"), dict) else {}
-    return Release(registry, package, version, _day(times.get(version)), File(name, url, "tgz", None, sha512_base64=integrity[len("sha512-"):]),
+    times = project.get("time")
+    return Release(registry, package, version, _day(times.get(version) if isinstance(times, dict) else None), File(name, url, "tgz", None, sha512_base64=integrity[len("sha512-"):]),
                    needs, unreadable)

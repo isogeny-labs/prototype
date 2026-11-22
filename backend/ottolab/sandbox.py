@@ -240,7 +240,9 @@ def full_marks(known: dict, version: str, which: str | None = None) -> bool:
     """The fixed rule of the known-answer check: every fresh signature our reference library made was accepted, and
     every spoiled one was refused. (`which`: one of the two dummy controls, which must NOT get full marks.)"""
     counts = (known.get("dummies") or {}).get(version, {}).get(which) if which else (known.get("versions") or {}).get(version)
-    return bool(counts) and counts["accepted_valid"] == known["valid"] and counts["rejected_spoiled"] == known["spoiled"] and counts["no_answer"] == 0
+    if not counts:
+        return False
+    return counts["accepted_valid"] == known["valid"] and counts["rejected_spoiled"] == known["spoiled"] and counts["no_answer"] == 0
 
 
 def known_line(known: dict, version: str) -> str:
@@ -542,7 +544,8 @@ def propose_fix(lab, model: OttoModel, question_id: str, advisory: dict) -> str:
 def failed_control(st, hid: str) -> dict | None:
     """The first control of a judged trial that did not hold, as the harness recorded it."""
     decision = st.decision(hid)
-    for row in ((decision or (None, {}))[1].get("controls") or []):
+    body: dict = decision[1] if decision else {}
+    for row in (body.get("controls") or []):
         if row.get("passed") is False or row.get("degenerate"):
             return row
     return None
@@ -550,7 +553,8 @@ def failed_control(st, hid: str) -> dict | None:
 
 def killed_prediction(st, hid: str) -> dict | None:
     decision = st.decision(hid)
-    for row in ((decision or (None, {}))[1].get("effects") or []):
+    body: dict = decision[1] if decision else {}
+    for row in (body.get("effects") or []):
         if row.get("result") != "met":
             return row
     return None

@@ -176,24 +176,36 @@ def check_runs(runs: list[dict], envelopes: list[dict]) -> list[str]:
     sets: dict[str, dict] = {}
     for envelope in envelopes:
         pack = envelope.get("pack") if isinstance(envelope, dict) else None
-        for advisory in (pack.get("advisories") or []) if isinstance(pack, dict) and pack.get("schema") == PACK_SCHEMA_2 else []:
-            block = (advisory.get("test") or {}).get("sandbox") if isinstance(advisory, dict) else None
+        advisories = pack.get("advisories") if isinstance(pack, dict) and pack.get("schema") == PACK_SCHEMA_2 else None
+        for advisory in advisories if isinstance(advisories, list) else []:
+            test = advisory.get("test") if isinstance(advisory, dict) else None
+            block = test.get("sandbox") if isinstance(test, dict) else None
             record = block.get("set") if isinstance(block, dict) else None
-            if isinstance(record, dict) and isinstance(record.get("image"), dict):
-                sets[str(record["image"].get("tag"))] = record
+            if not isinstance(record, dict):
+                continue
+            image = record.get("image")
+            if isinstance(image, dict) and isinstance(image.get("tag"), str):
+                sets[image["tag"]] = record
     counted = 0
     for run in runs:
-        record = run.get("record") if isinstance(run.get("record"), dict) else run
+        if not isinstance(run, dict):
+            continue
+        inner = run.get("record")
+        record = inner if isinstance(inner, dict) else run
         images = sandbox_images(record)
         if not images:
             continue
-        component = record.get("component") if isinstance(record.get("component"), dict) else {}
+        named = record.get("component")
+        component = named if isinstance(named, dict) else {}
+        ran = (component.get("name"), component.get("version"))
         for image in images:
             described = sets.get(image)
             if described is None:
                 raise SandboxProblem(f"a run in the file ran in the sandbox image {_plain(image, 120)}, and no test pack in the file says what "
                                      "that image holds.")
-            if component.get("name") != described.get("library") or component.get("version") not in {v.get("version") for v in described.get("versions") or []}:
+            held = described.get("versions")
+            versions = [v.get("version") for v in held if isinstance(v, dict)] if isinstance(held, list) else []
+            if not isinstance(ran[0], str) or not isinstance(ran[1], str) or ran[0] != described.get("library") or ran[1] not in versions:
                 raise SandboxProblem(f"a run in the file ran in the sandbox image {_plain(image, 120)}, which does not hold the library version "
                                      "the run names.")
         counted += 1

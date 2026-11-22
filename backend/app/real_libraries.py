@@ -155,7 +155,7 @@ def known(name: object) -> dict | None:
 
 def is_sandbox(name: object, version: object) -> bool:
     found = library(name, version)
-    return bool(found) and bool(found.get("sandbox"))
+    return found is not None and bool(found.get("sandbox"))
 
 
 def family_label(family: object) -> str:

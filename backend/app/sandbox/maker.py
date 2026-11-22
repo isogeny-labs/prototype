@@ -29,6 +29,7 @@ import tempfile
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 from app import real_libraries
 from app.config import COMPONENTS_DIR, DEMO_DIR, PYTHON_BASE_IMAGE
@@ -42,7 +43,7 @@ MAX_HELPERS, MAX_DEPTH = 30, 4
 MAX_UNPACKED_BYTES, MAX_UNPACKED_FILES = 64 * 1024 * 1024, 20000
 LANGUAGE_FILES = {"python": ("asking.py", "asking_code.py"), "node": ("asking.js", "asking_code.js")}
 # Our own asking code for the four families: the whole adapter contract (it can also sign, so the speed test runs).
-OURS = {"python-ecdsa": {"file": "python-ecdsa/ecdsa_adapter.py", "language": "python", "commands": ["keygen", "sign", "verify", "info", "bench"]},
+OURS: dict[str, dict[str, Any]] = {"python-ecdsa": {"file": "python-ecdsa/ecdsa_adapter.py", "language": "python", "commands": ["keygen", "sign", "verify", "info", "bench"]},
         "elliptic": {"file": "elliptic/elliptic_adapter.js", "language": "node", "commands": ["keygen", "sign", "verify", "info", "bench"]}}
 PYTHON = ["/usr/local/bin/python", "-I", "-X", "pycache_prefix=/scratch/pyc"]
 NODE = ["/usr/local/bin/node"]
@@ -243,7 +244,7 @@ def _python_tree(file: dict, data: bytes) -> tuple[dict[PurePosixPath, bytes], d
             module = len(rel.parts) == 1 and rel.suffix == ".py" and rel.name not in ("setup.py", "conftest.py")
             if package_dir or module:
                 tree[rel] = content
-    says = {"name": None, "version": None}
+    says: dict[str, str | None] = {"name": None, "version": None}
     for line in (meta or b"").decode("utf-8", "replace").splitlines()[:200]:
         if line.startswith("Name: ") and says["name"] is None:
             says["name"] = line[6:].strip()[:120]
@@ -258,7 +259,7 @@ def _python_tree(file: dict, data: bytes) -> tuple[dict[PurePosixPath, bytes], d
 
 def _node_tree(file: dict, data: bytes) -> tuple[dict[PurePosixPath, bytes], dict]:
     inside = _strip_top(_members(data, file["file"]))
-    says = {"name": None, "version": None}
+    says: dict[str, str | None] = {"name": None, "version": None}
     try:
         package = json.loads(inside[PurePosixPath("package.json")].decode("utf-8"))
         if isinstance(package, dict):
@@ -352,7 +353,7 @@ def make_set(*, root: Path, source, library: str, registry: str, package: str, w
         if ours is None or ours["language"] != language:
             raise CopyError(f"the app has no asking code of its own for {library}")
         source_text = (real_libraries.REAL_DIR / ours["file"]).read_text(encoding="utf-8")
-        asking_record = {"kind": "ours", "author": "Isogeny Labs (the app's own wrapper for this library)", "language": language,
+        asking_record: dict[str, Any] = {"kind": "ours", "author": "Isogeny Labs (the app's own wrapper for this library)", "language": language,
                          "file": ours["file"], "source": source_text, "commands": list(ours["commands"])}
     else:
         source_text = str(asking["source"])

@@ -18,6 +18,7 @@ The library's public files are fetched once (tools/research_demo.py does it) and
 """
 from __future__ import annotations
 
+import importlib
 import json
 import sys
 import tempfile
@@ -31,7 +32,10 @@ from app.config import REPO_ROOT  # noqa: E402
 from app.otto import lookup, model  # noqa: E402
 from app.sandbox import maker, registries  # noqa: E402
 from ottolab import asking, prompts  # noqa: E402
-from tools import research_demo  # noqa: E402
+
+# (loaded by name: the type checker reads tools/ as loose scripts, and an import statement here would make it find
+# research_demo.py a second time under another name and stop)
+research_demo = importlib.import_module("tools.research_demo")
 
 RECORDED = REPO_ROOT / "research" / "recorded"
 AT = "2026-11-22T09:30:00Z"

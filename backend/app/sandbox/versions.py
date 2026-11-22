@@ -11,6 +11,7 @@ Three questions:
 from __future__ import annotations
 
 import re
+from typing import cast
 
 from app.knowledge.versions import key as version_key
 from app.knowledge.versions import read_version
@@ -43,8 +44,8 @@ def choose(ranges: list[dict], releases: list[dict], yours: list[str]) -> dict:
     "after_last_affected": bool}. `ranges` are the advisory's own ([{"introduced", "fixed", "last_affected"}]), `releases`
     the registry's list, `yours` the versions the assessment names. Raises NoVersions with the reason."""
     listed = released(releases)
-    keys = [order(r["version"]) for r in listed]
-    mine = [order(v) for v in yours if order(v) is not None]
+    keys = cast("list[tuple]", [order(r["version"]) for r in listed])         # (released() keeps only versions that have a key)
+    mine = cast("list[tuple]", [order(v) for v in yours if order(v) is not None])
 
     def holds(r: dict, key: tuple) -> bool:
         low = order(r.get("introduced")) if r.get("introduced") not in ("0", "", None) else None
