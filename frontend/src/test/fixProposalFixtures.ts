@@ -1,5 +1,5 @@
 // Phase 5c, second part: Otto's fixes as the Fixes step shows them. A library's fix has two proof rows ("Proven on
-// public copies", "Proven on your system") in place of the one Proof line, and every fix of Otto's is a proposal a
+// public copies", "Proven in this assessment") in place of the one Proof line, and every fix of Otto's is a proposal a
 // person accepts or rejects. Every word here stands in for the backend's (backend/app/present/otto.py and fixes.py).
 import type { AdvisoryLedger, FixDetail, FixProofRow, FixesView, OttoProposal } from "../api";
 import { CODE_FIX, fixGroups, fixesViews, tlsFix } from "./fixesFixtures";
@@ -9,7 +9,7 @@ const t = (v: string) => ({ t: "text" as const, v });
 const m = (v: string) => ({ t: "mono" as const, v });
 
 export const PUBLIC_LABEL = "Proven on public copies";
-export const HERE_LABEL = "Proven on your system";
+export const HERE_LABEL = "Proven in this assessment";
 
 /** One proof row as the view sends it: the row's own word and tone, its sentence, its links and (first row) the ledger. */
 export function proofRow(
@@ -127,7 +127,7 @@ export function updateFix(over: Partial<FixDetail> = {}): FixDetail {
       ],
       server_line: null,
     },
-    proof: { state: "none", badge: null, text: "In the two rows below: on public copies, and on your system.", muted: null },
+    proof: { state: "none", badge: null, text: "In the two rows below: on public copies, and in this assessment.", muted: null },
     proof_rows: [publicPassed, hereNotYet],
     proposal: updateProposal(),
     approvers: { text: "Whoever looks after this software, outside this app.", options: null, rows: null, footnote: null },

@@ -11081,7 +11081,7 @@
           "ledger"
         ],
         "title": "FixProofRow",
-        "description": "One of the two proof rows of a library's fix: \"Proven on public copies\" or \"Proven on your system\"."
+        "description": "One of the two proof rows of a library's fix: \"Proven on public copies\" or \"Proven in this assessment\"."
       },
       "FixSectionChange": {
         "properties": {

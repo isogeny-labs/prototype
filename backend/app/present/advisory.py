@@ -64,10 +64,10 @@ def fix_words(comp: str, fix: dict | None) -> str:
     never in a sentence of this app's that the pack might not bear out."""
     name = comp.split(" ")[0]
     if fix and fix.get("state") in ("proven", "not_proven") and fix.get("kind") == "update":
-        # The same row as in Fixes, word for word. Whether it is proven on your system is said where the fix is.
+        # The same row as in Fixes, word for word. Whether it is proven in this assessment is said where the fix is.
         public = str(fix.get("public_line") or "").strip()
         return (f"Proposed: update {fix['library']} to {fix['version']}, the version its publisher names as fixed."
-                + (f" {public}" if public else "") + " Fixes shows whether it is proven on your system: update the library, then press "
+                + (f" {public}" if public else "") + " Fixes shows whether it is proven in this assessment: update the library, then press "
                 "“Retest new version” to rerun the same locked tests on the updated version.")
     if fix and fix.get("state") == "own_code":
         return (f"Open Fixes: it shows what can be offered for {name}. A written change is offered only when it can be proven on "

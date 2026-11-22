@@ -163,7 +163,7 @@ def settings_view(*, installed: list, update, refused: list[dict], scan_line: st
 
 # ---------------------------------------------------------------- a library fix's two proof rows (the same words everywhere)
 
-PUBLIC_LABEL, HERE_LABEL = "Proven on public copies", "Proven on your system"
+PUBLIC_LABEL, HERE_LABEL = "Proven on public copies", "Proven in this assessment"
 NOT_YET_TEXT = "Update the library, then press Retest."
 # What stands behind the second row, said plainly wherever the row is shown in full: a retest reruns the locked tests
 # on a public copy of the updated version. The app has no connector to the system a customer runs (a later phase).

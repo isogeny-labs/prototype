@@ -863,7 +863,7 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         "labels": [OTTO_FIX_LABEL] if (fix.get("otto_fix") or {}).get("kind") == "update" else [], "is_demo": is_demo,
         "what": {"label": "What it suggests", "paragraphs": [[_t(words["what"])]], "server_line": None},
         "proof": {"state": "none", "badge": None, "muted": None,
-                  "text": ("In the two rows below: on public copies, and on your system." if proof_rows else
+                  "text": ("In the two rows below: on public copies, and in this assessment." if proof_rows else
                            "None. This suggestion is text only: the app has not applied it or tested it.")},
         "proof_rows": proof_rows,
         "pull_request": None, "approvers": {"text": approves, "options": None, "rows": None, "footnote": None},

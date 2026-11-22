@@ -281,7 +281,7 @@ come next. The rules are in [docs/SPEC.md](docs/SPEC.md), section 7f.
   1.4.3, so it is registered as a demo program of its own, `acme-sign 1.4.3-otto`. Where Otto is not installed, the
   fix template is offered instead.) For a real library the fix is labelled "From Otto": its publisher's fixed
   version with the quoted source, and two rows, "Proven on public copies" (the trial before the pack shipped) and
-  "Proven on your system" ("Not yet" until a retest on the updated version has run here).
+  "Proven in this assessment" ("Not yet" until a retest on the updated version has run here).
 - **Everywhere else.** The Overview counts what is "Waiting for you"; Import says how many checks may apply;
   Migration and Dependencies show the proposals (each marked "From Otto") for the plan and for libraries that an
   advisory names. Each proposal is decided by a person; nothing runs without a click.

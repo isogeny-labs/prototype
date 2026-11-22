@@ -64,7 +64,7 @@ const connect = () => inSummary().getByRole("button", { name: "Connect demo code
 const listRow = (fixId: string) => screen.getAllByTestId("fix-row").find((r) => r.getAttribute("data-key") === fixId)!;
 
 describe("Fixes, a library's fix from Otto: the two proof rows", () => {
-  it("shows two plain rows in place of the Proof line: Passed on public copies, Not yet on your system", async () => {
+  it("shows two plain rows in place of the Proof line: Passed on public copies, Not yet in this assessment", async () => {
     await open(fixesWith([updateFix(), tlsFix]), UPDATE_FIX);
     // The rows are named by the view; there is no row called Proof, and nothing reads "None".
     expect(rowNames()).toEqual(["What it suggests", PUBLIC_LABEL, HERE_LABEL, "Who approves"]);
@@ -339,7 +339,7 @@ describe("the fixtures' row words", () => {
   it("are the words the backend sends", () => {
     expect([publicPassed.line, hereNotYet.line]).toEqual([
       "Proven on public copies: Passed. 6.5.6 fails the advisory check; 6.5.7 passes.",
-      "Proven on your system: Not yet. Update the library, then press Retest.",
+      "Proven in this assessment: Not yet. Update the library, then press Retest.",
     ]);
   });
 });

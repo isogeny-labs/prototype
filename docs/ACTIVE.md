@@ -33,7 +33,7 @@ From the overnight run (PR #7, since merged by Kevin): what it left for later (t
 From phase 5c (details in `docs/HANDOFF.md` and in the doc "Phase 5c report: Otto in Evidence Lab", under "Yours to decide"). None blocked the merge of PR #6; each is the owner's to decide:
 
 - "Who" is recorded as "You", the name approvals already record. A sign-off at closing takes a typed name, so the two differ; a typed name asked once would be a small change.
-- The row name "Proven on your system": the row is a retest on a public copy of the updated version (the app does not connect to the system a customer runs), and a note under the row says so. Another name, for example "Proven in this assessment", may be wanted.
+- (Decided 22 November 2026.) The row once named "Proven on your system" is now "Proven in this assessment" (Kevin's decision C, with the source tags): the row is a retest on a public copy, and its tag reads Proven in the lab.
 - A library's fix whose retest passed still counts as Open on Fixes, because its status word stays "Text only".
 - Plan changes come from one rule (a failed advisory check on a signing program whose status is measured). "Measured" on Dependencies counts only this assessment's own check on the same library and version. A rejected fix of Otto's has no stand-in.
 - The fast test set is at the five-minute limit on a slow day: allow parallel test runs (pytest-xdist, a new dev-only package), or move older flows to the slow set.

@@ -1014,7 +1014,7 @@ test("isolated mode: a real library's fix from Otto has two proof rows, and a re
     const result = await openResult(page, MISSING_ZERO_CHECK);
     await expect(result.getByTestId("fix-line-row")).toHaveText([
       "Proven on public copies: Passed. 6.5.6 fails the advisory check; 6.5.7 passes.",
-      "Proven on your system: Not yet. Update the library, then press Retest."]);
+      "Proven in this assessment: Not yet. Update the library, then press Retest."]);
     await shots(page, "9-02-real-library-evidence-fix-line", { panel: true });
     await page.getByTestId("detail-panel").getByRole("button", { name: "Close details" }).click();
 

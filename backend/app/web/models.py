@@ -2509,7 +2509,7 @@ class AdvisoriesView(Shape):
 
 
 class FixProofRow(Shape):
-    """One of the two proof rows of a library's fix: "Proven on public copies" or "Proven on your system"."""
+    """One of the two proof rows of a library's fix: "Proven on public copies" or "Proven in this assessment"."""
 
     key: Literal["public", "here"]
     label: str

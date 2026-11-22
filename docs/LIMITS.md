@@ -500,7 +500,8 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   three such libraries (openjdk 17.0.2, python-ecdsa 0.13.2, elliptic 6.5.6) and the scanner file names none of
   them, so all three read "not yet checked", each with that reason. The trial on public copies is not counted as a
   measurement of your library: it is said where the fix is.
-- **"Proven on your system" is a retest on a public copy.** The row's name is the owner's wording. What stands
+- **"Proven in this assessment" is a retest on a public copy.** Until 22 November 2026 the row was called "Proven on
+  your system"; Kevin renamed it, because that name claimed more than the row shows. What stands
   behind it: this assessment's own retest of the same locked tests on the fixed version, which the app runs on a
   public copy of that version in its own container. The app has no connector to the system a customer runs, and
   the row says so right under its sentence, at the size of the text ("This row is about a public copy, not the
@@ -647,7 +648,7 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   list has none.
 - **The try is Retest new version, and it is a real retest.** It reruns the assessment's locked tests for that
   library on the public copy of the new version, and its results become this assessment's newest results "after":
-  a finding that passes can read as closed, "Proven on your system" reads the run, and an accepted update for the
+  a finding that passes can read as closed, "Proven in this assessment" reads the run, and an accepted update for the
   library can then no longer be undone. The card says so before Confirm. It is offered only where Evidence would
   offer the same retest: the scanner file names the library, the app holds a public copy of exactly that version
   (the version as asked: "1.4.3-otto" is another program than "1.4.3"), nothing else is running, the assessment is
