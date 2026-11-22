@@ -6,6 +6,7 @@ no "secure", no score."""
 from __future__ import annotations
 
 from app.knowledge.versions import read_version
+from app.present import source as present_source
 
 QUESTIONS = (
     ("ml_kem_768", "ML-KEM-768 key exchange", "Key exchange"),
@@ -65,7 +66,9 @@ def _cell(row: dict, q: str) -> dict:
             "first_version": a["first_version"],
             "first_version_words": first_version_words(q, a["first_version"], row["library_label"] or row["name"]) if a["answer"] == "no" else None,
             "state": a["state"], "state_words": STATE_WORDS[a["state"]] + (f" ({a['state_reason']})" if a["state_reason"] and a["state"] != "not_offered" else ""),
-            "agreement": a["agreement"], "agreement_words": agreement}
+            "agreement": a["agreement"], "agreement_words": agreement,
+            # where it came from (22 November 2026), by the label it already carries; it decides nothing
+            "source_tag": present_source.of_answer(a["label"], a["answer"])}
 
 
 SHORT_QUESTIONS = {"ml_kem_768": "Key exchange", "x25519mlkem768": "Hybrid", "ml_dsa_65": "Signatures"}
@@ -173,7 +176,7 @@ def _row(row: dict, state: dict, busy: bool, isolated: bool) -> dict:
     for c in cells:
         c["no_reason"] = no_reason(row, c)
     return {"id": row["id"], "label": row["label"], "via_words": _via_words(row), "library": row["library_label"],
-            "cells": cells, "answers_short": answers_short(cells), "blocks": blocks, "measure": measure,
+            "cells": cells, "answers_short": answers_short(cells), "blocks": blocks, "measure": measure, "source_tag": present_source.of_library(),
             "same_copy_note": note, "lookups": _lookup_evidence(row), "measurement": measurement,
             "job": (m or {}).get("job") if running else None}
 

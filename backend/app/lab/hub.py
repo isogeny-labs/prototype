@@ -16,6 +16,7 @@ from app.servers import lab_nginx
 from app.servers import lab_servers
 from app.servers import migration_servers
 from app.present import plain
+from app.present import source as present_source
 from app.present import migration as present_migration
 from app import real_libraries
 from app.run import runner
@@ -74,7 +75,9 @@ def import_json(i: ImportRow, settings: list[dict] | None = None) -> dict:
     return {"id": i.id, "filename": i.filename, "format": i.format, "is_demo": i.is_demo,
             "claims": [claim_json(c) for c in i.claims], "addresses": [address_json(a) for a in i.addresses],
             "skipped": [{"name": s.name, "what": s.what, "source": s.source, "reason": s.reason} for s in i.skipped],
-            "settings_title": present_migration.FILE_SETTINGS_TITLE, "settings": settings or []}
+            "settings_title": present_migration.FILE_SETTINGS_TITLE, "settings": settings or [],
+            # where a claim came from (22 November 2026): the file; Verify then checks it
+            "claim_source_tag": present_source.of_claim(i.filename)}
 
 
 # Phase 5c: Verify is unchanged (its trust gap is the next phase), and Otto proposes nothing on it yet. The page says so.
@@ -84,8 +87,11 @@ VERIFY_OTTO_NOTE = ("Nothing is proposed here yet. In this version the proposed 
 
 def run_json(r: VerifyRunRow) -> dict:
     # A row stored before phase 3a-fixes has no plain sentence or notes of its own: it gets a plain fallback.
+    # (since 22 November 2026 each result also says where it came from: live for a server, lab for a program, the file
+    # where it couldn't be checked; worked out on every read, never stored)
     results = [{**res, "summary": res.get("summary") or plain.verify_fallback(res.get("result", ""), res.get("found", "")),
-                "also_noticed": res.get("also_noticed") or []} if isinstance(res, dict) else res for res in r.results or []]
+                "also_noticed": res.get("also_noticed") or [], "source_tag": present_source.of_verify(res)}
+               if isinstance(res, dict) else res for res in r.results or []]
     return {"id": r.id, "import_id": r.import_id, "started_at": iso(r.started_at), "finished_at": iso(r.finished_at),
             "results": results, "otto_note": VERIFY_OTTO_NOTE}
 

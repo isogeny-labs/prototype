@@ -16,6 +16,7 @@ from sqlalchemy import select
 from app.fixes import changes
 from app.run import components
 from app.present import changes as present_changes
+from app.present import source as present_source
 from app.present import fixes as present_fixes
 from app.present import otto as present_otto
 from app.ledger import groups as G
@@ -143,6 +144,14 @@ class FixesMixin:
             shown.setdefault("change_box", None)
             shown.setdefault("advisories", None)   # phase 4c: only a text fix for a real library carries any
             shown.setdefault("proof_rows", None)   # phase 5c: only a library's fix from Otto has the two rows
+            # Where it came from (22 November 2026): the finding it answers; its proof line carries its own (a proof runs the
+            # changed code on this computer), and so do its two proof rows and its try. It decides nothing.
+            where = (answered[fix["id"]][1] if fix["id"] in answered else
+                     next((c["address"] for c in tls_changes if c["key"] == fix.get("change_key")), None)
+                     if fix["source_kind"] == "applied_change" else None)
+            shown["source_tag"] = present_source.of_fix(fix, where)
+            if shown.get("proof") and (shown["proof"].get("state") in ("passed", "failed")):
+                shown["proof"]["source_tag"] = present_source.lab_proof()
             # Phase 4e: where the part this fix changes is used (it reads; it decides and changes nothing)
             shown["impact"] = self._fix_impact(db, plan, fix, answered, impact_ctx)       # type: ignore[attr-defined]
             proposal = proposals.get((fix.get("proposal") or {}).get("id"))

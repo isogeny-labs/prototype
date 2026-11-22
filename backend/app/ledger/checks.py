@@ -21,6 +21,7 @@ from app.errors import NotFound
 from app.lab.testlab import HIDDEN_ORIGINS, WATCH_PHASES, read_spec
 from app.ledger import groups as G
 from app.names import join_and
+from app.present import source as present_source
 from app.present.results import status_view
 
 ORIGINS = {
@@ -441,23 +442,31 @@ class LedgerMixin:
                               "answers_short": r.get("answers_short") or "", "blocks": r.get("blocks") or [],
                               "measured": bool(r.get("measurement")), "lookups": r.get("lookups") or [],
                               "cells": r.get("cells") or [],
-                              "state": "in_progress" if r.get("job") else ("done" if answered or r.get("measurement") else "open")})
+                              "state": "in_progress" if r.get("job") else ("done" if answered or r.get("measurement") else "open"),
+                              "source_tag": present_source.of_answers(r.get("cells") or [])})
         groups = []
         for key in G.GROUP_KEYS:
             in_group = [r for r in rows if r["group"] == key]
             states = [r["state"] for r in in_group]
+            # Where they came from (22 November 2026), counted over what the group's counts count: a claim not verified
+            # yet and a system not measured yet rest only on the file; a check of ours not run yet has no tag.
+            sources = [present_source.of_check_row(r) for r in in_group]
+            unchecked = 0
             if key == "verification" and not led["verified"]:
                 states = ["open"] * led["claims"]
+                sources, unchecked = [], led["claims"]
             if key == "migration":
                 with self.db() as db:
                     plan = self._plan(db, plan_id)
                     every = self._systems(self._claims(db.get(ImportRow, plan.import_id)))   # type: ignore[attr-defined]
                 measured = {r.get("system_key") for r in in_group if r["id"].startswith("system-")}
                 states += ["open" for s in every if s["key"] not in measured]
+                unchecked = sum(1 for s in every if s["key"] not in measured)
             if key == "dependencies" and libraries:
                 # One rule on every page (Checks, Evidence, the Overview): the Dependencies group counts the list's
                 # libraries by the rule above, so the same group never shows two different counts.
                 states = [lib["state"] for lib in libraries]
+                sources = [lib["source_tag"] for lib in libraries]
             empty = None
             if not in_group:
                 empty = (G.EMPTY_DEPENDENCIES_LISTED if key == "dependencies" and led["dependencies"]["listed"]
@@ -467,7 +476,8 @@ class LedgerMixin:
                 n = led["dependencies"]["answered"]
                 note = (f"{n} {'library was' if n == 1 else 'libraries were'} answered from release notes or a measurement; "
                         "every answer is on Dependencies.")
-            groups.append({**G.group_frame(key), "counts": G.counts(states), "empty_text": empty, "note": note,
+            groups.append({**G.group_frame(key), "counts": G.counts(states), "source_counts": present_source.counted(sources, unchecked),
+                           "empty_text": empty, "note": note,
                            "started_on": G.STARTED_ON[key], "rows": [self._public_row(r) for r in in_group],
                            "parts": self._encryption_parts(plan_id, in_group) if key == "encryption" else None})
         self._mark_same_measurements(groups)
@@ -489,6 +499,7 @@ class LedgerMixin:
         out["measures"] = _measure_key(row)
         if row.get("pq_claim"):
             out["pq_claim"] = True
+        out["source_tag"] = present_source.of_check_row(row)    # where it came from (22 November 2026); it decides nothing
         return out
 
     @staticmethod

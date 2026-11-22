@@ -35,6 +35,7 @@ export type ResultCode =
   | "not_offered";
 export type Tone = "pass" | "fail" | "neutral" | "warn";
 export type JobStatus = "not_run" | "waiting" | "running" | "done";
+export type SourceKey = "live" | "lab" | "file" | "published";
 export type RichText = RichPart[];
 export type EvidenceBlock = EvidenceBlockTable | EvidenceBlockText;
 export type FixStatusKey =
@@ -229,6 +230,26 @@ export interface AdvisoryResultCell {
   label: string;
   tone: "pass" | "fail" | "neutral" | "warn";
   text: string | null;
+  /**
+   * 22 November 2026: where the result came from; null where there is none.
+   */
+  source_tag?: Source | null;
+}
+/**
+ * The one tag beside a result's, a status's or a fix's own word: Observed live, Proven in the lab, From your file or
+ * Published. It decides nothing and changes no result.
+ */
+export interface Source {
+  key: "live" | "lab" | "file" | "published";
+  label: string;
+  /**
+   * What the tag means, in one line, wherever it is shown.
+   */
+  meaning: string;
+  /**
+   * One sentence about this item (shown in its panel), or null.
+   */
+  note?: string | null;
 }
 export interface AdvisoryPanel {
   sentence: string;
@@ -424,6 +445,10 @@ export interface AdvisoryHereResult {
    * After a retest: which version this result is of, and what the first run read.
    */
   ran_on?: string | null;
+  /**
+   * 22 November 2026: where this result came from (Proven in the lab).
+   */
+  source_tag?: Source | null;
 }
 export interface AdvisoryFix {
   title: string;
@@ -556,6 +581,10 @@ export interface ApplyView {
   paragraphs: RichPart[][];
   differences: string[];
   history: string[];
+  /**
+   * 22 November 2026: Observed live once the server was measured again after Apply or Roll back; null while it is measured, or when Apply was refused.
+   */
+  source_tag?: Source | null;
 }
 export interface ChangeBadge {
   label: string;
@@ -564,6 +593,7 @@ export interface ChangeBadge {
 export interface RichPart {
   t: "text" | "mono" | "tag" | "time" | "demo";
   v: string;
+  s?: ("live" | "lab" | "file" | "published") | null;
 }
 export interface ApprovalRowView {
   id: string;
@@ -807,6 +837,10 @@ export interface Import {
    * Phase 5c: "N checks may apply", marked From Otto. Nothing runs on import.
    */
   otto?: ImportOtto | null;
+  /**
+   * 22 November 2026: where every claim on this page came from (From your file).
+   */
+  claim_source_tag?: Source | null;
 }
 export interface Claim {
   id: number;
@@ -866,6 +900,10 @@ export interface OverviewGroup {
   label: string;
   question: string;
   checks: StateCounts | null;
+  /**
+   * 22 November 2026: where the group's items came from, counted as Checks counts them (Observed live, Proven in the lab, ...).
+   */
+  source_counts?: SourceCount[];
   fixes: StateCounts | null;
   facts: OverviewFact[];
   empty_text: string | null;
@@ -874,6 +912,14 @@ export interface StateCounts {
   open: number;
   in_progress: number;
   done: number;
+}
+/**
+ * How many of a group's checks rest on one source (the Overview's line).
+ */
+export interface SourceCount {
+  key: "live" | "lab" | "file" | "published";
+  label: string;
+  count: number;
 }
 export interface OverviewFact {
   label: string;
@@ -1573,6 +1619,10 @@ export interface ChangeResultSide {
    * where that run's evidence is shown
    */
   link: ItemLink | null;
+  /**
+   * 22 November 2026: where this run came from (a copy of the code: Proven in the lab).
+   */
+  source_tag?: Source | null;
 }
 export interface ChangePart {
   /**
@@ -1697,6 +1747,14 @@ export interface TryView {
    * Phase 4e: who can still connect; null for a try made before it.
    */
   clients?: TryClients | null;
+  /**
+   * 22 November 2026: where the try came from (Proven in the lab: test copies).
+   */
+  source_tag?: Source | null;
+  /**
+   * 22 November 2026: one per column: none for the label column, Observed live for the server as measured before, Proven in the lab for each copy.
+   */
+  column_source_tags?: (Source | null)[];
 }
 export interface RowStatus {
   status: "not_run" | "waiting" | "running" | "done";
@@ -1783,6 +1841,10 @@ export interface MeasurementResult {
    * Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result.
    */
   otto?: OttoResultBlock | null;
+  /**
+   * Where it came from (22 November 2026): what this rests on; null where nothing was observed or proven (a check not run yet, or that couldn't run).
+   */
+  source_tag?: Source | null;
 }
 export interface LabResultControl {
   outcome: "as_expected" | "not_as_expected" | "errored" | "not_run";
@@ -2076,6 +2138,10 @@ export interface CheckRow {
    * The 5c fixes: the older id of this row ("retest-12"), which still opens it while this is the newest block of its test.
    */
   alias?: string | null;
+  /**
+   * Where it came from (22 November 2026): what this rests on; null where nothing was observed or proven (a check not run yet, or that couldn't run).
+   */
+  source_tag?: Source | null;
 }
 /**
  * Open where it started.
@@ -2211,6 +2277,10 @@ export interface LabResult {
    * Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result.
    */
   otto?: OttoResultBlock | null;
+  /**
+   * Where it came from (22 November 2026): what this rests on; null where nothing was observed or proven (a check not run yet, or that couldn't run).
+   */
+  source_tag?: Source | null;
 }
 export interface Result {
   claim_id: number;
@@ -2227,6 +2297,10 @@ export interface Result {
    * Things the check saw that the file didn't ask about. Side notes, never a result. Often empty.
    */
   also_noticed: string[];
+  /**
+   * Where it came from (22 November 2026): Observed live for a server, Proven in the lab for a signing program, From your file where it couldn't be checked.
+   */
+  source_tag?: Source | null;
 }
 export interface Evidence {
   title: string;
@@ -2276,6 +2350,10 @@ export interface CheckGroup {
   note: string | null;
   started_on: StartedOn;
   rows: CheckRow[];
+  /**
+   * 22 November 2026: how many of the group's items rest on each source (the Overview's line); the ones with none left out.
+   */
+  source_counts?: SourceCount[];
   /**
    * Checks of another group linked from this group's foot ("Also relates to this group").
    */
@@ -2383,6 +2461,10 @@ export interface LibraryEvidenceRow {
   measured: boolean;
   state: "open" | "in_progress" | "done";
   /**
+   * Where its answers came from (22 November 2026), taken together.
+   */
+  source_tag?: Source | null;
+  /**
    * Each lookup's source, quoted line and date checked.
    */
   lookups?: DependencyLookup[];
@@ -2441,6 +2523,10 @@ export interface DependencyCell {
    * Phase 5b: under a No, the reason in one line ("OpenSSL added this in 3.5.0; you have 3.0.22.").
    */
   no_reason?: string | null;
+  /**
+   * Where this answer came from (22 November 2026): Published (release notes), Proven in the lab (a public copy), or From your file (no answer yet).
+   */
+  source_tag?: Source | null;
 }
 export interface Compare {
   from_id: number;
@@ -2626,6 +2712,10 @@ export interface DependencyRow {
    * Phase 5b: the answers in a few words, for the compact table ("No to all three").
    */
   answers_short?: string;
+  /**
+   * Where the library came from (22 November 2026): From your file (the list names it).
+   */
+  source_tag?: Source | null;
   blocks: DependencyBlock[];
   measure: DependencyMeasure;
   same_copy_note: string | null;
@@ -2911,6 +3001,10 @@ export interface FixDetail {
    * Phase 4e: what this change touches; null for Change watch's entry.
    */
   impact?: Impact | null;
+  /**
+   * 22 November 2026: where the finding this fix answers came from (Observed live, Proven in the lab or From your file); its proof lines carry their own.
+   */
+  source_tag?: Source | null;
 }
 export interface FixStatus {
   key: "not_connected" | "proving" | "ready" | "failed" | "waiting" | "ready_to_merge" | "merged" | "text_only";
@@ -2936,6 +3030,10 @@ export interface FixDetailProof {
    * "Not offered yet."
    */
   muted: string | null;
+  /**
+   * 22 November 2026: Proven in the lab once a proof has passed or failed; null otherwise.
+   */
+  source_tag?: Source | null;
 }
 export interface FixDetailProofBadge {
   label: string;
@@ -3170,6 +3268,10 @@ export interface FixProofRow {
    * Under the second row: what a retest here runs on (a public copy, not your system).
    */
   note?: string | null;
+  /**
+   * 22 November 2026: Proven in the lab (both rows are runs on public copies); null while the row reads Not yet.
+   */
+  source_tag?: Source | null;
 }
 /**
  * "Passed", "Not proven" or "Not yet"
@@ -3571,6 +3673,10 @@ export interface MigrationSystem {
    * Phase 5c: Otto's proposed changes to this system's plan.
    */
   otto?: OttoPlanBlock | null;
+  /**
+   * Where its status came from (22 November 2026): Observed live for a server, Proven in the lab for a signing program, From your file before a measurement.
+   */
+  source_tag?: Source | null;
 }
 export interface MigrationSystemToday {
   title: string;

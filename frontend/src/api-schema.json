@@ -3190,6 +3190,17 @@
             ],
             "title": "Ran On",
             "description": "After a retest: which version this result is of, and what the first run read."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "22 November 2026: where this result came from (Proven in the lab)."
           }
         },
         "additionalProperties": false,
@@ -3738,6 +3749,17 @@
               }
             ],
             "title": "Text"
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "22 November 2026: where the result came from; null where there is none."
           }
         },
         "additionalProperties": false,
@@ -4106,6 +4128,17 @@
             },
             "type": "array",
             "title": "History"
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "22 November 2026: Observed live once the server was measured again after Apply or Roll back; null while it is measured, or when Apply was refused."
           }
         },
         "additionalProperties": false,
@@ -7006,6 +7039,17 @@
               }
             ],
             "description": "where that run's evidence is shown"
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "22 November 2026: where this run came from (a copy of the code: Proven in the lab)."
           }
         },
         "additionalProperties": false,
@@ -7894,6 +7938,14 @@
             "type": "array",
             "title": "Rows"
           },
+          "source_counts": {
+            "items": {
+              "$ref": "#/components/schemas/SourceCount"
+            },
+            "type": "array",
+            "title": "Source Counts",
+            "description": "22 November 2026: how many of the group's items rest on each source (the Overview's line); the ones with none left out."
+          },
           "also": {
             "items": {
               "$ref": "#/components/schemas/SameMeasurement"
@@ -8177,6 +8229,17 @@
             ],
             "title": "Alias",
             "description": "The 5c fixes: the older id of this row (\"retest-12\"), which still opens it while this is the newest block of its test."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where it came from (22 November 2026): what this rests on; null where nothing was observed or proven (a check not run yet, or that couldn't run)."
           }
         },
         "additionalProperties": false,
@@ -9217,6 +9280,17 @@
             ],
             "title": "No Reason",
             "description": "Phase 5b: under a No, the reason in one line (\"OpenSSL added this in 3.5.0; you have 3.0.22.\")."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where this answer came from (22 November 2026): Published (release notes), Proven in the lab (a public copy), or From your file (no answer yet)."
           }
         },
         "additionalProperties": false,
@@ -9714,6 +9788,17 @@
             "title": "Answers Short",
             "description": "Phase 5b: the answers in a few words, for the compact table (\"No to all three\").",
             "default": ""
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the library came from (22 November 2026): From your file (the list names it)."
           },
           "blocks": {
             "items": {
@@ -10593,6 +10678,17 @@
               }
             ],
             "description": "Phase 4e: what this change touches; null for Change watch's entry."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "22 November 2026: where the finding this fix answers came from (Observed live, Proven in the lab or From your file); its proof lines carry their own."
           }
         },
         "additionalProperties": false,
@@ -10722,6 +10818,17 @@
             ],
             "title": "Muted",
             "description": "\"Not offered yet.\""
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "22 November 2026: Proven in the lab once a proof has passed or failed; null otherwise."
           }
         },
         "additionalProperties": false,
@@ -11067,6 +11174,17 @@
             ],
             "title": "Note",
             "description": "Under the second row: what a retest here runs on (a public copy, not your system)."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "22 November 2026: Proven in the lab (both rows are runs on public copies); null while the row reads Not yet."
           }
         },
         "additionalProperties": false,
@@ -11788,6 +11906,17 @@
               }
             ],
             "description": "Phase 5c: \"N checks may apply\", marked From Otto. Nothing runs on import."
+          },
+          "claim_source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "22 November 2026: where every claim on this page came from (From your file)."
           }
         },
         "additionalProperties": false,
@@ -12131,6 +12260,17 @@
               }
             ],
             "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where it came from (22 November 2026): what this rests on; null where nothing was observed or proven (a check not run yet, or that couldn't run)."
           }
         },
         "additionalProperties": false,
@@ -12664,6 +12804,17 @@
               "done"
             ],
             "title": "State"
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where its answers came from (22 November 2026), taken together."
           },
           "lookups": {
             "items": {
@@ -13327,6 +13478,17 @@
               }
             ],
             "description": "Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where it came from (22 November 2026): what this rests on; null where nothing was observed or proven (a check not run yet, or that couldn't run)."
           }
         },
         "additionalProperties": false,
@@ -14199,6 +14361,17 @@
               }
             ],
             "description": "Phase 5c: Otto's proposed changes to this system's plan."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where its status came from (22 November 2026): Observed live for a server, Proven in the lab for a signing program, From your file before a measurement."
           }
         },
         "additionalProperties": false,
@@ -16102,6 +16275,14 @@
               }
             ]
           },
+          "source_counts": {
+            "items": {
+              "$ref": "#/components/schemas/SourceCount"
+            },
+            "type": "array",
+            "title": "Source Counts",
+            "description": "22 November 2026: where the group's items came from, counted as Checks counts them (Observed live, Proven in the lab, ...)."
+          },
           "fixes": {
             "anyOf": [
               {
@@ -17295,6 +17476,17 @@
             "type": "array",
             "title": "Also Noticed",
             "description": "Things the check saw that the file didn't ask about. Side notes, never a result. Often empty."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where it came from (22 November 2026): Observed live for a server, Proven in the lab for a signing program, From your file where it couldn't be checked."
           }
         },
         "additionalProperties": false,
@@ -17434,6 +17626,23 @@
           "v": {
             "type": "string",
             "title": "V"
+          },
+          "s": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "live",
+                  "lab",
+                  "file",
+                  "published"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "S"
           }
         },
         "additionalProperties": false,
@@ -17766,6 +17975,81 @@
         ],
         "title": "SkippedItem",
         "description": "Something in the file that this version doesn't check (for example a hash algorithm)."
+      },
+      "Source": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "live",
+              "lab",
+              "file",
+              "published"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "meaning": {
+            "type": "string",
+            "title": "Meaning",
+            "description": "What the tag means, in one line, wherever it is shown."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "One sentence about this item (shown in its panel), or null."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "meaning"
+        ],
+        "title": "Source",
+        "description": "The one tag beside a result's, a status's or a fix's own word: Observed live, Proven in the lab, From your file or\nPublished. It decides nothing and changes no result."
+      },
+      "SourceCount": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "live",
+              "lab",
+              "file",
+              "published"
+            ],
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "count"
+        ],
+        "title": "SourceCount",
+        "description": "How many of a group's checks rest on one source (the Overview's line)."
       },
       "StartedOn": {
         "properties": {
@@ -18631,6 +18915,32 @@
               }
             ],
             "description": "Phase 4e: who can still connect; null for a try made before it."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "22 November 2026: where the try came from (Proven in the lab: test copies)."
+          },
+          "column_source_tags": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Source"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Column Source Tags",
+            "description": "22 November 2026: one per column: none for the label column, Observed live for the server as measured before, Proven in the lab for each copy."
           }
         },
         "additionalProperties": false,
@@ -19440,6 +19750,16 @@
         ],
         "type": "string",
         "title": "JobStatus"
+      },
+      "SourceKey": {
+        "enum": [
+          "live",
+          "lab",
+          "file",
+          "published"
+        ],
+        "type": "string",
+        "title": "SourceKey"
       },
       "RichText": {
         "items": {

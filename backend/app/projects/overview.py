@@ -83,6 +83,8 @@ class OverviewMixin:
                              {"label": "Blockers", "value": blockers, "link": _link("migration/dependencies")}]
             f = fixes.get(key)
             groups.append({**G.group_frame(key), "checks": g["counts"],
+                           # where the group's items came from (22 November 2026), as Checks counts them
+                           "source_counts": g.get("source_counts") or [],
                            "fixes": f["counts"] if f is not None and (f["fix_ids"] or key != "verification") else None,
                            "facts": facts,
                            "empty_text": None if (g["rows"] or facts) else (g["empty_text"] or G.EMPTY_CHECKS[key])})

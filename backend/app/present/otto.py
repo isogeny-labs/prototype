@@ -12,6 +12,7 @@ from datetime import datetime
 
 from app.otto import designs, model
 from app.present import advisory as present_advisory
+from app.present import source as present_source
 from app.present import times
 from app.present.results import DISCLAIMER
 
@@ -186,10 +187,17 @@ def stamp(value: str | None) -> str:
     return times.written(value, f"{when.day} {when.strftime('%B %Y')}, {when.strftime('%H:%M')} UTC")
 
 
+# Where each row came from (22 November 2026): both are runs on public copies on this computer. A row that reads "Not yet"
+# rests on no run and has no tag.
+ROW_SOURCE_NOTES = {"public": "Otto's registered trial, run on public copies of the affected and the fixed version on this computer.",
+                    "here": "This assessment's own retest, run on a public copy of the updated version on this computer."}
+
+
 def _row(key: str, label: str, word: str, tone: str, text: str, links: list[dict] | None = None, ledger: dict | None = None,
          note: str | None = None) -> dict:
     return {"key": key, "label": label, "badge": {"label": word, "tone": tone}, "text": text, "line": f"{label}: {word}. {text}",
-            "links": list(links or []), "ledger": ledger, "note": note}
+            "links": list(links or []), "ledger": ledger, "note": note,
+            "source_tag": None if word == "Not yet" else present_source.tag(present_source.LAB, ROW_SOURCE_NOTES[key])}
 
 
 def public_copies_row(fix: dict, advisory: dict | None) -> dict:
@@ -711,6 +719,8 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
                          "result": ({"label": result["label"], "tone": result["tone"], "plain": result["plain"],
                                      "component": result.get("component"), "finished_at": result.get("finished_at"),
                                      "ran_on": ran_on,
+                                     # where it came from (22 November 2026): an advisory check runs a copy of the program here
+                                     "source_tag": present_source.of_test("advisory_cases", result),
                                      "short": (f"Retest on {result.get('component')}. First run on {first.get('component') or entry['program']}: "
                                                f"{first['label']}." if ran_on and result.get("component") else None)} if result else None),
                          "checks_link": {"page": "checks", "item": f"test-{entry['item_id']}"} if entry["item_id"] is not None else None,
@@ -733,7 +743,7 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
             else:       # some programs have no result yet: the count is of the ones that ran, and says how many have not
                 counted = f"{same} of {ran} run so far; {len(here) - ran} with no result yet"
             result_cell = {"key": shown["tone"] if shown["tone"] in ("pass", "fail") else "warn", "label": shown["label"], "tone": shown["tone"],
-                           "text": counted}
+                           "text": counted, "source_tag": shown.get("source_tag")}
         elif state != "ready":
             result_cell = {"key": "none", "label": "No check", "tone": "neutral", "text": None}
         elif not here:

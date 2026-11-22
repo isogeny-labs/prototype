@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from app.run import components
 from app.present import results as present
 from app.present import fixes as present_fixes
+from app.present import source as present_source
 from app import real_libraries
 from app.engine import research
 from app.canonical import canonical_bytes, sha256_hex
@@ -898,9 +899,11 @@ class TestLabMixin:
             busy = running is not None
             retest_live = [j for j in self.jobs.live(plan_id) if j.key[1] == "retest"]
             rows, missing, finished, after_finished, after_done = [], 0, [], [], 0
+            where_of: dict[int, str | None] = {}     # the server a server test reads (for where it came from)
             for item in self._group_order(items, key_of, groups, grouped):
                 spec, _, spec_row = specs[item.id]
                 kind = spec_row.kind if spec_row else spec.get("kind")
+                where_of[item.id] = (spec.get("target") or {}).get("address")
                 first_job = self.jobs.get((item.id, "first"))
                 first_live = first_job is not None and first_job.status != "done"
                 result = None if first_live else self._latest_result(db, item, "first", None, plan)
@@ -935,6 +938,8 @@ class TestLabMixin:
             for row in rows:
                 for shown in (row["result"], row["after"]):
                     if shown is not None:
+                        # where it came from (22 November 2026): each side its own; it decides nothing
+                        shown["source_tag"] = present_source.of_test(row["kind"], shown, where_of.get(row["item_id"]))
                         shown["fix_line"] = lines.get(shown["run_id"])
                         if shown["fix_line"] is not None:
                             shown["suggested_fix"] = None
