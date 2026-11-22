@@ -1107,3 +1107,28 @@ Step 6 needs the pinned harness on the computer that runs the command. Without i
 made, the command says that Otto's audit was not run, and it exits with code 2. A pack signed by a key you do not
 trust also gives code 2. Neither is a pass. Any check that fails gives code 1.
 
+
+## Phase 4e (first half): the "Who can still connect" test
+
+Same path as every test: written down and locked, run by the job runner, stored, reviewed by the separate reviewer,
+and read back through the read gate. It is a hidden plan item (origin `clients`, in `HIDDEN_ORIGINS`), one for each
+change on each server, and it runs only inside a try on a test copy (phase `try_clients`, the try's id in `retest_id`).
+
+- **Design:** `app/clients/design.py` `design(address, change)` (not the research engine; proposed by
+  `client-stand-ins-1`). `target` `{"kind": "server", "address"}`; `inputs.stand_ins` (the four demo profiles of
+  `app/clients/profiles.py`, copied in: id, name, offers, versions, groups, signatures) with `stand_ins_sha256`,
+  `inputs.change` (key, fingerprint, option, kind) and `inputs.brings_post_quantum` (option hybrid or full_pq);
+  `control` `{"kind": "client_stand_ins_on_control_servers", "must": {stand-in: {"hybrid": {kind, version}, "classical": {...}}}}`;
+  `rule` `{"type": "client_reach_words"}`.
+- **Run** (`run/execute/clients.py`, demo or isolated mode): the copy through its own gate (`address_check`), the server
+  as it is today through `RunContext.today_check` (set only on a run on a copy), each with `_ready`. For each stand-in one
+  full handshake (`pqtls.handshake` with its versions, groups and `signatures`), today, on the copy and on each control
+  server: `raw.subject.today` `{"reached", "problem", "handshakes": {id: handshake}}`, `raw.subject.copy.handshakes`,
+  `raw.control` `{"hybrid": {id: handshake}, "classical": {...}}` or `{"error"}`. Raw outcomes only.
+- **Review** (`RuleReviewer._client_reach` -> `client_reach_review`): the control reads right when every stand-in did on
+  each control server what `must` says (its kind: hybrid, post_quantum, classical or refused, and its TLS version);
+  otherwise the run is Couldn't trust. Each stand-in's kind today and on the copy (`client_kind`: completed by group;
+  refused only for a TLS refusal; anything else unclear), then its word (`client_word`): connects, falls_back, breaks,
+  not_before, couldnt_check, and `new` when it connects only on the copy. The code is `measured`; the detail holds
+  `stand_ins`, `counts`, `brings_post_quantum`, `today_reached` and `today_problem`. No try verdict, Apply gate or other
+  result reads it.

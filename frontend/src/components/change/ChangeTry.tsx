@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { TryView } from "../../api";
 import { ResultDetail } from "../lab/ResultDetail";
 import { StatusView } from "../ui";
+import { ChangeClients } from "./ChangeClients";
 import { RichTable } from "./ChangeParts";
 
 const VERDICTS: Record<NonNullable<TryView["verdict"]>["look"], string> = {
@@ -62,6 +63,8 @@ export function ChangeTry({ view, onViewFix }: { view: TryView; onViewFix: (fixI
               <span className="font-semibold">{view.verdict.label}</span> {view.verdict.text}
             </div>
           ) : null}
+          {/* Phase 4e: who can still connect, measured on the first copy. Information only. */}
+          {view.clients ? <ChangeClients view={view.clients} /> : null}
           {view.notes.length > 0 ? (
             <ul className="mt-2 space-y-0.5 text-xs text-slate-400">
               {view.notes.map((note, i) => (

@@ -430,6 +430,7 @@ def _changes_part(lab, db, plan) -> list[dict]:
         for t in (h or {}).get("tries", []):
             for c in t["copies"]:
                 add(c["label"], c["measured"])
+            add("who can still connect (the client stand-ins)", (t.get("clients") or {}).get("run"))   # phase 4e
         for a in (h or {}).get("applies", []):
             add("measured right after Apply", a["after"])
             add("measured right after Roll back", a["after_rollback"])
@@ -954,6 +955,10 @@ def _changes_html(changes: list | None) -> list[_Safe]:
             box.append(el("p", el("strong", t(f"Try on a test copy: {tried.get('outcome')}")), t(f", {tried.get('tried_at')}. "),
                           t("; ".join(f"{c.get('label')}: " + (f"not tried ({c.get('skipped')})" if c.get("skipped") else f"run {c.get('run_id')}")
                                       for c in tried.get("copies") or []))))
+            stand_ins = tried.get("clients")
+            if stand_ins:   # phase 4e: information; the try's verdict above is the system's own measurement
+                box.append(el("p", el("strong", t("Who can still connect: ")),
+                              t(f"{stand_ins.get('summary') or 'no answer'} (run {stand_ins.get('run_id')}). {stand_ins.get('decides')}")))
         for request in rounds.get("approval_requests") or []:
             box.append(el("p", t(f"Approval asked {request.get('asked_at')} of {', '.join(request.get('reviewers') or [])}. Approved: "
                                  + (", ".join(f"{a.get('name')} ({a.get('approved_at')})" for a in request.get("approvals") or []) or "nobody yet") + ".")))

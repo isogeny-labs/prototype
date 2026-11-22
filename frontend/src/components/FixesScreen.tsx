@@ -5,6 +5,7 @@ import { ChangeBox } from "./change/ChangeBox";
 import { FixTable } from "./fixes/FixTable";
 import { FixSections } from "./fixes/FixSections";
 import { FixSummary, type FixRequest } from "./fixes/FixSummary";
+import { ImpactBlock } from "./impact/ImpactBlock";
 import { DetailPanel, ItemPageContext, PageHeader, SummaryCards, TableWithPanel, useGroupTab, useShowGroups, type GroupNav } from "./layout";
 import { RelatedFor } from "./related";
 import { DemoDataLabel, ErrorBox } from "./ui";
@@ -297,6 +298,8 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
                       planId={current.plan_id}
                       onProposalDecided={() => void reloadAfterDecision()}
                     />
+                    {/* Phase 4e: where the part this fix changes is used. Links only; it runs and decides nothing. */}
+                    <ImpactBlock impact={fix.impact} />
                     {fix.sections_note ? (
                       <p data-testid="fix-sections-note" className="px-1 text-xs text-slate-400">
                         {fix.sections_note}

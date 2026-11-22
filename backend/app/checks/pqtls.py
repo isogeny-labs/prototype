@@ -441,8 +441,11 @@ def _summarise(raw: list[tuple[str, int, bytes]], result: Handshake) -> int | No
     return group_id
 
 
-def _client_handshake(ffi, lib, sock: socket.socket, server_name: str | None, groups: bytes, low: int, high: int) -> dict:
-    """One handshake as the client on this connected, blocking socket. Returns a dict of Handshake fields."""
+def _client_handshake(ffi, lib, sock: socket.socket, server_name: str | None, groups: bytes, low: int, high: int,
+                      signatures: bytes | None = None) -> dict:
+    """One handshake as the client on this connected, blocking socket. Returns a dict of Handshake fields.
+    `signatures` (phase 4e): the certificate signature types the client accepts, in OpenSSL's names; None = the
+    library's own list, as before."""
     raw: list[tuple[str, int, bytes]] = []
     alerts: list[int] = []
 
@@ -468,6 +471,9 @@ def _client_handshake(ffi, lib, sock: socket.socket, server_name: str | None, gr
         if lib.SSL_CTX_set1_curves_list(ctx, groups) != 1:
             raise PqTlsUnavailable(f"The copy of OpenSSL inside the cryptography library does not offer the "
                                    f"key-exchange groups {groups.decode('ascii', 'replace')}.")
+        if signatures is not None and (not hasattr(lib, "SSL_CTX_set1_sigalgs_list") or lib.SSL_CTX_set1_sigalgs_list(ctx, signatures) != 1):
+            raise PqTlsUnavailable(f"The copy of OpenSSL inside the cryptography library does not accept the "
+                                   f"signature types {signatures.decode('ascii', 'replace')}.")
         lib.SSL_CTX_set_verify(ctx, lib.SSL_VERIFY_NONE, ffi.NULL)  # trust is not the question here
         lib.SSL_CTX_set_msg_callback(ctx, on_message)  # `on_message` stays referenced until ctx is freed below
         ssl_ = lib.SSL_new(ctx)
@@ -516,7 +522,7 @@ def _client_handshake(ffi, lib, sock: socket.socket, server_name: str | None, gr
 
 
 def handshake(ip: str, port: int, server_name: str | None, groups: str, *, timeout: float = 5.0,
-              min_version: str = "TLS 1.3", max_version: str = "TLS 1.3") -> Handshake:
+              min_version: str = "TLS 1.3", max_version: str = "TLS 1.3", signatures: str | None = None) -> Handshake:
     """ONE full handshake as a client offering exactly this group list (e.g. "X25519MLKEM768" or
     "X25519:P-256:P-384"), no certificate verification, SNI = server_name when given, then a clean close.
     Handshake only: no application data. Raises PqTlsUnavailable only; every network or TLS failure comes back as
@@ -525,6 +531,7 @@ def handshake(ip: str, port: int, server_name: str | None, groups: str, *, timeo
     try:
         low, high = _version_number(lib, min_version), _version_number(lib, max_version)
         offered = _group_list(groups)
+        accepted = signatures.encode("ascii") if signatures is not None else None   # phase 4e: a client stand-in's list
     except (ValueError, UnicodeError) as exc:
         raise PqTlsUnavailable(f"These handshake settings can't be used ({exc}).") from None
     started = time.perf_counter()
@@ -539,7 +546,7 @@ def handshake(ip: str, port: int, server_name: str | None, groups: str, *, timeo
         try:
             sock.settimeout(None)  # blocking again, for OpenSSL; the time limit is set on the socket itself
             _set_socket_timeouts(sock, timeout)
-            out = _client_handshake(ffi, lib, sock, server_name, offered, low, high)
+            out = _client_handshake(ffi, lib, sock, server_name, offered, low, high, accepted)
         except PqTlsUnavailable:
             raise
         except Exception as exc:

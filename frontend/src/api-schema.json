@@ -9789,6 +9789,17 @@
               }
             ],
             "description": "Phase 5c: the status a person accepted."
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Impact"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 4e: where this library is used."
           }
         },
         "additionalProperties": false,
@@ -10571,6 +10582,17 @@
             "title": "Apart",
             "description": "Phase 6d: listed under its group's own heading for a developer's change and never counted with the findings.",
             "default": false
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Impact"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 4e: what this change touches; null for Change watch's entry."
           }
         },
         "additionalProperties": false,
@@ -11496,6 +11518,188 @@
           "blockers"
         ],
         "title": "Headline"
+      },
+      "Impact": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"What this change touches\" on a fix, \"Where it is used\" on a library."
+          },
+          "part": {
+            "type": "string",
+            "title": "Part",
+            "description": "The part: \"localhost:8443\" | \"acme-sign 1.4.2\" | \"openssl 3.0.22\"."
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Systems of this assessment it reaches, plus one for each other project that names it."
+          },
+          "count_line": {
+            "type": "string",
+            "title": "Count Line"
+          },
+          "here": {
+            "$ref": "#/components/schemas/ImpactPart"
+          },
+          "elsewhere": {
+            "$ref": "#/components/schemas/ImpactPart"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "compatible": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImpactLineText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\"Can the parts that use it take 1.4.3?\" with \"Not known\" and why."
+          },
+          "connect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImpactLineText"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "\"Who can still connect\": whether a client check applies, and where it is."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "part",
+          "count",
+          "count_line",
+          "here",
+          "elsewhere",
+          "notes",
+          "compatible",
+          "connect"
+        ],
+        "title": "Impact",
+        "description": "Phase 4e: where the part a change touches is used. Read from the scanner files, the dependency lists and the\nknowledge base; it decides nothing."
+      },
+      "ImpactLine": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "\"acme-sign 1.4.2\" | \"Migration demo › Assessment 1\""
+          },
+          "sub": {
+            "type": "string",
+            "title": "Sub",
+            "description": "One plain sentence: what it is, and which rule matched it."
+          },
+          "tag": {
+            "type": "string",
+            "title": "Tag",
+            "description": "Where it came from: \"from your file\"."
+          },
+          "chip": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Open",
+                  "Closed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chip",
+            "description": "For another assessment: its status."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "sub",
+          "tag",
+          "chip",
+          "link"
+        ],
+        "title": "ImpactLine"
+      },
+      "ImpactLineText": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "text"
+        ],
+        "title": "ImpactLineText"
+      },
+      "ImpactPart": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactLine"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "none": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "None",
+            "description": "Said in place of the lines when there are none."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "none"
+        ],
+        "title": "ImpactPart"
       },
       "Import": {
         "properties": {
@@ -18172,6 +18376,197 @@
         ],
         "title": "TrackStatus"
       },
+      "TryClientRow": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "The stand-in: \"old-terminal\" | \"partner-classical\" | \"new-terminal\" | \"pq-only\"."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "\"Payment terminal, old firmware\""
+          },
+          "offers": {
+            "type": "string",
+            "title": "Offers",
+            "description": "What its profile offers, in one plain line."
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Demo data\""
+          },
+          "today": {
+            "type": "string",
+            "title": "Today",
+            "description": "Its handshake with the server as it is today: \"TLS 1.2, classical (X25519)\" | \"Refused (protocol version)\"."
+          },
+          "on_copy": {
+            "type": "string",
+            "title": "On Copy",
+            "description": "Its handshake with the test copy, in the same words."
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "The reviewer's word: Connects, Falls back, Breaks, Didn't connect before either, Couldn't check."
+          },
+          "word_key": {
+            "type": "string",
+            "enum": [
+              "connects",
+              "falls_back",
+              "breaks",
+              "not_before",
+              "couldnt_check"
+            ],
+            "title": "Word Key"
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "\"New: it can't connect today.\" when it connects only on the copy."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "offers",
+          "label",
+          "today",
+          "on_copy",
+          "word",
+          "word_key",
+          "tone",
+          "note"
+        ],
+        "title": "TryClientRow"
+      },
+      "TryClients": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "running": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RowStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary",
+            "description": "\"1 breaks, 2 connect, 1 didn't connect before either.\""
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning",
+            "description": "\"Sort out the 1 that breaks before you apply this change.\" Holds nothing off."
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/TryClientRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "decides": {
+            "type": "string",
+            "title": "Decides",
+            "description": "That it is information and holds Apply off nothing."
+          },
+          "control": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Control"
+          },
+          "no_answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "No Answer",
+            "description": "Set when the stand-ins' run gave no answer (it could not run, or its control misread)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "running",
+          "summary",
+          "warning",
+          "columns",
+          "rows",
+          "note",
+          "decides",
+          "control",
+          "no_answer"
+        ],
+        "title": "TryClients",
+        "description": "Phase 4e: who can still connect, measured on the try's first copy. Information: it decides nothing about the try."
+      },
       "TryView": {
         "properties": {
           "title": {
@@ -18225,6 +18620,17 @@
             },
             "type": "array",
             "title": "Results"
+          },
+          "clients": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TryClients"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Phase 4e: who can still connect; null for a try made before it."
           }
         },
         "additionalProperties": false,
