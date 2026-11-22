@@ -363,11 +363,18 @@ class MigrationMixin:
                               "migration": {"system": state["key"], "what": what, "option": state["plan_option"]}})
         return fixes
 
-    def _migration_fix_view(self, db, plan: PlanRow, fix: dict, is_demo: bool) -> dict:
+    def _migration_fix_view(self, db, plan: PlanRow, fix: dict, is_demo: bool) -> dict | None:
+        """One migration entry of Fixes, worded from the plan as it stands now. None when the entry is no longer in the
+        plan: Fixes lists the entries from one read of the plan and words each from a second, and a choice, a setting or a
+        measurement that lands in between can take an entry away (a plan that becomes Keep classical by recommendation
+        has no change). The caller leaves it out of that read; the next read lists the plan as it is."""
         state = next((s for s in self._with_changes(db, plan, self._migration_states(db, plan)) if s["key"] == fix["migration"]["system"]), None)
         if state is None:
             raise NotFound("That system is not in this file.")
-        if fix["migration"]["what"] == "howto":
+        what = fix["migration"]["what"]
+        if what not in state["fix_ids"] or (what == "howto" and state.get("change") is None):
+            return None
+        if what == "howto":
             return present_migration.change_fix_view(fix, state, is_demo)
         return present_migration.fix_view(fix, state, is_demo)
 

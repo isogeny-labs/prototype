@@ -155,7 +155,8 @@ def test_the_lock_entry_is_in_the_ledger_before_the_first_run(otto_lab):
     assert book.audit() == []
     # the page repeats the reviewer's result, and lists the ledger entries for this check
     row = lab.advisories_view(plan_id)["rows"][0]
-    assert row["result"] == {"key": "fail", "label": "Failed", "tone": "fail", "text": None}
+    assert {k: v for k, v in row["result"].items() if k != "source_tag"} == {"key": "fail", "label": "Failed", "tone": "fail", "text": None}
+    assert row["result"]["source_tag"]["key"] == "lab"           # where it came from (22 November 2026): a copy of the program
     here = row["panel"]["here"]["rows"][0]
     assert here["result"]["label"] == "Failed" and here["result"]["plain"].startswith("acme-sign 1.4.2 got 2 of the 64")
     assert here["evidence_link"] == {"page": "evidence", "item": f"test-{check.plan_item_id}"}

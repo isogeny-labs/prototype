@@ -3,14 +3,15 @@ import { api, errorMessage, type OttoPackCard, type OttoSettingsView, type OttoU
 import { Modal } from "../layout";
 import { ErrorBox, PrimaryButton, SecondaryButton, Spinner } from "../ui";
 import { Section } from "./parts";
+import { SandboxSettings } from "./SandboxSettings";
 
 const CARD = "space-y-4 rounded-xl border border-slate-800 bg-slate-900/30 p-4 text-sm text-slate-300";
 const SMALL = "text-xs text-slate-400";
 
 /** Which call is on its way (every button of the two sections waits for its answer). */
-type Busy = "check" | "install" | "switch" | "limit" | "name";
+type Busy = "check" | "install" | "switch" | "limit" | "name" | "sandbox";
 /** The section an error belongs to, so it is shown once, where it happened. */
-type Where = "packs" | "live" | "name";
+type Where = "packs" | "live" | "name" | "sandbox";
 
 /** One installed test pack: the view's line about it, who signed it, and its fingerprint cut short (the whole value
  * shows on hover). A pack made on this computer says so in its own line. */
@@ -74,7 +75,7 @@ export function OttoSettings({ section }: { section: string | null }) {
   const loaded = view !== null;
   useEffect(() => {
     // (phase 6a: the Otto panel's status line links to the Live Otto section the same way)
-    if (section !== "test-packs" && section !== "live-otto" && section !== "your-name") return;
+    if (section !== "test-packs" && section !== "live-otto" && section !== "your-name" && section !== "sandbox-research") return;
     // jsdom has no scrollIntoView; a browser always does.
     document.getElementById(section)?.scrollIntoView?.({ block: "start" });
   }, [section, loaded]);
@@ -90,7 +91,7 @@ export function OttoSettings({ section }: { section: string | null }) {
       settled?.();
       // A Live Otto call answers without looking in the updates folder again, so what Check for updates found (and
       // everything else about the packs) stays on screen as it was.
-      setView((before) => (where === "live" && before ? { ...next, packs: before.packs } : next));
+      setView((before) => ((where === "live" || where === "sandbox") && before ? { ...next, packs: before.packs } : next));
       return true;
     } catch (e) {
       settled?.();
@@ -383,6 +384,15 @@ export function OttoSettings({ section }: { section: string | null }) {
           </p>
         </div>
       </Section>
+
+      {view.sandbox ? (
+        <SandboxSettings
+          sandbox={view.sandbox}
+          busy={busy !== null}
+          call={(make) => run("sandbox", "sandbox", make)}
+          error={errorBox("sandbox")}
+        />
+      ) : null}
     </>
   );
 }

@@ -60,6 +60,7 @@ class OttoMixin:
     lab_view: Callable[[int], dict]
     fixes_view: Callable[[int], dict]
     assessment_for: Callable[..., AssessmentRow | None]
+    sandbox_section: Callable[[], dict]
 
     def _init_otto(self) -> None:
         self._otto_lock = threading.Lock()                 # one pack install, one decision on a proposal at a time
@@ -111,6 +112,11 @@ class OttoMixin:
             good, bad = packs.found_in(folder, keys)
             found += good
             refused += bad
+        if not self.sandbox_on():        # type: ignore[attr-defined]
+            # A pack that carries asking code (the second format) is taken only while Sandbox research is on.
+            held = [p for p in found if p.pack["schema"] == packs.PACK_SCHEMA_2]
+            found = [p for p in found if p.pack["schema"] != packs.PACK_SCHEMA_2]
+            refused += [{"file": f"{p.version}.json", "reason": packs.NEEDS_SANDBOX} for p in held]
         found.sort(key=lambda p: packs.version_key(p.version))
         rows = self._pack_rows(db)
         installed = {r.fingerprint for r in rows}
@@ -134,10 +140,12 @@ class OttoMixin:
             live_on, limit = self._otto_live_on(db), self._otto_limit(db)
             answers = self._answers_line(db, installed)
             unreadable = self._unreadable_packs(db)
-        return present_otto.settings_view(installed=[(iso(row.installed_at), pack) for row, pack in installed], update=update, refused=refused,
+        view = present_otto.settings_view(installed=[(iso(row.installed_at), pack) for row, pack in installed], update=update, refused=refused,
                                           unreadable=unreadable,
                                           scan_line=line, harness_status=harness.public_status(), live_on=live_on, limit_nano=limit,
                                           key_present=model.key_present(), answers_line=answers, name=self._typed_name())
+        view["sandbox"] = self.sandbox_section()        # (prototype: the Sandbox research block)
+        return view
 
     def check_pack_updates(self) -> dict:
         return self.otto_view(scan=True)
@@ -571,15 +579,39 @@ class OttoMixin:
         # Phase 6, Otto's research loop: every look for new advisories and every research run of this assessment.
         lookups = self.lookups_evidence(plan_id)                 # type: ignore[attr-defined]
         made_by_runs = {str(run["pack_version"]) for run in lookups["research"] if run.get("pack_version")}
+        # Sandbox research (a prototype): a watched weakness that reads "Test proposed" says so because an installed
+        # pack holds a proven test for it. That pack goes into the file with the list, whichever assessment's run made
+        # it, so the file itself shows what the word rests on (and the verify command can check it).
+        # (Only where the list itself goes into the file: with the switch on, or where a person's stop or watch again is
+        #  kept. With the switch off and no such mark the file is exactly what it was.)
+        watched = self.watch_list_evidence(plan_id)          # type: ignore[attr-defined]
+        if watched is not None and not (self.sandbox_on() or watched["marks"]):      # type: ignore[attr-defined]
+            watched = None
+        proposed = {str(i).upper() for item in (watched or {}).get("items") or [] if item["test"]["key"] == "test_proposed" for i in item["ids"]}
         with self.db() as db:
             added = self._otto_checks(db, plan_id)
             steps = db.scalars(select(OttoStepRow).where(OttoStepRow.plan_id == plan_id).order_by(OttoStepRow.id)).all()
             decided = db.scalar(select(func.count(OttoDecisionRow.id)).where(OttoDecisionRow.plan_id == plan_id)) or 0
-            if not added and not steps and not decided and not lookups["looks"] and not lookups["research"]:
+            # Sandbox research (a prototype): a pack that describes a sandbox copy of a library this assessment names.
+            # A run on such a copy names its image, and the image is named after the copy set: the pack is what says
+            # which files and which asking code that is, so it goes into the file with the run.
+            plan = self._plan(db, plan_id)
+            named = {(p["component"], p["version"]) for p in research.programs(self._claims(db.get(ImportRow, plan.import_id)))}
+            describes = set()
+            for row, pack in self._installed_packs(db, self._closed_at(plan_id)):
+                for entry in pack.pack["advisories"]:
+                    if proposed and entry["test"]["state"] == "ready" and \
+                            proposed & {str(i).upper() for i in [entry["id"], *(entry.get("aliases") or [])]}:
+                        describes.add(row.fingerprint)
+                for entry in pack.pack["advisories"] if pack.pack["schema"] == packs.PACK_SCHEMA_2 else []:
+                    copies = (entry["test"].get("sandbox") or {}).get("set")
+                    if copies and any((copies["library"], v["version"]) in named for v in copies["versions"]):
+                        describes.add(row.fingerprint)
+            if not added and not steps and not decided and not lookups["looks"] and not lookups["research"] and not describes:
                 return None
             # the packs this assessment's checks came from, and every pack a research run of this assessment made
             # (the proof of what that run found is in its pack, whether or not a check of it was accepted)
-            wanted = {c.pack_fingerprint for c in added}
+            wanted = {c.pack_fingerprint for c in added} | describes
             envelopes = [json.loads(row.envelope) for row in self._pack_rows(db) if row.fingerprint in wanted or row.version in made_by_runs]
             checks_out = []
             for c in added:

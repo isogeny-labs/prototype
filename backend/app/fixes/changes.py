@@ -358,7 +358,7 @@ class ChangesMixin:
             # Phase 5c: for a failed advisory check, the fix the test pack carries for its advisory.
             otto_fix = self._otto_pack_fix(db, last["item_id"], last.get("component")) if kind == research.ADVISORY_KIND else None
             # A library's fix from Otto stays listed once a retest on the fixed version has a result, so that its second
-            # proof row ("Proven on your system") can be read where the fix is: it is a fact on record, with its date.
+            # proof row ("Proven in this assessment") can be read where the fix is: it is a fact on record, with its date.
             retested = bool(otto_fix and otto_fix.get("kind") == "update" and (otto_fix.get("here") or {}).get("state") != "not_yet")
             answers = mine if (newest[item_id]["tone"] == "fail" or item_id in kept or retested) else []
             if answers:

@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { api, errorMessage, type AssessmentView, type OttoWaiting, type OverviewFact, type OverviewGroup, type Workspace } from "../../api";
+import { api, errorMessage, type AssessmentView, type OttoWaiting, type OverviewFact, type OverviewGroup, type SourceCount, type Workspace } from "../../api";
 import type { Page } from "../../router";
 import { PageHeader } from "../layout";
 import { ItemLinkView } from "../related";
-import { DemoDataLabel, ErrorBox, PrimaryButton, SecondaryButton, StatusChip, formatTime } from "../ui";
+import { DemoDataLabel, ErrorBox, PrimaryButton, SecondaryButton, StatusChip, WhereFromTag, formatTime } from "../ui";
 import { ActionsMenu, InlineForm, Section } from "./parts";
 
 function Facts({ facts }: { facts: OverviewFact[] }) {
@@ -30,6 +30,25 @@ function Counts({ label, counts, link }: { label: string; counts: { open: number
   );
 }
 
+/** Where it came from (22 November 2026): how many of the group's checks rest on each source, in the backend's order and
+ * words (a source with none is left out). It counts what the checks say and decides nothing. */
+function SourceCounts({ counts }: { counts: SourceCount[] }) {
+  return (
+    <p data-testid="overview-source-counts" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+      {/* the spaces are for a screen reader and a copy: a flex box draws only the gaps */}
+      <span>Where these came from:</span>{" "}
+      {counts.map((c, i) => (
+        <span key={c.key} data-testid="overview-source-count" data-source={c.key} className="inline-flex items-center gap-1">
+          <span className="tabular-nums text-slate-300">{c.count}</span>{" "}
+          <WhereFromTag tag={{ key: c.key, label: c.label, meaning: c.meaning, note: null }} testId="overview-source-tag" />
+          {/* the dot ends an item, so a wrapped line starts with its number */}
+          {i < counts.length - 1 ? <span aria-hidden="true"> ·</span> : null}{" "}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 /** One work group of the assessment on the Overview: its checks and fixes counts and its facts, each a link. */
 function GroupBlock({ group }: { group: OverviewGroup }) {
   return (
@@ -37,6 +56,7 @@ function GroupBlock({ group }: { group: OverviewGroup }) {
       <h2 className="rounded-t-xl border-b border-slate-800 bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100">{group.label}</h2>
       <div className="space-y-2 px-4 py-3 text-sm">
         {group.checks ? <Counts label="Checks" counts={group.checks} link={{ page: "checks", group: group.key }} /> : null}
+        {group.source_counts && group.source_counts.length > 0 ? <SourceCounts counts={group.source_counts} /> : null}
         {group.facts.length > 0 ? <Facts facts={group.facts} /> : null}
         {group.fixes ? <Counts label="Fixes" counts={group.fixes} link={{ page: "fixes", group: group.key }} /> : null}
         {group.empty_text ? <p className="text-slate-400">{group.empty_text}</p> : null}
@@ -283,6 +303,15 @@ export function OverviewPage({
                   </li>
                 ))}
               </ul>
+              {blocks.watch_list ? (
+                // Sandbox research (prototype): information, never a finding or a result. It opens the Watch list.
+                <p data-testid="overview-watch-list" className="mt-3 break-words border-t border-slate-800 pt-3 text-slate-300">
+                  {blocks.watch_list.line}{" "}
+                  <ItemLinkView link={blocks.watch_list.link} testId="overview-watch-list-link" className="text-sky-300 underline-offset-2 hover:underline">
+                    Open the Watch list
+                  </ItemLinkView>
+                </p>
+              ) : null}
             </section>
             <section aria-label="Evidence" data-testid="overview-evidence" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 text-sm">
               <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Evidence</p>

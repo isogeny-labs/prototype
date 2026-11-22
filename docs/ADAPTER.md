@@ -289,6 +289,66 @@ many of the 484 Wycheproof ECDSA P-256 cases and of our 16 bad-signature cases t
 wrong, prints the notes the wrapper passed on, and runs a short speed test next to its slowed
 control. It decides nothing and stores nothing.
 
+## Asking code for a sandbox copy (sandbox research, a prototype)
+
+With Sandbox research on, a library the app has no wrapper for can still be asked one question: is this ECDSA P-256
+signature valid for this message and this public key? The file that asks is called **asking code**. It is much
+smaller than a wrapper: it only checks signatures. It makes no key, signs nothing and times nothing, so Speed and
+size is left out for a sandbox copy.
+
+Our own program does everything else (`demo/sandbox/templates/python/asking.py` and `node/asking.js`: read the batch,
+load the library's copy, turn an error into "not accepted", write one answer line for each question). The asking code
+fills in two things.
+
+For Python, `asking_code.py`:
+
+```python
+from ellipticcurve.curve import prime256v1
+from ellipticcurve.ecdsa import Ecdsa
+from ellipticcurve.publicKey import PublicKey
+from ellipticcurve.signature import Signature
+
+OWN_REFUSALS = ()          # the library's own error classes that mean "this is not a valid signature"
+
+
+def check_signature(public_key, message, signature):
+    key = PublicKey.fromString(public_key[1:].hex(), curve=prime256v1)
+    return Ecdsa.verify(message.decode("utf-8"), Signature.fromDer(signature), key)
+```
+
+`public_key` is 65 bytes (0x04, X, Y), `message` is the message itself (not hashed yet), `signature` is ASN.1 DER.
+For JavaScript the file exports `function (load) { return { ownRefusals: [...], checkSignature(publicKey, message,
+signature) {...} }; }`, and `load('name')` is the only way to load a package of the copy.
+
+The rules, each checked by fixed rules before the file is used (`backend/ottolab/screens.py`):
+
+- It loads only the library under test (for Python also `sha256` from `hashlib`, for a library that takes the hash as
+  an argument).
+- Exactly one function. Inside it only straight-line calls into the library: no `if`, no loop, no comparison, no
+  `try`, no arithmetic (no `+` either).
+- Its last line is its one return. It returns what a call into the library gave back, and that call was given all
+  three inputs, directly or through names made from them. Never a fixed value, and nothing the code put together.
+  Only the library's own `True` counts as accepted.
+- Of the language's own it uses only the plain conversions (`.decode`, `.encode`, `.hex`, `int.from_bytes`,
+  `bytes.fromhex`, and `.update` on an object of the library). Every other method that a text, a number, a list or a
+  table has of its own (`.count`, `.replace`, `.startswith`, `.join`, ...) is refused by name, because with those a
+  yes or a no can be put together without the library. No built-in function.
+- A part of a value is taken only at a fixed place (`public_key[1:33]`). A name is given a value once, and only a
+  plain name of the code's own: nothing of the library is replaced.
+- No comment, no docstring, no description: the file is shown to a person as it is, so it holds code only. A fixed
+  text is one short word.
+- No file, network, process, clock, randomness or environment. Nothing that reads a version or a path. No long fixed
+  value. At most 60 lines.
+- The signature is read by the library's own code. The asking code does not take it apart or convert it. Where a
+  library can't read a DER signature, there is no test: the answer is "the library can't be asked this question".
+
+When Claude writes it, two authors write apart, and the file is used only after the screen and the known-answer check
+(`backend/ottolab/pinned/qualify.py`). The screen (`backend/ottolab/screens.py`) is a filter for mistakes and plain
+tricks, not a proof: it does not know what a library's own functions do. So the weight is carried elsewhere. The
+questions and their right answers are a publisher's and never reach this code; the separate reviewer compares outside
+the container; and the second author's code must hand back the same answer on every case. One library has one piece
+of asking code by each author: a later advisory of the same library uses it again.
+
 ## The demo components
 
 | File (under `demo/components/`) | What it is |

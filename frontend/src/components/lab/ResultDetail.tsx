@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { EvidenceBlock, FixLine, LabResult, MeasurementResult, MetaItem } from "../../api";
 import { AdvisoriesBox } from "../AdvisoriesBox";
 import { ResultOttoBlock } from "../otto/ResultOttoBlock";
-import { ResultBadge, SecondaryButton, SourceTag, Spinner, formatTime } from "../ui";
+import { ResultBadge, SecondaryButton, SourceTag, Spinner, formatTime, WhereFromLine } from "../ui";
 
 function Box({ title, tag, children }: { title: string; tag?: string | null; children: ReactNode }) {
   return (
@@ -214,6 +214,9 @@ export function ResultDetail({ result, heading, plain, busy, onMarkReviewed, onD
           {plain}
         </p>
       ) : null}
+
+      {/* 22 November 2026: where this result came from, with what that means for it (only where the view says) */}
+      <WhereFromLine tag={result.source_tag} />
 
       <p data-testid="technical-summary" className="text-[13px] text-slate-300">
         <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Technical summary</span>{" "}

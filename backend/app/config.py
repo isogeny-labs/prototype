@@ -14,6 +14,9 @@ FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 OTTO_PACKS_DIR = REPO_ROOT / "research" / "packs"        # phase 5c: the signed test packs shipped with the app
 OTTO_RECORDED_DIR = REPO_ROOT / "research" / "recorded"  # phase 5c: Claude's answers recorded during the build
 
+SANDBOX_ENV = "EVIDENCE_LAB_SANDBOX_RESEARCH"       # marks Isogeny's own sandbox computer (prototype)
+REGISTRY_SOURCE_ENV = "EVIDENCE_LAB_REGISTRY_SOURCE"   # a folder of recorded registry answers, read instead
+
 BIND_HOST = "127.0.0.1"
 DEMO_HOSTNAME = "localhost"
 DEMO_CBOM_PORT = 8443  # the port written in demo/acme-pay-cbom.json
@@ -68,14 +71,23 @@ class Settings:
         """The SQLAlchemy URL of the database: the one named, or the SQLite file in the data folder."""
         return self.database_url or f"sqlite:///{self.db_path}"
 
-    @property
     def login_methods(self) -> frozenset[str]:
         return frozenset({"password"} if self.password_login else set()) | (
             frozenset({"github"}) if self.github is not None else frozenset())
 
-    @property
     def secure_cookies(self) -> bool:
         return bool(self.public_url and self.public_url.startswith("https://"))
+    # Sandbox research (prototype, 22 November 2026). The switch in Settings can be turned on only on a computer that is
+    # marked as Isogeny's own sandbox where the app starts. A customer install never has the mark.
+    sandbox_research: bool = False             # EVIDENCE_LAB_SANDBOX_RESEARCH (1, on, true or yes)
+    # The public package registries are read only by the research command, when it makes a sandbox copy. This names a
+    # folder of recorded registry answers and files on this computer that is read instead (tests, the walks, a demo
+    # with no internet). Then nothing is fetched from anywhere.
+    registry_source_dir: Path | None = None    # EVIDENCE_LAB_REGISTRY_SOURCE
+    # The Watch list's clock, which looks by itself while Sandbox research is on. A test, a walk or a script that
+    # wants no look by itself starts the app without it (EVIDENCE_LAB_WATCH_CLOCK=off); it never runs on a computer
+    # that is not marked as the sandbox.
+    watch_clock: bool = True
 
     @property
     def db_path(self) -> Path:
@@ -97,6 +109,11 @@ class Settings:
     @property
     def otto_recorded(self) -> Path:
         return self.otto_recorded_dir or OTTO_RECORDED_DIR
+
+    @property
+    def sandbox_dir(self) -> Path:
+        """Sandbox research: the store of public copies made on this computer, with their records."""
+        return self.data_dir / "sandbox"
 
 
 @dataclass(frozen=True)
@@ -184,25 +201,21 @@ def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int 
         raise SystemExit("EVIDENCE_LAB_MODE must be demo, isolated or auto")
     updates, recorded = os.environ.get("EVIDENCE_LAB_OTTO_UPDATES"), os.environ.get("EVIDENCE_LAB_OTTO_RECORDED")
     advisory_source = os.environ.get("EVIDENCE_LAB_ADVISORY_SOURCE")
-    github = load_github_settings()
-    settings = Settings(data_dir=Path(data_dir).resolve(), demo_tls_port=demo_tls_port,
+    registry_source = os.environ.get(REGISTRY_SOURCE_ENV)
+    return Settings(data_dir=Path(data_dir).resolve(), demo_tls_port=demo_tls_port,
                     max_jobs=_env_int("EVIDENCE_LAB_MAX_JOBS", 4, 1, 16), force_mode=force_mode,
                     speed_rounds=_env_int("EVIDENCE_LAB_SPEED_ROUNDS", 40, 2, 50),
                     otto_updates_dir=Path(updates).resolve() if updates else None,
                     otto_recorded_dir=Path(recorded).resolve() if recorded else None,
                     advisory_source_dir=Path(advisory_source).resolve() if advisory_source else None,
-                    database_url=_database_url(),
-                    redis_url=(os.environ.get("EVIDENCE_LAB_REDIS_URL") or "").strip() or None,
-                    storage_url=(os.environ.get("EVIDENCE_LAB_STORAGE_URL") or "").strip() or None,
-                    public_url=(os.environ.get("EVIDENCE_LAB_PUBLIC_URL") or "").strip().rstrip("/") or None,
-                    allowed_hosts=_csv(os.environ.get("EVIDENCE_LAB_ALLOWED_HOSTS")),
-                    # With the GitHub login set up, the password login is off unless asked for: on a hosted copy the
-                    # first visitor would otherwise choose the password.
-                    password_login=_env_bool("EVIDENCE_LAB_PASSWORD_LOGIN", github is None),
-                    github=github)
-    if not settings.password_login and settings.github is None:
-        raise SystemExit("EVIDENCE_LAB_PASSWORD_LOGIN=off needs the GitHub login (EVIDENCE_LAB_GITHUB_CLIENT_ID and _SECRET)")
-    return settings
+                    sandbox_research=sandbox_marked(), registry_source_dir=Path(registry_source).resolve() if registry_source else None,
+                    watch_clock=os.environ.get("EVIDENCE_LAB_WATCH_CLOCK", "").strip().lower() not in ("0", "off", "false", "no"))
+
+
+
+def sandbox_marked() -> bool:
+    """Whether this computer is marked as Isogeny's own sandbox (read where the app, or the research command, starts)."""
+    return os.environ.get(SANDBOX_ENV, "").strip().lower() in ("1", "on", "true", "yes")
 
 
 def _env_int(name: str, default: int, low: int, high: int) -> int:

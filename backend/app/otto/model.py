@@ -34,12 +34,13 @@ API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2026-10-21"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"   # a declined request is retried on the model Anthropic recommends
 RECORDED_SCHEMA = "isogeny.recorded-answer/1"
-STEPS = ("read_advisory", "design_test", "propose_fix", "write_fix")
+STEPS = ("read_advisory", "design_test", "propose_fix", "write_fix",
+         "write_wrapper")       # sandbox research (prototype): the code that asks a library a test's questions
 
 # One model for every step, changed in one place (or with EVIDENCE_LAB_OTTO_MODEL).
 DEFAULT_MODEL = "claude-opus-5-5"
 MODEL_ENV = "EVIDENCE_LAB_OTTO_MODEL"
-EFFORT = {"read_advisory": "medium", "design_test": "high", "propose_fix": "medium", "write_fix": "high"}
+EFFORT = {"read_advisory": "medium", "design_test": "high", "propose_fix": "medium", "write_fix": "high", "write_wrapper": "high"}
 MAX_OUTPUT_TOKENS = 16000
 MAX_PROMPT_BYTES = 400_000
 REQUEST_TIMEOUT_SECONDS = 600

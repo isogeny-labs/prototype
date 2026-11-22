@@ -1,0 +1,24 @@
+[package]
+name = "ctcheck"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Valgrind (ctgrind/TIMECOP-style) constant-time check for ctcrypto: secrets are marked undefined, so any branch or memory index that depends on them is reported."
+
+[features]
+default = ["aes", "mlkem", "mldsa"]
+aes = ["ctcrypto/aes"]
+mlkem = ["ctcrypto/mlkem"]
+mldsa = ["ctcrypto/mldsa"]
+
+[dependencies]
+ctcrypto = { path = "..", default-features = false, features = ["ctgrind"] }
+
+[build-dependencies]
+cc = "1"
+
+[profile.release]
+opt-level = 3
+debug = true
+
+[workspace]

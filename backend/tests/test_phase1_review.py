@@ -230,8 +230,10 @@ def test_a_recursion_error_while_reading_a_file_is_a_422_not_a_crash(client, mon
 def test_uploading_the_csv_template_is_labelled_demo_data(client):
     imp = upload(client, "claims-template.csv", (DEMO_DIR / "claims-template.csv").read_bytes()).json()
     # "otto" (phase 5c): the one line about advisory checks from the installed test packs that may apply to this file
+    # "claim_source_tag" (22 November 2026): where every claim on the page came from (From your file)
     assert imp["is_demo"] is True and set(imp) == {"id", "filename", "format", "is_demo", "claims", "addresses", "skipped", "settings", "settings_title",
-                                             "assessment_id", "otto"}
+                                             "assessment_id", "otto", "claim_source_tag"}
+    assert imp["claim_source_tag"]["label"] == "From your file" and "claims-template.csv" in imp["claim_source_tag"]["note"]
 
 
 def test_is_demo_follows_what_the_file_points_at(client, settings, listener):

@@ -54,8 +54,8 @@ describe("Migration, header and Systems view", () => {
     // Each pill has a symbol as well as its words, so it doesn't rely on colour.
     expect(text(within(card("localhost:8451")).getByTestId("migration-status"))).toBe("◑Hybrid");
     expect(text(within(card("acme-sign 9.9")).getByTestId("migration-status"))).toBe("?Couldn't check");
-    // Beside the open panel, a row is the system with its plan line, then its status.
-    expect(text(card("localhost:8452"))).toBe("localhost:8452Plan: Hybrid · Phase 1○Classical");
+    // Beside the open panel, a row is the system with its plan line, then its status and where it came from.
+    expect(text(card("localhost:8452"))).toBe("localhost:8452Plan: Hybrid · Phase 1○Classical Observed live");
     // As before the panel, Systems opens on the first system; the panel shows it.
     expect(cards().map((c) => c.getAttribute("aria-current"))).toEqual(["true", null, null, null, null, null, null]);
     expect(screen.getByRole("heading", { level: 2, name: "localhost:8451" })).not.toBeNull();
@@ -63,7 +63,7 @@ describe("Migration, header and Systems view", () => {
     expect(document.body.textContent).not.toMatch(/score/i);
     // With the panel closed, the full row comes back.
     fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
-    expect(text(card("localhost:8452"))).toBe("Serverlocalhost:8452○ClassicalPlan: Hybrid · Phase 1");
+    expect(text(card("localhost:8452"))).toBe("Serverlocalhost:8452○Classical Observed livePlan: Hybrid · Phase 1");
   });
 
   it("selecting a system draws its Today box, settings, cost table, recommendation and four options", async () => {
@@ -529,3 +529,25 @@ describe("Migration, the systems table and its detail panel", () => {
     expect(choose.getAttribute("title")).toBe(CLOSED_SENTENCE);
   });
 });
+
+// 22 November 2026: where each system's status came from, beside its status: read from a server, measured on a copy of
+// a signing program here, or only the file before a measurement. The Today box says what that means for the system.
+describe("Migration, where each status came from", () => {
+  it("draws one tag on each system card, in the backend's words", async () => {
+    const { fetchMock } = await open();
+    expect(cards().map((c) => within(c).getAllByTestId("source-tag").map((t) => t.textContent))).toEqual([
+      ...Array.from({ length: 5 }, () => ["Observed live"]),
+      ["Proven in the lab"],
+      ["From your file"],
+    ]);
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("the Today box of a system says what its tag means for it", async () => {
+    await open();
+    fireEvent.click(card("acme-sign 1.4.2"));
+    const line = within(screen.getByTestId("migration-today")).getByTestId("source-line");
+    expect(text(line)).toBe("Proven in the lab Measured by running a copy of acme-sign 1.4.2 on this computer. Your live system was not touched.");
+  });
+});
+

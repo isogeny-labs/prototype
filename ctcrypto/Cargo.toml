@@ -1,0 +1,26 @@
+[package]
+name = "ctcrypto"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Constant-time, dependency-free CNSA 2.0 algorithm suite: ML-KEM-1024, ML-DSA-87, LMS/XMSS verification, AES-256-GCM, SHA-384/512."
+publish = false
+
+[features]
+default = ["aes", "mlkem", "mldsa", "lms", "xmss"]
+aes = []
+mlkem = []
+mldsa = []
+lms = []
+xmss = []
+# Only for the ctgrind harness (ctcrypto/ctcheck). Routes ct::declassify to a
+# valgrind client request supplied by the harness; the crate then links only there.
+ctgrind = []
+
+[dev-dependencies]
+serde_json = "1"
+hex = "0.4"
+
+[profile.release]
+opt-level = 3
+debug = true

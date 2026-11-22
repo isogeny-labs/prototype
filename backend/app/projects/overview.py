@@ -38,7 +38,7 @@ class OverviewMixin:
     fixes_view: Callable[[int], dict]
     migration_view: Callable[[int], dict]
     lab_view: Callable[[int], dict]
-    dependencies_view: Callable[[int], dict]
+    dependencies_view: Callable[..., dict]
     latest_verify: Callable[[int], dict]
 
     # ---------------------------------------------------------------- one assessment
@@ -83,6 +83,8 @@ class OverviewMixin:
                              {"label": "Blockers", "value": blockers, "link": _link("migration/dependencies")}]
             f = fixes.get(key)
             groups.append({**G.group_frame(key), "checks": g["counts"],
+                           # where the group's items came from (22 November 2026), as Checks counts them
+                           "source_counts": g.get("source_counts") or [],
                            "fixes": f["counts"] if f is not None and (f["fix_ids"] or key != "verification") else None,
                            "facts": facts,
                            "empty_text": None if (g["rows"] or facts) else (g["empty_text"] or G.EMPTY_CHECKS[key])})
@@ -91,9 +93,15 @@ class OverviewMixin:
                              .where(TestRunRow.plan_id == plan_id)) or 0
             last = db.scalars(select(EvidenceExportRow).where(EvidenceExportRow.plan_id == plan_id)
                               .order_by(EvidenceExportRow.id.desc()).limit(1)).first()
-        return {"groups": groups, "findings": self._findings(verify["false"], failed, blockers),
-                "evidence": {"runs": int(runs) + verify["runs"],
-                             "last_download": {"at": iso(last.created_at), "fingerprint": last.fingerprint} if last else None}}
+        blocks = {"groups": groups, "findings": self._findings(verify["false"], failed, blockers),
+                  "evidence": {"runs": int(runs) + verify["runs"],
+                               "last_download": {"at": iso(last.created_at), "fingerprint": last.fingerprint} if last else None}}
+        # Sandbox research (prototype): one line that says how many watched weaknesses have no fix yet, and opens the
+        # Watch list. Only while the switch is on and the list holds something; otherwise the Overview is as before.
+        watch = self.watch_list_summary(plan_id)        # type: ignore[attr-defined]
+        if watch is not None and watch["line"]:
+            blocks["watch_list"] = watch
+        return blocks
 
     def _verify_counts(self, import_id: int) -> dict:
         with self.db() as db:
@@ -184,7 +192,7 @@ class OverviewMixin:
         except NotFound:
             pass
         try:
-            dview = self.dependencies_view(plan_id)
+            dview = self.dependencies_view(plan_id, with_impact=False)
             out["deps_listed"] = dview.get("list_file") is not None
             for g in dview.get("groups") or []:
                 for r in g.get("rows") or []:
@@ -292,7 +300,7 @@ class OverviewMixin:
                 plan = db.scalars(select(PlanRow).where(PlanRow.import_id == a.import_id)).first()
             if plan is not None:
                 try:
-                    view = self.dependencies_view(plan.id)
+                    view = self.dependencies_view(plan.id, with_impact=False)
                     if view.get("list_file") is not None:
                         blockers = sum(len(r.get("blocks") or []) for g in view.get("groups") or [] for r in g.get("rows") or [])
                 except NotFound:

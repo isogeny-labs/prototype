@@ -21,6 +21,7 @@ from app import demo_repo
 from app.fixes import views as fixes
 from app.present import results as present
 from app.present import fixes as present_fixes
+from app.present import source as present_source
 from app.db import PlanRow, TestRunRow
 from app.run.execute import pq
 from app.web import models
@@ -28,6 +29,9 @@ from conftest import demo_plan, held, make_lab, result_of  # noqa: F401 (held is
 from view_helpers import fix as fix_of, plain, problems, section, texts
 from test_catalog_tests import ALERT_40, FakeChecker
 from test_changes import proved, small_plan, tamper
+
+# Where it came from (22 November 2026): a proof that ran and was believed carries its tag (it ran the changed code here)
+LAB_PROOF = present_source.lab_proof()
 
 FIX, TLS = "fix-ecdsa-range-check", "fix-tls-versions"
 SIZE = "3 lines added and 1 removed"
@@ -318,7 +322,7 @@ def test_the_change_shows_the_exact_lines_before_and_after(flow):
 
 def test_proof_failed(flow):
     detail = code_fix(flow.failed)
-    assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"},
+    assert detail["proof"] == {"source_tag": LAB_PROOF, "state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"},
                                "text": f"{PROOF_FAILED} The change is not offered.", "muted": None}
     assert [plain(p) for p in detail["what"]["paragraphs"]] == [WHAT_CHANGES]
     assert detail["what"]["label"] == "What it changes" and detail["what"]["server_line"] == SERVER_LINE_UNPROVEN
@@ -348,7 +352,7 @@ def test_ready_for_review(flow):
     detail = code_fix(flow.ready)
     assert detail["what"] == {"label": "What it fixes", "paragraphs": detail["what"]["paragraphs"], "server_line": SERVER_LINE}
     assert [plain(p) for p in detail["what"]["paragraphs"]] == [WHAT_FIXES]
-    assert detail["proof"] == {"state": "passed", "badge": {"label": "Proof passed", "tone": "pass"}, "text": PROOF_PASSED, "muted": None}
+    assert detail["proof"] == {"source_tag": LAB_PROOF, "state": "passed", "badge": {"label": "Proof passed", "tone": "pass"}, "text": PROOF_PASSED, "muted": None}
     assert detail["approvers"] == {"text": None, "rows": None, "footnote": ONE_LOGIN, "options": [
         {"id": "you", "name": "You", "note": "(the person logged in)", "demo": False, "checked": True},
         {"id": "a", "name": "Demo reviewer A", "note": None, "demo": True, "checked": False},
@@ -486,7 +490,7 @@ def test_merged(flow):
     for stage in ("merged", "after"):
         detail = code_fix(getattr(flow, stage))
         assert detail["what"]["label"] == "What it fixes" and detail["what"]["server_line"] == SERVER_LINE
-        assert detail["proof"] == {"state": "passed", "badge": {"label": "Proof passed", "tone": "pass"}, "text": PROOF_PASSED, "muted": None}
+        assert detail["proof"] == {"source_tag": LAB_PROOF, "state": "passed", "badge": {"label": "Proof passed", "tone": "pass"}, "text": PROOF_PASSED, "muted": None}
         assert detail["pull_request"]["title"] == "#1 Reject signatures whose r or s is out of range."
         assert plain([p for p in detail["pull_request"]["text"] if p["t"] != "time"]) == (
             "Merged  by the person logged in, after confirming. The demo repository's main branch now holds acme-sign 1.4.3. Nothing was deployed.")
@@ -930,7 +934,7 @@ def test_a_proof_that_never_ran_the_failed_test_the_change_is_for(corners):
     fix, and the view says which test is missing and what to do."""
     detail = code_fix(corners.answered_test_missing)
     assert detail["status"] == {"key": "failed", "word": "Proof failed", "busy": False}
-    assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"},
+    assert detail["proof"] == {"source_tag": LAB_PROOF, "state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"},
                                "text": f"{MISSING_ANSWERED} The change is not offered.", "muted": None}
     proof = section(detail, "proof")
     assert proof["line"] == "Did not pass: this proof did not run the failed test the change is for."
@@ -956,7 +960,7 @@ def test_a_proof_without_a_speed_comparison(corners):
     """Review finding 4. A plan with no Speed and size test: the proof passes every test it ran, and is not offered."""
     detail = code_fix(corners.no_speed_comparison)
     assert detail["status"]["word"] == "Proof failed"
-    assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"},
+    assert detail["proof"] == {"source_tag": LAB_PROOF, "state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"},
                                "text": f"{NO_SPEED} The change is not offered.", "muted": None}
     proof = section(detail, "proof")
     assert proof["line"] == "Did not pass: no speed comparison was made."
@@ -978,7 +982,7 @@ def test_a_proof_whose_server_tests_changed_is_not_offered(corners):
     named = ("The 2 server tests did not come out the same as before: Old TLS versions, Couldn't run (address not confirmed); "
              "Certificate strength, Couldn't run (address not confirmed).")
     assert detail["status"]["word"] == "Proof failed"
-    assert detail["proof"] == {"state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"}, "text": f"{named} The change is not offered.", "muted": None}
+    assert detail["proof"] == {"source_tag": LAB_PROOF, "state": "failed", "badge": {"label": "Proof did not pass", "tone": "fail"}, "text": f"{named} The change is not offered.", "muted": None}
     proof = section(detail, "proof")
     assert proof["line"] == "Did not pass: the 2 server tests did not come out the same as before."
     assert proof["verdict"]["checks"] == [{"ok": True, "text": "All 2 tests that run the changed code passed."},

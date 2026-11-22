@@ -79,7 +79,10 @@ describe("Import screen", () => {
     expect(first.getByText("TLS versions")).not.toBeNull();
     expect(first.getByText("localhost:8443 accepts TLS 1.3 only")).not.toBeNull();
     expect(first.getByText("TLS 1.3")).not.toBeNull();
-    expect(first.getByText("from the file")).not.toBeNull();
+    // 22 November 2026: where it came from, in the backend's words: the claim rests only on the file until Verify checks it
+    expect(first.getAllByTestId("source-tag").map((t) => [t.textContent, t.getAttribute("data-source")])).toEqual([["From your file", "file"]]);
+    expect(first.getAllByTestId("source-tag")[0]!.getAttribute("title")).toBe(demoImport.claim_source_tag!.meaning);
+    expect(first.queryByText("from the file")).toBeNull();
     expect(first.getByText("components[0] (bom-ref tls-acme-pay)")).not.toBeNull();
 
     const ticks = screen.getAllByTestId("address-confirm");

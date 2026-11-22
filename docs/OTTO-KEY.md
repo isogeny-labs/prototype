@@ -239,6 +239,40 @@ one settings file and leaves the program alone). What each change holds is in `d
 The status words of a change are: Not run yet, Running, No difference found, Passed before, fails now (with the
 count), Failed before, passes now (with the count), Nothing to run, Can't run, Couldn't trust this run.
 
+### Sandbox research (isolated mode only; a prototype)
+
+Asked on a copy of the app that is marked as the sandbox, with the switch on, the recorded advisory source and the
+recorded registry of `backend/tools/research_demo.py --sandbox`, and the file `demo/sandbox/starkbank-file.csv`. The
+walk looks on day 1, looks again on day 2, presses **Design and prove tests**, accepts the proposed check and runs
+it. `<item>` is `CVE-2021-43572~starkbank-ecdsa`. These are questions only: the key holds no answer of the build.
+`python -m app.accuracy --only otto` asks them (`_sandbox_walk` in `backend/app/accuracy_otto.py`): the first two in
+the mode they belong to, the rest in isolated mode when the six public package files of the demo are on the computer
+(otherwise it says in one note that they were not asked, and a key that holds them counts them as mismatches).
+
+| Question | What it asks | Values |
+|---|---|---|
+| `sandbox.switch.default` | Is Sandbox research on before anybody turned it on? | `true` or `false` |
+| `sandbox.demo_mode.can_turn_on` | Can the switch be turned on in demo mode? | `true` or `false` |
+| `sandbox.watch.<item>.day1` | Where the item stands after the first look | a status word of the Watch list |
+| `sandbox.watch.<item>.day2` | Where it stands after the look that finds the fixed version | a status word |
+| `sandbox.advisory.<advisory>.day1` | What Advisories says about it before a fix is named | `new`, `no_test`, `in_pack` or `not_yours` |
+| `sandbox.advisory.<advisory>.day2` | ... and after | the same values |
+| `sandbox.trial.<advisory>.affected` | The affected version the trial ran on | a version |
+| `sandbox.trial.<advisory>.fixed` | The fixed version the trial ran on | a version |
+| `sandbox.trial.<advisory>.affected.wrong` | How many of the selected published cases the affected version got wrong | a number |
+| `sandbox.trial.<advisory>.fixed.wrong` | ... and the fixed version | a number |
+| `sandbox.trial.<advisory>.control.wrong` | ... and the control that accepts everything | a number |
+| `sandbox.trial.<advisory>.cases` | How many published cases the design selects | a number |
+| `sandbox.trial.<advisory>.authors_agree` | Did the two authors' asking code give the same answer on every case of both copies? | `true` or `false` |
+| `sandbox.trial.<advisory>.left_out` | The versions that were left out before the registration | a list of versions |
+| `sandbox.test.<advisory>` | The state of its test in the pack the run made | `ready`, `not_offered` or `none` |
+| `sandbox.fix.<advisory>` | The state of its fix in that pack | `proven`, `not_proven` or `none` |
+| `sandbox.proposal.<advisory>.before_accept.runs` | How many runs the assessment has before the proposal is accepted | a number |
+| `sandbox.check.<advisory>.result` | The reviewer's result of the accepted check on the version the file names | a result word |
+| `sandbox.check.<advisory>.wrong` | How many cases it got wrong | a number |
+| `sandbox.evidence.verify` | The exit code of the verify command on the downloaded evidence file | a number |
+| `sandbox.pack.other_key` | Is the pack the run made taken when it is signed by a key that is not this computer's? | `true` or `false` |
+
 ### The real libraries file
 
 In both modes:

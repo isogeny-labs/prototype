@@ -156,6 +156,13 @@ Things to know in a Codespace:
   **Retests by version** (one block for each version a retest ran on, the newest open; **Retest new version** is
   here as well as on Evidence), **Fix proofs** (one block for each proof) and **Tries on a test copy** (only when a
   server change was tried). Each run shows in one place only.
+- **Where it came from** (22 November 2026). Every result, system status and fix has one small tag beside its own
+  word that says what it rests on: **Observed live** (read from a system at an address in your file that you
+  confirmed, with handshakes only), **Proven in the lab** (run on a copy on this computer, never on your live
+  system), **From your file** (nothing has been observed or run for it yet) or **Published** (said by the library's
+  maker or a published standard; the app has not measured it). Its panel says in one sentence what that means for
+  the item, and the Overview counts each group's checks by tag. A test that has not run, or couldn't run, has no tag.
+  The tag decides nothing and changes no result.
 - **Open in new tab.** Every side panel has **Open in new tab ↗** in its header. It opens that one item on a page of
   its own, with an address you can bookmark and open again; **← Back** returns to the list with the panel open.
 - **Times** on screen are in your own time zone, like "18 November 2026, 7:46 pm EST". The evidence file, the
@@ -282,7 +289,7 @@ come next. The rules are in [docs/SPEC.md](docs/SPEC.md), section 7f.
   1.4.3, so it is registered as a demo program of its own, `acme-sign 1.4.3-otto`. Where Otto is not installed, the
   fix template is offered instead.) For a real library the fix is labelled "From Otto": its publisher's fixed
   version with the quoted source, and two rows, "Proven on public copies" (the trial before the pack shipped) and
-  "Proven on your system" ("Not yet" until a retest on the updated version has run here).
+  "Proven in this assessment" ("Not yet" until a retest on the updated version has run here).
 - **Everywhere else.** The Overview counts what is "Waiting for you"; Import says how many checks may apply;
   Migration and Dependencies show the proposals (each marked "From Otto") for the plan and for libraries that an
   advisory names. Each proposal is decided by a person; nothing runs without a click.
@@ -487,6 +494,17 @@ cd backend && .venv/bin/python -m evidence verify <the downloaded .json file>
 These runs are kept apart. They never replace a result of the assessment's own tests. What is not built yet (the
 Watch list) and what the built part does not cover is listed in `docs/LIMITS.md`.
 
+A **side-channel** tool (`ct_audit` runner) runs the `crypto` crate's dynamic constant-time harness under Valgrind for one
+allowlisted target: Memcheck taint of the secret (secret-dependent branches and addresses, split into library and harness
+sites) and Callgrind instruction counts across secret classes, with positive and negative controls. Build
+`ct_dynamic_audit` in the crypto repository (`cargo build --release --bin ct_dynamic_audit`), install Valgrind and set
+`IEL_CT_AUDIT_BIN`. Without it, the frozen run of isogeny-labs/crypto #3296 is shown as hash-pinned imported evidence in
+the "Side-channel audit: crypto crate" project (`scripts/import_ct_audit.py` refreshes `seeds/ct_audit_snapshot.json`).
+
+## Customer-side runner and verifier
+See `iel_tools/README.md` and `docs/ATTESTATION.md`. Bundles are in-toto Statements in DSSE envelopes signed with Ed25519
+(`cryptography`). The platform accepts a bundle only after checking signature, expected signer, artifact digests, schema and
+project/implementation binding; duplicates and stale submissions are flagged, not counted.
 ### Asking "what if I update this library?" (phase 6e, first half, 19 November 2026)
 
 Type a what-if into the Otto panel's text box, on any page of an assessment:
@@ -558,6 +576,58 @@ Two things to know before you press **Design and prove tests**. Test packs insta
 run makes becomes the newest one, so a built-in pack that is published later can then not be installed in that
 data folder (the box says this too). And a run that could not settle an advisory (no answer, or a trial that did
 not finish) leaves it out of the pack, so you can try it again.
+
+### Sandbox research: a test Otto writes, proven on public copies (a prototype, 22 November 2026)
+
+A prototype for our own sandbox. It is off by default, and on a customer install it can't be turned on. With it off
+the app is exactly what it was. It adds three things behind one switch in **Settings** (**Sandbox research**):
+
+1. **The Watch list.** The **Change watch** page gets a second view. It lists every published weakness in a library
+   your file names for which the publisher has named no fixed version yet. The app looks again by itself, about once a
+   day, and marks an item **Fix published** on the day the source names a fixed version.
+2. **Public copies beyond the pinned set.** For a weakness with a fix in a library on npm or PyPI, the research run
+   fetches the affected and the fixed version from the public registry, checks each file against the registry's own
+   fingerprint, and builds them into a locked container image with no network.
+3. **The asking code.** Where the app has no code of its own that asks a library the test's questions, Claude writes
+   it (one small file, twice, by two authors that never see each other's work). It is used only after a screen by
+   fixed rules and a known-answer check, and it never sees a right answer. The screen is a filter, not a proof, which
+   is why the second author's code must agree with the first on every case. The questions and
+   their right answers are a publisher's, and the separate reviewer decides every run, as always.
+
+A test is proposed only after it was proven: it fails on the affected version, passes on the fixed version, the
+control that must fail does, and the two authors' code gave the same answer on every case. The proposal carries
+**How this test was proven**, with the code shown as text. You accept or reject it. Accepting runs nothing.
+
+**To see it with no internet and no API key** (Docker must be running; the first time it fetches six small public
+package files from PyPI, each checked against its pinned fingerprint):
+
+```bash
+cd backend && .venv/bin/python tools/research_demo.py --sandbox /tmp/sandbox-demo
+```
+
+It prints one command. Run that command from the repository's top folder to start the app. Then:
+
+1. **Settings**: turn **Sandbox research** on (a box says first what it will do).
+2. **New assessment**, bring in `demo/sandbox/starkbank-file.csv`.
+3. **Change watch**, **Watch list**, **Look now**: one weakness with no fix yet (this first record is Demo data: the
+   published record with its fixed version taken out, to show the day before a fix).
+4. In a second terminal, play the next day at the source, then press **Look now** again: the item reads **Fix
+   published**.
+
+```bash
+cd backend && .venv/bin/python tools/research_demo.py --sandbox --day 2 /tmp/sandbox-demo
+```
+
+5. **Advisories**: the weakness can now be tried on public copies from PyPI. Press **Design and prove tests**. After
+   about three minutes a check is proposed. Open it and read **How this test was proven**.
+6. **Accept**, then run the check on **Checks**. The reviewer's result for starkbank-ecdsa 2.0.0 is **Failed**: it got
+   1 of the 64 published cases wrong.
+
+With **Design and prove tests by itself** ticked (it needs Live Otto, so an API key), the app also starts the
+research run by itself, within the limit for one run and the limit for a day. Nothing is ever accepted by itself.
+
+What it does not do is in `docs/LIMITS.md`, "Limits of sandbox research". The plan it was built from is
+`docs/plans/otto-auto-researcher-change-watch.md`.
 
 ## Where things are
 

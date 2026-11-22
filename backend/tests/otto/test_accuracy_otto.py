@@ -110,3 +110,46 @@ def test_the_command_takes_otto_as_a_part_and_leaves_the_four_keys_as_they_were(
     assert "Otto accuracy: not graded here" in capsys.readouterr().out
     (tmp_path / "expected-otto.json").write_text("{}", encoding="utf-8")
     assert accuracy.main(["--mode", "demo"]) == 2 and asked == [True, False]
+
+
+# ---------------------------------------------------------------- sandbox research (a prototype): its questions
+
+def test_the_sandbox_questions_are_graded_in_isolated_mode_and_the_switch_in_both():
+    """docs/OTTO-KEY.md, "Sandbox research". Its walk needs containers; only the switch can be asked about everywhere,
+    and whether it can be turned on in demo mode is a question for demo mode."""
+    key = {"answers": {"sandbox.switch.default": False, "sandbox.demo_mode.can_turn_on": False,
+                       "sandbox.trial.CVE-2021-43572.affected.wrong": 1, "sandbox.check.CVE-2021-43572.result": "Failed",
+                       "sandbox.evidence.verify": 0}}
+    in_demo = {**ANSWERS, "sandbox.switch.default": False, "sandbox.demo_mode.can_turn_on": False}
+    report = accuracy_otto.compare_otto(key, in_demo)
+    assert (report["matched"], report["total"], report["not_applicable"]) == (2, 2, 3)
+    isolated = {k: v for k, v in ANSWERS.items() if not k.startswith("real.")}
+    isolated.update({"sandbox.switch.default": False, "sandbox.trial.CVE-2021-43572.affected.wrong": 1, "sandbox.evidence.verify": 0})
+    report = accuracy_otto.compare_otto(key, isolated)
+    assert (report["matched"], report["total"], report["not_applicable"]) == (3, 4, 1)          # the check's result has no answer: a mismatch
+    assert next(line for line in report["lines"] if line["id"] == "sandbox.check.CVE-2021-43572.result")["actual"] == "(no answer)"
+
+
+def test_in_demo_mode_the_sandbox_walk_asks_about_the_switch_only_and_leaves_the_computer_as_it_was(settings, monkeypatch):
+    """The plan asked for the new questions in `--only otto`. In demo mode two of them have an answer; the walk marks its
+    own scratch copy as the sandbox and takes the mark off again."""
+    import os
+
+    from app.config import SANDBOX_ENV
+    monkeypatch.delenv(SANDBOX_ENV, raising=False)
+    monkeypatch.setenv("EVIDENCE_LAB_REGISTRY_SOURCE", "/a/folder/that/was/set/before")
+    answers: dict = {}
+    notes: list[str] = []
+    accuracy_otto._sandbox_walk(settings, answers, notes, lambda text: None)
+    assert answers == {"sandbox.switch.default": False, "sandbox.demo_mode.can_turn_on": False}
+    assert len(notes) == 1 and "need isolated mode" in notes[0]
+    assert SANDBOX_ENV not in os.environ and os.environ["EVIDENCE_LAB_REGISTRY_SOURCE"] == "/a/folder/that/was/set/before"
+    # every question docs/OTTO-KEY.md lists for sandbox research is one the walk can answer (by its name)
+    from app.config import REPO_ROOT
+    doc = (REPO_ROOT / "docs" / "OTTO-KEY.md").read_text(encoding="utf-8")
+    listed = {line.split("`")[1] for line in doc.splitlines() if line.startswith("| `sandbox.")}
+    source = open(accuracy_otto.__file__, encoding="utf-8").read()
+    for question in listed:
+        stem = question.replace("<item>", "{SANDBOX_ITEM}").replace("<advisory>", "{SANDBOX_ID}")
+        tail = stem.split("}")[-1] if "}" in stem else stem
+        assert stem in source or (tail and tail in source), question

@@ -5,7 +5,7 @@ import { CLOSED_SENTENCE, useReadOnly } from "../../readOnly";
 import { DataTable, DetailPanel, FilterSelect, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "../layout";
 import { ViewInFixes } from "../migration/parts";
 import { FromOttoTag } from "../otto/ProposalCard";
-import { ErrorBox, NameText, SecondaryButton, SourceTag, StatusView } from "../ui";
+import { ErrorBox, NameText, SecondaryButton, SourceTag, StatusView, WhereFromTag } from "../ui";
 import { AlgoName } from "../plainName";
 import { RelatedFor } from "../related";
 import { AnswerChip, BlocksMarker, DependencyDetail, OttoMarker } from "./DependencyRowCard";
@@ -155,6 +155,10 @@ export function DependenciesView({ importId, onViewFix, onChanged, openItem = nu
         {row.via_words}
         {row.library ? ` · ${row.library}` : ""}
       </p>
+      {/* 22 November 2026: the library is here because your dependency list names it */}
+      <span className="mt-1 block">
+        <WhereFromTag tag={row.source_tag} />
+      </span>
       <BlocksMarker row={row} />
       <OttoMarker row={row} />
       {row.job ? (

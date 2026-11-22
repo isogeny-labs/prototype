@@ -1,6 +1,7 @@
 // The Checks page (phase 5b) for the Acme Pay demo, built from the view types with the backend's words
 // (backend/app/ledger/groups.py and checks.py). Times and ids are examples.
 import type { CheckDetail, CheckGroup, CheckRow, ChecksView } from "../api";
+import { couldntCheck, labCopy, live } from "./sourceFixtures";
 
 const VERIFIED_AT = "2026-11-10T09:10:00Z";
 const RAN_AT = "2026-11-10T09:20:00Z";
@@ -22,6 +23,8 @@ function claimRow(id: number, name: string, ranOn: string, label: "True" | "Fals
     status: null,
     result: { label, tone, code },
     plain,
+    // where it came from: a server claim is read from the server; one the app couldn't check rests on the file
+    source_tag: label === "Couldn't check" ? couldntCheck() : ranOn.includes(":") ? live(ranOn) : labCopy(ranOn),
     last_run_at: VERIFIED_AT,
     runs: 1,
   };
@@ -42,6 +45,7 @@ function testRow(id: number, name: string, ranOn: string, passed: boolean, origi
     status: null,
     result: passed ? { label: "Passed", tone: "pass", code: "passed" } : { label: "Failed", tone: "fail", code: "failed" },
     plain: passed ? "Every case gave the expected answer." : "Some cases did not give the expected answer.",
+    source_tag: ranOn.includes(":") ? live(ranOn) : labCopy(ranOn),
     last_run_at: origin === "plan" ? RAN_AT : RETESTED_AT,
     runs,
   };

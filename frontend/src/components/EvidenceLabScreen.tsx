@@ -46,6 +46,7 @@ import {
   SecondaryButton,
   StatusChip,
   StatusView,
+  WhereFromTag,
   splitByGroup,
 } from "./ui";
 
@@ -102,7 +103,11 @@ function Cell({
     <div data-testid={testId} className="min-w-0">
       {result ? (
         <>
-          <ResultBadge label={result.label} tone={result.tone} />
+          {/* (22 November 2026: where this side's result came from, beside its word) */}
+          <span className="flex flex-wrap items-center gap-1.5">
+            <ResultBadge label={result.label} tone={result.tone} />
+            <WhereFromTag tag={result.source_tag} />
+          </span>
           <p className="mt-1.5 text-[13px] leading-snug text-slate-300">{result.plain}</p>
         </>
       ) : status ? (
@@ -432,7 +437,10 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
             render: (row) =>
               row.result ? (
                 <div className="min-w-0">
-                  <ResultBadge label={row.result.label} tone={row.result.tone} />
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <ResultBadge label={row.result.label} tone={row.result.tone} />
+                    <WhereFromTag tag={row.result.source_tag} />
+                  </span>
                   <p className="mt-1.5 text-[13px] leading-snug text-slate-300">{row.result.plain}</p>
                 </div>
               ) : row.result_status ? (
@@ -467,7 +475,14 @@ export function EvidenceLabScreen({ planId, onViewFix, openItem = null, group = 
       render: (row) => {
         const r = leading(row, beforeAfter);
         // (the column is narrow here, so a long result, "No slowdown beyond measured noise", may wrap between words)
-        return r ? <ResultBadge label={r.label} tone={r.tone} wrap /> : row.result_status ? <StatusView status={row.result_status} /> : null;
+        return r ? (
+          <span className="flex flex-col items-start gap-1">
+            <ResultBadge label={r.label} tone={r.tone} wrap />
+            <WhereFromTag tag={r.source_tag} />
+          </span>
+        ) : row.result_status ? (
+          <StatusView status={row.result_status} />
+        ) : null;
       },
     },
   ];

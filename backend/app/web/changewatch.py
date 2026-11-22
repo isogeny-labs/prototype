@@ -6,6 +6,7 @@ from __future__ import annotations
 import re
 
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field, StrictStr
 
 from app.changewatch.demo_changes import ORDER as DEMO_NAMES
 from app.errors import NotFound
@@ -15,6 +16,15 @@ from app.web.common import shows
 # A change's id as the view writes it: "change-" and twelve characters of its commit. (A demo change is named by one of
 # our own names, and only those are let through: the address is never matched against a pattern that could run long.)
 _CHANGE_ID = re.compile(r"change-[0-9a-f]{12}")
+
+
+class WatchStopBody(BaseModel):
+    item: StrictStr = Field(max_length=200)                              # the item's key, as the view gave it
+    reason: StrictStr | None = Field(default=None, max_length=2000)      # optional (held to 300 after cleaning)
+
+
+class WatchAgainBody(BaseModel):
+    item: StrictStr = Field(max_length=200)
 
 
 def routes(lab, require_login) -> APIRouter:
@@ -42,5 +52,28 @@ def routes(lab, require_login) -> APIRouter:
             raise NotFound("That change is not in the connected repository.")
         lab.run_picked_tests(plan_id, change_id)
         return lab.change_watch_view(plan_id)
+
+    # ---- the Watch list (sandbox research, a prototype): the page's second view. With the switch off the read says so
+    #      and every action is refused.
+
+    @router.get("/api/plans/{plan_id}/watch-list", dependencies=login, responses=shows(models.WatchListView))
+    def watch_list(plan_id: int):
+        """Published weaknesses in this assessment's libraries with no fix yet. It only reads: nothing is sent or written."""
+        return lab.watch_list_view(plan_id)
+
+    @router.post("/api/plans/{plan_id}/watch-list/look", dependencies=login, responses=shows(models.WatchListView))
+    def watch_list_look(plan_id: int):
+        """Look now: one click, after the box that says what is sent (package names, nothing else)."""
+        return lab.watch_list_look(plan_id)
+
+    @router.post("/api/plans/{plan_id}/watch-list/stop", dependencies=login, responses=shows(models.WatchListView))
+    def watch_list_stop(plan_id: int, body: WatchStopBody):
+        """Stop watching one weakness, with an optional short reason. Recorded; nothing is deleted."""
+        return lab.watch_list_mark(plan_id, body.item, True, body.reason)
+
+    @router.post("/api/plans/{plan_id}/watch-list/watch", dependencies=login, responses=shows(models.WatchListView))
+    def watch_list_again(plan_id: int, body: WatchAgainBody):
+        """Watch a weakness again."""
+        return lab.watch_list_mark(plan_id, body.item, False)
 
     return router

@@ -174,7 +174,7 @@ test("a what-if is answered from what the app knows; the try is the page's own r
   await expect(group("own_results").getByTestId("whatif-line").first()).toContainText("on acme-sign 1.4.2:");
   const offered = reply().getByTestId("whatif-try");
   await expect(offered).toHaveAttribute("data-offered", "yes");
-  await expect(offered.getByTestId("whatif-try-changes")).toContainText("“Proven on your system” then reads this run.");
+  await expect(offered.getByTestId("whatif-try-changes")).toContainText("“Proven in this assessment” then reads this run.");
   const card = offered.getByTestId("otto-entry");
   await expect(card.getByTestId("otto-entry-title")).toHaveText("Retest new version");
   const before = sent.length;

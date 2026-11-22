@@ -1,0 +1,426 @@
+{
+ "schema": "iel-ct-audit-snapshot/v1",
+ "provenance": "imported",
+ "source": {
+  "repository": "isogeny-labs/crypto",
+  "study": "research/ct_dynamic_audit_20261102",
+  "pull_request": 3296,
+  "branch": "claude/ct-dynamic-audit-20261102",
+  "commit": "ab98efcf3190fd4dc11b9466af723ce037dc5699",
+  "summary_sha256": "7eb2fa01563106e227adc4d0df2106ce8824a0aa3aa5313acb8c581b4720d71f",
+  "receipt_sha256": "fd4fee553718b7b9d4a0aa897ecabbdc019a1a3af1ec16d1f0659658428a351d",
+  "run_commit": "a1530967a1c6ea4e63bb9b470639ec0c73294117",
+  "card_id": "CARD-ct-dynamic-audit-20261102-1",
+  "report": "research/ct_dynamic_audit_20261102/REPORT.pdf"
+ },
+ "method": "Valgrind 3.22. Taint: Memcheck with the secret marked undefined (ctgrind); every conditional jump/move or address that depends on it is reported. Instruction count: Callgrind, one dump per call, classes aa (one secret repeated), random, short (< 2^32), lowhw (weight 8).",
+ "limitations": [
+  "Taint covers one release build, 4 calls per target and Memcheck's model; it does not see conditional moves, cache-line or port effects.",
+  "The instruction-count verdict is 'not applicable' wherever repeating one secret already varies the count (OsRng, allocator state).",
+  "No target is claimed constant-time; no wall-clock measurement was made."
+ ],
+ "targets": [
+  {
+   "target": "ctrl_pos_branch",
+   "description": "control: branch + table index on a secret byte (must be flagged)",
+   "taint_errors": 4,
+   "taint_sites": [
+    "ct_dynamic_audit::ctrl_pos_branch @ research/ct_dynamic_audit_20261102/src/main.rs:125 [UninitCondition]",
+    "ct_dynamic_audit::ctrl_pos_branch @ research/ct_dynamic_audit_20261102/src/main.rs:128 [UninitValue]"
+   ],
+   "taint_verdict": "2 secret-dependent sites",
+   "ir": {
+    "aa": {
+     "min": 120,
+     "max": 120,
+     "n": 16
+    },
+    "random": {
+     "min": 69,
+     "max": 122,
+     "n": 32
+    },
+    "short": {
+     "min": 80,
+     "max": 122,
+     "n": 16
+    },
+    "lowhw": {
+     "min": 69,
+     "max": 69,
+     "n": 16
+    }
+   },
+   "ir_verdict": "Ir depends on the secret (spread 53 = 76.8116% of min)"
+  },
+  {
+   "target": "ctrl_neg_masked",
+   "description": "control: fixed-trip masked u64 arithmetic, no secret branch or index (must be clean)",
+   "taint_errors": 0,
+   "taint_sites": [],
+   "taint_verdict": "no secret-dependent branch or address reported",
+   "ir": {
+    "aa": {
+     "min": 506,
+     "max": 506,
+     "n": 16
+    },
+    "random": {
+     "min": 508,
+     "max": 508,
+     "n": 32
+    },
+    "short": {
+     "min": 508,
+     "max": 508,
+     "n": 16
+    },
+    "lowhw": {
+     "min": 508,
+     "max": 508,
+     "n": 16
+    }
+   },
+   "ir_verdict": "no Ir variation observed across classes"
+  },
+  {
+   "target": "x25519",
+   "description": "ecc::x25519::x25519, secret scalar, u = 9",
+   "taint_errors": 0,
+   "taint_sites": [],
+   "taint_verdict": "no secret-dependent branch or address reported",
+   "ir": {
+    "aa": {
+     "min": 911790,
+     "max": 911790,
+     "n": 16
+    },
+    "random": {
+     "min": 911792,
+     "max": 911792,
+     "n": 32
+    },
+    "short": {
+     "min": 911792,
+     "max": 911792,
+     "n": 16
+    },
+    "lowhw": {
+     "min": 911792,
+     "max": 911792,
+     "n": 16
+    }
+   },
+   "ir_verdict": "no Ir variation observed across classes"
+  },
+  {
+   "target": "smul_p256",
+   "description": "ecc::ct::scalar_mul_secret on P-256 (dedicated projective ladder)",
+   "taint_errors": 10,
+   "taint_sites": [
+    "<crypto_lib::ct_bignum::Uint<4>>::to_biguint @ src/ct_bignum.rs:96 [UninitCondition]",
+    "<crypto_lib::ecc::p256_point::P256ProjectivePoint>::to_affine @ src/ecc/p256_point.rs:82 [UninitCondition]",
+    "new @ src/ecc/field.rs:23 [UninitCondition]",
+    "{closure#0} @ research/ct_dynamic_audit_20261102/src/main.rs:145 [UninitCondition]"
+   ],
+   "taint_verdict": "4 secret-dependent sites",
+   "ir": {
+    "aa": {
+     "min": 6007842,
+     "max": 6007922,
+     "n": 16
+    },
+    "random": {
+     "min": 6007864,
+     "max": 6008010,
+     "n": 32
+    },
+    "short": {
+     "min": 6007482,
+     "max": 6007505,
+     "n": 16
+    },
+    "lowhw": {
+     "min": 6007638,
+     "max": 6008010,
+     "n": 16
+    }
+   },
+   "ir_verdict": "not applicable: A/A not deterministic (spread 80)"
+  },
+  {
+   "target": "smul_secp256k1",
+   "description": "ecc::ct::scalar_mul_secret on secp256k1 (dedicated projective ladder)",
+   "taint_errors": 10,
+   "taint_sites": [
+    "<crypto_lib::ct_bignum::Uint<4>>::to_biguint @ src/ct_bignum.rs:96 [UninitCondition]",
+    "<crypto_lib::ecc::secp256k1_point::ProjectivePoint>::to_affine @ src/ecc/secp256k1_point.rs:103 [UninitCondition]",
+    "UnknownInlinedFun @ src/ecc/field.rs:23 [UninitCondition]",
+    "{closure#0} @ research/ct_dynamic_audit_20261102/src/main.rs:145 [UninitCondition]"
+   ],
+   "taint_verdict": "4 secret-dependent sites",
+   "ir": {
+    "aa": {
+     "min": 4404020,
+     "max": 4404100,
+     "n": 16
+    },
+    "random": {
+     "min": 4404065,
+     "max": 4404188,
+     "n": 32
+    },
+    "short": {
+     "min": 4403660,
+     "max": 4403683,
+     "n": 16
+    },
+    "lowhw": {
+     "min": 4403938,
+     "max": 4404065,
+     "n": 16
+    }
+   },
+   "ir_verdict": "not applicable: A/A not deterministic (spread 80)"
+  },
+  {
+   "target": "smul_sm2_generic",
+   "description": "ecc::ct::scalar_mul_secret on SM2 (generic affine ladder, fixed 2026-10-22)",
+   "taint_errors": 2,
+   "taint_sites": [
+    "<crypto_lib::ecc::point::Point>::scalar_mul_ct @ src/ecc/point.rs:390 [UninitCondition]",
+    "{closure#0} @ research/ct_dynamic_audit_20261102/src/main.rs:145 [UninitCondition]"
+   ],
+   "taint_verdict": "2 secret-dependent sites",
+   "ir": {
+    "aa": {
+     "min": 1378444717,
+     "max": 1378489795,
+     "n": 16
+    },
+    "random": {
+     "min": 1378361983,
+     "max": 1378500803,
+     "n": 32
+    },
+    "short": {
+     "min": 1378459613,
+     "max": 1378514655,
+     "n": 16
+    },
+    "lowhw": {
+     "min": 1378331631,
+     "max": 1378547463,
+     "n": 16
+    }
+   },
+   "ir_verdict": "not applicable: A/A not deterministic (spread 45078)"
+  },
+  {
+   "target": "inv_prime_ct",
+   "description": "utils::mod_inverse_prime_ct(k, n_P-256): ECDSA's k^-1",
+   "taint_errors": 40,
+   "taint_sites": [
+    "crypto_lib::utils::mod_inverse_prime_ct @ src/utils/mod.rs:94 [UninitCondition]",
+    "crypto_lib::utils::mod_pow_ct @ src/utils/mod.rs:63 [UninitCondition]",
+    "crypto_lib::utils::mod_pow_ct @ src/utils/mod.rs:68 [UninitCondition]",
+    "crypto_lib::utils::mod_pow_ct @ src/utils/mod.rs:69 [UninitCondition]",
+    "crypto_lib::utils::mod_pow_ct @ src/utils/mod.rs:70 [UninitCondition]",
+    "{closure#0} @ research/ct_dynamic_audit_20261102/src/main.rs:145 [UninitCondition]"
+   ],
+   "taint_verdict": "6 secret-dependent sites",
+   "ir": {
+    "aa": {
+     "min": 1750804,
+     "max": 1750875,
+     "n": 16
+    },
+    "random": {
+     "min": 1735673,
+     "max": 1750990,
+     "n": 32
+    },
+    "short": {
+     "min": 1727305,
+     "max": 1738772,
+     "n": 16
+    },
+    "lowhw": {
+     "min": 1743107,
+     "max": 1751373,
+     "n": 16
+    }
+   },
+   "ir_verdict": "not applicable: A/A not deterministic (spread 71)"
+  },
+  {
+   "target": "inv_euclid",
+   "description": "utils::mod_inverse(1 + d, n_SM2): SM2 signing's private-key inverse",
+   "taint_errors": 103,
+   "taint_sites": [
+    "crypto_lib::utils::mod_inverse @ src/utils/mod.rs:132 [UninitCondition]",
+    "ct_dynamic_audit::call @ research/ct_dynamic_audit_20261102/src/main.rs:161 [UninitCondition]",
+    "mod_inverse_bigint @ src/utils/mod.rs:147 [UninitCondition]",
+    "mod_inverse_bigint @ src/utils/mod.rs:147 [UninitValue]",
+    "mod_inverse_bigint @ src/utils/mod.rs:148 [UninitCondition]",
+    "mod_inverse_bigint @ src/utils/mod.rs:151 [UninitCondition]",
+    "mod_inverse_bigint @ src/utils/mod.rs:161 [UninitCondition]",
+    "{closure#0} @ research/ct_dynamic_audit_20261102/src/main.rs:145 [UninitCondition]"
+   ],
+   "taint_verdict": "8 secret-dependent sites",
+   "ir": {
+    "aa": {
+     "min": 379770,
+     "max": 379776,
+     "n": 16
+    },
+    "random": {
+     "min": 326399,
+     "max": 430424,
+     "n": 32
+    },
+    "short": {
+     "min": 17900,
+     "max": 28376,
+     "n": 16
+    },
+    "lowhw": {
+     "min": 246028,
+     "max": 356811,
+     "n": 16
+    }
+   },
+   "ir_verdict": "not applicable: A/A not deterministic (spread 6)"
+  },
+  {
+   "target": "ed25519_sign",
+   "description": "ecc::ed25519::ed25519_sign, secret seed, fixed message",
+   "taint_errors": 1031,
+   "taint_sites": [
+    "<crypto_lib::ecc::ed25519::EdPoint>::scalar_mul @ src/ecc/ed25519.rs:190 [UninitCondition]",
+    "<crypto_lib::ecc::ed25519::EdPoint>::scalar_mul @ src/ecc/ed25519.rs:192 [UninitCondition]",
+    "<crypto_lib::ecc::ed25519::EdPoint>::scalar_mul @ src/ecc/ed25519.rs:192 [UninitValue]",
+    "bytes32_le @ src/ecc/ed25519.rs:364 [UninitCondition]",
+    "bytes32_le @ src/ecc/ed25519.rs:368 [UninitCondition]",
+    "crypto_lib::ecc::ed25519::ed25519_sign @ src/ecc/ed25519.rs:295 [UninitCondition]",
+    "crypto_lib::ecc::ed25519::ed25519_sign @ src/ecc/ed25519.rs:311 [UninitCondition]"
+   ],
+   "taint_verdict": "7 secret-dependent sites",
+   "ir": {
+    "aa": {
+     "min": 130498969,
+     "max": 130545941,
+     "n": 16
+    },
+    "random": {
+     "min": 120131804,
+     "max": 137621288,
+     "n": 32
+    },
+    "short": {
+     "min": 122127894,
+     "max": 133120432,
+     "n": 16
+    },
+    "lowhw": {
+     "min": 120557969,
+     "max": 135695137,
+     "n": 16
+    }
+   },
+   "ir_verdict": "not applicable: A/A not deterministic (spread 46972)"
+  },
+  {
+   "target": "ecdsa_p256_sign",
+   "description": "ecc::ecdsa::sign on P-256, secret d, fixed message (scalar blinding draws OsRng)",
+   "taint_errors": 86,
+   "taint_sites": [
+    "<crypto_lib::ct_bignum::Uint<4>>::to_biguint @ src/ct_bignum.rs:96 [UninitCondition]",
+    "<crypto_lib::ecc::p256_point::P256ProjectivePoint>::to_affine @ src/ecc/p256_point.rs:82 [UninitCondition]",
+    "bits2int @ src/ecc/ecdsa.rs:202 [UninitCondition]",
+    "crypto_lib::ecc::ct::scalar_mul_secret_blinded @ src/ecc/ct.rs:83 [UninitCondition]",
+    "crypto_lib::ecc::ecdsa::sign_hash @ src/ecc/ecdsa.rs:52 [UninitCondition]",
+    "crypto_lib::ecc::ecdsa::sign_hash @ src/ecc/ecdsa.rs:79 [UninitCondition]",
+    "crypto_lib::ecc::ecdsa::sign_hash @ src/ecc/ecdsa.rs:85 [UninitCondition]",
+    "crypto_lib::ecc::ecdsa::sign_hash @ src/ecc/ecdsa.rs:86 [UninitCondition]",
+    "crypto_lib::ecc::ecdsa::sign_hash @ src/ecc/ecdsa.rs:96 [UninitCondition]",
+    "crypto_lib::utils::encoding::bigint_to_bytes_be_checked @ src/utils/encoding.rs:37 [UninitCondition]",
+    "crypto_lib::utils::encoding::bigint_to_bytes_be_checked @ src/utils/encoding.rs:45 [UninitCondition]",
+    "crypto_lib::utils::mod_inverse_prime_ct @ src/utils/mod.rs:94 [UninitCondition]",
+    "crypto_lib::utils::mod_pow_ct @ src/utils/mod.rs:63 [UninitCondition]",
+    "crypto_lib::utils::mod_pow_ct @ src/utils/mod.rs:68 [UninitCondition]",
+    "crypto_lib::utils::mod_pow_ct @ src/utils/mod.rs:69 [UninitCondition]",
+    "crypto_lib::utils::mod_pow_ct @ src/utils/mod.rs:70 [UninitCondition]",
+    "new @ src/ecc/field.rs:23 [UninitCondition]",
+    "next_k @ src/ecc/ecdsa.rs:183 [UninitCondition]",
+    "{closure#0} @ research/ct_dynamic_audit_20261102/src/main.rs:145 [UninitCondition]"
+   ],
+   "taint_verdict": "19 secret-dependent sites",
+   "ir": {
+    "aa": {
+     "min": 9312005,
+     "max": 9316111,
+     "n": 16
+    },
+    "random": {
+     "min": 9298331,
+     "max": 9315724,
+     "n": 32
+    },
+    "short": {
+     "min": 9301503,
+     "max": 9313601,
+     "n": 16
+    },
+    "lowhw": {
+     "min": 9297410,
+     "max": 9314133,
+     "n": 16
+    }
+   },
+   "ir_verdict": "not applicable: A/A not deterministic (spread 4106)"
+  },
+  {
+   "target": "sm2_sign",
+   "description": "ecc::sm2::sign, secret d (nonce drawn from OsRng)",
+   "taint_errors": 124,
+   "taint_sites": [
+    "crypto_lib::ecc::sm2::sign @ src/ecc/sm2.rs:150 [UninitCondition]",
+    "crypto_lib::ecc::sm2::sign @ src/ecc/sm2.rs:155 [UninitCondition]",
+    "crypto_lib::ecc::sm2::sign @ src/ecc/sm2.rs:157 [UninitCondition]",
+    "crypto_lib::ecc::sm2::sign @ src/ecc/sm2.rs:158 [UninitCondition]",
+    "crypto_lib::utils::mod_inverse @ src/utils/mod.rs:132 [UninitCondition]",
+    "mod_inverse_bigint @ src/utils/mod.rs:147 [UninitCondition]",
+    "mod_inverse_bigint @ src/utils/mod.rs:147 [UninitValue]",
+    "mod_inverse_bigint @ src/utils/mod.rs:148 [UninitCondition]",
+    "mod_inverse_bigint @ src/utils/mod.rs:151 [UninitCondition]",
+    "mod_inverse_bigint @ src/utils/mod.rs:161 [UninitCondition]",
+    "run_taint @ research/ct_dynamic_audit_20261102/src/main.rs:214 [UninitCondition]"
+   ],
+   "taint_verdict": "11 secret-dependent sites",
+   "ir": {
+    "aa": {
+     "min": 2780688283,
+     "max": 2780897054,
+     "n": 16
+    },
+    "random": {
+     "min": 2780595173,
+     "max": 2780931670,
+     "n": 32
+    },
+    "short": {
+     "min": 2780365988,
+     "max": 2780539382,
+     "n": 16
+    },
+    "lowhw": {
+     "min": 2780459602,
+     "max": 2780842439,
+     "n": 16
+    }
+   },
+   "ir_verdict": "not applicable: A/A not deterministic (spread 208771)"
+  }
+ ]
+}

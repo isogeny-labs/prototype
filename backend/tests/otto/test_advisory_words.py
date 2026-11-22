@@ -13,8 +13,10 @@ from app.present import otto as present_otto
 
 PACK = SimpleNamespace(version="2026.11.1")
 STATUS = {"installed": True, "sentence": "Otto harness: version 0.1.0, commit aa4a6fd (pinned)."}
-FAILED = {"label": "Failed", "tone": "fail", "plain": "It got 3 of 77 published cases wrong.", "component": "one 1.0", "finished_at": None}
-PASSED = {"label": "Passed", "tone": "pass", "plain": "It got all 77 published cases right.", "component": "two 1.0", "finished_at": None}
+FAILED = {"label": "Failed", "tone": "fail", "plain": "It got 3 of 77 published cases wrong.", "component": "one 1.0", "finished_at": None,
+          "code": "failed"}
+PASSED = {"label": "Passed", "tone": "pass", "plain": "It got all 77 published cases right.", "component": "two 1.0", "finished_at": None,
+          "code": "passed"}
 
 
 def _here(program: str, item_id: int | None, result: dict | None, own_code: bool = False) -> dict:
@@ -56,7 +58,10 @@ def test_a_result_after_a_retest_says_which_version_it_is_of():
     assert row["result"]["text"] == "Retest on acme-sign 1.4.3-otto. First run on acme-sign 1.4.2: Failed."
     here, = row["panel"]["here"]["rows"]
     assert here["result"]["ran_on"] == "This is the retest, on acme-sign 1.4.3-otto. The first run, on acme-sign 1.4.2, read Failed."
-    assert set(here["result"]) == {"label", "tone", "plain", "component", "finished_at", "ran_on"}
+    assert set(here["result"]) == {"label", "tone", "plain", "component", "finished_at", "ran_on", "source_tag", "sandbox_copy"}
+    assert here["result"]["sandbox_copy"] is False        # (sandbox research is off: no run is on a sandbox copy)
+    # (22 November 2026: an advisory check runs a copy of the program on this computer: Proven in the lab)
+    assert here["result"]["source_tag"]["label"] == "Proven in the lab" and row["result"]["source_tag"] == here["result"]["source_tag"]
     # a first run is of the version the row names: no such line
     plain = _row([_here("acme-sign 1.4.2", 11, FAILED)])
     assert plain["result"]["text"] is None and plain["panel"]["here"]["rows"][0]["result"]["ran_on"] is None

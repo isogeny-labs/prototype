@@ -8,6 +8,7 @@ from app.db import PlanRow, TestRunRow
 from app.engine import research
 from app.lab.testlab import BUSY
 from app.present import changewatch as words
+from app.present import source as present_source
 from app.present.fixes import DEVELOPER_CHANGE_FIX_LINE
 
 BEFORE_FROM = {"first": "This assessment's own run of the test.", "retest": "From a retest of this assessment.",
@@ -26,8 +27,9 @@ class ChangeWatchViewMixin:
     _running: Callable[[int], str | None]
     _result: Callable[..., dict | None]
 
-    def _watch_side(self, db, side: dict | None, link: dict | None) -> dict | None:
-        """One side of before and now: the reviewer's word for that run, its plain sentence, and where its evidence is."""
+    def _watch_side(self, db, side: dict | None, link: dict | None, kind: str | None = None) -> dict | None:
+        """One side of before and now: the reviewer's word for that run, its plain sentence, where its evidence is, and
+        (22 November 2026) where it came from: a picked test runs a copy of the code on this computer."""
         if side is None:
             return None
         run = db.get(TestRunRow, side["run_id"])
@@ -35,7 +37,8 @@ class ChangeWatchViewMixin:
         if result is None:
             return None
         on = f"{run.component_name} {run.component_version}" if run.component_name and run.component_version else None
-        return {"run_id": run.id, "label": result["label"], "tone": result["tone"], "plain": result["plain"], "ran_on": on, "link": link}
+        return {"run_id": run.id, "label": result["label"], "tone": result["tone"], "plain": result["plain"], "ran_on": on, "link": link,
+                "source_tag": present_source.of_test(kind, result)}
 
     @staticmethod
     def _run_link(run: TestRunRow | None) -> dict | None:
@@ -64,9 +67,10 @@ class ChangeWatchViewMixin:
             results.append({
                 # (a test that has left the plan since is still named by what it is)
                 "item_id": row["item_id"], "title": titles.get(row["item_id"]) or research.title_of(row["kind"]),
-                "before": self._watch_side(db, row["before"], self._run_link(before_run)),
+                "before": self._watch_side(db, row["before"], self._run_link(before_run), row["kind"]),
                 "before_note": (words_or_none(row, before_run)),
-                "now": self._watch_side(db, row["now"], self._run_link(db.get(TestRunRow, row["now"]["run_id"]) if row["now"] is not None else None)),
+                "now": self._watch_side(db, row["now"], self._run_link(db.get(TestRunRow, row["now"]["run_id"]) if row["now"] is not None else None),
+                                        row["kind"]),
                 "job": row["job"], "differs": words.OUTCOME_WORDS.get(row["outcome"]) if row["outcome"] else None,
                 "outcome": row["outcome"]})
         status = words.status_view(change, program)

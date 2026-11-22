@@ -54,6 +54,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from app.canonical import canonical_bytes, loads_strict
 
+from . import sandbox
+
 PACK_CONTEXT = b"isogeny-evidence-lab/test-pack/v1\n"
 OTTO_SCHEMA = "isogeny.otto-evidence/1"
 SHIPPED_KEYS_FILE = Path(__file__).resolve().parents[1] / "app" / "otto" / "trusted-pack-keys.json"
@@ -95,6 +97,15 @@ def _sha(obj: object) -> str:
 
 def _record_id(obj: object) -> str:
     return "sha256:" + _sha(obj)
+
+
+def shipped_pack_keys() -> set[str]:
+    """The pack signing keys shipped with the app, and only those."""
+    try:
+        shipped = json.loads(SHIPPED_KEYS_FILE.read_text(encoding="utf-8"))
+        return {str(k.get("public_key")) for k in shipped.get("keys") or [] if isinstance(k, dict) and _HEX64.match(str(k.get("public_key")))}
+    except (OSError, ValueError, AttributeError):
+        return set()
 
 
 def pack_keys(data_dir: Path | None, extra: list[str] | None = None) -> set[str]:
@@ -187,8 +198,11 @@ def _runs_in_file(evidence: dict) -> list[tuple[object, dict]]:
 def needs_otto_part(evidence: object) -> bool:
     """Does this evidence hold an advisory check? A file from this app that does always has an Otto part."""
     tests = evidence.get("tests") if isinstance(evidence, dict) else None
-    return any(isinstance(t, dict) and (t.get("kind") == "advisory_cases" or t.get("proposed_by") == PACK_ID)
-               for t in (tests if isinstance(tests, list) else []))
+    if any(isinstance(t, dict) and (t.get("kind") == "advisory_cases" or t.get("proposed_by") == PACK_ID)
+           for t in (tests if isinstance(tests, list) else [])):
+        return True
+    # (sandbox research: a run on a sandbox copy needs the pack that says what its image holds)
+    return isinstance(evidence, dict) and any(sandbox.sandbox_images(run) for _, run in _runs_in_file(evidence))
 
 
 def check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | None = None) -> OttoOutcome:
@@ -216,6 +230,13 @@ def _check_otto(evidence: dict, trusted_pack_keys: set[str], previous: dict | No
                 untrusted.append(_plain(pack.get("version"), 40))
         out.lines.append(f"Test packs: {len(packs)} in the file, each whole and with a signature that holds"
                          + (" from a pack key you trust." if not untrusted else "."))
+        # 1b. a pack that carries asking code (sandbox research, a prototype): its sandbox part, checked as data
+        try:
+            out.lines += sandbox.check_packs(list(otto.get("packs") or []), shipped_pack_keys())
+            every_run = [run for _, run in _runs_in_file(evidence)] + [r for r in otto.get("runs") or [] if isinstance(r, dict)]
+            out.lines += sandbox.check_runs(every_run, list(otto.get("packs") or []))
+        except sandbox.SandboxProblem as exc:
+            raise _Failed(str(exc)) from None
         # 3. the chain (needed by 2 and 4)
         ledger = otto.get("ledger") or {}
         entries = _chain(ledger.get("lines"))

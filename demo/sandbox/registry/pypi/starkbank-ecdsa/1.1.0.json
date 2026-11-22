@@ -1,0 +1,8 @@
+{
+ "info": {
+  "name": "starkbank-ecdsa",
+  "requires_dist": null,
+  "requires_python": "",
+  "version": "1.1.0"
+ }
+}

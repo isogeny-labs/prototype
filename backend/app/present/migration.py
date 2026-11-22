@@ -13,6 +13,7 @@ from datetime import date
 
 from app.migration import rules
 from app.present import pq as present_pq
+from app.present import source as present_source
 from app.present import times
 from app.present import tracks as present_tracks
 from app.engine.guidance import PQ_DATES, PQ_PUBLISHED
@@ -694,6 +695,14 @@ def _settings_view(state: dict, enabled: bool) -> dict:
 
 
 def system_view(state: dict, today: date, busy: bool) -> dict:
+    view = _system_view(state, today, busy)
+    # Where it came from (22 November 2026): the status's tag, and every small tag of the panel in its source's look (a bare
+    # "measured" is a reading of the server itself, or a run of a copy of the signing program). Words only; it decides nothing.
+    view["source_tag"] = present_source.of_system(state["kind"], view["status"]["code"], state["name"])
+    return present_source.colour_tags(view, present_source.LIVE if state["kind"] == "server" else present_source.LAB)
+
+
+def _system_view(state: dict, today: date, busy: bool) -> dict:
     result = state["result"]
     if result is not None and not state["status"]:
         # In this step a measurement that gave no status reads "Couldn't check", as in Verify.

@@ -51,7 +51,7 @@ TRY_TITLE = "A try on a test copy"
 TRY_CHANGES = ["It reruns this assessment's locked tests for that library on the public copy of the new version, on this computer.",
                "Its results become the newest results “after” for those tests in this assessment.",
                "A finding that passes on the new version can then read as closed.",
-               "“Proven on your system” then reads this run.",
+               "“Proven in this assessment” then reads this run.",
                "An accepted update for this library can then no longer be undone."]
 HYPOTHESIS_NOTE = ("What the facts above do not show. Turning one of these into a test, or adding it to Change watch, is not part of "
                    "this version yet.")
@@ -156,6 +156,7 @@ class WhatIfMixin:
         with self.db() as db:
             plan = self._plan(db, plan_id)
             state = self._dependency_state(db, plan)
+            users = self._row_users(db, plan, state)   # type: ignore[attr-defined]  # phase 4e: every top entry that reaches a row
             programs = research.programs(self._claims(db.get(ImportRow, plan.import_id)))
             closed = self._closed_at(plan.id)
             pack_advisories = self._pack_advisories(db, closed)
@@ -180,7 +181,7 @@ class WhatIfMixin:
         real_note = self._real_note({"component": named[0]["component"], "version": named[0]["version"]}) if named else None
 
         new_needs = kb.declared_needs(purl, name, asked_version) if (purl or entry is not None) else kb.declared_needs(None, asked_library, asked_version)
-        facts = [_whatif_used(state, rows, label), _whatif_needs(kb, purl, name, label, have, new, new_needs),
+        facts = [_whatif_used(state, rows, label, users), _whatif_needs(kb, purl, name, label, have, new, new_needs),
                  _whatif_advisories(advisories, label, read, new), _whatif_trial(advisories, label, new),
                  _whatif_post_quantum(kb, purl, name, label, rows, have, asked_version, new), _whatif_blocks(kb, purl, name, state, rows, label, asked_version, new),
                  _whatif_own_results(lab, named, label)]
@@ -202,22 +203,27 @@ class WhatIfMixin:
 
 # ---------------------------------------------------------------- the seven kinds of fact
 
-def _whatif_used(state: dict | None, rows: list[dict], label: str) -> dict:
+def _whatif_used(state: dict | None, rows: list[dict], label: str, users: dict | None = None) -> dict:
+    """One line for each top entry that reaches each row (phase 4e: the walk of "Where it is used", so the two never
+    disagree); a row no top entry reaches keeps the one line under its own heading."""
     if state is None:
         return _group("used", [], "This assessment has no dependency list, so the app can't say where the library is used.")
     tops = {t["key"]: t for t in state["tops"]}
     systems = {s["key"]: s["name"] for s in state["system_choices"]}
     lines = []
     for row in rows:
-        top = tops.get(row.get("owner"))
-        under = f", under {top['label']}" if top is not None and top["label"] != row["label"] else ""
-        tie = ""
-        if top is not None:
-            system = top["tie"]["system"]
-            tie = (f" {top['label']} is tied to {systems.get(system, system)}." if system else
-                   f" {top['label']} is not tied to a system of your scanner file.")
-        lines.append(_line(f"{row['label']} is in your dependency list{under} ({present_deps._via_words(row)}).{tie}", FROM_FILE,
-                           _link("migration/dependencies", row["id"])))
+        reaching = (users or {}).get(row["key"]) or [{"key": row.get("owner"), "label": None, "via": row["via"]}]
+        for user in reaching:
+            top = tops.get(user["key"])
+            top_label = top["label"] if top is not None else user["label"]
+            under = f", under {top_label}" if top_label and top_label != row["label"] else ""
+            tie = ""
+            if top is not None:
+                system = top["tie"]["system"]
+                tie = (f" {top_label} is tied to {systems.get(system, system)}." if system else
+                       f" {top_label} is not tied to a system of your scanner file.")
+            lines.append(_line(f"{row['label']} is in your dependency list{under} ({present_deps._via_words({'via': user['via']})}).{tie}",
+                               FROM_FILE, _link("migration/dependencies", row["id"])))
     return _group("used", lines, f"Your dependency list does not hold {label}.")
 
 def _whatif_needs(kb: Any, purl: object, name: object, label: str, have: list[str], new: str, new_needs: Any) -> dict:

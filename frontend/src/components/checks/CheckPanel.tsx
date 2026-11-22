@@ -3,7 +3,7 @@ import { api, errorMessage, type CheckDetail, type CheckRow, type CheckRun, type
 import { DetailPanel } from "../layout";
 import { FromOttoTag } from "../otto/ProposalCard";
 import { ItemLinkView, RelatedBlock } from "../related";
-import { ErrorBox, formatTime, ResultBadge, StatusView } from "../ui";
+import { ErrorBox, formatTime, ResultBadge, StatusView, WhereFromLine } from "../ui";
 
 /** Phase 5b: one check in the side panel: its newest result in the words of the page it came from, where it came
  * from (Open where it started), See the evidence, the earlier runs, and Related. It starts nothing. */
@@ -53,6 +53,8 @@ export function CheckPanel({
             {check.status ? <StatusView status={check.status} /> : null}
             {!check.result && !check.status ? <span className="text-slate-400">Not run yet.</span> : null}
           </div>
+          {/* 22 November 2026: where it came from, with what that means for this check */}
+          {check.result ? <WhereFromLine tag={check.source_tag} /> : null}
           {/* Phase 5c: an advisory check came from one of Otto's proposals: the tag and its advisory, in the view's words. */}
           {check.from_otto ? (
             <p data-testid="check-from-otto-line" className="flex min-w-0 flex-wrap items-center gap-2">

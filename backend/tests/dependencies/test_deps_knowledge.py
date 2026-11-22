@@ -30,7 +30,7 @@ def test_the_schema_file_is_up_to_date():
 
 def test_the_whole_knowledge_base_loads():
     kb = load()
-    assert set(kb.files) == {"boringssl", "elliptic", "go-stdlib", "openjdk", "openssl", "python-ecdsa"}
+    assert set(kb.files) == {"boringssl", "elliptic", "go-stdlib", "openjdk", "openssl", "python-ecdsa", "starkbank-ecdsa"}
 
 
 def _base():

@@ -16,6 +16,7 @@ from sqlalchemy import select
 from app.fixes import changes
 from app.run import components
 from app.present import changes as present_changes
+from app.present import source as present_source
 from app.present import fixes as present_fixes
 from app.present import otto as present_otto
 from app.ledger import groups as G
@@ -110,11 +111,15 @@ class FixesMixin:
         claims = self._claims(db.get(ImportRow, plan.import_id))
         several = len(research.servers(claims)) > 1 or len(research.programs(claims)) > 1
         tls_changes = self._tls_changes(db, plan)
+        impact_ctx: dict = {}    # phase 4e: what every fix's "What this change touches" shares, read once
         out = []
         for fix in states:
             titles = list(dict.fromkeys(self._answer_title(db, a) for a in fix["answers"]))
             if fix["source_kind"] == "migration":
-                shown = self._migration_fix_view(db, plan, fix, is_demo)   # phase 4a: the migration plan's how-to and blockers
+                worded = self._migration_fix_view(db, plan, fix, is_demo)  # phase 4a: the migration plan's how-to and blockers
+                if worded is None:
+                    continue   # no longer in the plan since it was listed (the next read lists the plan as it is)
+                shown = worded
             elif fix["source_kind"] == "dependency":
                 shown = self._dependency_fix_view(db, plan, fix, is_demo)  # phase 4d: update a library that blocks a track
             elif fix["source_kind"] == "developer_change":
@@ -139,6 +144,18 @@ class FixesMixin:
             shown.setdefault("change_box", None)
             shown.setdefault("advisories", None)   # phase 4c: only a text fix for a real library carries any
             shown.setdefault("proof_rows", None)   # phase 5c: only a library's fix from Otto has the two rows
+            # Where it came from (22 November 2026): the finding it answers; its proof line carries its own (a proof runs the
+            # changed code on this computer), and so do its two proof rows and its try. It decides nothing.
+            where = (answered[fix["id"]][1] if fix["id"] in answered else
+                     next((c["address"] for c in tls_changes if c["key"] == fix.get("change_key")), None)
+                     if fix["source_kind"] == "applied_change" else None)
+            shown["source_tag"] = present_source.of_fix(fix, where)
+            # (only a proof that ran and was believed; one that was not run, can't be trusted or did not finish has no tag)
+            proof_source = present_source.of_proof(shown.get("proof"))
+            if proof_source is not None:
+                shown["proof"]["source_tag"] = proof_source
+            # Phase 4e: where the part this fix changes is used (it reads; it decides and changes nothing)
+            shown["impact"] = self._fix_impact(db, plan, fix, answered, impact_ctx)       # type: ignore[attr-defined]
             proposal = proposals.get((fix.get("proposal") or {}).get("id"))
             shown["proposal"] = (present_otto.proposal_view(proposal, self.otto_ledger_about(plan.id, proposal.get("objective_id")))   # type: ignore[attr-defined]
                                  if proposal is not None else None)

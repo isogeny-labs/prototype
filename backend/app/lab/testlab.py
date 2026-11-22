@@ -18,6 +18,7 @@ from sqlalchemy import func, select
 from app.run import components
 from app.present import results as present
 from app.present import fixes as present_fixes
+from app.present import source as present_source
 from app import real_libraries
 from app.engine import research
 from app.canonical import canonical_bytes, sha256_hex
@@ -34,7 +35,8 @@ from app.checks.verify import AddressCheck, DemoContext
 RUNNER_ID = "isogeny.runner/1"
 MIGRATION_ORIGIN = "migration"   # a plan item that is a Migration measurement (phase 4a), and the phase of its runs
 DEPENDENCY_ORIGIN = "dependencies"   # a plan item that is a library's capability check (phase 4d), and the phase of its runs
-HIDDEN_ORIGINS = (MIGRATION_ORIGIN, DEPENDENCY_ORIGIN)   # measurements the Tests step never shows
+CLIENTS_ORIGIN = "clients"   # phase 4e: a "Who can still connect" test, run only inside a try on a test copy
+HIDDEN_ORIGINS = (MIGRATION_ORIGIN, DEPENDENCY_ORIGIN, CLIENTS_ORIGIN)   # measurements the Tests step never shows
 RUN_SCHEMA = "isogeny.run/1"
 SOFTWARE_KINDS = research.SOFTWARE_TEST_KINDS + ("signing_status",)
 NOT_DEMO_PROGRAM = "Its tests can't run: only our own demo components can run in this version."
@@ -268,7 +270,10 @@ class TestLabMixin:
             return ("This is real software from outside. It runs only in isolated mode (Docker), and this run is in demo mode, "
                     "so its tests can't run here.")
         if not self.mode.real_images.get(family):
-            return (f"This is real software from outside. Its container image ({real_libraries.FAMILIES[family]['label']}) is not prepared on "
+            if real_libraries.is_sandbox(program["component"], program["version"]):
+                return ("This is a sandbox copy of real software from outside. Its container image is not on this computer, so its "
+                        "tests can't run. A research run (Design and prove tests, on Advisories) makes it again.")
+            return (f"This is real software from outside. Its container image ({real_libraries.family_label(family)}) is not prepared on "
                     "this computer, so its tests can't run. ./run-demo.sh prepares it (it needs internet once).")
         return None
 
@@ -300,12 +305,17 @@ class TestLabMixin:
             def kind_of(i):
                 return specs[i.id][2].kind if specs.get(i.id) and specs[i.id][2] else (specs.get(i.id) or ({},))[0].get("kind")
             known = {(self._item_key(plan, claims, specs[i.id][0]), kind_of(i)) for i in every if i.id in specs}
+            # Sandbox research: a library that could not be run when its plan was made can get a public copy later (a
+            # research run makes one). The engine then suggests tests this plan never had, and the plan is not an old one.
+            copied_since = {"software:" + str(p["ref"]) for p in research.programs(claims)
+                            if real_libraries.is_sandbox(p["component"], p["version"])}
             for test in proposal.get("tests") or []:
                 key = self._item_key(plan, claims, test)
                 if (key, test["kind"]) not in known:
                     name = key.split(":", 1)[-1] if key.startswith("server:") else label.get(key.split(":", 1)[-1], key.split(":", 1)[-1])
-                    lines.append(f"{name}: no {present.TITLES[test['kind']]} test. This test plan was made by an earlier "
-                                 "version that tested only the first server and program. Import the file again to test it.")
+                    why = ("This test plan was made before a public copy of this library could be run here." if key in copied_since
+                           else "This test plan was made by an earlier version that tested only the first server and program.")
+                    lines.append(f"{name}: no {present.TITLES[test['kind']]} test. {why} Import the file again to test it.")
         with self.db() as db:
             confirmed = {r.address: r.confirmed for r in db.scalars(select(AddressRow).where(AddressRow.import_id == plan.import_id)).all()}
         used = set(key_of.values())
@@ -407,7 +417,9 @@ class TestLabMixin:
                         card.update(present.status_view("not_run"), result=None)
                     else:
                         b = {"code": result["code"], "label": result["label"], "tone": result["tone"]}
-                        card.update(status="done", status_text=b["label"], progress=None, result=b)
+                        card.update(status="done", status_text=b["label"], progress=None, result=b,
+                                    # where it came from (22 November 2026): the card's first result, as Evidence tags it
+                                    source_tag=present_source.of_test(kind, result, (spec.get("target") or {}).get("address")))
                 card["can_run"] = not running
                 card["can_remove"] = not kept and not live and not any(j is not None and j.status != "done" for j in reruns)
                 tests.append(card)
@@ -705,7 +717,9 @@ class TestLabMixin:
                          else (lambda address: self._address_check(a["import_id"], address)))
             ctx = RunContext(settings=self.settings, mode=self.mode, runner=self.component_runner, gate=self.jobs.gate,
                              progress=job.progress, log=job.log, address_check=check_for,
-                             component=component, baseline_version=a["baseline_version"])
+                             component=component, baseline_version=a["baseline_version"],
+                             # phase 4e: a run on a test copy may also reach the server as it is today (its own gate)
+                             today_check=((lambda address: self._address_check(a["import_id"], address)) if a.get("copy") else None))
             try:
                 raw = execute(spec, ctx)
             except BaseException as exc:  # execute() already catches; this is the last line of defence
@@ -895,9 +909,11 @@ class TestLabMixin:
             busy = running is not None
             retest_live = [j for j in self.jobs.live(plan_id) if j.key[1] == "retest"]
             rows, missing, finished, after_finished, after_done = [], 0, [], [], 0
+            where_of: dict[int, str | None] = {}     # the server a server test reads (for where it came from)
             for item in self._group_order(items, key_of, groups, grouped):
                 spec, _, spec_row = specs[item.id]
                 kind = spec_row.kind if spec_row else spec.get("kind")
+                where_of[item.id] = (spec.get("target") or {}).get("address")
                 first_job = self.jobs.get((item.id, "first"))
                 first_live = first_job is not None and first_job.status != "done"
                 result = None if first_live else self._latest_result(db, item, "first", None, plan)
@@ -932,6 +948,8 @@ class TestLabMixin:
             for row in rows:
                 for shown in (row["result"], row["after"]):
                     if shown is not None:
+                        # where it came from (22 November 2026): each side its own; it decides nothing
+                        shown["source_tag"] = present_source.of_test(row["kind"], shown, where_of.get(row["item_id"]))
                         shown["fix_line"] = lines.get(shown["run_id"])
                         if shown["fix_line"] is not None:
                             shown["suggested_fix"] = None
@@ -1096,12 +1114,13 @@ class TestLabMixin:
                     note = ("The demo version these results are for." if v == current
                             else "The corrected demo version." if versions.index(v) > versions.index(current) else "An earlier demo version.")
                 else:
-                    fixes = [cve for cve in (real_libraries.LIBRARIES[name]["advisories"].get(current, ()))
+                    fixes = [cve for cve in ((real_libraries.known(name) or {}).get("advisories", {}).get(current, ()))
                              if real_libraries.fixed_version(name, current) == v]
                     note = ("The version these results are for." if v == current
                             else f"The version its publisher fixed {research.join_and(fixes)} in." if fixes
                             else "A later version." if versions.index(v) > versions.index(current) else "An earlier version.")
-                menu.append({"version": v, "component": name, "label": f"{name} {v}", "tag": "demo" if demo else "real software", "note": note})
+                menu.append({"version": v, "component": name, "label": f"{name} {v}",
+                             "tag": "demo" if demo else ("sandbox copy" if real_libraries.is_sandbox(name, v) else "real software"), "note": note})
         return menu
 
     def start_retest(self, plan_id: int, version: str, component: str | None = None) -> dict:

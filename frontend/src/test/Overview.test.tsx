@@ -131,6 +131,33 @@ describe("Overview blocks", () => {
     expect(text(brought)).toContain("Dependency list: none yet");
   });
 
+  it("says how many watched weaknesses have no fix yet only when the backend sends that line (Sandbox research)", async () => {
+    await show({ "GET /api/assessments/101": { body: assessmentView({ blocks: OVERVIEW_BLOCKS }) } });
+    expect(screen.queryByTestId("overview-watch-list")).toBeNull(); // off: the Overview is as before
+  });
+
+  it("the Watch list line opens the Watch list, and is information: it is not among the findings", async () => {
+    await show({
+      "GET /api/assessments/101": {
+        body: assessmentView({
+          blocks: {
+            ...OVERVIEW_BLOCKS,
+            watch_list: {
+              no_fix: 2,
+              fix_published: 0,
+              line: "2 published weaknesses in your libraries have no fix yet.",
+              link: { page: "change-watch", item: null, section: "watch-list" },
+            },
+          },
+        }),
+      },
+    });
+    const line = screen.getByTestId("overview-watch-list");
+    expect(text(line)).toContain("2 published weaknesses in your libraries have no fix yet.");
+    expect(within(line).getByTestId("overview-watch-list-link").getAttribute("href")).toBe("#/a/101/change-watch?section=watch-list");
+    expect(within(screen.getByTestId("open-findings")).getAllByTestId("finding-count")).toHaveLength(OVERVIEW_BLOCKS.findings.length);
+  });
+
   it("shows the open findings and the evidence, each a link to the page that holds them", async () => {
     await show({
       "GET /api/assessments/101": {
@@ -518,5 +545,25 @@ describe("Overview stays current", () => {
     await screen.findByRole("heading", { level: 1, name: "Checks" });
     fireEvent.click(within(screen.getByRole("navigation", { name: "Assessment" })).getByRole("link", { name: "Overview" }));
     await waitFor(() => expect(text(failed())).toBe("Failed tests 4"));
+  });
+});
+
+// 22 November 2026: where it came from. Each group counts its checks by tag, in the backend's words and order; a source
+// with none is left out, and a group with no checks shows no line. The line only counts: it opens nothing and decides nothing.
+describe("Overview, where each group's checks came from", () => {
+  it("counts a group's checks by tag beside the tag's words, and a group with nothing counted has no line", async () => {
+    const fetchMock = await show();
+    const line = within(group("verification")).getByTestId("overview-source-counts");
+    expect(text(line)).toBe("Where these came from: 8 Observed live · 2 Proven in the lab · 2 From your file");
+    const counts = within(line).getAllByTestId("overview-source-count");
+    expect(counts.map((c) => c.getAttribute("data-source"))).toEqual(["live", "lab", "file"]);
+    expect(within(line).getAllByTestId("overview-source-tag").map((t) => t.getAttribute("title"))).toEqual(
+      OVERVIEW_BLOCKS.groups[0]!.source_counts!.map((c) => c.meaning),
+    );
+    // it sits under the checks' own count line
+    expect(text(group("verification")).indexOf("Checks:")).toBeLessThan(text(group("verification")).indexOf("Where these came from"));
+    for (const key of ["encryption", "migration", "dependencies"]) expect(within(group(key)).queryByTestId("overview-source-counts")).toBeNull();
+    expect(within(line).queryAllByRole("link")).toEqual([]);
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
   });
 });

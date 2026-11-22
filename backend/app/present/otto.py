@@ -12,6 +12,8 @@ from datetime import datetime
 
 from app.otto import designs, model
 from app.present import advisory as present_advisory
+from app.present import proof as present_proof
+from app.present import source as present_source
 from app.present import times
 from app.present.results import DISCLAIMER
 
@@ -31,7 +33,7 @@ def _entries(ledger: list[dict]) -> list[dict]:
     return [{"seq": e["seq"], "kind": LEDGER_WORDS.get(str(e["kind"]), "Entry"), "id": e["id"][7:19], "at": e["at"], "what": e["what"]}
             for e in ledger]
 STEP_WORDS = {"read_advisory": "Read the advisory", "design_test": "Design a test", "propose_fix": "Propose the fix",
-              "write_fix": "Write a change for your own code"}
+              "write_fix": "Write a change for your own code", "write_wrapper": "Write the code that asks the library"}
 # What a reading recorded about the weakness, in plain words (a reading's notes can refer to "the kind").
 KIND_WORDS = {"accepts_bad_signature": "accepts a signature it must reject", "rejects_good_signature": "rejects a signature it must accept",
               "stops_with_error": "stops with an error"}
@@ -163,7 +165,7 @@ def settings_view(*, installed: list, update, refused: list[dict], scan_line: st
 
 # ---------------------------------------------------------------- a library fix's two proof rows (the same words everywhere)
 
-PUBLIC_LABEL, HERE_LABEL = "Proven on public copies", "Proven on your system"
+PUBLIC_LABEL, HERE_LABEL = "Proven on public copies", "Proven in this assessment"
 NOT_YET_TEXT = "Update the library, then press Retest."
 # What stands behind the second row, said plainly wherever the row is shown in full: a retest reruns the locked tests
 # on a public copy of the updated version. The app has no connector to the system a customer runs (a later phase).
@@ -186,10 +188,17 @@ def stamp(value: str | None) -> str:
     return times.written(value, f"{when.day} {when.strftime('%B %Y')}, {when.strftime('%H:%M')} UTC")
 
 
+# Where each row came from (22 November 2026): both are runs on public copies on this computer. A row that reads "Not yet"
+# rests on no run and has no tag.
+ROW_SOURCE_NOTES = {"public": "Otto's registered trial, run on public copies of the affected and the fixed version on this computer.",
+                    "here": "This assessment's own retest, run on a public copy of the updated version on this computer."}
+
+
 def _row(key: str, label: str, word: str, tone: str, text: str, links: list[dict] | None = None, ledger: dict | None = None,
          note: str | None = None) -> dict:
     return {"key": key, "label": label, "badge": {"label": word, "tone": tone}, "text": text, "line": f"{label}: {word}. {text}",
-            "links": list(links or []), "ledger": ledger, "note": note}
+            "links": list(links or []), "ledger": ledger, "note": note,
+            "source_tag": None if word == "Not yet" else present_source.tag(present_source.LAB, ROW_SOURCE_NOTES[key])}
 
 
 def public_copies_row(fix: dict, advisory: dict | None) -> dict:
@@ -328,7 +337,9 @@ def proposal_view(p: dict, ledger: list[dict] | None = None) -> dict:
                         "ledger": ({"title": "Otto ledger entries for these decisions", "count": len(ledger), "entries": _entries(ledger),
                                     "note": ("Each decision is written to this assessment's Otto ledger with who and when. The ledger "
                                              "holds no result.")} if ledger else None)},
-            "link": p["link"], "proposed_at": p.get("proposed_at")}
+            "link": p["link"], "proposed_at": p.get("proposed_at"),
+            # Sandbox research (a prototype): how a test tried on sandbox copies was proven, folded under the card.
+            "proof": p.get("proof")}
 
 
 def result_block(*, advisory_id: str, plain_name: str | None, pack_version: str, design_sha256: str, trial: list[str],
@@ -710,7 +721,9 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
             here.append({"program": entry["program"], "status": status, "proposal": proposal,
                          "result": ({"label": result["label"], "tone": result["tone"], "plain": result["plain"],
                                      "component": result.get("component"), "finished_at": result.get("finished_at"),
-                                     "ran_on": ran_on,
+                                     "ran_on": ran_on, "sandbox_copy": bool(result.get("sandbox_copy")),
+                                     # where it came from (22 November 2026): an advisory check runs a copy of the program here
+                                     "source_tag": present_source.of_test("advisory_cases", result),
                                      "short": (f"Retest on {result.get('component')}. First run on {first.get('component') or entry['program']}: "
                                                f"{first['label']}." if ran_on and result.get("component") else None)} if result else None),
                          "checks_link": {"page": "checks", "item": f"test-{entry['item_id']}"} if entry["item_id"] is not None else None,
@@ -733,7 +746,7 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
             else:       # some programs have no result yet: the count is of the ones that ran, and says how many have not
                 counted = f"{same} of {ran} run so far; {len(here) - ran} with no result yet"
             result_cell = {"key": shown["tone"] if shown["tone"] in ("pass", "fail") else "warn", "label": shown["label"], "tone": shown["tone"],
-                           "text": counted}
+                           "text": counted, "source_tag": shown.get("source_tag")}
         elif state != "ready":
             result_cell = {"key": "none", "label": "No check", "tone": "neutral", "text": None}
         elif not here:
@@ -760,12 +773,14 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
                 "rule": designs.BLOCKS[designs.BLOCK]["rule"],
                 "design_fingerprint": advisory["test"]["design_sha256"],
                 "trial": {"title": "How it did when tried on public copies", "lines": _trial_lines(advisory)},
+                # Sandbox research (a prototype): the whole proof of a test tried on sandbox copies, as one piece.
+                "proof": present_proof.block(advisory),
                 "ledger": {"title": "Otto ledger entries", "count": len(advisory["ledger"]),
                            "entries": _entries(advisory["ledger"]),
                            "note": ("From Otto's research ledger, a hash chain kept with the Otto harness: the test was registered, tried and "
                                     "judged before the pack was signed.")}}
         else:
-            no_test = {"label": label, "reason": advisory["test"]["reason"],
+            no_test = {"label": label, "reason": advisory["test"]["reason"], "proof": present_proof.block(advisory),
                        "trial": ({"title": "How its design did when tried on public copies", "lines": _trial_lines(advisory)}
                                  if advisory["test"]["trial"] else None),
                        "ledger": ({"title": "Otto ledger entries", "count": len(advisory["ledger"]),

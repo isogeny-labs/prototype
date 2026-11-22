@@ -40,6 +40,9 @@ SLOW_SHARED_WALKS = {
     # once for that file. The walk is short, but some thirty tests read it (the tamper cases of the verify command), and
     # with them the fast set had reached five minutes on a slow day.
     "test_otto_evidence.py": "ran",
+    # 22 November 2026: the whole Acme Pay demo (every test, a retest, Measure status, a try, Apply and Roll back), for the
+    # source tags of every view
+    "test_source_tags.py": "tagged",
     # 19 November 2026 (Kevin's answer to the phase 6 plan's first open question: move the three oldest shared walks to
     # the slow set, no new package). The fast set had reached five minutes. These three are the `flow` walks of phase
     # 3a (the fix with its two proofs, pull request, merge and retest), phase 4a (the migration demo measured once) and
@@ -220,13 +223,26 @@ def database_per_lab(request):
     patcher = pytest.MonkeyPatch()
     patcher.setattr(hub, "make_session_factory", fresh)
     try:
-        yield
     finally:
         patcher.undo()
         with admin.connect() as conn:
             for name in made.values():
                 conn.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         admin.dispose()
+
+
+def no_read_of_a_package_registry(monkeypatch):
+    """Sandbox research (a prototype): no test ever reaches npm or PyPI. The reader looks its transport up at the moment
+    of a request; here it is replaced by one that fails the test. Tests read a folder of recorded answers, or give a
+    stand-in. (A research command a test starts as a process of its own is given EVIDENCE_LAB_REGISTRY_SOURCE.)"""
+    from app.sandbox import registries
+
+    def refuse(url, timeout, limit):
+        raise ReachedTheNetwork("a test tried to read a package registry; use a recorded registry or a stand-in transport")
+    # (the reader's own function, for the one test that is about it: that test puts a stand-in where the function
+    #  would open a connection, so it reaches nothing either)
+    refuse.the_readers_own = getattr(registries._http, "the_readers_own", registries._http)        # type: ignore[attr-defined]
+    monkeypatch.setattr(registries, "_http", refuse)
 
 
 @pytest.fixture

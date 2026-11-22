@@ -6,6 +6,7 @@ import { AdvisoriesScreen } from "../components/AdvisoriesScreen";
 import { LinkProvider, RelatedBlock } from "../components/related";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
 import { DISCLAIMER, calls, mockApi, session, text } from "./fixtures";
+import { proof } from "./proofFixtures";
 import {
   CLOSED_REASON,
   NOT_INSTALLED_LINE,
@@ -390,7 +391,8 @@ describe("Advisories, the table", () => {
       expect(result.textContent, row.id).toBe(row.result.label);
       expect(result.getAttribute("data-tone"), row.id).toBe(row.result.tone);
       expect(cells[5]!.contains(result), row.id).toBe(true);
-      expect(text(cells[5]), row.id).toBe(row.result.label);
+      // with where it came from beside it, where the result has a tag (22 November 2026)
+      expect(text(cells[5]), row.id).toBe([row.result.label, row.result.source_tag?.label].filter(Boolean).join(" "));
     }
     // The four rows of the two packs between them show every word the proposal column has for one program.
     expect(view.rows.map((r) => r.proposal.label)).toEqual(["Added", "Nothing proposed", "Proposed", "Nothing proposed"]);
@@ -415,7 +417,7 @@ describe("Advisories, the table", () => {
     await open(view);
     const cell = rowOf(BLANK).children[5]!;
     expect(within(cell as HTMLElement).getByTestId("advisory-result").textContent).toBe(blankFailed.result.label);
-    expect(text(cell)).toBe(`${blankFailed.result.label}1 of 2 programs`);
+    expect(text(cell)).toBe(`${blankFailed.result.label} Proven in the lab1 of 2 programs`);
     // A row without one shows the chip alone.
     expect(text(rowOf(STOPS).children[5])).toBe(stopsNoTest.result.label);
   });
@@ -1028,6 +1030,53 @@ describe("Advisories, an advisory's panel", () => {
     fireEvent.change(screen.getByTestId("advisories-filter-decision"), { target: { value: "proposed" } });
     expect(ids()).toEqual([ZERO]);
     expect(panel().getAttribute("data-advisory")).toBe(BLANK);
+  });
+});
+
+describe("Advisories, a test that was tried on sandbox copies", () => {
+  const withProofOnCard: AdvisoryRow = {
+    ...blankNotAdded,
+    panel: {
+      ...blankNotAdded.panel,
+      test: { ...blankNotAdded.panel.test!, proof: proof() },
+      here: { ...blankNotAdded.panel.here, rows: blankNotAdded.panel.here.rows.map((h) => ({ ...h, proposal: h.proposal ? { ...h.proposal, proof: proof() } : null })) },
+    },
+  };
+
+  it("shows the proof once, with the proposal, and labels the test block Sandbox copy", async () => {
+    const fetchMock = await open({ ...advisoriesNotAdded, rows: [withProofOnCard, stopsNoTest] });
+    const inPanel = await openRow(BLANK);
+    expect(inPanel.getByTestId("advisory-sandbox-label").textContent).toBe("Sandbox copy");
+    expect(inPanel.getAllByTestId("proof-block")).toHaveLength(1);
+    expect(within(card()).getByTestId("proof-block")).toBeTruthy();
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);        // (showing the proof sent nothing)
+  });
+
+  it("shows the proof with the test where no program has a proposal for it", async () => {
+    const alone: AdvisoryRow = { ...withProofOnCard, panel: { ...withProofOnCard.panel, here: { ...withProofOnCard.panel.here, rows: [] } } };
+    await open({ ...advisoriesNotAdded, rows: [alone, stopsNoTest] });
+    const inPanel = await openRow(BLANK);
+    const block = inPanel.getByTestId("advisory-test-block");
+    expect(within(block).getAllByTestId("proof-block")).toHaveLength(1);
+  });
+
+  it("shows what a trial on sandbox copies showed for a test that is not offered", async () => {
+    const refused: AdvisoryRow = { ...looseNotOffered, panel: { ...looseNotOffered.panel, no_test: { ...looseNotOffered.panel.no_test!, proof: proof() } } };
+    await open({ ...advisoriesTwoPacks, rows: [refused] });
+    const inPanel = await openRow(refused.id);
+    expect(within(inPanel.getByTestId("advisory-no-test")).getByTestId("proof-block")).toBeTruthy();
+  });
+
+  it("labels a result that came from a sandbox copy, and no other", async () => {
+    const onCopy: AdvisoryRow = {
+      ...blankFailed,
+      panel: { ...blankFailed.panel, here: { ...blankFailed.panel.here, rows: blankFailed.panel.here.rows.map((h) => ({ ...h, result: h.result ? { ...h.result, sandbox_copy: true } : null })) } },
+    };
+    await open({ ...advisoriesFailed, rows: [onCopy, stopsNoTest] });
+    expect((await openRow(BLANK)).getByTestId("advisory-here-sandbox").textContent).toBe("Sandbox copy");
+    cleanup();
+    await open(advisoriesFailed);
+    expect((await openRow(BLANK)).queryByTestId("advisory-here-sandbox")).toBeNull();
   });
 });
 
@@ -1805,3 +1854,24 @@ describe("Advisories, the New tag", () => {
     expect(text(heading)).toBe(advisoriesTwoPacks.rows[0]!.name);
   });
 });
+
+// 22 November 2026 (Kevin: "so every result is true"): an advisory check's result is a run of a copy of the program on
+// this computer, so it is tagged Proven in the lab, beside the reviewer's own word, in the table and in the panel. A check
+// that has not run, or no check, has no tag.
+describe("Advisories, where a check's result came from", () => {
+  it("tags the result here beside its word, once per row, and says in the panel what that means for this program", async () => {
+    const fetchMock = await open(advisoriesFailed);
+    const cell = chipOf("CVE-2022-21449", "advisory-result").parentElement!;
+    expect(within(cell).getAllByTestId("source-tag").map((t) => [t.textContent, t.getAttribute("data-source")])).toEqual([["Proven in the lab", "lab"]]);
+    // a row with no result yet has no tag
+    for (const row of rows().filter((r) => r.getAttribute("data-advisory") !== "CVE-2022-21449")) expect(within(row).queryAllByTestId("source-tag")).toEqual([]);
+    await openRow("CVE-2022-21449");
+    const line = within(hereRow()).getByTestId("source-line");
+    expect(within(line).getByTestId("source-tag").textContent).toBe("Proven in the lab");
+    expect(within(line).getByTestId("source-note").textContent).toBe(
+      "Run on a copy of acme-sign 1.4.2 on this computer, in demo mode (a plain process on this computer, not isolated). Your live system was not touched.",
+    );
+    expect(posts(fetchMock)).toEqual([]);
+  });
+});
+

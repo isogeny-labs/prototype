@@ -500,7 +500,8 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   three such libraries (openjdk 17.0.2, python-ecdsa 0.13.2, elliptic 6.5.6) and the scanner file names none of
   them, so all three read "not yet checked", each with that reason. The trial on public copies is not counted as a
   measurement of your library: it is said where the fix is.
-- **"Proven on your system" is a retest on a public copy.** The row's name is the owner's wording. What stands
+- **"Proven in this assessment" is a retest on a public copy.** Until 22 November 2026 the row was called "Proven on
+  your system"; Kevin renamed it, because that name claimed more than the row shows. What stands
   behind it: this assessment's own retest of the same locked tests on the fixed version, which the app runs on a
   public copy of that version in its own container. The app has no connector to the system a customer runs, and
   the row says so right under its sentence, at the size of the text ("This row is about a public copy, not the
@@ -541,6 +542,215 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   off and the decisions made until then; every button is off.
 - **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
   also a rejection, before any check has run.
+
+## Limits of sandbox research (a prototype; 22 November 2026)
+
+Built on Kevin's approval of `docs/plans/otto-auto-researcher-change-watch.md`. SPEC section 7f, point 15, has the
+rules. Off by default, and only for Isogeny's own sandbox. What it does not do, and what was not shown, plainly:
+
+### What was run for real, and what was not
+
+- **Run for real, in locked containers:** the whole line for one published weakness, CVE-2021-43572 in starkbank-ecdsa
+  (a PyPI library the app had no copy of and no asking code for). Six public versions were fetched and built; the
+  asking code by two authors passed the screen and the known-answer check; the trial held (2.0.0 got 1 of the 64
+  selected published cases wrong, 2.0.1, 2.0.2 and 2.3.1 none, the control all 64, and the two authors' code gave the
+  same answer on every case; 1.1.0 and 1.1.1 were left out because the frozen code does not work on them); the pack
+  was signed and installed; the proposal was accepted; the check ran and the separate reviewer said Failed for 2.0.0;
+  the evidence file verified. `tests/sandbox/test_sandbox_real.py` and `e2e/tests/sandbox.spec.ts` repeat it.
+- **The answers of the five Claude steps in that run were recorded, not live.** They were written during the build,
+  not through the API, and say so. The asking code by "two authors" in the demo is therefore two files written during
+  the build. **No live call to Claude was made for the new job**: the build machine holds no API key. The live path
+  (Claude writes a draft, the screen refuses it or lets it through, a refused draft goes back with the checker's
+  lines) is tested with stand-ins only. The first real live run is still to be made, on a computer with a key, and it
+  will show what one advisory costs. The figure in the plan (half a dollar to two dollars) is an estimate.
+- **The registries were read for real by hand, not by a test.** PyPI: when the demo's documents were recorded, and when
+  a copy of python-ecdsa 0.18.0 and 0.19.0 was made. npm: once, when a copy of elliptic 6.5.6 and 6.5.7 was made with
+  its seven helper libraries and a piece of JavaScript asking code written by hand; that copy passed the screen and
+  the known-answer check on both versions, and the two dummy controls were refused. **No JavaScript library was taken
+  through a whole trial**, and no test runs the JavaScript asking program: the tests of the npm reader and of the
+  JavaScript screen use documents and code written for them. Every test and every walk reads recorded documents.
+- **The advisory source (OSV) was not read from the build machine**, as in phase 6. The demo's records are the
+  GitHub Advisory Database's own, in the same format; the record of "day 1" is Demo data (the published record with
+  its fixed version taken out) and says so on screen.
+- **The clock was never left running for a day.** Its rules are tested on a stand-in time.
+
+### What the proof of a test rests on, and what is left
+
+- **The scope.** Only what the separate reviewer holds published right answers for can become a test: ECDSA P-256
+  signature checks from the pinned Wycheproof file. Every other weakness ends as "No test yet". A count of those by
+  kind (the plan's line "2 in EdDSA, 1 in RSA signatures") is not built: the app has no rule that sorts a weakness
+  into a kind, and none was made up.
+- **The link to the advisory.** That a version gets published case *n* wrong is the reviewer's finding. That case *n*
+  is this advisory's weakness rests on Claude's reading, on the publisher's quoted line, and on the further versions
+  behaving as the advisory says. The proposal says no more than that.
+- **Two versions differ in more than the fix.** The further versions and the equal helper libraries narrow this. They
+  do not close it.
+- **The asking code is screened, not proven.** The screen is a filter for honest mistakes and plain tricks. For Python
+  it reads the parsed program; for JavaScript it reads the words of the text, which is weaker (it does not follow the
+  three inputs to the answer). The weight is carried by the locked container, by the fact that the right answers never
+  reach the code, by the known-answer check, and by the second author's code.
+  A separate review on 22 November 2026 got seven pieces of code through the first screen that decided an answer by
+  themselves (a pick out of two by something worked out, a text's own methods used to compare, a version read under
+  another name, a file read through a function of the library's own, the library replaced, and for JavaScript the
+  language's own objects reached by a quoted name). The screen was rewritten: no arithmetic at all, a part of a value
+  only at a fixed place, of the language's own only the plain conversions, a name given a value once, no comment and
+  no free text, and an answer that a call into the library gave back from all three inputs. Each of those seven is a
+  test now. What the screen still can't know is what a library's own functions do: a library that holds a function
+  which reads a file or tells its version could be misused by code that only calls the library. No sentence in the
+  app says the code "decides nothing"; the proposal says the screen is a filter, and why the second version is there.
+- **What the author is shown.** The prompt names no advisory, no weakness and no version. The library's own files are
+  shown without its read-me, change log and package description, and with version numbers and advisory ids blanked.
+  What the library's source says in its own comments is still there (a comment such as "refuse a zero, see the
+  advisory" would be read), because the author has to read the code to call it.
+- **One library, one piece of asking code by each author.** A later advisory of a library whose earlier trial held
+  uses that trial's code again. If that code does not work on the later advisory's fixed version, there is no test
+  for it ("No test yet", with that reason): a second piece of asking code for one library is not written. A run on a
+  version uses the first copy set that was made for it; the helper libraries of that set are the ones of its own
+  trial's fixed version.
+- **A stop and a settled reason are told apart by fixed rules,** and the line is ours: a download whose size or
+  fingerprint did not hold, a registry answer that is not valid, Docker not answering and a control that did not
+  answer are stops (tried again by a later run); a package with no plain-Python file, a file that is not a package
+  file, or needs that can't be met are settled. A draft Claude wrote whose copies could then not be built is kept in
+  the ledger as not tried; a later run tries that same answer, and nobody is asked a second time for it.
+- **Both authors are Claude** (or, on recorded answers, the build), and the replay is a second role of the same build
+  on the same computer. An outside replay would be stronger and is not in this prototype.
+- **The known-answer check asks 24 fresh questions** for each version. It shows that the code really asks the library.
+  It shows nothing about any weakness, and a library that fails it is left out, not judged.
+- **The proof block shows counts, not Passed or Failed,** and its lines do not open runs: the trial's runs were made
+  by the research command in scratch copies of the app and are in the research ledger of this computer, not in an
+  assessment. What can be opened is the assessment's own run of the accepted check. The counts for the library's
+  copies and for the reference are the separate reviewer's. The control's count, and the count of cases on which the
+  two pieces of asking code agreed, are made by the pinned trial script from the raw answers; the block says so.
+- **The app checks a pack made here before it installs it,** by the rules the verify command holds too: each part ran
+  on the version the proof names, what was frozen is worked out again where the pack holds it (the first copy set's
+  record, the design, the two scripts; not the second copy set's record, the two known-answer files, the versions
+  file and the arms file, which the pack does not carry whole), the times are the ledger's own, and an offered test
+  has the counts for it. This is a second line against a fault in the builder. It is not a defence against someone
+  who holds this computer's own pack key.
+- **The verify command checks a pack's proof as data.** It can't check that the bytes on the registry were what the
+  publisher meant (the first fetch trusts the registry), nor that the image on the computer that made the pack held
+  those files. The runner there refuses a copy whose image no longer matches its record.
+
+### Coverage, and what waits
+
+- **Registries:** npm and PyPI. Plain-JavaScript packages and plain-Python packages (a wheel for every computer, or a
+  source package whose code can be loaded as it is). No Maven, Go, Rust, .NET or Ruby; no package with compiled parts.
+- **A library of the four families the app has asking code for** (Java, python-ecdsa, elliptic, OpenSSL) keeps its
+  pinned copies. An advisory about one of them whose fixed version is not pinned still reads "No test yet". A copy set
+  with the app's own asking code was made and run by hand once (python-ecdsa 0.18.0 and 0.19.0); wiring it through the
+  app is a later step.
+- **A sandbox copy only answers signature checks.** Speed and size is left out for it, and Verify reads "Couldn't
+  check" for a claim about it, with that reason. Its tests still run.
+- **A retest on another version** works only for versions the copy set holds.
+- **A test plan made before a library's copy existed keeps what it had.** When a research run makes a public copy of a
+  library, its standard tests (the Independent exam, Attacker tricks) are not added to a plan that is already there.
+  The plan lists them under "Not tested, and why", says that it was made before a public copy of the library could
+  be run here, and says to import the file again; a new import of the same file gets them.
+- **The fix can read "Not proven" for an honest reason.** For the demo library the publisher's fixed version passes
+  the advisory check and still fails the Independent exam and Attacker tricks, so the fix is not offered as proven.
+- **A container is not a separate machine.** The lock-down is the runner's own (no network, read-only files, no
+  rights, small limits). It shares the computer's core with everything else. That is one more reason this stays in
+  our own sandbox.
+- **Copies are never cleaned up** by the app. The store grows with every research run; there is no command yet that
+  removes copies nothing names.
+- **A pack made here becomes the newest pack** of the data folder, as in phase 6: a built-in pack published later can
+  then not be installed there.
+
+### The Watch list
+
+- **It knows what the source knows.** A fix can be released days before the source's record says so. Until then the
+  item reads "No fix yet". No registry is asked during a look.
+- **"Fix published" follows the plan's one rule:** the source now names a fixed version, or a last affected version,
+  where it named none. A last affected version is the source saying which version is the last one named as affected;
+  it does not say that a later version was tested. The item's line then reads "a version after X", and a test for
+  it takes the next version published and never calls it the publisher's fixed version. A record that stops giving
+  version ranges at all names no fix: its item stays where it stood, with the ranges that were last given.
+- **It is worked out on every read** from the looks the assessment kept; nothing but a stop and a watch again is
+  stored. An item is about one assessment's looks: two assessments that name one library each look for themselves (the
+  clock asks the source once for both in one round).
+- **The tag New** marks what the newest look brought or changed. It is not cleared by opening an item, because opening
+  must not write.
+- **The clock runs only while the app runs,** only for open assessments that are not archived, and looks about once a
+  day. After a failure it waits 1, 2, 4, 8 and then 24 hours.
+- **Libraries the app does not know are not watched,** as with every look.
+
+### By itself
+
+- **The second tick needs Live Otto,** so a run the clock starts always asks Claude and costs money, within the limit
+  for one run (5 US dollars) and for a day (10). The day is the last 24 hours, added up from the runs' own records; a
+  run that is going counts with its whole limit, so two runs can't pass the limit together, and so does a run that
+  ended without leaving word of what it spent (it was cut off, or its file can't be read): that can count more than
+  was really spent, never less. A run on recorded answers costs nothing and is never held back by the day's limit.
+  With less than one cent left of the day, no run that asks Claude starts.
+- **An advisory the clock's runs left open three times** waits for a person's click. Without that, a weakness that can
+  never be settled would be tried again every day.
+- **Nothing is accepted by itself.** A pack from a run the clock started is installed without a click of its own, as
+  the tick's line says; its checks wait for Accept.
+
+## Limits of the source tags ("where it came from"; 22 November 2026)
+
+- **The tag is chosen, not measured.** One rule (`backend/app/present/source.py`) picks it from what the app already recorded about how a line was made: what a test runs on, how a claim was checked, what kind of system was measured, the label an answer already carries, what a fix came from. It checks nothing new and decides nothing; a result reads the same with or without it.
+- **"Observed live" means the address in your file, not production.** It says the line was read from the system at an address in the file that a person confirmed, with handshakes only. In the demo every such system is one of the app's own demo servers on this computer: it is "live" in the sense that it is the system the file names, not a copy made for the test.
+- **"Proven in the lab" in demo mode is a plain process.** In demo mode a program's copy runs as a local process, not in a locked-down container, and the item's sentence says so ("in demo mode (a plain process on this computer, not isolated)"); in isolated mode it says the container. A library's public copy runs only in isolated mode.
+- **Who can still connect carries one tag.** Its stand-ins connect to the test copy (the try, Proven in the lab) and, to compare, to the server as it is today with handshakes only. The row carries the try's tag, Proven in the lab, and its sentence says that the server today was also read.
+- **A library reads one way on Dependencies and another on Evidence.** On Dependencies the tag beside a library's name is From your file (it is there because your list names it), and each of its answers has its own tag. On Evidence a library is one row whose only word is its answers taken together ("No to all three"), so the tag beside them is theirs: Proven in the lab if any was measured on a public copy, else Published if any came from the maker's release notes, else From your file. The Overview's Dependencies count is that count. Each answer in Evidence's panel has its own tag, as on Dependencies.
+- **"Published" also covers "Doesn't apply".** An answer that a question does not apply to a kind of library comes from the knowledge base, which is built from what the library's maker publishes, so it reads Published; the app has not measured it.
+- **Where the tag is not.** The signed evidence file, the report and the verify command are as they were: the tag is words on the pages only, and every run in the file already records what it ran on. The Otto panel's cards and answers do not draw it in this version. There is no filter by source.
+
+## Limits of phase 4e, first half (change impact: "What breaks if I make this change?"; 20 November 2026)
+
+### What is real
+
+- **Where it is used** reads what the app holds and nothing else: each assessment's scanner file, its newest dependency
+  list, the person's ties (Part of) and the knowledge base. Nothing is connected to, fetched or run to answer it.
+- **Who can still connect** makes real TLS handshakes (handshakes only, no data) with the app's own OpenSSL (the copy
+  inside the `cryptography` library, the same as every post-quantum handshake of the app), to our own servers only: the
+  server as it is today (one of our demo servers or the lab nginx, the only servers a try works on), the test copy the try
+  started, and our own two control servers started for the run. In demo mode, without Docker.
+- Each stand-in's word is the separate reviewer's (`RuleReviewer._client_reach`, one rule added on 20 November 2026 with
+  Kevin's OK; no existing rule changed), from the run record, after the control read right. Tests cover every combination
+  of what a stand-in did today and on the copy.
+
+### What is demo
+
+- **The four client stand-ins are demo data**, the same four for every server: Payment terminal, old firmware; Partner
+  system, classical only; Payment terminal, new firmware; Post-quantum-only client (`backend/app/clients/profiles.py`). A
+  stand-in is NOT the device it is named after. It offers exactly the TLS versions, key-exchange groups (in its order) and
+  certificate signature types its profile lists, and checks no certificate's trust. A real device can differ in ways a
+  stand-in does not show: its TLS library's own bugs, how it handles a HelloRetryRequest, a size limit on the first
+  message, a certificate it does not trust.
+- **In the demo a Hybrid change breaks no stand-in, by design**: it keeps every classical key exchange and TLS version
+  the server had, so what connected before still connects (some fall back). Breaks shows on a change that takes something
+  away: TLS 1.3 only on the Acme Pay demo server (the old firmware breaks) and Full post-quantum on 8451 (three break).
+
+### Limits
+
+- **Whether the parts that use a library take its new version is not checked.** The app holds no data on the versions
+  each part accepts: a CycloneDX or SPDX list names the exact version installed, and the knowledge base's `declared`
+  entries (phase 6e) say what a library version needs, the other direction. Every library or program fix says "Not
+  known" with that reason. A later phase needs, for each part that uses a library, the range it accepts, read from its
+  own package file (quoted, with its link, the date and fingerprint), and a reader for each way of writing a range.
+- **"Elsewhere in your organization" is matched by what the files name**, not by what runs: two assessments that name
+  `localhost:8443` name the same address; two that name `acme-sign 1.4.2` name the same program by name and version. A
+  library the knowledge base knows is matched by its package address, or by the knowledge base's recognition, at the same
+  version as the app reads versions (a distribution's package as its upstream version); our own software by the exact
+  version text (`acme-sign 1.4.3-otto` is not `1.4.3`). It does not show which server really loads a library: that needs
+  your environment, and the block says so.
+- **The walk through a dependency list stops at the first top entry it meets.** Every top entry that reaches a library
+  is named (unlike the table's one heading per library), but what uses that top entry is that entry's own question, so
+  the thing the whole list describes is named only where it uses the part directly.
+- **A closed assessment shows only its own file and list**, so what it shows no longer changes with other assessments
+  (the lines "Elsewhere in your organization" it showed while open are not shown once it is closed). An open one reads
+  the other assessments as they are now; the block is not part of the signed evidence (the files and
+  lists it reads are).
+- **The client stand-ins run only inside a try**, on its first copy (the demo test copy, or the lab nginx for the lab
+  nginx file): not on the real-nginx copy that a try adds in isolated mode, not again after Apply or Roll back, and
+  never on a server this app can't make a copy of (there the try is off, with its reason).
+- **Not built:** a list of your own clients per server; real pinned client programs (old OpenSSL, curl, Java) in
+  containers; a network device between client and server (the "one proxy" of spec 4e, which is where a bigger first
+  message is dropped); a check of the machines that verify a signing program's signatures; Where it is used on the
+  Systems panel, the Roadmap, the Otto panel or Change watch's entry; and the verify command writing the client rule out
+  a second time (the runs are in the signed file like every run).
 
 ## Limits of phase 6e, first half (what-if: what the app knows, and the try; 19 November 2026)
 
@@ -592,7 +802,7 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   list has none.
 - **The try is Retest new version, and it is a real retest.** It reruns the assessment's locked tests for that
   library on the public copy of the new version, and its results become this assessment's newest results "after":
-  a finding that passes can read as closed, "Proven on your system" reads the run, and an accepted update for the
+  a finding that passes can read as closed, "Proven in this assessment" reads the run, and an accepted update for the
   library can then no longer be undone. The card says so before Confirm. It is offered only where Evidence would
   offer the same retest: the scanner file names the library, the app holds a public copy of exactly that version
   (the version as asked: "1.4.3-otto" is another program than "1.4.3"), nothing else is running, the assessment is

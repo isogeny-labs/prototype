@@ -120,9 +120,15 @@ def test_every_recorded_answer_was_asked_by_the_build_or_by_the_app_and_says_how
     # every step of a pack has its recorded answer here, word for word ...
     for digest, step in asked.items():
         assert by_prompt[digest]["step"] == step["step"] and by_prompt[digest]["answer_sha256"] == step["answer_sha256"]
-    # ... and nothing else is here but the one answer the app itself uses: Otto's change for the demo program
+    # ... and nothing else is here but the one answer the app itself uses (Otto's change for the demo program) and the
+    # five answers of the sandbox demo (a prototype: one advisory about starkbank-ecdsa, taken all the way on recorded
+    # answers; tools/record_sandbox_answers.py holds their text and writes them)
+    from tools import record_sandbox_answers as demo
     others = [a for digest, a in by_prompt.items() if digest not in asked]
-    assert [a["step"] for a in others] == ["write_fix"]
+    sandbox = [a for a in others if a["step"] != "write_fix"]
+    assert sorted(a["step"] for a in others) == sorted(["write_fix", "read_advisory", "design_test", "propose_fix", "write_wrapper", "write_wrapper"])
+    texts = [json.dumps(part, indent=2, ensure_ascii=False) + "\n" for part in (demo.READING, demo.DESIGN, demo.FIX, *demo.ASKING.values())]
+    assert sorted(a["answer"] for a in sandbox) == sorted(texts)
 
 
 def test_the_recorded_answers_still_fit_the_prompts_the_research_asks():

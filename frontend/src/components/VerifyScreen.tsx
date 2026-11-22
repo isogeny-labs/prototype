@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Evidence, Import, Result, ResultValue, Tone, VerifyRun } from "../api";
 import { DataTable, DetailPanel, PageHeader, TableWithPanel, type Column } from "./layout";
 import { ItemLinkView, RelatedFor } from "./related";
-import { AlsoNoticedList, DemoDataLabel, PrimaryButton, ResultBadge, SourceTag, formatTime } from "./ui";
+import { AlsoNoticedList, DemoDataLabel, PrimaryButton, ResultBadge, SourceTag, WhereFromLine, WhereFromTag, formatTime } from "./ui";
 
 // "True" only means the claim matched what we measured, so it is drawn as a calm match, not as "safe". The chip
 // carries its words and a symbol, so nothing depends on colour alone.
@@ -56,6 +56,17 @@ function EvidenceItem({ item }: { item: Evidence }) {
   );
 }
 
+/** A Verify result's word with, under it, where it came from (22 November 2026): a server's claim is read live, a signing
+ * program's by running a copy of it here, and a claim that couldn't be checked rests on the file. */
+function VerifyResult({ result }: { result: Result }) {
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <ResultBadge label={result.result} tone={BADGES[result.result].tone} />
+      <WhereFromTag tag={result.source_tag} />
+    </span>
+  );
+}
+
 /** What opens in the panel: what we found, what the result means, and the raw evidence. Evidence shows the same
  * for a claim (phase 5b). */
 export function VerifyResultDetails({ result }: { result: Result }) {
@@ -65,13 +76,14 @@ export function VerifyResultDetails({ result }: { result: Result }) {
       <div>
         <p className="text-xs uppercase tracking-wide text-slate-500">Claim</p>
         <p className="mt-1 text-sm text-slate-300">
-          {result.claim.text} <SourceTag>from the file</SourceTag>
+          {result.claim.text} <SourceTag source="file">from the file</SourceTag>
         </p>
       </div>
+      <WhereFromLine tag={result.source_tag} />
       <div>
         <p className="text-xs uppercase tracking-wide text-slate-500">What we found</p>
         <p className="mt-1 text-sm text-slate-200">
-          {result.found} <SourceTag>measured</SourceTag>
+          {result.found} <SourceTag source={result.source_tag && result.source_tag.key !== "file" ? result.source_tag.key : null}>measured</SourceTag>
         </p>
         <p className="mt-1.5 text-xs text-slate-400">
           {result.result === "Couldn't check" && result.reason ? result.reason : badge.meaning}
@@ -125,7 +137,7 @@ export function VerifyScreen({ imp, run, onContinue, openItem = null }: Props) {
       render: (r) => (
         <div className="min-w-0">
           <p className="text-sm text-slate-300">
-            {r.claim.text} <SourceTag>from the file</SourceTag>
+            {r.claim.text} <SourceTag source="file">from the file</SourceTag>
           </p>
           <p data-testid="verify-summary" className="mt-2 text-sm text-slate-100">
             {r.summary}
@@ -138,7 +150,7 @@ export function VerifyScreen({ imp, run, onContinue, openItem = null }: Props) {
         </div>
       ),
     },
-    { key: "result", header: "Result", minWidth: 130, render: (r) => <ResultBadge label={r.result} tone={BADGES[r.result].tone} /> },
+    { key: "result", header: "Result", minWidth: 130, render: (r) => <VerifyResult result={r} /> },
     {
       key: "details",
       header: <span className="sr-only">Details</span>,
@@ -180,7 +192,7 @@ export function VerifyScreen({ imp, run, onContinue, openItem = null }: Props) {
         </>
       ),
     },
-    { key: "result", header: "Result", minWidth: 110, render: (r) => <ResultBadge label={r.result} tone={BADGES[r.result].tone} /> },
+    { key: "result", header: "Result", minWidth: 110, render: (r) => <VerifyResult result={r} /> },
   ];
 
   const table =
