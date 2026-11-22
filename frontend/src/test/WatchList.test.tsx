@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChangeWatchView, WatchListView } from "../api";
 import { ChangeWatchPage } from "../components/ChangeWatchPage";
 import { LinkProvider } from "../components/related";
+import { prefs } from "../prefs";
 import { calls, mockApi } from "./fixtures";
 import { FIXED_ITEM, ITEM, QUOTE_TAG, watchClosed, watchEmpty, watchOff, watchOne, watchStopped, watchTwo } from "./watchFixtures";
 
@@ -46,6 +47,30 @@ function sent(fetchMock: ReturnType<typeof mockApi>, path: string): unknown[] {
 }
 const tab = (name: string) => screen.getByRole("tab", { name });
 const rowsOf = (testId: string) => within(screen.getByTestId(testId)).queryAllByTestId("watch-row");
+
+/** Presses what `find` finds in the very moment it is first in the page: after React has drawn the list for the first
+ * time and before the work React leaves for after a drawing. The first drawing is made slow on purpose, because React
+ * only leaves that work for a later turn when a drawing took longer than its 5 ms slice. Nobody clicks that fast in a
+ * browser; a test on a busy computer does (one run of the GitHub checks did, on 22 November 2026). */
+function pressAtFirstSight(find: () => HTMLElement | null | undefined): Promise<void> {
+  const real = prefs.panelWidth;
+  const slow = vi.spyOn(prefs, "panelWidth").mockImplementation(() => {
+    const until = performance.now() + 12;
+    while (performance.now() < until);
+    return real();
+  });
+  return new Promise((resolve) => {
+    const seen = new MutationObserver(() => {
+      const found = find();
+      if (!found) return;
+      seen.disconnect();
+      slow.mockRestore();
+      fireEvent.click(found);
+      resolve();
+    });
+    seen.observe(document.body, { childList: true, subtree: true });
+  });
+}
 
 describe("Change watch: the Watch list (sandbox research, a prototype)", () => {
   beforeEach(() => {
@@ -116,6 +141,41 @@ describe("Change watch: the Watch list (sandbox research, a prototype)", () => {
     expect(other.queryByTestId("watch-test")).toBeNull();
   });
 
+  it("keeps a click that comes the moment the list is first drawn: the item a link names is opened once, and not set a second time", async () => {
+    open(watchTwo, {}, { openItem: FIXED_ITEM });
+    await pressAtFirstSight(() => screen.queryAllByTestId("watch-row")[1]);
+    await waitFor(() => expect(screen.getByTestId("watch-panel").getAttribute("data-item")).toBe(ITEM));
+  });
+
+  it("a link that names another item while the page is open opens that item, and one that names none shuts the panel", async () => {
+    mockApi({ [CHANGES]: { body: changes }, [LIST]: { body: watchTwo } });
+    const page = (item: string | null) => (
+      <LinkProvider assessmentId={101} planId={1}>
+        <ChangeWatchPage planId={1} openItem={item} section="watch-list" />
+      </LinkProvider>
+    );
+    const opened = () => screen.queryByTestId("watch-panel")?.getAttribute("data-item") ?? null;
+    const { rerender } = render(page(FIXED_ITEM));
+    await waitFor(() => expect(opened()).toBe(FIXED_ITEM));
+    fireEvent.click(rowsOf("watch-table")[1]!);
+    expect(opened()).toBe(ITEM);
+    rerender(page(FIXED_ITEM)); // drawn again with the same link: what the person opened stays open
+    expect(opened()).toBe(ITEM);
+    rerender(page(null));
+    expect(opened()).toBeNull();
+    rerender(page(FIXED_ITEM));
+    expect(opened()).toBe(FIXED_ITEM);
+    rerender(page(ITEM));
+    expect(opened()).toBe(ITEM);
+  });
+
+  it("keeps Stop watching pressed the moment the panel is first drawn: its box opens and asks for the reason", async () => {
+    const { fetchMock } = open(watchOne, {}, { openItem: ITEM });
+    await pressAtFirstSight(() => screen.queryByTestId("watch-stop"));
+    expect(await screen.findByTestId("watch-stop-reason")).not.toBeNull();
+    expect(posts(fetchMock)).toEqual([]);
+  });
+
   it("Look now opens a box first: nothing is sent before the click in that box", async () => {
     const { fetchMock } = open(watchEmpty, { [LOOK]: { body: watchOne } }, { section: "watch-list" });
     await screen.findByTestId("watch-list-page");
@@ -165,6 +225,9 @@ describe("Change watch: the Watch list (sandbox research, a prototype)", () => {
     await waitFor(() => expect(rowsOf("watch-table")).toHaveLength(1));
     expect(sent(fetchMock, "/api/plans/1/watch-list/watch")).toEqual([{ item: ITEM }]);
     expect(posts(fetchMock)).toEqual([STOP, AGAIN]);
+    // watched again, it offers Stop watching as a button: the box with the earlier reason is not open by itself
+    expect(panel().getByTestId("watch-stop")).not.toBeNull();
+    expect(panel().queryByTestId("watch-stop-reason")).toBeNull();
   });
 
   it("with no reason typed, Stop watching sends none", async () => {

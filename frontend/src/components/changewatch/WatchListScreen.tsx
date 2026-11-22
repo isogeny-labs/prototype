@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { api, errorMessage, type WatchItem, type WatchListView } from "../../api";
 import { DataTable, DetailPanel, Modal, PageHeader, TableWithPanel, type Column } from "../layout";
 import { ItemLinkView } from "../related";
@@ -56,6 +56,69 @@ function StatusCell({ row }: { row: WatchItem }) {
   );
 }
 
+/** Stop watching: the first click only opens the box that asks for an optional reason; nothing is sent before the click
+ * in that box. The box belongs to one item while it is watched (it is keyed by the item and drawn only then), so a
+ * half-typed reason never moves to another item, and an item that is watched again starts with the box shut. Nothing
+ * here is set after a drawing: a click is never undone by the page itself. */
+function StopBox({
+  row,
+  stop,
+  sending,
+  onStop,
+}: {
+  row: WatchItem;
+  stop: NonNullable<WatchItem["panel"]["stop"]>;
+  sending: boolean;
+  onStop: (row: WatchItem, reason: string | null) => void;
+}) {
+  const [reason, setReason] = useState("");
+  const [asking, setAsking] = useState(false);
+  return (
+    <div data-testid="watch-stop-box" className={BOX}>
+      {asking ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!sending) onStop(row, reason.trim() || null);
+          }}
+        >
+          <label htmlFor="watch-stop-reason" className="block text-xs text-slate-400">
+            {stop.reason_label}
+          </label>
+          <input
+            id="watch-stop-reason"
+            data-testid="watch-stop-reason"
+            value={reason}
+            maxLength={stop.max}
+            onChange={(e) => setReason(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+          />
+          <p className="mt-1.5 break-words text-xs text-slate-400">{stop.note}</p>
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <SecondaryButton testId="watch-stop-cancel" disabled={sending} onClick={() => setAsking(false)}>
+              Cancel
+            </SecondaryButton>
+            <PrimaryButton type="submit" testId="watch-stop-confirm" disabled={sending} busy={sending}>
+              {stop.label}
+            </PrimaryButton>
+          </div>
+        </form>
+      ) : (
+        <>
+          <SecondaryButton testId="watch-stop" disabled={!stop.can || sending} onClick={() => setAsking(true)}>
+            {stop.label}
+          </SecondaryButton>
+          {stop.blocked_reason ? (
+            <p data-testid="watch-stop-blocked" className="mt-1.5 break-words text-xs text-slate-400">
+              {stop.blocked_reason}
+            </p>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 /** One watched weakness: what its publisher says (quoted), the versions it names, where a test for it stands, its
  * history, and Stop watching or Watch again. Every word is the backend's. */
 function ItemPanel({
@@ -71,12 +134,6 @@ function ItemPanel({
   onStop: (row: WatchItem, reason: string | null) => void;
   onWatch: (row: WatchItem) => void;
 }) {
-  const [reason, setReason] = useState("");
-  const [asking, setAsking] = useState(false);
-  useEffect(() => {
-    setReason("");
-    setAsking(false);
-  }, [row?.key]);
   if (!row) return null;
   const { panel } = row;
   return (
@@ -161,50 +218,7 @@ function ItemPanel({
             </ol>
           </div>
 
-          {panel.stop ? (
-            <div data-testid="watch-stop-box" className={BOX}>
-              {asking ? (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!sending) onStop(row, reason.trim() || null);
-                  }}
-                >
-                  <label htmlFor="watch-stop-reason" className="block text-xs text-slate-400">
-                    {panel.stop.reason_label}
-                  </label>
-                  <input
-                    id="watch-stop-reason"
-                    data-testid="watch-stop-reason"
-                    value={reason}
-                    maxLength={panel.stop.max}
-                    onChange={(e) => setReason(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
-                  />
-                  <p className="mt-1.5 break-words text-xs text-slate-400">{panel.stop.note}</p>
-                  <div className="mt-3 flex flex-wrap justify-end gap-2">
-                    <SecondaryButton testId="watch-stop-cancel" disabled={sending} onClick={() => setAsking(false)}>
-                      Cancel
-                    </SecondaryButton>
-                    <PrimaryButton type="submit" testId="watch-stop-confirm" disabled={sending} busy={sending}>
-                      {panel.stop.label}
-                    </PrimaryButton>
-                  </div>
-                </form>
-              ) : (
-                <>
-                  <SecondaryButton testId="watch-stop" disabled={!panel.stop.can || sending} onClick={() => setAsking(true)}>
-                    {panel.stop.label}
-                  </SecondaryButton>
-                  {panel.stop.blocked_reason ? (
-                    <p data-testid="watch-stop-blocked" className="mt-1.5 break-words text-xs text-slate-400">
-                      {panel.stop.blocked_reason}
-                    </p>
-                  ) : null}
-                </>
-              )}
-            </div>
-          ) : null}
+          {panel.stop ? <StopBox key={row.key} row={row} stop={panel.stop} sending={sending} onStop={onStop} /> : null}
           {panel.watch ? (
             <div data-testid="watch-again-box" className={BOX}>
               <SecondaryButton testId="watch-again" disabled={!panel.watch.can || sending} onClick={() => onWatch(row)}>
@@ -229,11 +243,18 @@ function ItemPanel({
  * and reason is the backend's: this page words no result and decides none. */
 export function WatchListScreen({ planId, view, onView, openItem = null, tabs }: Props) {
   const [openKey, setOpenKey] = useState<string | null>(openItem);
+  // A link that names another item while the page is open opens that item. It is done while drawing, and only when the
+  // link's item changed: an effect would also run once after the first drawing, and would then undo a click that came
+  // in between (seen once in the GitHub checks, 22 November 2026).
+  const [named, setNamed] = useState<string | null>(openItem);
+  if (named !== openItem) {
+    setNamed(openItem);
+    setOpenKey(openItem);
+  }
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const closeBox = useCallback(() => setAsking(false), []);
-  useEffect(() => setOpenKey(openItem), [openItem]);
 
   async function act(send: () => Promise<WatchListView>) {
     setSending(true);
