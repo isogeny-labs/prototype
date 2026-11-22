@@ -24,6 +24,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import re
+import warnings
 from pathlib import Path
 
 MAX_LINES, MAX_CHARS = 60, 4000
@@ -62,8 +63,10 @@ def check_python(source: str, modules: set[str]) -> None:
     copy's own files can be loaded by."""
     _size(source)
     try:
-        tree = ast.parse(source)
-    except (SyntaxError, ValueError, RecursionError):
+        with warnings.catch_warnings():              # (a draft's odd escapes are its author's business, not this program's log)
+            warnings.simplefilter("ignore")
+            tree = ast.parse(source)
+    except (SyntaxError, ValueError, RecursionError, MemoryError):
         raise Refused("The asking code is not valid Python.") from None
     functions = [n for n in tree.body if isinstance(n, ast.FunctionDef)]
     if [f.name for f in functions] != ["check_signature"]:

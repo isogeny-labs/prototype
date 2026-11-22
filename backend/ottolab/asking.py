@@ -123,7 +123,7 @@ Your answer. Answer with one JSON object and nothing else, in exactly this form:
 
 {{"asking_code": "<the whole text of {file_name}>", "notes": "<one or two plain sentences about anything the lab should know, or an empty text>"}}
 
-If the library cannot be asked the question, answer with an empty "asking_code" and say why in "notes". Do not say how serious any weakness of the library might be, and do not call the library secure or insecure.
+If the library cannot be asked the question, answer with an empty "asking_code" and say why in "notes". Do not rate the library in any way, and do not call it secure or insecure.
 """
     return text
 

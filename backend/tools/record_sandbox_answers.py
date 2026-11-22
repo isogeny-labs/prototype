@@ -158,7 +158,8 @@ def answers() -> list[tuple[str, str, str]]:
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     missing = 0
-    for step, prompt, answer in answers():
+    made = answers()
+    for step, prompt, answer in made:
         have = model.read_recorded(model.recorded_path(RECORDED, step, model.sha256_text(prompt)))
         if have is not None and have["prompt"] == prompt and have["answer"] == answer:
             print(f"there      {step}  {model.sha256_text(prompt)[:16]}")
@@ -168,9 +169,25 @@ def main(argv: list[str] | None = None) -> int:
         else:
             path = model.write_recorded(RECORDED, step, prompt, answer, AT, HOW)
             print(f"written    {step}  {path.name}")
-    if missing:
-        print(f"{missing} of the sandbox demo's prompts have no recorded answer. Run this tool without --check.")
-    return 1 if missing else 0
+    # An answer of this demo that stands under a prompt nobody asks any more (a text of ours changed since) is taken away:
+    # the same answer stands under today's prompt, and a stale file would only look like one more recorded answer.
+    current = {(step, model.sha256_text(prompt)) for step, prompt, _ in made}
+    mine = {answer for _, _, answer in made}
+    stale = []
+    for path in sorted(RECORDED.glob("*.json")):
+        data = model.read_recorded(path)
+        if data is not None and data["answer"] in mine and (data["step"], data["prompt_sha256"]) not in current:
+            stale.append(path)
+    for path in stale:
+        if "--check" in args:
+            print(f"STALE      {path.name}")
+        else:
+            path.unlink()
+            print(f"removed    {path.name}  (its prompt is no longer asked)")
+    if missing or (stale and "--check" in args):
+        print(f"{missing} of the sandbox demo's prompts have no recorded answer, and {len(stale)} recorded {'answer stands' if len(stale) == 1 else 'answers stand'} "
+              "under a prompt that is no longer asked. Run this tool without --check.")
+    return 1 if missing or (stale and "--check" in args) else 0
 
 
 if __name__ == "__main__":

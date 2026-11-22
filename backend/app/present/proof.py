@@ -108,15 +108,16 @@ def block(advisory: dict) -> dict | None:
         total = int(known.get("valid", 0)) + int(known.get("spoiled", 0))
         known_lines.append(
             f"Before the trial was registered, the code was checked on {library} {fixed} with {total} fresh questions it had never seen: "
-            f"{known.get('valid')} signatures our reference library made, and the same {known.get('spoiled')} with one byte of the message "
-            f"changed. It had to hand back accept for the first and refuse for the second: {marks.get('accepted_valid')} of "
-            f"{known.get('valid')} accepted, {marks.get('rejected_spoiled')} of {known.get('spoiled')} refused.")
+            f"{known.get('valid')} signatures our reference library made, and {known.get('spoiled')} spoiled ones (the message changed by "
+            f"one character, or a signature made with another key). It had to hand back accept for the first and refuse for the second: "
+            f"{marks.get('accepted_valid')} of {known.get('valid')} accepted, {marks.get('rejected_spoiled')} of {known.get('spoiled')} refused.")
         known_lines.append("The questions were made from a random number drawn after the code was fixed, so they could not be known in advance.")
         if known.get("controls_refused"):
             known_lines.append("Two dummy pieces of code of ours, one that always says yes and one that always says no, went through the "
                                "same check and were refused, as they must be.")
         if written_code:
-            known_lines.append("A draft never ran on the affected copy and never saw a result of the trial before the code was fixed.")
+            known_lines.append("While it was a draft, the code ran on the fixed copy only. It never ran on the affected copy and never saw "
+                               "a result of the trial before it was fixed.")
     left_out = [f"{library} {item['version']} was left out before the trial was registered: {item['reason']}." for item in chosen.get("left_out") or []]
     registered = extra["registered"]
     entries = [e for e in advisory.get("ledger") or [] if isinstance(e, dict)]

@@ -6,6 +6,11 @@ signatures spoiled in a plain way (one character of the message changed; or made
 refuse. Nothing here is a published case, and nothing here is about any weakness.
 
     qualify.py --set sandbox/<advisory>/set-a-<id>.json --seed <64 hex characters> --out sandbox/<advisory>/known-a-<id>.json
+               [--only VERSION]
+
+With --only, one copy of the set is asked and no other. That is how a DRAFT is checked: on the fixed copy alone, so a
+draft never runs on the affected copy and nothing about that copy can reach its author. Once the code is frozen, the
+check is made again without --only, on every copy, with a new seed.
 
 The questions are a pure function of the seed, which is drawn after the asking code is frozen, so they can't be
 anticipated and can be made again by anyone. Only the questions go into the container; the answers stay here.
@@ -104,6 +109,7 @@ def main() -> None:
     parser.add_argument("--set", required=True)
     parser.add_argument("--seed", required=True)
     parser.add_argument("--out", required=True)
+    parser.add_argument("--only", default=None)
     args = parser.parse_args()
     if len(args.seed) != 64 or any(c not in "0123456789abcdef" for c in args.seed):
         _stop("the seed is not 64 hex characters")
@@ -122,7 +128,9 @@ def main() -> None:
     job_cases = [{k: c[k] for k in ("id", "public_key", "message", "signature")} for c in asked]
     written = record["asking"]["kind"] == "written"
     out = {"schema": SCHEMA, "set": record["id"], "seed": args.seed, "valid": PAIRS, "spoiled": PAIRS, "versions": {}, "dummies": {}}
-    for version in copies.versions_of(record):
+    if args.only is not None and args.only not in copies.versions_of(record):
+        _stop("the copy set does not hold that version")
+    for version in ([args.only] if args.only is not None else copies.versions_of(record)):
         key = f"{record['library']}-{version}"
         subjects = [key] + ([f"dummy-yes:{key}", f"dummy-no:{key}"] if written else [])
         batch = ask.run_job({"op": "verify_batch", "subjects": subjects, "cases": job_cases}, time_limit=300.0, family=family)

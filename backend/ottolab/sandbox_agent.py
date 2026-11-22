@@ -11,6 +11,7 @@ import re
 import sys
 from pathlib import Path
 
+from app.otto import harness
 from app.otto.model import ModelError
 from ottolab import research, sandbox, snapshot
 
@@ -58,7 +59,8 @@ def main() -> int:
             print(act(lab, model, snap, action.group(1), target.group(1)))
         finally:
             research.save_spent(model)
-    except (research.ResearchError, snapshot.SnapshotError, ModelError, KeyError) as exc:
+    except (research.ResearchError, snapshot.SnapshotError, ModelError, KeyError, harness.module("lab").LabError) as exc:
+        # (also when the harness itself refuses a record: a stop that is said, never a crash that is taken for something)
         print(f"The step stopped: {exc}")
     return 0
 

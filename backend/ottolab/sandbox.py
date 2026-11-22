@@ -6,8 +6,9 @@ designed" and "its trial is registered":
 
     1. versions   which versions the trial runs on, by fixed rules from the source's own version fields and the
                   registry's own list. Claude's reading of the fixed version must agree with the source's field.
-    2. asking     the code that asks the library the test's questions. For a library of the four families: our own.
-                  Otherwise Claude writes it, twice, by two authors that never see each other's work. A draft is used
+    2. asking     the code that asks the library the test's questions. Claude writes it, twice, by two authors that
+                  never see each other's work. (A library of the four families the app has asking code for keeps its
+                  pinned copies and the pinned path; trying their unpinned versions is a later step.) A draft is used
                   only if the fixed rules let it through (ottolab/screens.py) AND it passes the known-answer check on
                   the fixed copy; a draft that does not gets the checker's lines back, at most three drafts in all.
                   A draft never touches the affected copy before it is frozen, and never sees a trial result.
@@ -215,17 +216,18 @@ def plan_versions(lab, advisory: dict, facts: dict, reading: dict) -> str:
 
 # ---------------------------------------------------------------- step 2: the asking code, and its known-answer check
 
-def qualify(lab, set_rel: str, out_rel: str) -> dict:
+def qualify(lab, set_rel: str, out_rel: str, only: str | None = None) -> dict:
     """Run the pinned known-answer script on one copy set. The seed is drawn now, after the set (and so the asking
-    code) is frozen. Raises Later when the check itself could not run."""
+    code) is frozen. `only`: ask one copy and no other (a draft is checked on the fixed copy alone). Raises Later when
+    the check itself could not run."""
     path = Path(lab.path(out_rel))
     if not path.exists():
         env = dict(os.environ)
         env["EVIDENCE_LAB_BACKEND"] = str(Path(__file__).resolve().parents[1])
         try:
             done = subprocess.run([sys.executable, str(Path(lab.root) / QUALIFY), "--set", set_rel, "--seed", secrets.token_hex(32),
-                                   "--out", out_rel], cwd=str(lab.root), env=env, capture_output=True, text=True, errors="replace",
-                                  timeout=QUALIFY_SECONDS, stdin=subprocess.DEVNULL)
+                                   "--out", out_rel, *(["--only", only] if only else [])], cwd=str(lab.root), env=env,
+                                  capture_output=True, text=True, errors="replace", timeout=QUALIFY_SECONDS, stdin=subprocess.DEVNULL)
         except (OSError, subprocess.TimeoutExpired):
             raise Later("the known-answer check could not be run") from None
         if done.returncode != 0 or not path.exists():
@@ -250,12 +252,16 @@ def known_line(known: dict, version: str) -> str:
 
 def _record_draft(lab, question_id: str, advisory_id: str, step, outcome: str, parsed: dict | None, refusal: str | None, drafted: dict) -> str:
     """One draft as an objective and a claim under the research side's pinned checker, like every Claude step."""
+    # (the author and the number of the draft are part of the objective: two drafts recorded in the same second are
+    #  then still two different records, which the ledger asks of every entry)
     objective = lab.add({"type": "objective", "question_id": question_id,
-                         "statement": (f"The record of the asking code drafted for the library of {advisory_id} is whole: the prompt and the "
-                                       "answer are there with their SHA-256, and the source of the answer is named."),
+                         "statement": (f"The record of draft {drafted['attempt']} of the asking code by author {drafted['author']} for the library "
+                                       f"of {advisory_id} is whole: the prompt and the answer are there with their SHA-256, and the source of "
+                                       "the answer is named."),
                          "verifier": {"kind": "certificate", "checker": research.CHECKER,
                                       "checker_sha256": research.file_sha256(Path(lab.root) / research.CHECKER),
-                                      "params": {"step": "write_wrapper", "advisory": advisory_id}, "timeout_seconds": 60}}, research.AGENT)
+                                      "params": {"step": "write_wrapper", "advisory": advisory_id, "author": drafted["author"],
+                                                 "attempt": drafted["attempt"]}, "timeout_seconds": 60}}, research.AGENT)
     artifact: dict = {"advisory": advisory_id, "step": step.record(), "outcome": outcome, "drafted": drafted}
     if parsed is not None:
         artifact["parsed"] = parsed
@@ -314,36 +320,22 @@ def write_asking(lab, model: OttoModel, question_id: str, advisory: dict, plan_r
     except copies.CopyError as exc:
         raise DeadEnd(f"No test yet: a public copy could not be put together ({exc}).") from None
     set_rel = research._write_once(lab, f"sandbox/{aid}", f"set-{author}", record)
-    known_rel = f"sandbox/{aid}/known-{author}-{record['id']}.json"
-    known = qualify(lab, set_rel, known_rel)
-    if full_marks(known, fixed, "yes") or full_marks(known, fixed, "no"):
+    # A draft is checked on the fixed copy and on no other: it never runs on the affected copy, and what its author is
+    # told back (the line below) is about the fixed copy alone.
+    draft = qualify(lab, set_rel, f"sandbox/{aid}/draft-{author}-{record['id']}.json", only=fixed)
+    if full_marks(draft, fixed, "yes") or full_marks(draft, fixed, "no"):
         raise Later("the known-answer check did not refuse its own two controls, so it can't be relied on")
-    if not full_marks(known, fixed):
-        _record_draft(lab, question_id, aid, step, "refused", None, "It did not work on the fixed copy. " + known_line(known, fixed), drafted)
+    if not full_marks(draft, fixed):
+        _record_draft(lab, question_id, aid, step, "refused", None, "It did not work on the fixed copy. " + known_line(draft, fixed), drafted)
         return f"{aid}: a draft of the asking code (author {author}) did not pass the known-answer check on the fixed copy."
+    # From here on the code is frozen (the copy set's record holds its fingerprint). It is now checked on every copy of
+    # its set, with fresh questions from a new seed. What that shows decides only which versions the trial runs on.
+    known_rel = f"sandbox/{aid}/known-{author}-{record['id']}.json"
+    qualify(lab, set_rel, known_rel)
     parsed = {**answer, **drafted, "asking_sha256": record["asking"]["sha256"], "set": record["id"], "set_file": set_rel,
               "known_file": known_rel, "left_out": left_out}
     _record_draft(lab, question_id, aid, step, "used", parsed, None, drafted)
     return f"{aid}: the asking code by author {author} passed the fixed rules and the known-answer check on the fixed copy."
-
-
-def ours_set(lab, advisory: dict, plan_rel: str) -> str:
-    """For a library of the four families the app wrote asking code for: one copy set with that code."""
-    aid = advisory["id"]
-    have = _files(lab, aid, "set-a")
-    if have:
-        return have[0]
-    plan = _read(lab, plan_rel)
-    try:
-        record, _ = maker.make_set(root=store(), source=source(), library=plan["library"], registry=plan["registry"], package=plan["package"],
-                                   wanted=plan["wanted"], asking={"kind": "ours"}, say=lambda line: None)
-    except registries.RegistryError as exc:
-        if exc.later:
-            raise Later(str(exc)) from None
-        raise DeadEnd(f"No test yet: a public copy could not be put together ({exc})") from None
-    except copies.CopyError as exc:
-        raise DeadEnd(f"No test yet: a public copy could not be put together ({exc}).") from None
-    return research._write_once(lab, f"sandbox/{aid}", "set-a", record)
 
 
 # ---------------------------------------------------------------- step 4: the registration
@@ -471,11 +463,6 @@ def propose_test(lab, model: OttoModel, question_id: str, advisory: dict, snap: 
     design = designs.check_design(designed[1]["artifact"]["parsed"]["design"])
     try:
         plan_rel = plan_versions(lab, advisory, facts, reading)
-        if facts["library"] in maker.OURS:
-            set_a = ours_set(lab, advisory, plan_rel)
-            known_a = f"sandbox/{aid}/known-a-{_read(lab, set_a)['id']}.json"
-            qualify(lab, set_a, known_a)
-            return register(lab, question_id, advisory, reading, design, [read[0], designed[0]], plan_rel, set_a, known_a, None, None)
         for author in asking.AUTHORS:
             if accepted_draft(st, lab, aid, author) is None:
                 return write_asking(lab, model, question_id, advisory, plan_rel, author)
