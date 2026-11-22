@@ -31,7 +31,8 @@ def demo_verified(client, confirm=True):
 def test_first_start_asks_to_create_a_password_then_logs_in(anon_client, settings):
     c = anon_client
     s = c.get("/api/session").json()
-    assert s == {"setup_required": True, "logged_in": False, "mode": "demo",
+    assert s == {"setup_required": True, "logged_in": False,
+                 "login": {"password": True, "github": False, "github_install_url": None}, "user": None, "mode": "demo",
                  "mode_line": "Demo mode: running our own demo software, not isolated. Isolated mode is switched off for this run.",
                  "demo_server": {"address": f"localhost:{settings.demo_tls_port}", "running": True, "error": None}}
     assert c.post("/api/import/demo").status_code == 401

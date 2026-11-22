@@ -13178,6 +13178,40 @@
         ],
         "title": "LockedTestView"
       },
+      "LoginMethods": {
+        "properties": {
+          "password": {
+            "type": "boolean",
+            "title": "Password",
+            "description": "The local password login is on (EVIDENCE_LAB_PASSWORD_LOGIN)."
+          },
+          "github": {
+            "type": "boolean",
+            "title": "Github",
+            "description": "Logging in with the GitHub App is set up."
+          },
+          "github_install_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Install Url",
+            "description": "Where to install the GitHub App, when its name is known."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "password",
+          "github",
+          "github_install_url"
+        ],
+        "title": "LoginMethods"
+      },
       "LookupButton": {
         "properties": {
           "label": {
@@ -18392,6 +18426,20 @@
             "type": "boolean",
             "title": "Logged In"
           },
+          "login": {
+            "$ref": "#/components/schemas/LoginMethods"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionUser"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who is logged in with GitHub; null for the password login."
+          },
           "mode": {
             "type": "string",
             "enum": [
@@ -18414,11 +18462,51 @@
         "required": [
           "setup_required",
           "logged_in",
+          "login",
+          "user",
           "mode",
           "mode_line",
           "demo_server"
         ],
         "title": "Session"
+      },
+      "SessionUser": {
+        "properties": {
+          "login": {
+            "type": "string",
+            "title": "Login"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "login",
+          "name",
+          "avatar_url"
+        ],
+        "title": "SessionUser"
       },
       "SharedAssessment": {
         "properties": {

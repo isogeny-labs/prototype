@@ -1,0 +1,12 @@
+# Keep the Terraform state in S3 (with locking) when more than one person runs it. Copy to backend.tf, fill in, then
+#   terraform init -migrate-state
+# The state holds the GitHub client secret: keep the bucket private and encrypted.
+terraform {
+  backend "s3" {
+    bucket       = "your-terraform-state-bucket"
+    key          = "evidence-lab/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}

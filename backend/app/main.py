@@ -5,12 +5,14 @@ Start it with:  python -m app      (from the backend folder; listens on 127.0.0.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.types import Receive, Scope, Send
 
 from app import auth
 from app.config import FRONTEND_DIST, Settings, load_settings
@@ -19,12 +21,32 @@ from app.lab.hub import BadRequest, Conflict, Lab, NotFound
 from app.present.times import MarkTimes
 from app.web import assistant as assistant_routes
 from app.web import changewatch as changewatch_routes
-from app.web import changes, checks, dependencies, fixes, importing, migration, projects, session
+from app.web import changes, checks, dependencies, fixes, hosting, importing, migration, projects, session
 from app.web import lab as lab_routes
 from app.web import otto as otto_routes
 from app.web import tests as test_routes
 from app.web.turns import OneReadAtATime
 from app.web.common import error_response
+
+
+class HostCheckButHealth(TrustedHostMiddleware):
+    """The host check, as before, except for GET /api/health (hosting): a load balancer's probe names the machine's own
+    address as the host, and the health check shows no data."""
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope.get("type") == "http" and scope.get("path") == "/api/health" and scope.get("method") == "GET":
+            await self.app(scope, receive, send)
+        else:
+            await super().__call__(scope, receive, send)
+
+
+def allowed_hosts(settings: Settings) -> list[str]:
+    hosts = ["localhost", "127.0.0.1", "testserver", *settings.allowed_hosts]
+    if settings.public_url:
+        host = urlparse(settings.public_url).hostname
+        if host:
+            hosts.append(host)
+    return hosts
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -42,7 +64,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Isogeny Evidence Lab", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.lab = lab
     # Only answer requests addressed to this computer (stops other web pages reaching the app by a trick name).
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=["localhost", "127.0.0.1", "testserver"])
+    # Hosting: EVIDENCE_LAB_ALLOWED_HOSTS and the host of EVIDENCE_LAB_PUBLIC_URL are added to that list.
+    app.add_middleware(HostCheckButHealth, allowed_hosts=allowed_hosts(settings))
     # The 5c fixes: a browser asks for marked times with one header, and writes each in the viewer's own time zone.
     # Without the header every sentence keeps its UTC words (scripts, the accuracy check, downloads).
     app.add_middleware(MarkTimes)
@@ -79,14 +102,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def require_login(request: Request) -> None:
         with lab.db() as db:
-            if not auth.session_valid(db, request.cookies.get(auth.COOKIE_NAME)):
+            if not auth.session_valid(db, request.cookies.get(auth.COOKIE_NAME), settings.login_methods):
                 raise HTTPException(401, "Please log in.")
 
     def set_cookie(response: Response, token: str) -> None:
         response.set_cookie(auth.COOKIE_NAME, token, httponly=True, samesite="strict", path="/",
-                            max_age=int(auth.SESSION_LIFETIME.total_seconds()))
+                            secure=settings.secure_cookies, max_age=int(auth.SESSION_LIFETIME.total_seconds()))
 
     app.include_router(session.routes(lab, set_cookie))
+    app.include_router(hosting.routes(lab, set_cookie))   # hosting: log in with GitHub, log out, health
     app.include_router(projects.routes(lab, require_login))
     # Phase 5a: a changing request on a closed assessment is refused (see web/projects.py for the two exceptions).
     guarded = [Depends(projects.closed_guard(lab, require_login))]

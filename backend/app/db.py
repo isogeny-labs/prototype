@@ -1,13 +1,16 @@
-"""SQLite storage (SQLAlchemy). No secrets are stored here except the password hash."""
+"""Storage (SQLAlchemy): SQLite by default, PostgreSQL when EVIDENCE_LAB_DATABASE_URL names one (app/infra/database.py).
+No secrets are stored here except the password hash."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import (
-    JSON, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint, create_engine, text,
+    JSON, BigInteger, Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
+
+from app.infra.database import make_engine, prepare_schema
 
 
 def now_utc() -> datetime:
@@ -34,10 +37,24 @@ class AuthRow(Base):
 
 
 class SessionRow(Base):
-    """Server-side login sessions. Only a SHA-256 of the random token is kept."""
+    """Server-side login sessions. Only a SHA-256 of the random token is kept.
+    `github_user_id`: who logged in with GitHub (None for the password login)."""
     __tablename__ = "sessions"
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    github_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+
+class GitHubUserRow(Base):
+    """A person who logged in with GitHub (hosting, 21 November 2026). What GitHub said about them at their last login;
+    their GitHub token is never kept. Keyed by GitHub's own numeric id, which stays the same when a login is renamed."""
+    __tablename__ = "github_users"
+    github_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    login: Mapped[str] = mapped_column(String(100))
+    name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    last_login_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
 class ImportRow(Base):
@@ -766,19 +783,6 @@ APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", 
                       "watchlist_marks")                                              # sandbox research: the Watch list
 
 
-def create_append_only_triggers(engine) -> None:
-    """Locked tests, runs, reviews and the records of a fix can be added but never changed or removed, whatever code asks."""
-    with engine.begin() as conn:
-        for table in APPEND_ONLY_TABLES:
-            for verb in ("UPDATE", "DELETE"):
-                conn.execute(text(
-                    f"CREATE TRIGGER IF NOT EXISTS {table}_no_{verb.lower()} BEFORE {verb} ON {table} "
-                    f"BEGIN SELECT RAISE(ABORT, '{table} is append-only'); END;"))
-        for table in NO_DELETE_TABLES:   # phase 5a: folders, projects and assessments can be renamed, moved, archived; never removed
-            conn.execute(text(f"CREATE TRIGGER IF NOT EXISTS {table}_no_delete BEFORE DELETE ON {table} "
-                              f"BEGIN SELECT RAISE(ABORT, '{table} are never deleted'); END;"))
-
-
 # A column that was added to a table after the table first shipped. A data folder made before then gets the column when
 # it is opened (adding a column changes no row; the add-only rules do not stand in its way).
 ADDED_COLUMNS = (("assistant_messages", "facts", "JSON"),        # phase 6c: the facts of an answer to a fixed question
@@ -786,18 +790,8 @@ ADDED_COLUMNS = (("assistant_messages", "facts", "JSON"),        # phase 6c: the
                  ("otto_research", "sandbox", "BOOLEAN"), ("otto_research", "spent_nano", "INTEGER"))
 
 
-def add_missing_columns(engine) -> None:
-    with engine.begin() as conn:
-        for table, column, kind in ADDED_COLUMNS:
-            have = {row[1] for row in conn.execute(text(f'PRAGMA table_info("{table}")'))}
-            if have and column not in have:
-                conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN "{column}" {kind}'))
-
-
-def make_session_factory(db_path: Path) -> sessionmaker:
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False, "timeout": 30})
-    Base.metadata.create_all(engine)
-    add_missing_columns(engine)
-    create_append_only_triggers(engine)
+def make_session_factory(database: str | Path) -> sessionmaker:
+    """`database` is a path to a SQLite file, or a SQLAlchemy URL (sqlite:///... or postgresql://...)."""
+    engine = make_engine(database)
+    prepare_schema(engine, Base.metadata, ADDED_COLUMNS, APPEND_ONLY_TABLES, NO_DELETE_TABLES)
     return sessionmaker(engine, expire_on_commit=False)

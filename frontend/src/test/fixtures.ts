@@ -20,6 +20,8 @@ import { couldntCheck, labCopy, live, ofClaim } from "./sourceFixtures";
 export const session: Session = {
   setup_required: false,
   logged_in: true,
+  login: { password: true, github: false, github_install_url: null },
+  user: null,
   mode: "demo",
   mode_line: "Demo mode: running our own demo software, not isolated.",
   demo_server: { address: "localhost:8443", running: true, error: null },

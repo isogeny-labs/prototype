@@ -1,0 +1,9 @@
+# Hosting only (21 November 2026): the packages the app needs to use PostgreSQL, Redis, and S3 or Google Cloud
+# Storage. Optional: ./run-demo.sh, the demo and the GitHub checks do not install them, and the app needs none of
+# them while EVIDENCE_LAB_DATABASE_URL, EVIDENCE_LAB_REDIS_URL and EVIDENCE_LAB_STORAGE_URL are unset (it then uses
+# SQLite, a cache in memory and a folder). The Docker image installs them. Adding them needs Kevin's OK.
+-c requirements.lock
+psycopg[binary]
+redis
+boto3
+google-cloud-storage

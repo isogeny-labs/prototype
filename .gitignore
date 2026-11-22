@@ -24,3 +24,11 @@ test-results/
 playwright-report/
 
 site/
+
+# Terraform (deploy/terraform): state, plans and variables stay out of git; .terraform.lock.hcl is kept.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+terraform.tfvars
+deploy/terraform/aws/backend.tf

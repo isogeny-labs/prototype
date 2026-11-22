@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy import inspect as sa_inspect
 
 from app.config import DEMO_DIR
 from app.web import models
@@ -19,8 +20,8 @@ DEPENDENCIES = DEMO_DIR / "dependencies-demo.cdx.json"
 
 def _kept(lab) -> dict:
     with lab.db() as db:
-        tables = [r[0] for r in db.execute(text("select name from sqlite_master where type = 'table' order by name"))]
-        rows = {t: hashlib.sha256(repr(db.execute(text(f'select * from "{t}"')).fetchall()).encode()).hexdigest() for t in tables}
+        tables = sorted(sa_inspect(db.get_bind()).get_table_names())   # every table, on SQLite or PostgreSQL
+        rows = {t: hashlib.sha256(repr(sorted(map(repr, db.execute(text(f'select * from "{t}"')).fetchall()))).encode()).hexdigest() for t in tables}
     files = {str(p.relative_to(lab.settings.data_dir)): hashlib.sha256(p.read_bytes()).hexdigest()
              for p in sorted(Path(lab.settings.data_dir).rglob("*"))
              if p.is_file() and not p.name.endswith(("-wal", "-shm", "-journal")) and p.suffix != ".db"}

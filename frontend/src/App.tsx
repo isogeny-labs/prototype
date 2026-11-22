@@ -307,7 +307,7 @@ export default function App() {
     );
   }
   if (session.setup_required) return <SetupScreen onDone={() => void refresh()} />;
-  if (!session.logged_in) return <LoginScreen onDone={() => void refresh()} />;
+  if (!session.logged_in) return <LoginScreen onDone={() => void refresh()} methods={session.login} />;
 
   const current = route.kind === "assessment" && assessment?.id === route.id ? assessment : null;
   const closed = current?.status.key === "closed";

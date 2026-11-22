@@ -1,0 +1,95 @@
+# Isogeny Evidence Lab with everything a hosted copy uses, on one computer (21 November 2026). See docs/HOSTING.md.
+#   cp .env.example .env      (then fill in the GitHub App, or leave it empty to log in with a password)
+#   docker compose up --build
+#   open http://localhost:8000
+# PostgreSQL (the database), Redis (the cache) and SeaweedFS (S3-compatible file storage).
+name: evidence-lab
+
+services:
+  app:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      EVIDENCE_LAB_DATABASE_URL: postgresql://evidence_lab:${POSTGRES_PASSWORD:-evidence-lab-local}@postgres:5432/evidence_lab
+      EVIDENCE_LAB_REDIS_URL: redis://redis:6379/0
+      EVIDENCE_LAB_STORAGE_URL: s3://${S3_BUCKET:-evidence-lab}/files
+      EVIDENCE_LAB_S3_ENDPOINT_URL: http://s3:8333
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-evidence-lab}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-evidence-lab-local}
+      AWS_DEFAULT_REGION: us-east-1
+      EVIDENCE_LAB_PUBLIC_URL: ${EVIDENCE_LAB_PUBLIC_URL:-http://localhost:8000}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - app-data:/data
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      s3-bucket: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: evidence_lab
+      POSTGRES_USER: evidence_lab
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evidence-lab-local}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evidence_lab -d evidence_lab"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # S3-compatible file storage: SeaweedFS (MinIO no longer publishes images on Docker Hub). Access keys from .env.
+  s3:
+    image: chrislusf/seaweedfs:4.54
+    command: ["server", "-dir=/data", "-s3", "-s3.port=8333", "-s3.config=/etc/seaweedfs/s3.json"]
+    configs:
+      - source: s3-identities
+        target: /etc/seaweedfs/s3.json
+    volumes:
+      - s3-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:9333/cluster/status"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  # Makes the bucket once, then stops.
+  s3-bucket:
+    image: chrislusf/seaweedfs:4.54
+    depends_on:
+      s3: { condition: service_healthy }
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - echo "s3.bucket.create -name $${S3_BUCKET}" | weed shell -master=s3:9333
+    environment:
+      S3_BUCKET: ${S3_BUCKET:-evidence-lab}
+
+configs:
+  s3-identities:
+    content: |
+      {"identities": [{"name": "evidence-lab",
+        "credentials": [{"accessKey": "${S3_ACCESS_KEY:-evidence-lab}", "secretKey": "${S3_SECRET_KEY:-evidence-lab-local}"}],
+        "actions": ["Admin", "Read", "Write", "List", "Tagging"]}]}
+
+volumes:
+  app-data:
+  postgres-data:
+  s3-data:

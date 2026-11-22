@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy import inspect as sa_inspect
 
 from app.assistant import commands
 from app.config import DEMO_DIR
@@ -19,8 +20,8 @@ ASK = "If I update elliptic to 6.5.7, how does that affect my libraries and depe
 
 def _kept(lab) -> dict:
     with lab.db() as db:
-        tables = [r[0] for r in db.execute(text("select name from sqlite_master where type = 'table' order by name"))]
-        return {t: hashlib.sha256(repr(db.execute(text(f'select * from "{t}"')).fetchall()).encode()).hexdigest() for t in tables}
+        tables = sorted(sa_inspect(db.get_bind()).get_table_names())   # every table, on SQLite or PostgreSQL
+        return {t: hashlib.sha256(repr(sorted(map(repr, db.execute(text(f'select * from "{t}"')).fetchall()))).encode()).hexdigest() for t in tables}
 
 
 @pytest.fixture(scope="module")
