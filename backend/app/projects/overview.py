@@ -38,7 +38,7 @@ class OverviewMixin:
     fixes_view: Callable[[int], dict]
     migration_view: Callable[[int], dict]
     lab_view: Callable[[int], dict]
-    dependencies_view: Callable[[int], dict]
+    dependencies_view: Callable[..., dict]
     latest_verify: Callable[[int], dict]
 
     # ---------------------------------------------------------------- one assessment
@@ -184,7 +184,7 @@ class OverviewMixin:
         except NotFound:
             pass
         try:
-            dview = self.dependencies_view(plan_id)
+            dview = self.dependencies_view(plan_id, with_impact=False)
             out["deps_listed"] = dview.get("list_file") is not None
             for g in dview.get("groups") or []:
                 for r in g.get("rows") or []:
@@ -292,7 +292,7 @@ class OverviewMixin:
                 plan = db.scalars(select(PlanRow).where(PlanRow.import_id == a.import_id)).first()
             if plan is not None:
                 try:
-                    view = self.dependencies_view(plan.id)
+                    view = self.dependencies_view(plan.id, with_impact=False)
                     if view.get("list_file") is not None:
                         blockers = sum(len(r.get("blocks") or []) for g in view.get("groups") or [] for r in g.get("rows") or [])
                 except NotFound:

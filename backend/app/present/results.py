@@ -9,6 +9,7 @@ import re
 import json
 
 from app.present import advisory as present_advisory
+from app.present import clients as present_clients
 from app.present import plain as plain_words
 from app.engine import vectors
 from app.engine.guidance import OWN_LINKS
@@ -46,6 +47,7 @@ CONTROL_WHAT = {
     "mlkem_vectors": ("each deliberately broken copy", "failed this test"),
     "mldsa_vectors": ("each deliberately broken copy", "failed this test"),
     "advisory_cases": ("a deliberately broken signer", "failed this test"),   # phase 5c
+    "client_reach": ("the same client stand-ins on our own hybrid and classical test servers", "read as they must"),   # phase 4e
 }
 FAILING_CONTROLS = ("tls_versions", "certificate", "official_vectors", "bad_signatures", "mlkem_vectors", "mldsa_vectors", "advisory_cases")
 MODE_WORDS = {"demo": "Demo mode, not isolated", "isolated": "Isolated mode: locked-down container, no network"}
@@ -656,7 +658,8 @@ _WORDS = {"tls_versions": _tls_versions, "certificate": _certificate, "official_
           "pq_status": present_pq.pq_status, "signing_status": present_pq.signing_status,
           "mlkem_vectors": present_real.pq_exam, "mldsa_vectors": present_real.pq_exam,
           "capability": present_deps.capability_result,
-          "advisory_cases": present_advisory.advisory_cases}   # phase 5c
+          "advisory_cases": present_advisory.advisory_cases,   # phase 5c
+          "client_reach": present_clients.client_reach}        # phase 4e: who can still connect
 
 
 def _not_a_result(w: _Words, spec, run, review, ctx) -> None:

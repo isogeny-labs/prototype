@@ -186,7 +186,8 @@ def _otto_row(entry: dict | None) -> dict:
     return {"advisories": entry.get("advisories") or [], "otto_proposals": entry.get("proposals") or [], "otto_status": entry.get("status")}
 
 
-def view(*, plan_id: int, import_id: int, is_demo: bool, state: dict | None, busy: bool, isolated: bool, otto: dict | None = None) -> dict:
+def view(*, plan_id: int, import_id: int, is_demo: bool, state: dict | None, busy: bool, isolated: bool, otto: dict | None = None,
+         impact: dict | None = None) -> dict:
     base = {"plan_id": plan_id, "import_id": import_id, "is_demo": is_demo, "title": "Dependencies", "disclaimer": DISCLAIMER,
             "busy": busy, "questions": [{"key": k, "title": w, "short": s} for k, w, s in QUESTIONS],
             "legend": [{"key": k, "words": w} for k, w in LABEL_WORDS.items() if k != "your_environment"],
@@ -234,7 +235,8 @@ def view(*, plan_id: int, import_id: int, is_demo: bool, state: dict | None, bus
         groups.append({"key": top["key"], "label": top["label"], "tie_words": words, "system": tie["system"], "tie_source": tie["source"],
                        "picker": {"label": "Part of", "options": choices, "selected": tie["system"] or ""},
                        "empty_text": None if top["rows"] else "Your file lists no libraries under it.",
-                       "rows": [{**_row(rows[i], state, busy, isolated), **_otto_row((otto or {}).get(rows[i]["key"]))} for i in top["rows"]]})
+                       "rows": [{**_row(rows[i], state, busy, isolated), **_otto_row((otto or {}).get(rows[i]["key"])),
+                                 "impact": (impact or {}).get(rows[i]["key"])} for i in top["rows"]]})
     lst = state["list"]
     return {**base, "subline": (f"From your file {lst['filename']} ({lst['format']})"
                                 + (f", which describes {state['described']}" if state.get("described") else "") + "."),

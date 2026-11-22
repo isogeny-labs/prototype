@@ -22,6 +22,9 @@ class RunContext:
     component: tuple[str, str] | None              # (name, version) to run; None if the plan has no signing component
     baseline_version: str | None = None            # set on a retest: the version the first results were for
     timing: dict | None = None                     # filled by begin(): when the work itself started
+    # Phase 4e: in a run on a test copy, the gate of the server as it is today (address_check is the copy's), for the
+    # "Who can still connect" test, which connects to both. None in every other run.
+    today_check: Callable[[str], object] | None = None
 
     def begin(self) -> None:
         """The test's own work starts now (any wait for the measuring gate is over)."""
@@ -61,14 +64,15 @@ EXCLUSIVE_KINDS = ("speed_size", "mldsa_compare", "signing_status")   # these ta
 
 
 def execute(spec: dict, ctx: RunContext) -> dict:
-    from app.run.execute import capability, pq, pqstatus, pqvectors, server, signing, speed
+    from app.run.execute import capability, clients, pq, pqstatus, pqvectors, server, signing, speed
     table = {"tls_versions": server.run_tls_versions, "certificate": server.run_certificate,
              "official_vectors": signing.run_official_vectors, "bad_signatures": signing.run_bad_signatures,
              "speed_size": speed.run_speed_size, "pq_readiness": pq.run_pq_readiness, "mldsa_compare": speed.run_mldsa_compare,
              "pq_status": pqstatus.run_pq_status, "signing_status": pqstatus.run_signing_status,
              "mlkem_vectors": pqvectors.run_pq_exam, "mldsa_vectors": pqvectors.run_pq_exam,
              "capability": capability.run_capability,
-             "advisory_cases": signing.run_advisory_cases}   # phase 5c: a test from a signed test pack
+             "advisory_cases": signing.run_advisory_cases,    # phase 5c: a test from a signed test pack
+             "client_reach": clients.run_client_reach}        # phase 4e: who can still connect, inside a try
     run = table.get(spec.get("kind"))
     if run is None:
         return problem("harness_error", "This kind of test is not known to this version.")
