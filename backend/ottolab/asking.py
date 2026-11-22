@@ -3,8 +3,10 @@
 Asking code is one small file: a refusal list, and `check_signature(public_key, message, signature)`, which passes one
 question on to the library's own functions and hands the library's own answer back. The prompt below gives Claude the
 rules, our asking program that will call the code, and parts of the public library's own files. It names no advisory,
-no weakness and no version: the author does not know what the code will be used to look for, and the same code must
-work on every version of the library.
+no weakness and no version: the author is not told what the code will be used to look for, and the same code must
+work on every version of the library. The library's files are shown without its read-me, its change log and its
+package description, and with version numbers and advisory ids blanked (`material`). What the library's own source
+says in its comments is still there: that is the library, and the author has to read it to call it.
 
 What comes back is data. It is used only after `screens.check` let it through (straight-line calls into the library,
 nothing else) and after it passed the known-answer check on the fixed copy. It never decides anything: the questions
@@ -16,13 +18,14 @@ same answer on every case of a trial, or the trial stops.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import PurePosixPath
 
 from ottolab import screens
 from ottolab.prompts import Refused
 
 MAX_ATTEMPTS = 3
-MAX_MATERIAL_CHARS, MAX_FILE_CHARS, MAX_README_CHARS, MAX_LISTED = 36000, 7000, 5000, 150
+MAX_MATERIAL_CHARS, MAX_FILE_CHARS, MAX_LISTED = 36000, 7000, 150
 AUTHORS = ("a", "b")
 _BRIEF = {"a": "You are the first of two authors. Another author writes the same file apart from you; neither of you sees the other's work.",
           "b": "You are the second of two authors. Another author has written the same file apart from you; you do not see that work, and "
@@ -37,22 +40,51 @@ def modules_of(tree: dict[PurePosixPath, bytes]) -> set[str]:
     return names
 
 
-def material(tree: dict[PurePosixPath, bytes], readme: str | None, language: str) -> str:
-    """The parts of the public library's own files the author is shown: the list of its files, its read-me, and its
-    source files, the ones about signatures first, up to a limit. The same files always give the same text."""
+# Files that describe the package or tell its history: not shown, and not listed. They say which version this is and
+# what changed in it, and the author is told neither.
+_ABOUT_FOLDERS = re.compile(r"(?i)\.(dist-info|egg-info)$")
+_ABOUT_FILES = re.compile(r"(?i)^(pkg-info|metadata|record|wheel|setup\.(py|cfg)|pyproject\.toml|manifest\.in|"
+                          r"(readme|changelog|changes|history|news|release[-_ ]?notes|releases|security|authors|contributors)(\.[a-z0-9]+)?|"
+                          r"_?_?version_?_?\.py|__about__\.py)$")
+_VERSION_LINES = (re.compile(r"(__version__\s*=\s*)(['\"])[^'\"\n]*\2"), re.compile(r"((['\"])version\2\s*:\s*)(['\"])[^'\"\n]*\3"),
+                  re.compile(r"(?i)(\bversion\s*=\s*)(['\"])[^'\"\n]*\2"))
+_VERSION_NUMBERS = re.compile(r"(?i)(\b\w*version\w*\s*[=:]\s*)[\[(]\s*\d+(\s*,\s*\d+)+\s*,?\s*[\])]")      # version_info = (2, 0, 1)
+_ADVISORY_IDS = re.compile(r"(?i)\b(CVE-\d{4}-\d{3,}|GHSA(-[0-9a-z]{4}){3}|PYSEC-\d{4}-\d+|OSV-\d{4}-\d+|SNYK-[A-Z0-9-]+)\b")
+BLANK_VERSION, BLANK_ADVISORY = "(a version)", "(an advisory id)"
+
+
+def about_the_package(path: PurePosixPath) -> bool:
+    """A file that describes the package or tells its history, which the author is not shown."""
+    return any(_ABOUT_FOLDERS.search(part) for part in path.parts[:-1]) or bool(_ABOUT_FILES.match(path.name))
+
+
+def blanked(text: str, version: str | None) -> str:
+    """`text` with the copy's own version number, a version given to a name, and advisory ids blanked."""
+    if version:
+        text = text.replace(version, BLANK_VERSION)
+    text = _VERSION_LINES[0].sub(lambda m: f"{m.group(1)}{m.group(2)}{BLANK_VERSION}{m.group(2)}", text)
+    text = _VERSION_LINES[1].sub(lambda m: f"{m.group(1)}{m.group(3)}{BLANK_VERSION}{m.group(3)}", text)
+    text = _VERSION_LINES[2].sub(lambda m: f"{m.group(1)}{m.group(2)}{BLANK_VERSION}{m.group(2)}", text)
+    text = _VERSION_NUMBERS.sub(lambda m: f"{m.group(1)}{BLANK_VERSION}", text)
+    return _ADVISORY_IDS.sub(BLANK_ADVISORY, text)
+
+
+def material(tree: dict[PurePosixPath, bytes], language: str, version: str | None) -> str:
+    """The parts of the public library's own files the author is shown: the list of its files and its source files, the
+    ones about signatures first, up to a limit. Not its read-me, its change log or its package description, and with
+    the version number of the copy (`version`) and advisory ids blanked. The same files always give the same text."""
+    shown = {p: body for p, body in tree.items() if not about_the_package(p)}
     wanted = (".py",) if language == "python" else (".js", ".json")
-    paths = sorted(p for p in tree if p.suffix in wanted and "test" not in p.as_posix().lower() and p.name != "package-lock.json")
+    paths = sorted(p for p in shown if p.suffix in wanted and "test" not in p.as_posix().lower() and p.name != "package-lock.json")
     lines = ["Files of the library (path, size in bytes):"]
-    lines += [f"  {p.as_posix()}  {len(tree[p])}" for p in sorted(tree)[:MAX_LISTED]]
-    if len(tree) > MAX_LISTED:
-        lines.append(f"  ... and {len(tree) - MAX_LISTED} more")
+    lines += [f"  {blanked(p.as_posix(), version)}  {len(shown[p])}" for p in sorted(shown)[:MAX_LISTED]]
+    if len(shown) > MAX_LISTED:
+        lines.append(f"  ... and {len(shown) - MAX_LISTED} more")
     text = "\n".join(lines) + "\n"
-    if readme:
-        text += "\n--- file: README (the start of it) ---\n" + readme[:MAX_README_CHARS].strip() + "\n"
     first = [p for p in paths if any(h in p.as_posix().lower() for h in _HINTS)]
     for path in first + [p for p in paths if p not in first]:
-        body = tree[path].decode("utf-8", "replace")[:MAX_FILE_CHARS]
-        piece = f"\n--- file: {path.as_posix()} ---\n{body.rstrip()}\n"
+        body = blanked(shown[path].decode("utf-8", "replace"), version)[:MAX_FILE_CHARS]
+        piece = f"\n--- file: {blanked(path.as_posix(), version)} ---\n{body.rstrip()}\n"
         if len(text) + len(piece) > MAX_MATERIAL_CHARS:
             continue
         text += piece
@@ -60,23 +92,29 @@ def material(tree: dict[PurePosixPath, bytes], readme: str | None, language: str
 
 
 _PYTHON_RULES = """The file is Python. The rules, each checked by fixed rules before the file is used (a file that breaks one is refused):
-  1. Load only the library itself. From the standard library only `from hashlib import sha256` is allowed, for a library that takes the hash function as an argument.
-  2. Give OWN_REFUSALS: a tuple of the library's own error classes that mean "this is not a valid signature". It may be empty.
+  1. Load only the library itself, at the top of the file. From the standard library only `from hashlib import sha256` is allowed, for a library that takes the hash function as an argument.
+  2. Give OWN_REFUSALS once: a tuple of the library's own error classes that mean "this is not a valid signature". It may be empty.
   3. Define exactly one function: check_signature(public_key, message, signature). No other function, no class.
-  4. Inside it, only straight-line calls into the library: no if, no loop, no comparison, no try, no lambda, no arithmetic.
-  5. It must pass all three inputs on to the library and return what the library's own check gave back. Never a fixed value.
-  6. No file, network, process, clock, randomness or environment. Nothing that reads a version or a path. No long fixed value.
-  7. At most 60 lines, plain ASCII.
+  4. Inside it, only straight-line calls into the library: no if, no loop, no comparison, no try, no lambda, no arithmetic (no + either).
+  5. Its last line is its one return. It returns what a call into the library gave back (the call itself, or a name that holds its result), and that call must have been given all three inputs, directly or through names made from them. Never a fixed value, and nothing your code put together. Only the library's own True counts as "accepted".
+  6. Of Python's own you may use only .decode(...), .encode(...), .hex(), int.from_bytes(...), bytes.fromhex(...), and .update(...) on an object of the library. No other method of a text, a number, a list or a table (no .count, .replace, .startswith, .join, .format, ...) and no built-in function (no len, bool, str, getattr, ...).
+  7. Take a part of a value only at a fixed place: public_key[1:33], signature[0]. Never at a place that is worked out.
+  8. Give a name a value once, and only a plain name of your own. Replace or change nothing of the library.
+  9. No comment, no docstring, no description: the file holds code only. A fixed text is one short word of letters, digits, - and _ (a curve's name, "utf-8"); a fixed number is between -1 and 255.
+  10. No file, network, process, clock, randomness or environment. Nothing that reads a version or a path.
+  11. At most 60 lines, plain ASCII.
 The file is called by our asking program, shown below. It turns an error into "not accepted" by itself, so your function does not catch errors."""
 
 _NODE_RULES = """The file is JavaScript for Node (CommonJS). The rules, each checked by fixed rules before the file is used (a file that breaks one is refused):
-  1. Export one function: module.exports = function (load) { ... }. `load('name')` loads a package of the library's own copy (the library, or one of the helper libraries it needs). Use nothing else to load anything: no require, no import.
+  1. Export one function: module.exports = function (load) { ... }. `load('name')` loads a package of the library's own copy (the library, or one of the helper libraries it needs), by a name written out in quotes. Use nothing else to load anything: no require, no import.
   2. That function returns { ownRefusals: [...], checkSignature(publicKey, message, signature) { ... } }. ownRefusals lists the names of the library's own error classes that mean "this is not a valid signature" (it may be empty).
   3. publicKey, message and signature are Buffers.
-  4. Only straight-line calls into the library: no if, no loop, no comparison, no try, no ?:, no && or ||, no arithmetic, no obj[name].
-  5. checkSignature must pass all three inputs on to the library and return what the library's own check gave back. Never a fixed value.
-  6. No file, network, process, clock, randomness or environment. Nothing that reads a version or a path. No long fixed text.
-  7. At most 60 lines, plain ASCII.
+  4. Only straight-line calls into the library: no if, no loop, no comparison, no try, no ?:, no && or ||, no arithmetic (no + either), no arrow function, no obj[name].
+  5. checkSignature has one return, and it returns what a call into the library gave back. Never a fixed value. Only the library's own true counts as "accepted".
+  6. Declare values with `const name = ...;` only. Of JavaScript's own words use only const, return, new, true, false, null and Buffer.from(...): no Object, Array, String, Number, Boolean, JSON or this, and no method that every list, text or object has (no .length, .includes, .find, .map, .concat, .equals, .call, .constructor, ...). .toString(...), .slice(...) and .subarray(...) with fixed numbers are fine.
+  7. No comment: the file holds code only. A fixed text is one short word of letters, digits, - and _ ('p256', 'hex'); a fixed number is between 0 and 255.
+  8. No file, network, process, clock, randomness or environment. Nothing that reads a version or a path.
+  9. At most 60 lines, plain ASCII.
 The file is called by our asking program, shown below. It turns an error into "not accepted" by itself, so your code does not catch errors."""
 
 
@@ -145,17 +183,14 @@ def _object(answer: str) -> dict:
     return data
 
 
-_NEVER = ("secure", "insecure", "severity", "critical", "score")
-
-
 def check_answer(answer: str, language: str, names: set[str]) -> dict:
     """What one draft comes to: {"decision": "code", "asking_code": ..., "notes": ...} once the fixed rules let it
     through, or {"decision": "cannot", "notes": ...} when the author says the library can't be asked. Raises Refused
     (one plain sentence) for a draft that is not let through."""
     data = _object(answer)
     notes = " ".join(data["notes"].split())[:600]
-    if any(word in notes.lower() for word in _NEVER):
-        raise Refused("The notes use a word this app never says about a system.")
+    if screens.never_word(notes):
+        raise Refused("The notes use a word this app never says about a system, or a word of a result.")
     source = data["asking_code"]
     if not source.strip():
         if not notes:

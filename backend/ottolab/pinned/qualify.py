@@ -13,11 +13,14 @@ draft never runs on the affected copy and nothing about that copy can reach its 
 check is made again without --only, on every copy, with a new seed.
 
 The questions are a pure function of the seed, which is drawn after the asking code is frozen, so they can't be
-anticipated and can be made again by anyone. Only the questions go into the container; the answers stay here.
+anticipated and can be made again by anyone. Only the questions go into the container; the answers stay here. A
+question's name says nothing about it either: the questions are put in an order drawn from the seed and named by
+their place (q-00, q-01, ...), so neither a name nor the order tells which signatures were spoiled.
 
 The check has a control of its own: two dummy pieces of asking code of ours, one that says yes to everything and one
 that says no to everything, go through it every time. This script only counts. Whether the counts are good enough is
-decided by the fixed rule in ottolab/sandbox.py, and the dummies must fail that rule.
+decided by the fixed rules in ottolab/sandbox.py: the code under check must get every question right, and each dummy
+must have answered every question its one way. A dummy that did not answer is a check that can't be relied on.
 
 A container that could not run is not a count: the script stops with an error (exit code 3).
 """
@@ -70,7 +73,8 @@ def _point(key) -> str:
 
 
 def cases(seed: str) -> list[dict]:
-    """The questions for one seed: [{"id", "public_key", "message", "signature", "must"}], `must` kept on this side."""
+    """The questions for one seed: [{"id", "public_key", "message", "signature", "must"}], `must` kept on this side.
+    The ids are the questions' places in an order drawn from the seed, and say nothing else."""
     rng = random.Random(seed)
     out = []
     for n in range(PAIRS):
@@ -88,7 +92,8 @@ def cases(seed: str) -> list[dict]:
             stranger = _key(seed, n + 1000)
             forged = stranger.sign(message, ec.ECDSA(hashes.SHA256(), deterministic_signing=True)).hex()
             out.append({"id": f"spoiled-key-{n}", "public_key": _point(key), "message": message.hex(), "signature": forged, "must": "reject"})
-    return out
+    rng.shuffle(out)
+    return [{**case, "id": f"q-{place:02d}"} for place, case in enumerate(out)]
 
 
 def count(asked: list[dict], lines: dict) -> dict:

@@ -68,8 +68,11 @@ def template_sha256(language: str) -> str:
 
 # ---------------------------------------------------------------- trust on first use
 
-def _index(root: Path) -> dict[tuple[str, str, str, str], dict]:
-    out: dict[tuple[str, str, str, str], dict] = {}
+def _index(root: Path) -> dict[tuple[str, str, str], dict]:
+    """What this computer fetched first for each published version: {(registry, package, version): the first line}.
+    One version, one file: a release can gain files later (a wheel beside its source package), and a copy is still made
+    from the file seen first."""
+    out: dict[tuple[str, str, str], dict] = {}
     try:
         lines = (Path(root) / "index.jsonl").read_text(encoding="utf-8").splitlines()
     except OSError:
@@ -80,7 +83,7 @@ def _index(root: Path) -> dict[tuple[str, str, str, str], dict]:
         except ValueError:
             continue
         if isinstance(entry, dict) and all(isinstance(entry.get(k), str) for k in ("registry", "package", "version", "file", "sha256", "at")):
-            out.setdefault((entry["registry"], entry["package"], entry["version"], entry["file"]), entry)   # the first one stands
+            out.setdefault((entry["registry"], entry["package"], entry["version"]), entry)   # the first one stands
     return out
 
 
@@ -89,14 +92,22 @@ def fetch(root: Path, source, release: registries.Release) -> dict:
     computer saw the first time it fetched that file. Returns the file's record; the bytes are kept in the store."""
     root = Path(root)
     wanted = release.file
+    first = _index(root).get((release.registry, release.package, release.version))
+    if first is not None and first["file"] != wanted.filename:
+        # the registry now puts another file first for this version: the copy is still made from the one seen first
+        same = next((f for f in release.others if f.filename == first["file"]), None)
+        if same is None:
+            raise CopyError(f"this computer made its copy of {release.package} {release.version} from {first['file']} on {first['at'][:10]}, "
+                            f"and {registries.WORDS[release.registry]} no longer lists that file. A copy is made from the file seen first, "
+                            "so nothing was fetched.", later=True)
+        wanted = same
     data = source.file(release.registry, wanted)
     if wanted.size is not None and len(data) != wanted.size:
-        raise CopyError(f"{wanted.filename} is not the size {registries.WORDS[release.registry]} gives for it, so it was not used.")
+        raise CopyError(f"{wanted.filename} is not the size {registries.WORDS[release.registry]} gives for it, so it was not used.", later=True)
     if not wanted.holds(data):
-        raise CopyError(f"{wanted.filename} does not have the fingerprint {registries.WORDS[release.registry]} itself gives for it, so it was not used.")
+        raise CopyError(f"{wanted.filename} does not have the fingerprint {registries.WORDS[release.registry]} itself gives for it, "
+                        "so it was not used.", later=True)
     sha = hashlib.sha256(data).hexdigest()
-    key = (release.registry, release.package, release.version, wanted.filename)
-    first = _index(root).get(key)
     now = _now()
     if first is None:
         root.mkdir(parents=True, exist_ok=True)
@@ -105,7 +116,7 @@ def fetch(root: Path, source, release: registries.Release) -> dict:
                                      "file": wanted.filename, "sha256": sha, "at": now, "source": source.key}, sort_keys=True) + "\n")
     elif first["sha256"] != sha:
         raise CopyError(f"{wanted.filename} is not the file this computer fetched for {release.package} {release.version} on "
-                        f"{first['at'][:10]}. A published version's file does not change, so it was not used.")
+                        f"{first['at'][:10]}. A published version's file does not change, so it was not used.", later=True)
     files = root / "files"
     files.mkdir(parents=True, exist_ok=True)
     (files / f"{sha}-{wanted.filename}").write_bytes(data)
@@ -304,6 +315,17 @@ def base_images(language: str) -> dict[str, str]:
     return {"PYTHON_BASE": PYTHON_BASE_IMAGE, **({"NODE_IMAGE": real_libraries.NODE_IMAGE} if language == "node" else {})}
 
 
+def not_ready(language: str) -> str | None:
+    """Why an image of public copies could not be built right now, in one plain sentence, or None when it could: Docker
+    answers and every base image the build starts from is on this computer. (Asked before anything that costs.)"""
+    rc, _ = _docker(["version", "--format", "{{.Server.Version}}"], 20)
+    if rc != 0:
+        return "Docker is not running on this computer, so no image of public copies can be built"
+    if any(image_id(reference) is None for reference in base_images(language).values()):
+        return "a base image that the image of public copies starts from is not on this computer (./run-demo.sh prepares it)"
+    return None
+
+
 def subjects_for(library: str, language: str, the_versions: list[str], asking: dict) -> dict[str, list[str]]:
     """The image's fixed table: which command line answers for which subject."""
     table: dict[str, list[str]] = {}
@@ -413,12 +435,18 @@ def make_set(*, root: Path, source, library: str, registry: str, package: str, w
         tag = copies.image_tag(library, record["id"])
         args = ["build", "--pull=false", "--network", "none", "-t", tag, "-f", str(context / "Dockerfile")]
         for name, reference in record["base_images"].items():
+            # (a build would fetch a base image that is not here, whatever --pull says: so it is looked for first, and
+            #  a missing one is a stop. Only the prepare step may pull.)
+            if image_id(reference) is None:
+                raise CopyError(f"the image of the public copies of {library} was not built: a base image it starts from is not on this "
+                                "computer, or Docker is not running (./run-demo.sh prepares the base images).", later=True)
             args += ["--build-arg", f"{name}={reference}"]
         say(f"Building the image of the public copies of {library} ({', '.join(v['version'] for v in version_records)}), with no network ...")
         rc, _ = _docker([*args, str(context)], BUILD_LIMIT_SECONDS)
         built = image_id(tag) if rc == 0 else None
         if built is None:
-            raise CopyError(f"the image of the public copies of {library} could not be built (is Docker running, and are the base images prepared?)")
+            raise CopyError(f"the image of the public copies of {library} could not be built (is Docker running, and are the base images prepared?)",
+                            later=True)
         record["image"] = {"tag": tag, "id": built}
     copies.write_set(root, record)
     copies.forget_cache()

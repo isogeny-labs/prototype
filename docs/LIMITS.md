@@ -586,16 +586,47 @@ rules. Off by default, and only for Isogeny's own sandbox. What it does not do, 
 - **Two versions differ in more than the fix.** The further versions and the equal helper libraries narrow this. They
   do not close it.
 - **The asking code is screened, not proven.** The screen is a filter for honest mistakes and plain tricks. For Python
-  it reads the parsed program; for JavaScript it reads the words of the text, which is weaker. The weight is carried by
-  the locked container, by the fact that the right answers never reach the code, by the known-answer check, and by the
-  second author's code.
+  it reads the parsed program; for JavaScript it reads the words of the text, which is weaker (it does not follow the
+  three inputs to the answer). The weight is carried by the locked container, by the fact that the right answers never
+  reach the code, by the known-answer check, and by the second author's code.
+  A separate review on 22 November 2026 got seven pieces of code through the first screen that decided an answer by
+  themselves (a pick out of two by something worked out, a text's own methods used to compare, a version read under
+  another name, a file read through a function of the library's own, the library replaced, and for JavaScript the
+  language's own objects reached by a quoted name). The screen was rewritten: no arithmetic at all, a part of a value
+  only at a fixed place, of the language's own only the plain conversions, a name given a value once, no comment and
+  no free text, and an answer that a call into the library gave back from all three inputs. Each of those seven is a
+  test now. What the screen still can't know is what a library's own functions do: a library that holds a function
+  which reads a file or tells its version could be misused by code that only calls the library. No sentence in the
+  app says the code "decides nothing"; the proposal says the screen is a filter, and why the second version is there.
+- **What the author is shown.** The prompt names no advisory, no weakness and no version. The library's own files are
+  shown without its read-me, change log and package description, and with version numbers and advisory ids blanked.
+  What the library's source says in its own comments is still there (a comment such as "refuse a zero, see the
+  advisory" would be read), because the author has to read the code to call it.
+- **One library, one piece of asking code by each author.** A later advisory of a library whose earlier trial held
+  uses that trial's code again. If that code does not work on the later advisory's fixed version, there is no test
+  for it ("No test yet", with that reason): a second piece of asking code for one library is not written. A run on a
+  version uses the first copy set that was made for it; the helper libraries of that set are the ones of its own
+  trial's fixed version.
+- **A stop and a settled reason are told apart by fixed rules,** and the line is ours: a download whose size or
+  fingerprint did not hold, a registry answer that is not valid, Docker not answering and a control that did not
+  answer are stops (tried again by a later run); a package with no plain-Python file, a file that is not a package
+  file, or needs that can't be met are settled. A draft Claude wrote whose copies could then not be built is kept in
+  the ledger as not tried, and its author is asked again by a later run: that call is paid for twice.
 - **Both authors are Claude** (or, on recorded answers, the build), and the replay is a second role of the same build
   on the same computer. An outside replay would be stronger and is not in this prototype.
 - **The known-answer check asks 24 fresh questions** for each version. It shows that the code really asks the library.
   It shows nothing about any weakness, and a library that fails it is left out, not judged.
 - **The proof block shows counts, not Passed or Failed,** and its lines do not open runs: the trial's runs were made
   by the research command in scratch copies of the app and are in the research ledger of this computer, not in an
-  assessment. What can be opened is the assessment's own run of the accepted check.
+  assessment. What can be opened is the assessment's own run of the accepted check. The counts for the library's
+  copies and for the reference are the separate reviewer's. The control's count, and the count of cases on which the
+  two pieces of asking code agreed, are made by the pinned trial script from the raw answers; the block says so.
+- **The app checks a pack made here before it installs it,** by the rules the verify command holds too: each part ran
+  on the version the proof names, what was frozen is worked out again where the pack holds it (the first copy set's
+  record, the design, the two scripts; not the second copy set's record, the two known-answer files, the versions
+  file and the arms file, which the pack does not carry whole), the times are the ledger's own, and an offered test
+  has the counts for it. This is a second line against a fault in the builder. It is not a defence against someone
+  who holds this computer's own pack key.
 - **The verify command checks a pack's proof as data.** It can't check that the bytes on the registry were what the
   publisher meant (the first fetch trusts the registry), nor that the image on the computer that made the pack held
   those files. The runner there refuses a copy whose image no longer matches its record.
@@ -625,6 +656,11 @@ rules. Off by default, and only for Isogeny's own sandbox. What it does not do, 
 
 - **It knows what the source knows.** A fix can be released days before the source's record says so. Until then the
   item reads "No fix yet". No registry is asked during a look.
+- **"Fix published" follows the plan's one rule:** the source now names a fixed version, or a last affected version,
+  where it named none. A last affected version is the source saying which version is the last one named as affected;
+  it does not say that a later version was tested. The item's line then reads "a version after X", and a test for
+  it takes the next version published and never calls it the publisher's fixed version. A record that stops giving
+  version ranges at all names no fix: its item stays where it stood, with the ranges that were last given.
 - **It is worked out on every read** from the looks the assessment kept; nothing but a stop and a watch again is
   stored. An item is about one assessment's looks: two assessments that name one library each look for themselves (the
   clock asks the source once for both in one round).
@@ -638,8 +674,10 @@ rules. Off by default, and only for Isogeny's own sandbox. What it does not do, 
 
 - **The second tick needs Live Otto,** so a run the clock starts always asks Claude and costs money, within the limit
   for one run (5 US dollars) and for a day (10). The day is the last 24 hours, added up from the runs' own records; a
-  run that is going counts with its whole limit, so two runs can't pass the limit together. A run on recorded answers
-  costs nothing and is never held back by the day's limit.
+  run that is going counts with its whole limit, so two runs can't pass the limit together, and so does a run that
+  ended without leaving word of what it spent (it was cut off, or its file can't be read): that can count more than
+  was really spent, never less. A run on recorded answers costs nothing and is never held back by the day's limit.
+  With less than one cent left of the day, no run that asks Claude starts.
 - **An advisory the clock's runs left open three times** waits for a person's click. Without that, a weakness that can
   never be settled would be tried again every day.
 - **Nothing is accepted by itself.** A pack from a run the clock started is installed without a click of its own, as

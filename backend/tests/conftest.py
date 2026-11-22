@@ -182,6 +182,9 @@ def no_read_of_a_package_registry(monkeypatch):
 
     def refuse(url, timeout, limit):
         raise ReachedTheNetwork("a test tried to read a package registry; use a recorded registry or a stand-in transport")
+    # (the reader's own function, for the one test that is about it: that test puts a stand-in where the function
+    #  would open a connection, so it reaches nothing either)
+    refuse.the_readers_own = getattr(registries._http, "the_readers_own", registries._http)        # type: ignore[attr-defined]
     monkeypatch.setattr(registries, "_http", refuse)
 
 

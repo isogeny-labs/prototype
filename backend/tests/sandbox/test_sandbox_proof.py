@@ -50,9 +50,56 @@ def test_it_never_words_a_result_and_never_rates_anything():
         low = text.lower()
         assert not any(word in low for word in NEVER), text
     assert "does not say how serious the weakness is" in block["not_shown"]
-    # no sentence says what Otto did: the tag stays, and the code's author is named as Claude
+    # no sentence says what Otto did: the tag stays, and who wrote the code is said as the copy set's record says it
     assert not any(text.startswith("Otto ") and " Otto's harness" not in text for text in _strings(block))
-    assert block["code"]["label"] == "Written by Otto" and "Claude" in block["code"]["line"]
+    assert block["code"]["label"] == "Written by Otto"
+
+
+def test_who_wrote_the_asking_code_is_said_as_it_was_and_a_recorded_answer_is_not_called_claudes():
+    """The separate review of 22 November 2026: with recorded answers the block said Claude wrote the code, and that two
+    authors never saw each other's work. A recorded answer names no model."""
+    recorded = proof.block(advisory())["code"]                    # the fixture's run replayed answers recorded during the build
+    assert recorded["author"] == "Recorded during the build, not through the API (author a)"
+    assert "written for this library during the build and recorded, not written through the API" in recorded["line"]
+    assert "Claude" not in recorded["line"] and "Claude" not in recorded["agree_line"]
+    assert "written apart during the build. They are recorded answers" in recorded["agree_line"]
+    live = advisory()
+    live["test"]["sandbox"]["set"]["asking"]["author"] = "Claude (author a)"
+    by_claude = proof.block(live)["code"]
+    assert "written for this library by Claude as Otto's code author" in by_claude["line"]
+    assert "by two authors that were never shown each other's work" in by_claude["agree_line"]
+
+
+def test_the_screen_is_called_a_filter_and_the_code_is_not_said_to_decide_nothing():
+    """What the screen can't promise is not promised: it is a filter, and the second version is why."""
+    line = proof.block(advisory())["code"]["line"]
+    assert "The screen is a filter for mistakes and plain tricks, not a proof" in line and "decides nothing" not in line
+    assert "a second version, written apart, had to give the same answer on every case" in line
+
+
+def test_only_the_reviewers_counts_are_called_the_reviewers():
+    """The control's count and the count of same answers are made by the pinned trial script, and the block says so."""
+    block = proof.block(advisory())
+    assert block["table"]["columns"] == ["On public copies", "Count", "What had to happen"]
+    assert "The control's count is made by the pinned trial script" in block["table"]["note"]
+    assert "for the library's copies and for our reference library are the separate reviewer's" in block["table"]["note"]
+    assert "(counted by the pinned trial script)" in block["code"]["agree_line"]
+
+
+def test_a_version_the_publisher_did_not_name_as_fixed_is_not_called_the_publishers_fixed_version():
+    """The plan's part 4.8: where the source names only a last affected version, the trial takes the next one published,
+    and the proof says so in those words."""
+    named = proof.block(advisory())
+    assert "(the publisher's fixed version)" in next(r["label"] for r in named["table"]["rows"] if r["key"] == "fixed")
+    assert "publisher names no fixed version" not in named["summary"]
+    after = advisory()
+    after["test"]["sandbox"]["versions"]["after_last_affected"] = True
+    block = proof.block(after)
+    label = next(r["label"] for r in block["table"]["rows"] if r["key"] == "fixed")
+    assert "the first version published after the last one the advisory names as affected; the publisher names no fixed version" in label
+    assert "publisher's fixed version" not in json.dumps(block)
+    assert "The publisher names no fixed version: starkbank-ecdsa 2.0.1 is the first version published after" in block["summary"]
+    assert "(a further version after it)" in next(r["label"] for r in block["table"]["rows"] if r["key"] == "more-fixed-1")
 
 
 def test_the_registration_is_placed_before_the_first_run_by_the_ledgers_own_order():
@@ -66,10 +113,10 @@ def test_the_registration_is_placed_before_the_first_run_by_the_ledgers_own_orde
 
 def test_the_code_is_shown_as_text_with_the_second_authors_version_and_the_check_it_had_to_pass():
     code = proof.block(advisory())["code"]
-    assert code["source"].startswith('"""Asking code for starkbank-ecdsa') and code["second"]["source"] != code["source"]
+    assert code["source"].startswith("from ellipticcurve.curve import prime256v1") and code["second"]["source"] != code["source"]
     assert "gave the same answer on every case: 64 of 64 on starkbank-ecdsa 2.0.0 and 64 of 64 on starkbank-ecdsa 2.0.1" in code["agree_line"]
     assert "24 fresh questions" in code["known_lines"][0] and "12 of 12 accepted, 12 of 12 refused" in code["known_lines"][0]
-    assert any("always says yes" in line and "were refused" in line for line in code["known_lines"])
+    assert any("always says yes" in line and "Each answered every question its one way, and the check refused both" in line for line in code["known_lines"])
     assert any("ran on the fixed copy only" in line for line in code["known_lines"])
 
 
@@ -119,7 +166,28 @@ DRILLS = [
     ("a further fixed version got one wrong", lambda a: a["test"]["trial"]["arms"]["more-fixed-1"].update(right=63, wrong=1), "do not bear out"),
     ("the control did not fail on every case", lambda a: a["test"]["trial"]["arms"]["accept-all"].update(right=1, wrong=63), "do not bear out"),
     ("the two authors' code disagreed", lambda a: a["test"]["trial"]["arms"]["fixed-b"].__setitem__("agree", 63), "do not bear out"),
-    ("the second author's part is missing", lambda a: a["test"]["trial"]["arms"].pop("affected-b"), "do not bear out"),
+    ("the second author's part is missing", lambda a: a["test"]["trial"]["arms"].pop("affected-b"), "are not the parts its proof names"),
+    # ---- what the separate review of 22 November 2026 got past the verify command, or past the app
+    ("both of the second author's parts are missing", lambda a: [a["test"]["trial"]["arms"].pop(k) for k in ("affected-b", "fixed-b")],
+     "are not the parts its proof names"),
+    ("the proof names another version as affected", lambda a: a["test"]["sandbox"]["versions"].update(affected="2.0.2"),
+     "did not run on the version its proof names"),
+    ("every fingerprint of what was frozen is another", lambda a: a["test"]["sandbox"]["registered"].update(
+        pins={k: "0" * 64 for k in a["test"]["sandbox"]["registered"]["pins"]}), "did not freeze the scripts the pack says were run"),
+    ("the copy set is not the one that was frozen", lambda a: a["test"]["sandbox"]["registered"]["pins"].update(
+        {k: "0" * 64 for k in a["test"]["sandbox"]["registered"]["pins"] if "/set-a-" in k}), "is not the one its registration froze"),
+    ("the design is not the one that was frozen", lambda a: a["test"]["sandbox"]["registered"]["pins"].update(
+        {k: "0" * 64 for k in a["test"]["sandbox"]["registered"]["pins"] if k.startswith("designs/")}), "is not the one its registration froze"),
+    ("what was frozen is four made-up names", lambda a: a["test"]["sandbox"]["registered"].update(pins={f"x{n}": "0" * 64 for n in range(4)}),
+     "did not freeze everything"),
+    ("the registration is dated a year after the first run", lambda a: a["test"]["sandbox"]["registered"].update(at="2027-12-31T00:00:00+00:00"),
+     "are not the times of its ledger entries"),
+    ("the first run is dated before it was made", lambda a: a["test"]["sandbox"]["registered"].update(first_run_at="2020-01-01T00:00:00+00:00"),
+     "are not the times of its ledger entries"),
+    ("a part ran on another library", lambda a: a["test"]["trial"]["arms"]["affected"].update(library="python-ecdsa"),
+     "did not run on the version its proof names"),
+    ("the versions do not say whether the publisher named the fixed one", lambda a: a["test"]["sandbox"]["versions"].pop("after_last_affected"),
+     "do not say whether the publisher named the fixed version"),
     ("it was not replayed", lambda a: a["test"]["trial"].__setitem__("replayed", False), "do not bear out"),
     ("a part answered other cases", lambda a: a["test"]["trial"]["arms"]["fixed"].update(total=10, right=10), "exactly the cases of its design"),
     ("a run stands before the registration", lambda a: [e.__setitem__("seq", 999) for e in a["ledger"]
@@ -136,6 +204,17 @@ def test_a_pack_whose_proof_was_bent_is_caught_by_the_verify_command(what, chang
     with pytest.raises(verify.SandboxProblem) as caught:
         verify.check_packs(_bent(change), set())
     assert word in str(caught.value), str(caught.value)
+
+
+@pytest.mark.parametrize("what, change, word", DRILLS, ids=[d[0] for d in DRILLS])
+def test_the_app_refuses_the_same_bent_pack_before_it_is_installed(what, change, word):
+    """The second line: a pack that carries asking code is only ever made on this computer, and the app still does not
+    take one whose own figures do not bear out what it says (a fault in the builder, or anyone with the data folder).
+    The rules are the verify command's, written in the app a second time: every drill is caught by both."""
+    from app.otto import packs
+    assert packs.check_pack(envelope()["pack"])["version"] == envelope()["pack"]["version"]         # the real pack is taken
+    with pytest.raises(packs.PackError):
+        packs.check_pack(_bent(change)[0]["pack"])
 
 
 def test_a_pack_that_carries_asking_code_under_a_shipped_key_is_caught():

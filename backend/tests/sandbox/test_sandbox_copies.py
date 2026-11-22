@@ -9,7 +9,7 @@ import json
 import random
 import tarfile
 import zipfile
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 import pytest
 from sandbox_fixtures import copy_set
@@ -169,6 +169,79 @@ def test_a_versions_file_never_changes_on_this_computer(tmp_path):
     # the registry now gives another file for the same version, with a fingerprint of its own that holds: still refused
     with pytest.raises(copies.CopyError, match="is not the file this computer fetched"):
         maker.fetch(tmp_path, _Source(second), _release(second))
+
+
+def test_a_version_is_always_copied_from_the_file_seen_first_also_when_its_release_gains_another(tmp_path):
+    """The separate review of 22 November 2026: the first fetch was remembered by file name, so a version first copied
+    from its source package was copied from a wheel uploaded later, other bytes, with no refusal. One version, one file."""
+    files = {"pkg-1.0.tar.gz": b"the bytes seen the first time", "pkg-1.0-py3-none-any.whl": b"other bytes, same version"}
+
+    def project(*names: str) -> bytes:
+        return json.dumps({"releases": {"1.0": [
+            {"filename": n, "url": f"https://files.pythonhosted.org/packages/x/{n}", "packagetype": "bdist_wheel" if n.endswith(".whl") else "sdist",
+             "digests": {"sha256": hashlib.sha256(files[n]).hexdigest()}, "size": len(files[n]), "upload_time_iso_8601": "2026-01-01T00:00:00Z"}
+            for n in names]}}).encode()
+
+    class Source:
+        key = "recorded"
+        asked: list[str] = []
+
+        def file(self, registry, wanted):
+            self.asked.append(wanted.filename)
+            return files[wanted.filename]
+    source = Source()
+    first = maker.fetch(tmp_path, source, registries.read_release("pypi", "pkg", "1.0", project("pkg-1.0.tar.gz"), b'{"info": {}}'))
+    assert first["file"] == "pkg-1.0.tar.gz"
+    # the release now holds a wheel too, which a first fetch would take: the copy is still made from the file seen first
+    gained = registries.read_release("pypi", "pkg", "1.0", project("pkg-1.0.tar.gz", "pkg-1.0-py3-none-any.whl"), b'{"info": {}}')
+    assert gained.file.filename == "pkg-1.0-py3-none-any.whl" and [f.filename for f in gained.others] == ["pkg-1.0.tar.gz"]
+    again = maker.fetch(tmp_path, source, gained)
+    assert (again["file"], again["sha256"], again["fetched_at"]) == (first["file"], first["sha256"], first["fetched_at"])
+    assert source.asked == ["pkg-1.0.tar.gz", "pkg-1.0.tar.gz"]                    # the wheel was never fetched
+    # the file seen first is no longer listed: a stop that says so, never a quiet change of file
+    only_wheel = registries.read_release("pypi", "pkg", "1.0", project("pkg-1.0-py3-none-any.whl"), b'{"info": {}}')
+    with pytest.raises(copies.CopyError, match="no longer lists that file") as stop:
+        maker.fetch(tmp_path, source, only_wheel)
+    assert stop.value.later is True and source.asked == ["pkg-1.0.tar.gz", "pkg-1.0.tar.gz"]
+    # a version this computer never copied takes the file the rules put first
+    fresh = maker.fetch(tmp_path / "another-computer", source, gained)
+    assert fresh["file"] == "pkg-1.0-py3-none-any.whl"
+
+
+def test_a_download_that_came_back_damaged_and_an_image_that_could_not_be_built_are_stops(tmp_path, monkeypatch):
+    """Nothing was learned about the package itself, so nothing is settled about it: `later` is true."""
+    data = _sdist({"thing/__init__.py": b"x = 1\n"})
+    changed = bytearray(data)
+    changed[len(changed) // 2] ^= 1
+    for source, release in ((_Source(bytes(changed)), _release(data)), (_Source(data + b"more"), _release(data))):
+        with pytest.raises(copies.CopyError) as stop:
+            maker.fetch(tmp_path, source, release)
+        assert stop.value.later is True
+    made = maker.fetch(tmp_path, _Source(data), _release(data))
+    other = _sdist({"thing/__init__.py": b"x = 2\n"})
+    with pytest.raises(copies.CopyError, match="is not the file this computer fetched") as stop:
+        maker.fetch(tmp_path, _Source(other), _release(other))
+    assert stop.value.later is True and made["file"] == "thing-1.0.0.tar.gz"
+    # (a package that can't be copied at all is settled: not a stop)
+    assert copies.CopyError("it holds no Python code").later is False
+
+
+def test_an_image_is_never_built_while_a_base_image_is_missing_so_nothing_is_pulled(monkeypatch):
+    """`docker build --pull=false` still fetches a base image that is not on the computer. Only the prepare step may
+    pull, so the base images are looked for first: a missing one is a stop, and no build is started."""
+    calls: list[list[str]] = []
+    monkeypatch.setattr(maker, "_docker", lambda args, limit: (calls.append(list(args)), (0, "24.0"))[1] if args[0] == "version" else
+                        (calls.append(list(args)), (1, ""))[1])
+    assert "a base image" in maker.not_ready("python") and not any(args[0] == "build" for args in calls)
+    monkeypatch.setattr(maker, "_docker", lambda args, limit: (calls.append(list(args)), (1, ""))[1])
+    assert "Docker is not running" in maker.not_ready("python")
+    monkeypatch.setattr(maker, "_docker", lambda args, limit: (0, "24.0") if args[0] == "version" else (0, "sha256:" + "a" * 64))
+    assert maker.not_ready("python") is None and maker.not_ready("node") is None
+    # and the build itself looks first too, whoever calls it
+    source = Path(maker.__file__).read_text(encoding="utf-8")
+    start = source.index('args = ["build", "--pull=false", "--network", "none"')
+    look, build = source.index("if image_id(reference) is None:", start), source.index("rc, _ = _docker([*args, str(context)], BUILD_LIMIT_SECONDS)", start)
+    assert start < look < build
 
 
 @pytest.mark.parametrize("name", ["../outside.py", "/etc/passwd", "a/../../b.py"])

@@ -103,3 +103,53 @@ def test_the_rule_reads_only_its_argument_and_gives_the_same_answer_twice():
     import copy
     before = copy.deepcopy(looks)
     assert w.derive(looks) == w.derive(looks) and looks == before
+
+
+# ---------------------------------------------------------------- "Fix published" needs the source to NAME an end
+
+def test_a_record_that_stops_giving_version_ranges_names_no_fix_and_the_item_stays_where_it_stood():
+    """The separate review of 22 November 2026: a record that no longer gave any ranges moved its item to Fix published,
+    with "the source names a fixed version: none"."""
+    [item] = w.derive([look(1, [found(OPEN)]), look(2, [found([])])])
+    assert item["state"] == "no_fix" and kinds(item) == ["seen_no_fix", "versions_changed"]
+    assert item["ends"] == {"fixed": [], "last_affected": []} and item["ranges"] == w.facts_of(OPEN)       # the ranges that were last given
+    # looked at again with still no ranges: nothing new is said
+    [item] = w.derive([look(1, [found(OPEN)]), look(2, [found([])]), look(3, [found([])])])
+    assert kinds(item) == ["seen_no_fix", "versions_changed"] and item["quiet"] == 1
+    # the day the source names a fixed version is still the day the item moves
+    [item] = w.derive([look(1, [found(OPEN)]), look(2, [found([])]), look(3, [found(FIXED)])])
+    assert item["state"] == "fix_published" and kinds(item) == ["seen_no_fix", "versions_changed", "fix_published"]
+    assert item["events"][-1]["ends"] == {"fixed": ["1.2.5"], "last_affected": []}
+
+
+def test_a_fix_that_was_named_is_not_taken_back_because_the_ranges_are_no_longer_given():
+    [item] = w.derive([look(1, [found(OPEN)]), look(2, [found(FIXED)]), look(3, [found([])])])
+    assert item["state"] == "fix_published" and item["ends"] == {"fixed": ["1.2.5"], "last_affected": []}  # never "Fixed in none"
+    assert kinds(item) == ["seen_no_fix", "fix_published", "versions_changed"]
+
+
+def test_a_record_with_no_ranges_is_not_put_on_the_list_for_that():
+    assert w.derive([look(1, [found([])])]) == []
+
+
+def test_fix_published_always_names_an_end_over_many_made_up_histories_in_both_writings_of_the_rule():
+    """Whatever the source does from look to look: an item reads Fix published only with a fixed version or a last
+    affected version named, and every "fix published" entry of a history names one."""
+    import random
+
+    from evidence import watchlist as check
+    ranges = (OPEN, FIXED, FIXED_LATER, LAST, [], [{"introduced": "1.0.0", "fixed": "1.2.5", "last_affected": None},
+                                                    {"introduced": "2.0.0", "fixed": None, "last_affected": None}])
+    rng = random.Random(20261122)
+    seen = 0
+    for _ in range(2000):
+        looks = [look(n, [found(rng.choice(ranges))] if rng.random() < 0.85 else []) for n in range(1, rng.randint(2, 8))]
+        for items in (w.derive(looks), check.work_out(looks)):
+            for item in items:
+                if item["state"] == "fix_published":
+                    assert item["ends"]["fixed"] or item["ends"]["last_affected"], looks
+                    seen += 1
+                for event in item["events"]:
+                    if event["kind"] == "fix_published":
+                        assert event["ends"]["fixed"] or event["ends"]["last_affected"], looks
+    assert seen > 500

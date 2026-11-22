@@ -373,7 +373,7 @@ export interface TestProofRow {
    */
   label: string;
   /**
-   * The separate reviewer's count for that run. A count, never Passed or Failed.
+   * The count for that part of the trial (the separate reviewer's for a copy and for the reference; the pinned trial script's for the control). A count, never Passed or Failed.
    */
   count: string;
   /**

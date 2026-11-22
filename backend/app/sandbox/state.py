@@ -28,6 +28,7 @@ ON_KEY, BY_ITSELF_KEY = "sandbox_on", "sandbox_by_itself"
 RUN_LIMIT_KEY, DAY_LIMIT_KEY = "sandbox_run_limit_nano", "sandbox_day_limit_nano"
 DEFAULT_RUN_LIMIT_NANO = 5 * model.NANO          # Kevin's decision 4: 5 US dollars for one sandbox research run
 DEFAULT_DAY_LIMIT_NANO = 10 * model.NANO         # ... and 10 for a day
+LEAST_RUN_NANO = model.NANO // 100               # less than one cent left of the day's limit starts no run that asks Claude
 MAX_LIMIT_NANO = 1000 * model.NANO
 DAY = timedelta(hours=24)
 
@@ -109,7 +110,8 @@ class SandboxMixin:
         """What a research run that starts now may spend: the limit for one run, or what is left of the day's limit if
         that is less. Zero means the day's limit is reached."""
         run_limit, day_limit = self.sandbox_limits()
-        return max(0, min(run_limit, day_limit - self.sandbox_spent_today(now)))
+        left = day_limit - self.sandbox_spent_today(now)
+        return min(run_limit, left) if left >= LEAST_RUN_NANO else 0
 
     def sandbox_research_line(self, now: datetime | None = None) -> str:
         """One line for Advisories and the Watch list while the switch is on: how the research runs of the last 24 hours

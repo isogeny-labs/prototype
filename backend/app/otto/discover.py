@@ -82,6 +82,7 @@ class DiscoverMixin:
     sandbox_on: Callable[..., bool]
     sandbox_refresh: Callable[..., None]
     sandbox_run_limit: Callable[..., int]
+    sandbox_limits: Callable[..., tuple[int, int]]
     sandbox_day_reached: Callable[..., str | None]
     sandbox_research_line: Callable[..., str]
 
@@ -378,8 +379,10 @@ class DiscoverMixin:
                 look_id = look.id
                 live, limit = self.otto_live_ready(), self._otto_limit(db)
                 sandbox = self.sandbox_on()
-                if sandbox:            # (a sandbox run has its own limit for one run, and never more than is left of the day's)
-                    limit = self.sandbox_run_limit()
+                if sandbox:
+                    # A sandbox run has its own limit for one run, and a run that asks Claude never more than is left
+                    # of the day's. A run on recorded answers pays nothing, so the day's limit does not hold it back.
+                    limit = self.sandbox_run_limit() if live else self.sandbox_limits()[0]
                 number = sum(1 for r in self._research_rows(db, plan_id) if r.kind == "started") + 1
             installed_first = self._install_waiting_packs()
             run_key = f"{plan_id}-{_now()}-{number}"          # (the count makes it this run's alone: the time is to the second)
@@ -449,15 +452,35 @@ class DiscoverMixin:
         return ["--sandbox", "--facts", str(extras / "facts.json"), "--summary", str(extras / "summary.json")]
 
     @staticmethod
-    def _spent_by(extras: Path | None) -> int:
-        """What a sandbox research run says it spent on Claude: one number in a small file the command writes. Data: a
-        file that is not exactly that counts as nothing spent."""
-        try:
-            data = json.loads((extras / "summary.json").read_text(encoding="utf-8")) if extras is not None else {}
-        except (OSError, ValueError):
+    def _spent_by(extras: Path | None) -> int | None:
+        """What a sandbox research run spent on Claude, from the small file the command keeps while it runs (written at
+        its start with nothing spent, and again after every step): what was paid, and what requests with no answer may
+        have cost. None: the file is not there or is not exactly that, so what the run spent is not known. The file is
+        data, and a number in it that can't be a sum of money is not taken."""
+        if extras is None:
             return 0
-        spent = data.get("spent_nano") if isinstance(data, dict) else None
-        return int(spent) if isinstance(spent, int) and not isinstance(spent, bool) and 0 <= spent < 10 ** 15 else 0
+        try:
+            data = json.loads((extras / "summary.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(data, dict):
+            return None
+        total = 0
+        for name in ("spent_nano", "unanswered_nano"):
+            value = data.get(name, 0)
+            if not isinstance(value, int) or isinstance(value, bool) or not 0 <= value < 10 ** 15:
+                return None
+            total += value
+        return total
+
+    def _counted_spent(self, extras: Path | None, live: bool, limit_nano: int) -> int:
+        """What a finished run counts for against the limit for a day. A run that could ask Claude and did not leave
+        word of what it spent (it was cut off before it could, or its file is not what the command writes) counts with
+        its whole limit: the day's limit is never passed because a run ended badly."""
+        spent = self._spent_by(extras)
+        if spent is None:
+            return int(limit_nano) if live else 0
+        return min(int(spent), int(limit_nano))
 
     def _run_research(self, row_id: int, plan_id: int, run_key: str, inbox: Path, live: bool, limit_nano: int, lookup_id: int,
                       ids: list[str], installed_first: list[str], extras: Path | None = None) -> None:
@@ -522,7 +545,7 @@ class DiscoverMixin:
                     db.add(OttoResearchRow(plan_id=plan_id, run_key=run_key, kind="finished", at=_now(), by=None, lookup_id=lookup_id,
                                            advisories=ids, live=bool(live), limit_nano=int(limit_nano), installed_first=installed_first,
                                            exit_code=code, pack_version=pack_version, output=list(lines)[-MAX_OUTPUT_LINES:], reason=reason,
-                                           sandbox=extras is not None, spent_nano=self._spent_by(extras)))
+                                           sandbox=extras is not None, spent_nano=self._counted_spent(extras, live, limit_nano)))
                     db.commit()
             finally:
                 self._research_live.pop(row_id, None)
@@ -552,8 +575,8 @@ class DiscoverMixin:
             waiting_packs = [pack.version for pack in self._waiting_chain(db) if not pack.made_here]
             live, limit = self.otto_live_ready(), self._otto_limit(db)
             sandbox = self.sandbox_on()
-            if sandbox:
-                limit = self.sandbox_run_limit()
+            if sandbox:      # (the limit the box names is the one the run will be given: see `start_research`)
+                limit = self.sandbox_run_limit() if live else self.sandbox_limits()[0]
             left_open = self._left_open(research_state)
         source = self._advisory_source()
         return present_lookup.lookup_view(

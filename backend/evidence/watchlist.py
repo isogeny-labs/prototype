@@ -94,27 +94,32 @@ def work_out(looks: list[dict]) -> list[dict]:
                     continue
                 key = f"{ids[0]}~{library}"
                 item = items[key] = {"key": key, "id": ids[0], "ids": [], "library": library, "first": {"look": number, "at": at},
-                                     "facts": facts, "open": True, "there": True, "withdrawn": False, "quiet": 0,
+                                     "facts": facts, "given": facts, "open": True, "there": True, "withdrawn": False, "quiet": 0,
                                      "events": [{"look": number, "at": at, "kind": "seen_no_fix"}]}
             else:
                 events = []
                 if item["withdrawn"] or not item["there"]:
                     events.append({"look": number, "at": at, "kind": "back"})
-                if facts != item["facts"]:
-                    before, after = _ends(item["facts"]), _ends(facts)
-                    if item["open"] and not open_now:
-                        events.append({"look": number, "at": at, "kind": "fix_published", "ends": after})
-                    elif not item["open"] and open_now:
-                        events.append({"look": number, "at": at, "kind": "fix_no_longer_named", "before": before})
-                    elif before != after:
-                        events.append({"look": number, "at": at, "kind": "fix_changed", "before": before, "ends": after})
-                    else:
+                if facts != item["given"]:
+                    if not facts:
+                        # no ranges are given any more: no fixed version is named by that, and none is taken back
                         events.append({"look": number, "at": at, "kind": "versions_changed"})
+                    else:
+                        before, after = _ends(item["facts"]), _ends(facts)
+                        if item["open"] and not open_now:
+                            events.append({"look": number, "at": at, "kind": "fix_published", "ends": after})
+                        elif not item["open"] and open_now:
+                            events.append({"look": number, "at": at, "kind": "fix_no_longer_named", "before": before})
+                        elif before != after:
+                            events.append({"look": number, "at": at, "kind": "fix_changed", "before": before, "ends": after})
+                        else:
+                            events.append({"look": number, "at": at, "kind": "versions_changed"})
+                        item.update(facts=facts, open=open_now)
                 if events:
                     item["events"] += events
                 else:
                     item["quiet"] += 1
-                item.update(facts=facts, open=open_now, there=True, withdrawn=False)
+                item.update(given=facts, there=True, withdrawn=False)
             for i in ids:
                 names[(i, library)] = item["key"]
                 if i not in item["ids"]:

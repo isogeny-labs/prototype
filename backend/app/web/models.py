@@ -2457,7 +2457,8 @@ class AdvisoryTrial(Shape):
 class TestProofRow(Shape):
     key: str
     label: str = Field(description="What ran: our reference library, a public copy, or the control.")
-    count: str = Field(description="The separate reviewer's count for that run. A count, never Passed or Failed.")
+    count: str = Field(description="The count for that part of the trial (the separate reviewer's for a copy and for the reference; "
+                                   "the pinned trial script's for the control). A count, never Passed or Failed.")
     must: str = Field(description="What had to happen, as it was frozen before the first run.")
 
 

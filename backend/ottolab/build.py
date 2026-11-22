@@ -442,7 +442,9 @@ def sandbox_block(lab, st, advisory_id: str, hid: str, hyp: dict) -> dict:
         return {"seed": known["seed"], "valid": known["valid"], "spoiled": known["spoiled"],
                 "versions": {v: {"accepted_valid": c["accepted_valid"], "rejected_spoiled": c["rejected_spoiled"]}
                              for v, c in sorted(known["versions"].items())},
-                "controls_refused": all(not sandbox.full_marks(known, v, which) for v in known.get("dummies", {}) for which in ("yes", "no"))}
+                # (true only when each of the check's own two controls answered every question its one way, on every copy:
+                #  a control that did not answer is a check that can't be relied on, never a control that was refused)
+                "controls_refused": bool(known["versions"]) and all(sandbox.controls_hold(known, v) for v in known["versions"])}
     runs = sorted(str(entry["ts"]) for entry in lab.ledger.entries()
                   if entry["kind"] == "run" and entry["payload"].get("hypothesis_id") == hid)
     return {"set": set_a,
@@ -450,7 +452,9 @@ def sandbox_block(lab, st, advisory_id: str, hid: str, hyp: dict) -> dict:
                         "lines": set_b["asking"]["lines"], "set": set_b["id"], "image": set_b["image"]["tag"]} if set_b else None),
             "known": marks(known_a), "second_known": marks(known_b) if known_b else None,
             "versions": {"affected": arms["affected"], "fixed": arms["fixed"], "more_affected": list(arms["more_affected"]),
-                         "more_fixed": list(arms["more_fixed"]), "left_out": list(arms["left_out"])},
+                         "more_fixed": list(arms["more_fixed"]), "left_out": list(arms["left_out"]),
+                         # the publisher named no fixed version: "fixed" is the first one published after the last affected
+                         "after_last_affected": bool(arms.get("after_last_affected"))},
             "screen_sha256": sandbox.screens.fingerprint() if set_a["asking"]["kind"] == "written" else None,
             "registered": {"hypothesis": hid, "at": _when(lab, hid), "first_run_at": runs[0] if runs else None,
                            "pins": {name: digest for name, digest in sorted(code.items())}}}
@@ -627,16 +631,20 @@ def next_pack(args) -> int:
         lab = sandbox.open_lab(data_dir / "otto-research-lab")
     recorded = Path(args.recorded) if args.recorded else RECORDED
     with tempfile.TemporaryDirectory(prefix="ottolab-") as scratch:
-        spent_file = Path(scratch) / "spent.json"
+        # What the run has spent on Claude is kept in one small file, written again after every step. With --summary
+        # that file is the summary itself: the app that started the run can then read what was spent whenever the run
+        # ends and however (finished, stopped by a person, ended by an error), for its limit for a day. It is there
+        # from the start, with nothing spent, so a file that is missing means the run never got this far.
+        spent_file = Path(args.summary) if args.summary else Path(scratch) / "spent.json"
+        spent_file.write_text(json.dumps({"spent_nano": 0, "calls": 0, "unanswered_nano": 0}), encoding="utf-8")
         if args.live and not model.key_present():
             say(f"--live was given, but no API key is set on this computer ({model.KEY_ENV}). Only recorded answers are used.")
-        made = build_pack(lab, snap, files[0], version, ids, newest.fingerprint if newest else None, _local_key(data_dir), LOCAL_SIGNER,
-                          updates, recorded, args.live, args.limit_nano, spent_file,
-                          [check for pack in chain for check in checks_of(pack.pack)], leave_open=True, sandbox_args=sandbox_args)
-        say(_spent_line(spent_file, args.limit_nano))
-        spent, _, unanswered = research._spent(str(spent_file))
-        if args.summary:      # what the run spent on Claude, for the app's limit for a day (a number, nothing else)
-            Path(args.summary).write_text(json.dumps({"spent_nano": int(spent) + int(unanswered)}), encoding="utf-8")
+        try:
+            made = build_pack(lab, snap, files[0], version, ids, newest.fingerprint if newest else None, _local_key(data_dir), LOCAL_SIGNER,
+                              updates, recorded, args.live, args.limit_nano, spent_file,
+                              [check for pack in chain for check in checks_of(pack.pack)], leave_open=True, sandbox_args=sandbox_args)
+        finally:
+            say(_spent_line(spent_file, args.limit_nano))
     if made is not None and sandbox_args is not None:
         # The copy sets of the tests this run proved go into the app's own store, so an accepted check can run on them.
         for entry in made.pack["advisories"]:

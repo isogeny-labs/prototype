@@ -191,3 +191,41 @@ def test_seeded_fuzz_of_a_damaged_pack_file_is_a_plain_refusal_or_a_normal_read(
             packs.check_pack(damaged)
         except packs.PackError as refused:
             assert str(refused)
+
+
+@pytest.mark.needs_otto
+def test_the_pack_a_watched_items_test_proposed_rests_on_is_in_the_evidence_file_whoever_made_it(tmp_path, monkeypatch):
+    """The separate review of 22 November 2026: an assessment whose Watch list read "Test proposed" from a pack another
+    assessment's run had made, for a library version that pack's copies do not hold, got an evidence file that did not
+    verify: the list named a proposed test, and no pack in the file held one."""
+    from app.evidence.export import build_evidence
+    from evidence import watchlist as check
+    from tools import research_demo
+    source = research_demo.sandbox_source(tmp_path / "source", 1)
+    lab = sandbox_lab(tmp_path, monkeypatch, advisory_source_dir=source)
+    try:
+        (lab.settings.data_dir / packs.LOCAL_KEY_FILE).write_text(envelope()["public_key"], encoding="ascii")
+        lab.settings.otto_local_updates.mkdir(parents=True, exist_ok=True)
+        (lab.settings.otto_local_updates / "2026.11.3.json").write_bytes(raw_pack() + b"\n")
+        turn_on(lab)
+        for version in ("2026.11.1", "2026.11.2", "2026.11.3"):
+            lab.install_pack(version)
+        # this assessment names a version the pack's copies do not hold; it accepted nothing, and none of its runs made the pack
+        imp = lab.import_file("libraries.csv", b"location,type,claim,value\nstarkbank-ecdsa 1.2.1,software,signature_algorithm,ECDSA P-256\n")
+        plan = lab.ensure_plan(imp["id"])["id"]
+        lab.watch_list_look(plan)                                   # day 1: no fix yet
+        research_demo.sandbox_source(source, 2)
+        item = next(i for i in lab.watch_list_look(plan)["items"] if i["key"] == "CVE-2021-43572~starkbank-ecdsa")
+        assert item["status"]["key"] == "test_proposed", item["status"]
+        copies_held = {v["version"] for v in envelope()["pack"]["advisories"][0]["test"]["sandbox"]["set"]["versions"]}
+        assert "1.2.1" not in copies_held
+        evidence = build_evidence(lab, plan)
+        assert "2026.11.3" in [e["pack"]["version"] for e in evidence["otto"]["packs"]]
+        assert [i["test"]["key"] for i in evidence["watch_list"]["items"]] == ["test_proposed"]
+        outcome = check.check_watch_list(evidence)
+        assert outcome.ok, outcome
+        # (and with that pack taken out of the file, the same list does not hold: the word has to rest on something in the file)
+        evidence["otto"]["packs"] = [e for e in evidence["otto"]["packs"] if e["pack"]["version"] != "2026.11.3"]
+        assert not check.check_watch_list(evidence).ok
+    finally:
+        lab.stop()

@@ -12,7 +12,7 @@
 //       Advisories: the weakness can now be tried on public copies from PyPI, and the box of Design and prove tests
 //       lists what will be fetched. The research run reads the advisory, designs a test, has the asking code written
 //       twice (recorded answers), checks it, and tries the test in locked containers. The pack it signs is installed.
-//       The proposal carries How this test was proven: the reviewer's counts, the registration, the code as text, the
+//       The proposal carries How this test was proven: the counts, the registration, the code as text, the
 //       public copies. A person accepts it; the check is run by the runner and decided by the separate reviewer.
 //       The evidence file is downloaded and verified.
 //  2. Demo mode: the switch can't be turned on and says why; Change watch has its one view; Advisories reads as before.
@@ -327,7 +327,12 @@ test("sandbox research: no fix yet, the fix is published, a test is proven on pu
     await expect(proof.locator('[data-part="control"]').getByTestId("proof-count")).toHaveText("64 of 64 cases wrong");
     await expect(proof.getByTestId("proof-registered")).toHaveText(new RegExp(`^Registered in Otto's harness on ${LOCAL_TIME.source}, before the first run`));
     await expect(proof.getByTestId("asking-code-label")).toHaveText("Written by Otto");
+    // who wrote it is said as it was: this walk replays answers recorded during the build, and a recorded answer names no model
+    await expect(proof.getByTestId("asking-code-line")).toContainText("written for this library during the build and recorded, not written through the API");
+    await expect(proof.getByTestId("asking-code-line")).toContainText("The screen is a filter for mistakes and plain tricks, not a proof");
     await expect(proof.getByTestId("asking-code-agree")).toContainText("gave the same answer on every case: 64 of 64");
+    await expect(proof.getByTestId("asking-code-agree")).toContainText("counted by the pinned trial script");
+    await expect(proof.getByTestId("asking-code-known")).toContainText("Each answered every question its one way, and the check refused both");
     await expect(proof.getByTestId("proof-copy")).toHaveCount(4);
     await expect(proof.getByTestId("proof-left-out")).toContainText("was left out before the trial was registered");
     await expect(proof.getByTestId("proof-not-shown")).toContainText("It does not say how serious the weakness is");
@@ -335,7 +340,11 @@ test("sandbox research: no fix yet, the fix is published, a test is proven on pu
     await shots(page, "13-the-proposal-how-this-test-was-proven");
     await proof.getByTestId("asking-code-toggle").click();
     await expect(proof.getByTestId("asking-code-source")).toContainText("def check_signature(public_key, message, signature):");
-    await expect(proof.getByTestId("asking-code-second-source")).toContainText("(second author)");
+    await expect(proof.getByTestId("asking-code-second-source")).toContainText("parsed = Signature.fromDer(signature)");
+    // the code holds code only: no description and no comment that a person could take for a result
+    for (const part of ["asking-code-source", "asking-code-second-source"]) {
+      expect(await proof.getByTestId(part).innerText(), `${part} holds a comment or a description`).not.toMatch(/#|"""/);
+    }
     expect(changes(page), "reading the proof and the code sent nothing").toEqual(beforeProof);
     expect(await layoutProblems(page), "Advisories with the proof and the code open").toEqual([]);
     await shots(page, "14-the-code-that-asked-the-library");

@@ -175,11 +175,16 @@ def _trial(value: object, what: str, arms: tuple[str, ...], more: bool = False) 
             _fail(f"The pack's {what} holds figures this version can't read.")
 
 
-def _sandbox(value: object, trial: object, ledger: object, what: str) -> None:
+def _sandbox(value: object, trial: object, ledger: object, what: str, *, advisory_id: str, ready: bool, design: dict | None,
+             scripts: dict) -> None:
     """What a test tried on sandbox copies adds to its entry: the copy set (held to the exact shape of a copy set's
     record: every file with its fingerprints, the asking code as text, the image), the second author's asking code, the
     two known-answer checks, the versions, and when the trial was registered. The registration must come before the
-    first run of the trial, by the pack's own list of ledger entries."""
+    first run of the trial, by the pack's own list of ledger entries.
+
+    And the parts must agree with each other (`_bears_out`): a pack whose own figures do not bear out what it says of
+    its test is not taken, even though this computer made it. The verify command holds an evidence file's packs to the
+    same rules, written out a second time (backend/evidence/sandbox.py): change one, change the other."""
     from app.sandbox import copies
     block = _keys(value, {"set", "second", "known", "second_known", "versions", "screen_sha256", "registered"}, f"sandbox part of {what}")
     try:
@@ -218,7 +223,9 @@ def _sandbox(value: object, trial: object, ledger: object, what: str) -> None:
             _count(c["rejected_spoiled"], f"known-answer check of {what}")
         if written and not k["controls_refused"]:
             _fail(f"The known-answer check of {what} did not refuse its own controls.")
-    versions = _keys(block["versions"], {"affected", "fixed", "more_affected", "more_fixed", "left_out"}, f"versions of {what}")
+    versions = _keys(block["versions"], {"affected", "fixed", "more_affected", "more_fixed", "left_out", "after_last_affected"}, f"versions of {what}")
+    if not isinstance(versions["after_last_affected"], bool):
+        _fail(f"The versions of {what} do not say whether the publisher named the fixed version.")
     in_set = {v["version"] for v in record["versions"]}
     for name in ("affected", "fixed"):
         if versions[name] not in in_set:
@@ -261,6 +268,86 @@ def _sandbox(value: object, trial: object, ledger: object, what: str) -> None:
     own_runs = [e for e in entries if e.get("kind") == "run" and isinstance(e.get("seq"), int) and e["seq"] > place and (upto is None or e["seq"] < upto)]
     if earlier_runs or (trial.get("outcome") == "supported" and not own_runs):
         _fail(f"The trial of {what} was not registered before its first run.")
+    try:
+        _bears_out(block, record, trial, entries, place, own_runs, what, advisory_id=advisory_id, ready=ready, design=design, scripts=scripts)
+    except (KeyError, TypeError, AttributeError, ValueError):       # (a part that is not in its form at all: said plainly, never an error of the program)
+        raise PackError(f"The sandbox part of {what} is not in the form this version writes.") from None
+
+
+def _file_pin(data: dict) -> tuple[str, str]:
+    """A lab file as the research command writes it (ottolab/research._write_once): the 12 characters its name holds,
+    and the SHA-256 of its bytes, which is what a registration freezes."""
+    text = json.dumps(data, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
+    return sha256_hex(data)[:12], sha256_hex_text(text)
+
+
+def _whole(figures: dict, name: str, what: str) -> int:
+    value = figures.get(name)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        _fail(f"The trial of {what} holds a count that is not a whole number.")
+    return value
+
+
+def _bears_out(block: dict, record: dict, trial: dict, entries: list[dict], place: int, own_runs: list[dict], what: str, *,
+               advisory_id: str, ready: bool, design: dict | None, scripts: dict) -> None:
+    """The parts of a sandbox test's proof agree with each other.
+
+      - Each part of the trial ran on the version the proof names for it, of the library of the copy set.
+      - The registration froze what it must, and what can be worked out again from the pack is the same: the copy set's
+        record, the design, and the two pinned scripts.
+      - The times the proof gives for the registration and the first run are the ledger's own, and in that order.
+      - A test that is offered ("ready") has the counts for it: the affected copy at least one case wrong, the fixed
+        copy and every further fixed version none, every further affected version at least one, the control every case
+        that must be rejected, and the second author's code the same answer on every case of both copies.
+    """
+    versions, registered, second, arms = block["versions"], block["registered"], block["second"], trial["arms"]
+    # ---- each part ran on the version the proof names
+    named = {"reference": versions["fixed"], "affected": versions["affected"], "fixed": versions["fixed"], "accept-all": versions["fixed"]}
+    named.update({f"more-affected-{n}": v for n, v in enumerate(versions["more_affected"], start=1)})
+    named.update({f"more-fixed-{n}": v for n, v in enumerate(versions["more_fixed"], start=1)})
+    if second is not None:
+        named.update({"affected-b": versions["affected"], "fixed-b": versions["fixed"]})
+    if set(arms) != set(named):
+        _fail(f"The parts of the trial of {what} are not the parts its proof names.")
+    for arm, version in named.items():
+        if arms[arm].get("version") != version or arms[arm].get("library") != record["library"]:
+            _fail(f"A part of the trial of {what} did not run on the version its proof names.")
+    # ---- what was frozen
+    pins = registered["pins"]
+    kinds = ["designs/", "/set-a-", "/known-a-", "/versions-", "/arms-"] + (["/set-b-", "/known-b-"] if second is not None else [])
+    if not all(sum(1 for name in pins if kind in name) == 1 for kind in kinds):
+        _fail(f"The registration of {what} did not freeze everything a trial on sandbox copies rests on.")
+    for script in ("trial_sandbox.py", "qualify.py"):
+        if script not in pins or pins[script] != scripts.get(script):
+            _fail(f"The registration of {what} did not freeze the scripts the pack says were run.")
+    in_name, of_file = _file_pin(record)
+    if pins.get(f"sandbox/{advisory_id}/set-a-{in_name}.json") != of_file:
+        _fail(f"The copy set of {what} is not the one its registration froze.")
+    if design is not None:
+        in_name, of_file = _file_pin(design)
+        if pins.get(f"designs/{advisory_id}-{in_name}.json") != of_file:
+            _fail(f"The design of {what} is not the one its registration froze.")
+    # ---- the times are the ledger's own
+    at_of = {e["seq"]: e.get("at") for e in entries if isinstance(e.get("seq"), int)}
+    first_run = min((e["seq"] for e in own_runs), default=None)
+    if registered["at"] != at_of.get(place) or registered["first_run_at"] != (at_of.get(first_run) if first_run is not None else None):
+        _fail(f"The times the proof of {what} gives are not the times of its ledger entries.")
+    # ---- an offered test has the counts for it
+    if not ready:
+        return
+    if design is None or not own_runs:
+        _fail(f"The test of {what} is offered without its design or without a run after its registration.")
+    total, reject = len(design["cases"]["ids"]), int(design["cases"]["must_reject"])
+    for arm in named:
+        if _whole(arms[arm], "total", what) != total or _whole(arms[arm], "right", what) + _whole(arms[arm], "wrong", what) != total:
+            _fail(f"A part of the trial of {what} did not answer exactly the cases of its design.")
+    holds = (_whole(arms["reference"], "wrong", what) == 0 and _whole(arms["affected"], "wrong", what) >= 1
+             and _whole(arms["fixed"], "wrong", what) == 0 and _whole(arms["accept-all"], "wrong", what) == reject
+             and all(_whole(arms[arm], "wrong", what) >= 1 for arm in named if arm.startswith("more-affected"))
+             and all(_whole(arms[arm], "wrong", what) == 0 for arm in named if arm.startswith("more-fixed"))
+             and all(_whole(arms[arm], "agree", what) == total for arm in ("affected-b", "fixed-b") if arm in named))
+    if not holds:
+        _fail(f"The counts of the trial of {what} do not bear out that its test is offered.")
 
 
 def check_pack(pack: object) -> dict:
@@ -364,7 +451,8 @@ def check_pack(pack: object) -> dict:
         _text(test["reason"], f"reason for the test state of {what}", 1000)
         _trial(test["trial"], f"trial of {what}", ("reference", "affected", "fixed", "accept-all"), more="sandbox" in test)
         if "sandbox" in test:
-            _sandbox(test["sandbox"], test["trial"], a["ledger"], what)
+            _sandbox(test["sandbox"], test["trial"], a["ledger"], what, advisory_id=a["id"], ready=test["state"] == "ready",
+                     design=by_hash.get(test["design_sha256"]) if isinstance(test["design_sha256"], str) else None, scripts=scripts)
         if test["state"] == "ready":
             if test["design_sha256"] not in by_hash or by_hash[test["design_sha256"]]["advisory"] != a["id"] or test["design_sha256"] in used:
                 _fail(f"The test of {what} is not among the pack's tests.")

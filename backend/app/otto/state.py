@@ -579,6 +579,11 @@ class OttoMixin:
         # Phase 6, Otto's research loop: every look for new advisories and every research run of this assessment.
         lookups = self.lookups_evidence(plan_id)                 # type: ignore[attr-defined]
         made_by_runs = {str(run["pack_version"]) for run in lookups["research"] if run.get("pack_version")}
+        # Sandbox research (a prototype): a watched weakness that reads "Test proposed" says so because an installed
+        # pack holds a proven test for it. That pack goes into the file with the list, whichever assessment's run made
+        # it, so the file itself shows what the word rests on (and the verify command can check it).
+        watched = self.watch_list_evidence(plan_id)          # type: ignore[attr-defined]
+        proposed = {str(i).upper() for item in (watched or {}).get("items") or [] if item["test"]["key"] == "test_proposed" for i in item["ids"]}
         with self.db() as db:
             added = self._otto_checks(db, plan_id)
             steps = db.scalars(select(OttoStepRow).where(OttoStepRow.plan_id == plan_id).order_by(OttoStepRow.id)).all()
@@ -590,6 +595,10 @@ class OttoMixin:
             named = {(p["component"], p["version"]) for p in research.programs(self._claims(db.get(ImportRow, plan.import_id)))}
             describes = set()
             for row, pack in self._installed_packs(db, self._closed_at(plan_id)):
+                for entry in pack.pack["advisories"]:
+                    if proposed and entry["test"]["state"] == "ready" and \
+                            proposed & {str(i).upper() for i in [entry["id"], *(entry.get("aliases") or [])]}:
+                        describes.add(row.fingerprint)
                 for entry in pack.pack["advisories"] if pack.pack["schema"] == packs.PACK_SCHEMA_2 else []:
                     copies = (entry["test"].get("sandbox") or {}).get("set")
                     if copies and any((copies["library"], v["version"]) in named for v in copies["versions"]):

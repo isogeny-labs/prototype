@@ -105,3 +105,38 @@ def test_the_two_new_instruments_are_pinned_scripts_and_the_old_ones_are_not_tou
     for name in ("agent.py", "research.py", "prompts.py"):
         assert hashlib.sha256((BACKEND / "ottolab" / name).read_bytes()).hexdigest() == shipped[f"ottolab/{name}"]
     assert (pinned / "trial_sandbox.py").is_file() and (pinned / "qualify.py").is_file()
+
+
+def _qualify():
+    """The pinned known-answer script, loaded as a module (it is a script; nothing of it runs on load but its imports)."""
+    import importlib.util
+    import os
+    os.environ.setdefault("EVIDENCE_LAB_BACKEND", str(BACKEND))
+    spec = importlib.util.spec_from_file_location("qualify_for_a_test", BACKEND / "ottolab" / "pinned" / "qualify.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_a_known_answer_question_says_nothing_about_its_right_answer_by_its_name_or_its_place():
+    """The separate review of 22 November 2026: the questions went into the container named valid-0, spoiled-message-0
+    and so on, so their names gave the right answers away. A name is now the question's place in an order drawn from
+    the seed; the right answers stay outside."""
+    qualify = _qualify()
+    seeds = ["ab" * 32, "cd" * 32, "ef" * 32]
+    orders = []
+    for seed in seeds:
+        asked = qualify.cases(seed)
+        assert asked == qualify.cases(seed)                                      # a pure function of the seed: anyone can make them again
+        assert [c["id"] for c in asked] == [f"q-{n:02d}" for n in range(2 * qualify.PAIRS)]
+        assert sum(c["must"] == "accept" for c in asked) == qualify.PAIRS == sum(c["must"] == "reject" for c in asked)
+        orders.append("".join("a" if c["must"] == "accept" else "r" for c in asked))
+        sent = [{k: c[k] for k in ("id", "public_key", "message", "signature")} for c in asked]      # what goes into the container
+        assert not any(word in json.dumps(sent) for word in ("valid", "spoiled", "accept", "reject", "must"))
+    assert len(set(orders)) == len(seeds)                                        # the order is the seed's, not a fixed pattern
+    assert not any(order in ("ar" * qualify.PAIRS, "ra" * qualify.PAIRS) for order in orders)
+    # the count is still made outside, from the kept answers
+    asked = qualify.cases(seeds[0])
+    honest = {c["id"]: {"valid": c["must"] == "accept"} for c in asked}
+    assert qualify.count(asked, honest) == {"accepted_valid": qualify.PAIRS, "rejected_spoiled": qualify.PAIRS, "no_answer": 0, "notes": {}}
+    assert qualify.count(asked, {})["no_answer"] == 2 * qualify.PAIRS

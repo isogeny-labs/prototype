@@ -205,6 +205,8 @@ def _result_view(r: dict) -> dict:
         "also_noticed": [str(x) for x in r.get("also_noticed") or []],
         # phase 4c: a real library (not demo data), and the advisories its publisher has out for this version (information only)
         "real": bool(r.get("real")),
+        # sandbox research (a prototype): the run was on a public copy made on this computer, not on a pinned library
+        **({"sandbox_copy": True} if r.get("sandbox_copy") else {}),
         "advisories": ({"title": str(r["advisories"].get("title")), "tag": str(r["advisories"].get("tag")),
                         "items": [_pick(a, ("id", "text", "link", "href", "covered")) for a in r["advisories"].get("items") or []]}
                        if r.get("advisories") else None),
@@ -776,7 +778,8 @@ def _result_html(heading: str, entry: dict) -> _Safe:
         *_advisories_html(r.get("advisories")),
         el("p", t(r.get("summary")), cls="note") if r.get("plain") and r.get("summary") and r.get("plain") != r.get("summary") else _Safe(""),
         el("ul", *[el("li", t(line)) for line in (
-            f"Component: {r.get('component')} [{'real software' if r.get('real') else 'demo'}]" if r.get("component") else "Component: none (this test is about the server)",
+            f"Component: {r.get('component')} [{'sandbox copy' if r.get('sandbox_copy') else 'real software' if r.get('real') else 'demo'}]"
+            if r.get("component") else "Component: none (this test is about the server)",
             f"Mode: {r.get('mode')}", f"Finished: {r.get('finished_at')} (UTC)",
             f"Run record fingerprint (SHA-256): {entry.get('run_sha256')}",
             f"Reviewed by: {entry['review'].get('reviewer')}; test proposed by: {entry['review'].get('proposed_by')}")], cls="meta"),

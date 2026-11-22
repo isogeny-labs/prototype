@@ -81,6 +81,7 @@ class Release:
     file: File
     needs: list[tuple[str, str]] = field(default_factory=list)      # (a helper library's name, what versions of it fit)
     unreadable_needs: list[str] = field(default_factory=list)       # what it says it needs that this reader could not read
+    others: list[File] = field(default_factory=list)                # the release's other files a copy could be made from
 
 
 def check_name(registry: str, package: object) -> str:
@@ -100,9 +101,18 @@ def check_version(version: object) -> str:
 Transport = Callable[[str, float, int], bytes]
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """The request goes to the address built here, on a listed host, and nowhere else: a redirect is not followed. It
+    then comes back as the HTTP status it is, which the reader reports as a stop."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):      # noqa: ARG002, D102
+        return None
+
+
 def _http(url: str, timeout: float, limit: int) -> bytes:
     request = urllib.request.Request(url, headers={"Accept": "application/json, */*", "User-Agent": "evidence-lab-sandbox"})
-    with urllib.request.urlopen(request, timeout=timeout) as answer:     # (a fixed https address built here, on a listed host)
+    opener = urllib.request.build_opener(_NoRedirect)
+    with opener.open(request, timeout=timeout) as answer:                # (a fixed https address built here, on a listed host)
         return answer.read(limit + 1)
 
 
@@ -193,9 +203,9 @@ def _load(raw: bytes, registry: str) -> dict:
     try:
         data = json.loads(raw.decode("utf-8"))
     except (ValueError, RecursionError):
-        raise RegistryError(f"The answer of {WORDS[registry]} is not valid JSON.") from None
+        raise RegistryError(f"The answer of {WORDS[registry]} is not valid JSON.", later=True) from None
     if not isinstance(data, dict):
-        raise RegistryError(f"The answer of {WORDS[registry]} is not in the shape it documents.")
+        raise RegistryError(f"The answer of {WORDS[registry]} is not in the shape it documents.", later=True)
     return data
 
 
@@ -211,7 +221,7 @@ def read_versions(registry: str, raw: bytes) -> list[dict]:
     if registry == "pypi":
         releases = data.get("releases")
         if not isinstance(releases, dict):
-            raise RegistryError("The answer of PyPI is not in the shape it documents.")
+            raise RegistryError("The answer of PyPI is not in the shape it documents.", later=True)
         for version, files in list(releases.items())[:MAX_VERSIONS]:
             if not isinstance(version, str) or not _VERSION.match(version) or not isinstance(files, list) or not files:
                 continue                                    # (a version with no file was never published as one)
@@ -220,15 +230,16 @@ def read_versions(registry: str, raw: bytes) -> list[dict]:
     else:
         versions, times = data.get("versions"), data.get("time")
         if not isinstance(versions, dict):
-            raise RegistryError("The answer of npm is not in the shape it documents.")
+            raise RegistryError("The answer of npm is not in the shape it documents.", later=True)
         for version in list(versions)[:MAX_VERSIONS]:
             if isinstance(version, str) and _VERSION.match(version):
                 out.append({"version": version, "published": _day(times.get(version)) if isinstance(times, dict) else None})
     return out
 
 
-def _pypi_file(files: object) -> File | None:
-    """The one file of a release a copy is made from: a wheel that is plain Python, or else the source package."""
+def _pypi_files(files: object) -> list[File]:
+    """The files of a release a copy could be made from, the one that is used first: a wheel that is plain Python, or
+    else the source package."""
     usable = []
     for f in files if isinstance(files, list) else []:
         if not isinstance(f, dict) or f.get("yanked") is True:
@@ -243,7 +254,7 @@ def _pypi_file(files: object) -> File | None:
         elif f.get("packagetype") == "sdist" and name.endswith((".tar.gz", ".zip")):
             usable.append((1, File(name, url, "sdist", size, sha256=sha)))
     usable.sort(key=lambda u: (u[0], u[1].filename))
-    return usable[0][1] if usable else None
+    return [u[1] for u in usable]
 
 
 _REQUIRES = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*(?:\(([^)]*)\)|([^;]*))?\s*(?:;(.*))?$")
@@ -273,14 +284,15 @@ def read_release(registry: str, package: str, version: str, project_raw: bytes, 
     if registry == "pypi":
         project = _load(project_raw, registry)
         files = (project.get("releases") or {}).get(version) if isinstance(project.get("releases"), dict) else None
-        chosen = _pypi_file(files)
-        if chosen is None:
+        usable = _pypi_files(files)
+        if not usable:
             raise RegistryError(f"PyPI lists no plain-Python file for {package} {version} (a wheel for every computer, or its source package).")
+        chosen = usable[0]
         release = _load(release_raw, registry) if release_raw is not None else {}
         info = release.get("info")
         needs, unreadable = _pypi_needs(info.get("requires_dist") if isinstance(info, dict) else None)
         day = next((d["published"] for d in read_versions(registry, project_raw) if d["version"] == version), None)
-        return Release(registry, package, version, day, chosen, needs, unreadable)
+        return Release(registry, package, version, day, chosen, needs, unreadable, usable[1:])
     project = _load(project_raw, registry)
     entry = (project.get("versions") or {}).get(version) if isinstance(project.get("versions"), dict) else None
     if not isinstance(entry, dict) or not isinstance(entry.get("dist"), dict):

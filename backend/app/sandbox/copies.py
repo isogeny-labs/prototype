@@ -47,7 +47,13 @@ _IMAGE_ID = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 class CopyError(Exception):
-    """A copy could not be made, or a record is not what this version writes. One plain sentence."""
+    """A copy could not be made, or a record is not what this version writes. One plain sentence. `later` is true when
+    nothing was learned about the package itself (Docker did not answer, a download came back damaged, a file is not
+    the one seen before): a stop, never a result, and a later try can go differently."""
+
+    def __init__(self, text: str, later: bool = False) -> None:
+        super().__init__(text)
+        self.later = later
 
 
 def slug(library: str) -> str:
@@ -233,10 +239,14 @@ def _visible() -> list[dict]:
 
 
 def find(name: object, version: object) -> dict | None:
-    """The newest copy set on this computer that holds exactly this version of this library; None with the switch off."""
+    """The copy set on this computer that a run on this version of this library uses: the OLDEST one that holds exactly
+    this version; None with the switch off. The oldest, so that what an accepted check runs in never changes when a
+    later research run makes another copy set of the same library: the copy a check was first run in stands. (The
+    research command writes one piece of asking code for a library, and uses it again for a later advisory, so every
+    copy set of a library holds the same asking code: ottolab/sandbox.py.)"""
     if not isinstance(name, str) or not isinstance(version, str) or not _stores:
         return None
-    return next((r for r in _visible() if r["library"] == name and any(v["version"] == version for v in r["versions"])), None)
+    return next((r for r in reversed(_visible()) if r["library"] == name and any(v["version"] == version for v in r["versions"])), None)
 
 
 def library(name: object, version: object) -> dict | None:
@@ -265,7 +275,7 @@ def family_of_subject(bare: str) -> str | None:
     """The sandbox family whose image holds this subject key ("starkbank-ecdsa-2.0.0")."""
     if not _stores:
         return None
-    for record in _visible():
+    for record in reversed(_visible()):          # (the oldest that holds it, as `find` takes it)
         if any(bare == f"{record['library']}-{v['version']}" for v in record["versions"]):
             return family_of(record)
     return None

@@ -245,6 +245,9 @@ Asked on a copy of the app that is marked as the sandbox, with the switch on, th
 recorded registry of `backend/tools/research_demo.py --sandbox`, and the file `demo/sandbox/starkbank-file.csv`. The
 walk looks on day 1, looks again on day 2, presses **Design and prove tests**, accepts the proposed check and runs
 it. `<item>` is `CVE-2021-43572~starkbank-ecdsa`. These are questions only: the key holds no answer of the build.
+`python -m app.accuracy --only otto` asks them (`_sandbox_walk` in `backend/app/accuracy_otto.py`): the first two in
+the mode they belong to, the rest in isolated mode when the six public package files of the demo are on the computer
+(otherwise it says in one note that they were not asked, and a key that holds them counts them as mismatches).
 
 | Question | What it asks | Values |
 |---|---|---|

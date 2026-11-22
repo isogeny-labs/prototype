@@ -12,6 +12,9 @@ designed" and "its trial is registered":
                   only if the fixed rules let it through (ottolab/screens.py) AND it passes the known-answer check on
                   the fixed copy; a draft that does not gets the checker's lines back, at most three drafts in all.
                   A draft never touches the affected copy before it is frozen, and never sees a trial result.
+                  One library, one piece of asking code by each author: for a later advisory of a library whose
+                  earlier trial held, the code of that trial is used again and nothing new is written, so a check that
+                  was accepted never comes to run with other code than the code it was proven with.
     3. copies     each author's code is built into a copy set of its own (app/sandbox/maker.py), and each set goes
                   through the known-answer check on every version. A further version on which the frozen code does not
                   work is left out, with the reason, before anything is registered.
@@ -24,7 +27,8 @@ designed" and "its trial is registered":
 Nothing here judges a trial or decides a result. A run is decided by the separate reviewer; the trial by Otto's harness
 against the thresholds frozen in the registration. What can't go on is said in one of two ways: a DEAD END is a fact in
 the ledger with the plain reason (settled: "No test yet: ..."); a LATER leaves the ledger as it is (a registry could not
-be read, no answer came): a stop, never a result, and a later run can take it up.
+be read, no answer came, Docker did not answer, a download came back damaged): a stop, never a result, and a later run
+can take it up. Whatever Claude was asked is kept in the ledger either way, also when the step stopped after the call.
 """
 from __future__ import annotations
 
@@ -35,6 +39,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 from app.config import load_settings
 from app.otto import designs
@@ -138,6 +143,16 @@ def is_sandbox_trial(hyp: dict) -> bool:
     return TRIAL in (hyp.get("code") or {})
 
 
+HARMFUL = "No test yet: this record is of a package that was published to do harm. Nothing of such a package is fetched."
+
+
+def harmful(advisory: dict) -> bool:
+    """A record of a package published to do harm (the source's "MAL-" records). The app's Advisories page says the
+    same; this is the same rule in the command that fetches, so it holds whoever starts the command."""
+    names = [advisory.get("id"), *(advisory.get("aliases") or [])]
+    return any(isinstance(name, str) and name.upper().startswith("MAL-") for name in names)
+
+
 # ---------------------------------------------------------------- what the ledger and the lab folder already hold
 
 def dead_end(st, advisory_id: str) -> str | None:
@@ -186,6 +201,8 @@ def accepted_draft(st, lab, advisory_id: str, author: str) -> tuple[str, dict] |
 def plan_versions(lab, advisory: dict, facts: dict, reading: dict) -> str:
     """Write the versions file once and return its place in the lab. Raises DeadEnd or Later."""
     aid = advisory["id"]
+    if harmful(advisory):
+        raise DeadEnd(HARMFUL)
     have = _files(lab, aid, "versions")
     if have:
         return have[0]
@@ -201,7 +218,10 @@ def plan_versions(lab, advisory: dict, facts: dict, reading: dict) -> str:
     except versions.NoVersions as exc:
         raise DeadEnd(f"No test yet: {exc}.") from None
     said = (reading.get("fixed") or {}).get("version")
-    if not chosen["after_last_affected"] and said != chosen["fixed"]:
+    # Where the source names a fixed version, Claude's reading of the text must name the same one. Where it names only
+    # the last affected version, the trial takes the next published version, and a reading that names another is a
+    # disagreement too. (That next version is never called "the publisher's fixed version": see `register`.)
+    if said != chosen["fixed"] and not (chosen["after_last_affected"] and not said):
         raise DeadEnd(f"No test yet: the publisher's text and the source's version list disagree about the fixed version "
                       f"({said or 'none read'} and {chosen['fixed']}).")
     order = [{"version": chosen["affected"], "role": "affected"}, {"version": chosen["fixed"], "role": "fixed"}]
@@ -245,6 +265,16 @@ def full_marks(known: dict, version: str, which: str | None = None) -> bool:
     return counts["accepted_valid"] == known["valid"] and counts["rejected_spoiled"] == known["spoiled"] and counts["no_answer"] == 0
 
 
+def controls_hold(known: dict, version: str) -> bool:
+    """The known-answer check's own two controls, on one version: the dummy that says yes to everything answered every
+    question with a yes, and the one that says no answered every question with a no. Anything else (a dummy that did
+    not answer, or answered otherwise) means the check itself can't be relied on: a stop, never a pass."""
+    both = (known.get("dummies") or {}).get(version) or {}
+    yes, no = both.get("yes") or {}, both.get("no") or {}
+    return (yes.get("no_answer") == 0 and yes.get("accepted_valid") == known["valid"] and yes.get("rejected_spoiled") == 0
+            and no.get("no_answer") == 0 and no.get("accepted_valid") == 0 and no.get("rejected_spoiled") == known["spoiled"])
+
+
 def known_line(known: dict, version: str) -> str:
     counts = known["versions"].get(version) or {"accepted_valid": 0, "rejected_spoiled": 0, "notes": {}}
     notes = "; ".join(f"{note} ({n} times)" for note, n in counts.get("notes", {}).items())
@@ -272,6 +302,47 @@ def _record_draft(lab, question_id: str, advisory_id: str, step, outcome: str, p
     return lab.add({"type": "claim", "objective_id": objective, "artifact": artifact, "cites": []}, research.AGENT)
 
 
+class _KeptStep:
+    """A Claude step that was recorded before and is used again: the same prompt and the same answer. Nothing was asked
+    this time, so this use counts no tokens and no cost."""
+
+    def __init__(self, record: dict, other: str) -> None:
+        how = " ".join(f"{record.get('how') or ''} Used again from {other}: the same library, and nothing was asked again.".split())
+        self._record = {**record, "input_tokens": 0, "output_tokens": 0, "cost_nano_usd": 0, "how": how[:300]}
+        self.source = record["source"]
+
+    def record(self) -> dict:
+        return dict(self._record)
+
+
+def proven_code(st, lab, advisory_id: str, library: str, author: str) -> tuple[str, str, dict, dict] | None:
+    """The asking code this author wrote for this library under ANOTHER advisory whose trial on public copies held:
+    (that advisory, the claim of the draft, what the draft holds, the Claude step as it was recorded). The oldest such
+    trial counts, so one library has one piece of asking code by each author on this computer."""
+    for hid, hyp in st.of("hypothesis"):
+        if not is_sandbox_trial(hyp) or research.trial_kind(hyp) != "test" or not research.held(st, lab, hid):
+            continue
+        other = research.trial_file(lab, hyp).get("advisory")
+        arms_file = next((path for path in sorted(hyp["code"]) if path.startswith(f"sandbox/{other}/arms-")), None)
+        if not isinstance(other, str) or other == advisory_id or arms_file is None or _read(lab, arms_file).get("library") != library:
+            continue
+        for cid, art in reversed(drafts_of(st, lab, other, author)):
+            if art.get("outcome") == "used" and (art.get("parsed") or {}).get("decision") == "code" and lab._accepted(cid, st):
+                return other, cid, art["parsed"], art["step"]
+    return None
+
+
+def _stops(call):
+    """Run one step of putting copies together; a registry or a copy that could not be had is a Later (nothing was
+    learned) or a DeadEnd (the package itself can't be copied), never anything else."""
+    try:
+        return call()
+    except (registries.RegistryError, copies.CopyError) as exc:
+        if exc.later:
+            raise Later(str(exc)) from None
+        raise DeadEnd(f"No test yet: a public copy could not be put together ({exc})") from None
+
+
 def write_asking(lab, model: OttoModel, question_id: str, advisory: dict, plan_rel: str, author: str) -> str:
     """One draft by one author: ask, screen, build its copy set, check it on the fixed copy, and record it either way.
     Returns one plain line. Raises DeadEnd or Later."""
@@ -281,62 +352,101 @@ def write_asking(lab, model: OttoModel, question_id: str, advisory: dict, plan_r
     library, registry, package = plan["library"], plan["registry"], plan["package"]
     language = registries.LANGUAGES[registry]
     earlier = drafts_of(st, lab, aid, author)
-    cannot = next((art for _, art in earlier if art.get("outcome") == "used" and (art.get("parsed") or {}).get("decision") == "cannot"), None)
+    # (a draft whose copies could not be built or checked was kept in the ledger and never tried: it does not count
+    #  as one of the three, and its author gets nothing back about it)
+    tried = [art for _, art in earlier if not (art.get("drafted") or {}).get("stopped")]
+    cannot = next((art for art in tried if art.get("outcome") == "used" and (art.get("parsed") or {}).get("decision") == "cannot"), None)
     if cannot is not None:
         raise DeadEnd(f"No test yet: the library can't be asked this question. Claude noted: {cannot['parsed']['notes']}")
-    if len(earlier) >= asking.MAX_ATTEMPTS:
+    if len(tried) >= asking.MAX_ATTEMPTS:
         raise DeadEnd(f"No test yet: the code that asks the library could not be made to work on {library} "
                       f"(after {asking.MAX_ATTEMPTS} drafts by one author).")
     fixed = plan["chosen"]["fixed"]
-    try:
-        tree, readme, _ = maker.library_files(store(), source(), registry, package, fixed)
-    except registries.RegistryError as exc:
-        if exc.later:
-            raise Later(str(exc)) from None
-        raise DeadEnd(f"No test yet: a public copy could not be put together ({exc})") from None
-    except copies.CopyError as exc:
-        raise DeadEnd(f"No test yet: a public copy could not be put together ({exc})") from None
+    # Everything that can stop is tried BEFORE anything is asked: every version's own file is fetched and checked,
+    # Docker answers, and the base images are on this computer.
+    not_ready = maker.not_ready(language)
+    if not_ready is not None:
+        raise Later(not_ready)
+    tree = _stops(lambda: maker.library_files(store(), source(), registry, package, fixed))[0]
+    for other_version in plan["wanted"]:
+        if other_version["version"] != fixed:
+            try:
+                maker.library_files(store(), source(), registry, package, other_version["version"])
+            except (registries.RegistryError, copies.CopyError) as exc:
+                if exc.later:
+                    raise Later(str(exc)) from None
+                # (a version that can't be copied at all is the copy set's to leave out or to refuse, as it always was)
     names = asking.modules_of(tree) if language == "python" else {package}
-    template = (maker.TEMPLATES / language / maker.LANGUAGE_FILES[language][0]).read_text(encoding="utf-8")
-    feedback = [str(art.get("refusal") or "it was not used") for _, art in earlier]
-    text = asking.prompt(library=library, package=package, registry_words=registries.WORDS[registry], language=language, template=template,
-                         library_material=asking.material(tree, readme, language), author=author, feedback=feedback or None)
-    step = model.ask("write_wrapper", text)          # raises ModelError when no answer comes: nothing is recorded, nothing is settled
     drafted = {"author": author, "attempt": len(earlier) + 1, "screen_sha256": screens.fingerprint()}
+    kept = proven_code(st, lab, aid, library, author)
+    step: Any          # (a Claude step as it just happened, or one that was recorded before and is used again)
+    if kept is not None:
+        # One library, one piece of asking code by each author: the code of the earlier trial that held is used again.
+        other, kept_claim, kept_parsed, kept_step = kept
+        step = _KeptStep(kept_step, other)
+        drafted["reused_from"] = kept_claim
+        try:
+            screens.check(language, kept_parsed["asking_code"], names)
+        except screens.Refused as refused:
+            _record_draft(lab, question_id, aid, step, "refused", None, f"The asking code of {other} is not let through by today's rules: {refused}", drafted)
+            raise DeadEnd(f"No test yet: the asking code this computer already uses for {library} (from {other}) is not let through by "
+                          "today's rules, and a second piece of asking code for one library is not written.") from None
+        answer = {"decision": "code", "asking_code": kept_parsed["asking_code"], "notes": str(kept_parsed.get("notes") or "")}
+    else:
+        template = (maker.TEMPLATES / language / maker.LANGUAGE_FILES[language][0]).read_text(encoding="utf-8")
+        feedback = [str(art.get("refusal") or "it was not used") for art in tried]
+        text = asking.prompt(library=library, package=package, registry_words=registries.WORDS[registry], language=language, template=template,
+                             library_material=asking.material(tree, language, fixed), author=author, feedback=feedback or None)
+        step = model.ask("write_wrapper", text)          # raises ModelError when no answer comes: nothing is recorded, nothing is settled
+        try:
+            answer = asking.check_answer(step.answer, language, names)
+        except prompts.Refused as refused:
+            _record_draft(lab, question_id, aid, step, "refused", None, str(refused), drafted)
+            return f"{aid}: a draft of the asking code (author {author}) was not let through: {refused}"
+        if answer["decision"] == "cannot":
+            _record_draft(lab, question_id, aid, step, "used", {**answer, **drafted}, None, drafted)
+            return f"{aid}: the author says the library can't be asked this question."
+    # Who wrote it, as the copy set's record and the proposal will say it. A recorded answer names no model.
+    wrote = f"Claude (author {author})" if step.source == "live" else f"Recorded during the build, not through the API (author {author})"
+    said = False                # has this draft's record been written?
     try:
-        answer = asking.check_answer(step.answer, language, names)
-    except prompts.Refused as refused:
-        _record_draft(lab, question_id, aid, step, "refused", None, str(refused), drafted)
-        return f"{aid}: a draft of the asking code (author {author}) was not let through: {refused}"
-    if answer["decision"] == "cannot":
-        _record_draft(lab, question_id, aid, step, "used", {**answer, **drafted}, None, drafted)
-        return f"{aid}: the author says the library can't be asked this question."
-    try:
-        record, left_out = maker.make_set(root=store(), source=source(), library=library, registry=registry, package=package,
-                                          wanted=plan["wanted"], asking={"kind": "written", "author": f"Claude (author {author})",
-                                                                         "source": answer["asking_code"]}, say=lambda line: None)
-    except registries.RegistryError as exc:
-        if exc.later:
-            raise Later(str(exc)) from None
-        raise DeadEnd(f"No test yet: a public copy could not be put together ({exc})") from None
-    except copies.CopyError as exc:
-        raise DeadEnd(f"No test yet: a public copy could not be put together ({exc}).") from None
-    set_rel = research._write_once(lab, f"sandbox/{aid}", f"set-{author}", record)
-    # A draft is checked on the fixed copy and on no other: it never runs on the affected copy, and what its author is
-    # told back (the line below) is about the fixed copy alone.
-    draft = qualify(lab, set_rel, f"sandbox/{aid}/draft-{author}-{record['id']}.json", only=fixed)
-    if full_marks(draft, fixed, "yes") or full_marks(draft, fixed, "no"):
-        raise Later("the known-answer check did not refuse its own two controls, so it can't be relied on")
-    if not full_marks(draft, fixed):
-        _record_draft(lab, question_id, aid, step, "refused", None, "It did not work on the fixed copy. " + known_line(draft, fixed), drafted)
-        return f"{aid}: a draft of the asking code (author {author}) did not pass the known-answer check on the fixed copy."
-    # From here on the code is frozen (the copy set's record holds its fingerprint). It is now checked on every copy of
-    # its set, with fresh questions from a new seed. What that shows decides only which versions the trial runs on.
-    known_rel = f"sandbox/{aid}/known-{author}-{record['id']}.json"
-    qualify(lab, set_rel, known_rel)
+        record, left_out = _stops(lambda: maker.make_set(root=store(), source=source(), library=library, registry=registry, package=package,
+                                                         wanted=plan["wanted"], asking={"kind": "written", "author": wrote,
+                                                                                        "source": answer["asking_code"]},
+                                                         say=lambda line: None))
+        set_rel = research._write_once(lab, f"sandbox/{aid}", f"set-{author}", record)
+        # A draft is checked on the fixed copy and on no other: it never runs on the affected copy, and what its author
+        # is told back (the line below) is about the fixed copy alone.
+        draft = qualify(lab, set_rel, f"sandbox/{aid}/draft-{author}-{record['id']}.json", only=fixed)
+        if not controls_hold(draft, fixed):
+            raise Later("the known-answer check's own two controls did not answer as they must (one says yes to everything, one says no), "
+                        "so the check can't be relied on")
+        if not full_marks(draft, fixed):
+            line = "It did not work on the fixed copy. " + known_line(draft, fixed)
+            _record_draft(lab, question_id, aid, step, "refused", None, line, drafted)
+            said = True
+            if kept is not None:
+                raise DeadEnd(f"No test yet: the asking code this computer already uses for {library} (from {kept[0]}) does not work on "
+                              f"{library} {fixed}, and a second piece of asking code for one library is not written.")
+            return f"{aid}: a draft of the asking code (author {author}) did not pass the known-answer check on the fixed copy."
+        # From here on the code is frozen (the copy set's record holds its fingerprint). It is now checked on every copy
+        # of its set, with fresh questions from a new seed. What that shows decides only which versions the trial runs on.
+        known_rel = f"sandbox/{aid}/known-{author}-{record['id']}.json"
+        known = qualify(lab, set_rel, known_rel)
+        if not all(controls_hold(known, v) for v in copies.versions_of(record)):
+            raise Later("the known-answer check's own two controls did not answer as they must on every copy, so the check can't be relied on")
+    except (Later, DeadEnd) as stop:
+        if not said and kept is None:
+            # Claude was asked and the answer is kept, though it could not be tried: a stop, never one of the three
+            # drafts. (Code that is used again was not asked for this time, so there is nothing new to keep.)
+            _record_draft(lab, question_id, aid, step, "refused", None, f"It was not tried: {stop}"[:280], {**drafted, "stopped": True})
+        raise
     parsed = {**answer, **drafted, "asking_sha256": record["asking"]["sha256"], "set": record["id"], "set_file": set_rel,
               "known_file": known_rel, "left_out": left_out}
     _record_draft(lab, question_id, aid, step, "used", parsed, None, drafted)
+    if kept is not None:
+        return (f"{aid}: the asking code by author {author} is the one this computer already uses for {library} (from {kept[0]}); it passed "
+                "the known-answer check on the fixed copy.")
     return f"{aid}: the asking code by author {author} passed the fixed rules and the known-answer check on the fixed copy."
 
 
@@ -365,10 +475,16 @@ def register(lab, question_id: str, advisory: dict, reading: dict, design: dict,
     if not works.get(affected):
         raise DeadEnd(f"No test yet: the code that asks the library does not work on {library} {affected}, the affected version "
                       "(it did not take fresh signatures a reference library made), so nothing can be shown on it.")
-    more_affected = [v for v, role in in_set.items() if role in ("yours", "more_affected") and works[v]]
-    more_fixed = [v for v, role in in_set.items() if role == "more_fixed" and works[v]]
+    # A trial has room for two further versions on each side (the pack's form names them more-affected-1 and -2, and
+    # more-fixed-1 and -2). The file's own versions come first; one that finds no room is said so, and is still in the
+    # copy set, so an accepted check can run on it.
+    could_affected = [v for v, role in in_set.items() if role in ("yours", "more_affected") and works[v]]
+    could_fixed = [v for v, role in in_set.items() if role == "more_fixed" and works[v]]
+    more_affected, more_fixed = could_affected[:versions.MAX_MORE], could_fixed[:versions.MAX_MORE]
     left_out = [{"version": v, "reason": "the asking code does not work on it (it did not accept fresh signatures that a reference library made)"}
                 for v, role in in_set.items() if not works[v]]
+    left_out += [{"version": v, "reason": f"a trial tries {versions.MAX_MORE} further versions on each side, and this one found no room"}
+                 for v in could_affected[versions.MAX_MORE:] + could_fixed[versions.MAX_MORE:]]
     left_out += [{"version": w["version"], "reason": "it could not be put together with the fixed version's helper libraries"}
                  for w in plan["wanted"] if w["version"] not in in_set]
     rel = research._write_once(lab, "designs", aid, design)
@@ -376,7 +492,12 @@ def register(lab, question_id: str, advisory: dict, reading: dict, design: dict,
     arms_file = research._write_once(lab, f"sandbox/{aid}", "arms", {
         "schema": "isogeny.sandbox-arms/1", "advisory": aid, "library": library, "affected": affected, "fixed": fixed,
         "more_affected": more_affected, "more_fixed": more_fixed, "left_out": left_out, "set_a": record_a["id"],
-        "set_b": copies.check_set(_read(lab, set_b))["id"] if set_b else None})
+        "set_b": copies.check_set(_read(lab, set_b))["id"] if set_b else None,
+        # the publisher named no fixed version, only the last affected one: "fixed" is then the next version published
+        "after_last_affected": bool(plan["chosen"]["after_last_affected"])})
+    next_one = bool(plan["chosen"]["after_last_affected"])
+    fixed_words = ("the first version published after the last one the advisory names as affected (the publisher names no fixed version)"
+                   if next_one else "the publisher's fixed version")
 
     def arm(version: str, report: str, description: str, second: bool = False) -> dict:
         command = ["python3", TRIAL, "check", "--design", rel, "--set", set_b if second and set_b else set_a, "--library", library,
@@ -387,7 +508,7 @@ def register(lab, question_id: str, advisory: dict, reading: dict, design: dict,
 
     arms = {"reference": arm(fixed, "reference", "The app's reference library answering the same cases (read from the run on the fixed version)."),
             "affected": arm(affected, "subject", f"{library} {affected}, the affected public copy."),
-            "fixed": arm(fixed, "subject", f"{library} {fixed}, the publisher's fixed version."),
+            "fixed": arm(fixed, "subject", f"{library} {fixed}, {fixed_words}."),
             "accept-all": arm(fixed, "control", "The accept-everything control program (read from the run on the fixed version).")}
     predictions = [{"metric": "right", "arm": "affected", "relative_to": "reference", "direction": "decrease",
                     "minimum_effect_ppm": research.PPM // total, "kill_below_ppm": 1}]
@@ -414,6 +535,8 @@ def register(lab, question_id: str, advisory: dict, reading: dict, design: dict,
         "title": f"The check designed for {aid} catches the affected public copy of {library}",
         "claim": (f"On the {total} published cases the design selects, {library} {affected} gives at least one wrong answer, {library} {fixed} "
                   f"gives none, and the accept-everything program is wrong on all {invalid} cases that must be rejected." + further
+                  + (f" The publisher names no fixed version: {library} {fixed} is the first version published after the last one the "
+                     "advisory names as affected." if next_one else "")
                   + (" The second author's asking code hands back the same answer as the first on every case." if set_b else "")),
         "mechanism": reading["weakness"],
         "novelty_status": "known",

@@ -5,9 +5,15 @@ part of its trial, when the trial was registered and what was frozen then, the c
 questions (as text), the check that code had to pass first, and every public copy with where it came from and its
 fingerprints. This module lays that out for the proposal's card and for the advisory's panel.
 
-Every number here is the separate reviewer's count, read from the review of a run the research run made in a locked
-container on this computer. Those runs are in Otto's research ledger, not in an assessment. Nothing here says Passed or
-Failed about them: a result in an assessment comes only from the assessment's own run and its review.
+The counts for the library's copies and for our reference library are the separate reviewer's, read from its review of
+a run the research run made in a locked container on this computer. Two counts are not the reviewer's and are not
+called so: the control's, and how often the two pieces of asking code gave the same answer. The pinned trial script
+makes those from the raw answers. Those runs are in Otto's research ledger, not in an assessment. Nothing here says
+Passed or Failed about them: a result in an assessment comes only from the assessment's own run and its review.
+
+Nothing here says more than was checked. Who wrote the asking code is said as the copy set's record says it (a recorded
+answer names no model). The screen of that code is called what it is, a filter. A version the publisher did not name
+as fixed is not called the publisher's fixed version.
 """
 from __future__ import annotations
 
@@ -19,8 +25,10 @@ NOT_SHOWN = ("What this does not show. It shows which published cases get a wron
              "serious the weakness is, and it says nothing about any other system.")
 REPLAYED = "Replayed in a separate step by a second author role of the same build, on this computer. Not by an outside party."
 NOT_REPLAYED = "It was not replayed."
-NUMBERS_NOTE = ("Each count is the separate reviewer's, from the review of a run in a locked container on this computer. The right "
-                "answers are the publisher's (Project Wycheproof, pinned by SHA-256); they never reach the code that asks the library.")
+NUMBERS_NOTE = ("The counts for the library's copies and for our reference library are the separate reviewer's, from its review of a run "
+                "in a locked container on this computer. The control's count is made by the pinned trial script, from the control's "
+                "raw answers. The right answers are the publisher's (Project Wycheproof, pinned by SHA-256); they never reach the "
+                "code that asks the library.")
 
 
 def day(value: object) -> str:
@@ -75,10 +83,14 @@ def block(advisory: dict) -> dict | None:
     copies, arms, chosen = extra["set"], trial["arms"], extra["versions"]
     library, asking = copies["library"], copies["asking"]
     affected, fixed = chosen["affected"], chosen["fixed"]
+    # the publisher named no fixed version, only the last affected one: the trial then took the next version published
+    next_one = bool(chosen.get("after_last_affected"))
+    fixed_words = ("the first version published after the last one the advisory names as affected; the publisher names no fixed version"
+                   if next_one else "the publisher's fixed version")
     rows = [{"key": "reference", "label": "Our reference library, on the same cases", "count": _counted(arms["reference"]), "must": "Every case right (the baseline)"},
             {"key": "affected", "label": f"{library} {affected} (the version the advisory names as affected)", "count": _counted(arms["affected"]),
              "must": "At least one case wrong"},
-            {"key": "fixed", "label": f"{library} {fixed} (the publisher's fixed version)", "count": _counted(arms["fixed"]),
+            {"key": "fixed", "label": f"{library} {fixed} ({fixed_words})", "count": _counted(arms["fixed"]),
              "must": "As many right as our reference library"},
             {"key": "control", "label": "The control, a signer that accepts everything", "count": _counted(arms["accept-all"]),
              "must": "Wrong on every case that must be refused"}]
@@ -88,19 +100,24 @@ def block(advisory: dict) -> dict | None:
                          "count": _counted(arms[f"more-affected-{n}"]), "must": "At least one case wrong"})
     for n, version in enumerate(chosen["more_fixed"], start=1):
         if f"more-fixed-{n}" in arms:
-            rows.append({"key": f"more-fixed-{n}", "label": f"{library} {version} (a further version after the fix)",
+            rows.append({"key": f"more-fixed-{n}", "label": f"{library} {version} (a further version after {'it' if next_one else 'the fix'})",
                          "count": _counted(arms[f"more-fixed-{n}"]), "must": "As many right as our reference library"})
     second = extra.get("second")
+    written_code = asking["kind"] == "written"
+    # Who wrote it, as the copy set's record says. An answer recorded during the build names no model, and is not
+    # called Claude's.
+    by_claude = written_code and str(asking.get("author") or "").startswith("Claude")
     agree = None
     if second is not None and "affected-b" in arms and "fixed-b" in arms:
         a, f = arms["affected-b"], arms["fixed-b"]
         same = int(a.get("agree", -1)) == int(a.get("total", 0)) and int(f.get("agree", -1)) == int(f.get("total", 0))
-        agree = ("Two versions of this code were written apart, by two authors that never saw each other's work. Asked the same cases, "
-                 f"they gave the same answer on every case: {a.get('agree')} of {a.get('total')} on {library} {affected} and "
-                 f"{f.get('agree')} of {f.get('total')} on {library} {fixed}." if same else
-                 "Two versions of this code were written apart. They did not give the same answer on every case: "
+        apart = ("Two versions of this code were written apart, by two authors that were never shown each other's work." if by_claude else
+                 "Two versions of this code were written apart during the build. They are recorded answers, not written through the API.")
+        agree = (f"{apart} Asked the same cases, they gave the same answer on every case: {a.get('agree')} of {a.get('total')} on "
+                 f"{library} {affected} and {f.get('agree')} of {f.get('total')} on {library} {fixed} (counted by the pinned trial script)."
+                 if same else
+                 f"{apart} They did not give the same answer on every case: "
                  f"{a.get('agree')} of {a.get('total')} the same on {library} {affected}, {f.get('agree')} of {f.get('total')} on {library} {fixed}.")
-    written_code = asking["kind"] == "written"
     known = extra.get("known") or {}
     marks = (known.get("versions") or {}).get(fixed) or {}
     known_lines = []
@@ -114,7 +131,7 @@ def block(advisory: dict) -> dict | None:
         known_lines.append("The questions were made from a random number drawn after the code was fixed, so they could not be known in advance.")
         if known.get("controls_refused"):
             known_lines.append("Two dummy pieces of code of ours, one that always says yes and one that always says no, went through the "
-                               "same check and were refused, as they must be.")
+                               "same check on every copy. Each answered every question its one way, and the check refused both, as it must.")
         if written_code:
             known_lines.append("While it was a draft, the code ran on the fixed copy only. It never ran on the affected copy and never saw "
                                "a result of the trial before it was fixed.")
@@ -129,9 +146,13 @@ def block(advisory: dict) -> dict | None:
     order = [affected, fixed, *chosen["more_affected"], *chosen["more_fixed"]]
     code = {"title": "The code that asked the library", "label": WRITTEN_LABEL if written_code else None,
             "author": asking["author"], "file": asking["file"], "lines": asking["lines"], "source": asking["source"], "sha256": asking["sha256"],
-            "line": ((f"{asking['lines']} {_plural(asking['lines'], 'line')}, written for this library by Claude as Otto's code author. It holds "
-                      "no cryptography and decides nothing: it passes one question to the library's own functions and hands the library's "
-                      "own answer back. It was let through only after a screen by fixed rules and the check below.") if written_code else
+            "line": ((f"{asking['lines']} {_plural(asking['lines'], 'line')}, "
+                      + ("written for this library by Claude as Otto's code author. " if by_claude else
+                         "written for this library during the build and recorded, not written through the API. ")
+                      + "Its one job is to pass a question to the library's own functions and hand the library's own answer back. It was "
+                        "let through only after a screen by fixed rules (straight-line calls into the library, and nothing else) and the "
+                        "check below. The screen is a filter for mistakes and plain tricks, not a proof, which is why a second version, "
+                        "written apart, had to give the same answer on every case.") if written_code else
                      (f"{asking['lines']} {_plural(asking['lines'], 'line')}: the app's own asking code for this library, the same that asks "
                       "its pinned copies.")),
             "show": "Show the code", "hide": "Hide the code",
@@ -143,8 +164,10 @@ def block(advisory: dict) -> dict | None:
         "summary": (f"Tried on public copies of {library} fetched from {REGISTRY_WORDS.get(copies['registry'], copies['registry'])}: "
                     f"{library} {affected} got {arms['affected'].get('wrong')} of {arms['affected'].get('total')} "
                     f"{_plural(int(arms['affected'].get('total', 0)), 'case')} wrong, {library} {fixed} got "
-                    f"{'none' if not arms['fixed'].get('wrong') else arms['fixed'].get('wrong')} wrong, and the control that must fail did."),
-        "table": {"columns": ["On public copies", "The reviewer's count", "What had to happen"], "rows": rows, "note": NUMBERS_NOTE},
+                    f"{'none' if not arms['fixed'].get('wrong') else arms['fixed'].get('wrong')} wrong, and the control that must fail did."
+                    + (f" The publisher names no fixed version: {library} {fixed} is the first version published after the last one "
+                       "the advisory names as affected." if next_one else "")),
+        "table": {"columns": ["On public copies", "Count", "What had to happen"], "rows": rows, "note": NUMBERS_NOTE},
         "registered": {"line": (f"Registered in Otto's harness on {_moment(registered.get('at'))}, before the first run: the cases, the "
                                 "code, the copies, the images and what had to happen were frozen by fingerprint. A file that changes "
                                 "after that stops the trial." + order_words),

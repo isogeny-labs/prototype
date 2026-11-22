@@ -578,7 +578,8 @@ the app is exactly what it was. It adds three things behind one switch in **Sett
    fingerprint, and builds them into a locked container image with no network.
 3. **The asking code.** Where the app has no code of its own that asks a library the test's questions, Claude writes
    it (one small file, twice, by two authors that never see each other's work). It is used only after a screen by
-   fixed rules and a known-answer check, it never sees a right answer, and it decides nothing: the questions and
+   fixed rules and a known-answer check, and it never sees a right answer. The screen is a filter, not a proof, which
+   is why the second author's code must agree with the first on every case. The questions and
    their right answers are a publisher's, and the separate reviewer decides every run, as always.
 
 A test is proposed only after it was proven: it fails on the affected version, passes on the fixed version, the

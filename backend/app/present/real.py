@@ -4,6 +4,8 @@ library stopped with a general program error instead of its own "no", and the fi
 version). Nothing here decides a result."""
 from __future__ import annotations
 
+import re
+
 from app.engine import pq_vectors
 from app import real_libraries
 
@@ -28,21 +30,42 @@ def _table(title, tag, columns, rows, note=None):
     return {"type": "table", "title": title, "tag": tag, "columns": cols, "rows": [[str(x) for x in r] for r in rows], "meta": [], "note": note}
 
 
-def is_real(component: dict | None) -> bool:
-    return bool(component) and real_libraries.library(component.get("name"), component.get("version")) is not None
+_SANDBOX_IMAGE = re.compile(r"evidence-lab-sandbox-[a-z0-9][a-z0-9._-]{0,80}:[0-9a-f]{16}")
 
 
-def tag_of(component: dict | None) -> str:
+def ran_on_sandbox_copy(run: dict | None) -> bool:
+    """Did this stored run run in the image of a sandbox copy? Read from the run's own record (the command it ran names
+    its image), never from what this computer lists today: with Sandbox research turned off again a sandbox copy is
+    not listed any more, and a run that was made on one is still a run on a sandbox copy, and says so."""
+    todo: list = [run]
+    while todo:
+        item = todo.pop()
+        if isinstance(item, str):
+            if _SANDBOX_IMAGE.search(item):
+                return True
+        elif isinstance(item, dict):
+            todo.extend(item.values())
+        elif isinstance(item, list):
+            todo.extend(item)
+    return False
+
+
+def is_real(component: dict | None, run: dict | None = None) -> bool:
+    """A real library, not one of our demo components. `run`: a stored run, whose own record also says so."""
+    return bool(component) and (real_libraries.library(component.get("name"), component.get("version")) is not None or ran_on_sandbox_copy(run))
+
+
+def tag_of(component: dict | None, run: dict | None = None) -> str:
     """The tag beside a real library wherever its run shows: "real software", or "sandbox copy" for a copy that sandbox
     research made, so that one is never mistaken for a pinned library."""
-    if component and real_libraries.is_sandbox(component.get("name"), component.get("version")):
+    if ran_on_sandbox_copy(run) or (component and real_libraries.is_sandbox(component.get("name"), component.get("version"))):
         return SANDBOX_TAG
     return REAL_TAG
 
 
-def code_words(name: str, version: str) -> str:
+def code_words(name: str, version: str, sandbox: bool = False) -> str:
     """Which code a run on a real library ran on: the library's own files, in its own container image."""
-    lib = real_libraries.library(name, version) or real_libraries.LIBRARIES[name]
+    lib = real_libraries.library(name, version) or ({"sandbox": True} if sandbox else real_libraries.LIBRARIES[name])
     if lib.get("sandbox"):
         # Sandbox research (prototype): a public copy made on this computer, not one of the pinned libraries.
         return (f"{name} {version} (sandbox copy): the library's own files from its public package registry, checked against the "
@@ -125,7 +148,7 @@ def advisories(component: dict | None, kind: str) -> dict | None:
 
 def extras(w, kind: str, component: dict | None, review: dict) -> None:
     """What a result on a real library adds to the usual words. Changes no result."""
-    if not is_real(component):
+    if not is_real(component):          # (a sandbox copy that is no longer listed adds nothing here: the app knows no advisory table for it)
         return
     name, version = component["name"], component["version"]
     label = f"{name} {version}"

@@ -325,16 +325,29 @@ The rules, each checked by fixed rules before the file is used (`backend/ottolab
 - It loads only the library under test (for Python also `sha256` from `hashlib`, for a library that takes the hash as
   an argument).
 - Exactly one function. Inside it only straight-line calls into the library: no `if`, no loop, no comparison, no
-  `try`, no arithmetic.
-- It passes all three inputs on and returns what the library's own check gave back. Never a fixed value.
+  `try`, no arithmetic (no `+` either).
+- Its last line is its one return. It returns what a call into the library gave back, and that call was given all
+  three inputs, directly or through names made from them. Never a fixed value, and nothing the code put together.
+  Only the library's own `True` counts as accepted.
+- Of the language's own it uses only the plain conversions (`.decode`, `.encode`, `.hex`, `int.from_bytes`,
+  `bytes.fromhex`, and `.update` on an object of the library). Every other method that a text, a number, a list or a
+  table has of its own (`.count`, `.replace`, `.startswith`, `.join`, ...) is refused by name, because with those a
+  yes or a no can be put together without the library. No built-in function.
+- A part of a value is taken only at a fixed place (`public_key[1:33]`). A name is given a value once, and only a
+  plain name of the code's own: nothing of the library is replaced.
+- No comment, no docstring, no description: the file is shown to a person as it is, so it holds code only. A fixed
+  text is one short word.
 - No file, network, process, clock, randomness or environment. Nothing that reads a version or a path. No long fixed
   value. At most 60 lines.
 - The signature is read by the library's own code. The asking code does not take it apart or convert it. Where a
   library can't read a DER signature, there is no test: the answer is "the library can't be asked this question".
 
 When Claude writes it, two authors write apart, and the file is used only after the screen and the known-answer check
-(`backend/ottolab/pinned/qualify.py`). It holds no cryptography and decides nothing: the questions and their right
-answers are a publisher's, and the separate reviewer compares outside the container.
+(`backend/ottolab/pinned/qualify.py`). The screen (`backend/ottolab/screens.py`) is a filter for mistakes and plain
+tricks, not a proof: it does not know what a library's own functions do. So the weight is carried elsewhere. The
+questions and their right answers are a publisher's and never reach this code; the separate reviewer compares outside
+the container; and the second author's code must hand back the same answer on every case. One library has one piece
+of asking code by each author: a later advisory of the same library uses it again.
 
 ## The demo components
 

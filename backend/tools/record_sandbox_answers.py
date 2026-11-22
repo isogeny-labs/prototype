@@ -82,8 +82,7 @@ FIX = {
 }
 
 ASKING = {
-    "a": {"asking_code": '''"""Asking code for starkbank-ecdsa: it passes one question to the library's own functions and hands its answer back."""
-from ellipticcurve.curve import prime256v1
+    "a": {"asking_code": '''from ellipticcurve.curve import prime256v1
 from ellipticcurve.ecdsa import Ecdsa
 from ellipticcurve.publicKey import PublicKey
 from ellipticcurve.signature import Signature
@@ -98,20 +97,20 @@ def check_signature(public_key, message, signature):
           "notes": ("The library takes the message as text, so the message is passed decoded as UTF-8. It raises plain exceptions for "
                     "input it can't read; it has no error class of its own for a signature that is not valid, so the refusal list is "
                     "empty.")},
-    "b": {"asking_code": '''"""Asking code for starkbank-ecdsa (second author): one question, passed on to the library, and its own answer back."""
-from ellipticcurve import Ecdsa, PublicKey, Signature
+    "b": {"asking_code": '''from ellipticcurve import Ecdsa, PublicKey, Signature
 from ellipticcurve.curve import p256
 
 OWN_REFUSALS = ()
 
 
 def check_signature(public_key, message, signature):
-    point = PublicKey.fromString("00" + public_key.hex(), curve=p256)
+    point = PublicKey.fromString(public_key[1:65].hex(), curve=p256)
     parsed = Signature.fromDer(signature)
-    return Ecdsa.verify(message=str(message, "utf-8"), signature=parsed, publicKey=point)
+    text = message.decode("utf-8")
+    return Ecdsa.verify(message=text, signature=parsed, publicKey=point)
 ''',
-          "notes": ("The public key is passed in the library's own long form, which starts with 0004; the library takes that start off "
-                    "itself. The message is passed as UTF-8 text because the library's verify takes text.")},
+          "notes": ("The public key is passed as the hex of its two coordinates, without the first byte that marks the form. The "
+                    "message is passed as UTF-8 text because the library's verify takes text.")},
 }
 
 
@@ -130,10 +129,10 @@ def asking_prompts() -> dict[str, str]:
         registry = research_demo.sandbox_registry(Path(folder) / "registry")
         if registry is None:
             raise SystemExit("The library's public files could not be had (files.pythonhosted.org). Nothing was written.")
-        tree, readme, _ = maker.library_files(Path(folder) / "store", registries.RecordedRegistry(registry), "pypi",
-                                              research_demo.SANDBOX_LIBRARY, FIXED)
+        tree, _, _ = maker.library_files(Path(folder) / "store", registries.RecordedRegistry(registry), "pypi",
+                                         research_demo.SANDBOX_LIBRARY, FIXED)
     template = (maker.TEMPLATES / "python" / maker.LANGUAGE_FILES["python"][0]).read_text(encoding="utf-8")
-    material = asking.material(tree, readme, "python")
+    material = asking.material(tree, "python", FIXED)
     return {author: asking.prompt(library=research_demo.SANDBOX_LIBRARY, package=research_demo.SANDBOX_LIBRARY, registry_words="PyPI",
                                   language="python", template=template, library_material=material, author=author)
             for author in asking.AUTHORS}
@@ -174,13 +173,18 @@ def main(argv: list[str] | None = None) -> int:
             path = model.write_recorded(RECORDED, step, prompt, answer, AT, HOW)
             print(f"written    {step}  {path.name}")
     # An answer of this demo that stands under a prompt nobody asks any more (a text of ours changed since) is taken away:
-    # the same answer stands under today's prompt, and a stale file would only look like one more recorded answer.
+    # today's answer stands under today's prompt, and a stale file would only look like one more recorded answer. An
+    # answer is this demo's when it is one of the answers above, or when it is asking code for the demo's library
+    # (the code itself may have been written again, as when the screen's rules were tightened).
     current = {(step, model.sha256_text(prompt)) for step, prompt, _ in made}
     mine = {answer for _, _, answer in made}
+    for_this_library = f'for the library "{research_demo.SANDBOX_LIBRARY}"'
     stale = []
     for path in sorted(RECORDED.glob("*.json")):
         data = model.read_recorded(path)
-        if data is not None and data["answer"] in mine and (data["step"], data["prompt_sha256"]) not in current:
+        if data is None or (data["step"], data["prompt_sha256"]) in current:
+            continue
+        if data["answer"] in mine or (data["step"] == "write_wrapper" and for_this_library in data["prompt"]):
             stale.append(path)
     for path in stale:
         if "--check" in args:

@@ -85,6 +85,8 @@ def choose(ranges: list[dict], releases: list[dict], yours: list[str]) -> dict:
     if not inside:
         raise NoVersions(f"no affected version is published before {fixed}")
     affected = inside[-1]                               # the last release before the fix: the closest pair
+    # (the file's own affected versions, each once. All of them go into the copy set, so an accepted check can run on
+    #  each; the trial itself has room for MAX_MORE further versions, the file's own first: see ottolab/sandbox.register)
     own = [v for v in dict.fromkeys(yours) if v in inside and v != affected]
     more_affected = [v for v in reversed(inside[:-1]) if v not in own][:max(0, MAX_MORE - len(own))]
     still_affected = [r for r in ranges if r is not chosen]

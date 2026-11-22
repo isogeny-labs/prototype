@@ -18,7 +18,15 @@ written out a second time here on purpose. Nothing a pack holds is run: the aski
   6. The asking code passed the known-answer check on the affected and on the fixed version, and the check refused
      its own two dummy controls.
   7. The registration is earlier in the pack's own list of ledger entries than the first run of the trial, and it
-     froze what it must: the design, each copy set, each known-answer file and the two pinned scripts.
+     froze what it must: the design, each copy set, each known-answer file and the two pinned scripts. What can be
+     worked out again from the pack is worked out again and must be the same: the copy set's record and the design
+     under the names and fingerprints the registration gives, and the two scripts as the pack says they were run.
+     The times the proof gives for the registration and for the first run are the ledger's own.
+  8. Each part of the trial ran on the version the proof names for it, of the library of the copy set, and the parts
+     are exactly the ones the proof's versions call for.
+
+Rules 5 to 8 are the app's own too (`_bears_out` in app/otto/packs.py), written out a second time here: change one,
+change the other; a test holds both to the same forged packs.
 
 What can't be checked from a file: that the bytes on the registry were what the publisher meant (the first fetch
 trusts the registry), and that the image on the computer that made the pack held those files. docs/LIMITS.md says so.
@@ -26,6 +34,7 @@ trusts the registry), and that the image on the computer that made the pack held
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 
 from app.canonical import canonical_bytes
@@ -69,7 +78,14 @@ def _n(arm: dict, name: str) -> int:
     return value
 
 
-def _one(advisory: dict, design: dict | None) -> None:
+def _file_pin(data: dict) -> tuple[str, str]:
+    """A lab file as the research command writes it: the 12 characters its name holds, and the SHA-256 of its bytes,
+    which is what a registration freezes. (Written out a second time; ottolab/research._write_once has the first.)"""
+    text = json.dumps(data, indent=1, sort_keys=True, ensure_ascii=False) + "\n"
+    return hashlib.sha256(canonical_bytes(data)).hexdigest()[:12], _sha_text(text)
+
+
+def _one(advisory: dict, design: dict | None, scripts: object) -> None:
     what = f"the test for {_plain(advisory.get('id'), 40)}"
     test = advisory["test"]
     block, trial = test["sandbox"], test.get("trial")
@@ -118,8 +134,17 @@ def _one(advisory: dict, design: dict | None) -> None:
         if not isinstance(pins, dict) or not all(isinstance(k, str) and isinstance(v, str) and _HEX64.match(v) for k, v in pins.items()):
             raise SandboxProblem(f"the registration of {what} does not give the fingerprints of what it froze.")
         needed = ["designs/", "/set-a-", "/known-a-", "/versions-", "/arms-"] + (["/set-b-", "/known-b-"] if second is not None else [])
-        if not all(script in pins for script in SCRIPTS) or not all(any(part in name for name in pins) for part in needed):
+        if not all(script in pins for script in SCRIPTS) or not all(sum(1 for name in pins if part in name) == 1 for part in needed):
             raise SandboxProblem(f"the registration of {what} did not freeze everything a trial on sandbox copies rests on.")
+        if not isinstance(scripts, dict) or any(pins[script] != scripts.get(script) for script in SCRIPTS):
+            raise SandboxProblem(f"the registration of {what} did not freeze the scripts the pack says were run.")
+        in_name, of_file = _file_pin(record)
+        if pins.get(f"sandbox/{advisory.get('id')}/set-a-{in_name}.json") != of_file:
+            raise SandboxProblem(f"the copy set of {what} is not the one its registration froze.")
+        if design is not None:
+            in_name, of_file = _file_pin(design)
+            if pins.get(f"designs/{advisory.get('id')}-{in_name}.json") != of_file:
+                raise SandboxProblem(f"the design of {what} is not the one its registration froze.")
         entries = [e for e in advisory.get("ledger") or [] if isinstance(e, dict) and isinstance(e.get("seq"), int)]
         place = next((e["seq"] for e in entries if e.get("id") == registered["hypothesis"] and e.get("kind") == "hypothesis"), None)
         if place is None:
@@ -128,6 +153,22 @@ def _one(advisory: dict, design: dict | None) -> None:
         runs = [e["seq"] for e in entries if e.get("kind") == "run" and e["seq"] > place and (not later or e["seq"] < later[0])]
         if any(e.get("kind") == "run" and e["seq"] < place for e in entries):
             raise SandboxProblem(f"a trial run of {what} stands in the ledger before the trial was registered.")
+        at_of = {e["seq"]: e.get("at") for e in entries}
+        if registered["at"] != at_of.get(place) or registered["first_run_at"] != (at_of.get(min(runs)) if runs else None):
+            raise SandboxProblem(f"the times the proof of {what} gives are not the times of its ledger entries.")
+        # 8. each part ran on the version the proof names
+        named = {"reference": fixed, "affected": affected, "fixed": fixed, "accept-all": fixed}
+        named.update({f"more-affected-{n}": v for n, v in enumerate(versions["more_affected"], start=1)})
+        named.update({f"more-fixed-{n}": v for n, v in enumerate(versions["more_fixed"], start=1)})
+        if second is not None:
+            named.update({"affected-b": affected, "fixed-b": fixed})
+        if set(trial["arms"]) != set(named):
+            raise SandboxProblem(f"the parts of the trial of {what} are not the parts its proof names.")
+        for arm, version in named.items():
+            if trial["arms"][arm].get("version") != version or trial["arms"][arm].get("library") != record["library"]:
+                raise SandboxProblem(f"a part of the trial of {what} did not run on the version its proof names.")
+        if not isinstance(versions.get("after_last_affected"), bool):
+            raise SandboxProblem(f"the versions of {what} do not say whether the publisher named the fixed version.")
         # 5. the counts bear out what the pack says of the test
         arms = trial["arms"]
         extra = sorted(name for name in arms if _ARM.match(str(name)))
@@ -232,7 +273,8 @@ def check_packs(envelopes: list[dict], shipped_keys: set[str]) -> list[str]:
             test = advisory.get("test") if isinstance(advisory, dict) else None
             if not isinstance(test, dict) or "sandbox" not in test:
                 continue
-            _one(advisory, designs.get(test.get("design_sha256")))
+            otto = pack.get("otto")
+            _one(advisory, designs.get(test.get("design_sha256")), otto.get("scripts") if isinstance(otto, dict) else None)
             tests += 1
             written += 1 if ((test["sandbox"].get("set") or {}).get("asking") or {}).get("kind") == "written" else 0
     if not packs:

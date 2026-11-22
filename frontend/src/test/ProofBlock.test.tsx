@@ -25,7 +25,7 @@ describe("How this test was proven", () => {
     expect(calls(fetchMock)).toEqual([]);
   });
 
-  it("lists every part of the trial with the reviewer's count and what had to happen, and never a Passed or a Failed", () => {
+  it("lists every part of the trial with its count and what had to happen, and never a Passed or a Failed", () => {
     render(<ProofBlock proof={proof()} open />);
     const rows = screen.getAllByTestId("proof-row");
     expect(rows.map((r) => r.getAttribute("data-part"))).toEqual(["reference", "affected", "fixed", "control", "more-fixed-1", "more-fixed-2"]);
@@ -37,7 +37,9 @@ describe("How this test was proven", () => {
     expect(text(within(rows[3]!).getByTestId("proof-count"))).toBe("64 of 64 cases wrong");
     const all = text(screen.getByTestId("proof-block"));
     for (const word of ["Passed", "Failed", "secure", "severity", "score"]) expect(all).not.toContain(word);
-    expect(all).toContain("Each count is the separate reviewer's");
+    // only the reviewer's counts are called the reviewer's: the control's is the pinned trial script's, and the note says so
+    expect(all).toContain("for the library's copies and for our reference library are the separate reviewer's");
+    expect(all).toContain("The control's count is made by the pinned trial script");
   });
 
   it("says when the trial was registered, what it froze, how it was judged, that the replay was no outside party, and what it does not show", () => {
@@ -67,7 +69,7 @@ describe("How this test was proven", () => {
     const source = screen.getByTestId("asking-code-source");
     expect(source.tagName).toBe("PRE");
     expect(source.textContent).toContain("def check_signature(public_key, message, signature):");
-    expect(screen.getByTestId("asking-code-second-source").textContent).toContain("(second author)");
+    expect(screen.getByTestId("asking-code-second-source").textContent).toContain("parsed = Signature.fromDer(signature)");
     expect(screen.getByTestId("asking-code-second-source").textContent).not.toBe(source.textContent);
     fireEvent.click(toggle);
     expect(screen.queryByTestId("asking-code-source")).toBeNull();

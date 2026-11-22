@@ -8,6 +8,7 @@ import copy
 import json
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 from sandbox_helpers import sandbox_lab, turn_on
@@ -17,6 +18,7 @@ from app.db import OttoResearchRow
 from app.otto import model
 from app.present import lookup as words
 from app.present import watchlist as watch_words
+from ottolab import research
 from tools import research_demo
 
 ID = "CVE-2021-43572"
@@ -191,6 +193,12 @@ def test_the_days_limit_stops_a_run_that_asks_claude_and_never_one_on_recorded_a
             db.commit()
         assert lab.sandbox_spent_today() == model.NANO and lab.sandbox_run_limit() == 0
         assert lab.lookup_view(plan)["research"]["can"] is True                   # Live Otto is off: recorded answers cost nothing
+        # ... and such a run really starts, with the limit for one run (the review: it was started with "--limit 0.00",
+        # which the research command refuses)
+        base = _stand_in(lab, monkeypatch)
+        lab.start_research(plan)
+        lab.wait_until_research_done(60)
+        assert base[0][base[0].index("--limit") + 1] == "5.00" and "--live" not in base[0]
         lab.set_live_otto(on=True)
         blocked = lab.lookup_view(plan)["research"]
         assert blocked["can"] is False and blocked["blocked_reason"].startswith("Today's spending limit is reached. The next run can start after ")
@@ -199,8 +207,69 @@ def test_the_days_limit_stops_a_run_that_asks_claude_and_never_one_on_recorded_a
         assert lab.lookup_view(plan)["research"]["can"] is True and lab.sandbox_run_limit() == 5 * model.NANO
         lab.set_sandbox(day_limit="3.00")
         assert lab.sandbox_run_limit() == 2 * model.NANO                          # the smaller of the two: what is left of the day
+        # less than one cent left of the day starts no run that asks Claude (it could not even be given a limit)
+        with lab.db() as db:
+            for kind, spent in (("started", 0), ("finished", 1_995_000_000)):
+                db.add(OttoResearchRow(plan_id=plan, run_key="nearly", kind=kind, at=at, by="You", lookup_id=1, advisories=[ID], live=True,
+                                       limit_nano=2 * model.NANO, installed_first=[], exit_code=None if kind == "started" else 3,
+                                       pack_version=None, output=[], sandbox=True, spent_nano=spent))
+            db.commit()
+        assert lab.sandbox_spent_today() == 2_995_000_000 and lab.sandbox_run_limit() == 0
+        assert lab.lookup_view(plan)["research"]["can"] is False
     finally:
         lab.stop()
+
+
+@pytest.mark.needs_otto
+def test_a_run_that_ended_without_saying_what_it_spent_counts_with_its_whole_limit(tmp_path, monkeypatch):
+    """The review: a live run that was stopped, or ended with an error, left no word of what it spent and counted as
+    nothing, so the day's limit could be passed. What a run spent is now on file from its start; a run that left no
+    such file, or one that can't be read, counts in full."""
+    lab, plan = _lab(tmp_path, monkeypatch, key=True)
+    try:
+        extras = tmp_path / "extras"
+        extras.mkdir()
+        limit = 5 * model.NANO
+        assert lab._spent_by(None) == 0                                           # no sandbox run: nothing to count
+        assert lab._spent_by(extras) is None and lab._counted_spent(extras, True, limit) == limit
+        assert lab._counted_spent(extras, False, limit) == 0                      # (a run on recorded answers pays nothing)
+        (extras / "summary.json").write_text(json.dumps({"spent_nano": 0, "calls": 0, "unanswered_nano": 0}), encoding="utf-8")
+        assert lab._spent_by(extras) == 0 and lab._counted_spent(extras, True, limit) == 0     # as the command leaves it at its start
+        (extras / "summary.json").write_text(json.dumps({"spent_nano": 1_200_000_000, "calls": 3, "unanswered_nano": 300_000_000}), encoding="utf-8")
+        assert lab._counted_spent(extras, True, limit) == 1_500_000_000           # what was paid, and what requests with no answer may have cost
+        for damaged in ('{"spent_nano": "a lot"}', '{"spent_nano": -1}', '{"spent_nano": true}', "[1]", "not json", ""):
+            (extras / "summary.json").write_text(damaged, encoding="utf-8")
+            assert lab._spent_by(extras) is None and lab._counted_spent(extras, True, limit) == limit, damaged
+        (extras / "summary.json").write_text(json.dumps({"spent_nano": 9 * model.NANO}), encoding="utf-8")
+        assert lab._counted_spent(extras, True, limit) == limit                   # never more than the run could spend
+        # and the day's sum reads the end row as it was written
+        at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+        with lab.db() as db:
+            for kind in ("started", "finished"):
+                db.add(OttoResearchRow(plan_id=plan, run_key="cut-off", kind=kind, at=at, by="You", lookup_id=1, advisories=[ID], live=True,
+                                       limit_nano=limit, installed_first=[], exit_code=None, pack_version=None, output=[], sandbox=True,
+                                       spent_nano=0 if kind == "started" else lab._counted_spent(tmp_path / "nowhere", True, limit)))
+            db.commit()
+        assert lab.sandbox_spent_today() == limit
+    finally:
+        lab.stop()
+
+
+def test_the_research_command_keeps_what_it_spent_on_file_from_its_start(tmp_path, monkeypatch):
+    """With --summary the file of what the run has spent is the summary itself, so it is there whenever the run ends."""
+    import ottolab.build as build
+    source = Path(build.__file__).read_text(encoding="utf-8")
+    start = source.index("spent_file = Path(args.summary) if args.summary else")
+    assert 'spent_file.write_text(json.dumps({"spent_nano": 0, "calls": 0, "unanswered_nano": 0})' in source[start:start + 400]
+    # the research steps write the same file again after every step
+    monkeypatch.setenv(research.ENV_SPENT, str(tmp_path / "summary.json"))
+    monkeypatch.setenv(research.ENV_LIMIT, str(5 * model.NANO))
+    monkeypatch.setenv(research.ENV_RECORDED, str(tmp_path))
+    monkeypatch.setenv(research.ENV_LIVE, "0")
+    made = research.env_model()
+    made.budget.spent_nano, made.budget.calls, made.budget.unanswered_nano = 700, 2, 30
+    research.save_spent(made)
+    assert json.loads((tmp_path / "summary.json").read_text()) == {"spent_nano": 700, "calls": 2, "unanswered_nano": 30}
 
 
 # ---------------------------------------------------------------- the second tick: a run the clock starts

@@ -101,6 +101,7 @@ def test_the_whole_line_from_no_fix_yet_to_a_proven_check_a_person_accepts_and_t
         assert extra["versions"]["more_fixed"] == ["2.0.2", "2.3.1"] and all(arms[f"more-fixed-{n}"]["wrong"] == 0 for n in (1, 2))
         assert {v["version"] for v in extra["versions"]["left_out"]} == {"1.1.0", "1.1.1"}  # the frozen code does not work there: left out, with the reason
         assert extra["known"]["controls_refused"] is True and extra["second_known"]["controls_refused"] is True
+        assert extra["versions"]["after_last_affected"] is False             # the publisher named the fixed version itself
         assert [s["step"] for s in entry["steps"]] == ["read_advisory", "design_test", "write_wrapper", "write_wrapper", "propose_fix"]
         assert all(s["source"] == "recorded" and s["model"] is None and s["cost_nano_usd"] == 0 for s in entry["steps"])
         # the publisher's fix is not offered as proven: the fixed version still fails other locked tests, and that is said
@@ -111,6 +112,9 @@ def test_the_whole_line_from_no_fix_yet_to_a_proven_check_a_person_accepts_and_t
         card = listed["panel"]["here"]["rows"][0]["proposal"]
         assert card["status"]["key"] == "proposed" and card["proof"]["label"] == "Sandbox copy"
         assert card["proof"]["code"]["label"] == "Written by Otto" and card["proof"]["code"]["second"] is not None
+        # (who wrote the code is said as it was: this run replayed answers recorded during the build)
+        assert card["proof"]["code"]["author"] == "Recorded during the build, not through the API (author a)"
+        assert "Claude" not in card["proof"]["code"]["line"] and card["proof"]["table"]["columns"][1] == "Count"
         mine = next(p for p in lab.otto_proposals(pid, ("check",)) if p["about"]["advisory"] == ID)
         lab.otto_decide(pid, mine["id"], "accept")
         assert _runs(lab) == runs_before                         # accepting ran nothing
@@ -144,5 +148,13 @@ def test_the_whole_line_from_no_fix_yet_to_a_proven_check_a_person_accepts_and_t
         lab.set_sandbox(on=False)
         from app import real_libraries
         assert real_libraries.library("starkbank-ecdsa", "2.0.0") is None
+        # ... and the run that was made on it still says what it ran on: a sandbox copy, never "demo" (the stored run
+        # names its image), on screen and in the report
+        still = next(r for r in lab.lab_view(pid)["rows"] if r["item_id"] == item_id)["result"]
+        assert still["sandbox_copy"] is True and still["real"] is True and (still["code"], still["label"]) == ("failed", "Failed")
+        tags = {m["label"]: m["tag"] for m in still["run_record"]["meta"]}
+        assert tags["Component"] == "sandbox copy" and tags["Code"] == "sandbox copy"
+        report = lab.evidence_file(lab.export_evidence(pid)["id"], "html")[1].decode("utf-8")
+        assert "starkbank-ecdsa 2.0.0 [sandbox copy]" in report and "starkbank-ecdsa 2.0.0 [demo]" not in report
     finally:
         lab.stop()

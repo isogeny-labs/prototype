@@ -104,6 +104,45 @@ def test_only_the_registrys_own_hosts_are_ever_asked():
             live.project("pypi", bad)        # type: ignore[arg-type]
 
 
+def test_a_redirect_is_not_followed_so_only_the_listed_hosts_are_ever_reached(monkeypatch):
+    """The separate review of 22 November 2026: the host list held for the first address only, because the reader
+    followed redirects. It follows none now, as the advisory source's reader never did; a redirect then comes back as
+    the HTTP status it is, which is a stop."""
+    import urllib.error
+    import urllib.request
+    assert registries._NoRedirect().redirect_request(None, None, 302, "Found", {}, "https://elsewhere.example/x") is None
+    built: list = []
+
+    class _Opener:
+        def open(self, request, timeout):
+            raise urllib.error.HTTPError(request.full_url, 302, "Found", {}, None)       # what a redirect that is not followed comes back as
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *handlers: (built.append(handlers), _Opener())[1])
+    monkeypatch.setattr(urllib.request, "urlopen", lambda *a, **k: (_ for _ in ()).throw(AssertionError("urlopen follows redirects")))
+    own = registries._http.the_readers_own                    # (the suite keeps a refusal in its place: tests/conftest.py)
+    with pytest.raises(urllib.error.HTTPError):
+        own("https://pypi.org/pypi/thing/json", 5.0, 1000)
+    assert built == [(registries._NoRedirect,)]
+    live = registries.LiveRegistry(transport=own)
+    with pytest.raises(registries.RegistryError, match="answered with an error \\(HTTP 302\\)") as stop:
+        live.project("pypi", "thing")
+    assert stop.value.later is True
+
+
+def test_an_answer_that_is_not_what_the_registry_documents_is_a_stop_never_no_such_copy():
+    """A go-between's error page, for one: nothing was learned about the package."""
+    for raw in (b"<html>502 Bad Gateway</html>", b"[1, 2]", b'{"releases": 7}'):
+        with pytest.raises(registries.RegistryError) as stop:
+            registries.read_versions("pypi", raw)
+        assert stop.value.later is True, raw
+    with pytest.raises(registries.RegistryError) as stop:
+        registries.read_versions("npm", b'{"versions": []}')
+    assert stop.value.later is True
+    # (what the registry does say about a package is an answer: settled)
+    with pytest.raises(registries.RegistryError, match="lists no plain-Python file") as settled:
+        registries.read_release("pypi", "thing", "1.0.0", _pypi(files=[]), None)
+    assert settled.value.later is False
+
+
 def test_could_not_be_reached_is_a_stop_and_not_there_is_an_answer():
     def down(url, timeout, limit):
         raise OSError("no network")

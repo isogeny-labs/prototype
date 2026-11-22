@@ -55,7 +55,9 @@ def facts_of(ranges: list) -> list[list]:
 
 
 def is_open(facts: list[list]) -> bool:
-    """Does at least one range name a first affected version and no end? Then no fixed version is named for it."""
+    """Does at least one range name a first affected version and no end? Then no fixed version is named for it.
+    (A record that gives no ranges at all is neither: it is not put on the list for that, and an item on the list does
+    not move for that. "Fix published" needs the source to NAME an end.)"""
     return any(f[1] is None and f[2] is None for f in facts)
 
 
@@ -92,27 +94,33 @@ def derive(looks: list[dict]) -> list[dict]:
                     continue
                 key = f"{ids[0]}{SEPARATOR}{library}"
                 item = items[key] = {"key": key, "id": ids[0], "ids": [], "library": library, "first": {"look": number, "at": at},
-                                     "facts": facts, "open": True, "there": True, "withdrawn": False, "quiet": 0, "events": []}
+                                     "facts": facts, "given": facts, "open": True, "there": True, "withdrawn": False, "quiet": 0, "events": []}
                 happened(item, SEEN)
             else:
                 changed = False
                 if item["withdrawn"] or not item["there"]:
                     happened(item, BACK)
                     changed = True
-                if facts != item["facts"]:
-                    before, after = ends_of(item["facts"]), ends_of(facts)
-                    if item["open"] and not now_open:
-                        happened(item, FIX, ends=after)
-                    elif not item["open"] and now_open:
-                        happened(item, FIX_GONE, before=before)
-                    elif before != after:
-                        happened(item, FIX_CHANGED, before=before, ends=after)
-                    else:
+                if facts != item["given"]:
+                    if not facts:
+                        # The record gives no version ranges any more. That names no fixed version, and takes none
+                        # back: the item stands where it stood, with the ranges that were last given.
                         happened(item, VERSIONS_CHANGED)
+                    else:
+                        before, after = ends_of(item["facts"]), ends_of(facts)
+                        if item["open"] and not now_open:
+                            happened(item, FIX, ends=after)
+                        elif not item["open"] and now_open:
+                            happened(item, FIX_GONE, before=before)
+                        elif before != after:
+                            happened(item, FIX_CHANGED, before=before, ends=after)
+                        else:
+                            happened(item, VERSIONS_CHANGED)
+                        item.update(facts=facts, open=now_open)
                     changed = True
                 if not changed:
                     item["quiet"] += 1
-                item.update(facts=facts, open=now_open, there=True, withdrawn=False)
+                item.update(given=facts, there=True, withdrawn=False)
             for i in ids:
                 index[(i, library)] = item["key"]
                 if i not in item["ids"]:

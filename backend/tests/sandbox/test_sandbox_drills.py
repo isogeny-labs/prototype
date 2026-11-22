@@ -48,7 +48,11 @@ def _table(**changes) -> dict:
     return out
 
 
-def _step(name: str, prompt: str, answer: str) -> model.Step:
+def _step(name: str, prompt: str, answer: str, live: bool = False) -> model.Step:
+    if live:      # (a stand-in for an answer that came through the API: it names a model and has a cost)
+        return model.Step(step=name, source="live", model="a-model-for-a-test", prompt=prompt, answer=answer, prompt_sha256=model.sha256_text(prompt),
+                          answer_sha256=model.sha256_text(answer), input_tokens=900, output_tokens=120, cost_nano_usd=4_000_000, at=demo.AT,
+                          how="Asked through the API (a stand-in, for a test)")
     return model.Step(step=name, source="recorded", model=None, prompt=prompt, answer=answer, prompt_sha256=model.sha256_text(prompt),
                       answer_sha256=model.sha256_text(answer), input_tokens=0, output_tokens=0, cost_nano_usd=0, at=demo.AT, how=demo.HOW)
 
@@ -56,7 +60,7 @@ def _step(name: str, prompt: str, answer: str) -> model.Step:
 class Trial:
     """A lab with one registered trial on sandbox copies, ready to run."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, before_register=None) -> None:
         self.root = root
         self.lab = research.open_lab(root)
         (root / sandbox.TRIAL).write_text(STUB, encoding="utf-8")
@@ -80,6 +84,9 @@ class Trial:
         for claim in (read, designed, *drafts):
             self.lab.verify(claim)             # the harness's own verify step: it runs the pinned checker on each record
         rel = {name: f"sandbox/{ADVISORY}/{lab_file(name).name}" for name in ("versions", "set-a", "known-a", "set-b", "known-b")}
+        self.drafts = drafts
+        if before_register is not None:
+            before_register(self, rel)
         self.said = sandbox.register(self.lab, self.qid, self.advisory, self.reading, self.design, [read, designed, *drafts], rel["versions"],
                                      rel["set-a"], rel["known-a"], rel["set-b"], rel["known-b"])
         self.hid = research.trials_of(self.lab.state(), ADVISORY, "test", self.lab)[-1][0]
@@ -252,6 +259,7 @@ def before_the_asking_code(tmp_path, monkeypatch):
     monkeypatch.setattr(sandbox, "plan_versions", lambda lab_, advisory_, facts_, reading_: research._write_once(lab_, f"sandbox/{ADVISORY}", "versions", versions))
     from pathlib import PurePosixPath
     monkeypatch.setattr(sandbox.maker, "library_files", lambda *args: ({PurePosixPath("ellipticcurve/__init__.py"): b"x = 1\n"}, "A read-me.", {}))
+    monkeypatch.setattr(sandbox.maker, "not_ready", lambda language: None)           # (Docker and the base images: asked for real in the slow test)
     return lab, qid, advisory
 
 
@@ -304,3 +312,257 @@ def test_a_draft_the_screen_refuses_is_recorded_with_the_reason_and_three_drafts
     said = sandbox.propose_test(lab, cheat, qid, advisory, {})
     assert "No test yet: the code that asks the library could not be made to work on starkbank-ecdsa (after 3 drafts by one author)." in said
     assert build.advisory_entry(lab, lab.state(), advisory)[0]["test"]["state"] == "none"
+
+
+# ---------------------------------------------------------------- the separate review of 22 November 2026: stops, kept answers, one code
+
+class _Counts(_Says):
+    """An author whose answers are counted, and whose prompts are kept."""
+
+    def __init__(self, answer: dict, live: bool = False) -> None:
+        super().__init__(answer)
+        self.prompts: list[str] = []
+        self.live = live
+
+    def ask(self, step, prompt):
+        self.prompts.append(prompt)
+        return _step(step, prompt, self.answer, live=self.live)
+
+
+def _verify_all(lab, advisory_id: str = ADVISORY) -> None:
+    for claim, _ in research.step_claims(lab.state(), advisory_id):
+        if not lab.state().settled(claim):
+            lab.verify(claim)
+
+
+def _dead_ends(lab) -> list[str]:
+    return [str(fact["statement"]) for _, fact in lab.state().of("fact") if sandbox.TAG in fact.get("tags", [])]
+
+
+def test_docker_that_does_not_answer_is_a_stop_before_anything_is_asked(before_the_asking_code, monkeypatch):
+    """Everything that can stop is tried before Claude is asked: a run that can't build an image asks nothing."""
+    lab, qid, advisory = before_the_asking_code
+    monkeypatch.setattr(sandbox.maker, "not_ready", lambda language: "Docker is not running on this computer, so no image of public copies can be built")
+    author = _Counts(demo.ASKING["a"])
+    head = lab.ledger.head()["head"]
+    said = sandbox.propose_test(lab, author, qid, advisory, {})
+    assert "left for a later run" in said and "Docker is not running" in said
+    assert author.prompts == [] and lab.ledger.head()["head"] == head and _dead_ends(lab) == []
+    assert "Docker is not running" in build.unsettled(lab, lab.state(), ADVISORY, live=True)       # not settled: a later run takes it up
+
+
+def test_a_download_that_came_back_damaged_is_a_stop_and_a_package_that_cant_be_copied_is_settled(before_the_asking_code, monkeypatch):
+    """A stop is never signed into a pack as "No test yet". (The review: every copy problem was settled as a dead end,
+    also Docker not answering, and the advisory was then never tried again.)"""
+    lab, qid, advisory = before_the_asking_code
+    author = _Counts(demo.ASKING["a"])
+
+    def damaged(*args):
+        raise sandbox.copies.CopyError("starkbank-ecdsa-2.0.1.tar.gz does not have the fingerprint PyPI itself gives for it, so it was not used.", later=True)
+    monkeypatch.setattr(sandbox.maker, "library_files", damaged)
+    said = sandbox.propose_test(lab, author, qid, advisory, {})
+    assert "left for a later run" in said and _dead_ends(lab) == [] and author.prompts == []
+    assert build.unsettled(lab, lab.state(), ADVISORY, live=True) is not None
+
+    def not_json(*args):
+        raise sandbox.registries.RegistryError("The answer of PyPI is not valid JSON.", later=True)        # (a go-between's error page, for one)
+    monkeypatch.setattr(sandbox.maker, "library_files", not_json)
+    assert "left for a later run" in sandbox.propose_test(lab, author, qid, advisory, {}) and _dead_ends(lab) == []
+
+    def no_python(*args):
+        raise sandbox.copies.CopyError("starkbank-ecdsa-2.0.1.tar.gz holds no Python code that can be loaded as it is, so no copy was made of it.")
+    monkeypatch.setattr(sandbox.maker, "library_files", no_python)
+    said = sandbox.propose_test(lab, author, qid, advisory, {})
+    assert "No test yet: a public copy could not be put together" in said and len(_dead_ends(lab)) == 1
+    assert build.unsettled(lab, lab.state(), ADVISORY, live=True) is None                           # settled, with its reason
+
+
+def test_an_answer_claude_gave_is_kept_when_the_step_stops_after_the_call_and_it_is_not_one_of_the_three_drafts(before_the_asking_code, monkeypatch):
+    """Every Claude step is kept with its prompt, its answer, its tokens and its cost: also one whose copies could not
+    be built. (The review: such a call was in no ledger.) It was never tried, so it does not count as a draft and its
+    author is told nothing about it."""
+    lab, qid, advisory = before_the_asking_code
+    author = _Counts(demo.ASKING["a"], live=True)
+
+    def no_image(**kwargs):
+        raise sandbox.copies.CopyError("the image of the public copies of starkbank-ecdsa could not be built (is Docker running, and are the base "
+                                       "images prepared?)", later=True)
+    monkeypatch.setattr(sandbox.maker, "make_set", no_image)
+    for n in range(1, 5):                                     # four times: more than the three drafts an author has
+        said = sandbox.propose_test(lab, author, qid, advisory, {})
+        assert "left for a later run" in said and "could not be built" in said
+        _verify_all(lab)
+        assert len(author.prompts) == n and "Your earlier drafts" not in author.prompts[-1]
+    drafts = sandbox.drafts_of(lab.state(), lab, ADVISORY, "a")
+    assert len(drafts) == 4 and _dead_ends(lab) == []
+    for cid, art in drafts:
+        assert art["outcome"] == "refused" and art["drafted"]["stopped"] is True and art["refusal"].startswith("It was not tried: ")
+        assert art["step"]["cost_nano_usd"] == 4_000_000 and art["step"]["model"] == "a-model-for-a-test" and art["step"]["answer"] == author.answer
+        assert lab._accepted(cid, lab.state())                # the pinned checker takes the record: the prompt and the answer are whole
+    assert [art["drafted"]["attempt"] for _, art in drafts] == [1, 2, 3, 4]
+    assert build.unsettled(lab, lab.state(), ADVISORY, live=True) is not None
+
+
+def _stand_ins(monkeypatch, known_of=None, seen: dict | None = None):
+    """The copies and the known-answer check of the real run, in place of containers."""
+    record = json.loads(lab_file("set-a").read_text(encoding="utf-8"))
+    known = json.loads(lab_file("known-a").read_text(encoding="utf-8"))
+
+    def make_set(**kwargs):
+        if seen is not None:
+            seen.update(kwargs)
+        return record, []
+    monkeypatch.setattr(sandbox.maker, "make_set", make_set)
+    monkeypatch.setattr(sandbox, "qualify", lambda lab, set_rel, out_rel, only=None: (known_of or (lambda k: k))(json.loads(json.dumps(known))))
+    return record, known
+
+
+def test_a_known_answer_check_whose_own_controls_did_not_answer_is_a_stop_never_a_pass(before_the_asking_code, monkeypatch):
+    """The review: a dummy that crashed or was missing counted as "refused, as it must be"."""
+    lab, qid, advisory = before_the_asking_code
+
+    def silent(known: dict) -> dict:
+        for version in known["dummies"]:
+            known["dummies"][version]["yes"] = {"accepted_valid": 0, "rejected_spoiled": 0, "no_answer": 24, "notes": {}}
+        return known
+    _stand_ins(monkeypatch, silent)
+    said = sandbox.propose_test(lab, _Counts(demo.ASKING["a"]), qid, advisory, {})
+    assert "left for a later run" in said and "controls did not answer as they must" in said and _dead_ends(lab) == []
+    (_, art), = sandbox.drafts_of(lab.state(), lab, ADVISORY, "a")
+    assert art["drafted"]["stopped"] is True and sandbox.accepted_draft(lab.state(), lab, ADVISORY, "a") is None
+    # (and the rule itself: each dummy must have answered every question its one way)
+    good = json.loads(lab_file("known-a").read_text(encoding="utf-8"))
+    assert sandbox.controls_hold(good, "2.0.1") and not sandbox.controls_hold(silent(json.loads(json.dumps(good))), "2.0.1")
+    assert not sandbox.controls_hold({**good, "dummies": {}}, "2.0.1")
+
+
+def test_who_wrote_the_asking_code_is_recorded_as_it_was(before_the_asking_code, monkeypatch):
+    """A recorded answer names no model, so the copy set's record does not call it Claude's."""
+    lab, qid, advisory = before_the_asking_code
+    seen: dict = {}
+    _stand_ins(monkeypatch, seen=seen)
+    sandbox.propose_test(lab, _Counts(demo.ASKING["a"]), qid, advisory, {})
+    assert seen["asking"] == {"kind": "written", "author": "Recorded during the build, not through the API (author a)",
+                              "source": demo.ASKING["a"]["asking_code"]}
+    _verify_all(lab)
+    sandbox.propose_test(lab, _Counts(demo.ASKING["b"], live=True), qid, advisory, {})
+    assert seen["asking"]["author"] == "Claude (author b)"
+
+
+def test_a_record_of_a_package_published_to_do_harm_is_never_fetched_by_the_research_command(tmp_path, monkeypatch):
+    """The app's Advisories page already says so; this is the same rule in the command that fetches."""
+    lab = research.open_lab(tmp_path / "lab")
+
+    def asked():
+        raise AssertionError("a registry was asked")
+    monkeypatch.setattr(sandbox, "source", asked)
+    facts = {"library": "x", "registry": "pypi", "package": "x", "ranges": [{"introduced": "0", "fixed": "1.0.1", "last_affected": None}], "yours": []}
+    for record in ({"id": "MAL-2024-1234", "aliases": []}, {"id": "GHSA-aaaa-bbbb-cccc", "aliases": ["mal-2024-1"]}):
+        assert sandbox.harmful(record)
+        with pytest.raises(sandbox.DeadEnd, match="published to do harm"):
+            sandbox.plan_versions(lab, record, facts, {"fixed": {"version": "1.0.1"}})
+    assert not sandbox.harmful({"id": "CVE-2021-43572", "aliases": ["GHSA-92vm-mxjf-jqf3"]})
+
+
+def test_where_the_publisher_names_no_fixed_version_the_next_one_is_taken_and_never_called_the_publishers(tmp_path, monkeypatch):
+    """The plan, part 4.8. And a reading that names another fixed version than the one taken is a disagreement."""
+    lab = research.open_lab(tmp_path / "lab")
+    listed = [{"version": v, "published": "2021-01-01"} for v in ("1.9.0", "2.0.0", "2.0.1", "2.0.2")]
+
+    class _Source:
+        def project(self, registry, package):
+            return b"{}"
+    monkeypatch.setattr(sandbox, "source", lambda: _Source())
+    monkeypatch.setattr(sandbox.registries, "read_versions", lambda registry, raw: listed)
+    facts = {"library": "x", "registry": "pypi", "package": "x", "ranges": [{"introduced": "0", "fixed": None, "last_affected": "2.0.0"}], "yours": []}
+    with pytest.raises(sandbox.DeadEnd, match="disagree about the fixed version"):
+        sandbox.plan_versions(lab, {"id": "CVE-2099-0002", "aliases": []}, facts, {"fixed": {"version": "2.0.2"}})
+    rel = sandbox.plan_versions(lab, {"id": "CVE-2099-0003", "aliases": []}, facts, {"fixed": None})
+    plan = json.loads((tmp_path / "lab" / rel).read_text(encoding="utf-8"))
+    assert plan["chosen"]["fixed"] == "2.0.1" and plan["chosen"]["after_last_affected"] is True
+
+
+def test_the_registration_says_so_when_the_fixed_side_is_only_the_next_version_published(tmp_path):
+    def next_one(trial, rel) -> None:
+        path = trial.root / rel["versions"]
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["chosen"]["after_last_affected"] = True
+        path.write_text(json.dumps(data, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    trial = Trial(tmp_path / "lab", before_register=next_one)
+    hyp = trial.lab.state().get(trial.hid, "hypothesis")
+    assert "the first version published after the last one the advisory names as affected (the publisher names no fixed version)" \
+        in hyp["arms"]["fixed"]["description"] and "publisher's fixed version" not in json.dumps(hyp["arms"])
+    assert "The publisher names no fixed version" in hyp["claim"]
+    test = trial.go(_table())
+    assert test["state"] == "ready" and test["sandbox"]["versions"]["after_last_affected"] is True
+
+
+def test_a_trial_has_room_for_two_further_versions_on_each_side_and_says_which_found_none(tmp_path, monkeypatch):
+    """The review: a file that named three affected versions made a registration with a part the pack's form does not
+    know, and every later run of that assessment then stopped."""
+    from app.sandbox import versions
+    releases = [{"version": v, "published": "2021-01-01"} for v in ("1.0.0", "1.1.0", "1.1.1", "1.2.0", "1.3.0", "2.0.0", "2.0.1", "2.0.2", "2.3.1")]
+    chosen = versions.choose([{"introduced": "0", "fixed": "2.0.1", "last_affected": None}], releases, ["1.1.0", "1.2.0", "1.3.0"])
+    assert chosen["yours"] == ["1.1.0", "1.2.0", "1.3.0"]            # all of the file's versions are in the copy set, so a check can run on each
+    monkeypatch.setattr(versions, "MAX_MORE", 1)                     # (the real run's copy set has two further fixed versions: room for one, here)
+    trial = Trial(tmp_path / "lab")
+    hyp = trial.lab.state().get(trial.hid, "hypothesis")
+    assert "more-fixed-1" in hyp["arms"] and "more-fixed-2" not in hyp["arms"]
+    arms = json.loads(next((trial.root / "sandbox" / ADVISORY).glob("arms-*.json")).read_text())
+    assert arms["more_fixed"] == ["2.0.2"]
+    assert {"version": "2.3.1", "reason": "a trial tries 1 further versions on each side, and this one found no room"} in arms["left_out"]
+    from app.otto import packs
+    assert all(packs.SANDBOX_ARMS.match(name) for name in hyp["arms"] if name not in ("reference", "affected", "fixed", "accept-all"))
+
+
+def test_one_library_has_one_piece_of_asking_code_a_later_advisory_uses_it_again_and_nothing_new_is_written(tmp_path, monkeypatch):
+    """The review: asking code was written anew for every advisory, and a check that had been accepted then ran in the
+    newest copy set, with code it was never proven with. Now the code of the first trial that held is used again."""
+    trial = Trial(tmp_path / "lab")
+    assert trial.go(_table())["state"] == "ready"                                    # the first advisory's trial held
+    lab = trial.lab
+    other = {**trial.advisory, "id": "CVE-2099-0001", "aliases": []}
+    qid = lab.add(research.test_question(other, {"snapshot": "2026-11-23"}, "1" * 64), research.COORDINATOR)
+    plan = json.loads(lab_file("versions").read_text(encoding="utf-8"))
+    plan_rel = research._write_once(lab, "sandbox/CVE-2099-0001", "versions", {**plan, "advisory": "CVE-2099-0001"})
+    from pathlib import PurePosixPath
+    monkeypatch.setattr(sandbox.maker, "library_files", lambda *args: ({PurePosixPath("ellipticcurve/__init__.py"): b"x = 1\n"}, None, {}))
+    monkeypatch.setattr(sandbox.maker, "not_ready", lambda language: None)
+    monkeypatch.setenv(sandbox.ENV_STORE, str(tmp_path / "store"))
+    seen: dict = {}
+    _stand_ins(monkeypatch, seen=seen)
+
+    class _MustNotBeAsked:
+        def ask(self, step, prompt):
+            raise AssertionError("the author was asked again")
+    found = sandbox.proven_code(lab.state(), lab, "CVE-2099-0001", "starkbank-ecdsa", "a")
+    assert found is not None and found[0] == ADVISORY and found[2]["asking_code"] == demo.ASKING["a"]["asking_code"]
+    assert sandbox.proven_code(lab.state(), lab, ADVISORY, "starkbank-ecdsa", "a") is None          # never from its own advisory
+    assert sandbox.proven_code(lab.state(), lab, "CVE-2099-0001", "another-library", "a") is None
+    said = sandbox.write_asking(lab, _MustNotBeAsked(), qid, other, plan_rel, "a")
+    assert "is the one this computer already uses for starkbank-ecdsa (from CVE-2021-43572)" in said
+    assert seen["asking"]["source"] == demo.ASKING["a"]["asking_code"]                              # the same code goes into the new copy set
+    (cid, art), = sandbox.drafts_of(lab.state(), lab, "CVE-2099-0001", "a")
+    assert art["outcome"] == "used" and art["drafted"]["reused_from"] == trial.drafts[0]
+    assert art["step"]["cost_nano_usd"] == 0 and art["step"]["input_tokens"] == 0 and "Used again from CVE-2021-43572" in art["step"]["how"]
+    assert art["step"]["how"].startswith(demo.HOW)                                                  # a recorded answer keeps its label
+    lab.verify(cid)
+    assert lab._accepted(cid, lab.state()) and sandbox.accepted_draft(lab.state(), lab, "CVE-2099-0001", "a") is not None
+
+
+def test_the_copy_a_check_runs_in_is_the_first_one_made_for_its_version(tmp_path):
+    """So a later copy set of the same library never changes what an accepted check runs in."""
+    from app.sandbox import copies
+    first = json.loads(lab_file("set-a").read_text(encoding="utf-8"))
+    later = json.loads(lab_file("set-b").read_text(encoding="utf-8"))
+    later["made_at"] = "2099-01-01T00:00:00Z"                                        # (made later; it holds the same versions)
+    store = tmp_path / "store"
+    copies.write_set(store, first)
+    copies.write_set(store, later)
+    copies.register(store, lambda: True)
+    try:
+        assert copies.find("starkbank-ecdsa", "2.0.0")["id"] == first["id"]
+        assert copies.family_of_subject("starkbank-ecdsa-2.0.0") == copies.family_of(first)
+        assert copies.named("starkbank-ecdsa")["id"] == later["id"]                  # (the newest still says which versions there are)
+    finally:
+        copies.unregister(store)
