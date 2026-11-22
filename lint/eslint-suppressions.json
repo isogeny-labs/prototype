@@ -61,6 +61,14 @@
       "count": 4
     }
   },
+  "e2e/tests/sandbox.spec.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "count": 1
+    }
+  },
   "frontend/src/App.tsx": {
     "react-hooks/exhaustive-deps": {
       "count": 3
@@ -75,6 +83,11 @@
     }
   },
   "frontend/src/components/AdvisoriesScreen.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "frontend/src/components/ChangeWatchPage.tsx": {
     "react-hooks/set-state-in-effect": {
       "count": 2
     }
