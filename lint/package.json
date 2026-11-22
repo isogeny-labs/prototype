@@ -7,8 +7,8 @@
   "scripts": {
     "lint": "cd .. && lint/node_modules/.bin/eslint --config lint/eslint.config.js --suppressions-location lint/eslint-suppressions.json --max-warnings 0",
     "lint:baseline": "cd .. && lint/node_modules/.bin/eslint --config lint/eslint.config.js --suppressions-location lint/eslint-suppressions.json --suppress-all",
-    "style": "cd .. && lint/node_modules/.bin/prettier --check --ignore-unknown",
-    "style:write": "cd .. && lint/node_modules/.bin/prettier --write --ignore-unknown"
+    "style": "cd .. && lint/node_modules/.bin/prettier --check \"frontend/**/*.{ts,tsx,js,mjs,cjs,css}\" \"e2e/**/*.{ts,js,mjs,cjs}\" \"lint/**/*.{js,mjs}\"",
+    "style:write": "cd .. && lint/node_modules/.bin/prettier --write \"frontend/**/*.{ts,tsx,js,mjs,cjs,css}\" \"e2e/**/*.{ts,js,mjs,cjs}\" \"lint/**/*.{js,mjs}\""
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
