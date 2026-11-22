@@ -232,6 +232,7 @@ def database_per_lab(request):
         admin.dispose()
 
 
+@pytest.fixture(autouse=True)
 def no_read_of_a_package_registry(monkeypatch):
     """Sandbox research (a prototype): no test ever reaches npm or PyPI. The reader looks its transport up at the moment
     of a request; here it is replaced by one that fails the test. Tests read a folder of recorded answers, or give a

@@ -786,6 +786,7 @@ APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", 
 # A column that was added to a table after the table first shipped. A data folder made before then gets the column when
 # it is opened (adding a column changes no row; the add-only rules do not stand in its way).
 ADDED_COLUMNS = (("assistant_messages", "facts", "JSON"),        # phase 6c: the facts of an answer to a fixed question
+                 ("sessions", "github_user_id", "BIGINT"),        # hosting: who logged in with GitHub
                  ("otto_lookups", "withdrawn", "JSON"),           # sandbox research: the Watch list
                  ("otto_research", "sandbox", "BOOLEAN"), ("otto_research", "spent_nano", "INTEGER"))
 
