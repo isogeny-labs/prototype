@@ -1,5 +1,5 @@
 // Phase 5c, second part: Otto's fixes as the Fixes step shows them. A library's fix has two proof rows ("Proven on
-// public copies", "Proven on your system") in place of the one Proof line, and every fix of Otto's is a proposal a
+// public copies", "Proven in this assessment") in place of the one Proof line, and every fix of Otto's is a proposal a
 // person accepts or rejects. Every word here stands in for the backend's (backend/app/present/otto.py and fixes.py).
 import type { AdvisoryLedger, FixDetail, FixProofRow, FixesView, OttoProposal } from "../api";
 import { CODE_FIX, fixGroups, fixesViews, tlsFix } from "./fixesFixtures";
@@ -9,7 +9,13 @@ const t = (v: string) => ({ t: "text" as const, v });
 const m = (v: string) => ({ t: "mono" as const, v });
 
 export const PUBLIC_LABEL = "Proven on public copies";
-export const HERE_LABEL = "Proven on your system";
+export const HERE_LABEL = "Proven in this assessment";
+
+/** What each proof row's tag means for it, in the backend's words (backend/app/present/otto.py). */
+export const PROOF_ROW_NOTES: Record<FixProofRow["key"], string> = {
+  public: "Otto's registered trial, run on public copies of the affected and the fixed version on this computer.",
+  here: "This assessment's own retest, run on a public copy of the updated version on this computer.",
+};
 
 /** One proof row as the view sends it: the row's own word and tone, its sentence, its links and (first row) the ledger. */
 export function proofRow(
@@ -23,7 +29,17 @@ export function proofRow(
   const label = key === "public" ? PUBLIC_LABEL : HERE_LABEL;
   // The row's chip is a word and a tone, as the backend words it. The second row also says what a retest here runs on.
   const note = key === "here" ? HERE_NOTE : null;
-  return { key, label, badge: { label: word, tone } as FixProofRow["badge"], text, line: `${label}: ${word}. ${text}`, links, ledger, note };
+  // 22 November 2026: both rows are runs on public copies on this computer (lab); "Not yet" rests on nothing and has no tag.
+  const source_tag: FixProofRow["source_tag"] =
+    word === "Not yet"
+      ? null
+      : {
+          key: "lab",
+          label: "Proven in the lab",
+          meaning: "Run on a copy on this computer, never on your live system.",
+          note: PROOF_ROW_NOTES[key],
+        };
+  return { key, label, badge: { label: word, tone } as FixProofRow["badge"], text, line: `${label}: ${word}. ${text}`, links, ledger, note, source_tag };
 }
 
 /** Under the second row: what the row is about (a public copy of the updated version, not the system you run). */
@@ -127,7 +143,7 @@ export function updateFix(over: Partial<FixDetail> = {}): FixDetail {
       ],
       server_line: null,
     },
-    proof: { state: "none", badge: null, text: "In the two rows below: on public copies, and on your system.", muted: null },
+    proof: { state: "none", badge: null, text: "In the two rows below: on public copies, and in this assessment.", muted: null },
     proof_rows: [publicPassed, hereNotYet],
     proposal: updateProposal(),
     approvers: { text: "Whoever looks after this software, outside this app.", options: null, rows: null, footnote: null },

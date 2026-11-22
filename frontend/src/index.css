@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-/* Dark is the default look. Light (phase 5a) swaps the four colour scales the app uses (slate, sky, amber, violet)
+/* Dark is the default look. Light (phase 5a) swaps the colour scales the app uses (slate, sky, amber, violet, and since 22
+   November 2026 indigo)
    end for end, so every screen gets its light look from the same class names: no second set of styles to keep. */
 :root {
   color-scheme: dark;
@@ -52,6 +53,18 @@
   --color-violet-800: oklch(89.4% 0.057 293.283);
   --color-violet-900: oklch(94.3% 0.029 294.588);
   --color-violet-950: oklch(96.9% 0.016 293.756);
+  /* 22 November 2026: indigo, the look of the "Proven in the lab" tag, swapped end for end like the others */
+  --color-indigo-50: oklch(25.7% 0.09 281.288);
+  --color-indigo-100: oklch(35.9% 0.144 278.697);
+  --color-indigo-200: oklch(39.8% 0.195 277.366);
+  --color-indigo-300: oklch(45.7% 0.24 277.023);
+  --color-indigo-400: oklch(51.1% 0.262 276.966);
+  --color-indigo-500: oklch(58.5% 0.233 277.117);
+  --color-indigo-600: oklch(67.3% 0.182 276.935);
+  --color-indigo-700: oklch(78.5% 0.115 274.713);
+  --color-indigo-800: oklch(87% 0.065 274.039);
+  --color-indigo-900: oklch(93% 0.034 272.788);
+  --color-indigo-950: oklch(96.2% 0.018 272.314);
 
 }
 

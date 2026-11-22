@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { TryView } from "../../api";
 import { ResultDetail } from "../lab/ResultDetail";
-import { StatusView } from "../ui";
+import { StatusView, WhereFromTag } from "../ui";
 import { ChangeClients } from "./ChangeClients";
 import { RichTable } from "./ChangeParts";
 
@@ -52,6 +52,7 @@ export function ChangeTry({ view, onViewFix }: { view: TryView; onViewFix: (fixI
             <RichTable
               columns={view.columns}
               rows={view.rows.map((row) => ({ label: row.label, cells: row.cells }))}
+              columnTags={view.column_source_tags ?? []}
             />
           ) : null}
           {view.verdict ? (
@@ -60,7 +61,15 @@ export function ChangeTry({ view, onViewFix }: { view: TryView; onViewFix: (fixI
               data-look={view.verdict.look}
               className={`mt-3 rounded-lg border px-3 py-2.5 text-sm text-slate-100 ${VERDICTS[view.verdict.look] ?? VERDICTS.warn}`}
             >
-              <span className="font-semibold">{view.verdict.label}</span> {view.verdict.text}
+              <span className="font-semibold">{view.verdict.label}</span>
+              {/* 22 November 2026: where the try came from (a test copy on this computer), beside its own word */}
+              <WhereFromTag tag={view.source_tag} /> {view.verdict.text}
+              {view.source_tag?.note ? " " : null}
+              {view.source_tag?.note ? (
+                <span data-testid="source-note" className="mt-1 block text-xs text-slate-300">
+                  {view.source_tag.note}
+                </span>
+              ) : null}
             </div>
           ) : null}
           {/* Phase 4e: who can still connect, measured on the first copy. Information only. */}

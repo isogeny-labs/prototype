@@ -239,6 +239,8 @@ export type {
   AdvisoryFixHere,
   AdvisoryClaude,
   AdvisoryStep,
+  Source,
+  SourceCount,
 } from "./api.gen";
 import { notifyChanged } from "./changes";
 import { TIMES_ASK, TIMES_HEADER, withLocalTimes } from "./time";

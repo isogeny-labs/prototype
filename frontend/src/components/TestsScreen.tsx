@@ -18,6 +18,7 @@ import {
   RichTextView,
   SecondaryButton,
   SourceTag,
+  WhereFromTag,
   StatusView,
   splitByGroup,
   useDismiss,
@@ -132,6 +133,8 @@ function Card({
     card.status === "done" && card.result ? (
       <span className="flex flex-col items-start gap-1">
         <ResultBadge label={card.result.label} tone={card.result.tone} />
+        {/* 22 November 2026: where its result came from (a server test is read live; every other test runs a copy here) */}
+        <WhereFromTag tag={card.source_tag} />
         {/* Phase 5b: a finished test opens its result on Evidence (its record, every run, Related). */}
         <ItemLinkView link={{ page: "evidence", item: `test-${card.id}` }} testId="see-the-evidence" className="text-xs text-sky-300 hover:underline">
           See the evidence

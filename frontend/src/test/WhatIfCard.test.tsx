@@ -49,7 +49,7 @@ const whatif: WhatIf = {
     reason: "Your scanner file does not name elliptic, so there is no locked test of this assessment to rerun on it.",
     component: null,
     version: "6.5.7",
-    changes: ["It reruns this assessment's locked tests for that library on the public copy of the new version, on this computer.", "“Proven on your system” then reads this run."],
+    changes: ["It reruns this assessment's locked tests for that library on the public copy of the new version, on this computer.", "“Proven in this assessment” then reads this run."],
   },
   explanation: "Live Otto is off. This is what the app knows.",
   hypotheses_title: "Hypothesis",

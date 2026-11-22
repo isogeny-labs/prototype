@@ -3,7 +3,7 @@ import { errorMessage, type MigrationOptionKey, type MigrationSettingField, type
 import { ResultDetail } from "../lab/ResultDetail";
 import { ChangeBox } from "../change/ChangeBox";
 import { ProposalCard } from "../otto/ProposalCard";
-import { AlsoNoticedList, ErrorBox, RichTextView, SourceTag, StatusView } from "../ui";
+import { AlsoNoticedList, ErrorBox, RichTextView, SourceTag, StatusView, WhereFromLine } from "../ui";
 import { OptionCard, type SaveChoice } from "./OptionCard";
 import { StatusPill } from "./parts";
 import { CLOSED_SENTENCE, useReadOnly } from "../../readOnly";
@@ -69,6 +69,10 @@ function Today({
   return (
     <Box testId="migration-today">
       <h3 className={H3}>{today.title}</h3>
+      {/* 22 November 2026: where this status came from, with what that means for this system */}
+      <div className="mt-2">
+        <WhereFromLine tag={system.source_tag} />
+      </div>
       <div className="mt-3 flex flex-wrap items-start gap-3">
         {system.measuring ? (
           <StatusView status={system.measuring} />

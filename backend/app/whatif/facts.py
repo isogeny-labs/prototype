@@ -51,7 +51,7 @@ TRY_TITLE = "A try on a test copy"
 TRY_CHANGES = ["It reruns this assessment's locked tests for that library on the public copy of the new version, on this computer.",
                "Its results become the newest results “after” for those tests in this assessment.",
                "A finding that passes on the new version can then read as closed.",
-               "“Proven on your system” then reads this run.",
+               "“Proven in this assessment” then reads this run.",
                "An accepted update for this library can then no longer be undone."]
 HYPOTHESIS_NOTE = ("What the facts above do not show. Turning one of these into a test, or adding it to Change watch, is not part of "
                    "this version yet.")

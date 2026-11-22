@@ -4,7 +4,7 @@ import { ViewInFixes } from "../migration/parts";
 import { FromOttoTag, ProposalCard } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
 import { withPlainName } from "../../plainNames";
-import { ProofChip, ResultBadge, SecondaryButton, SourceTag, StatusChip, StatusView, formatTime } from "../ui";
+import { ProofChip, ResultBadge, SecondaryButton, SourceTag, StatusChip, StatusView, WhereFromLine, WhereFromTag, formatTime } from "../ui";
 import { ImpactBlock } from "../impact/ImpactBlock";
 
 /** One answer: the answer, its one label, the first version that can (on a no), the measurement state, agreement. */
@@ -15,7 +15,9 @@ function Cell({ cell, title }: { cell: DependencyCell; title: string }) {
       <p className="text-xs text-slate-400">{title}</p>
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         <ResultBadge label={cell.answer_words} tone={cell.tone} />
-        {cell.label_words ? <SourceTag>{cell.label_words}</SourceTag> : null}
+        {/* 22 November 2026: where this answer came from; its own label stays beside it, in that source's look */}
+        <WhereFromTag tag={cell.source_tag} />
+        {cell.label_words ? <SourceTag source={cell.source_tag?.key ?? null}>{cell.label_words}</SourceTag> : null}
       </div>
       <p className="mt-2 text-xs text-slate-300">{cell.reason}</p>
       {cell.first_version_words ? (
@@ -115,7 +117,9 @@ export function AnswerChip({ cell }: { cell: DependencyCell }) {
   return (
     <div data-testid="dependency-answer" data-question={cell.question} data-answer={cell.answer} data-state={cell.state} className="flex min-w-0 flex-col items-start gap-1.5">
       <ResultBadge label={cell.answer_words} tone={cell.tone} wrap />
-      {cell.label_words ? <ProofChip>{cell.label_words}</ProofChip> : null}
+      {/* 22 November 2026: where this answer came from (its own label stays, as before) */}
+      <WhereFromTag tag={cell.source_tag} />
+      {cell.label_words ? <ProofChip source={cell.source_tag?.key ?? null}>{cell.label_words}</ProofChip> : null}
       {cell.no_reason ? (
         <p data-testid="no-reason" className="text-xs leading-snug text-slate-300">
           {cell.no_reason}
@@ -157,6 +161,10 @@ export function DependencyDetail({ row, questions, busy, detailsOpen, onDetailsO
             {row.via_words}
             {row.library ? ` · ${row.library}` : ""}
           </p>
+          {/* 22 November 2026: the library is here because your dependency list names it */}
+          <div className="mt-1.5">
+            <WhereFromLine tag={row.source_tag} />
+          </div>
         </div>
         <div className="flex max-w-xs flex-col items-end gap-1">
           <SecondaryButton disabled={busy || !row.measure.enabled} onClick={onMeasure}>

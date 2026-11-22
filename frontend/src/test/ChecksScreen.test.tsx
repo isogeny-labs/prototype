@@ -695,3 +695,43 @@ describe("Checks, Crypto tests in four parts", () => {
     expect(rowsIn("encryption").map((r) => r.getAttribute("data-check"))).toEqual(["retest-1-on-1"]);
   });
 });
+
+// 22 November 2026: where it came from. One tag beside each row's own word, in the backend's words; the panel says
+// what it means for that check. The tag decides nothing: it is drawn from the view and the page starts nothing.
+describe("Checks, where each result came from", () => {
+  const tagsOf = (row: HTMLElement) => within(row).queryAllByTestId("source-tag");
+
+  it("draws exactly one tag beside each row's result, with the backend's words and what they mean on hover", async () => {
+    const fetchMock = await open();
+    const rows = rowsIn("verification");
+    expect(rows.map((r) => tagsOf(r).map((t) => t.textContent))).toEqual([["Observed live"], ["Observed live"], ["From your file"]]);
+    expect(rows.map((r) => tagsOf(r)[0]!.getAttribute("data-source"))).toEqual(["live", "live", "file"]);
+    expect(tagsOf(rows[0]!)[0]!.getAttribute("title")).toBe(verifyRows[0]!.source_tag!.meaning);
+    // the tag sits in the result's own cell, beside its word
+    const cell = within(rows[0]!).getByTestId("result-badge").parentElement!;
+    expect(within(cell).getByTestId("source-tag").textContent).toBe("Observed live");
+    // a program's test is lab, a server's test live
+    const tests = rowsIn("encryption");
+    expect(tests.map((r) => tagsOf(r).map((t) => t.getAttribute("data-source")))).toEqual([["lab"], ["lab"], ["live"]]);
+    expect(tests.map((r) => text(r.children[0]!))).toEqual([expect.stringContaining("acme-sign"), expect.stringContaining("acme-sign"), expect.stringContaining("localhost:8443")]);
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("a check that has not run has no tag", async () => {
+    const notRun: CheckRow = { ...verifyRows[0]!, result: null, source_tag: null, state: "open" };
+    await open({ ...checksView, groups: checkGroups({ verification: [notRun] }) });
+    expect(tagsOf(rowsIn("verification")[0]!)).toEqual([]);
+  });
+
+  it("its panel says, in one sentence, what the tag means for this check", async () => {
+    await open(checksView, { "GET /api/plans/1/checks/claim-1": { body: { ...retestDetail, check: verifyRows[0]! } } });
+    fireEvent.click(rowsIn("verification")[0]!);
+    const panel = await screen.findByTestId("check-panel");
+    const line = within(panel).getByTestId("source-line");
+    expect(line.getAttribute("data-source")).toBe("live");
+    expect(within(line).getByTestId("source-tag").textContent).toBe("Observed live");
+    expect(within(line).getByTestId("source-note").textContent).toBe(
+      "Read from localhost:8443, an address in your file that you confirmed, with handshakes only.",
+    );
+  });
+});

@@ -1,7 +1,7 @@
 """Phase 5c, second part: what Otto proposes besides checks, and the two proof rows of a library's fix.
 
   - A library's fix says whether it is proven in two plain rows, the same words wherever it shows: "Proven on public
-    copies" (from the pack's trial) and "Proven on your system" (from this assessment's own retest).
+    copies" (from the pack's trial) and "Proven in this assessment" (from this assessment's own retest).
   - From fixed rules over the results (no model is asked): a failed advisory check on a signing program proposes
     something to fix first on that program's Signatures track; a library of the dependency list that a published
     advisory names proposes "update first".
@@ -70,7 +70,7 @@ def test_the_first_row_never_says_more_than_the_pack_bears_out():
 def test_the_second_row_says_what_this_assessments_own_retest_showed():
     fix = {"library": "elliptic", "version": "6.5.7"}
     not_yet = present_otto.your_system_row(fix, {"state": "not_yet"})
-    assert not_yet["line"] == "Proven on your system: Not yet. Update the library, then press Retest."
+    assert not_yet["line"] == "Proven in this assessment: Not yet. Update the library, then press Retest."
     assert not_yet["badge"] == {"label": "Not yet", "tone": "neutral"} and not_yet["links"] == [] and not_yet["key"] == "here"
     assert present_otto.your_system_row(fix, None)["line"] == not_yet["line"]
     passed = present_otto.your_system_row(fix, {"state": "passed", "item_id": 12, "finished_at": "2026-11-18T10:20:31Z",
@@ -151,7 +151,7 @@ def test_a_librarys_fix_shows_the_two_rows_in_place_of_proof_none():
     assert shown["status"]["word"] == "Text only" and shown["labels"] == ["From Otto"] and shown["actions"]["buttons"] == []
     assert [row["line"] for row in shown["proof_rows"]] == [
         "Proven on public copies: Passed. 6.5.6 fails the advisory check; 6.5.7 passes.",
-        "Proven on your system: Not yet. Update the library, then press Retest."]
+        "Proven in this assessment: Not yet. Update the library, then press Retest."]
     assert "None." not in shown["proof"]["text"] and "has not applied it or tested it" not in json.dumps(shown)
     said = json.dumps(shown)
     assert "the app offers no code change and no pull request" in said                     # still other people's code
@@ -173,7 +173,7 @@ def test_evidence_and_the_results_own_words_use_the_same_rows():
     # the Suggested fix words of the result itself: the first row, word for word; the second is where the fix is
     words = present_advisory.fix_words("openjdk 17.0.2", {"state": "not_proven", "kind": "update", "library": "openjdk", "version": "17.0.3",
                                                           "reason": "x", "public_line": java["otto_fix"]["rows"][0]["line"]})
-    assert java["otto_fix"]["rows"][0]["line"] in words and "Fixes shows whether it is proven on your system" in words
+    assert java["otto_fix"]["rows"][0]["line"] in words and "Fixes shows whether it is proven in this assessment" in words
     assert "every other locked test still passed" not in words                               # nothing the pack does not bear out
 
 
@@ -613,7 +613,7 @@ def test_a_plan_change_that_is_open_again_is_no_longer_proposed_once_the_check_p
 @pytest.mark.needs_otto
 @pytest.mark.slow
 def test_proven_here_needs_every_pass_or_fail_test_of_the_program_in_the_same_retest(failed_check, monkeypatch):
-    """The rule behind "Proven on your system", on the app's own runs (found by the independent review of 18 November
+    """The rule behind "Proven in this assessment", on the app's own runs (found by the independent review of 18 November
     2026: the row read "Passed" as soon as the advisory check's own retest run had passed, while the others were
     still running, and stayed so when a retest was interrupted)."""
     from app.db import PlanItemRow, RetestRow
