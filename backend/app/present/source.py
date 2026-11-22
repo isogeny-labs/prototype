@@ -53,8 +53,11 @@ def after_change(where: str | None, rolled_back: bool = False) -> dict:
     return tag(LIVE, f"Measured again on {where or 'the server'} {what}, with handshakes only.")
 
 
-def lab_copy(what: str | None, mode: str | None = None, real: bool = False) -> dict:
+def lab_copy(what: str | None, mode: str | None = None, real: bool = False, sandbox: bool = False) -> dict:
     """A test of a signing program (or a library) on a copy on this computer."""
+    if real and sandbox:
+        return tag(LAB, f"Run on a sandbox copy of {what or 'the library'}: a public copy fetched from its package registry, on this "
+                        f"computer, in its own locked-down container. {UNTOUCHED}")
     if real:
         return tag(LAB, f"Run on a public copy of {what or 'the library'} on this computer, in its own locked-down container. {UNTOUCHED}")
     if not what:
@@ -107,7 +110,7 @@ def of_test(kind: str | None, result: dict | None, where: str | None = None) -> 
         return None
     if kind in SERVER_KINDS:
         return live(where)
-    return lab_copy(result.get("component"), result.get("mode"), bool(result.get("real")))
+    return lab_copy(result.get("component"), result.get("mode"), bool(result.get("real")), bool(result.get("sandbox_copy")))
 
 
 def of_verify(result: dict | None) -> dict | None:

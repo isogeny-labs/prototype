@@ -10,6 +10,7 @@ from app import real_libraries
 ADVISORY_TITLE = "Published advisories for this version"
 ADVISORY_TAG = "from the advisory, not a result"
 REAL_TAG = "real software"
+SANDBOX_TAG = "sandbox copy"      # sandbox research (a prototype): a public copy made on this computer, not a pinned library
 TIMING_LINE = "It doesn't show how long any step takes: timing attacks (such as KyberSlash) are outside this test."
 SUMMARY_TITLE = "Output summary"
 SUMMARY_NOTE = "Summary written by the app from the stored run. The full raw output is in the downloaded evidence JSON."
@@ -29,6 +30,14 @@ def _table(title, tag, columns, rows, note=None):
 
 def is_real(component: dict | None) -> bool:
     return bool(component) and real_libraries.library(component.get("name"), component.get("version")) is not None
+
+
+def tag_of(component: dict | None) -> str:
+    """The tag beside a real library wherever its run shows: "real software", or "sandbox copy" for a copy that sandbox
+    research made, so that one is never mistaken for a pinned library."""
+    if component and real_libraries.is_sandbox(component.get("name"), component.get("version")):
+        return SANDBOX_TAG
+    return REAL_TAG
 
 
 def code_words(name: str, version: str) -> str:

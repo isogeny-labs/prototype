@@ -373,7 +373,7 @@ def register(lab, question_id: str, advisory: dict, reading: dict, design: dict,
                       "(it did not take fresh signatures a reference library made), so nothing can be shown on it.")
     more_affected = [v for v, role in in_set.items() if role in ("yours", "more_affected") and works[v]]
     more_fixed = [v for v, role in in_set.items() if role == "more_fixed" and works[v]]
-    left_out = [{"version": v, "reason": "the asking code does not work on it: it did not take fresh signatures a reference library made"}
+    left_out = [{"version": v, "reason": "the asking code does not work on it (it did not accept fresh signatures that a reference library made)"}
                 for v, role in in_set.items() if not works[v]]
     left_out += [{"version": w["version"], "reason": "it could not be put together with the fixed version's helper libraries"}
                  for w in plan["wanted"] if w["version"] not in in_set]

@@ -12,6 +12,7 @@ from datetime import datetime
 
 from app.otto import designs, model
 from app.present import advisory as present_advisory
+from app.present import proof as present_proof
 from app.present import source as present_source
 from app.present import times
 from app.present.results import DISCLAIMER
@@ -32,7 +33,7 @@ def _entries(ledger: list[dict]) -> list[dict]:
     return [{"seq": e["seq"], "kind": LEDGER_WORDS.get(str(e["kind"]), "Entry"), "id": e["id"][7:19], "at": e["at"], "what": e["what"]}
             for e in ledger]
 STEP_WORDS = {"read_advisory": "Read the advisory", "design_test": "Design a test", "propose_fix": "Propose the fix",
-              "write_fix": "Write a change for your own code"}
+              "write_fix": "Write a change for your own code", "write_wrapper": "Write the code that asks the library"}
 # What a reading recorded about the weakness, in plain words (a reading's notes can refer to "the kind").
 KIND_WORDS = {"accepts_bad_signature": "accepts a signature it must reject", "rejects_good_signature": "rejects a signature it must accept",
               "stops_with_error": "stops with an error"}
@@ -336,7 +337,9 @@ def proposal_view(p: dict, ledger: list[dict] | None = None) -> dict:
                         "ledger": ({"title": "Otto ledger entries for these decisions", "count": len(ledger), "entries": _entries(ledger),
                                     "note": ("Each decision is written to this assessment's Otto ledger with who and when. The ledger "
                                              "holds no result.")} if ledger else None)},
-            "link": p["link"], "proposed_at": p.get("proposed_at")}
+            "link": p["link"], "proposed_at": p.get("proposed_at"),
+            # Sandbox research (a prototype): how a test tried on sandbox copies was proven, folded under the card.
+            "proof": p.get("proof")}
 
 
 def result_block(*, advisory_id: str, plain_name: str | None, pack_version: str, design_sha256: str, trial: list[str],
@@ -718,7 +721,7 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
             here.append({"program": entry["program"], "status": status, "proposal": proposal,
                          "result": ({"label": result["label"], "tone": result["tone"], "plain": result["plain"],
                                      "component": result.get("component"), "finished_at": result.get("finished_at"),
-                                     "ran_on": ran_on,
+                                     "ran_on": ran_on, "sandbox_copy": bool(result.get("sandbox_copy")),
                                      # where it came from (22 November 2026): an advisory check runs a copy of the program here
                                      "source_tag": present_source.of_test("advisory_cases", result),
                                      "short": (f"Retest on {result.get('component')}. First run on {first.get('component') or entry['program']}: "
@@ -770,12 +773,14 @@ def advisories_view(*, rows: list[dict], packs: list, fitting: list[str], closed
                 "rule": designs.BLOCKS[designs.BLOCK]["rule"],
                 "design_fingerprint": advisory["test"]["design_sha256"],
                 "trial": {"title": "How it did when tried on public copies", "lines": _trial_lines(advisory)},
+                # Sandbox research (a prototype): the whole proof of a test tried on sandbox copies, as one piece.
+                "proof": present_proof.block(advisory),
                 "ledger": {"title": "Otto ledger entries", "count": len(advisory["ledger"]),
                            "entries": _entries(advisory["ledger"]),
                            "note": ("From Otto's research ledger, a hash chain kept with the Otto harness: the test was registered, tried and "
                                     "judged before the pack was signed.")}}
         else:
-            no_test = {"label": label, "reason": advisory["test"]["reason"],
+            no_test = {"label": label, "reason": advisory["test"]["reason"], "proof": present_proof.block(advisory),
                        "trial": ({"title": "How its design did when tried on public copies", "lines": _trial_lines(advisory)}
                                  if advisory["test"]["trial"] else None),
                        "ledger": ({"title": "Otto ledger entries", "count": len(advisory["ledger"]),

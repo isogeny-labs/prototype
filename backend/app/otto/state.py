@@ -583,11 +583,22 @@ class OttoMixin:
             added = self._otto_checks(db, plan_id)
             steps = db.scalars(select(OttoStepRow).where(OttoStepRow.plan_id == plan_id).order_by(OttoStepRow.id)).all()
             decided = db.scalar(select(func.count(OttoDecisionRow.id)).where(OttoDecisionRow.plan_id == plan_id)) or 0
-            if not added and not steps and not decided and not lookups["looks"] and not lookups["research"]:
+            # Sandbox research (a prototype): a pack that describes a sandbox copy of a library this assessment names.
+            # A run on such a copy names its image, and the image is named after the copy set: the pack is what says
+            # which files and which asking code that is, so it goes into the file with the run.
+            plan = self._plan(db, plan_id)
+            named = {(p["component"], p["version"]) for p in research.programs(self._claims(db.get(ImportRow, plan.import_id)))}
+            describes = set()
+            for row, pack in self._installed_packs(db, self._closed_at(plan_id)):
+                for entry in pack.pack["advisories"] if pack.pack["schema"] == packs.PACK_SCHEMA_2 else []:
+                    copies = (entry["test"].get("sandbox") or {}).get("set")
+                    if copies and any((copies["library"], v["version"]) in named for v in copies["versions"]):
+                        describes.add(row.fingerprint)
+            if not added and not steps and not decided and not lookups["looks"] and not lookups["research"] and not describes:
                 return None
             # the packs this assessment's checks came from, and every pack a research run of this assessment made
             # (the proof of what that run found is in its pack, whether or not a check of it was accepted)
-            wanted = {c.pack_fingerprint for c in added}
+            wanted = {c.pack_fingerprint for c in added} | describes
             envelopes = [json.loads(row.envelope) for row in self._pack_rows(db) if row.fingerprint in wanted or row.version in made_by_runs]
             checks_out = []
             for c in added:

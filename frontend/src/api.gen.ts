@@ -318,6 +318,10 @@ export interface AdvisoryTestBlock {
   design_fingerprint: string;
   trial: AdvisoryTrial;
   ledger: AdvisoryLedger;
+  /**
+   * Sandbox research: the proof of a test tried on sandbox copies.
+   */
+  proof?: TestProofBlock | null;
 }
 export interface AdvisoryTrial {
   title: string;
@@ -336,6 +340,100 @@ export interface AdvisoryLedgerEntry {
   at: string;
   what: string;
 }
+/**
+ * Sandbox research (a prototype): everything that stands behind a test tried on sandbox copies. It words no result.
+ */
+export interface TestProofBlock {
+  /**
+   * "How this test was proven"
+   */
+  title: string;
+  /**
+   * "Sandbox copy"
+   */
+  label: string;
+  summary: string;
+  table: TestProofTable;
+  registered: TestProofRegistered;
+  judged: string;
+  code: TestProofCode;
+  copies: TestProofCopies;
+  replayed: string;
+  not_shown: string;
+}
+export interface TestProofTable {
+  columns: string[];
+  rows: TestProofRow[];
+  note: string;
+}
+export interface TestProofRow {
+  key: string;
+  /**
+   * What ran: our reference library, a public copy, or the control.
+   */
+  label: string;
+  /**
+   * The separate reviewer's count for that run. A count, never Passed or Failed.
+   */
+  count: string;
+  /**
+   * What had to happen, as it was frozen before the first run.
+   */
+  must: string;
+}
+export interface TestProofRegistered {
+  line: string;
+  pins_title: string;
+  pins: TestProofPin[];
+}
+export interface TestProofPin {
+  name: string;
+  sha256: string;
+}
+/**
+ * The code that asked the library its questions, shown as text. It is data here: nothing on a screen runs it.
+ */
+export interface TestProofCode {
+  title: string;
+  /**
+   * "Written by Otto" when Claude wrote it; null for the app's own asking code.
+   */
+  label: string | null;
+  author: string;
+  file: string;
+  lines: number;
+  source: string;
+  sha256: string;
+  line: string;
+  show: string;
+  hide: string;
+  second: TestProofSecondCode | null;
+  agree_line: string | null;
+  known_lines: string[];
+}
+export interface TestProofSecondCode {
+  title: string;
+  author: string;
+  lines: number;
+  source: string;
+  sha256: string;
+}
+export interface TestProofCopies {
+  title: string;
+  rows: TestProofCopy[];
+  left_out: string[];
+  image_line: string;
+  trust_line: string;
+}
+export interface TestProofCopy {
+  version: string;
+  role: string;
+  line: string;
+  published: string | null;
+  helpers_line: string | null;
+  sha256: string;
+  url: string;
+}
 export interface AdvisoryNoTest {
   /**
    * "No test yet" or "Not offered"
@@ -344,6 +442,10 @@ export interface AdvisoryNoTest {
   reason: string;
   trial: AdvisoryTrial | null;
   ledger: AdvisoryLedger | null;
+  /**
+   * Sandbox research: what a design's trial on sandbox copies showed.
+   */
+  proof?: TestProofBlock | null;
 }
 export interface AdvisoryHere {
   title: string;
@@ -399,6 +501,10 @@ export interface OttoProposal {
   history: OttoProposalHistory;
   link: ItemLink;
   proposed_at: string | null;
+  /**
+   * Sandbox research: how the proposed test was proven, folded under the card.
+   */
+  proof?: TestProofBlock | null;
 }
 export interface OttoProposalStatus {
   key: "proposed" | "accepted" | "rejected";
@@ -459,6 +565,10 @@ export interface AdvisoryHereResult {
    * 22 November 2026: where this result came from (Proven in the lab).
    */
   source_tag?: Source | null;
+  /**
+   * Sandbox research: the run was on a public copy sandbox research made.
+   */
+  sandbox_copy?: boolean;
 }
 export interface AdvisoryFix {
   title: string;
@@ -498,6 +608,10 @@ export interface AdvisoryLookup {
   title: string;
   intro: string;
   covers: string;
+  /**
+   * Sandbox research: what the research runs of the last day did and spent.
+   */
+  sandbox_line?: string | null;
   libraries_line: string;
   look: LookupButton;
   last: LookupLast | null;
@@ -555,11 +669,23 @@ export interface LookupRow {
   link: ItemLink | null;
   publisher: string;
   url: string;
+  /**
+   * Sandbox research: a test for it would be tried on public copies fetched from a registry.
+   */
+  sandbox?: boolean;
+  /**
+   * Sandbox research: its row on the Watch list, while it has no fix yet.
+   */
+  watch?: LabelledLink | null;
 }
 export interface LookupRowState {
   key: "in_pack" | "in_waiting_pack" | "new" | "no_test" | "not_yours";
   label: string;
   tone: "pass" | "fail" | "neutral" | "warn";
+}
+export interface LabelledLink {
+  label: string;
+  link: ItemLink;
 }
 export interface LookupResearch {
   label: string;
@@ -1849,6 +1975,10 @@ export interface MeasurementResult {
    * True when the component is a real library, not one of our demo components (phase 4c).
    */
   real: boolean;
+  /**
+   * Sandbox research: the run was on a public copy sandbox research made.
+   */
+  sandbox_copy?: boolean;
   fix_title: string;
   suggested_fix: string | null;
   /**
@@ -2285,6 +2415,10 @@ export interface LabResult {
    * True when the component is a real library, not one of our demo components (phase 4c).
    */
   real: boolean;
+  /**
+   * Sandbox research: the run was on a public copy sandbox research made.
+   */
+  sandbox_copy?: boolean;
   fix_title: string;
   suggested_fix: string | null;
   /**

@@ -203,6 +203,8 @@ export type {
   DemoChangeItem,
   AdvisoryProposalCell,
   OttoProposal,
+  TestProofBlock,
+  TestProofCode,
   OttoProposalButton,
   OttoProposalStatus,
   OttoProposalHistory,

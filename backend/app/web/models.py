@@ -449,6 +449,7 @@ class LabResult(Badge):
     run_record: RunRecordView
     locked_test: LockedTestView
     real: bool = Field(description="True when the component is a real library, not one of our demo components (phase 4c).")
+    sandbox_copy: bool = Field(default=False, description="Sandbox research: the run was on a public copy sandbox research made.")
     fix_title: str
     suggested_fix: str | None
     fix_line: FixLine | None = Field(
@@ -2451,6 +2452,91 @@ class AdvisoryTrial(Shape):
     lines: list[str]
 
 
+# ---------------------------------------------------------------- sandbox research: how a test was proven, as one piece
+
+class TestProofRow(Shape):
+    key: str
+    label: str = Field(description="What ran: our reference library, a public copy, or the control.")
+    count: str = Field(description="The separate reviewer's count for that run. A count, never Passed or Failed.")
+    must: str = Field(description="What had to happen, as it was frozen before the first run.")
+
+
+class TestProofTable(Shape):
+    columns: list[str]
+    rows: list[TestProofRow]
+    note: str
+
+
+class TestProofPin(Shape):
+    name: str
+    sha256: str
+
+
+class TestProofRegistered(Shape):
+    line: str
+    pins_title: str
+    pins: list[TestProofPin]
+
+
+class TestProofSecondCode(Shape):
+    title: str
+    author: str
+    lines: int
+    source: str
+    sha256: str
+
+
+class TestProofCode(Shape):
+    """The code that asked the library its questions, shown as text. It is data here: nothing on a screen runs it."""
+
+    title: str
+    label: str | None = Field(description='"Written by Otto" when Claude wrote it; null for the app\'s own asking code.')
+    author: str
+    file: str
+    lines: int
+    source: str
+    sha256: str
+    line: str
+    show: str
+    hide: str
+    second: TestProofSecondCode | None
+    agree_line: str | None
+    known_lines: list[str]
+
+
+class TestProofCopy(Shape):
+    version: str
+    role: str
+    line: str
+    published: str | None
+    helpers_line: str | None
+    sha256: str
+    url: str
+
+
+class TestProofCopies(Shape):
+    title: str
+    rows: list[TestProofCopy]
+    left_out: list[str]
+    image_line: str
+    trust_line: str
+
+
+class TestProofBlock(Shape):
+    """Sandbox research (a prototype): everything that stands behind a test tried on sandbox copies. It words no result."""
+
+    title: str = Field(description='"How this test was proven"')
+    label: str = Field(description='"Sandbox copy"')
+    summary: str
+    table: TestProofTable
+    registered: TestProofRegistered
+    judged: str
+    code: TestProofCode
+    copies: TestProofCopies
+    replayed: str
+    not_shown: str
+
+
 class AdvisoryTestBlock(Shape):
     title: str
     question: str
@@ -2460,6 +2546,7 @@ class AdvisoryTestBlock(Shape):
     design_fingerprint: str
     trial: AdvisoryTrial
     ledger: AdvisoryLedger
+    proof: TestProofBlock | None = Field(default=None, description="Sandbox research: the proof of a test tried on sandbox copies.")
 
 
 class AdvisoryNoTest(Shape):
@@ -2467,6 +2554,7 @@ class AdvisoryNoTest(Shape):
     reason: str
     trial: AdvisoryTrial | None
     ledger: AdvisoryLedger | None
+    proof: TestProofBlock | None = Field(default=None, description="Sandbox research: what a design's trial on sandbox copies showed.")
 
 
 class AdvisoryHereResult(Shape):
@@ -2479,6 +2567,7 @@ class AdvisoryHereResult(Shape):
     finished_at: str | None
     ran_on: str | None = Field(default=None, description="After a retest: which version this result is of, and what the first run read.")
     source_tag: Source | None = Field(default=None, description="22 November 2026: where this result came from (Proven in the lab).")
+    sandbox_copy: bool = Field(default=False, description="Sandbox research: the run was on a public copy sandbox research made.")
 
 
 class AdvisoryHereRow(Shape):
@@ -2704,6 +2793,7 @@ class AdvisoryLookup(Shape):
     title: str
     intro: str
     covers: str
+    sandbox_line: str | None = Field(default=None, description="Sandbox research: what the research runs of the last day did and spent.")
     libraries_line: str
     look: LookupButton
     last: LookupLast | None
@@ -2836,6 +2926,7 @@ class OttoProposal(Shape):
     history: OttoProposalHistory
     link: ItemLink
     proposed_at: str | None
+    proof: TestProofBlock | None = Field(default=None, description="Sandbox research: how the proposed test was proven, folded under the card.")
 
 
 class OttoWaitingItem(Shape):

@@ -34,6 +34,7 @@ from app.errors import BadRequest, Conflict, NotFound
 from app.knowledge.versions import at_least, read_version
 from app.lab.testlab import WATCH_PHASES, read_spec
 from app.otto import assurance, checks, designs, harness
+from app.present import proof as present_proof
 
 LABEL = "From Otto"
 BY = "You"                 # the name the app records for the person at the keyboard, as it does for approvals
@@ -246,6 +247,9 @@ class ProposalsMixin:
                     proposed_at=iso(at), item=advisory["id"],
                     facts={"advisory_id": advisory["id"], "design_sha256": digest, "program_ref": program["ref"], "pack_fingerprint": pack.fingerprint,
                            "item_id": item.id if item is not None else None, "in_plan": in_plan, "runs": runs, "live": bool(live)}))
+                # Sandbox research: how the test was proven, as one piece. Shown with the proposal; no part of what a
+                # decision's fingerprint is made from.
+                out[-1]["proof"] = present_proof.block(advisory)
         return out
 
     def _fix_proposals(self, db, plan: PlanRow, fixes: list[dict]) -> list[dict]:

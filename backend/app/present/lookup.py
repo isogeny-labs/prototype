@@ -168,7 +168,8 @@ def _row_view(row: dict, running_ids: set[str], left_open: dict[str, str] | None
 
 def lookup_view(*, libraries: list[dict], packages: list[str], skipped: list[str], recorded: bool, closed: bool, look: dict | None,
                 rows: list[dict], eligible: int, research_blocked: str | None, waiting_packs: list[str], live: bool, limit: str,
-                isolated: bool, run: dict | None, left_open: dict[str, str] | None = None, sandbox: bool = False) -> dict:
+                isolated: bool, run: dict | None, left_open: dict[str, str] | None = None, sandbox: bool = False,
+                sandbox_line: str | None = None) -> dict:
     names = join_and(packages)
     if recorded:
         look_lines = ["Reads the recorded answers in a folder on this computer about the libraries this assessment names.",
@@ -254,6 +255,7 @@ def lookup_view(*, libraries: list[dict], packages: list[str], skipped: list[str
         progress = {"line": line, "running": running, "title": "What the research run said", "lines": list(run.get("lines") or [])[-60:]}
     return {
         "title": TITLE, "intro": INTRO, "covers": COVERS + (" " + SANDBOX_COVERS if sandbox else ""),
+        "sandbox_line": sandbox_line,
         "libraries_line": ("This assessment names: " + join_and([lib["label"] for lib in libraries]) + "." if libraries else
                            "This assessment names no library the app knows."),
         "look": {"label": LOOK_LABEL, "can": look_blocked is None, "blocked_reason": look_blocked,

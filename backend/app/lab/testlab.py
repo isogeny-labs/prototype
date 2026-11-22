@@ -1114,7 +1114,8 @@ class TestLabMixin:
                     note = ("The version these results are for." if v == current
                             else f"The version its publisher fixed {research.join_and(fixes)} in." if fixes
                             else "A later version." if versions.index(v) > versions.index(current) else "An earlier version.")
-                menu.append({"version": v, "component": name, "label": f"{name} {v}", "tag": "demo" if demo else "real software", "note": note})
+                menu.append({"version": v, "component": name, "label": f"{name} {v}",
+                             "tag": "demo" if demo else ("sandbox copy" if real_libraries.is_sandbox(name, v) else "real software"), "note": note})
         return menu
 
     def start_retest(self, plan_id: int, version: str, component: str | None = None) -> dict:

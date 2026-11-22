@@ -43,6 +43,14 @@ def day_reached(next_at: str | None) -> str:
                                                    " Raise the limit for a day in Settings to start a run.")
 
 
+def research_line(*, runs: int, by_itself: bool, spent_nano: int, day_limit_nano: int, reached: str | None) -> str:
+    how = ("A research run starts by itself when a weakness with a fix can be tried." if by_itself else
+           "A research run starts on a click (Design and prove tests).")
+    count = f"{runs} research {'run' if runs == 1 else 'runs'} in the last 24 hours"
+    return (f"Sandbox research is on. {how} {count}; {dollars(spent_nano)} of {dollars(day_limit_nano)} US dollars spent on Claude in that time."
+            + (f" {reached}" if reached else ""))
+
+
 def dollars(nano: int) -> str:
     return f"{nano / model.NANO:.2f}"
 

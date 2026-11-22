@@ -737,12 +737,12 @@ def lab_result(*, spec: dict, spec_hash: str, locked_at: str, run_id: int, run: 
     meta = [{"label": "Time", "value": "", "time": run["started_at"], "tag": None},
             {"label": "Duration", "value": _duration(run["duration_ms"]), "tag": "measured"}]
     if component:
-        meta.append({"label": "Component", "value": component, "tag": present_real.REAL_TAG if real else "demo"})
+        meta.append({"label": "Component", "value": component, "tag": present_real.tag_of(run.get("component")) if real else "demo"})
     if code:
         meta.append({"label": "Code", "value": code_words(code), "tag": "demo"})
     elif real:
         meta.append({"label": "Code", "value": present_real.code_words(run["component"]["name"], run["component"]["version"]),
-                     "tag": present_real.REAL_TAG})
+                     "tag": present_real.tag_of(run.get("component"))})
     if run.get("baseline_version") and component and kind == "speed_size":
         meta.append({"label": "Compared with", "value": f"{run['component']['name']} {run['baseline_version']}",
                      "tag": present_real.REAL_TAG if real else "demo"})
@@ -770,6 +770,8 @@ def lab_result(*, spec: dict, spec_hash: str, locked_at: str, run_id: int, run: 
             "note": "The details can't change after locking. The run record carries the same fingerprint, so anyone can confirm the test wasn't adjusted to fit the result."},
         # Phase 4c: is the component a real library (not demo data), and the advisories its publisher has out for this version.
         "real": real,
+        # Sandbox research (a prototype): the run was on a public copy sandbox research made, not on a pinned library.
+        "sandbox_copy": bool(real and present_real.tag_of(run.get("component")) == present_real.SANDBOX_TAG),
         # Phase 5c: an advisory check shows the advisory it was made for, as its publisher words it (also when it couldn't run).
         "advisories": (present_advisory.box(spec) if kind == "advisory_cases" else
                        present_real.advisories(run.get("component"), kind) if review["code"] not in ("couldnt_run", "couldnt_trust") else None),

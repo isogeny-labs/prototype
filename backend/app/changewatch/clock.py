@@ -44,6 +44,9 @@ def _stamp(when: datetime) -> str:
     return when.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+MAX_BY_ITSELF = 3          # times the clock takes one advisory up by itself before it waits for a person's click
+
+
 class WatchClockMixin:
     """Mixed into `Lab`."""
 
@@ -55,6 +58,11 @@ class WatchClockMixin:
     _advisory_source: Callable[[], Any]
     _named_libraries: Callable[..., list[dict]]
     _askable: Callable[..., tuple]
+    _latest_lookup: Callable[..., Any]
+    _lookup_rows: Callable[..., list[dict]]
+    _research_blocked: Callable[..., str | None]
+    research_tries_by_itself: Callable[..., int]
+    start_research: Callable[..., dict]
 
     def _init_watch_clock(self) -> None:
         self._clock_round = threading.Lock()                       # one round at a time
@@ -147,12 +155,37 @@ class WatchClockMixin:
                     else:
                         self._clock_failed.pop(plan_id, None)
                         looked.append(plan_id)
-            started = None
-            if self.sandbox_by_itself() and hasattr(self, "start_research_by_itself"):
-                started = self.start_research_by_itself(now)
+            started = self.start_research_by_itself(now)       # (only with the second tick set; None otherwise)
             return {"did": "looked" if (looked or failed) else "nothing", "looked": looked, "failed": failed, "started": started}
         finally:
             self._clock_round.release()
+
+    def start_research_by_itself(self, now: datetime | None = None) -> int | None:
+        """With "Design and prove tests by itself" ticked (and so Live Otto ready): start the research run for one open
+        assessment that has a new advisory which can be tried, the one whose look is oldest first, one run at a time. It
+        is the run a click on Design and prove tests starts, with the same checks before it and the same limits, kept
+        under the clock's name. An advisory that such runs have left open MAX_BY_ITSELF times waits for a click.
+        Returns the plan it started for, or None. It decides nothing and accepts nothing."""
+        if not self.sandbox_by_itself():
+            return None
+        waiting: list[tuple[str, int, set[str]]] = []
+        with self.db() as db:
+            for plan_id in self._clock_plans(db):
+                look = self._latest_lookup(db, plan_id)
+                if look is None:
+                    continue
+                rows = self._lookup_rows(db, db.get(PlanRow, plan_id), look)
+                mine = {r["advisory"]["id"] for r in rows if r["state"] == "new"
+                        and self.research_tries_by_itself(db, plan_id, r["advisory"]["id"], words.CLOCK_NAME) < MAX_BY_ITSELF}
+                if mine and self._research_blocked(db, plan_id, [r for r in rows if r["advisory"]["id"] in mine]) is None:
+                    waiting.append((str(look.at), plan_id, mine))
+        for _, plan_id, mine in sorted(waiting):
+            try:
+                self.start_research(plan_id, by=words.CLOCK_NAME, only=mine)
+            except Conflict:
+                continue          # (something changed since the check above: the next round looks again)
+            return plan_id
+        return None
 
     # ---------------------------------------------------------------- what the page says about it
 

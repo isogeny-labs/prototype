@@ -111,6 +111,17 @@ class SandboxMixin:
         run_limit, day_limit = self.sandbox_limits()
         return max(0, min(run_limit, day_limit - self.sandbox_spent_today(now)))
 
+    def sandbox_research_line(self, now: datetime | None = None) -> str:
+        """One line for Advisories and the Watch list while the switch is on: how the research runs of the last 24 hours
+        started and what they spent, and whether a run starts by itself."""
+        since = (now or datetime.now(timezone.utc)) - DAY
+        with self.db() as db:
+            rows = db.scalars(select(OttoResearchRow).where(OttoResearchRow.kind == "started").order_by(OttoResearchRow.id)).all()
+        recent = [r for r in rows if _when(r.at) >= since]
+        _, day_limit = self.sandbox_limits()
+        return present_sandbox.research_line(runs=len(recent), by_itself=self.sandbox_by_itself(), spent_nano=self.sandbox_spent_today(now),
+                                             day_limit_nano=day_limit, reached=self.sandbox_day_reached(now) if self.otto_live_ready() else None)
+
     def sandbox_day_reached(self, now: datetime | None = None) -> str | None:
         """The plain sentence when nothing is left of the day's limit for a run that asks Claude; None while a run can
         start. The time it names is when the oldest counted run is 24 hours old."""

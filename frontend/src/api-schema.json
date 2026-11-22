@@ -3370,6 +3370,12 @@
               }
             ],
             "description": "22 November 2026: where this result came from (Proven in the lab)."
+          },
+          "sandbox_copy": {
+            "type": "boolean",
+            "title": "Sandbox Copy",
+            "description": "Sandbox research: the run was on a public copy sandbox research made.",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -3549,6 +3555,18 @@
             "type": "string",
             "title": "Covers"
           },
+          "sandbox_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sandbox Line",
+            "description": "Sandbox research: what the research runs of the last day did and spent."
+          },
           "libraries_line": {
             "type": "string",
             "title": "Libraries Line"
@@ -3642,6 +3660,17 @@
                 "type": "null"
               }
             ]
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TestProofBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sandbox research: what a design's trial on sandbox copies showed."
           }
         },
         "additionalProperties": false,
@@ -4129,6 +4158,17 @@
           },
           "ledger": {
             "$ref": "#/components/schemas/AdvisoryLedger"
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TestProofBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sandbox research: the proof of a test tried on sandbox copies."
           }
         },
         "additionalProperties": false,
@@ -12362,6 +12402,12 @@
             "title": "Real",
             "description": "True when the component is a real library, not one of our demo components (phase 4c)."
           },
+          "sandbox_copy": {
+            "type": "boolean",
+            "title": "Sandbox Copy",
+            "description": "Sandbox research: the run was on a public copy sandbox research made.",
+            "default": false
+          },
           "fix_title": {
             "type": "string",
             "title": "Fix Title"
@@ -12913,6 +12959,24 @@
         ],
         "title": "LabeledRichValue"
       },
+      "LabelledLink": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "link"
+        ],
+        "title": "LabelledLink"
+      },
       "LastDownload": {
         "properties": {
           "at": {
@@ -13371,6 +13435,23 @@
           "url": {
             "type": "string",
             "title": "Url"
+          },
+          "sandbox": {
+            "type": "boolean",
+            "title": "Sandbox",
+            "description": "Sandbox research: a test for it would be tried on public copies fetched from a registry.",
+            "default": false
+          },
+          "watch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabelledLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sandbox research: its row on the Watch list, while it has no fix yet."
           }
         },
         "additionalProperties": false,
@@ -13579,6 +13660,12 @@
             "type": "boolean",
             "title": "Real",
             "description": "True when the component is a real library, not one of our demo components (phase 4c)."
+          },
+          "sandbox_copy": {
+            "type": "boolean",
+            "title": "Sandbox Copy",
+            "description": "Sandbox research: the run was on a public copy sandbox research made.",
+            "default": false
           },
           "fix_title": {
             "type": "string",
@@ -15780,6 +15867,17 @@
               }
             ],
             "title": "Proposed At"
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TestProofBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sandbox research: how the proposed test was proven, folded under the card."
           }
         },
         "additionalProperties": false,
@@ -18855,6 +18953,403 @@
           "passed"
         ],
         "title": "TestCounts"
+      },
+      "TestProofBlock": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"How this test was proven\""
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Sandbox copy\""
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "table": {
+            "$ref": "#/components/schemas/TestProofTable"
+          },
+          "registered": {
+            "$ref": "#/components/schemas/TestProofRegistered"
+          },
+          "judged": {
+            "type": "string",
+            "title": "Judged"
+          },
+          "code": {
+            "$ref": "#/components/schemas/TestProofCode"
+          },
+          "copies": {
+            "$ref": "#/components/schemas/TestProofCopies"
+          },
+          "replayed": {
+            "type": "string",
+            "title": "Replayed"
+          },
+          "not_shown": {
+            "type": "string",
+            "title": "Not Shown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "label",
+          "summary",
+          "table",
+          "registered",
+          "judged",
+          "code",
+          "copies",
+          "replayed",
+          "not_shown"
+        ],
+        "title": "TestProofBlock",
+        "description": "Sandbox research (a prototype): everything that stands behind a test tried on sandbox copies. It words no result."
+      },
+      "TestProofCode": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "\"Written by Otto\" when Claude wrote it; null for the app's own asking code."
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "file": {
+            "type": "string",
+            "title": "File"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "show": {
+            "type": "string",
+            "title": "Show"
+          },
+          "hide": {
+            "type": "string",
+            "title": "Hide"
+          },
+          "second": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TestProofSecondCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agree_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agree Line"
+          },
+          "known_lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Known Lines"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "label",
+          "author",
+          "file",
+          "lines",
+          "source",
+          "sha256",
+          "line",
+          "show",
+          "hide",
+          "second",
+          "agree_line",
+          "known_lines"
+        ],
+        "title": "TestProofCode",
+        "description": "The code that asked the library its questions, shown as text. It is data here: nothing on a screen runs it."
+      },
+      "TestProofCopies": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/TestProofCopy"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "left_out": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Left Out"
+          },
+          "image_line": {
+            "type": "string",
+            "title": "Image Line"
+          },
+          "trust_line": {
+            "type": "string",
+            "title": "Trust Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "rows",
+          "left_out",
+          "image_line",
+          "trust_line"
+        ],
+        "title": "TestProofCopies"
+      },
+      "TestProofCopy": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "helpers_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Helpers Line"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "role",
+          "line",
+          "published",
+          "helpers_line",
+          "sha256",
+          "url"
+        ],
+        "title": "TestProofCopy"
+      },
+      "TestProofPin": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "sha256"
+        ],
+        "title": "TestProofPin"
+      },
+      "TestProofRegistered": {
+        "properties": {
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "pins_title": {
+            "type": "string",
+            "title": "Pins Title"
+          },
+          "pins": {
+            "items": {
+              "$ref": "#/components/schemas/TestProofPin"
+            },
+            "type": "array",
+            "title": "Pins"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "pins_title",
+          "pins"
+        ],
+        "title": "TestProofRegistered"
+      },
+      "TestProofRow": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "What ran: our reference library, a public copy, or the control."
+          },
+          "count": {
+            "type": "string",
+            "title": "Count",
+            "description": "The separate reviewer's count for that run. A count, never Passed or Failed."
+          },
+          "must": {
+            "type": "string",
+            "title": "Must",
+            "description": "What had to happen, as it was frozen before the first run."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "count",
+          "must"
+        ],
+        "title": "TestProofRow"
+      },
+      "TestProofSecondCode": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "author",
+          "lines",
+          "source",
+          "sha256"
+        ],
+        "title": "TestProofSecondCode"
+      },
+      "TestProofTable": {
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/TestProofRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "columns",
+          "rows",
+          "note"
+        ],
+        "title": "TestProofTable"
       },
       "TextSuggestion": {
         "properties": {

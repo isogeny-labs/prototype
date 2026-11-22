@@ -83,6 +83,7 @@ class DiscoverMixin:
     sandbox_refresh: Callable[..., None]
     sandbox_run_limit: Callable[..., int]
     sandbox_day_reached: Callable[..., str | None]
+    sandbox_research_line: Callable[..., str]
 
     def _init_discover(self) -> None:
         self._research_lock = threading.Lock()
@@ -358,10 +359,11 @@ class DiscoverMixin:
             return self.sandbox_day_reached()        # (the limit for a day counts only what Claude is paid: a run on recorded answers is free)
         return None
 
-    def start_research(self, plan_id: int, by: str | None = None) -> dict:
+    def start_research(self, plan_id: int, by: str | None = None, only: set[str] | None = None) -> dict:
         """Design and prove tests for the new advisories of the newest look, in the background. The built-in packs
         that are not installed yet are installed first, in order: a pack made here follows the newest one.
-        (`by`: a run the Watch list's clock started is kept under the clock's name, never a person's.)"""
+        (`by`: a run the Watch list's clock started is kept under the clock's name, never a person's. `only`: the
+        advisories such a run takes up; a run a person starts takes every new one.)"""
         # One research run at a time, on this computer: from the check to the moment the run is registered, a second
         # click (another tab, a repeated request) waits here, and then finds the first one running.
         with self._research_lock:
@@ -369,7 +371,7 @@ class DiscoverMixin:
                 plan = self._plan(db, plan_id)
                 look = self._latest_lookup(db, plan_id)
                 rows = self._lookup_rows(db, plan, look) if look is not None else []
-                eligible = [r for r in rows if r["state"] == "new"]
+                eligible = [r for r in rows if r["state"] == "new" and (only is None or r["advisory"]["id"] in only)]
                 blocked = self._research_blocked(db, plan_id, eligible)
                 if blocked or look is None:          # no look means nothing can be tried, which is one of the reasons above
                     raise Conflict(blocked or present_lookup.RESEARCH_NOTHING)
@@ -414,6 +416,10 @@ class DiscoverMixin:
             state["thread"] = thread
             thread.start()
         return self.advisories_view(plan_id)      # type: ignore[attr-defined]
+
+    def research_tries_by_itself(self, db, plan_id: int, advisory_id: str, by: str) -> int:
+        """How often a run started under this name (the Watch list's clock) has taken this advisory up already."""
+        return sum(1 for r in self._research_rows(db, plan_id) if r.kind == "started" and r.by == by and advisory_id in (r.advisories or []))
 
     def _install_waiting_packs(self) -> list[str]:
         """Install every built-in pack that is ready and not installed yet, oldest first. Returns their versions.
@@ -556,6 +562,7 @@ class DiscoverMixin:
                                   "left_out": look.left_out, "cut": look.cut} if look is not None else None),
             rows=rows, eligible=len(eligible), research_blocked=blocked, waiting_packs=waiting_packs, left_open=left_open, live=live,
             limit=f"{limit / model.NANO:.2f}", isolated=self.mode.name == "isolated", sandbox=sandbox,
+            sandbox_line=self.sandbox_research_line() if sandbox else None,
             run=({"started_at": research_state["run"].at, "advisories": research_state["run"].advisories, "live": research_state["run"].live,
                   "running": research_state["live"], "lines": research_state["lines"],
                   "installed_first": list(research_state["run"].installed_first or []),
