@@ -112,6 +112,11 @@ class OttoMixin:
             good, bad = packs.found_in(folder, keys)
             found += good
             refused += bad
+        if not self.sandbox_on():        # type: ignore[attr-defined]
+            # A pack that carries asking code (the second format) is taken only while Sandbox research is on.
+            held = [p for p in found if p.pack["schema"] == packs.PACK_SCHEMA_2]
+            found = [p for p in found if p.pack["schema"] != packs.PACK_SCHEMA_2]
+            refused += [{"file": f"{p.version}.json", "reason": packs.NEEDS_SANDBOX} for p in held]
         found.sort(key=lambda p: packs.version_key(p.version))
         rows = self._pack_rows(db)
         installed = {r.fingerprint for r in rows}

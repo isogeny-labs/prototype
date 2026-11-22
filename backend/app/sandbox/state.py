@@ -111,6 +111,17 @@ class SandboxMixin:
         run_limit, day_limit = self.sandbox_limits()
         return max(0, min(run_limit, day_limit - self.sandbox_spent_today(now)))
 
+    def sandbox_day_reached(self, now: datetime | None = None) -> str | None:
+        """The plain sentence when nothing is left of the day's limit for a run that asks Claude; None while a run can
+        start. The time it names is when the oldest counted run is 24 hours old."""
+        if self.sandbox_run_limit(now) > 0:
+            return None
+        since = (now or datetime.now(timezone.utc)) - DAY
+        with self.db() as db:
+            rows = db.scalars(select(OttoResearchRow).order_by(OttoResearchRow.id)).all()
+        counted = [_when(r.at) for r in rows if r.kind == "started" and r.live and _when(r.at) >= since]
+        return present_sandbox.day_reached((min(counted) + DAY).isoformat(timespec="seconds").replace("+00:00", "Z") if counted else None)
+
     # ---------------------------------------------------------------- Settings
 
     def sandbox_section(self) -> dict:

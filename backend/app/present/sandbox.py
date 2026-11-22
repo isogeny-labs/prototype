@@ -36,6 +36,13 @@ LIMITS_NOTE = ("A run is one research command. Each call's cost is added up from
                "pass a limit is not sent. When the day's limit is reached, no run starts by itself until the next day.")
 
 
+def day_reached(next_at: str | None) -> str:
+    """Said on Advisories and on the Watch list when the limit for a day leaves nothing for a run that asks Claude."""
+    from app.present.otto import stamp
+    return "Today's spending limit is reached." + (f" The next run can start after {stamp(next_at)}." if next_at else
+                                                   " Raise the limit for a day in Settings to start a run.")
+
+
 def dollars(nano: int) -> str:
     return f"{nano / model.NANO:.2f}"
 

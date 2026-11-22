@@ -41,8 +41,13 @@ _DAY = re.compile(r"^(\d{4}-\d{2}-\d{2})T")
 
 
 class RegistryError(Exception):
-    """A registry could not be read, or what it answered is not what it documents. One plain sentence. A stop, never
-    a result: "couldn't fetch" is not "no such copy"."""
+    """A registry could not be read, or what it answered is not what it documents. One plain sentence. `later` is true
+    when nothing was learned (it could not be reached, or answered with an error): a stop, never a result, and a later
+    try can go differently. "Couldn't fetch" is not "no such copy"."""
+
+    def __init__(self, text: str, later: bool = False) -> None:
+        super().__init__(text)
+        self.later = later
 
 
 @dataclass(frozen=True)
@@ -118,11 +123,11 @@ class LiveRegistry:
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
                 raise RegistryError(f"{WORDS[registry]} has no {what}.") from None
-            raise RegistryError(f"{WORDS[registry]} answered with an error (HTTP {int(exc.code)}) for {what}.") from None
+            raise RegistryError(f"{WORDS[registry]} answered with an error (HTTP {int(exc.code)}) for {what}.", later=True) from None
         except OSError as exc:
-            raise RegistryError(f"{WORDS[registry]} could not be reached ({exc.__class__.__name__}). Nothing was fetched.") from None
+            raise RegistryError(f"{WORDS[registry]} could not be reached ({exc.__class__.__name__}). Nothing was fetched.", later=True) from None
         except Exception as exc:      # never the error's own words: they can hold an address or a header
-            raise RegistryError(f"The request to {WORDS[registry]} did not come back whole ({exc.__class__.__name__}).") from None
+            raise RegistryError(f"The request to {WORDS[registry]} did not come back whole ({exc.__class__.__name__}).", later=True) from None
         if len(data) > limit:
             raise RegistryError(f"{what} is larger than this version takes.")
         return data

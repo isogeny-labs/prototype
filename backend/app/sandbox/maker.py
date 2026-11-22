@@ -13,7 +13,9 @@ app's web process never does (a test reads the code and fails if it ever imports
      controls, the unpacked versions) and builds the image with no network and no RUN step;
   6. writes the set's record, with the image's own id.
 
-A problem is a `CopyError` with one plain sentence: a stop, never a result.
+A problem is one plain sentence: a `CopyError` (this copy can't be made), or the registry's own `RegistryError` (it
+could not be read; where its `later` is set, nothing was learned and a later try can go differently). Either is a
+stop, never a result.
 """
 from __future__ import annotations
 
@@ -324,20 +326,17 @@ def subjects_for(library: str, language: str, the_versions: list[str], asking: d
 def make_set(*, root: Path, source, library: str, registry: str, package: str, wanted: list[dict], asking: dict, say=print) -> tuple[dict, list[dict]]:
     """Make one copy set and build its image. `wanted`: [{"version", "role"}], the fixed version among them. `asking`:
     {"kind": "ours"} for a library of ours, or {"kind": "written", "author", "source"}. Returns (the set's record, the
-    versions that were left out, each with its plain reason). Raises CopyError."""
+    versions that were left out, each with its plain reason). Raises CopyError, or passes a RegistryError on."""
     if registry not in registries.HOSTS:
         raise CopyError("this version can make a copy only of a package published on npm or PyPI")
     language = registries.LANGUAGES[registry]
     if not wanted or len(wanted) > copies.MAX_VERSIONS or sum(1 for w in wanted if w["role"] == "fixed") != 1:
         raise CopyError("a copy set holds one fixed version and at most seven others")
-    try:
-        project = source.project(registry, package)
-        releases = {w["version"]: registries.read_release(registry, package, w["version"], project, source.release(registry, package, w["version"]))
-                    for w in wanted}
-        fixed = next(w["version"] for w in wanted if w["role"] == "fixed")
-        helpers = helpers_for(source, releases[fixed], releases[fixed].published)
-    except registries.RegistryError as exc:
-        raise CopyError(str(exc)) from None
+    project = source.project(registry, package)
+    releases = {w["version"]: registries.read_release(registry, package, w["version"], project, source.release(registry, package, w["version"]))
+                for w in wanted}
+    fixed = next(w["version"] for w in wanted if w["role"] == "fixed")
+    helpers = helpers_for(source, releases[fixed], releases[fixed].published)
     left_out: list[dict] = []
     kept = []
     for w in wanted:
@@ -366,18 +365,12 @@ def make_set(*, root: Path, source, library: str, registry: str, package: str, w
         shutil.copytree(COMPONENTS_DIR, context / "components", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         real = context / "real"
         real.mkdir()
-        try:
-            helper_files = {name: fetch(root, source, release) for name, release in sorted(helpers.items())}
-        except registries.RegistryError as exc:
-            raise CopyError(str(exc)) from None
+        helper_files = {name: fetch(root, source, release) for name, release in sorted(helpers.items())}
         helper_data = {name: (Path(root) / "files" / f"{f['sha256']}-{f['file']}").read_bytes() for name, f in helper_files.items()}
         version_records = []
         for w in kept:
             release = releases[w["version"]]
-            try:
-                record = fetch(root, source, release)
-            except registries.RegistryError as exc:
-                raise CopyError(str(exc)) from None
+            record = fetch(root, source, release)
             data = (Path(root) / "files" / f"{record['sha256']}-{record['file']}").read_bytes()
             folder = real / f"{library}-{w['version']}"
             if language == "python":
@@ -429,3 +422,18 @@ def make_set(*, root: Path, source, library: str, registry: str, package: str, w
     copies.write_set(root, record)
     copies.forget_cache()
     return record, left_out
+
+
+def library_files(root: Path, source, registry: str, package: str, version: str) -> tuple[dict[PurePosixPath, bytes], str | None, dict]:
+    """The files of one version as they would go into an image, its read-me if it has one, and its file's record: what
+    the author of asking code is shown. Fetched and checked like every copy; nothing of it runs."""
+    project = source.project(registry, package)
+    release = registries.read_release(registry, package, version, project, source.release(registry, package, version))
+    record = fetch(root, source, release)
+    data = (Path(root) / "files" / f"{record['sha256']}-{record['file']}").read_bytes()
+    members = _members(data, record["file"])
+    inside = members if record["file"].endswith(".whl") else _strip_top(members)
+    readme = next((inside[p].decode("utf-8", "replace") for p in sorted(inside)
+                   if len(p.parts) == 1 and p.name.lower() in ("readme.md", "readme.rst", "readme.txt", "readme")), None)
+    tree = _python_tree(record, data)[0] if registries.LANGUAGES[registry] == "python" else _node_tree(record, data)[0]
+    return tree, readme, record

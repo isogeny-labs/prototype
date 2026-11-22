@@ -32,11 +32,13 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from app import real_libraries
 from app.canonical import canonical_bytes, sha256_hex
-from app.config import REPO_ROOT, load_settings
+from app.config import REPO_ROOT, SANDBOX_ENV, load_settings, sandbox_marked
 from app.otto import designs, harness, model, packs
 from app.present.lookup import LEFT_PREFIX, NO_PACK_PREFIX
-from ottolab import research, snapshot
+from app.sandbox import copies as sandbox_copies
+from ottolab import research, sandbox, snapshot
 
 RESEARCH = REPO_ROOT / "research"
 SNAPSHOT = RESEARCH / "snapshot" / "2026-11-17" / "advisories.json"
@@ -78,15 +80,22 @@ def sign(pack: dict, key: Ed25519PrivateKey) -> bytes:
 
 # ---------------------------------------------------------------- the loop, on Adam's harness
 
-def run_loop(lab, snapshot_path: Path, recorded: Path, live: bool, limit_nano: int, spent_file: Path, earlier_file: Path) -> str:
+def run_loop(lab, snapshot_path: Path, recorded: Path, live: bool, limit_nano: int, spent_file: Path, earlier_file: Path,
+             sandbox_args: dict | None = None) -> str:
     """Adam's research loop on this lab: his harness runs, judges, replays and verifies; our agent command does the
-    steps that need judgement. The model judge of his loop is never used (its command is set to one that fails)."""
+    steps that need judgement. The model judge of his loop is never used (its command is set to one that fails).
+    `sandbox_args` (a run started with --sandbox): where the facts file and the working store of public copies are;
+    the steps for a library with no pinned copy then take the sandbox path (ottolab/sandbox.py)."""
     os.environ.update({research.ENV_SNAPSHOT: str(snapshot_path), research.ENV_RECORDED: str(recorded),
                        research.ENV_LIVE: "1" if live else "0", research.ENV_LIMIT: str(limit_nano), research.ENV_SPENT: str(spent_file),
                        research.ENV_EARLIER: str(earlier_file),
                        "EVIDENCE_LAB_BACKEND": str(BACKEND), "OTTO_JUDGE_CMD": "false",
                        "PYTHONPATH": os.pathsep.join([str(BACKEND)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p])})
-    agent = f"{shlex.quote(sys.executable)} -m ottolab.agent"
+    os.environ.pop(sandbox.ENV_ON, None)
+    if sandbox_args is not None:
+        os.environ.update({sandbox.ENV_ON: "1", sandbox.ENV_FACTS: str(sandbox_args["facts"]), sandbox.ENV_STORE: str(sandbox_args["store"]),
+                           sandbox.ENV_STOPS: str(spent_file.with_name("sandbox-stops.jsonl"))})
+    agent = f"{shlex.quote(sys.executable)} -m {'ottolab.sandbox_agent' if sandbox_args is not None else 'ottolab.agent'}"
     return harness.module("loop").loop(lab, MAX_STEPS, research.EXECUTOR, research.VALIDATOR, agent, log=lambda line: say("  " + str(line)))
 
 
@@ -225,6 +234,12 @@ def unsettled(lab, st, advisory_id: str, live: bool) -> str | None:
     trials = research.trials_of(st, advisory_id, "test", lab)
     if trials and st.decision(trials[-1][0]) is None:
         return "Its trial on public copies did not finish in this run."
+    facts = sandbox.facts_for(advisory_id)
+    if not trials and facts is not None and facts.get("library") not in real_libraries.LIBRARIES and sandbox.dead_end(st, advisory_id) is None:
+        # A sandbox advisory with a design, no trial and no settled reason: a registry could not be read, no answer
+        # came for the asking code, or a check could not run. A stop, never a result.
+        return sandbox.stop_of(advisory_id) or ("Its public copies or its asking code were not ready in this run: a registry could "
+                                                "not be read, no answer came, or a check could not run.")
     return None
 
 
@@ -262,7 +277,9 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
     else:
         made = designs.check_design(design_note["design"])
         test["design_sha256"] = designs.design_sha256(made)
-        if not test_trials:
+        if not test_trials and sandbox.dead_end(st, aid) is not None:
+            test.update(state="none", reason=str(sandbox.dead_end(st, aid)), design_sha256=None)       # (sandbox research: settled, with its reason)
+        elif not test_trials:
             test.update(state="not_offered", reason=f"Not offered: this app has no public copies of an affected and a fixed version of {package} to try the design on.")
         else:
             hid, hyp = test_trials[-1]
@@ -270,11 +287,17 @@ def advisory_entry(lab, st, advisory: dict) -> tuple[dict, dict | None]:
             test["trial"] = trial
             arms = (trial or {}).get("arms") or {}
             affected, fixed = arms.get("affected", {}), arms.get("fixed", {})
+            in_sandbox = sandbox.is_sandbox_trial(hyp)
+            if in_sandbox:
+                test["sandbox"] = sandbox_block(lab, st, aid, hid, hyp)
+            why_not = sandbox_reason(st, hid, hyp, trial, package) if in_sandbox and trial is not None else None
             if trial is None:
                 test.update(state="not_offered", reason="Not offered: its trial on public copies did not finish.")
             elif trial["outcome"] == "supported" and trial["replayed"]:
                 design = made
                 test.update(state="ready", reason=ready_reason(package, affected, fixed))
+            elif why_not is not None:
+                test.update(state="not_offered", reason=why_not)
             elif trial["outcome"] == "supported":
                 test.update(state="not_offered", reason="Not offered: its trial on public copies did not repeat when it was run again in a "
                                                         "separate replay step.")
@@ -376,15 +399,85 @@ def assemble(lab, snap: dict, snapshot_sha256: str, version: str, ids: tuple[str
             "live": "Live: Claude, through the API key on the computer that built this pack",
             "mixed": "Some answers recorded during the build, some live from Claude"}[answers]
     lock = harness.read_lock()
-    return {"schema": packs.PACK_SCHEMA, "version": version, "built_at": _now(), "previous": previous, "signer": signer,
+    scripts = {research.TRIAL: research.file_sha256(Path(lab.root) / research.TRIAL),
+               research.CHECKER: research.file_sha256(Path(lab.root) / research.CHECKER),
+               "ottolab/agent.py": research.file_sha256(Path(__file__).with_name("agent.py")),
+               "ottolab/research.py": research.file_sha256(Path(__file__).with_name("research.py")),
+               "ottolab/prompts.py": research.file_sha256(Path(__file__).with_name("prompts.py"))}
+    # A pack that holds anything of sandbox research is written in the second format, and names the sandbox scripts too.
+    second = any("sandbox" in entry["test"] or any(step["step"] == "write_wrapper" for step in entry["steps"]) for entry in entries)
+    if second:
+        scripts.update(sandbox.fingerprints())
+    return {"schema": packs.PACK_SCHEMA_2 if second else packs.PACK_SCHEMA, "version": version, "built_at": _now(), "previous": previous,
+            "signer": signer,
             "research": {"snapshot": snap["snapshot"], "snapshot_sha256": snapshot_sha256, "answers": answers, "answers_note": note},
             "otto": {"repository": lock.repository, "commit": lock.commit, "version": lock.version, "ledger": lab.ledger.head(),
-                     "scripts": {research.TRIAL: research.file_sha256(Path(lab.root) / research.TRIAL),
-                                 research.CHECKER: research.file_sha256(Path(lab.root) / research.CHECKER),
-                                 "ottolab/agent.py": research.file_sha256(Path(__file__).with_name("agent.py")),
-                                 "ottolab/research.py": research.file_sha256(Path(__file__).with_name("research.py")),
-                                 "ottolab/prompts.py": research.file_sha256(Path(__file__).with_name("prompts.py"))}},
+                     "scripts": scripts},
             "advisories": entries, "tests": tests}
+
+
+# ---------------------------------------------------------------- sandbox research: what a pack says about a test on sandbox copies
+
+def _when(lab, record_id: str) -> str | None:
+    for entry in lab.ledger.entries():
+        if lab.ledger.record_id(entry) == record_id:
+            return str(entry["ts"])
+    return None
+
+
+def sandbox_block(lab, st, advisory_id: str, hid: str, hyp: dict) -> dict:
+    """The proof material of a test that was tried on sandbox copies: the copy set (every file with where it came from
+    and its fingerprints, the asking code as text, the image), the second author's asking code, both known-answer
+    checks, which versions took part and which were left out and why, and when the trial was registered."""
+    code = hyp["code"]
+
+    def one(prefix: str) -> dict | None:
+        rel = next((p for p in sorted(code) if p.startswith(f"sandbox/{advisory_id}/{prefix}-")), None)
+        return json.loads(Path(lab.path(rel)).read_text(encoding="utf-8")) if rel else None
+    set_a, set_b, arms = one("set-a"), one("set-b"), one("arms")
+    known_a, known_b = one("known-a"), one("known-b")
+    assert set_a is not None and arms is not None and known_a is not None
+
+    def marks(known: dict) -> dict:
+        return {"seed": known["seed"], "valid": known["valid"], "spoiled": known["spoiled"],
+                "versions": {v: {"accepted_valid": c["accepted_valid"], "rejected_spoiled": c["rejected_spoiled"]}
+                             for v, c in sorted(known["versions"].items())},
+                "controls_refused": all(not sandbox.full_marks(known, v, which) for v in known.get("dummies", {}) for which in ("yes", "no"))}
+    runs = sorted(str(entry["ts"]) for entry in lab.ledger.entries()
+                  if entry["kind"] == "run" and entry["payload"].get("hypothesis_id") == hid)
+    return {"set": set_a,
+            "second": ({"author": set_b["asking"]["author"], "source": set_b["asking"]["source"], "sha256": set_b["asking"]["sha256"],
+                        "lines": set_b["asking"]["lines"], "set": set_b["id"], "image": set_b["image"]["tag"]} if set_b else None),
+            "known": marks(known_a), "second_known": marks(known_b) if known_b else None,
+            "versions": {"affected": arms["affected"], "fixed": arms["fixed"], "more_affected": list(arms["more_affected"]),
+                         "more_fixed": list(arms["more_fixed"]), "left_out": list(arms["left_out"])},
+            "screen_sha256": sandbox.screens.fingerprint() if set_a["asking"]["kind"] == "written" else None,
+            "registered": {"hypothesis": hid, "at": _when(lab, hid), "first_run_at": runs[0] if runs else None,
+                           "pins": {name: digest for name, digest in sorted(code.items())}}}
+
+
+def sandbox_reason(st, hid: str, hyp: dict, trial: dict, package: str) -> str | None:
+    """Why a test tried on sandbox copies is not offered, in the words of what the trial showed. None: the usual words fit."""
+    if trial["outcome"] == "supported":
+        return None
+    arms = trial["arms"]
+    failed = sandbox.failed_control(st, hid)
+    if trial["outcome"] in ("instrument_failure", "degenerate") and failed is not None:
+        figures = arms.get(failed["arm"], {})
+        if failed["metric"] == "agree":
+            apart = int(figures.get("total", 0)) - int(figures.get("agree", 0))
+            return (f"Not offered: the two versions of the asking code gave different answers on {apart} of {figures.get('total')} cases on "
+                    f"{package} {figures.get('version')}, so neither is relied on.")
+        if failed["arm"] == "accept-all":
+            return "Not offered: the control that must fail did not fail on every case that must be rejected."
+        return (f"Not offered: {package} {figures.get('version')}, a fixed version, got {figures.get('wrong')} of the {figures.get('total')} "
+                "selected cases wrong, so this check does not tell the fix from the weakness.")
+    killed = sandbox.killed_prediction(st, hid)
+    if trial["outcome"] in ("refuted", "inconclusive") and killed is not None and killed["arm"] != "affected":
+        figures = arms.get(killed["arm"], {})
+        return (f"Not offered: {package} {figures.get('version')}, which the advisory names as affected, got all {figures.get('total')} selected "
+                "cases right. The advisory's own version list and this check do not agree, so the check is not shipped.")
+    return None
 
 
 def _day(stamp: str) -> str:
@@ -397,7 +490,7 @@ def _day(stamp: str) -> str:
 
 def build_pack(lab, snap: dict, snapshot_path: Path, version: str, ids: tuple[str, ...], previous: str | None, key: Ed25519PrivateKey,
                signer: str, out_dir: Path, recorded: Path, live: bool, limit_nano: int, spent_file: Path,
-               earlier: list[dict] | None = None, leave_open: bool = False) -> packs.Pack | None:
+               earlier: list[dict] | None = None, leave_open: bool = False, sandbox_args: dict | None = None) -> packs.Pack | None:
     """`earlier`: the checks of the packs built before this one (`checks_of` each), so that a design which only repeats
     one of them for the same library is refused, also when that pack came out of another lab.
     `leave_open` (a pack made on this computer): an advisory this run could not settle (`unsettled`) is left out of the
@@ -407,7 +500,7 @@ def build_pack(lab, snap: dict, snapshot_path: Path, version: str, ids: tuple[st
     earlier_file = spent_file.with_name(f"earlier-checks-{version}.json")
     earlier_file.write_text(json.dumps(list(earlier or [])), encoding="utf-8")
     research_advisories(lab, snap, snapshot_sha256, ids, snapshot_path=snapshot_path, recorded=recorded, live=live, limit_nano=limit_nano,
-                        spent_file=spent_file, earlier_file=earlier_file)
+                        spent_file=spent_file, earlier_file=earlier_file, sandbox_args=sandbox_args)
     problems = lab.audit()
     if problems:
         raise research.ResearchError("Otto's audit of the research ledger found a problem: " + "; ".join(problems[:3]))
@@ -420,7 +513,7 @@ def build_pack(lab, snap: dict, snapshot_path: Path, version: str, ids: tuple[st
         if not ids:
             return None
     raw = sign(assemble(lab, snap, snapshot_sha256, version, ids, previous, signer, earlier), key)
-    made = packs.read_envelope(raw, {_public_hex(key): (signer, False)})   # the builder reads its own pack back exactly as the app will
+    made = packs.read_envelope(raw, {_public_hex(key): (signer, sandbox_args is not None)})   # the builder reads its own pack back exactly as the app will
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{version}.json").write_bytes(raw + b"\n")
     for entry in made.pack["advisories"]:
@@ -520,7 +613,18 @@ def next_pack(args) -> int:
     if not ids:
         say("Every advisory in the inbox is already in an earlier pack.")
         return 1
+    sandbox_args = None
+    if args.sandbox:
+        if not sandbox_marked():
+            say(f"--sandbox was given, but this computer is not marked as Isogeny's own sandbox ({SANDBOX_ENV} is not set). Nothing was done.")
+            return 1
+        if not args.facts or not Path(args.facts).is_file():
+            say("--sandbox needs --facts FILE: the version facts the app read from the advisory source.")
+            return 1
+        sandbox_args = {"facts": Path(args.facts).resolve(), "store": data_dir / "sandbox-research"}
     lab = open_lab(data_dir / "otto-research-lab")
+    if sandbox_args is not None:
+        lab = sandbox.open_lab(data_dir / "otto-research-lab")
     recorded = Path(args.recorded) if args.recorded else RECORDED
     with tempfile.TemporaryDirectory(prefix="ottolab-") as scratch:
         spent_file = Path(scratch) / "spent.json"
@@ -528,8 +632,17 @@ def next_pack(args) -> int:
             say(f"--live was given, but no API key is set on this computer ({model.KEY_ENV}). Only recorded answers are used.")
         made = build_pack(lab, snap, files[0], version, ids, newest.fingerprint if newest else None, _local_key(data_dir), LOCAL_SIGNER,
                           updates, recorded, args.live, args.limit_nano, spent_file,
-                          [check for pack in chain for check in checks_of(pack.pack)], leave_open=True)
+                          [check for pack in chain for check in checks_of(pack.pack)], leave_open=True, sandbox_args=sandbox_args)
         say(_spent_line(spent_file, args.limit_nano))
+        spent, _, unanswered = research._spent(str(spent_file))
+        if args.summary:      # what the run spent on Claude, for the app's limit for a day (a number, nothing else)
+            Path(args.summary).write_text(json.dumps({"spent_nano": int(spent) + int(unanswered)}), encoding="utf-8")
+    if made is not None and sandbox_args is not None:
+        # The copy sets of the tests this run proved go into the app's own store, so an accepted check can run on them.
+        for entry in made.pack["advisories"]:
+            block = entry["test"].get("sandbox")
+            if entry["test"]["state"] == "ready" and block:
+                sandbox_copies.write_set(data_dir / "sandbox", block["set"])
     if made is None:
         say(f"{NO_PACK_PREFIX}this run settled none of its advisories. Each one says why, and can be tried again.")
         return EXIT_NOTHING_SETTLED
@@ -643,6 +756,9 @@ def audit_problems(root: Path) -> tuple[list[str], int]:
     for name in (research.TRIAL, research.CHECKER):     # the lab's own copies of the two pinned scripts, compared as bytes
         if not (root / name).is_file() or (root / name).read_bytes() != (research.PINNED / name).read_bytes():
             problems.append(f"the lab's {name} is not the one in ottolab/pinned")
+    for name in (sandbox.TRIAL, sandbox.QUALIFY):       # (sandbox research: only a lab that ran it holds these two)
+        if (root / name).exists() and (not (root / name).is_file() or (root / name).read_bytes() != (research.PINNED / name).read_bytes()):
+            problems.append(f"the lab's {name} is not the one in ottolab/pinned")
     return problems, len(entries)
 
 
@@ -687,6 +803,11 @@ def main(argv: list[str] | None = None) -> int:
             one.add_argument("--data-dir", help="the app's data folder (default: this app's own)")
             one.add_argument("--recorded", help="a folder of recorded answers (default: research/recorded)")
             one.add_argument("--shipped", help="the folder of shipped packs (default: research/packs)")
+            one.add_argument("--sandbox", action="store_true",
+                             help="sandbox research (a prototype, only on a computer marked as Isogeny's sandbox): fetch public copies "
+                                  "beyond the pinned set and have asking code written for a library that has none")
+            one.add_argument("--facts", help="with --sandbox: the version facts the app read from the advisory source")
+            one.add_argument("--summary", help="a file to write what the run spent on Claude into")
     check = sub.add_parser("audit")
     check.add_argument("--lab", help="the Otto lab to audit (default: research/lab)")
     check.set_defaults(run=audit)

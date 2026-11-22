@@ -199,6 +199,19 @@ class RecordedSource:
             raise LookupError_("A recorded answer in the folder is larger than this version takes.")
         return [raw]
 
+    def read_on(self, package: Package) -> str | None:
+        """The day a recorded answer was read from the source, when its file says so ("recorded_on": "2026-11-22", beside
+        "vulns"). A recorded answer was read on the day it was recorded, not on the day it is replayed; a file that
+        does not say gets the day of the look, as before."""
+        path = self.folder / f"{package.key.replace('/', '_').replace(':', '_')}.json"
+        try:
+            if not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_ANSWER_BYTES:
+                return None
+            day = json.loads(path.read_bytes().decode("utf-8")).get("recorded_on")
+        except (OSError, ValueError, RecursionError, AttributeError):
+            return None
+        return day if isinstance(day, str) and _DAY.match(day) else None
+
     def snapshots(self) -> list[dict]:
         """Every snapshot file in the folder (the shape of research/snapshot/*/advisories.json), used as it is."""
         out = []
@@ -512,8 +525,9 @@ def read_source(source, packages: list[Package], now: datetime | None = None, fi
     for package in packages:
         pages = source.answers(package)
         count = 0
+        read_on = source.read_on(package) if isinstance(source, RecordedSource) else None
         for raw in pages:
-            more, bad = read_answer(raw, package, today)
+            more, bad = read_answer(raw, package, read_on or today)
             left_out += bad
             withdrawn += [{"library": package.library, **w} for w in withdrawn_in(raw, package)]
             for one in more:

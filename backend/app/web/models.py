@@ -2646,6 +2646,11 @@ class LookupButton(Shape):
     dialog: LookupDialog
 
 
+class LabelledLink(Shape):
+    label: str
+    link: ItemLink
+
+
 class LookupRowState(Shape):
     key: Literal["in_pack", "in_waiting_pack", "new", "no_test", "not_yours"]
     label: str
@@ -2665,6 +2670,8 @@ class LookupRow(Shape):
     link: ItemLink | None = Field(description="Its row on this page, once a test pack holds it.")
     publisher: str
     url: str
+    sandbox: bool = Field(default=False, description="Sandbox research: a test for it would be tried on public copies fetched from a registry.")
+    watch: LabelledLink | None = Field(default=None, description="Sandbox research: its row on the Watch list, while it has no fix yet.")
 
 
 class LookupLast(Shape):

@@ -39,6 +39,7 @@ from typing import Any, Callable
 
 from sqlalchemy import select
 
+from app import real_libraries
 from app.db import ImportRow, OttoLookupRow, OttoResearchRow, PlanRow, iso
 from app.engine import research
 from app.errors import Conflict
@@ -47,9 +48,11 @@ from app.knowledge.versions import read_version
 from app.otto import harness, lookup, model, packs
 from app.present import lookup as present_lookup
 from app.run import components
+from app.sandbox import registries as sandbox_registries      # (its tables of names only: the app never reads a registry)
 
 BACKEND = Path(__file__).resolve().parents[2]
 SNAPSHOT_SCHEMA = "isogeny.advisory-snapshot/1"
+FACTS_SCHEMA = "isogeny.sandbox-facts/1"          # (sandbox research: what the research command is told beside an advisory's text)
 MAX_OUTPUT_LINES = 400
 RESEARCH_TIMEOUT_SECONDS = 4 * 60 * 60
 
@@ -76,6 +79,10 @@ class DiscoverMixin:
     otto_live_ready: Callable[..., bool]
     _otto_limit: Callable[..., int]
     decision_name: Callable[..., str]
+    sandbox_on: Callable[..., bool]
+    sandbox_refresh: Callable[..., None]
+    sandbox_run_limit: Callable[..., int]
+    sandbox_day_reached: Callable[..., str | None]
 
     def _init_discover(self) -> None:
         self._research_lock = threading.Lock()
@@ -183,6 +190,8 @@ class DiscoverMixin:
         found: list[packs.Pack] = []
         for folder in (self.settings.otto_updates, self.settings.otto_local_updates):
             found += packs.found_in(folder, keys)[0]
+        if not self.sandbox_on():           # (a pack that carries asking code is taken only while Sandbox research is on)
+            found = [p for p in found if p.pack["schema"] != packs.PACK_SCHEMA_2]
         found.sort(key=lambda p: packs.version_key(p.version))          # (stable: at one version a built-in pack comes first)
         rows = self._pack_rows(db)
         have = {r.fingerprint for r in rows}
@@ -216,8 +225,12 @@ class DiscoverMixin:
         """Each advisory of one look with where it stands now: in a pack, new and able to be tried, or not."""
         libraries = self._named_libraries(db, plan)
         installed, waiting = self._packs_by_advisory(db, self._closed_at(plan.id))
+        sandbox = self.sandbox_on()
+        # (the name each library has where it is published, as this look asked about it)
+        asked_names = {str(a.get("library")): str(a.get("name")) for a in row.asked or [] if isinstance(a, dict)}
         out = []
         for item in row.found or []:
+            copies: dict | None = None
             advisory = item["advisory"]
             library = advisory["package"]["name"]
             mine = [lib for lib in libraries if lib["library"] == library]
@@ -239,7 +252,13 @@ class DiscoverMixin:
                 state, why = "not_yours", None
             else:
                 state, why = self._can_try(library, affected or unsure)
-            out.append({"advisory": advisory, "library": library, "fits": fits, "state": state, "why": why,
+                if sandbox and not self._pinned_versions(library):
+                    # Sandbox research (a prototype): the app has no pinned copy of this library, and a copy can be made
+                    # from its public registry. Decided by fixed rules from the source's own fields; nothing is fetched here.
+                    state, why, copies = self._can_try_sandbox(advisory, found, affected or unsure, asked_names)
+            out.append({"advisory": advisory, "library": library, "fits": fits, "state": state, "why": why, "sandbox": copies,
+                        # (sandbox research: a weakness the source names no fixed version for is on the Watch list)
+                        "watch_item": f"{advisory['id']}~{library}" if sandbox and state == "no_test" and why == present_lookup.NO_FIXED_VERSION else None,
                         "pack": in_pack["version"] if in_pack else (in_waiting or {}).get("version"),
                         "pack_made_here": bool(in_waiting and in_waiting["made_here"]) if not in_pack else False,
                         "entry": in_pack["entry"] if in_pack else None})
@@ -262,6 +281,41 @@ class DiscoverMixin:
         if fixed not in have or have.index(fixed) == 0 or read_version(fixed) is None:
             return "no_test", present_lookup.no_copy_of_version(library, fixed, have)
         return "new", None
+
+    @staticmethod
+    def _pinned_versions(library: str) -> list[str]:
+        """The versions of this library the app itself holds: a demo program's, or a pinned real library's. Never a
+        sandbox copy's."""
+        if library in components.VERSIONS:
+            return list(components.VERSIONS[library])
+        found = real_libraries.LIBRARIES.get(library)
+        return list(found["versions"]) if found else []
+
+    @staticmethod
+    def _can_try_sandbox(advisory: dict, found: lookup.Found, fits: list[dict], asked_names: dict[str, str]) -> tuple[str, str | None, dict | None]:
+        """Sandbox research: can a test for this advisory be tried on public copies made from the library's registry?
+        ("new", None, what would be fetched) or ("no_test", why, None). Fixed rules over the source's own fields."""
+        library, ecosystem = advisory["package"]["name"], advisory["package"]["ecosystem"]
+        names = [str(advisory["id"]).upper(), *[str(a).upper() for a in advisory.get("aliases") or []], str(found.record_id).upper()]
+        if any(name.startswith("MAL-") for name in names):
+            return "no_test", present_lookup.HARMFUL_PACKAGE, None       # a package published to do harm is never fetched
+        registry = sandbox_registries.ECOSYSTEMS.get(ecosystem)
+        package = asked_names.get(library)
+        if registry is None or not package:
+            return "no_test", present_lookup.no_registry(library, ecosystem), None
+        if not found.ranges:
+            return "no_test", present_lookup.NO_VERSION_FIELDS, None
+        if all(f["state"] == "cant_tell" for f in fits):
+            return "no_test", present_lookup.CANT_TELL_VERSION, None
+        ends = [r for r in found.ranges if r.get("fixed") or r.get("last_affected")]
+        if not ends:
+            return "no_test", present_lookup.NO_FIXED_VERSION, None
+        fixed = next((f["fixed"] for f in fits if f.get("fixed")), None) or next((r["fixed"] for r in ends if r.get("fixed")), None)
+        yours = sorted({str(f["version"]) for f in fits if f.get("version") and f["state"] == "affected"})
+        return "new", None, {"library": library, "registry": registry, "registry_words": sandbox_registries.WORDS[registry], "package": package,
+                             "fixed": fixed, "after": None if fixed else ends[0]["last_affected"], "yours": yours,
+                             "ranges": [{"introduced": r["introduced"], "fixed": r.get("fixed"), "last_affected": r.get("last_affected")}
+                                        for r in found.ranges]}
 
     # ---------------------------------------------------------------- the second click: design and prove
 
@@ -300,11 +354,14 @@ class DiscoverMixin:
             return present_lookup.RESEARCH_NOTHING
         if self.mode.name != "isolated":
             return present_lookup.RESEARCH_NEEDS_ISOLATED
+        if self.sandbox_on() and self.otto_live_ready():
+            return self.sandbox_day_reached()        # (the limit for a day counts only what Claude is paid: a run on recorded answers is free)
         return None
 
-    def start_research(self, plan_id: int) -> dict:
+    def start_research(self, plan_id: int, by: str | None = None) -> dict:
         """Design and prove tests for the new advisories of the newest look, in the background. The built-in packs
-        that are not installed yet are installed first, in order: a pack made here follows the newest one."""
+        that are not installed yet are installed first, in order: a pack made here follows the newest one.
+        (`by`: a run the Watch list's clock started is kept under the clock's name, never a person's.)"""
         # One research run at a time, on this computer: from the check to the moment the run is registered, a second
         # click (another tab, a repeated request) waits here, and then finds the first one running.
         with self._research_lock:
@@ -318,6 +375,9 @@ class DiscoverMixin:
                     raise Conflict(blocked or present_lookup.RESEARCH_NOTHING)
                 look_id = look.id
                 live, limit = self.otto_live_ready(), self._otto_limit(db)
+                sandbox = self.sandbox_on()
+                if sandbox:            # (a sandbox run has its own limit for one run, and never more than is left of the day's)
+                    limit = self.sandbox_run_limit()
                 number = sum(1 for r in self._research_rows(db, plan_id) if r.kind == "started") + 1
             installed_first = self._install_waiting_packs()
             run_key = f"{plan_id}-{_now()}-{number}"          # (the count makes it this run's alone: the time is to the second)
@@ -328,17 +388,29 @@ class DiscoverMixin:
                         "about": "Advisories read by Look for new advisories. Every excerpt is a piece of the publisher's own text.",
                         "advisories": [r["advisory"] for r in eligible]}
             (inbox / "advisories.json").write_text(json.dumps(snapshot, indent=1, ensure_ascii=False), encoding="utf-8")
+            extras: Path | None = None
+            if sandbox:
+                # What the research command is told beside each advisory's text: where its library is published, the
+                # version ranges the source gives in its own fields, and the versions this assessment names. Kept
+                # outside the inbox, which holds the one snapshot file and nothing else.
+                extras = inbox.parent / (inbox.name + "-sandbox")
+                extras.mkdir(parents=True, exist_ok=True)
+                facts = {"schema": FACTS_SCHEMA,
+                         "advisories": {r["advisory"]["id"]: {k: r["sandbox"][k] for k in ("library", "registry", "package", "ranges", "yours")}
+                                        for r in eligible if r.get("sandbox")}}
+                (extras / "facts.json").write_text(json.dumps(facts, indent=1, ensure_ascii=False), encoding="utf-8")
             with self._otto_lock, self.db() as db:
-                started = OttoResearchRow(plan_id=plan_id, run_key=run_key, kind="started", at=_now(), by=self.decision_name(),
+                started = OttoResearchRow(plan_id=plan_id, run_key=run_key, kind="started", at=_now(), by=by or self.decision_name(),
                                           lookup_id=look_id, advisories=ids, live=bool(live), limit_nano=int(limit),
-                                          installed_first=installed_first, exit_code=None, pack_version=None, output=[])
+                                          installed_first=installed_first, exit_code=None, pack_version=None, output=[],
+                                          sandbox=bool(sandbox), spent_nano=0)
                 db.add(started)
                 db.commit()
                 row_id = started.id
             state: dict = {"lines": [], "thread": None}
             self._research_live[row_id] = state
             thread = threading.Thread(target=self._run_research, name=f"otto-research-{row_id}", daemon=True,
-                                      args=(row_id, plan_id, run_key, inbox, live, limit, look_id, ids, installed_first))
+                                      args=(row_id, plan_id, run_key, inbox, live, limit, look_id, ids, installed_first, extras))
             state["thread"] = thread
             thread.start()
         return self.advisories_view(plan_id)      # type: ignore[attr-defined]
@@ -362,8 +434,27 @@ class DiscoverMixin:
                    "--shipped", str(self.settings.otto_updates), "--recorded", str(self.settings.otto_recorded), "--limit", dollars]
         return command + (["--live"] if live else [])
 
+    @staticmethod
+    def _sandbox_arguments(extras: Path | None) -> list[str]:
+        """What a research run started with Sandbox research on is given besides: public copies beyond the pinned set,
+        and asking code. Empty with the switch off: the command is then exactly the one it always was."""
+        if extras is None:
+            return []
+        return ["--sandbox", "--facts", str(extras / "facts.json"), "--summary", str(extras / "summary.json")]
+
+    @staticmethod
+    def _spent_by(extras: Path | None) -> int:
+        """What a sandbox research run says it spent on Claude: one number in a small file the command writes. Data: a
+        file that is not exactly that counts as nothing spent."""
+        try:
+            data = json.loads((extras / "summary.json").read_text(encoding="utf-8")) if extras is not None else {}
+        except (OSError, ValueError):
+            return 0
+        spent = data.get("spent_nano") if isinstance(data, dict) else None
+        return int(spent) if isinstance(spent, int) and not isinstance(spent, bool) and 0 <= spent < 10 ** 15 else 0
+
     def _run_research(self, row_id: int, plan_id: int, run_key: str, inbox: Path, live: bool, limit_nano: int, lookup_id: int,
-                      ids: list[str], installed_first: list[str]) -> None:
+                      ids: list[str], installed_first: list[str], extras: Path | None = None) -> None:
         """The research command, as a process of its own, with what it says kept line by line. Then the pack it made
         is installed. Whatever happens, one end row is written."""
         state = self._research_live[row_id]
@@ -372,7 +463,8 @@ class DiscoverMixin:
         try:
             env = dict(os.environ)
             env["PYTHONUNBUFFERED"] = "1"
-            process = subprocess.Popen(self._research_command(inbox, live, limit_nano), cwd=str(BACKEND), env=env, stdout=subprocess.PIPE,
+            command = self._research_command(inbox, live, limit_nano) + self._sandbox_arguments(extras)
+            process = subprocess.Popen(command, cwd=str(BACKEND), env=env, stdout=subprocess.PIPE,
                                        stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", start_new_session=True)
             state["process"] = process
 
@@ -401,6 +493,8 @@ class DiscoverMixin:
             elif state.get("timed_out"):
                 reason = present_lookup.RESEARCH_TOO_LONG
             elif code == 0:
+                if extras is not None:
+                    self.sandbox_refresh()           # (the copies this run made for its proven tests are known from here on)
                 # The pack this run made: the one pack made here that is ready to install now (none was before the run
                 # started, or the run would not have started), and it holds only advisories of this run.
                 with self.db() as db:
@@ -421,7 +515,8 @@ class DiscoverMixin:
                 with self._otto_lock, self.db() as db:
                     db.add(OttoResearchRow(plan_id=plan_id, run_key=run_key, kind="finished", at=_now(), by=None, lookup_id=lookup_id,
                                            advisories=ids, live=bool(live), limit_nano=int(limit_nano), installed_first=installed_first,
-                                           exit_code=code, pack_version=pack_version, output=list(lines)[-MAX_OUTPUT_LINES:], reason=reason))
+                                           exit_code=code, pack_version=pack_version, output=list(lines)[-MAX_OUTPUT_LINES:], reason=reason,
+                                           sandbox=extras is not None, spent_nano=self._spent_by(extras)))
                     db.commit()
             finally:
                 self._research_live.pop(row_id, None)
@@ -450,6 +545,9 @@ class DiscoverMixin:
             closed = self._closed_at(plan_id) is not None
             waiting_packs = [pack.version for pack in self._waiting_chain(db) if not pack.made_here]
             live, limit = self.otto_live_ready(), self._otto_limit(db)
+            sandbox = self.sandbox_on()
+            if sandbox:
+                limit = self.sandbox_run_limit()
             left_open = self._left_open(research_state)
         source = self._advisory_source()
         return present_lookup.lookup_view(
@@ -457,7 +555,7 @@ class DiscoverMixin:
             closed=closed, look=({"at": look.at, "by": look.by, "source": look.source, "sent": look.sent, "asked": look.asked,
                                   "left_out": look.left_out, "cut": look.cut} if look is not None else None),
             rows=rows, eligible=len(eligible), research_blocked=blocked, waiting_packs=waiting_packs, left_open=left_open, live=live,
-            limit=f"{limit / model.NANO:.2f}", isolated=self.mode.name == "isolated",
+            limit=f"{limit / model.NANO:.2f}", isolated=self.mode.name == "isolated", sandbox=sandbox,
             run=({"started_at": research_state["run"].at, "advisories": research_state["run"].advisories, "live": research_state["run"].live,
                   "running": research_state["live"], "lines": research_state["lines"],
                   "installed_first": list(research_state["run"].installed_first or []),
