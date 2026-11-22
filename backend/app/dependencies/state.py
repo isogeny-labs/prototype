@@ -270,15 +270,17 @@ class DependenciesMixin:
 
     # ---------------------------------------------------------------- the screen
 
-    def dependencies_view(self, plan_id: int) -> dict:
+    def dependencies_view(self, plan_id: int, with_impact: bool = True) -> dict:
+        """`with_impact` (phase 4e): each row's "Where it is used". The reads that only count leave it out."""
         with self.db() as db:
             plan = self._plan(db, plan_id)
             imp = db.get(ImportRow, plan.import_id)
             busy = self.jobs.busy((DEPENDENCY_ORIGIN, plan_id))
             state = self._dependency_state(db, plan)
             otto = self._dependency_otto(db, plan, state)
+            impact = self._dependency_impact(db, plan, state) if with_impact else {}     # type: ignore[attr-defined]
             return present_deps.view(plan_id=plan.id, import_id=imp.id, is_demo=bool(imp.is_demo), state=state, busy=busy,
-                                     isolated=self.mode.name == "isolated", otto=otto)
+                                     isolated=self.mode.name == "isolated", otto=otto, impact=impact)
 
     def _dependency_otto(self, db, plan: PlanRow, state: dict | None) -> dict:
         """Phase 5c: for each library row (by its key), the published advisories that name it with what this assessment
