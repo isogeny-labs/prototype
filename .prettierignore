@@ -1,0 +1,7 @@
+# Generated from the backend's API description (cd frontend && npm run gen:api).
+frontend/src/api.gen.ts
+frontend/src/api-schema.json
+**/node_modules/
+**/dist/
+**/test-results/
+**/playwright-report/

@@ -1,0 +1,23 @@
+{
+  "name": "isogeny-evidence-lab-lint",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Development-only lint and code style tools for the frontend and the end-to-end tests. The app never imports them.",
+  "scripts": {
+    "lint": "cd .. && lint/node_modules/.bin/eslint --config lint/eslint.config.js --suppressions-location lint/eslint-suppressions.json --max-warnings 0",
+    "lint:baseline": "cd .. && lint/node_modules/.bin/eslint --config lint/eslint.config.js --suppressions-location lint/eslint-suppressions.json --suppress-all",
+    "style": "cd .. && lint/node_modules/.bin/prettier --check --ignore-unknown",
+    "style:write": "cd .. && lint/node_modules/.bin/prettier --write --ignore-unknown"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.15.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.14.0",
+    "prettier": "3.10.1",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.73.0"
+  }
+}
