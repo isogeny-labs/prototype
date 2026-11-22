@@ -179,6 +179,11 @@ def program_kinds(program: dict) -> tuple[str, ...]:
         return ("mldsa_vectors", "speed_size")
     if str(program.get("algorithm", "")).startswith(("ML-DSA", "ML-KEM")):
         return ()
+    # Sandbox research (prototype): a public copy whose asking code only checks signatures can't be timed signing, so
+    # Speed and size is left out for it. (None with the switch off: the pinned libraries and our own programs sign.)
+    found = real_libraries.library(program.get("component"), program.get("version"))
+    if found is not None and found.get("checks_only"):
+        return ("official_vectors", "bad_signatures")
     return ("official_vectors", "bad_signatures", "speed_size")
 
 
@@ -583,7 +588,7 @@ class RuleEngine:
              "commit": vectors.WYCHEPROOF_COMMIT, "source_url": vectors.WYCHEPROOF_SOURCE_URL},
             [f"Wycheproof testvectors_v1/{ecdsa['file']} ({ecdsa['cases']} cases), pinned to commit {short}.",
              (f"The second official file, {ed['file']}, is not used on this component: this test checks its ECDSA P-256 signatures. It is run on the reference library."
-              if name in real_libraries.LIBRARIES else   # a real library may offer more than ECDSA P-256 (phase 4c)
+              if real_libraries.known(name) is not None else   # a real library may offer more than ECDSA P-256 (phase 4c)
               f"The second official file, {ed['file']}, is not used on this component: {name} only does ECDSA P-256. It is run on the reference library.")],
             {"kind": "accept_all_verifier",
              "text": "The same cases run against a deliberately broken signer, which must get every invalid case wrong.",
@@ -680,7 +685,7 @@ class RuleEngine:
         an independent library, and its speed and sizes next to ML-DSA-65 on the reference library."""
         target = self._signing_target(claims, ref)
         name, algorithm = target["component"], target["algorithm"]
-        if name in real_libraries.LIBRARIES and not algorithm.startswith("ML-"):
+        if real_libraries.known(name) is not None and not algorithm.startswith("ML-"):
             return self._real_signing_status(target)
         return self._spec(
             "signing_status",

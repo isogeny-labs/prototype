@@ -557,6 +557,133 @@ def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             lab.stop()
 
 
+SANDBOX_ID = "CVE-2021-43572"
+SANDBOX_ITEM = f"{SANDBOX_ID}~starkbank-ecdsa"
+
+
+def _sandbox_walk(settings: Settings, answers: dict, notes: list[str], progress) -> None:
+    """Sandbox research (a prototype; docs/OTTO-KEY.md, "Sandbox research"): the switch, and in isolated mode the line
+    from a weakness with no fix yet to a proven check that a person accepts and the separate reviewer decides. The copy
+    of the app is marked as the sandbox for this walk only. It reads the recorded advisory source and the recorded
+    registry of `tools/research_demo.py --sandbox`: nothing is fetched here, and no answer comes from the API."""
+    import importlib
+    import os
+
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from app import prepare
+    from app.canonical import canonical_bytes, sha256_hex
+    from app.config import SANDBOX_ENV
+    from app.db import OttoResearchRow
+
+    # (the tool that prepares the demo's folders, loaded by name: the type checker reads tools/ as loose scripts, and an
+    #  import statement here would make it find that file a second time under another name and stop)
+    research_demo = importlib.import_module("tools.research_demo")
+
+    files_here = all((prepare.DOWNLOADS_DIR / pin["file"]).is_file() for pin in research_demo.SANDBOX_PINS)
+    kept = {name: os.environ.get(name) for name in (SANDBOX_ENV, "EVIDENCE_LAB_REGISTRY_SOURCE")}
+    with tempfile.TemporaryDirectory(prefix="evidence-lab-accuracy-") as scratch:
+        source, registry = (research_demo.prepare_sandbox(Path(scratch) / "demo", day=1) if files_here else
+                            (research_demo.sandbox_source(Path(scratch) / "demo" / "advisories", 1), None))
+        os.environ[SANDBOX_ENV] = "1"                          # (the research command, a process of its own, reads it too)
+        if registry is not None:
+            os.environ["EVIDENCE_LAB_REGISTRY_SOURCE"] = str(registry)
+        lab = Lab(dataclasses.replace(settings, data_dir=Path(scratch) / "data", advisory_source_dir=source, registry_source_dir=registry,
+                                      sandbox_research=True, watch_clock=False), allow_external_demo_server=True)
+        lab.start()
+        try:
+            answers["sandbox.switch.default"] = bool(lab.sandbox_on())
+            if lab.mode.name != "isolated":
+                answers["sandbox.demo_mode.can_turn_on"] = not lab.sandbox_blocked()
+                notes.append("Sandbox research: in demo mode only the switch is asked about. The rest of its questions need isolated mode.")
+                return
+            if not files_here:
+                notes.append("Sandbox research: its walk was not made. The six public package files of the sandbox demo are not on this "
+                             "computer (run once, with internet: cd backend && .venv/bin/python tools/research_demo.py --sandbox DIR).")
+                return
+            progress("  ... Sandbox research: a weakness with no fix yet, the day its fix is published, then Design and prove tests (about three minutes)")
+            lab.set_sandbox(on=True)
+            imp = lab.import_file(research_demo.SANDBOX_FILE.name, research_demo.SANDBOX_FILE.read_bytes())
+            pid = lab.ensure_plan(imp["id"])["id"]
+
+            def item_word() -> str | None:
+                return next((i["status"]["word"] for i in lab.watch_list_look(pid)["items"] if i["key"] == SANDBOX_ITEM), None)
+
+            def advisory_state() -> str | None:
+                rows = (lab.lookup_view(pid).get("last") or {}).get("rows") or []
+                return next((r["state"]["key"] for r in rows if SANDBOX_ID in (r.get("id"), *(r.get("aliases") or []))),
+                            rows[0]["state"]["key"] if len(rows) == 1 else None)
+            answers[f"sandbox.watch.{SANDBOX_ITEM}.day1"] = item_word()
+            answers[f"sandbox.advisory.{SANDBOX_ID}.day1"] = advisory_state()
+            research_demo.sandbox_source(source, 2)
+            answers[f"sandbox.watch.{SANDBOX_ITEM}.day2"] = item_word()
+            answers[f"sandbox.advisory.{SANDBOX_ID}.day2"] = advisory_state()
+            lab.start_research(pid)
+            lab.wait_until_research_done(3600)
+            with lab.db() as db:
+                end = db.scalars(select(OttoResearchRow).where(OttoResearchRow.kind == "finished").order_by(OttoResearchRow.id.desc())).first()
+                made = next((pack for _, pack in lab._installed_packs(db) if end is not None and pack.version == end.pack_version), None)
+            if made is None:
+                notes.append("Sandbox research: the research run made no test pack, so the questions about its trial have no answer. "
+                             + (str(end.reason) if end is not None and end.reason else ""))
+                return
+            entry = made.advisory(SANDBOX_ID)
+            if entry is None:
+                notes.append("Sandbox research: the pack the research run made does not hold the advisory, so the questions about its trial have no answer.")
+                return
+            test, extra = entry["test"], entry["test"].get("sandbox") or {}
+            arms = (test.get("trial") or {}).get("arms") or {}
+            chosen = extra.get("versions") or {}
+            prefix = f"sandbox.trial.{SANDBOX_ID}"
+            answers[f"{prefix}.affected"], answers[f"{prefix}.fixed"] = chosen.get("affected"), chosen.get("fixed")
+            answers[f"{prefix}.affected.wrong"] = (arms.get("affected") or {}).get("wrong")
+            answers[f"{prefix}.fixed.wrong"] = (arms.get("fixed") or {}).get("wrong")
+            answers[f"{prefix}.control.wrong"] = (arms.get("accept-all") or {}).get("wrong")
+            answers[f"{prefix}.cases"] = (arms.get("affected") or {}).get("total")
+            answers[f"{prefix}.authors_agree"] = bool(arms.get("affected-b")) and all(
+                (arms.get(arm) or {}).get("agree") == (arms.get(arm) or {}).get("total") for arm in ("affected-b", "fixed-b"))
+            answers[f"{prefix}.left_out"] = sorted(str(v.get("version")) for v in chosen.get("left_out") or [])
+            answers[f"sandbox.test.{SANDBOX_ID}"] = test["state"]
+            answers[f"sandbox.fix.{SANDBOX_ID}"] = entry["fix"]["state"]
+            # a pack that carries asking code is taken only from this computer's own key: the same pack, signed by another
+            other = Ed25519PrivateKey.generate()
+            public = other.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex()
+            fingerprint = sha256_hex(made.pack)
+            envelope = {"pack": made.pack, "fingerprint": fingerprint, "public_key": public,
+                        "signature": other.sign(packs.SIGNING_CONTEXT + fingerprint.encode("ascii")).hex()}
+            try:
+                packs.read_envelope(canonical_bytes(envelope), {public: ("a key that is not this computer's", False)})
+                answers["sandbox.pack.other_key"] = True
+            except packs.PackError:
+                answers["sandbox.pack.other_key"] = False
+            # the proposal, a person's Accept, the run, and the reviewer's result
+            answers[f"sandbox.proposal.{SANDBOX_ID}.before_accept.runs"] = _runs(lab, pid)
+            mine = next((p for p in _proposed(lab, pid, "check") if p["about"]["advisory"] == SANDBOX_ID), None)
+            if mine is None:
+                notes.append("Sandbox research: no check was proposed for the advisory, so the questions about its run have no answer.")
+                return
+            lab.otto_decide(pid, mine["id"], "accept")
+            item_id = next(r["item_id"] for r in lab.lab_view(pid)["rows"] if SANDBOX_ID in str(r.get("title")))
+            lab.run_test(pid, item_id)
+            lab.wait_until_idle(pid, WAIT_SECONDS)
+            result = next(r for r in lab.lab_view(pid)["rows"] if r["item_id"] == item_id)["result"]
+            answers[f"sandbox.check.{SANDBOX_ID}.result"] = (result or {}).get("label")
+            answers[f"sandbox.check.{SANDBOX_ID}.wrong"] = len(_wrong(lab, result))
+            export = lab.export_evidence(pid)
+            name, raw, _ = lab.evidence_file(export["id"], "json")
+            path = Path(scratch) / name
+            path.write_bytes(raw)
+            answers["sandbox.evidence.verify"] = _verify(["verify", str(path), "--data-dir", str(lab.settings.data_dir)])[0]
+        finally:
+            lab.stop()
+            for name, value in kept.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+
+
 def collect_otto(settings: Settings | None = None, say=None) -> dict:
     """Walk Otto's loop once through the Lab service path and return the app's answers by question."""
     settings = settings or load_settings()
@@ -571,6 +698,7 @@ def collect_otto(settings: Settings | None = None, say=None) -> dict:
             return out
         _acme_walk(settings, out["answers"], out["notes"], found, progress)
         _real_walk(settings, out["answers"], out["notes"], found, progress)
+        _sandbox_walk(settings, out["answers"], out["notes"], progress)
     except Exception as exc:  # shown, never hidden: every answer not reached counts as a mismatch
         out["stopped"] = f"The check stopped early: {str(exc) or exc.__class__.__name__}"
     return out
@@ -586,8 +714,11 @@ def compare_otto(expected: object, answers: dict) -> dict:
                            "what": "the answer key is not in the form docs/OTTO-KEY.md describes"}], "matched": 0, "total": 1, "not_applicable": 0}
     skipped = 0
     for question in sorted(wanted):
-        isolated_only = question.startswith(("real.first.", "real.retest.", "real.fix"))
-        demo_only = question.startswith("real.demo_mode.")
+        # (sandbox research is asked in isolated mode, but for its switch; whether the switch can be turned on in demo mode
+        #  is asked in demo mode only)
+        isolated_only = question.startswith(("real.first.", "real.retest.", "real.fix")) or (
+            question.startswith("sandbox.") and question not in ("sandbox.switch.default", "sandbox.demo_mode.can_turn_on"))
+        demo_only = question.startswith(("real.demo_mode.", "sandbox.demo_mode."))
         if (isolated_only and "real.demo_mode.advisory_check_on_a_real_library" in answers) or (demo_only and question not in answers):
             skipped += 1
             continue

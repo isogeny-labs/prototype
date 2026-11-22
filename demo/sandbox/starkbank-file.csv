@@ -1,0 +1,2 @@
+location,type,claim,value
+starkbank-ecdsa 2.0.0,software,signature_algorithm,ECDSA P-256

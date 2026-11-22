@@ -2186,6 +2186,35 @@
         }
       }
     },
+    "/api/otto/sandbox": {
+      "post": {
+        "summary": "Sandbox Research",
+        "description": "Sandbox research (prototype): the switch, its tick and its two spending limits. The switch can be turned on\nonly on a computer marked as Isogeny's own sandbox, in isolated mode, with Otto installed.",
+        "operationId": "sandbox_research_api_otto_sandbox_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SandboxBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OttoSettingsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/otto/name": {
       "post": {
         "summary": "Decision Name",
@@ -2658,6 +2687,146 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChangeWatchView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/watch-list": {
+      "get": {
+        "summary": "Watch List",
+        "description": "Published weaknesses in this assessment's libraries with no fix yet. It only reads: nothing is sent or written.",
+        "operationId": "watch_list_api_plans__plan_id__watch_list_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchListView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/watch-list/look": {
+      "post": {
+        "summary": "Watch List Look",
+        "description": "Look now: one click, after the box that says what is sent (package names, nothing else).",
+        "operationId": "watch_list_look_api_plans__plan_id__watch_list_look_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchListView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/watch-list/stop": {
+      "post": {
+        "summary": "Watch List Stop",
+        "description": "Stop watching one weakness, with an optional short reason. Recorded; nothing is deleted.",
+        "operationId": "watch_list_stop_api_plans__plan_id__watch_list_stop_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchStopBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchListView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/watch-list/watch": {
+      "post": {
+        "summary": "Watch List Again",
+        "description": "Watch a weakness again.",
+        "operationId": "watch_list_again_api_plans__plan_id__watch_list_watch_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchAgainBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchListView"
                 }
               }
             }
@@ -3201,6 +3370,12 @@
               }
             ],
             "description": "22 November 2026: where this result came from (Proven in the lab)."
+          },
+          "sandbox_copy": {
+            "type": "boolean",
+            "title": "Sandbox Copy",
+            "description": "Sandbox research: the run was on a public copy sandbox research made.",
+            "default": false
           }
         },
         "additionalProperties": false,
@@ -3380,6 +3555,18 @@
             "type": "string",
             "title": "Covers"
           },
+          "sandbox_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sandbox Line",
+            "description": "Sandbox research: what the research runs of the last day did and spent."
+          },
           "libraries_line": {
             "type": "string",
             "title": "Libraries Line"
@@ -3473,6 +3660,17 @@
                 "type": "null"
               }
             ]
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TestProofBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sandbox research: what a design's trial on sandbox copies showed."
           }
         },
         "additionalProperties": false,
@@ -3960,6 +4158,17 @@
           },
           "ledger": {
             "$ref": "#/components/schemas/AdvisoryLedger"
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TestProofBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sandbox research: the proof of a test tried on sandbox copies."
           }
         },
         "additionalProperties": false,
@@ -12193,6 +12402,12 @@
             "title": "Real",
             "description": "True when the component is a real library, not one of our demo components (phase 4c)."
           },
+          "sandbox_copy": {
+            "type": "boolean",
+            "title": "Sandbox Copy",
+            "description": "Sandbox research: the run was on a public copy sandbox research made.",
+            "default": false
+          },
           "fix_title": {
             "type": "string",
             "title": "Fix Title"
@@ -12744,6 +12959,24 @@
         ],
         "title": "LabeledRichValue"
       },
+      "LabelledLink": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "link"
+        ],
+        "title": "LabelledLink"
+      },
       "LastDownload": {
         "properties": {
           "at": {
@@ -13202,6 +13435,23 @@
           "url": {
             "type": "string",
             "title": "Url"
+          },
+          "sandbox": {
+            "type": "boolean",
+            "title": "Sandbox",
+            "description": "Sandbox research: a test for it would be tried on public copies fetched from a registry.",
+            "default": false
+          },
+          "watch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LabelledLink"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sandbox research: its row on the Watch list, while it has no fix yet."
           }
         },
         "additionalProperties": false,
@@ -13410,6 +13660,12 @@
             "type": "boolean",
             "title": "Real",
             "description": "True when the component is a real library, not one of our demo components (phase 4c)."
+          },
+          "sandbox_copy": {
+            "type": "boolean",
+            "title": "Sandbox Copy",
+            "description": "Sandbox research: the run was on a public copy sandbox research made.",
+            "default": false
           },
           "fix_title": {
             "type": "string",
@@ -15611,6 +15867,17 @@
               }
             ],
             "title": "Proposed At"
+          },
+          "proof": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TestProofBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sandbox research: how the proposed test was proven, folded under the card."
           }
         },
         "additionalProperties": false,
@@ -15992,6 +16259,69 @@
         ],
         "title": "OttoRoadmapMark"
       },
+      "OttoSandboxSection": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "intro": {
+            "type": "string",
+            "title": "Intro"
+          },
+          "switch": {
+            "$ref": "#/components/schemas/SandboxSwitch"
+          },
+          "box": {
+            "$ref": "#/components/schemas/SandboxBox"
+          },
+          "by_itself": {
+            "$ref": "#/components/schemas/SandboxTick"
+          },
+          "run_limit": {
+            "$ref": "#/components/schemas/SandboxLimit"
+          },
+          "day_limit": {
+            "$ref": "#/components/schemas/SandboxLimit"
+          },
+          "limits_note": {
+            "type": "string",
+            "title": "Limits Note"
+          },
+          "status_line": {
+            "type": "string",
+            "title": "Status Line"
+          },
+          "spent_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spent Line",
+            "description": "What research runs spent in the last 24 hours; only while the switch is on."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "intro",
+          "switch",
+          "box",
+          "by_itself",
+          "run_limit",
+          "day_limit",
+          "limits_note",
+          "status_line",
+          "spent_line"
+        ],
+        "title": "OttoSandboxSection",
+        "description": "Settings: Sandbox research (a prototype for Isogeny's own sandbox, 22 November 2026)."
+      },
       "OttoSettingsView": {
         "properties": {
           "packs": {
@@ -16016,6 +16346,17 @@
               }
             ],
             "description": "Phase 6a: always sent by the current backend."
+          },
+          "sandbox": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoSandboxSection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sandbox research: always sent by the current backend."
           }
         },
         "additionalProperties": false,
@@ -16186,6 +16527,17 @@
           },
           "evidence": {
             "$ref": "#/components/schemas/OverviewEvidence"
+          },
+          "watch_list": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewWatchList"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only while Sandbox research is on and the list holds something."
           }
         },
         "additionalProperties": false,
@@ -16324,6 +16676,35 @@
           "empty_text"
         ],
         "title": "OverviewGroup"
+      },
+      "OverviewWatchList": {
+        "properties": {
+          "no_fix": {
+            "type": "integer",
+            "title": "No Fix"
+          },
+          "fix_published": {
+            "type": "integer",
+            "title": "Fix Published"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "no_fix",
+          "fix_published",
+          "line",
+          "link"
+        ],
+        "title": "OverviewWatchList",
+        "description": "Sandbox research: how many watched weaknesses have no fix yet. Information, never a result."
       },
       "PackInstallBody": {
         "properties": {
@@ -17781,6 +18162,193 @@
         ],
         "title": "SameMeasurement"
       },
+      "SandboxBody": {
+        "properties": {
+          "on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On"
+          },
+          "by_itself": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By Itself"
+          },
+          "run_limit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Limit"
+          },
+          "day_limit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Limit"
+          }
+        },
+        "type": "object",
+        "title": "SandboxBody"
+      },
+      "SandboxBox": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "confirm": {
+            "type": "string",
+            "title": "Confirm"
+          },
+          "cancel": {
+            "type": "string",
+            "title": "Cancel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "confirm",
+          "cancel"
+        ],
+        "title": "SandboxBox",
+        "description": "The box that opens before the switch is turned on. Nothing starts before the click in it."
+      },
+      "SandboxLimit": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value",
+            "description": "US dollars, e.g. \"5.00\""
+          },
+          "save": {
+            "type": "string",
+            "title": "Save"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "value",
+          "save"
+        ],
+        "title": "SandboxLimit"
+      },
+      "SandboxSwitch": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Sandbox research\""
+          },
+          "on": {
+            "type": "boolean",
+            "title": "On",
+            "description": "On, and allowed to be on here."
+          },
+          "can_turn_on": {
+            "type": "boolean",
+            "title": "Can Turn On"
+          },
+          "blocked_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blocked Reasons",
+            "description": "Every plain reason it can't be turned on here; empty when it can."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "on",
+          "can_turn_on",
+          "blocked_reasons"
+        ],
+        "title": "SandboxSwitch"
+      },
+      "SandboxTick": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Design and prove tests by itself\""
+          },
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          },
+          "can_turn_on": {
+            "type": "boolean",
+            "title": "Can Turn On"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "on",
+          "can_turn_on",
+          "blocked_reason",
+          "line"
+        ],
+        "title": "SandboxTick"
+      },
       "SayBody": {
         "properties": {
           "text": {
@@ -18385,6 +18953,403 @@
           "passed"
         ],
         "title": "TestCounts"
+      },
+      "TestProofBlock": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "\"How this test was proven\""
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Sandbox copy\""
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "table": {
+            "$ref": "#/components/schemas/TestProofTable"
+          },
+          "registered": {
+            "$ref": "#/components/schemas/TestProofRegistered"
+          },
+          "judged": {
+            "type": "string",
+            "title": "Judged"
+          },
+          "code": {
+            "$ref": "#/components/schemas/TestProofCode"
+          },
+          "copies": {
+            "$ref": "#/components/schemas/TestProofCopies"
+          },
+          "replayed": {
+            "type": "string",
+            "title": "Replayed"
+          },
+          "not_shown": {
+            "type": "string",
+            "title": "Not Shown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "label",
+          "summary",
+          "table",
+          "registered",
+          "judged",
+          "code",
+          "copies",
+          "replayed",
+          "not_shown"
+        ],
+        "title": "TestProofBlock",
+        "description": "Sandbox research (a prototype): everything that stands behind a test tried on sandbox copies. It words no result."
+      },
+      "TestProofCode": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "\"Written by Otto\" when Claude wrote it; null for the app's own asking code."
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "file": {
+            "type": "string",
+            "title": "File"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "show": {
+            "type": "string",
+            "title": "Show"
+          },
+          "hide": {
+            "type": "string",
+            "title": "Hide"
+          },
+          "second": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TestProofSecondCode"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "agree_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agree Line"
+          },
+          "known_lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Known Lines"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "label",
+          "author",
+          "file",
+          "lines",
+          "source",
+          "sha256",
+          "line",
+          "show",
+          "hide",
+          "second",
+          "agree_line",
+          "known_lines"
+        ],
+        "title": "TestProofCode",
+        "description": "The code that asked the library its questions, shown as text. It is data here: nothing on a screen runs it."
+      },
+      "TestProofCopies": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/TestProofCopy"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "left_out": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Left Out"
+          },
+          "image_line": {
+            "type": "string",
+            "title": "Image Line"
+          },
+          "trust_line": {
+            "type": "string",
+            "title": "Trust Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "rows",
+          "left_out",
+          "image_line",
+          "trust_line"
+        ],
+        "title": "TestProofCopies"
+      },
+      "TestProofCopy": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "published": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published"
+          },
+          "helpers_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Helpers Line"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "role",
+          "line",
+          "published",
+          "helpers_line",
+          "sha256",
+          "url"
+        ],
+        "title": "TestProofCopy"
+      },
+      "TestProofPin": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "sha256"
+        ],
+        "title": "TestProofPin"
+      },
+      "TestProofRegistered": {
+        "properties": {
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "pins_title": {
+            "type": "string",
+            "title": "Pins Title"
+          },
+          "pins": {
+            "items": {
+              "$ref": "#/components/schemas/TestProofPin"
+            },
+            "type": "array",
+            "title": "Pins"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "pins_title",
+          "pins"
+        ],
+        "title": "TestProofRegistered"
+      },
+      "TestProofRow": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "What ran: our reference library, a public copy, or the control."
+          },
+          "count": {
+            "type": "string",
+            "title": "Count",
+            "description": "The count for that part of the trial (the separate reviewer's for a copy and for the reference; the pinned trial script's for the control). A count, never Passed or Failed."
+          },
+          "must": {
+            "type": "string",
+            "title": "Must",
+            "description": "What had to happen, as it was frozen before the first run."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "count",
+          "must"
+        ],
+        "title": "TestProofRow"
+      },
+      "TestProofSecondCode": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "lines": {
+            "type": "integer",
+            "title": "Lines"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "author",
+          "lines",
+          "source",
+          "sha256"
+        ],
+        "title": "TestProofSecondCode"
+      },
+      "TestProofTable": {
+        "properties": {
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/TestProofRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "columns",
+          "rows",
+          "note"
+        ],
+        "title": "TestProofTable"
       },
       "TextSuggestion": {
         "properties": {
@@ -19086,6 +20051,659 @@
           "results"
         ],
         "title": "VerifyRun"
+      },
+      "WatchAgain": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Watch again\""
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "can",
+          "blocked_reason"
+        ],
+        "title": "WatchAgain"
+      },
+      "WatchAgainBody": {
+        "properties": {
+          "item": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Item"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item"
+        ],
+        "title": "WatchAgainBody"
+      },
+      "WatchBox": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "confirm": {
+            "type": "string",
+            "title": "Confirm"
+          },
+          "cancel": {
+            "type": "string",
+            "title": "Cancel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "confirm",
+          "cancel"
+        ],
+        "title": "WatchBox"
+      },
+      "WatchHistory": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines"
+        ],
+        "title": "WatchHistory"
+      },
+      "WatchItem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "The advisory's id and the library; what Stop watching and Watch again name."
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "library": {
+            "type": "string",
+            "title": "Library"
+          },
+          "yours": {
+            "type": "string",
+            "title": "Yours",
+            "description": "What it says about the version your files name."
+          },
+          "status": {
+            "$ref": "#/components/schemas/WatchStatus"
+          },
+          "status_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Line"
+          },
+          "since": {
+            "type": "string",
+            "title": "Since"
+          },
+          "new": {
+            "type": "boolean",
+            "title": "New",
+            "description": "The newest look brought it, or changed it."
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "panel": {
+            "$ref": "#/components/schemas/WatchPanel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "id",
+          "title",
+          "library",
+          "yours",
+          "status",
+          "status_line",
+          "since",
+          "new",
+          "source",
+          "panel"
+        ],
+        "title": "WatchItem"
+      },
+      "WatchListView": {
+        "properties": {
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          },
+          "off_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Off Line"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "intro": {
+            "type": "string",
+            "title": "Intro"
+          },
+          "looked_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Looked Line"
+          },
+          "next_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Line"
+          },
+          "look": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchLook"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "count_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count Line"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WatchItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "stopped": {
+            "items": {
+              "$ref": "#/components/schemas/WatchItem"
+            },
+            "type": "array",
+            "title": "Stopped",
+            "description": "The ones a person stopped watching. Never deleted."
+          },
+          "empty_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Line"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "on",
+          "off_line",
+          "title",
+          "intro",
+          "looked_line",
+          "next_line",
+          "look",
+          "count_line",
+          "items",
+          "stopped",
+          "empty_line",
+          "note"
+        ],
+        "title": "WatchListView",
+        "description": "Change watch, the Watch list: published weaknesses in the libraries a file names that have no fix yet. Worked\nout from the assessment's own looks on every read. With Sandbox research off, `on` is false and nothing else is sent."
+      },
+      "WatchLook": {
+        "properties": {
+          "button": {
+            "type": "string",
+            "title": "Button",
+            "description": "\"Look now\""
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "box": {
+            "$ref": "#/components/schemas/WatchBox",
+            "description": "Opens before anything is sent; says what is sent."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "button",
+          "can",
+          "blocked_reason",
+          "box"
+        ],
+        "title": "WatchLook"
+      },
+      "WatchPanel": {
+        "properties": {
+          "ids_line": {
+            "type": "string",
+            "title": "Ids Line"
+          },
+          "published_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Line"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchQuote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versions": {
+            "$ref": "#/components/schemas/WatchVersions"
+          },
+          "test": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchTest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history": {
+            "$ref": "#/components/schemas/WatchHistory"
+          },
+          "stop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchStop"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "watch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchAgain"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ids_line",
+          "published_line",
+          "quote",
+          "versions",
+          "test",
+          "history",
+          "stop",
+          "watch"
+        ],
+        "title": "WatchPanel"
+      },
+      "WatchQuote": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines",
+            "description": "Pieces of the publisher's own text, word for word."
+          },
+          "tag": {
+            "type": "string",
+            "title": "Tag",
+            "description": "\"quoted from the named source, not a result\""
+          },
+          "source_line": {
+            "type": "string",
+            "title": "Source Line"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "link_label": {
+            "type": "string",
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "tag",
+          "source_line",
+          "url",
+          "link_label"
+        ],
+        "title": "WatchQuote"
+      },
+      "WatchStatus": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "no_fix",
+              "fix_published",
+              "being_tested",
+              "test_proposed",
+              "no_test",
+              "not_yours",
+              "withdrawn",
+              "gone",
+              "not_watched"
+            ],
+            "title": "Key"
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "\"No fix yet\", \"Fix published\", \"Being tested\", \"Test proposed\", \"No test possible\", ..."
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone",
+            "description": "Only \"warn\" or \"neutral\": a status is not a result."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "word",
+          "tone"
+        ],
+        "title": "WatchStatus",
+        "description": "Where a watched weakness stands. Information, never a result."
+      },
+      "WatchStop": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Stop watching\""
+          },
+          "reason_label": {
+            "type": "string",
+            "title": "Reason Label"
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "reason_label",
+          "max",
+          "note",
+          "can",
+          "blocked_reason"
+        ],
+        "title": "WatchStop"
+      },
+      "WatchStopBody": {
+        "properties": {
+          "item": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Item"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item"
+        ],
+        "title": "WatchStopBody"
+      },
+      "WatchTest": {
+        "properties": {
+          "line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "link",
+          "link_label"
+        ],
+        "title": "WatchTest"
+      },
+      "WatchVersions": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "yours": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Yours"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "yours"
+        ],
+        "title": "WatchVersions"
       },
       "WhatIf": {
         "properties": {
@@ -20024,6 +21642,21 @@
         ],
         "type": "string",
         "title": "ChangeOutcome"
+      },
+      "WatchStatusKey": {
+        "enum": [
+          "no_fix",
+          "fix_published",
+          "being_tested",
+          "test_proposed",
+          "no_test",
+          "not_yours",
+          "withdrawn",
+          "gone",
+          "not_watched"
+        ],
+        "type": "string",
+        "title": "WatchStatusKey"
       },
       "AssistantThread": {
         "enum": [

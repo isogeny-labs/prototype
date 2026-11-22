@@ -225,7 +225,6 @@
 1	app/real_libraries.py: Value of type "dict[Any, Any] | None" is not indexable [index]
 1	app/run/components.py: Argument 1 to "_info_verdict" has incompatible type "dict[Any, Any] | None"; expected "dict[Any, Any]" [arg-type]
 1	app/run/components.py: Incompatible types in assignment (expression has type "str", variable has type "Path") [assignment]
-1	app/run/components.py: Invalid index type "str | None" for "dict[str, dict[Any, Any]]"; expected type "str" [index]
 2	app/run/components.py: Item "None" of "Any | None" has no attribute "strip" [union-attr]
 1	app/run/components.py: Item "None" of "dict[Any, Any] | None" has no attribute "get" [union-attr]
 1	app/run/components.py: Value of type "dict[Any, Any] | None" is not indexable [index]

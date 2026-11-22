@@ -220,6 +220,71 @@ describe("New advisories: after a look", () => {
   });
 });
 
+describe("New advisories with Sandbox research on", () => {
+  const sandboxRow = row({
+    id: "CVE-2021-43572",
+    library: "starkbank-ecdsa",
+    fits: "Names starkbank-ecdsa 2.0.0, which your file lists; fixed in 2.0.1.",
+    reason: "A test can be tried on public copies from PyPI: starkbank-ecdsa 2.0.1, the fixed version, and the release before it.",
+    sandbox: true,
+  });
+  const noFix = row({
+    id: "CVE-2024-23342",
+    library: "python-ecdsa",
+    state: { key: "no_test", label: "No test yet", tone: "neutral" },
+    reason: "No test yet: the source names no fixed version, so there is nothing to prove a test against.",
+    watch: { label: "On the Watch list", link: { page: "change-watch", item: "CVE-2024-23342~python-ecdsa", section: "watch-list" } },
+  });
+  const on = (over: Partial<Lookup> = {}): Lookup =>
+    looked({
+      sandbox_line: "Sandbox research is on. A research run starts on a click (Design and prove tests). 0 research runs in the last 24 hours; 0.00 of 10.00 US dollars spent on Claude in that time.",
+      last: { ...looked().last!, rows: [sandboxRow, noFix] },
+      ...over,
+    });
+
+  it("labels an advisory that would be tried on a sandbox copy, and says what would be fetched from where", () => {
+    render(<Block lookup={on()} />);
+    const found = screen.getAllByTestId("found-advisory");
+    expect(within(found[0]!).getByTestId("found-sandbox").textContent).toBe("Sandbox copy");
+    expect(text(within(found[0]!).getByTestId("found-reason"))).toContain("public copies from PyPI");
+    expect(within(found[1]!).queryByTestId("found-sandbox")).toBeNull();
+    expect(text(screen.getByTestId("new-advisories-sandbox"))).toContain("0.00 of 10.00 US dollars spent");
+  });
+
+  it("links a weakness with no fix yet to its row on the Watch list", () => {
+    render(<Block lookup={on()} />);
+    const link = within(screen.getAllByTestId("found-advisory")[1]!).getByTestId("found-watch-link");
+    expect(link.textContent).toBe("On the Watch list");
+    const href = decodeURIComponent(link.getAttribute("href") ?? "");
+    expect(href).toContain("/change-watch");
+    expect(href).toContain("CVE-2024-23342~python-ecdsa");
+  });
+
+  it("the box of Design and prove tests lists what will be fetched before anything starts", async () => {
+    const lines = [
+      "What will be fetched, from the public package registry and nowhere else:",
+      "From PyPI: starkbank-ecdsa 2.0.1 (the fixed version) and the release before it; up to two further versions on each side; and the helper libraries those versions say they need.",
+      "Each file is checked against the registry's own fingerprint. Nothing of a package runs while it is fetched or unpacked, and a copy runs only in a locked container on this computer, with no network.",
+    ];
+    const fetchMock = mockApi({ [RESEARCH]: { body: view(on()) } });
+    render(<Block lookup={on({ research: { ...looked().research, dialog: { ...looked().research.dialog, lines } } })} />);
+    fireEvent.click(screen.getByTestId("design-and-prove"));
+    const box = screen.getByTestId("research-dialog");
+    expect(text(box)).toContain("From PyPI: starkbank-ecdsa 2.0.1 (the fixed version)");
+    expect(text(box)).toContain("with no network");
+    expect(calls(fetchMock)).toEqual([]);
+    fireEvent.click(within(box).getByTestId("lookup-cancel"));
+    expect(calls(fetchMock)).toEqual([]);
+  });
+
+  it("with the switch off none of this is drawn", () => {
+    render(<Block lookup={looked()} />);
+    expect(screen.queryByTestId("new-advisories-sandbox")).toBeNull();
+    expect(screen.queryByTestId("found-sandbox")).toBeNull();
+    expect(screen.queryByTestId("found-watch-link")).toBeNull();
+  });
+});
+
 describe("the Advisories page with the block", () => {
   it("draws the block above the list, and asks again while a research run goes on", async () => {
     let reads = 0;

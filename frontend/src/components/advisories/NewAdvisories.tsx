@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { api, errorMessage, type AdvisoriesView } from "../../api";
 import { Modal } from "../layout";
+import { SandboxCopyLabel } from "../otto/ProofBlock";
 import { ItemLinkView } from "../related";
 import { ErrorBox, PrimaryButton, SecondaryButton, Spinner, StatusChip } from "../ui";
 
@@ -125,6 +126,7 @@ export function NewAdvisories({ planId, lookup, onView }: { planId: number; look
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs text-slate-300">{row.id}</span>
                     <StatusChip label={row.state.label} tone={row.state.tone} size="sm" wrap testId="found-state" />
+                    {row.sandbox ? <SandboxCopyLabel testId="found-sandbox" /> : null}
                     <span className="text-xs text-slate-500">
                       {row.library} · published {row.published}
                     </span>
@@ -146,6 +148,11 @@ export function NewAdvisories({ planId, lookup, onView }: { planId: number; look
                         Open it in the list below
                       </ItemLinkView>
                     ) : null}
+                    {row.watch ? (
+                      <ItemLinkView link={row.watch.link} testId="found-watch-link">
+                        {row.watch.label}
+                      </ItemLinkView>
+                    ) : null}
                     <a href={row.url} target="_blank" rel="noopener noreferrer" data-testid="found-source" className="text-sky-300 underline-offset-2 hover:underline">
                       {row.publisher} ↗
                     </a>
@@ -157,6 +164,11 @@ export function NewAdvisories({ planId, lookup, onView }: { planId: number; look
         </div>
       ) : null}
 
+      {lookup.sandbox_line ? (
+        <p data-testid="new-advisories-sandbox" className="mt-3 break-words text-[13px] text-slate-300">
+          {lookup.sandbox_line}
+        </p>
+      ) : null}
       <p data-testid="new-advisories-covers" className="mt-3 break-words border-t border-slate-800 pt-3 text-xs text-slate-500">
         {lookup.covers}
       </p>

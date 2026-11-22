@@ -91,11 +91,17 @@ def test_build_command_uses_only_our_folder_no_network_and_no_pull(monkeypatch):
 
 
 def test_only_prepare_can_build_or_pull():
-    """Source scan of the whole backend app: no other module holds a docker build or pull command."""
+    """Source scan of the whole backend app: no other module holds a docker build or pull command.
+
+    One more since sandbox research (a prototype, off by default): `sandbox/maker.py` builds the image of a public copy,
+    with no network and never a pull. It is run by the research command only; the web app never imports it
+    (tests/sandbox/test_sandbox_rules.py reads the code for that)."""
     pattern = re.compile(r"""["']build["']|["']pull["']|docker\s+(build|pull)|buildx|["']load["']|["']import["']""")
     offenders = [str(path.relative_to(APP)) for path in sorted(APP.rglob("*.py"))
                  if path.name != "prepare.py" and pattern.search(path.read_text())]
-    assert offenders == []
+    assert offenders == ["sandbox/maker.py"]
+    maker = (APP / "sandbox" / "maker.py").read_text()
+    assert '["build", "--pull=false", "--network", "none"' in maker and not re.search(r"""["']pull["']|buildx|["']load["']""", maker)
     assert pattern.search((APP / "prepare.py").read_text())
     run_flags = (APP / "run" / "runner.py").read_text()
     assert '"--pull", "never"' in run_flags  # a missing image is an error, never a download

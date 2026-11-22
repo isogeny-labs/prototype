@@ -449,6 +449,7 @@ class LabResult(Badge):
     run_record: RunRecordView
     locked_test: LockedTestView
     real: bool = Field(description="True when the component is a real library, not one of our demo components (phase 4c).")
+    sandbox_copy: bool = Field(default=False, description="Sandbox research: the run was on a public copy sandbox research made.")
     fix_title: str
     suggested_fix: str | None
     fix_line: FixLine | None = Field(
@@ -1858,6 +1859,117 @@ class ItemLink(Shape):
     assessment_id: int | None = Field(default=None, description="Another assessment (the Project overview links into each).")
 
 
+# ---------------------------------------------------------------- sandbox research: the Watch list (Change watch's second view)
+
+WatchStatusKey = Literal["no_fix", "fix_published", "being_tested", "test_proposed", "no_test", "not_yours", "withdrawn", "gone", "not_watched"]
+
+
+class WatchStatus(Shape):
+    """Where a watched weakness stands. Information, never a result."""
+
+    key: WatchStatusKey
+    word: str = Field(description='"No fix yet", "Fix published", "Being tested", "Test proposed", "No test possible", ...')
+    tone: Tone = Field(description='Only "warn" or "neutral": a status is not a result.')
+
+
+class WatchBox(Shape):
+    title: str
+    lines: list[str]
+    confirm: str
+    cancel: str
+
+
+class WatchLook(Shape):
+    button: str = Field(description='"Look now"')
+    can: bool
+    blocked_reason: str | None
+    box: WatchBox = Field(description="Opens before anything is sent; says what is sent.")
+
+
+class WatchQuote(Shape):
+    title: str
+    lines: list[str] = Field(description="Pieces of the publisher's own text, word for word.")
+    tag: str = Field(description='"quoted from the named source, not a result"')
+    source_line: str
+    url: str | None
+    link_label: str
+
+
+class WatchVersions(Shape):
+    title: str
+    lines: list[str]
+    yours: list[str]
+
+
+class WatchTest(Shape):
+    line: str | None
+    link: ItemLink | None
+    link_label: str | None
+
+
+class WatchHistory(Shape):
+    title: str
+    lines: list[str]
+
+
+class WatchStop(Shape):
+    label: str = Field(description='"Stop watching"')
+    reason_label: str
+    max: int
+    note: str
+    can: bool
+    blocked_reason: str | None
+
+
+class WatchAgain(Shape):
+    label: str = Field(description='"Watch again"')
+    can: bool
+    blocked_reason: str | None
+
+
+class WatchPanel(Shape):
+    ids_line: str
+    published_line: str | None
+    quote: WatchQuote | None
+    versions: WatchVersions
+    test: WatchTest | None
+    history: WatchHistory
+    stop: WatchStop | None
+    watch: WatchAgain | None
+
+
+class WatchItem(Shape):
+    key: str = Field(description="The advisory's id and the library; what Stop watching and Watch again name.")
+    id: str
+    title: str
+    library: str
+    yours: str = Field(description="What it says about the version your files name.")
+    status: WatchStatus
+    status_line: str | None
+    since: str
+    new: bool = Field(description="The newest look brought it, or changed it.")
+    source: Source
+    panel: WatchPanel
+
+
+class WatchListView(Shape):
+    """Change watch, the Watch list: published weaknesses in the libraries a file names that have no fix yet. Worked
+    out from the assessment's own looks on every read. With Sandbox research off, `on` is false and nothing else is sent."""
+
+    on: bool
+    off_line: str | None
+    title: str
+    intro: str
+    looked_line: str | None
+    next_line: str | None
+    look: WatchLook | None
+    count_line: str | None
+    items: list[WatchItem]
+    stopped: list[WatchItem] = Field(description="The ones a person stopped watching. Never deleted.")
+    empty_line: str | None
+    note: str | None
+
+
 class OverviewFact(Shape):
     label: str
     value: int
@@ -1886,10 +1998,20 @@ class OverviewEvidence(Shape):
     last_download: LastDownload | None
 
 
+class OverviewWatchList(Shape):
+    """Sandbox research: how many watched weaknesses have no fix yet. Information, never a result."""
+
+    no_fix: int
+    fix_published: int
+    line: str
+    link: ItemLink
+
+
 class OverviewBlocks(Shape):
     groups: list[OverviewGroup]
     findings: list[OverviewFact] = Field(description="False claims, failed tests, dependency blockers: each its own count.")
     evidence: OverviewEvidence
+    watch_list: OverviewWatchList | None = Field(default=None, description="Only while Sandbox research is on and the list holds something.")
 
 
 class Headline(AssessmentCounts):
@@ -2243,6 +2365,51 @@ class OttoName(Shape):
     ask_label: str = Field(description="The label of the field in the Otto panel's first Confirm step.")
 
 
+class SandboxSwitch(Shape):
+    label: str = Field(description='"Sandbox research"')
+    on: bool = Field(description="On, and allowed to be on here.")
+    can_turn_on: bool
+    blocked_reasons: list[str] = Field(description="Every plain reason it can't be turned on here; empty when it can.")
+
+
+class SandboxBox(Shape):
+    """The box that opens before the switch is turned on. Nothing starts before the click in it."""
+
+    title: str
+    lines: list[str]
+    confirm: str
+    cancel: str
+
+
+class SandboxTick(Shape):
+    label: str = Field(description='"Design and prove tests by itself"')
+    on: bool
+    can_turn_on: bool
+    blocked_reason: str | None
+    line: str
+
+
+class SandboxLimit(Shape):
+    label: str
+    value: str = Field(description='US dollars, e.g. "5.00"')
+    save: str
+
+
+class OttoSandboxSection(Shape):
+    """Settings: Sandbox research (a prototype for Isogeny's own sandbox, 22 November 2026)."""
+
+    title: str
+    intro: str
+    switch: SandboxSwitch
+    box: SandboxBox
+    by_itself: SandboxTick
+    run_limit: SandboxLimit
+    day_limit: SandboxLimit
+    limits_note: str
+    status_line: str
+    spent_line: str | None = Field(description="What research runs spent in the last 24 hours; only while the switch is on.")
+
+
 class OttoSettingsView(Shape):
     """Settings: the Test packs section, the two status lines and the Live Otto section (phase 5c)."""
 
@@ -2251,6 +2418,7 @@ class OttoSettingsView(Shape):
     answers: OttoAnswersLine
     live: OttoLiveSection
     name: OttoName | None = Field(default=None, description="Phase 6a: always sent by the current backend.")
+    sandbox: OttoSandboxSection | None = Field(default=None, description="Sandbox research: always sent by the current backend.")
 
 
 class AdvisoryQuote(Shape):
@@ -2284,6 +2452,92 @@ class AdvisoryTrial(Shape):
     lines: list[str]
 
 
+# ---------------------------------------------------------------- sandbox research: how a test was proven, as one piece
+
+class TestProofRow(Shape):
+    key: str
+    label: str = Field(description="What ran: our reference library, a public copy, or the control.")
+    count: str = Field(description="The count for that part of the trial (the separate reviewer's for a copy and for the reference; "
+                                   "the pinned trial script's for the control). A count, never Passed or Failed.")
+    must: str = Field(description="What had to happen, as it was frozen before the first run.")
+
+
+class TestProofTable(Shape):
+    columns: list[str]
+    rows: list[TestProofRow]
+    note: str
+
+
+class TestProofPin(Shape):
+    name: str
+    sha256: str
+
+
+class TestProofRegistered(Shape):
+    line: str
+    pins_title: str
+    pins: list[TestProofPin]
+
+
+class TestProofSecondCode(Shape):
+    title: str
+    author: str
+    lines: int
+    source: str
+    sha256: str
+
+
+class TestProofCode(Shape):
+    """The code that asked the library its questions, shown as text. It is data here: nothing on a screen runs it."""
+
+    title: str
+    label: str | None = Field(description='"Written by Otto" when Claude wrote it; null for the app\'s own asking code.')
+    author: str
+    file: str
+    lines: int
+    source: str
+    sha256: str
+    line: str
+    show: str
+    hide: str
+    second: TestProofSecondCode | None
+    agree_line: str | None
+    known_lines: list[str]
+
+
+class TestProofCopy(Shape):
+    version: str
+    role: str
+    line: str
+    published: str | None
+    helpers_line: str | None
+    sha256: str
+    url: str
+
+
+class TestProofCopies(Shape):
+    title: str
+    rows: list[TestProofCopy]
+    left_out: list[str]
+    image_line: str
+    trust_line: str
+
+
+class TestProofBlock(Shape):
+    """Sandbox research (a prototype): everything that stands behind a test tried on sandbox copies. It words no result."""
+
+    title: str = Field(description='"How this test was proven"')
+    label: str = Field(description='"Sandbox copy"')
+    summary: str
+    table: TestProofTable
+    registered: TestProofRegistered
+    judged: str
+    code: TestProofCode
+    copies: TestProofCopies
+    replayed: str
+    not_shown: str
+
+
 class AdvisoryTestBlock(Shape):
     title: str
     question: str
@@ -2293,6 +2547,7 @@ class AdvisoryTestBlock(Shape):
     design_fingerprint: str
     trial: AdvisoryTrial
     ledger: AdvisoryLedger
+    proof: TestProofBlock | None = Field(default=None, description="Sandbox research: the proof of a test tried on sandbox copies.")
 
 
 class AdvisoryNoTest(Shape):
@@ -2300,6 +2555,7 @@ class AdvisoryNoTest(Shape):
     reason: str
     trial: AdvisoryTrial | None
     ledger: AdvisoryLedger | None
+    proof: TestProofBlock | None = Field(default=None, description="Sandbox research: what a design's trial on sandbox copies showed.")
 
 
 class AdvisoryHereResult(Shape):
@@ -2312,6 +2568,7 @@ class AdvisoryHereResult(Shape):
     finished_at: str | None
     ran_on: str | None = Field(default=None, description="After a retest: which version this result is of, and what the first run read.")
     source_tag: Source | None = Field(default=None, description="22 November 2026: where this result came from (Proven in the lab).")
+    sandbox_copy: bool = Field(default=False, description="Sandbox research: the run was on a public copy sandbox research made.")
 
 
 class AdvisoryHereRow(Shape):
@@ -2479,6 +2736,11 @@ class LookupButton(Shape):
     dialog: LookupDialog
 
 
+class LabelledLink(Shape):
+    label: str
+    link: ItemLink
+
+
 class LookupRowState(Shape):
     key: Literal["in_pack", "in_waiting_pack", "new", "no_test", "not_yours"]
     label: str
@@ -2498,6 +2760,8 @@ class LookupRow(Shape):
     link: ItemLink | None = Field(description="Its row on this page, once a test pack holds it.")
     publisher: str
     url: str
+    sandbox: bool = Field(default=False, description="Sandbox research: a test for it would be tried on public copies fetched from a registry.")
+    watch: LabelledLink | None = Field(default=None, description="Sandbox research: its row on the Watch list, while it has no fix yet.")
 
 
 class LookupLast(Shape):
@@ -2530,6 +2794,7 @@ class AdvisoryLookup(Shape):
     title: str
     intro: str
     covers: str
+    sandbox_line: str | None = Field(default=None, description="Sandbox research: what the research runs of the last day did and spent.")
     libraries_line: str
     look: LookupButton
     last: LookupLast | None
@@ -2662,6 +2927,7 @@ class OttoProposal(Shape):
     history: OttoProposalHistory
     link: ItemLink
     proposed_at: str | None
+    proof: TestProofBlock | None = Field(default=None, description="Sandbox research: how the proposed test was proven, folded under the card.")
 
 
 class OttoWaitingItem(Shape):

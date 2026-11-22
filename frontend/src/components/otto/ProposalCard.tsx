@@ -4,6 +4,7 @@ import { LedgerView } from "../advisories/parts";
 import { Modal } from "../layout";
 import { ItemLinkView } from "../related";
 import { ErrorBox, PrimaryButton, SecondaryButton, Spinner, StatusChip } from "../ui";
+import { ProofBlock } from "./ProofBlock";
 
 type Decision = OttoProposal["buttons"][number]["key"];
 
@@ -103,6 +104,8 @@ export function ProposalCard({
           ))}
         </ul>
       ) : null}
+      {/* Sandbox research (a prototype): how the proposed test was proven, folded. It only shows; it decides nothing. */}
+      {proposal.proof ? <ProofBlock proof={proposal.proof} /> : null}
       {proposal.decided_line ? (
         <p data-testid="proposal-decided" className="mt-2 break-words text-[13px] text-slate-300">
           {proposal.decided_line}

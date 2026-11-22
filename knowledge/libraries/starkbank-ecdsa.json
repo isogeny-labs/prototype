@@ -1,0 +1,19 @@
+{
+  "schema": "isogeny.knowledge/1",
+  "library": "starkbank-ecdsa",
+  "label": "starkbank-ecdsa",
+  "roles": [
+    "signatures"
+  ],
+  "packages": [
+    {
+      "ecosystem": "pypi",
+      "purl": "pkg:pypi/starkbank-ecdsa"
+    }
+  ],
+  "match_names": [
+    "starkbank-ecdsa"
+  ],
+  "claims": [],
+  "notes": "No official source says starkbank-ecdsa added ML-DSA in any version, so there is no claim. The app holds no pinned copy of this library: it can be tried only as a sandbox copy, with Sandbox research on."
+}

@@ -183,6 +183,10 @@ export type {
   OttoUpdateDialog,
   OttoHarnessLine,
   OttoAnswersLine,
+  OttoSandboxSection,
+  WatchListView,
+  WatchItem,
+  WatchPanel,
   OttoLiveSection,
   OttoLiveSwitch,
   OttoLiveLimit,
@@ -199,6 +203,8 @@ export type {
   DemoChangeItem,
   AdvisoryProposalCell,
   OttoProposal,
+  TestProofBlock,
+  TestProofCode,
   OttoProposalButton,
   OttoProposalStatus,
   OttoProposalHistory,
@@ -270,6 +276,7 @@ import type {
   OttoSettingsView,
   AdvisoriesView,
   ChangeWatchView,
+  WatchListView,
   OttoProposal,
   OttoProposalsView,
   AssistantView,
@@ -475,6 +482,9 @@ export const api = {
   installPack: (version: string) => request<OttoSettingsView>("/api/otto/packs/install", { method: "POST", json: { version } }),
   /** Use live Claude on or off, and/or the spending limit per run (US dollars, as typed). */
   setLiveOtto: (change: { on?: boolean; limit?: string }) => request<OttoSettingsView>("/api/otto/live", { method: "POST", json: change }),
+  // Sandbox research (prototype): the switch, its tick and its two spending limits. Answers with the whole Settings view.
+  setSandbox: (change: { on?: boolean; by_itself?: boolean; run_limit?: string; day_limit?: string }) =>
+    request<OttoSettingsView>("/api/otto/sandbox", { method: "POST", json: change }),
   /** Phase 6a: the name a person types once; their decisions on proposals are recorded under it from then on. */
   setDecisionName: (name: string) => request<OttoSettingsView>("/api/otto/name", { method: "POST", json: { name } }),
   getAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories`),
@@ -562,6 +572,13 @@ export const api = {
 
   // Change watch (phase 6d). The read, and its two actions; neither action sends anything but its own address.
   getChangeWatch: (planId: number) => request<ChangeWatchView>(`/api/plans/${planId}/change-watch`),
+  // Sandbox research (prototype): the Watch list, Change watch's second view. Each answers with the whole list.
+  getWatchList: (planId: number) => request<WatchListView>(`/api/plans/${planId}/watch-list`),
+  watchListLook: (planId: number) => request<WatchListView>(`/api/plans/${planId}/watch-list/look`, { method: "POST" }),
+  watchListStop: (planId: number, item: string, reason: string | null) =>
+    request<WatchListView>(`/api/plans/${planId}/watch-list/stop`, { method: "POST", json: reason ? { item, reason } : { item } }),
+  watchListWatch: (planId: number, item: string) =>
+    request<WatchListView>(`/api/plans/${planId}/watch-list/watch`, { method: "POST", json: { item } }),
 
   bringInDemoChange: (planId: number, key: string) =>
     request<ChangeWatchView>(`/api/plans/${planId}/change-watch/demo/${encodeURIComponent(key)}`, { method: "POST" }),

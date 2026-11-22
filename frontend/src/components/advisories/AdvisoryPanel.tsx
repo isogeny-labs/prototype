@@ -1,5 +1,6 @@
 import type { AdvisoryHereRow, AdvisoryRow, OttoProposal } from "../../api";
 import { DetailPanel } from "../layout";
+import { ProofBlock, SandboxCopyLabel } from "../otto/ProofBlock";
 import { ProposalCard } from "../otto/ProposalCard";
 import { ItemLinkView, RelatedBlock, useRelated } from "../related";
 import { formatTime, StatusChip, WhereFromLine } from "../ui";
@@ -46,6 +47,7 @@ function HereRow({ planId, row, onDecided }: { planId: number; row: AdvisoryHere
           {result.component || result.finished_at ? (
             <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-slate-400">
               {result.component ? <span className="break-words">{result.component}</span> : null}
+              {result.sandbox_copy ? <SandboxCopyLabel testId="advisory-here-sandbox" /> : null}
               {result.finished_at ? <time dateTime={result.finished_at}>{formatTime(result.finished_at)}</time> : null}
             </p>
           ) : null}
@@ -168,6 +170,7 @@ export function AdvisoryPanel({
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className={BLOCK_TITLE}>{test.title}</h3>
                 <StatusChip label={row.test.label} tone={row.test.tone} size="sm" wrap />
+                {test.proof ? <SandboxCopyLabel label={test.proof.label} testId="advisory-sandbox-label" /> : null}
               </div>
               <p data-testid="advisory-test-reason" className="mt-1.5 break-words text-slate-300">
                 {row.test.reason}
@@ -197,6 +200,8 @@ export function AdvisoryPanel({
               <div className="mt-3">
                 <TrialView trial={test.trial} />
               </div>
+              {/* The whole proof stands with the proposal below; where no program has one, it stands here. */}
+              {test.proof && !panel.here.rows.some((h) => h.proposal?.proof) ? <ProofBlock proof={test.proof} /> : null}
               <div className="mt-3">
                 <LedgerView ledger={test.ledger} />
               </div>
@@ -214,6 +219,7 @@ export function AdvisoryPanel({
                   <TrialView trial={noTest.trial} />
                 </div>
               ) : null}
+              {noTest.proof ? <ProofBlock proof={noTest.proof} /> : null}
               {noTest.ledger ? (
                 <div className="mt-3">
                   <LedgerView ledger={noTest.ledger} />

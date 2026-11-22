@@ -18,6 +18,13 @@ class LiveOttoBody(BaseModel):
     limit: StrictStr | None = Field(default=None, max_length=12)   # the spending limit per run, in US dollars
 
 
+class SandboxBody(BaseModel):
+    on: StrictBool | None = None                                       # turn Sandbox research on or off
+    by_itself: StrictBool | None = None                                # the tick "Design and prove tests by itself"
+    run_limit: StrictStr | None = Field(default=None, max_length=12)   # the most for one research run, in US dollars
+    day_limit: StrictStr | None = Field(default=None, max_length=12)   # the most for a day, in US dollars
+
+
 class NameBody(BaseModel):
     name: StrictStr = Field(max_length=400)                        # a person's name for their decisions (held to 60 after cleaning)
 
@@ -48,6 +55,12 @@ def routes(lab, require_login) -> APIRouter:
     @router.post("/api/otto/live", dependencies=login, responses=shows(models.OttoSettingsView))
     def live_otto(body: LiveOttoBody):
         return lab.set_live_otto(body.on, body.limit)
+
+    @router.post("/api/otto/sandbox", dependencies=login, responses=shows(models.OttoSettingsView))
+    def sandbox_research(body: SandboxBody):
+        """Sandbox research (prototype): the switch, its tick and its two spending limits. The switch can be turned on
+        only on a computer marked as Isogeny's own sandbox, in isolated mode, with Otto installed."""
+        return lab.set_sandbox(body.on, body.by_itself, body.run_limit, body.day_limit)
 
     @router.post("/api/otto/name", dependencies=login, responses=shows(models.OttoSettingsView))
     def decision_name(body: NameBody):

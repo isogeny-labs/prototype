@@ -1,6 +1,7 @@
 """The application's actions (import, confirm an address, verify), used by the web API and the accuracy command."""
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import ipaddress
 import os
@@ -23,6 +24,8 @@ from app.run import runner
 from app.checks.addresses import AddressError, is_loopback_ip, parse_address, resolve_all
 from app.changewatch.state import ChangeWatchMixin
 from app.changewatch.views import ChangeWatchViewMixin
+from app.changewatch.clock import WatchClockMixin
+from app.changewatch.watchlist import WatchListMixin
 from app.whatif.facts import WhatIfMixin
 from app.impact.reach import ImpactMixin
 from app.fixes.changes import ChangesMixin
@@ -54,6 +57,8 @@ from app.otto.discover import DiscoverMixin
 from app.otto.engine import OttoEngine
 from app.otto.proposals import ProposalsMixin
 from app.otto.state import OttoMixin
+from app.sandbox import copies as sandbox_copies
+from app.sandbox.state import SandboxMixin
 from app.projects.store import ProjectsMixin
 from app.checks.verify import DemoContext, verify_claims
 
@@ -98,7 +103,7 @@ def run_json(r: VerifyRunRow) -> dict:
 
 class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin,
           ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin, OttoMixin, ProposalsMixin, DiscoverMixin, SaidMixin,
-          ChangeWatchMixin, ChangeWatchViewMixin, WhatIfMixin, ImpactMixin):
+          ChangeWatchMixin, ChangeWatchViewMixin, WhatIfMixin, ImpactMixin, SandboxMixin, WatchListMixin, WatchClockMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -122,6 +127,9 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         self.resolver = resolve_all  # tests replace this to simulate a name that changes
         # Phase 2: the mode is decided once, here, and recorded in every run. It never changes while the app runs.
         self.mode = runner.detect_mode(settings)
+        # (its own copy of the table of real-library images: Sandbox research adds the images of this computer's copy
+        #  sets to it while the switch is on, and nothing else about the mode ever changes)
+        self.mode = dataclasses.replace(self.mode, real_images=dict(self.mode.real_images))
         self.component_runner = runner.ComponentRunner(self.mode)
         self.jobs = JobRunner(settings.max_jobs)
         # Proposes and designs tests. Since phase 5c the rule engine sits behind Otto's engine, which passes everything
@@ -134,6 +142,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         self._init_changes()
         self._init_otto()
         self._init_discover()       # phase 6: Look for new advisories, and the research run it can start
+        self._init_watch_clock()    # sandbox research: the Watch list's clock (it runs only on a marked computer, with the switch on)
         try:
             # The evidence signing key: made once, on first start, kept in the data folder (mode 0600).
             ensure_signing_key(settings.data_dir)
@@ -148,6 +157,9 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             self.demo.versions = tuple(applied.get("versions") or self.demo.versions)
         self.demo.start()
         self.jobs.start()
+        sandbox_copies.register(self.settings.sandbox_dir, self.sandbox_on)     # (seen only while the switch is on)
+        self.sandbox_refresh()
+        self.watch_clock_start()
         if self.mode.docker_running and not _swept:
             _swept = True
             runner.sweep_stale_containers()
@@ -157,6 +169,8 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         # A test still unfinished now is interrupted, not answered: it must write nothing, or it would record
         # "the server did not answer" about a demo server that we ourselves are about to stop.
         self._stopping = True
+        self.watch_clock_stop()
+        sandbox_copies.unregister(self.settings.sandbox_dir)
         self.stop_research()        # (phase 6: a research run that is still going is ended with the app, never left behind)
         self.jobs.stop()
         self.demo.stop()
@@ -217,7 +231,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             return (f"Real software: {listed}. These are real libraries from outside, not demo data. They run only in isolated mode "
                     "(Docker), and this run is in demo mode, so their claims can't be checked and their tests can't run here. "
                     "Nothing of theirs is ever run as a local program.")
-        missing = [real_libraries.FAMILIES[f]["label"] for f in dict.fromkeys(families) if not self.mode.real_images.get(f)]
+        missing = [real_libraries.family_label(f) for f in dict.fromkeys(families) if not self.mode.real_images.get(f)]
         if missing:
             return (f"Real software: {listed}. These are real libraries from outside, not demo data. The container "
                     f"{'image' if len(missing) == 1 else 'images'} for {names_join_and(missing)} "

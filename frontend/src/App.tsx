@@ -18,7 +18,7 @@ import { AdvisoriesScreen } from "./components/AdvisoriesScreen";
 import { ChecksScreen } from "./components/ChecksScreen";
 import { CloseBox, NewAssessmentBox } from "./components/pages/AssessmentBoxes";
 import { ProjectOverviewPage } from "./components/pages/ProjectOverviewPage";
-import { ChangeWatchScreen } from "./components/ChangeWatchScreen";
+import { ChangeWatchPage } from "./components/ChangeWatchPage";
 import { LinkProvider } from "./components/related";
 import { LoginScreen, SetupScreen } from "./components/AuthScreens";
 import { OttoPanel } from "./components/assistant/OttoPanel";
@@ -673,7 +673,7 @@ export default function App() {
     );
   } else if (page === "change-watch" && plan) {
     // Phase 6d: a developer's change in the connected demo repository; its picked tests run only on a click.
-    content = <ChangeWatchScreen planId={plan.id} openItem={routeItem} />;
+    content = <ChangeWatchPage planId={plan.id} openItem={routeItem} section={route.kind === "assessment" ? (route.section ?? null) : null} />;
   } else if (migrationTab && imp) {
     content = (
       <MigrationScreen

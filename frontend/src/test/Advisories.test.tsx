@@ -6,6 +6,7 @@ import { AdvisoriesScreen } from "../components/AdvisoriesScreen";
 import { LinkProvider, RelatedBlock } from "../components/related";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
 import { DISCLAIMER, calls, mockApi, session, text } from "./fixtures";
+import { proof } from "./proofFixtures";
 import {
   CLOSED_REASON,
   NOT_INSTALLED_LINE,
@@ -1029,6 +1030,53 @@ describe("Advisories, an advisory's panel", () => {
     fireEvent.change(screen.getByTestId("advisories-filter-decision"), { target: { value: "proposed" } });
     expect(ids()).toEqual([ZERO]);
     expect(panel().getAttribute("data-advisory")).toBe(BLANK);
+  });
+});
+
+describe("Advisories, a test that was tried on sandbox copies", () => {
+  const withProofOnCard: AdvisoryRow = {
+    ...blankNotAdded,
+    panel: {
+      ...blankNotAdded.panel,
+      test: { ...blankNotAdded.panel.test!, proof: proof() },
+      here: { ...blankNotAdded.panel.here, rows: blankNotAdded.panel.here.rows.map((h) => ({ ...h, proposal: h.proposal ? { ...h.proposal, proof: proof() } : null })) },
+    },
+  };
+
+  it("shows the proof once, with the proposal, and labels the test block Sandbox copy", async () => {
+    const fetchMock = await open({ ...advisoriesNotAdded, rows: [withProofOnCard, stopsNoTest] });
+    const inPanel = await openRow(BLANK);
+    expect(inPanel.getByTestId("advisory-sandbox-label").textContent).toBe("Sandbox copy");
+    expect(inPanel.getAllByTestId("proof-block")).toHaveLength(1);
+    expect(within(card()).getByTestId("proof-block")).toBeTruthy();
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);        // (showing the proof sent nothing)
+  });
+
+  it("shows the proof with the test where no program has a proposal for it", async () => {
+    const alone: AdvisoryRow = { ...withProofOnCard, panel: { ...withProofOnCard.panel, here: { ...withProofOnCard.panel.here, rows: [] } } };
+    await open({ ...advisoriesNotAdded, rows: [alone, stopsNoTest] });
+    const inPanel = await openRow(BLANK);
+    const block = inPanel.getByTestId("advisory-test-block");
+    expect(within(block).getAllByTestId("proof-block")).toHaveLength(1);
+  });
+
+  it("shows what a trial on sandbox copies showed for a test that is not offered", async () => {
+    const refused: AdvisoryRow = { ...looseNotOffered, panel: { ...looseNotOffered.panel, no_test: { ...looseNotOffered.panel.no_test!, proof: proof() } } };
+    await open({ ...advisoriesTwoPacks, rows: [refused] });
+    const inPanel = await openRow(refused.id);
+    expect(within(inPanel.getByTestId("advisory-no-test")).getByTestId("proof-block")).toBeTruthy();
+  });
+
+  it("labels a result that came from a sandbox copy, and no other", async () => {
+    const onCopy: AdvisoryRow = {
+      ...blankFailed,
+      panel: { ...blankFailed.panel, here: { ...blankFailed.panel.here, rows: blankFailed.panel.here.rows.map((h) => ({ ...h, result: h.result ? { ...h.result, sandbox_copy: true } : null })) } },
+    };
+    await open({ ...advisoriesFailed, rows: [onCopy, stopsNoTest] });
+    expect((await openRow(BLANK)).getByTestId("advisory-here-sandbox").textContent).toBe("Sandbox copy");
+    cleanup();
+    await open(advisoriesFailed);
+    expect((await openRow(BLANK)).queryByTestId("advisory-here-sandbox")).toBeNull();
   });
 });
 

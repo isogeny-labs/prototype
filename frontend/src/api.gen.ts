@@ -67,6 +67,16 @@ export type ChangeStatusKey =
   | "couldnt_trust";
 export type ChangeOutcome =
   "fails_now" | "passes_now" | "same" | "slower_now" | "not_slower" | "not_compared" | "not_trusted";
+export type WatchStatusKey =
+  | "no_fix"
+  | "fix_published"
+  | "being_tested"
+  | "test_proposed"
+  | "no_test"
+  | "not_yours"
+  | "withdrawn"
+  | "gone"
+  | "not_watched";
 export type AssistantThread = "testing" | "fixing" | "planning";
 
 export interface AddTestBody {
@@ -308,6 +318,10 @@ export interface AdvisoryTestBlock {
   design_fingerprint: string;
   trial: AdvisoryTrial;
   ledger: AdvisoryLedger;
+  /**
+   * Sandbox research: the proof of a test tried on sandbox copies.
+   */
+  proof?: TestProofBlock | null;
 }
 export interface AdvisoryTrial {
   title: string;
@@ -326,6 +340,100 @@ export interface AdvisoryLedgerEntry {
   at: string;
   what: string;
 }
+/**
+ * Sandbox research (a prototype): everything that stands behind a test tried on sandbox copies. It words no result.
+ */
+export interface TestProofBlock {
+  /**
+   * "How this test was proven"
+   */
+  title: string;
+  /**
+   * "Sandbox copy"
+   */
+  label: string;
+  summary: string;
+  table: TestProofTable;
+  registered: TestProofRegistered;
+  judged: string;
+  code: TestProofCode;
+  copies: TestProofCopies;
+  replayed: string;
+  not_shown: string;
+}
+export interface TestProofTable {
+  columns: string[];
+  rows: TestProofRow[];
+  note: string;
+}
+export interface TestProofRow {
+  key: string;
+  /**
+   * What ran: our reference library, a public copy, or the control.
+   */
+  label: string;
+  /**
+   * The count for that part of the trial (the separate reviewer's for a copy and for the reference; the pinned trial script's for the control). A count, never Passed or Failed.
+   */
+  count: string;
+  /**
+   * What had to happen, as it was frozen before the first run.
+   */
+  must: string;
+}
+export interface TestProofRegistered {
+  line: string;
+  pins_title: string;
+  pins: TestProofPin[];
+}
+export interface TestProofPin {
+  name: string;
+  sha256: string;
+}
+/**
+ * The code that asked the library its questions, shown as text. It is data here: nothing on a screen runs it.
+ */
+export interface TestProofCode {
+  title: string;
+  /**
+   * "Written by Otto" when Claude wrote it; null for the app's own asking code.
+   */
+  label: string | null;
+  author: string;
+  file: string;
+  lines: number;
+  source: string;
+  sha256: string;
+  line: string;
+  show: string;
+  hide: string;
+  second: TestProofSecondCode | null;
+  agree_line: string | null;
+  known_lines: string[];
+}
+export interface TestProofSecondCode {
+  title: string;
+  author: string;
+  lines: number;
+  source: string;
+  sha256: string;
+}
+export interface TestProofCopies {
+  title: string;
+  rows: TestProofCopy[];
+  left_out: string[];
+  image_line: string;
+  trust_line: string;
+}
+export interface TestProofCopy {
+  version: string;
+  role: string;
+  line: string;
+  published: string | null;
+  helpers_line: string | null;
+  sha256: string;
+  url: string;
+}
 export interface AdvisoryNoTest {
   /**
    * "No test yet" or "Not offered"
@@ -334,6 +442,10 @@ export interface AdvisoryNoTest {
   reason: string;
   trial: AdvisoryTrial | null;
   ledger: AdvisoryLedger | null;
+  /**
+   * Sandbox research: what a design's trial on sandbox copies showed.
+   */
+  proof?: TestProofBlock | null;
 }
 export interface AdvisoryHere {
   title: string;
@@ -389,6 +501,10 @@ export interface OttoProposal {
   history: OttoProposalHistory;
   link: ItemLink;
   proposed_at: string | null;
+  /**
+   * Sandbox research: how the proposed test was proven, folded under the card.
+   */
+  proof?: TestProofBlock | null;
 }
 export interface OttoProposalStatus {
   key: "proposed" | "accepted" | "rejected";
@@ -449,6 +565,10 @@ export interface AdvisoryHereResult {
    * 22 November 2026: where this result came from (Proven in the lab).
    */
   source_tag?: Source | null;
+  /**
+   * Sandbox research: the run was on a public copy sandbox research made.
+   */
+  sandbox_copy?: boolean;
 }
 export interface AdvisoryFix {
   title: string;
@@ -488,6 +608,10 @@ export interface AdvisoryLookup {
   title: string;
   intro: string;
   covers: string;
+  /**
+   * Sandbox research: what the research runs of the last day did and spent.
+   */
+  sandbox_line?: string | null;
   libraries_line: string;
   look: LookupButton;
   last: LookupLast | null;
@@ -545,11 +669,23 @@ export interface LookupRow {
   link: ItemLink | null;
   publisher: string;
   url: string;
+  /**
+   * Sandbox research: a test for it would be tried on public copies fetched from a registry.
+   */
+  sandbox?: boolean;
+  /**
+   * Sandbox research: its row on the Watch list, while it has no fix yet.
+   */
+  watch?: LabelledLink | null;
 }
 export interface LookupRowState {
   key: "in_pack" | "in_waiting_pack" | "new" | "no_test" | "not_yours";
   label: string;
   tone: "pass" | "fail" | "neutral" | "warn";
+}
+export interface LabelledLink {
+  label: string;
+  link: ItemLink;
 }
 export interface LookupResearch {
   label: string;
@@ -894,6 +1030,10 @@ export interface OverviewBlocks {
    */
   findings: OverviewFact[];
   evidence: OverviewEvidence;
+  /**
+   * Only while Sandbox research is on and the list holds something.
+   */
+  watch_list?: OverviewWatchList | null;
 }
 export interface OverviewGroup {
   key: "verification" | "encryption" | "migration" | "dependencies";
@@ -934,6 +1074,15 @@ export interface OverviewEvidence {
 export interface LastDownload {
   at: string;
   fingerprint: string;
+}
+/**
+ * Sandbox research: how many watched weaknesses have no fix yet. Information, never a result.
+ */
+export interface OverviewWatchList {
+  no_fix: number;
+  fix_published: number;
+  line: string;
+  link: ItemLink;
 }
 /**
  * The Overview's "Waiting for you": the proposals nobody has decided yet, each kind linking to its page.
@@ -1826,6 +1975,10 @@ export interface MeasurementResult {
    * True when the component is a real library, not one of our demo components (phase 4c).
    */
   real: boolean;
+  /**
+   * Sandbox research: the run was on a public copy sandbox research made.
+   */
+  sandbox_copy?: boolean;
   fix_title: string;
   suggested_fix: string | null;
   /**
@@ -2262,6 +2415,10 @@ export interface LabResult {
    * True when the component is a real library, not one of our demo components (phase 4c).
    */
   real: boolean;
+  /**
+   * Sandbox research: the run was on a public copy sandbox research made.
+   */
+  sandbox_copy?: boolean;
   fix_title: string;
   suggested_fix: string | null;
   /**
@@ -3950,6 +4107,66 @@ export interface OttoProposalsView {
   blocked_reason: string | null;
 }
 /**
+ * Settings: Sandbox research (a prototype for Isogeny's own sandbox, 22 November 2026).
+ */
+export interface OttoSandboxSection {
+  title: string;
+  intro: string;
+  switch: SandboxSwitch;
+  box: SandboxBox;
+  by_itself: SandboxTick;
+  run_limit: SandboxLimit;
+  day_limit: SandboxLimit;
+  limits_note: string;
+  status_line: string;
+  /**
+   * What research runs spent in the last 24 hours; only while the switch is on.
+   */
+  spent_line: string | null;
+}
+export interface SandboxSwitch {
+  /**
+   * "Sandbox research"
+   */
+  label: string;
+  /**
+   * On, and allowed to be on here.
+   */
+  on: boolean;
+  can_turn_on: boolean;
+  /**
+   * Every plain reason it can't be turned on here; empty when it can.
+   */
+  blocked_reasons: string[];
+}
+/**
+ * The box that opens before the switch is turned on. Nothing starts before the click in it.
+ */
+export interface SandboxBox {
+  title: string;
+  lines: string[];
+  confirm: string;
+  cancel: string;
+}
+export interface SandboxTick {
+  /**
+   * "Design and prove tests by itself"
+   */
+  label: string;
+  on: boolean;
+  can_turn_on: boolean;
+  blocked_reason: string | null;
+  line: string;
+}
+export interface SandboxLimit {
+  label: string;
+  /**
+   * US dollars, e.g. "5.00"
+   */
+  value: string;
+  save: string;
+}
+/**
  * Settings: the Test packs section, the two status lines and the Live Otto section (phase 5c).
  */
 export interface OttoSettingsView {
@@ -3961,6 +4178,10 @@ export interface OttoSettingsView {
    * Phase 6a: always sent by the current backend.
    */
   name?: OttoName1 | null;
+  /**
+   * Sandbox research: always sent by the current backend.
+   */
+  sandbox?: OttoSandboxSection | null;
 }
 export interface PackInstallBody {
   version: string;
@@ -4140,6 +4361,12 @@ export interface RetestBody {
   version: string;
   component?: string | null;
 }
+export interface SandboxBody {
+  on?: boolean | null;
+  by_itself?: boolean | null;
+  run_limit?: string | null;
+  day_limit?: string | null;
+}
 export interface SayBody {
   text: string;
   page: string;
@@ -4165,6 +4392,160 @@ export interface VerifyRun {
    * Phase 5c: one sentence. Verify is unchanged and nothing is proposed on it yet.
    */
   otto_note?: string;
+}
+export interface WatchAgain {
+  /**
+   * "Watch again"
+   */
+  label: string;
+  can: boolean;
+  blocked_reason: string | null;
+}
+export interface WatchAgainBody {
+  item: string;
+}
+export interface WatchBox {
+  title: string;
+  lines: string[];
+  confirm: string;
+  cancel: string;
+}
+export interface WatchHistory {
+  title: string;
+  lines: string[];
+}
+export interface WatchItem {
+  /**
+   * The advisory's id and the library; what Stop watching and Watch again name.
+   */
+  key: string;
+  id: string;
+  title: string;
+  library: string;
+  /**
+   * What it says about the version your files name.
+   */
+  yours: string;
+  status: WatchStatus;
+  status_line: string | null;
+  since: string;
+  /**
+   * The newest look brought it, or changed it.
+   */
+  new: boolean;
+  source: Source;
+  panel: WatchPanel;
+}
+/**
+ * Where a watched weakness stands. Information, never a result.
+ */
+export interface WatchStatus {
+  key:
+    | "no_fix"
+    | "fix_published"
+    | "being_tested"
+    | "test_proposed"
+    | "no_test"
+    | "not_yours"
+    | "withdrawn"
+    | "gone"
+    | "not_watched";
+  /**
+   * "No fix yet", "Fix published", "Being tested", "Test proposed", "No test possible", ...
+   */
+  word: string;
+  /**
+   * Only "warn" or "neutral": a status is not a result.
+   */
+  tone: "pass" | "fail" | "neutral" | "warn";
+}
+export interface WatchPanel {
+  ids_line: string;
+  published_line: string | null;
+  quote: WatchQuote | null;
+  versions: WatchVersions;
+  test: WatchTest | null;
+  history: WatchHistory;
+  stop: WatchStop | null;
+  watch: WatchAgain | null;
+}
+export interface WatchQuote {
+  title: string;
+  /**
+   * Pieces of the publisher's own text, word for word.
+   */
+  lines: string[];
+  /**
+   * "quoted from the named source, not a result"
+   */
+  tag: string;
+  source_line: string;
+  url: string | null;
+  link_label: string;
+}
+export interface WatchVersions {
+  title: string;
+  lines: string[];
+  yours: string[];
+}
+export interface WatchTest {
+  line: string | null;
+  link: ItemLink | null;
+  link_label: string | null;
+}
+export interface WatchStop {
+  /**
+   * "Stop watching"
+   */
+  label: string;
+  reason_label: string;
+  max: number;
+  note: string;
+  can: boolean;
+  blocked_reason: string | null;
+}
+/**
+ * Change watch, the Watch list: published weaknesses in the libraries a file names that have no fix yet. Worked
+ * out from the assessment's own looks on every read. With Sandbox research off, `on` is false and nothing else is sent.
+ */
+export interface WatchListView {
+  on: boolean;
+  off_line: string | null;
+  title: string;
+  intro: string;
+  looked_line: string | null;
+  next_line: string | null;
+  look: WatchLook | null;
+  count_line: string | null;
+  items: WatchItem[];
+  /**
+   * The ones a person stopped watching. Never deleted.
+   */
+  stopped: WatchItem[];
+  empty_line: string | null;
+  note: string | null;
+}
+export interface WatchLook {
+  /**
+   * "Look now"
+   */
+  button: string;
+  can: boolean;
+  blocked_reason: string | null;
+  box: WatchBox1;
+}
+/**
+ * Opens before anything is sent; says what is sent.
+ */
+export interface WatchBox1 {
+  title: string;
+  lines: string[];
+  confirm: string;
+  cancel: string;
+}
+export interface WatchStopBody {
+  item: string;
+  reason?: string | null;
 }
 export interface WhatIfTry1 {
   title: string;

@@ -576,6 +576,58 @@ run makes becomes the newest one, so a built-in pack that is published later can
 data folder (the box says this too). And a run that could not settle an advisory (no answer, or a trial that did
 not finish) leaves it out of the pack, so you can try it again.
 
+### Sandbox research: a test Otto writes, proven on public copies (a prototype, 22 November 2026)
+
+A prototype for our own sandbox. It is off by default, and on a customer install it can't be turned on. With it off
+the app is exactly what it was. It adds three things behind one switch in **Settings** (**Sandbox research**):
+
+1. **The Watch list.** The **Change watch** page gets a second view. It lists every published weakness in a library
+   your file names for which the publisher has named no fixed version yet. The app looks again by itself, about once a
+   day, and marks an item **Fix published** on the day the source names a fixed version.
+2. **Public copies beyond the pinned set.** For a weakness with a fix in a library on npm or PyPI, the research run
+   fetches the affected and the fixed version from the public registry, checks each file against the registry's own
+   fingerprint, and builds them into a locked container image with no network.
+3. **The asking code.** Where the app has no code of its own that asks a library the test's questions, Claude writes
+   it (one small file, twice, by two authors that never see each other's work). It is used only after a screen by
+   fixed rules and a known-answer check, and it never sees a right answer. The screen is a filter, not a proof, which
+   is why the second author's code must agree with the first on every case. The questions and
+   their right answers are a publisher's, and the separate reviewer decides every run, as always.
+
+A test is proposed only after it was proven: it fails on the affected version, passes on the fixed version, the
+control that must fail does, and the two authors' code gave the same answer on every case. The proposal carries
+**How this test was proven**, with the code shown as text. You accept or reject it. Accepting runs nothing.
+
+**To see it with no internet and no API key** (Docker must be running; the first time it fetches six small public
+package files from PyPI, each checked against its pinned fingerprint):
+
+```bash
+cd backend && .venv/bin/python tools/research_demo.py --sandbox /tmp/sandbox-demo
+```
+
+It prints one command. Run that command from the repository's top folder to start the app. Then:
+
+1. **Settings**: turn **Sandbox research** on (a box says first what it will do).
+2. **New assessment**, bring in `demo/sandbox/starkbank-file.csv`.
+3. **Change watch**, **Watch list**, **Look now**: one weakness with no fix yet (this first record is Demo data: the
+   published record with its fixed version taken out, to show the day before a fix).
+4. In a second terminal, play the next day at the source, then press **Look now** again: the item reads **Fix
+   published**.
+
+```bash
+cd backend && .venv/bin/python tools/research_demo.py --sandbox --day 2 /tmp/sandbox-demo
+```
+
+5. **Advisories**: the weakness can now be tried on public copies from PyPI. Press **Design and prove tests**. After
+   about three minutes a check is proposed. Open it and read **How this test was proven**.
+6. **Accept**, then run the check on **Checks**. The reviewer's result for starkbank-ecdsa 2.0.0 is **Failed**: it got
+   1 of the 64 published cases wrong.
+
+With **Design and prove tests by itself** ticked (it needs Live Otto, so an API key), the app also starts the
+research run by itself, within the limit for one run and the limit for a day. Nothing is ever accepted by itself.
+
+What it does not do is in `docs/LIMITS.md`, "Limits of sandbox research". The plan it was built from is
+`docs/plans/otto-auto-researcher-change-watch.md`.
+
 ## Where things are
 
 - `backend/` – Python 3.12, FastAPI, SQLite. `app/` is the code (one folder per job, see

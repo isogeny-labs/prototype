@@ -303,6 +303,15 @@ export function OverviewPage({
                   </li>
                 ))}
               </ul>
+              {blocks.watch_list ? (
+                // Sandbox research (prototype): information, never a finding or a result. It opens the Watch list.
+                <p data-testid="overview-watch-list" className="mt-3 break-words border-t border-slate-800 pt-3 text-slate-300">
+                  {blocks.watch_list.line}{" "}
+                  <ItemLinkView link={blocks.watch_list.link} testId="overview-watch-list-link" className="text-sky-300 underline-offset-2 hover:underline">
+                    Open the Watch list
+                  </ItemLinkView>
+                </p>
+              ) : null}
             </section>
             <section aria-label="Evidence" data-testid="overview-evidence" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 text-sm">
               <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Evidence</p>

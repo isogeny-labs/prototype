@@ -205,6 +205,8 @@ def _result_view(r: dict) -> dict:
         "also_noticed": [str(x) for x in r.get("also_noticed") or []],
         # phase 4c: a real library (not demo data), and the advisories its publisher has out for this version (information only)
         "real": bool(r.get("real")),
+        # sandbox research (a prototype): the run was on a public copy made on this computer, not on a pinned library
+        **({"sandbox_copy": True} if r.get("sandbox_copy") else {}),
         "advisories": ({"title": str(r["advisories"].get("title")), "tag": str(r["advisories"].get("tag")),
                         "items": [_pick(a, ("id", "text", "link", "href", "covered")) for a in r["advisories"].get("items") or []]}
                        if r.get("advisories") else None),
@@ -568,6 +570,7 @@ def _build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
     checks = _checks_part(lab, plan_id)
     otto = lab.otto_evidence(plan_id)   # phase 5c: None unless this assessment has an advisory check or a Claude step
     watch_state = lab.change_watch_state(plan_id)   # phase 6d: read from the connected repository, as its page reads it
+    watch_list, sandbox_on = lab.watch_list_evidence(plan_id), lab.sandbox_on()   # sandbox research: None when there was no look
     with lab.db() as db:
         plan = db.get(PlanRow, plan_id)
         imp = db.get(ImportRow, plan.import_id)
@@ -644,6 +647,11 @@ def _build_evidence(lab, plan_id: int, generated_at: str | None = None) -> dict:
             # Phase 6d: Change watch, inside what is signed: each developer's change, and every watch run with both
             # runs of every picked test, the watch record and the reviewer's word for the change.
             evidence["change_watch"] = watch
+        if watch_list is not None and (sandbox_on or watch_list["marks"]):
+            # Sandbox research (prototype): the Watch list, inside what is signed, while the switch is on or a person
+            # has stopped or resumed watching something: the looks as the rule reads them, every item as it stands,
+            # and every stop and watch again.
+            evidence["watch_list"] = watch_list
     return _clean(evidence)
 
 
@@ -770,7 +778,8 @@ def _result_html(heading: str, entry: dict) -> _Safe:
         *_advisories_html(r.get("advisories")),
         el("p", t(r.get("summary")), cls="note") if r.get("plain") and r.get("summary") and r.get("plain") != r.get("summary") else _Safe(""),
         el("ul", *[el("li", t(line)) for line in (
-            f"Component: {r.get('component')} [{'real software' if r.get('real') else 'demo'}]" if r.get("component") else "Component: none (this test is about the server)",
+            f"Component: {r.get('component')} [{'sandbox copy' if r.get('sandbox_copy') else 'real software' if r.get('real') else 'demo'}]"
+            if r.get("component") else "Component: none (this test is about the server)",
             f"Mode: {r.get('mode')}", f"Finished: {r.get('finished_at')} (UTC)",
             f"Run record fingerprint (SHA-256): {entry.get('run_sha256')}",
             f"Reviewed by: {entry['review'].get('reviewer')}; test proposed by: {entry['review'].get('proposed_by')}")], cls="meta"),
@@ -1183,6 +1192,7 @@ def render_report_html(envelope: dict) -> bytes:
     body += _dependencies_html(e.get("dependencies"))
     body += _otto_html(e.get("otto"))
     body += _change_watch_html(e.get("change_watch"))
+    body += _watch_list_html(e.get("watch_list"))
     body.append(el("p", t("End of report. " + REPORT_LINE), cls="note"))
     page = (f'<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             f'<meta http-equiv="Content-Security-Policy" content="{html.escape(CSP, quote=True)}">\n'
@@ -1190,6 +1200,35 @@ def render_report_html(envelope: dict) -> bytes:
             f"<title>Isogeny Evidence Lab: evidence report</title>\n<style>{_STYLE}</style>\n</head>\n"
             f"<body>\n<main>\n{_join(body)}\n</main>\n</body>\n</html>\n")
     return page.encode("utf-8")
+
+
+def _watch_list_html(part: dict | None) -> list:
+    """Sandbox research: part 10 of the report. Each watched weakness with where it stands by the source's own facts and
+    what changed from look to look. It lists records; "Fix published" is the publisher's statement, never a result."""
+    if not part:
+        return []
+    out = [el("h2", t("10. Watch list")), el("p", t(part.get("note")), cls="note")]
+    items = part.get("items") or []
+    if not items:
+        out.append(el("p", t("No look found a published weakness in these libraries with no fixed version named.")))
+        return out
+    rows = []
+    for item in items:
+        ends = item.get("ends") or {}
+        fixed = ", ".join([*(ends.get("fixed") or []), *[f"after {v}" for v in ends.get("last_affected") or []]])
+        stands = str(item.get("word") or "") + (" (not watched: a person stopped watching it)" if item.get("stopped") else "")
+        happened = "; ".join(f"look {e.get('look')}: {str(e.get('kind') or '').replace('_', ' ')}" for e in item.get("events") or [])
+        rows.append(el("tr", el("td", t(item.get("id")), cls="words"), el("td", t(item.get("library"))), el("td", t(stands)),
+                       el("td", t(fixed or "none named")), el("td", t((item.get("first") or {}).get("at"))), el("td", t(happened))))
+    head = el("tr", *[el("th", t(c), cls="words" if i == 0 else None)
+                      for i, c in enumerate(("Weakness", "Library", "Where it stands", "Fixed version named", "First seen here (UTC)", "What changed"))])
+    out.append(el("table", el("thead", head), el("tbody", *rows)))
+    marks = part.get("marks") or []
+    if marks:
+        out.append(el("p", t("Stops and watch-agains, each with who and when: " + "; ".join(
+            f"{m.get('item')}: {'stopped' if m.get('kind') == 'stop' else 'watched again'} by {m.get('by')} at {m.get('at')}"
+            + (f" ({m.get('reason')})" if m.get("reason") else "") for m in marks) + ".")))
+    return out
 
 
 def _change_watch_html(part: dict | None) -> list:
