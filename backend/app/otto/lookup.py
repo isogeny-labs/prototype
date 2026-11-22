@@ -310,6 +310,38 @@ def read_answer(raw: bytes, package: Package, today: str) -> tuple[list[Found], 
     return found, left_out
 
 
+MAX_WITHDRAWN = 200            # withdrawn records one look keeps the ids of
+
+
+def withdrawn_in(raw: bytes, package: Package) -> list[dict]:
+    """Sandbox research, the Watch list: the records in one answer that their publisher took back and that are about
+    this package, as data: [{"record_id", "ids"}] (`ids`: the record's own id and the other ids it is known under, in
+    capitals). A withdrawn record is never among what a look found; this only says that it was in the answer, so a
+    weakness that was being watched can say "withdrawn by its publisher" and not merely disappear."""
+    try:
+        records = _load(raw).get("vulns", [])
+    except LookupError_:
+        return []
+    out = []
+    for record in records if isinstance(records, list) else []:
+        if not isinstance(record, dict) or not record.get("withdrawn"):
+            continue
+        record_id = record.get("id")
+        if not isinstance(record_id, str) or not _ALIAS.match(record_id):
+            continue
+        raw_affected = record.get("affected")
+        about = [a.get("package") for a in (raw_affected if isinstance(raw_affected, list) else []) if isinstance(a, dict)]
+        if not any(isinstance(p, dict) and p.get("ecosystem") == package.ecosystem and str(p.get("name", "")).lower() == package.name.lower()
+                   for p in about):
+            continue
+        raw_aliases = record.get("aliases")
+        aliases = [a for a in (raw_aliases if isinstance(raw_aliases, list) else []) if isinstance(a, str) and _ALIAS.match(a)]
+        out.append({"record_id": record_id, "ids": list(dict.fromkeys(i.upper() for i in [record_id, *aliases]))[:9]})
+        if len(out) >= MAX_WITHDRAWN:
+            break
+    return out
+
+
 def _one(record: object, package: Package, today: str) -> Found | None:
     if not isinstance(record, dict) or not isinstance(record.get("id"), str) or not _ALIAS.match(record["id"]):
         return None
@@ -476,12 +508,14 @@ def read_source(source, packages: list[Package], now: datetime | None = None, fi
     today = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%d")
     found: dict[str, Found] = {}
     asked, left_out, more_pages = [], 0, []
+    withdrawn: list[dict] = []
     for package in packages:
         pages = source.answers(package)
         count = 0
         for raw in pages:
             more, bad = read_answer(raw, package, today)
             left_out += bad
+            withdrawn += [{"library": package.library, **w} for w in withdrawn_in(raw, package)]
             for one in more:
                 found.setdefault(one.advisory["id"], one)
                 count += 1
@@ -498,4 +532,4 @@ def read_source(source, packages: list[Package], now: datetime | None = None, fi
         newest.sort(key=lambda f: not fits(f))          # (a stable sort: those that fit first, each group still newest first)
     return {"source": source.key, "source_words": source.words, "sent": source.sends(packages), "asked": asked,
             "found": newest[:MAX_KEPT], "left_out": left_out, "cut": bool(more_pages) or len(newest) > MAX_KEPT,
-            "more_pages": more_pages, "not_listed": max(0, len(newest) - MAX_KEPT)}
+            "more_pages": more_pages, "not_listed": max(0, len(newest) - MAX_KEPT), "withdrawn": withdrawn[:MAX_WITHDRAWN]}

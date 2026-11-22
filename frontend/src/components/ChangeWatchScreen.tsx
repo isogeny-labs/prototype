@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePanelStamp } from "../changes";
 import { api, errorMessage, type ChangeRow, type ChangeWatchView } from "../api";
 import { ChangePanelView } from "./changewatch/ChangePanelView";
@@ -12,6 +12,8 @@ interface Props {
   planId: number;
   /** A change to open (from a link: #/a/<id>/change-watch?item=<change id>). */
   openItem?: string | null;
+  /** Sandbox research (prototype): the page's view tabs, drawn under its header while the Watch list is on. */
+  tabs?: ReactNode;
 }
 
 /** The status word of a change, with the count of its flags under it. The word is the backend's. */
@@ -45,7 +47,7 @@ function NameCell({ row }: { row: ChangeRow }) {
 /** Phase 6d: Change watch, the Changes view. Every developer's change in the connected demo repository, the tests
  * picked for it and why, and (after a click) what they show beside the results on the code before. Reading this page
  * runs nothing. Every word, status and reason is the backend's: this page words no result and decides none. */
-export function ChangeWatchScreen({ planId, openItem = null }: Props) {
+export function ChangeWatchScreen({ planId, openItem = null, tabs = null }: Props) {
   const [view, setView] = useState<ChangeWatchView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -222,6 +224,7 @@ export function ChangeWatchScreen({ planId, openItem = null }: Props) {
         }
       />
 
+      {tabs}
       {view.code.line ? (
         <p data-testid="change-watch-code-line" role="note" className="mb-5 break-words rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-sm text-slate-200">
           {view.code.line}{" "}

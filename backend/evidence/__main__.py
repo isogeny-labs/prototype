@@ -119,6 +119,14 @@ def main(argv: list[str] | None = None) -> int:
             if not watch.ok:
                 print(f"Evidence NOT verified: the Change watch part: {watch.problem}")
                 return FAILED
+    # Sandbox research: the Watch list part, worked out again from the looks in the file (also only once the signature held).
+    watch_list = None
+    if outcome.code in (VERIFIED, SIGNER_NOT_CONFIRMED) and "watch_list" in evidence:
+        from .watchlist import check_watch_list
+        watch_list = check_watch_list(evidence)
+        if not watch_list.ok:
+            print(f"Evidence NOT verified: the Watch list part: {watch_list.problem}")
+            return FAILED
     if outcome.ok and otto is not None and otto.code != VERIFIED:
         print("The file's own signature holds, but its Otto part could not be fully confirmed.")
     else:
@@ -134,6 +142,9 @@ def main(argv: list[str] | None = None) -> int:
     if watch is not None:
         for line in watch.lines:
             print(f"  Change watch: {line}")
+    if watch_list is not None:
+        for line in watch_list.lines:
+            print(f"  Watch list: {line}")
     if otto is not None:
         for line in otto.lines:
             print(f"  Otto: {line}")

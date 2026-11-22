@@ -1858,6 +1858,117 @@ class ItemLink(Shape):
     assessment_id: int | None = Field(default=None, description="Another assessment (the Project overview links into each).")
 
 
+# ---------------------------------------------------------------- sandbox research: the Watch list (Change watch's second view)
+
+WatchStatusKey = Literal["no_fix", "fix_published", "being_tested", "test_proposed", "no_test", "not_yours", "withdrawn", "gone", "not_watched"]
+
+
+class WatchStatus(Shape):
+    """Where a watched weakness stands. Information, never a result."""
+
+    key: WatchStatusKey
+    word: str = Field(description='"No fix yet", "Fix published", "Being tested", "Test proposed", "No test possible", ...')
+    tone: Tone = Field(description='Only "warn" or "neutral": a status is not a result.')
+
+
+class WatchBox(Shape):
+    title: str
+    lines: list[str]
+    confirm: str
+    cancel: str
+
+
+class WatchLook(Shape):
+    button: str = Field(description='"Look now"')
+    can: bool
+    blocked_reason: str | None
+    box: WatchBox = Field(description="Opens before anything is sent; says what is sent.")
+
+
+class WatchQuote(Shape):
+    title: str
+    lines: list[str] = Field(description="Pieces of the publisher's own text, word for word.")
+    tag: str = Field(description='"quoted from the named source, not a result"')
+    source_line: str
+    url: str | None
+    link_label: str
+
+
+class WatchVersions(Shape):
+    title: str
+    lines: list[str]
+    yours: list[str]
+
+
+class WatchTest(Shape):
+    line: str | None
+    link: ItemLink | None
+    link_label: str | None
+
+
+class WatchHistory(Shape):
+    title: str
+    lines: list[str]
+
+
+class WatchStop(Shape):
+    label: str = Field(description='"Stop watching"')
+    reason_label: str
+    max: int
+    note: str
+    can: bool
+    blocked_reason: str | None
+
+
+class WatchAgain(Shape):
+    label: str = Field(description='"Watch again"')
+    can: bool
+    blocked_reason: str | None
+
+
+class WatchPanel(Shape):
+    ids_line: str
+    published_line: str | None
+    quote: WatchQuote | None
+    versions: WatchVersions
+    test: WatchTest | None
+    history: WatchHistory
+    stop: WatchStop | None
+    watch: WatchAgain | None
+
+
+class WatchItem(Shape):
+    key: str = Field(description="The advisory's id and the library; what Stop watching and Watch again name.")
+    id: str
+    title: str
+    library: str
+    yours: str = Field(description="What it says about the version your files name.")
+    status: WatchStatus
+    status_line: str | None
+    since: str
+    new: bool = Field(description="The newest look brought it, or changed it.")
+    source: Source
+    panel: WatchPanel
+
+
+class WatchListView(Shape):
+    """Change watch, the Watch list: published weaknesses in the libraries a file names that have no fix yet. Worked
+    out from the assessment's own looks on every read. With Sandbox research off, `on` is false and nothing else is sent."""
+
+    on: bool
+    off_line: str | None
+    title: str
+    intro: str
+    looked_line: str | None
+    next_line: str | None
+    look: WatchLook | None
+    count_line: str | None
+    items: list[WatchItem]
+    stopped: list[WatchItem] = Field(description="The ones a person stopped watching. Never deleted.")
+    empty_line: str | None
+    note: str | None
+
+
 class OverviewFact(Shape):
     label: str
     value: int
@@ -1886,10 +1997,20 @@ class OverviewEvidence(Shape):
     last_download: LastDownload | None
 
 
+class OverviewWatchList(Shape):
+    """Sandbox research: how many watched weaknesses have no fix yet. Information, never a result."""
+
+    no_fix: int
+    fix_published: int
+    line: str
+    link: ItemLink
+
+
 class OverviewBlocks(Shape):
     groups: list[OverviewGroup]
     findings: list[OverviewFact] = Field(description="False claims, failed tests, dependency blockers: each its own count.")
     evidence: OverviewEvidence
+    watch_list: OverviewWatchList | None = Field(default=None, description="Only while Sandbox research is on and the list holds something.")
 
 
 class Headline(AssessmentCounts):

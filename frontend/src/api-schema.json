@@ -2693,6 +2693,146 @@
           }
         }
       }
+    },
+    "/api/plans/{plan_id}/watch-list": {
+      "get": {
+        "summary": "Watch List",
+        "description": "Published weaknesses in this assessment's libraries with no fix yet. It only reads: nothing is sent or written.",
+        "operationId": "watch_list_api_plans__plan_id__watch_list_get",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchListView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/watch-list/look": {
+      "post": {
+        "summary": "Watch List Look",
+        "description": "Look now: one click, after the box that says what is sent (package names, nothing else).",
+        "operationId": "watch_list_look_api_plans__plan_id__watch_list_look_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchListView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/watch-list/stop": {
+      "post": {
+        "summary": "Watch List Stop",
+        "description": "Stop watching one weakness, with an optional short reason. Recorded; nothing is deleted.",
+        "operationId": "watch_list_stop_api_plans__plan_id__watch_list_stop_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchStopBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchListView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plans/{plan_id}/watch-list/watch": {
+      "post": {
+        "summary": "Watch List Again",
+        "description": "Watch a weakness again.",
+        "operationId": "watch_list_again_api_plans__plan_id__watch_list_watch_post",
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WatchAgainBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchListView"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -16289,6 +16429,17 @@
           },
           "evidence": {
             "$ref": "#/components/schemas/OverviewEvidence"
+          },
+          "watch_list": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverviewWatchList"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only while Sandbox research is on and the list holds something."
           }
         },
         "additionalProperties": false,
@@ -16427,6 +16578,35 @@
           "empty_text"
         ],
         "title": "OverviewGroup"
+      },
+      "OverviewWatchList": {
+        "properties": {
+          "no_fix": {
+            "type": "integer",
+            "title": "No Fix"
+          },
+          "fix_published": {
+            "type": "integer",
+            "title": "Fix Published"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          },
+          "link": {
+            "$ref": "#/components/schemas/ItemLink"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "no_fix",
+          "fix_published",
+          "line",
+          "link"
+        ],
+        "title": "OverviewWatchList",
+        "description": "Sandbox research: how many watched weaknesses have no fix yet. Information, never a result."
       },
       "PackInstallBody": {
         "properties": {
@@ -19377,6 +19557,659 @@
         ],
         "title": "VerifyRun"
       },
+      "WatchAgain": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Watch again\""
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "can",
+          "blocked_reason"
+        ],
+        "title": "WatchAgain"
+      },
+      "WatchAgainBody": {
+        "properties": {
+          "item": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Item"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item"
+        ],
+        "title": "WatchAgainBody"
+      },
+      "WatchBox": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "confirm": {
+            "type": "string",
+            "title": "Confirm"
+          },
+          "cancel": {
+            "type": "string",
+            "title": "Cancel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "confirm",
+          "cancel"
+        ],
+        "title": "WatchBox"
+      },
+      "WatchHistory": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines"
+        ],
+        "title": "WatchHistory"
+      },
+      "WatchItem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "description": "The advisory's id and the library; what Stop watching and Watch again name."
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "library": {
+            "type": "string",
+            "title": "Library"
+          },
+          "yours": {
+            "type": "string",
+            "title": "Yours",
+            "description": "What it says about the version your files name."
+          },
+          "status": {
+            "$ref": "#/components/schemas/WatchStatus"
+          },
+          "status_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Line"
+          },
+          "since": {
+            "type": "string",
+            "title": "Since"
+          },
+          "new": {
+            "type": "boolean",
+            "title": "New",
+            "description": "The newest look brought it, or changed it."
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "panel": {
+            "$ref": "#/components/schemas/WatchPanel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "id",
+          "title",
+          "library",
+          "yours",
+          "status",
+          "status_line",
+          "since",
+          "new",
+          "source",
+          "panel"
+        ],
+        "title": "WatchItem"
+      },
+      "WatchListView": {
+        "properties": {
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          },
+          "off_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Off Line"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "intro": {
+            "type": "string",
+            "title": "Intro"
+          },
+          "looked_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Looked Line"
+          },
+          "next_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Line"
+          },
+          "look": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchLook"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "count_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count Line"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WatchItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "stopped": {
+            "items": {
+              "$ref": "#/components/schemas/WatchItem"
+            },
+            "type": "array",
+            "title": "Stopped",
+            "description": "The ones a person stopped watching. Never deleted."
+          },
+          "empty_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Empty Line"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "on",
+          "off_line",
+          "title",
+          "intro",
+          "looked_line",
+          "next_line",
+          "look",
+          "count_line",
+          "items",
+          "stopped",
+          "empty_line",
+          "note"
+        ],
+        "title": "WatchListView",
+        "description": "Change watch, the Watch list: published weaknesses in the libraries a file names that have no fix yet. Worked\nout from the assessment's own looks on every read. With Sandbox research off, `on` is false and nothing else is sent."
+      },
+      "WatchLook": {
+        "properties": {
+          "button": {
+            "type": "string",
+            "title": "Button",
+            "description": "\"Look now\""
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "box": {
+            "$ref": "#/components/schemas/WatchBox",
+            "description": "Opens before anything is sent; says what is sent."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "button",
+          "can",
+          "blocked_reason",
+          "box"
+        ],
+        "title": "WatchLook"
+      },
+      "WatchPanel": {
+        "properties": {
+          "ids_line": {
+            "type": "string",
+            "title": "Ids Line"
+          },
+          "published_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Line"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchQuote"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "versions": {
+            "$ref": "#/components/schemas/WatchVersions"
+          },
+          "test": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchTest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history": {
+            "$ref": "#/components/schemas/WatchHistory"
+          },
+          "stop": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchStop"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "watch": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WatchAgain"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ids_line",
+          "published_line",
+          "quote",
+          "versions",
+          "test",
+          "history",
+          "stop",
+          "watch"
+        ],
+        "title": "WatchPanel"
+      },
+      "WatchQuote": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines",
+            "description": "Pieces of the publisher's own text, word for word."
+          },
+          "tag": {
+            "type": "string",
+            "title": "Tag",
+            "description": "\"quoted from the named source, not a result\""
+          },
+          "source_line": {
+            "type": "string",
+            "title": "Source Line"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "link_label": {
+            "type": "string",
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "tag",
+          "source_line",
+          "url",
+          "link_label"
+        ],
+        "title": "WatchQuote"
+      },
+      "WatchStatus": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": [
+              "no_fix",
+              "fix_published",
+              "being_tested",
+              "test_proposed",
+              "no_test",
+              "not_yours",
+              "withdrawn",
+              "gone",
+              "not_watched"
+            ],
+            "title": "Key"
+          },
+          "word": {
+            "type": "string",
+            "title": "Word",
+            "description": "\"No fix yet\", \"Fix published\", \"Being tested\", \"Test proposed\", \"No test possible\", ..."
+          },
+          "tone": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "neutral",
+              "warn"
+            ],
+            "title": "Tone",
+            "description": "Only \"warn\" or \"neutral\": a status is not a result."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "word",
+          "tone"
+        ],
+        "title": "WatchStatus",
+        "description": "Where a watched weakness stands. Information, never a result."
+      },
+      "WatchStop": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Stop watching\""
+          },
+          "reason_label": {
+            "type": "string",
+            "title": "Reason Label"
+          },
+          "max": {
+            "type": "integer",
+            "title": "Max"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          },
+          "can": {
+            "type": "boolean",
+            "title": "Can"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "reason_label",
+          "max",
+          "note",
+          "can",
+          "blocked_reason"
+        ],
+        "title": "WatchStop"
+      },
+      "WatchStopBody": {
+        "properties": {
+          "item": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Item"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item"
+        ],
+        "title": "WatchStopBody"
+      },
+      "WatchTest": {
+        "properties": {
+          "line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "link": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ItemLink"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "link_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "link",
+          "link_label"
+        ],
+        "title": "WatchTest"
+      },
+      "WatchVersions": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "yours": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Yours"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "yours"
+        ],
+        "title": "WatchVersions"
+      },
       "WhatIf": {
         "properties": {
           "plan_id": {
@@ -20314,6 +21147,21 @@
         ],
         "type": "string",
         "title": "ChangeOutcome"
+      },
+      "WatchStatusKey": {
+        "enum": [
+          "no_fix",
+          "fix_published",
+          "being_tested",
+          "test_proposed",
+          "no_test",
+          "not_yours",
+          "withdrawn",
+          "gone",
+          "not_watched"
+        ],
+        "type": "string",
+        "title": "WatchStatusKey"
       },
       "AssistantThread": {
         "enum": [

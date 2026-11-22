@@ -67,6 +67,16 @@ export type ChangeStatusKey =
   | "couldnt_trust";
 export type ChangeOutcome =
   "fails_now" | "passes_now" | "same" | "slower_now" | "not_slower" | "not_compared" | "not_trusted";
+export type WatchStatusKey =
+  | "no_fix"
+  | "fix_published"
+  | "being_tested"
+  | "test_proposed"
+  | "no_test"
+  | "not_yours"
+  | "withdrawn"
+  | "gone"
+  | "not_watched";
 export type AssistantThread = "testing" | "fixing" | "planning";
 
 export interface AddTestBody {
@@ -894,6 +904,10 @@ export interface OverviewBlocks {
    */
   findings: OverviewFact[];
   evidence: OverviewEvidence;
+  /**
+   * Only while Sandbox research is on and the list holds something.
+   */
+  watch_list?: OverviewWatchList | null;
 }
 export interface OverviewGroup {
   key: "verification" | "encryption" | "migration" | "dependencies";
@@ -934,6 +948,15 @@ export interface OverviewEvidence {
 export interface LastDownload {
   at: string;
   fingerprint: string;
+}
+/**
+ * Sandbox research: how many watched weaknesses have no fix yet. Information, never a result.
+ */
+export interface OverviewWatchList {
+  no_fix: number;
+  fix_published: number;
+  line: string;
+  link: ItemLink;
 }
 /**
  * The Overview's "Waiting for you": the proposals nobody has decided yet, each kind linking to its page.
@@ -4235,6 +4258,160 @@ export interface VerifyRun {
    * Phase 5c: one sentence. Verify is unchanged and nothing is proposed on it yet.
    */
   otto_note?: string;
+}
+export interface WatchAgain {
+  /**
+   * "Watch again"
+   */
+  label: string;
+  can: boolean;
+  blocked_reason: string | null;
+}
+export interface WatchAgainBody {
+  item: string;
+}
+export interface WatchBox {
+  title: string;
+  lines: string[];
+  confirm: string;
+  cancel: string;
+}
+export interface WatchHistory {
+  title: string;
+  lines: string[];
+}
+export interface WatchItem {
+  /**
+   * The advisory's id and the library; what Stop watching and Watch again name.
+   */
+  key: string;
+  id: string;
+  title: string;
+  library: string;
+  /**
+   * What it says about the version your files name.
+   */
+  yours: string;
+  status: WatchStatus;
+  status_line: string | null;
+  since: string;
+  /**
+   * The newest look brought it, or changed it.
+   */
+  new: boolean;
+  source: Source;
+  panel: WatchPanel;
+}
+/**
+ * Where a watched weakness stands. Information, never a result.
+ */
+export interface WatchStatus {
+  key:
+    | "no_fix"
+    | "fix_published"
+    | "being_tested"
+    | "test_proposed"
+    | "no_test"
+    | "not_yours"
+    | "withdrawn"
+    | "gone"
+    | "not_watched";
+  /**
+   * "No fix yet", "Fix published", "Being tested", "Test proposed", "No test possible", ...
+   */
+  word: string;
+  /**
+   * Only "warn" or "neutral": a status is not a result.
+   */
+  tone: "pass" | "fail" | "neutral" | "warn";
+}
+export interface WatchPanel {
+  ids_line: string;
+  published_line: string | null;
+  quote: WatchQuote | null;
+  versions: WatchVersions;
+  test: WatchTest | null;
+  history: WatchHistory;
+  stop: WatchStop | null;
+  watch: WatchAgain | null;
+}
+export interface WatchQuote {
+  title: string;
+  /**
+   * Pieces of the publisher's own text, word for word.
+   */
+  lines: string[];
+  /**
+   * "quoted from the named source, not a result"
+   */
+  tag: string;
+  source_line: string;
+  url: string | null;
+  link_label: string;
+}
+export interface WatchVersions {
+  title: string;
+  lines: string[];
+  yours: string[];
+}
+export interface WatchTest {
+  line: string | null;
+  link: ItemLink | null;
+  link_label: string | null;
+}
+export interface WatchStop {
+  /**
+   * "Stop watching"
+   */
+  label: string;
+  reason_label: string;
+  max: number;
+  note: string;
+  can: boolean;
+  blocked_reason: string | null;
+}
+/**
+ * Change watch, the Watch list: published weaknesses in the libraries a file names that have no fix yet. Worked
+ * out from the assessment's own looks on every read. With Sandbox research off, `on` is false and nothing else is sent.
+ */
+export interface WatchListView {
+  on: boolean;
+  off_line: string | null;
+  title: string;
+  intro: string;
+  looked_line: string | null;
+  next_line: string | null;
+  look: WatchLook | null;
+  count_line: string | null;
+  items: WatchItem[];
+  /**
+   * The ones a person stopped watching. Never deleted.
+   */
+  stopped: WatchItem[];
+  empty_line: string | null;
+  note: string | null;
+}
+export interface WatchLook {
+  /**
+   * "Look now"
+   */
+  button: string;
+  can: boolean;
+  blocked_reason: string | null;
+  box: WatchBox1;
+}
+/**
+ * Opens before anything is sent; says what is sent.
+ */
+export interface WatchBox1 {
+  title: string;
+  lines: string[];
+  confirm: string;
+  cancel: string;
+}
+export interface WatchStopBody {
+  item: string;
+  reason?: string | null;
 }
 export interface WhatIfTry1 {
   title: string;

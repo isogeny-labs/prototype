@@ -93,9 +93,15 @@ class OverviewMixin:
                              .where(TestRunRow.plan_id == plan_id)) or 0
             last = db.scalars(select(EvidenceExportRow).where(EvidenceExportRow.plan_id == plan_id)
                               .order_by(EvidenceExportRow.id.desc()).limit(1)).first()
-        return {"groups": groups, "findings": self._findings(verify["false"], failed, blockers),
-                "evidence": {"runs": int(runs) + verify["runs"],
-                             "last_download": {"at": iso(last.created_at), "fingerprint": last.fingerprint} if last else None}}
+        blocks = {"groups": groups, "findings": self._findings(verify["false"], failed, blockers),
+                  "evidence": {"runs": int(runs) + verify["runs"],
+                               "last_download": {"at": iso(last.created_at), "fingerprint": last.fingerprint} if last else None}}
+        # Sandbox research (prototype): one line that says how many watched weaknesses have no fix yet, and opens the
+        # Watch list. Only while the switch is on and the list holds something; otherwise the Overview is as before.
+        watch = self.watch_list_summary(plan_id)        # type: ignore[attr-defined]
+        if watch is not None and watch["line"]:
+            blocks["watch_list"] = watch
+        return blocks
 
     def _verify_counts(self, import_id: int) -> dict:
         with self.db() as db:

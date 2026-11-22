@@ -138,15 +138,17 @@ class DiscoverMixin:
 
     # ---------------------------------------------------------------- the first click: look
 
-    def look_for_advisories(self, plan_id: int) -> dict:
-        """Ask the source once about every library this assessment names, and keep what came back. Nothing runs."""
+    def look_for_advisories(self, plan_id: int, by: str | None = None, source=None) -> dict:
+        """Ask the source once about every library this assessment names, and keep what came back. Nothing runs.
+        (`by`: the Watch list's clock looks under its own name, never a person's. `source`: the clock hands in one
+        source for all the assessments of one round, so a library two of them name is asked about once.)"""
         with self.db() as db:
             plan = self._plan(db, plan_id)
             libraries = self._named_libraries(db, plan)
         packages, _ = self._askable(libraries)
         if not packages:
             raise Conflict(present_lookup.LOOK_NOTHING_TO_ASK)
-        source = self._advisory_source()
+        source = source or self._advisory_source()
 
         def fits(found: lookup.Found) -> bool:
             """Does this advisory name a version the assessment has (or could it: its versions are not read yet)?"""
@@ -163,8 +165,9 @@ class DiscoverMixin:
         #  advisories were read than one look keeps; those that fit were ranked first.)
         asked = [{**a, "more_pages": f"{a['name']} ({a['ecosystem']})" in look["more_pages"]} for a in look["asked"]]
         with self._otto_lock, self.db() as db:
-            db.add(OttoLookupRow(plan_id=plan_id, at=_now(), by=self.decision_name(), source=look["source"], sent=look["sent"],
-                                 asked=asked, found=found, left_out=int(look["left_out"]), cut=bool(look["not_listed"])))
+            db.add(OttoLookupRow(plan_id=plan_id, at=_now(), by=by or self.decision_name(), source=look["source"], sent=look["sent"],
+                                 asked=asked, found=found, left_out=int(look["left_out"]), cut=bool(look["not_listed"]),
+                                 withdrawn=list(look.get("withdrawn") or [])))
             db.commit()
         return self.advisories_view(plan_id)      # type: ignore[attr-defined]
 

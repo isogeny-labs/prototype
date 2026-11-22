@@ -23,6 +23,7 @@ from app.run import runner
 from app.checks.addresses import AddressError, is_loopback_ip, parse_address, resolve_all
 from app.changewatch.state import ChangeWatchMixin
 from app.changewatch.views import ChangeWatchViewMixin
+from app.changewatch.watchlist import WatchListMixin
 from app.whatif.facts import WhatIfMixin
 from app.impact.reach import ImpactMixin
 from app.fixes.changes import ChangesMixin
@@ -99,7 +100,7 @@ def run_json(r: VerifyRunRow) -> dict:
 
 class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin,
           ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin, OttoMixin, ProposalsMixin, DiscoverMixin, SaidMixin,
-          ChangeWatchMixin, ChangeWatchViewMixin, WhatIfMixin, ImpactMixin, SandboxMixin):
+          ChangeWatchMixin, ChangeWatchViewMixin, WhatIfMixin, ImpactMixin, SandboxMixin, WatchListMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)

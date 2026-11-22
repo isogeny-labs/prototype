@@ -134,7 +134,8 @@ describe("a side panel's header", () => {
 
   it("every side panel in the app names its item, so every one of them has the link", () => {
     // (the panels: a claim on Import and on Verify, an advisory, a check, a result and a library on Evidence, a fix, a
-    // system, a library on Dependencies and, since phase 6d, a developer's change on Change watch)
+    // system, a library on Dependencies, since phase 6d a developer's change on Change watch, and with Sandbox research a
+    // watched weakness on its Watch list)
     const found: string[] = [];
     const walk = (dir: string) => {
       for (const name of readdirSync(dir)) {
@@ -147,7 +148,7 @@ describe("a side panel's header", () => {
       }
     };
     walk(join(process.cwd(), "src", "components"));
-    expect(found).toHaveLength(10);
+    expect(found).toHaveLength(11);
     expect(found.filter((f) => f.endsWith("NO ITEM"))).toEqual([]);
   });
 });
