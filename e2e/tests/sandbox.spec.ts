@@ -270,12 +270,29 @@ test("sandbox research: no fix yet, the fix is published, a test is proven on pu
     await page.getByTestId("watch-stop-confirm").click();
     expect((await stopped).status()).toBe(200);
     await expect(watchRow(page)).toHaveAttribute("data-status", "not_watched");
+    // the item's history names who stopped it and why. The panel is taller than the window, so the picture shows the item
+    // on a page of its own (the panel's Open in new tab): everything about it in one view, with Watch again
+    const stoppedPanel = page.getByTestId("watch-panel");
+    await expect(stoppedPanel.getByTestId("watch-history")).toContainText("We do not use it in production");
+    await expect(stoppedPanel.getByTestId("watch-stop")).toHaveCount(0);                    // not watched: nothing to stop
+    const own = await stoppedPanel.getByTestId("open-in-new-tab").getAttribute("href");
+    expect(own, "the address names the page, the item and the view").toMatch(/^#\/a\/\d+\/change-watch\?item=[^&]+&view=page$/);
+    await page.goto(`/${own}`);
+    const ownPage = page.getByTestId("item-page");
+    await expect(ownPage.getByTestId("watch-history")).toContainText("We do not use it in production");
+    await expect(ownPage.getByTestId("watch-again")).toBeVisible();
+    await expect(ownPage.getByTestId("item-page-back")).toHaveText("← Back to Change watch");
     await shots(page, "09-watch-list-stopped-with-a-reason");
-    if (!(await page.getByTestId("watch-panel").isVisible())) await watchRow(page).click();
+    await ownPage.getByTestId("item-page-back").click();                                     // back: the list, with this item open
+    await expect(page.getByTestId("watch-list-page")).toBeVisible();
+    await expect(page.getByTestId("watch-panel")).toBeVisible();                              // the address still names the item
     const again = page.waitForResponse((r) => /\/watch-list\/watch$/.test(new URL(r.url()).pathname) && r.request().method() === "POST");
     await page.getByTestId("watch-panel").getByTestId("watch-again").click();
     expect((await again).status()).toBe(200);
     await expect(watchRow(page)).toHaveAttribute("data-status", "fix_published");
+    // watched again, it offers Stop watching as a button: the box with the earlier reason is not open by itself
+    await expect(page.getByTestId("watch-panel").getByTestId("watch-stop")).toBeVisible();
+    await expect(page.getByTestId("watch-stop-reason")).toHaveCount(0);
 
     // ================================================================ Advisories: it can be tried on public copies from PyPI
     const advisories = await openAdvisories(page, assessment);
