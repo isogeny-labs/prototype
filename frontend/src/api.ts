@@ -183,6 +183,7 @@ export type {
   OttoUpdateDialog,
   OttoHarnessLine,
   OttoAnswersLine,
+  OttoSandboxSection,
   OttoLiveSection,
   OttoLiveSwitch,
   OttoLiveLimit,
@@ -475,6 +476,9 @@ export const api = {
   installPack: (version: string) => request<OttoSettingsView>("/api/otto/packs/install", { method: "POST", json: { version } }),
   /** Use live Claude on or off, and/or the spending limit per run (US dollars, as typed). */
   setLiveOtto: (change: { on?: boolean; limit?: string }) => request<OttoSettingsView>("/api/otto/live", { method: "POST", json: change }),
+  // Sandbox research (prototype): the switch, its tick and its two spending limits. Answers with the whole Settings view.
+  setSandbox: (change: { on?: boolean; by_itself?: boolean; run_limit?: string; day_limit?: string }) =>
+    request<OttoSettingsView>("/api/otto/sandbox", { method: "POST", json: change }),
   /** Phase 6a: the name a person types once; their decisions on proposals are recorded under it from then on. */
   setDecisionName: (name: string) => request<OttoSettingsView>("/api/otto/name", { method: "POST", json: { name } }),
   getAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories`),

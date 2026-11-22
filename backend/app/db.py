@@ -685,6 +685,9 @@ class OttoLookupRow(Base):
     found: Mapped[list] = mapped_column(JSON)                     # [{advisory (the snapshot's shape), ranges, versions, record_id}]
     left_out: Mapped[int] = mapped_column(Integer, default=0)
     cut: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Sandbox research, the Watch list: the records this look's answers mark as withdrawn by their publisher, as data
+    # ([{library, record_id, ids}]). A withdrawn record is still left out of `found`; this only says that it was there.
+    withdrawn: Mapped[list | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
@@ -707,6 +710,25 @@ class OttoResearchRow(Base):
     pack_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
     output: Mapped[list] = mapped_column(JSON)                    # what the research command said, line by line
     reason: Mapped[str | None] = mapped_column(String(600), nullable=True)
+    # Sandbox research (prototype, 22 November 2026). Whether the run could fetch public copies beyond the pinned set and
+    # have asking code written; and, on the end row, what the run spent on Claude (the limit for a day adds these up).
+    sandbox: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    spent_nano: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class WatchListMarkRow(Base):
+    """Sandbox research, the Watch list: a person stopped watching one published weakness, or watches it again. With
+    who, when and the optional reason. Rows are only ever added; the newest row for an item says where it stands. (The
+    items themselves are never stored: they are worked out from the assessment's own looks, which are kept add-only.)"""
+    __tablename__ = "watchlist_marks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    item: Mapped[str] = mapped_column(String(200))                # the item's key: the advisory's id and the library
+    kind: Mapped[str] = mapped_column(String(12))                 # stop | watch
+    at: Mapped[str] = mapped_column(String(40))
+    by: Mapped[str] = mapped_column(String(100))
+    reason: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
 
 
@@ -740,7 +762,8 @@ APPEND_ONLY_TABLES = ("test_specs", "test_runs", "reviews", "code_connections", 
                       "otto_packs", "otto_checks", "otto_steps", "otto_decisions",    # phase 5c
                       "otto_lookups", "otto_research",                                # phase 6: the research loop
                       "assistant_messages",                                           # phase 6b: what was said to Otto
-                      "watch_runs", "watch_reviews")                                  # phase 6d: Change watch
+                      "watch_runs", "watch_reviews",                                  # phase 6d: Change watch
+                      "watchlist_marks")                                              # sandbox research: the Watch list
 
 
 def create_append_only_triggers(engine) -> None:
@@ -758,7 +781,9 @@ def create_append_only_triggers(engine) -> None:
 
 # A column that was added to a table after the table first shipped. A data folder made before then gets the column when
 # it is opened (adding a column changes no row; the add-only rules do not stand in its way).
-ADDED_COLUMNS = (("assistant_messages", "facts", "JSON"),)       # phase 6c: the facts of an answer to a fixed question
+ADDED_COLUMNS = (("assistant_messages", "facts", "JSON"),        # phase 6c: the facts of an answer to a fixed question
+                 ("otto_lookups", "withdrawn", "JSON"),           # sandbox research: the Watch list
+                 ("otto_research", "sandbox", "BOOLEAN"), ("otto_research", "spent_nano", "INTEGER"))
 
 
 def add_missing_columns(engine) -> None:

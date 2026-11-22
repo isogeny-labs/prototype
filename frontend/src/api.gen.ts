@@ -3950,6 +3950,66 @@ export interface OttoProposalsView {
   blocked_reason: string | null;
 }
 /**
+ * Settings: Sandbox research (a prototype for Isogeny's own sandbox, 22 November 2026).
+ */
+export interface OttoSandboxSection {
+  title: string;
+  intro: string;
+  switch: SandboxSwitch;
+  box: SandboxBox;
+  by_itself: SandboxTick;
+  run_limit: SandboxLimit;
+  day_limit: SandboxLimit;
+  limits_note: string;
+  status_line: string;
+  /**
+   * What research runs spent in the last 24 hours; only while the switch is on.
+   */
+  spent_line: string | null;
+}
+export interface SandboxSwitch {
+  /**
+   * "Sandbox research"
+   */
+  label: string;
+  /**
+   * On, and allowed to be on here.
+   */
+  on: boolean;
+  can_turn_on: boolean;
+  /**
+   * Every plain reason it can't be turned on here; empty when it can.
+   */
+  blocked_reasons: string[];
+}
+/**
+ * The box that opens before the switch is turned on. Nothing starts before the click in it.
+ */
+export interface SandboxBox {
+  title: string;
+  lines: string[];
+  confirm: string;
+  cancel: string;
+}
+export interface SandboxTick {
+  /**
+   * "Design and prove tests by itself"
+   */
+  label: string;
+  on: boolean;
+  can_turn_on: boolean;
+  blocked_reason: string | null;
+  line: string;
+}
+export interface SandboxLimit {
+  label: string;
+  /**
+   * US dollars, e.g. "5.00"
+   */
+  value: string;
+  save: string;
+}
+/**
  * Settings: the Test packs section, the two status lines and the Live Otto section (phase 5c).
  */
 export interface OttoSettingsView {
@@ -3961,6 +4021,10 @@ export interface OttoSettingsView {
    * Phase 6a: always sent by the current backend.
    */
   name?: OttoName1 | null;
+  /**
+   * Sandbox research: always sent by the current backend.
+   */
+  sandbox?: OttoSandboxSection | null;
 }
 export interface PackInstallBody {
   version: string;
@@ -4139,6 +4203,12 @@ export interface RelatedView {
 export interface RetestBody {
   version: string;
   component?: string | null;
+}
+export interface SandboxBody {
+  on?: boolean | null;
+  by_itself?: boolean | null;
+  run_limit?: string | null;
+  day_limit?: string | null;
 }
 export interface SayBody {
   text: string;

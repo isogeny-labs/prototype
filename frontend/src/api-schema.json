@@ -2186,6 +2186,35 @@
         }
       }
     },
+    "/api/otto/sandbox": {
+      "post": {
+        "summary": "Sandbox Research",
+        "description": "Sandbox research (prototype): the switch, its tick and its two spending limits. The switch can be turned on\nonly on a computer marked as Isogeny's own sandbox, in isolated mode, with Otto installed.",
+        "operationId": "sandbox_research_api_otto_sandbox_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SandboxBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OttoSettingsView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/otto/name": {
       "post": {
         "summary": "Decision Name",
@@ -15992,6 +16021,69 @@
         ],
         "title": "OttoRoadmapMark"
       },
+      "OttoSandboxSection": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "intro": {
+            "type": "string",
+            "title": "Intro"
+          },
+          "switch": {
+            "$ref": "#/components/schemas/SandboxSwitch"
+          },
+          "box": {
+            "$ref": "#/components/schemas/SandboxBox"
+          },
+          "by_itself": {
+            "$ref": "#/components/schemas/SandboxTick"
+          },
+          "run_limit": {
+            "$ref": "#/components/schemas/SandboxLimit"
+          },
+          "day_limit": {
+            "$ref": "#/components/schemas/SandboxLimit"
+          },
+          "limits_note": {
+            "type": "string",
+            "title": "Limits Note"
+          },
+          "status_line": {
+            "type": "string",
+            "title": "Status Line"
+          },
+          "spent_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spent Line",
+            "description": "What research runs spent in the last 24 hours; only while the switch is on."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "intro",
+          "switch",
+          "box",
+          "by_itself",
+          "run_limit",
+          "day_limit",
+          "limits_note",
+          "status_line",
+          "spent_line"
+        ],
+        "title": "OttoSandboxSection",
+        "description": "Settings: Sandbox research (a prototype for Isogeny's own sandbox, 22 November 2026)."
+      },
       "OttoSettingsView": {
         "properties": {
           "packs": {
@@ -16016,6 +16108,17 @@
               }
             ],
             "description": "Phase 6a: always sent by the current backend."
+          },
+          "sandbox": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OttoSandboxSection"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sandbox research: always sent by the current backend."
           }
         },
         "additionalProperties": false,
@@ -17780,6 +17883,193 @@
           "evidence_link"
         ],
         "title": "SameMeasurement"
+      },
+      "SandboxBody": {
+        "properties": {
+          "on": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "On"
+          },
+          "by_itself": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By Itself"
+          },
+          "run_limit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Limit"
+          },
+          "day_limit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Limit"
+          }
+        },
+        "type": "object",
+        "title": "SandboxBody"
+      },
+      "SandboxBox": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lines"
+          },
+          "confirm": {
+            "type": "string",
+            "title": "Confirm"
+          },
+          "cancel": {
+            "type": "string",
+            "title": "Cancel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "lines",
+          "confirm",
+          "cancel"
+        ],
+        "title": "SandboxBox",
+        "description": "The box that opens before the switch is turned on. Nothing starts before the click in it."
+      },
+      "SandboxLimit": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value",
+            "description": "US dollars, e.g. \"5.00\""
+          },
+          "save": {
+            "type": "string",
+            "title": "Save"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "value",
+          "save"
+        ],
+        "title": "SandboxLimit"
+      },
+      "SandboxSwitch": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Sandbox research\""
+          },
+          "on": {
+            "type": "boolean",
+            "title": "On",
+            "description": "On, and allowed to be on here."
+          },
+          "can_turn_on": {
+            "type": "boolean",
+            "title": "Can Turn On"
+          },
+          "blocked_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blocked Reasons",
+            "description": "Every plain reason it can't be turned on here; empty when it can."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "on",
+          "can_turn_on",
+          "blocked_reasons"
+        ],
+        "title": "SandboxSwitch"
+      },
+      "SandboxTick": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "\"Design and prove tests by itself\""
+          },
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          },
+          "can_turn_on": {
+            "type": "boolean",
+            "title": "Can Turn On"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          },
+          "line": {
+            "type": "string",
+            "title": "Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "on",
+          "can_turn_on",
+          "blocked_reason",
+          "line"
+        ],
+        "title": "SandboxTick"
       },
       "SayBody": {
         "properties": {

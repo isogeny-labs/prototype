@@ -14,6 +14,9 @@ FRONTEND_DIST = REPO_ROOT / "frontend" / "dist"
 OTTO_PACKS_DIR = REPO_ROOT / "research" / "packs"        # phase 5c: the signed test packs shipped with the app
 OTTO_RECORDED_DIR = REPO_ROOT / "research" / "recorded"  # phase 5c: Claude's answers recorded during the build
 
+SANDBOX_ENV = "EVIDENCE_LAB_SANDBOX_RESEARCH"       # marks Isogeny's own sandbox computer (prototype)
+REGISTRY_SOURCE_ENV = "EVIDENCE_LAB_REGISTRY_SOURCE"   # a folder of recorded registry answers, read instead
+
 BIND_HOST = "127.0.0.1"
 DEMO_HOSTNAME = "localhost"
 DEMO_CBOM_PORT = 8443  # the port written in demo/acme-pay-cbom.json
@@ -52,6 +55,13 @@ class Settings:
     # Phase 6, Otto's research loop: "Look for new advisories" reads the public source (OSV) unless this names a folder
     # of recorded answers on this computer (tests, the walks, a demo with no internet). Then nothing is sent anywhere.
     advisory_source_dir: Path | None = None    # EVIDENCE_LAB_ADVISORY_SOURCE
+    # Sandbox research (prototype, 22 November 2026). The switch in Settings can be turned on only on a computer that is
+    # marked as Isogeny's own sandbox where the app starts. A customer install never has the mark.
+    sandbox_research: bool = False             # EVIDENCE_LAB_SANDBOX_RESEARCH (1, on, true or yes)
+    # The public package registries are read only by the research command, when it makes a sandbox copy. This names a
+    # folder of recorded registry answers and files on this computer that is read instead (tests, the walks, a demo
+    # with no internet). Then nothing is fetched from anywhere.
+    registry_source_dir: Path | None = None    # EVIDENCE_LAB_REGISTRY_SOURCE
 
     @property
     def db_path(self) -> Path:
@@ -74,6 +84,11 @@ class Settings:
     def otto_recorded(self) -> Path:
         return self.otto_recorded_dir or OTTO_RECORDED_DIR
 
+    @property
+    def sandbox_dir(self) -> Path:
+        """Sandbox research: the store of public copies made on this computer, with their records."""
+        return self.data_dir / "sandbox"
+
 
 def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int | None = None) -> Settings:
     if data_dir is None:
@@ -93,12 +108,20 @@ def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int 
         raise SystemExit("EVIDENCE_LAB_MODE must be demo, isolated or auto")
     updates, recorded = os.environ.get("EVIDENCE_LAB_OTTO_UPDATES"), os.environ.get("EVIDENCE_LAB_OTTO_RECORDED")
     advisory_source = os.environ.get("EVIDENCE_LAB_ADVISORY_SOURCE")
+    registry_source = os.environ.get(REGISTRY_SOURCE_ENV)
     return Settings(data_dir=Path(data_dir).resolve(), demo_tls_port=demo_tls_port,
                     max_jobs=_env_int("EVIDENCE_LAB_MAX_JOBS", 4, 1, 16), force_mode=force_mode,
                     speed_rounds=_env_int("EVIDENCE_LAB_SPEED_ROUNDS", 40, 2, 50),
                     otto_updates_dir=Path(updates).resolve() if updates else None,
                     otto_recorded_dir=Path(recorded).resolve() if recorded else None,
-                    advisory_source_dir=Path(advisory_source).resolve() if advisory_source else None)
+                    advisory_source_dir=Path(advisory_source).resolve() if advisory_source else None,
+                    sandbox_research=sandbox_marked(), registry_source_dir=Path(registry_source).resolve() if registry_source else None)
+
+
+
+def sandbox_marked() -> bool:
+    """Whether this computer is marked as Isogeny's own sandbox (read where the app, or the research command, starts)."""
+    return os.environ.get(SANDBOX_ENV, "").strip().lower() in ("1", "on", "true", "yes")
 
 
 def _env_int(name: str, default: int, low: int, high: int) -> int:

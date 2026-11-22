@@ -2243,6 +2243,51 @@ class OttoName(Shape):
     ask_label: str = Field(description="The label of the field in the Otto panel's first Confirm step.")
 
 
+class SandboxSwitch(Shape):
+    label: str = Field(description='"Sandbox research"')
+    on: bool = Field(description="On, and allowed to be on here.")
+    can_turn_on: bool
+    blocked_reasons: list[str] = Field(description="Every plain reason it can't be turned on here; empty when it can.")
+
+
+class SandboxBox(Shape):
+    """The box that opens before the switch is turned on. Nothing starts before the click in it."""
+
+    title: str
+    lines: list[str]
+    confirm: str
+    cancel: str
+
+
+class SandboxTick(Shape):
+    label: str = Field(description='"Design and prove tests by itself"')
+    on: bool
+    can_turn_on: bool
+    blocked_reason: str | None
+    line: str
+
+
+class SandboxLimit(Shape):
+    label: str
+    value: str = Field(description='US dollars, e.g. "5.00"')
+    save: str
+
+
+class OttoSandboxSection(Shape):
+    """Settings: Sandbox research (a prototype for Isogeny's own sandbox, 22 November 2026)."""
+
+    title: str
+    intro: str
+    switch: SandboxSwitch
+    box: SandboxBox
+    by_itself: SandboxTick
+    run_limit: SandboxLimit
+    day_limit: SandboxLimit
+    limits_note: str
+    status_line: str
+    spent_line: str | None = Field(description="What research runs spent in the last 24 hours; only while the switch is on.")
+
+
 class OttoSettingsView(Shape):
     """Settings: the Test packs section, the two status lines and the Live Otto section (phase 5c)."""
 
@@ -2251,6 +2296,7 @@ class OttoSettingsView(Shape):
     answers: OttoAnswersLine
     live: OttoLiveSection
     name: OttoName | None = Field(default=None, description="Phase 6a: always sent by the current backend.")
+    sandbox: OttoSandboxSection | None = Field(default=None, description="Sandbox research: always sent by the current backend.")
 
 
 class AdvisoryQuote(Shape):

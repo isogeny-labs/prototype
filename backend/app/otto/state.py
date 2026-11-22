@@ -60,6 +60,7 @@ class OttoMixin:
     lab_view: Callable[[int], dict]
     fixes_view: Callable[[int], dict]
     assessment_for: Callable[..., AssessmentRow | None]
+    sandbox_section: Callable[[], dict]
 
     def _init_otto(self) -> None:
         self._otto_lock = threading.Lock()                 # one pack install, one decision on a proposal at a time
@@ -134,10 +135,12 @@ class OttoMixin:
             live_on, limit = self._otto_live_on(db), self._otto_limit(db)
             answers = self._answers_line(db, installed)
             unreadable = self._unreadable_packs(db)
-        return present_otto.settings_view(installed=[(iso(row.installed_at), pack) for row, pack in installed], update=update, refused=refused,
+        view = present_otto.settings_view(installed=[(iso(row.installed_at), pack) for row, pack in installed], update=update, refused=refused,
                                           unreadable=unreadable,
                                           scan_line=line, harness_status=harness.public_status(), live_on=live_on, limit_nano=limit,
                                           key_present=model.key_present(), answers_line=answers, name=self._typed_name())
+        view["sandbox"] = self.sandbox_section()        # (prototype: the Sandbox research block)
+        return view
 
     def check_pack_updates(self) -> dict:
         return self.otto_view(scan=True)
