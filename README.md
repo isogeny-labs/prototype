@@ -155,6 +155,13 @@ Things to know in a Codespace:
   **Retests by version** (one block for each version a retest ran on, the newest open; **Retest new version** is
   here as well as on Evidence), **Fix proofs** (one block for each proof) and **Tries on a test copy** (only when a
   server change was tried). Each run shows in one place only.
+- **Where it came from** (22 November 2026). Every result, system status and fix has one small tag beside its own
+  word that says what it rests on: **Observed live** (read from a system at an address in your file that you
+  confirmed, with handshakes only), **Proven in the lab** (run on a copy on this computer, never on your live
+  system), **From your file** (nothing has been observed or run for it yet) or **Published** (said by the library's
+  maker or a published standard; the app has not measured it). Its panel says in one sentence what that means for
+  the item, and the Overview counts each group's checks by tag. A test that has not run, or couldn't run, has no tag.
+  The tag decides nothing and changes no result.
 - **Open in new tab.** Every side panel has **Open in new tab ↗** in its header. It opens that one item on a page of
   its own, with an address you can bookmark and open again; **← Back** returns to the list with the panel open.
 - **Times** on screen are in your own time zone, like "18 November 2026, 7:46 pm EST". The evidence file, the
