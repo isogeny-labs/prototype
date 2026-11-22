@@ -59,7 +59,8 @@ def _expected_row(row: dict, claim_kinds: dict) -> str | None:
     if code is None:
         return None
     if code in NO_RESULT:
-        return "file" if kind in ("pq_status", "signing_status") else None
+        # only Measure status leaves a system's status on the file; a try, After Apply or Roll back that couldn't measure has none
+        return "file" if origin == "measure" and kind in ("pq_status", "signing_status") else None
     if origin == "try":
         return "lab"
     if origin in ("after_apply", "after_rollback") or kind == "pq_status" or kind in SERVER_TESTS:

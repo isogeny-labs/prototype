@@ -527,6 +527,9 @@ describe("Dependencies, where each answer came from", () => {
     }
     const openssl = allRows(view).find((r) => r.cells.some((c) => c.label === "release_notes"))!;
     expect(cells(row(openssl.label)).map((c) => within(c).queryByTestId("source-tag")?.textContent)).toContain("Published");
+    // the answer's own label keeps its words and takes its tag's look, in the table too
+    const label = openssl.cells.find((c) => c.label === "release_notes")!.label_words!;
+    expect(within(row(openssl.label)).getAllByText(label).map((l) => l.getAttribute("data-source"))).toContain("published");
     expect(allRows(view).flatMap((r) => r.cells).some((c) => c.answer === "doesnt_apply")).toBe(true);
   });
 

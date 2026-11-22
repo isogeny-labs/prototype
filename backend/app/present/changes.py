@@ -127,7 +127,8 @@ def _try_view(change: dict, rec: dict) -> dict | None:
     cols = [_column(rec.get("try_before"), "measured", None, None)]
     # where each column came from (22 November 2026): the server as it is today is a reading of it (live); each copy is a
     # test copy on this computer (lab)
-    column_sources: list[dict | None] = [None, present_source.live(name) if rec.get("try_before") else None]
+    # (a column that measured nothing, a copy that couldn't be checked or was skipped, rests on nothing: no tag)
+    column_sources: list[dict | None] = [None, present_source.live(name) if _observed(rec.get("try_before")) else None]
     results = []
     if rec.get("try_before") and rec["try_before"].get("result"):
         results.append({"label": f"{name} as measured before the try", "result": rec["try_before"]["result"]})
@@ -145,7 +146,7 @@ def _try_view(change: dict, rec: dict) -> dict | None:
             if measured.get("result"):
                 results.append({"label": copy["label"], "result": measured["result"]})
         cols.append(_column(measured, tag, copy.get("skipped"), accepted))
-        column_sources.append(present_source.lab_try() if measured is not None and not copy.get("skipped") else None)
+        column_sources.append(present_source.lab_try() if _observed(measured) and not copy.get("skipped") else None)
         if copy.get("skipped"):
             notes.append(f"{copy['skipped'].rstrip('.')}. So the try is decided on the test copy alone.")
     labels = TLS_ROWS if change["kind"] == "tls" else MIGRATION_ROWS
@@ -177,7 +178,14 @@ def _try_view(change: dict, rec: dict) -> dict | None:
         results.append({"label": "who can still connect (the client stand-ins)", "result": measured_clients["result"]})
     return {"title": f"Try on a test copy: {title}", "running": None, "verdict": verdict, "columns": columns, "rows": rows,
             "notes": notes, "results": results, "clients": clients,
-            "source_tag": present_source.lab_try(clients=bool(measured_clients.get("result"))), "column_source_tags": column_sources}
+            # (a try that gave no answer either way proved nothing: no tag)
+            "source_tag": present_source.lab_try(clients=bool(measured_clients.get("result"))) if code in ("passed", "failed") else None,
+            "column_source_tags": column_sources}
+
+
+def _observed(measured: dict | None) -> bool:
+    """Did this measurement read something (not missing, not couldn't run, check or trust)?"""
+    return measured is not None and measured.get("code") not in present_source.NO_RESULT
 
 
 def _cost_words(change: dict) -> str:
@@ -240,7 +248,9 @@ def _applied(change: dict, rec: dict) -> dict | None:
             badge = {"label": "Rolled back · not as before", "look": "fail"}
         diffs = [f"{FACT_WORDS[d['fact']]}: before the change {_fact_words(d['fact'], d['before'])}, now {_fact_words(d['fact'], d['after'])}."
                  for d in outcome.get("differences") or []]
-        measured_back = present_source.after_change(change["name"], rolled_back=True) if after is not None and outcome.get("code") != "measuring" else None
+        # (a measurement that gave no answer either way observed nothing: no tag)
+        measured_back = (present_source.after_change(change["name"], rolled_back=True)
+                         if after is not None and outcome.get("code") not in ("measuring", "no_answer") else None)
         return {"title": "After Roll back", "badge": badge, "paragraphs": [[_t(text)]], "differences": diffs, "history": history,
                 "source_tag": measured_back}
     outcome = rec.get("apply_outcome") or {}

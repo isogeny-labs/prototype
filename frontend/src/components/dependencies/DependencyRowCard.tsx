@@ -119,7 +119,7 @@ export function AnswerChip({ cell }: { cell: DependencyCell }) {
       <ResultBadge label={cell.answer_words} tone={cell.tone} wrap />
       {/* 22 November 2026: where this answer came from (its own label stays, as before) */}
       <WhereFromTag tag={cell.source_tag} />
-      {cell.label_words ? <ProofChip>{cell.label_words}</ProofChip> : null}
+      {cell.label_words ? <ProofChip source={cell.source_tag?.key ?? null}>{cell.label_words}</ProofChip> : null}
       {cell.no_reason ? (
         <p data-testid="no-reason" className="text-xs leading-snug text-slate-300">
           {cell.no_reason}

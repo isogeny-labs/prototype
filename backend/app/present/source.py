@@ -75,6 +75,15 @@ def lab_proof() -> dict:
     return tag(LAB, "Run on the changed code, a copy on this computer. Nothing was merged or deployed.")
 
 
+def of_proof(proof: dict | None) -> dict | None:
+    """A fix's proof line, as Fixes words it: only a proof that ran and was believed (it passed, or it did not pass) rests
+    on its run. "Nothing was run", "Proof can't be trusted", "Proof did not finish" and a proof the plan has moved past read
+    as a warning and rest on nothing here; a running or unstarted proof has no result yet."""
+    if not proof or proof.get("state") not in ("passed", "failed") or (proof.get("badge") or {}).get("tone") not in ("pass", "fail"):
+        return None
+    return lab_proof()
+
+
 def lab_public_copy(library: str | None) -> dict:
     return tag(LAB, f"Measured on a public copy of {library or 'the library'} on this computer, in its own locked-down container. {UNTOUCHED}")
 
@@ -172,8 +181,9 @@ def of_check_row(row: dict) -> dict | None:
     if result is None or code is None:
         return None
     if code in NO_RESULT:
-        # a system that couldn't be measured still stands on the file; a check of ours that couldn't run has no tag
-        return of_system(None, "couldnt_check", None) if kind in ("pq_status", "signing_status") else None
+        # Measure status that couldn't measure a system leaves its status standing on the file; any other check that
+        # couldn't run (a test, a try on a copy, the measurement after Apply or Roll back) observed and proved nothing
+        return of_system(None, "couldnt_check", None) if origin == "measure" and kind in ("pq_status", "signing_status") else None
     if origin == "try":
         return lab_try(clients=kind == "client_reach")
     if origin in ("after_apply", "after_rollback"):
@@ -229,7 +239,7 @@ def family_of(text: str, measured: str | None) -> str | None:
         return measured
     if words in _LAB_TAGS:
         return LAB
-    if words.startswith("published"):
+    if words.startswith("published") or words == "release notes say":
         return PUBLISHED
     if words == "from the file":
         return FILE

@@ -108,5 +108,21 @@ describe("A server change, where each step came from", () => {
     expect(within(applied).getByTestId("source-tag").getAttribute("title")).toContain("handshakes only");
     expect(fetchMock.mock.calls).toEqual([]);
   });
-});
 
+  it("a try that gave no answer has no tag, and a copy that measured nothing has none above its column", () => {
+    const noAnswer: ChangeView = {
+      ...appliedMatches,
+      applied: null,
+      try: {
+        ...appliedMatches.try!,
+        verdict: { label: "No answer from the try.", look: "warn", text: "A copy could not be measured, or its control did not behave." },
+        source_tag: null,
+        column_source_tags: [null, appliedMatches.try!.column_source_tags![1]!, null],
+      },
+    };
+    show(noAnswer);
+    const tryBox = within(screen.getByTestId("change-try"));
+    expect(within(tryBox.getByTestId("change-verdict")).queryAllByTestId("source-tag")).toEqual([]);
+    expect(tryBox.getAllByTestId("column-source-tag").map((t) => t.textContent)).toEqual(["Observed live"]);
+  });
+});

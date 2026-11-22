@@ -631,7 +631,9 @@ def _details_section(fix: dict, modes: list[str], ran_sha256: str | None) -> dic
         facts.append(fact("Pull request", value))
     if review is not None:
         facts.append(fact("Proof finished", [{"t": "time", "v": review["reviewed_at"]},
-                                             _t(f", after {_duration(proof['started_at'], review['reviewed_at'])} "), {"t": "tag", "v": "measured"}]))
+                                             _t(f", after {_duration(proof['started_at'], review['reviewed_at'])} "),
+                                             # (timed on this computer, while the changed code ran here: the lab's look)
+                                             {"t": "tag", "v": "measured", "s": "lab"}]))
     elif proof is not None and proof["state"] == "interrupted":
         facts.append(fact("Proof started", [{"t": "time", "v": proof["started_at"]}, _t(". It was interrupted before every test had run.")]))
     facts.append(fact("Mode", [_t(join_and([present.MODE_WORDS.get(mode, mode) for mode in modes]))]))

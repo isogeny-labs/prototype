@@ -150,8 +150,9 @@ class FixesMixin:
                      next((c["address"] for c in tls_changes if c["key"] == fix.get("change_key")), None)
                      if fix["source_kind"] == "applied_change" else None)
             shown["source_tag"] = present_source.of_fix(fix, where)
-            if shown.get("proof") and (shown["proof"].get("state") in ("passed", "failed")):
-                shown["proof"]["source_tag"] = present_source.lab_proof()
+            # (only a proof that ran and was believed; one that was not run, can't be trusted or did not finish has no tag)
+            if shown.get("proof"):
+                shown["proof"]["source_tag"] = present_source.of_proof(shown["proof"])
             # Phase 4e: where the part this fix changes is used (it reads; it decides and changes nothing)
             shown["impact"] = self._fix_impact(db, plan, fix, answered, impact_ctx)       # type: ignore[attr-defined]
             proposal = proposals.get((fix.get("proposal") or {}).get("id"))

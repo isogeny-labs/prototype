@@ -105,6 +105,10 @@ def test_a_row_of_checks_follows_what_it_ran_on_whatever_started_it():
     assert S.of_check_row(_row("official_vectors", "plan", None)) is None
     assert S.of_check_row(_row("official_vectors", "plan", "couldnt_run")) is None
     assert key(S.of_check_row(_row("pq_status", "measure", "couldnt_trust"))) == "file"
+    # a try on a copy, or the measurement after Apply or Roll back, that couldn't measure observed and proved nothing
+    for origin in ("try", "after_apply", "after_rollback"):
+        assert S.of_check_row(_row("pq_status", origin, "couldnt_check")) is None, origin
+        assert S.of_check_row(_row("tls_versions", origin, "couldnt_run")) is None, origin
     verify = {"claim": {"location_kind": "server", "location": "localhost:8443"}, "result": "False"}
     assert key(S.of_check_row({**_row("verify", "verify", "false"), "verify": verify})) == "live"
 
@@ -133,6 +137,7 @@ def test_the_small_tags_already_on_a_page_keep_their_words_and_get_their_sources
     assert [p.get("s") for p in parts] == [None, "live", "lab", "lab", "published", "lab", None, None]
     assert S.colour_tags([{"t": "tag", "v": "measured"}], S.LAB)[0]["s"] == "lab"     # a bare "measured" on a signing program
     assert S.colour_tags({"tag": "measured"}, S.LIVE) == {"tag": "measured"}         # only a sentence's tag part is touched
+    assert S.family_of("release notes say", None) == "published"                      # a blocker line on Migration
 
 
 def test_the_overview_counts_in_the_fixed_order_and_leaves_out_the_sources_with_none():

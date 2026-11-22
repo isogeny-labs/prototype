@@ -240,9 +240,15 @@ export function StatusChip({
 }
 
 /** How a result was proven, as a quiet outlined chip: "Release notes say", "Measured on a public copy", "Measured". */
-export function ProofChip({ children }: { children: ReactNode }) {
+export function ProofChip({ children, source = null }: { children: ReactNode; source?: WhereFrom["key"] | null }) {
+  // (22 November 2026: an answer's own label, "Release notes say", in the look of its answer's source; its words stay)
   return (
-    <span className="inline-flex items-center whitespace-nowrap rounded-full border border-slate-600 px-2 py-0.5 text-[11px] font-medium leading-none text-slate-300">
+    <span
+      data-source={source ?? undefined}
+      className={`inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none ${
+        source ? SMALL_TAG_LOOK[source] : "border-slate-600 text-slate-300"
+      }`}
+    >
       {children}
     </span>
   );

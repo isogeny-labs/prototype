@@ -87,7 +87,7 @@ export function LibraryPanel({ library, onClose }: { library: LibraryEvidenceRow
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <ResultBadge label={c.answer_words} tone={c.tone} />
                   <WhereFromTag tag={c.source_tag} />
-                  {c.label_words ? <ProofChip>{c.label_words}</ProofChip> : null}
+                  {c.label_words ? <ProofChip source={c.source_tag?.key ?? null}>{c.label_words}</ProofChip> : null}
                 </div>
                 {c.no_reason ? <p className="mt-1 text-slate-200">{c.no_reason}</p> : <p className="mt-1 text-slate-400">{c.reason}</p>}
               </li>
