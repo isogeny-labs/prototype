@@ -493,6 +493,17 @@ cd backend && .venv/bin/python -m evidence verify <the downloaded .json file>
 These runs are kept apart. They never replace a result of the assessment's own tests. What is not built yet (the
 Watch list) and what the built part does not cover is listed in `docs/LIMITS.md`.
 
+A **side-channel** tool (`ct_audit` runner) runs the `crypto` crate's dynamic constant-time harness under Valgrind for one
+allowlisted target: Memcheck taint of the secret (secret-dependent branches and addresses, split into library and harness
+sites) and Callgrind instruction counts across secret classes, with positive and negative controls. Build
+`ct_dynamic_audit` in the crypto repository (`cargo build --release --bin ct_dynamic_audit`), install Valgrind and set
+`IEL_CT_AUDIT_BIN`. Without it, the frozen run of isogeny-labs/crypto #3296 is shown as hash-pinned imported evidence in
+the "Side-channel audit: crypto crate" project (`scripts/import_ct_audit.py` refreshes `seeds/ct_audit_snapshot.json`).
+
+## Customer-side runner and verifier
+See `iel_tools/README.md` and `docs/ATTESTATION.md`. Bundles are in-toto Statements in DSSE envelopes signed with Ed25519
+(`cryptography`). The platform accepts a bundle only after checking signature, expected signer, artifact digests, schema and
+project/implementation binding; duplicates and stale submissions are flagged, not counted.
 ### Asking "what if I update this library?" (phase 6e, first half, 19 November 2026)
 
 Type a what-if into the Otto panel's text box, on any page of an assessment:
