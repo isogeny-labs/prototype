@@ -1,0 +1,41 @@
+name: ctcrypto
+
+on:
+  push:
+    paths: ["ctcrypto/**", ".github/workflows/ctcrypto.yml"]
+  pull_request:
+    paths: ["ctcrypto/**", ".github/workflows/ctcrypto.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustc --version && cargo --version
+      - name: Known-answer and negative tests
+        working-directory: ctcrypto
+        run: cargo test --release
+      - name: Each algorithm builds alone
+        working-directory: ctcrypto
+        run: |
+          for f in aes mlkem mldsa lms xmss; do
+            cargo build --no-default-features --features "$f"
+          done
+          cargo build --no-default-features
+
+  constant-time:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y valgrind binutils
+      - name: Valgrind secret-taint check and division scan
+        working-directory: ctcrypto/ctcheck
+        run: ./run.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ctcheck-report
+          path: ctcrypto/ctcheck/ctcheck-report.json
