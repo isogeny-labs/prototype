@@ -116,7 +116,9 @@ test("run Acme Pay: Verify claims, then every suggested test", async () => {
   await expect(claim).toHaveAttribute("aria-selected", "true");
   await expect(claimPanel.getByRole("heading", { level: 2 })).toHaveText(where);
   await expect(claimPanel.getByTestId("claim-details")).toContainText("Claimed value");
-  await expect(claimPanel.getByTestId("claim-details")).toContainText("from the file");
+  // (22 November 2026: where it came from, with what that means for the claim)
+  await expect(claimPanel.getByTestId("claim-details")).toContainText("From your file");
+  await expect(claimPanel.getByTestId("claim-details")).toContainText("The app has not checked it here: Verify does.");
   await expect(claimPanel.getByTestId("claim-details")).toContainText("Source in the file");
   await shots("03-inventory-import-panel");
   await claimPanel.getByRole("button", { name: "Close details" }).click();

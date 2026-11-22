@@ -2,7 +2,7 @@ import type { LibraryEvidenceRow } from "../../api";
 import { AlgoName } from "../plainName";
 import { DataTable, DetailPanel, type Column } from "../layout";
 import { ItemLinkView, RelatedFor } from "../related";
-import { NameText, ProofChip, ResultBadge, SourceTag } from "../ui";
+import { NameText, ProofChip, ResultBadge, SourceTag, WhereFromTag } from "../ui";
 
 function Blocks({ library }: { library: LibraryEvidenceRow }) {
   if (library.blocks.length === 0) return null;
@@ -35,7 +35,18 @@ const columns: Column<LibraryEvidenceRow>[] = [
       </>
     ),
   },
-  { key: "answers", header: "Answers", minWidth: 150, render: (l) => <span className="text-sm text-slate-200">{l.answers_short}</span> },
+  {
+    key: "answers",
+    header: "Answers",
+    minWidth: 150,
+    render: (l) => (
+      // (22 November 2026: where its answers came from, taken together)
+      <span className="flex flex-col items-start gap-1">
+        <span className="text-sm text-slate-200">{l.answers_short}</span>
+        <WhereFromTag tag={l.source_tag} />
+      </span>
+    ),
+  },
 ];
 // Beside an open panel: the same two columns, narrower, so they fit the room left at 1440 pixels wide.
 const compactColumns: Column<LibraryEvidenceRow>[] = [
@@ -75,7 +86,8 @@ export function LibraryPanel({ library, onClose }: { library: LibraryEvidenceRow
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <ResultBadge label={c.answer_words} tone={c.tone} />
-                  {c.label_words ? <ProofChip>{c.label_words}</ProofChip> : null}
+                  <WhereFromTag tag={c.source_tag} />
+                  {c.label_words ? <ProofChip source={c.source_tag?.key ?? null}>{c.label_words}</ProofChip> : null}
                 </div>
                 {c.no_reason ? <p className="mt-1 text-slate-200">{c.no_reason}</p> : <p className="mt-1 text-slate-400">{c.reason}</p>}
               </li>
@@ -89,7 +101,7 @@ export function LibraryPanel({ library, onClose }: { library: LibraryEvidenceRow
                 .map((l, i) => (
                   <div key={i} className="rounded-lg border border-slate-800 bg-slate-950 p-3">
                     <p className="text-slate-100">
-                      {l.title} <SourceTag>Release notes say</SourceTag>
+                      {l.title} <SourceTag source="published">Release notes say</SourceTag>
                     </p>
                     <blockquote className="mt-1 border-l-2 border-slate-700 pl-2 text-slate-300">“{l.quote}”</blockquote>
                     <p className="mt-1 text-xs text-slate-400">

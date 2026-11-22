@@ -10,13 +10,14 @@ import {
   type DemoServer,
   type Import,
   type VerifyRun,
+  type Source,
 } from "../api";
 import { CLOSED_SENTENCE, useReadOnly } from "../readOnly";
 import { DataTable, DetailPanel, PageHeader, TableWithPanel, type Column } from "./layout";
 import { FromOttoTag } from "./otto/ProposalCard";
 import { AlgoName } from "./plainName";
 import { ItemLinkView, RelatedFor } from "./related";
-import { DemoDataLabel, ErrorBox, PrimaryButton, SecondaryButton, SourceTag } from "./ui";
+import { DemoDataLabel, ErrorBox, PrimaryButton, SecondaryButton, SourceTag, WhereFromTag } from "./ui";
 
 const KIND_LABELS: Record<ClaimKind, string> = {
   protocol_versions: "TLS versions",
@@ -33,7 +34,13 @@ const LOCATION_LABELS: Record<Claim["location_kind"], string> = {
   unknown: "Unrecognised location",
 };
 
-const claimColumns: Column<Claim>[] = [
+/** 22 November 2026: every claim on this page is From your file (the import's tag, in the backend's words) until Verify
+ * checks it. Where the import carries no tag (an older answer), the small "from the file" tag stays as it was. */
+function FromFile({ tag }: { tag: Source | null | undefined }) {
+  return tag ? <WhereFromTag tag={tag} /> : <SourceTag>from the file</SourceTag>;
+}
+
+const claimColumns = (tag: Source | null | undefined): Column<Claim>[] => [
   {
     key: "where",
     header: "Where",
@@ -63,7 +70,7 @@ const claimColumns: Column<Claim>[] = [
           <span className="font-medium text-slate-100">
             <AlgoName text={claim.claimed_value} />
           </span>
-          <SourceTag>from the file</SourceTag>
+          <FromFile tag={tag} />
         </div>
         <div className="mt-0.5 text-xs text-slate-500">{claim.source}</div>
       </>
@@ -97,7 +104,7 @@ const compactClaimColumns: Column<Claim>[] = [
 ];
 
 /** What opens in the panel: the claim as the file states it, and where in the file it was read. */
-function ClaimDetails({ claim }: { claim: Claim }) {
+function ClaimDetails({ claim, tag }: { claim: Claim; tag: Source | null | undefined }) {
   return (
     <dl data-testid="claim-details" className="space-y-4 text-sm">
       <div>
@@ -114,8 +121,14 @@ function ClaimDetails({ claim }: { claim: Claim }) {
         <dt className="text-xs uppercase tracking-wide text-slate-500">Claimed value</dt>
         <dd className="mt-1 flex flex-wrap items-center gap-2 text-slate-100">
           <span className="font-medium">{claim.claimed_value}</span>
-          <SourceTag>from the file</SourceTag>
+          <FromFile tag={tag} />
         </dd>
+        {/* 22 November 2026: what the tag means for this claim, in the backend's sentence */}
+        {tag?.note ? (
+          <dd data-testid="source-note" className="mt-1 text-xs text-slate-400">
+            {tag.note}
+          </dd>
+        ) : null}
       </div>
       <div>
         <dt className="text-xs uppercase tracking-wide text-slate-500">Source in the file</dt>
@@ -361,7 +374,7 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
                 table={
                   <DataTable
                     label="What the file claims"
-                    columns={claimColumns}
+                    columns={claimColumns(imp?.claim_source_tag)}
                     compactColumns={compactClaimColumns}
                     rows={imp.claims}
                     rowKey={(claim) => String(claim.id)}
@@ -388,7 +401,7 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
                     ) : null}
                     {openClaim ? (
                       <>
-                        <ClaimDetails claim={openClaim} />
+                        <ClaimDetails claim={openClaim} tag={imp?.claim_source_tag} />
                         <RelatedFor itemKey={`claim:${openClaim.id}`} />
                       </>
                     ) : null}

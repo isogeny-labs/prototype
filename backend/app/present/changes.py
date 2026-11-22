@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from app.servers import lab_servers
 from app.fixes.changes import REVIEWERS
 from app.present import clients as present_clients
+from app.present import source as present_source
 from app.present import times
 from app.present.tracks import TRACK_LABELS, hybrid_client
 
@@ -119,10 +120,15 @@ def _try_view(change: dict, rec: dict) -> dict | None:
     if outcome.get("code") == "running":
         return {"title": "Try on a test copy: running", "running": {"status": "running", "status_text": "Running",
                                                                     "progress": {"text": "measuring the copies", "percent": None}},
-                "verdict": None, "columns": [], "rows": [], "notes": [], "results": [], "clients": None}
+                "verdict": None, "columns": [], "rows": [], "notes": [], "results": [], "clients": None, "source_tag": None,
+                "column_source_tags": []}
     name = change["name"]
     columns = ["", f"Before: {name} as measured"]
     cols = [_column(rec.get("try_before"), "measured", None, None)]
+    # where each column came from (22 November 2026): the server as it is today is a reading of it (live); each copy is a
+    # test copy on this computer (lab)
+    # (a column that measured nothing, a copy that couldn't be checked or was skipped, rests on nothing: no tag)
+    column_sources: list[dict | None] = [None, present_source.live(name) if _observed(rec.get("try_before")) else None]
     results = []
     if rec.get("try_before") and rec["try_before"].get("result"):
         results.append({"label": f"{name} as measured before the try", "result": rec["try_before"]["result"]})
@@ -140,6 +146,7 @@ def _try_view(change: dict, rec: dict) -> dict | None:
             if measured.get("result"):
                 results.append({"label": copy["label"], "result": measured["result"]})
         cols.append(_column(measured, tag, copy.get("skipped"), accepted))
+        column_sources.append(present_source.lab_try() if _observed(measured) and not copy.get("skipped") else None)
         if copy.get("skipped"):
             notes.append(f"{copy['skipped'].rstrip('.')}. So the try is decided on the test copy alone.")
     labels = TLS_ROWS if change["kind"] == "tls" else MIGRATION_ROWS
@@ -170,7 +177,15 @@ def _try_view(change: dict, rec: dict) -> dict | None:
     if measured_clients.get("result"):
         results.append({"label": "who can still connect (the client stand-ins)", "result": measured_clients["result"]})
     return {"title": f"Try on a test copy: {title}", "running": None, "verdict": verdict, "columns": columns, "rows": rows,
-            "notes": notes, "results": results, "clients": clients}
+            "notes": notes, "results": results, "clients": clients,
+            # (a try that gave no answer either way proved nothing: no tag)
+            "source_tag": present_source.lab_try(clients=bool(measured_clients.get("result"))) if code in ("passed", "failed") else None,
+            "column_source_tags": column_sources}
+
+
+def _observed(measured: dict | None) -> bool:
+    """Did this measurement read something (not missing, not couldn't run, check or trust)?"""
+    return measured is not None and measured.get("code") not in present_source.NO_RESULT
 
 
 def _cost_words(change: dict) -> str:
@@ -215,7 +230,7 @@ def _applied(change: dict, rec: dict) -> dict | None:
     if not row.accepted:
         return {"title": "After Apply", "badge": {"label": "Not applied: the server refused the settings", "look": "fail"},
                 "paragraphs": [[_t(f"Apply was pressed {when(row.applied_at)}, and the server refused the settings: {row.words}. "
-                                   "Its earlier settings stayed in force.")]], "differences": [], "history": history}
+                                   "Its earlier settings stayed in force.")]], "differences": [], "history": history, "source_tag": None}
     back = rec.get("rollback")
     if back is not None and back.accepted:
         outcome = rec.get("rollback_outcome") or {}
@@ -233,24 +248,31 @@ def _applied(change: dict, rec: dict) -> dict | None:
             badge = {"label": "Rolled back · not as before", "look": "fail"}
         diffs = [f"{FACT_WORDS[d['fact']]}: before the change {_fact_words(d['fact'], d['before'])}, now {_fact_words(d['fact'], d['after'])}."
                  for d in outcome.get("differences") or []]
-        return {"title": "After Roll back", "badge": badge, "paragraphs": [[_t(text)]], "differences": diffs, "history": history}
+        # (a measurement that gave no answer either way observed nothing: no tag)
+        measured_back = (present_source.after_change(change["name"], rolled_back=True)
+                         if after is not None and outcome.get("code") not in ("measuring", "no_answer") else None)
+        return {"title": "After Roll back", "badge": badge, "paragraphs": [[_t(text)]], "differences": diffs, "history": history,
+                "source_tag": measured_back}
     outcome = rec.get("apply_outcome") or {}
     after = rec.get("apply_after")
     who = f"Applied to {change['name']} {when(row.applied_at)} by the person logged in, after the try passed and every reviewer approved."
     if outcome.get("code") == "measuring" or after is None:
         return {"title": "After Apply", "badge": {"label": "Applied · measuring", "look": "neutral"},
-                "paragraphs": [[_t(who + " The app is measuring it again now.")]], "differences": [], "history": history}
+                "paragraphs": [[_t(who + " The app is measuring it again now.")]], "differences": [], "history": history, "source_tag": None}
     if outcome.get("code") == "matches":
         return {"title": "After Apply", "badge": {"label": "Applied · matches the try", "look": "pass"},
                 "paragraphs": [[_t(f"{who} The app measured again by itself {when(after['finished_at'])}: {_status_words(after)} "), _tag("measured"),
-                                _t(". That matches the try.")]], "differences": [], "history": history}
+                                _t(". That matches the try.")]], "differences": [], "history": history,
+                "source_tag": present_source.after_change(change["name"])}
     diffs = [f"{FACT_WORDS[d['fact']]}: the try measured {_fact_words(d['fact'], d['tried'])}, the server now measures {_fact_words(d['fact'], d['after'])}."
              for d in outcome.get("differences") or []]
     if outcome.get("code") == "no_answer":
         diffs = ["The measurement after Apply gave no answer either way."]
     return {"title": "After Apply", "badge": {"label": "Applied · does not match the try", "look": "fail"},
             "paragraphs": [[_t(f"{who} The app measured again by itself {when(after['finished_at'])}, and the result does not match the try. "
-                               "Roll back puts the earlier settings back.")]], "differences": diffs, "history": history}
+                               "Roll back puts the earlier settings back.")]], "differences": diffs, "history": history,
+            # (a measurement that gave no answer either way observed nothing: no tag)
+            "source_tag": None if outcome.get("code") == "no_answer" else present_source.after_change(change["name"])}
 
 
 def _status_words(measured: dict) -> str:
@@ -266,6 +288,12 @@ def _status_words(measured: dict) -> str:
 # ------------------------------------------------------------------ the whole box
 
 def change_view(change: dict, rec: dict, gates: dict) -> dict:
+    # Where it came from (22 November 2026): every small tag of the box in its source's look. A change is made to a server,
+    # so a bare "measured" is a reading of the server itself (live); "measured on the copy" and "on nginx" are the try (lab).
+    return present_source.colour_tags(_change_view(change, rec, gates), present_source.LIVE)
+
+
+def _change_view(change: dict, rec: dict, gates: dict) -> dict:
     name, option = change["name"], change["option"]
     title = "Your change: " + TITLES.get(option, "change {name}").format(name=name)
     source = change.get("_plan_source")

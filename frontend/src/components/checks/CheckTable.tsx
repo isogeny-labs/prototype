@@ -2,7 +2,7 @@ import type { CheckRow } from "../../api";
 import { DataTable, type Column } from "../layout";
 import { FromOttoTag } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
-import { formatTime, ResultBadge, StatusView } from "../ui";
+import { formatTime, ResultBadge, StatusView, WhereFromTag } from "../ui";
 
 /** Phase 5c: an advisory check came from one of Otto's proposals that a person accepted. Its row carries the tag and
  * the advisory as a link, both in the view's words. The link opens the advisory; it does not open the row's panel. */
@@ -23,7 +23,14 @@ export function FromOttoMark({ row }: { row: CheckRow }) {
  * two lines, breaking between words only. */
 function Result({ row, wrap = false }: { row: CheckRow; wrap?: boolean }) {
   if (row.status) return <StatusView status={row.status} />;
-  if (row.result) return <ResultBadge label={row.result.label} tone={row.result.tone} wrap={wrap} />;
+  if (row.result)
+    return (
+      // (22 November 2026: where it came from, right under its own word)
+      <span className="flex flex-col items-start gap-1">
+        <ResultBadge label={row.result.label} tone={row.result.tone} wrap={wrap} />
+        <WhereFromTag tag={row.source_tag} />
+      </span>
+    );
   return <span className="text-xs text-slate-500">Not run yet</span>;
 }
 

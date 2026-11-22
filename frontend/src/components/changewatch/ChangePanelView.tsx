@@ -2,7 +2,7 @@ import type { ChangeResult, ChangeResultSide, ChangeRow, ChangeTest } from "../.
 import { CodeLines } from "../fixes/ChangeBody";
 import { DetailPanel } from "../layout";
 import { ItemLinkView } from "../related";
-import { DemoDataLabel, PrimaryButton, ProgressBar, ResultBadge, Spinner, StatusChip } from "../ui";
+import { DemoDataLabel, PrimaryButton, ProgressBar, ResultBadge, Spinner, StatusChip, WhereFromTag } from "../ui";
 
 const H = "mb-1.5 text-[13px] font-semibold text-slate-100";
 
@@ -32,8 +32,12 @@ function Side({ heading, side, note, testId }: { heading: string; side: ChangeRe
       </p>
       {side ? (
         <>
-          <ResultBadge label={side.label} tone={side.tone} wrap />
+          <span className="flex flex-wrap items-center gap-1.5">
+            <ResultBadge label={side.label} tone={side.tone} wrap />
+            <WhereFromTag tag={side.source_tag} />
+          </span>
           <p className="mt-1.5 break-words text-[13px] leading-snug text-slate-300">{side.plain}</p>
+          {side.source_tag?.note ? <p data-testid="source-note" className="mt-1 break-words text-xs text-slate-400">{side.source_tag.note}</p> : null}
           {side.link ? (
             <p className="mt-1 text-xs">
               <ItemLinkView link={side.link} testId="change-result-link" className="text-sky-300 underline-offset-2 hover:underline">

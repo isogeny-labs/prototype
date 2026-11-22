@@ -194,3 +194,23 @@ describe("Verify screen: what it says about Otto (phase 5c)", () => {
     expect(screen.queryByTestId("verify-otto-note")).toBeNull();
   });
 });
+
+// 22 November 2026: where each result came from, beside its own word. A server claim is read from the server, a claim the
+// app couldn't check rests only on the file; the panel says what that means for the claim.
+describe("Verify, where each result came from", () => {
+  it("draws one tag beside each result's word, in the backend's words", () => {
+    renderVerify();
+    const rows = screen.getAllByTestId("result-row");
+    expect(rows.map((r) => within(r).getAllByTestId("source-tag").map((t) => t.textContent))).toEqual([["Observed live"], ["Observed live"], ["From your file"]]);
+    expect(within(rows[0]!).getByTestId("result-badge").parentElement!.contains(within(rows[0]!).getByTestId("source-tag"))).toBe(true);
+    expect(within(rows[2]!).getByTestId("source-tag").getAttribute("title")).toBe(run.results[2]!.source_tag!.meaning);
+  });
+
+  it("its details say what the tag means for this claim", () => {
+    renderVerify();
+    fireEvent.click(within(screen.getAllByTestId("result-row")[2]!).getByRole("button", { name: "Details and evidence" }));
+    const line = panel().getByTestId("source-line");
+    expect(text(line)).toBe("From your file The app couldn't check this claim, so it rests only on what your file says.");
+  });
+});
+

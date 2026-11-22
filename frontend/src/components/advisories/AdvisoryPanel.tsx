@@ -2,7 +2,7 @@ import type { AdvisoryHereRow, AdvisoryRow, OttoProposal } from "../../api";
 import { DetailPanel } from "../layout";
 import { ProposalCard } from "../otto/ProposalCard";
 import { ItemLinkView, RelatedBlock, useRelated } from "../related";
-import { formatTime, StatusChip } from "../ui";
+import { formatTime, StatusChip, WhereFromLine } from "../ui";
 import { NewTag } from "./AdvisoryTable";
 import { BLOCK, BLOCK_TITLE, LedgerView, QuoteView, ShortHash, SourcesView, TrialView } from "./parts";
 
@@ -38,6 +38,11 @@ function HereRow({ planId, row, onDecided }: { planId: number; row: AdvisoryHere
             </p>
           ) : null}
           <p className="mt-1.5 break-words text-slate-200">{result.plain}</p>
+          {result.source_tag ? (
+            <div className="mt-1.5">
+              <WhereFromLine tag={result.source_tag} />
+            </div>
+          ) : null}
           {result.component || result.finished_at ? (
             <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-slate-400">
               {result.component ? <span className="break-words">{result.component}</span> : null}

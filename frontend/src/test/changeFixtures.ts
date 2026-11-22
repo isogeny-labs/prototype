@@ -1,5 +1,6 @@
 import type { ChangeButton, ChangeStep, ChangeView, RichText } from "../api";
 import { result } from "./fixtures";
+import { afterChange, labTry, live } from "./sourceFixtures";
 
 // Phase 4b change boxes in each state the demo goes through, worded as in the approved mockups.
 
@@ -111,6 +112,9 @@ const passedTry: NonNullable<ChangeView["try"]> = {
   rows: tryTable.rows,
   notes: ["Real nginx was not tried: that needs isolated mode (Docker)."],
   results: [{ label: "the test copy", result: tryEvidence }],
+  // 22 November 2026: before is a reading of the server; after is the test copy on this computer
+  column_source_tags: [null, live("localhost:8452"), labTry()],
+  source_tag: labTry(),
 };
 
 export const triedPassedPicker: ChangeView = base({
@@ -210,6 +214,7 @@ export const appliedMatches: ChangeView = base({
     paragraphs: [[...t("We measured "), m("localhost:8452"), ...t(" again after Apply. Its key exchange is now Hybrid, as on the copy.")]],
     differences: [],
     history: ["Applied 14 Nov 2026, 5:30 PM, by You.", "Rolled back 13 Nov 2026, 9:02 AM, by You."],
+    source_tag: afterChange("localhost:8452"),
   },
   buttons: [btn("rollback", "Roll back", false), btn("download", "Download change", false)],
 });

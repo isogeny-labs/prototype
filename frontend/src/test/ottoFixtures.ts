@@ -20,6 +20,7 @@ import type {
   RelatedView,
 } from "../api";
 import { acceptedProposal, proposal, rejectedProposal } from "./proposalFixtures";
+import { labCopy } from "./sourceFixtures";
 
 /** Phase 5c (Otto in Evidence Lab): the answers the Advisories page, the Otto sections of Settings and the Otto words on
  * Evidence and Fixes are drawn from. They are the backend's own answers, copied from a run of the real routes on packs
@@ -242,6 +243,7 @@ const FAILED_RESULT: NonNullable<AdvisoryHereRow["result"]> = {
   plain: "acme-sign 1.4.2 got 2 of the 64 published cases for advisory CVE-2022-21449 wrong: it accepted 2 signatures that must be rejected. One wrong answer is enough to fail.",
   component: "acme-sign 1.4.2",
   finished_at: "2026-11-17T19:57:17.753Z",
+  source_tag: labCopy("acme-sign 1.4.2"),
 };
 
 // Otto's proposal of that check for acme-sign 1.4.2, in the backend's words for this pack. The rest of a proposal (its
@@ -484,7 +486,7 @@ export const blankRejected: AdvisoryRow = {
 export const blankFailed: AdvisoryRow = {
   ...blankNotAdded,
   proposal: ADDED,
-  result: { key: "fail", label: "Failed", tone: "fail", text: null },
+  result: { key: "fail", label: "Failed", tone: "fail", text: null, source_tag: labCopy("acme-sign 1.4.2") },
   panel: {
     ...blankNotAdded.panel,
     here: {

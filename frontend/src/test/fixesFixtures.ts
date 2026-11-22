@@ -16,6 +16,7 @@ import type {
   Tone,
 } from "../api";
 import { DISCLAIMER } from "./fixtures";
+import { labProof, live } from "./sourceFixtures";
 
 export const CODE_FIX = "fix-ecdsa-range-check";
 export const TLS_FIX = "fix-tls-versions";
@@ -382,6 +383,13 @@ const codeFixBase: FixDetail = {
   status: { key: "not_connected", word: "Code not connected", busy: false },
   labels: ["From a fix template"],
   is_demo: true,
+  // 22 November 2026: a fix carries the tag of the finding it came from (tests that failed on a copy of the program)
+  source_tag: {
+    key: "lab",
+    label: "Proven in the lab",
+    meaning: "Run on a copy on this computer, never on your live system.",
+    note: "From tests that failed on a copy of acme-sign 1.4.2 on this computer. Your live system was not touched.",
+  },
   what: {
     label: "What it changes",
     paragraphs: [
@@ -428,6 +436,7 @@ const proofPassed: FixDetail["proof"] = {
   badge: { label: "Proof passed", tone: "pass" },
   text: PROOF_PASSED,
   muted: null,
+  source_tag: labProof(),
 };
 
 const readyFix: FixDetail = {
@@ -460,6 +469,7 @@ const failedFix: FixDetail = {
     badge: { label: "Proof did not pass", tone: "fail" },
     text: `${PROOF_FAILED} The change is not offered.`,
     muted: null,
+    source_tag: labProof(),
   },
   approvers: {
     text: "Nobody yet: a change that is not offered can't get a pull request.",
@@ -664,6 +674,7 @@ export const tlsFix: FixDetail = {
   status: { key: "text_only", word: "Text only", busy: false },
   labels: [],
   is_demo: true,
+  source_tag: live("localhost:8443"),
   what: {
     label: "What it suggests",
     paragraphs: [

@@ -6,6 +6,7 @@ import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
 import { LinkProvider } from "../components/related";
 import { TestsScreen } from "../components/TestsScreen";
 import { calls, cards, groupedPlan, mockApi, plan, pqCard, runningPlan, text } from "./fixtures";
+import { labCopy, live } from "./sourceFixtures";
 
 function Harness({ initial = null }: { initial?: PlanView | null }) {
   const [current, setCurrent] = useState<PlanView | null>(initial);
@@ -524,3 +525,24 @@ describe("Tests screen, closed assessment", () => {
     expect((screen.getByRole("button", { name: "+ Add test" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+// 22 November 2026: where a finished test's result came from, beside its word on its card: a server test is read live,
+// every other test runs a copy here. A test that couldn't run has no tag.
+describe("Test plan, where each result came from", () => {
+  it("draws one tag beside each finished card's result, and none where it couldn't run", async () => {
+    open({}, {
+      ...plan,
+      tests: [
+        { ...cards[0]!, status: "done", status_text: "Failed", result: { code: "failed", label: "Failed", tone: "fail" }, source_tag: live("localhost:8443") },
+        { ...cards[2]!, status: "done", status_text: "Failed", result: { code: "failed", label: "Failed", tone: "fail" }, source_tag: labCopy("acme-sign 1.4.2") },
+        { ...cards[3]!, status: "done", status_text: "Couldn't run", result: { code: "couldnt_run", label: "Couldn't run", tone: "warn" }, source_tag: null },
+      ],
+    });
+    await shownCards();
+    const shown = screen.getAllByTestId("test-card").map((c) => within(c).queryAllByTestId("source-tag").map((t) => t.textContent));
+    expect(shown).toEqual([["Observed live"], ["Proven in the lab"], []]);
+    const first = within(screen.getAllByTestId("test-card")[0]!);
+    expect(first.getByTestId("result-badge").parentElement!.contains(first.getByTestId("source-tag"))).toBe(true);
+  });
+});
+

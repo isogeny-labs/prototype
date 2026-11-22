@@ -220,7 +220,8 @@ describe("an item on a page of its own", () => {
     expect(within(missing).getByRole("heading", { level: 1 }).textContent).toBe("This item is not here");
     expect(text(missing)).toContain("names an item that is not on Checks in this assessment");
     expect(within(missing).getByTestId("item-page-back").getAttribute("href")).toBe("#/a/101/checks");
-    expect(document.title).toBe("Not found · Isogeny Labs");
+    // (the title is set just after the box is drawn: a slow runner read it in between on 22 November 2026)
+    await waitFor(() => expect(document.title).toBe("Not found · Isogeny Labs"));
     expect(screen.queryByTestId("item-page")).toBeNull();
   });
 

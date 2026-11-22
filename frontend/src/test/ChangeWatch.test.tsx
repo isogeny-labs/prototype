@@ -5,6 +5,7 @@ import { ChangeWatchScreen } from "../components/ChangeWatchScreen";
 import { LinkProvider } from "../components/related";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "../readOnly";
 import { calls, mockApi, text } from "./fixtures";
+import { labCopy } from "./sourceFixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
 
@@ -148,6 +149,8 @@ const side = (run_id: number, label: string, tone: "pass" | "fail", plain: strin
   plain,
   ran_on,
   link: item ? { page: "checks", item, group: null } : null,
+  // 22 November 2026: a watch run runs a copy of the code on this computer
+  source_tag: labCopy(ran_on),
 });
 
 const running: ChangeRow = {
@@ -417,6 +420,24 @@ describe("Change watch, the table and a change's panel", () => {
     expect(text(result.getByTestId("change-result-now"))).toContain("acme-sign 1.4.2 accepted a signature made of zeros.");
     expect(text(panel().getByTestId("change-last-run"))).toBe("Last run started 19 November 2026, 6:06 am EST.");
     expect(panel().queryByTestId("change-fix-line")).toBeNull(); // (no entry in Fixes is named by the server for this view)
+  });
+
+  it("tags before and now each by where its run came from, beside the reviewer's word, with that run's own sentence", async () => {
+    const fetchMock = await open(withRows(ran), {}, { openItem: ran.id });
+    const result = within(panel().getByTestId("change-result"));
+    for (const [id, program] of [["change-result-before", "acme-sign 1.4.3"], ["change-result-now", "acme-sign 1.4.2"]] as const) {
+      const sideBox = within(result.getByTestId(id));
+      expect(sideBox.getAllByTestId("source-tag").map((t) => [t.textContent, t.getAttribute("data-source")])).toEqual([["Proven in the lab", "lab"]]);
+      expect(sideBox.getByTestId("result-badge").parentElement!.contains(sideBox.getByTestId("source-tag"))).toBe(true);
+      expect(sideBox.getByTestId("source-note").textContent).toContain(`Run on a copy of ${program} on this computer`);
+    }
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("a side with no reviewed run yet has no tag", async () => {
+    await open(withRows(running), {}, { openItem: running.id });
+    expect(panel().getAllByTestId("source-tag").map((t) => t.closest("[data-testid^='change-result-']")!.getAttribute("data-testid"))).toEqual(["change-result-before"]);
+    expect(within(panel().getByTestId("change-result-now")).queryAllByTestId("source-tag")).toEqual([]);
   });
 
   it("where Fixes has an entry for the change, its panel says so in one line with the way there", async () => {

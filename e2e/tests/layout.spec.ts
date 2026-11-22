@@ -73,7 +73,8 @@ async function measureTabs(prefix: string, rowIds: string[]): Promise<Record<str
     await page.waitForLoadState("networkidle");
     const rows = shown.locator(rowIds.map((id) => `[data-testid="${id}"]`).join(", "));
     listed[g.key] = await rows.count();
-    await measure(`${prefix}-${i + 1}-${g.key}`, listed[g.key] > 0 ? () => rows.first().click() : undefined, TAB_SHOTS);
+    // (a row opens by a click on its name: a link inside the row, such as a fix's "Came from" link, opens its own page)
+    await measure(`${prefix}-${i + 1}-${g.key}`, listed[g.key] > 0 ? () => rows.first().locator(":scope > *").first().click() : undefined, TAB_SHOTS);
   }
   return listed;
 }

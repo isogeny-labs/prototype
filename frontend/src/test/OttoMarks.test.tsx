@@ -43,7 +43,7 @@ describe("Evidence, the fix line of a library's fix from Otto", () => {
     expect(text(screen.getByTestId("fix-line"))).toContain("From Otto: update elliptic to 6.5.7");
     expect(shown.getAllByTestId("fix-line-row").map((row) => row.textContent)).toEqual([
       "Proven on public copies: Passed. 6.5.6 fails the advisory check; 6.5.7 passes.",
-      "Proven on your system: Not yet. Update the library, then press Retest.",
+      "Proven in this assessment: Not yet. Update the library, then press Retest.",
     ]);
     expect(screen.getByTestId("fix-line").getAttribute("data-look")).toBe("dashed");
     fireEvent.click(shown.getByRole("button", { name: "View in Fixes" }));

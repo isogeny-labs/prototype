@@ -500,7 +500,8 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   three such libraries (openjdk 17.0.2, python-ecdsa 0.13.2, elliptic 6.5.6) and the scanner file names none of
   them, so all three read "not yet checked", each with that reason. The trial on public copies is not counted as a
   measurement of your library: it is said where the fix is.
-- **"Proven on your system" is a retest on a public copy.** The row's name is the owner's wording. What stands
+- **"Proven in this assessment" is a retest on a public copy.** Until 22 November 2026 the row was called "Proven on
+  your system"; Kevin renamed it, because that name claimed more than the row shows. What stands
   behind it: this assessment's own retest of the same locked tests on the fixed version, which the app runs on a
   public copy of that version in its own container. The app has no connector to the system a customer runs, and
   the row says so right under its sentence, at the size of the text ("This row is about a public copy, not the
@@ -541,6 +542,16 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   off and the decisions made until then; every button is off.
 - **Where the Otto part of an evidence file starts.** An assessment now gets its Otto part with its first decision,
   also a rejection, before any check has run.
+
+## Limits of the source tags ("where it came from"; 22 November 2026)
+
+- **The tag is chosen, not measured.** One rule (`backend/app/present/source.py`) picks it from what the app already recorded about how a line was made: what a test runs on, how a claim was checked, what kind of system was measured, the label an answer already carries, what a fix came from. It checks nothing new and decides nothing; a result reads the same with or without it.
+- **"Observed live" means the address in your file, not production.** It says the line was read from the system at an address in the file that a person confirmed, with handshakes only. In the demo every such system is one of the app's own demo servers on this computer: it is "live" in the sense that it is the system the file names, not a copy made for the test.
+- **"Proven in the lab" in demo mode is a plain process.** In demo mode a program's copy runs as a local process, not in a locked-down container, and the item's sentence says so ("in demo mode (a plain process on this computer, not isolated)"); in isolated mode it says the container. A library's public copy runs only in isolated mode.
+- **Who can still connect carries one tag.** Its stand-ins connect to the test copy (the try, Proven in the lab) and, to compare, to the server as it is today with handshakes only. The row carries the try's tag, Proven in the lab, and its sentence says that the server today was also read.
+- **A library reads one way on Dependencies and another on Evidence.** On Dependencies the tag beside a library's name is From your file (it is there because your list names it), and each of its answers has its own tag. On Evidence a library is one row whose only word is its answers taken together ("No to all three"), so the tag beside them is theirs: Proven in the lab if any was measured on a public copy, else Published if any came from the maker's release notes, else From your file. The Overview's Dependencies count is that count. Each answer in Evidence's panel has its own tag, as on Dependencies.
+- **"Published" also covers "Doesn't apply".** An answer that a question does not apply to a kind of library comes from the knowledge base, which is built from what the library's maker publishes, so it reads Published; the app has not measured it.
+- **Where the tag is not.** The signed evidence file, the report and the verify command are as they were: the tag is words on the pages only, and every run in the file already records what it ran on. The Otto panel's cards and answers do not draw it in this version. There is no filter by source.
 
 ## Limits of phase 4e, first half (change impact: "What breaks if I make this change?"; 20 November 2026)
 
@@ -647,7 +658,7 @@ written independently and must not be copied from this section (`docs/OTTO-KEY.m
   list has none.
 - **The try is Retest new version, and it is a real retest.** It reruns the assessment's locked tests for that
   library on the public copy of the new version, and its results become this assessment's newest results "after":
-  a finding that passes can read as closed, "Proven on your system" reads the run, and an accepted update for the
+  a finding that passes can read as closed, "Proven in this assessment" reads the run, and an accepted update for the
   library can then no longer be undone. The card says so before Confirm. It is offered only where Evidence would
   offer the same retest: the scanner file names the library, the app holds a public copy of exactly that version
   (the version as asked: "1.4.3-otto" is another program than "1.4.3"), nothing else is running, the assessment is

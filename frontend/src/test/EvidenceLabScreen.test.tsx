@@ -22,6 +22,7 @@ import {
   text,
   withResult,
 } from "./fixtures";
+import { published } from "./sourceFixtures";
 
 type Routes = Parameters<typeof mockApi>[0];
 
@@ -138,7 +139,13 @@ describe("Evidence Lab, results view", () => {
     expect(detail.firstElementChild).toBe(plain);
     expect(text(plain)).toBe(lab.rows.find((r) => r.title === "Official test vectors")!.result!.plain);
     expect(text(plain).length).toBeGreaterThan(20);
-    expect(plain.nextElementSibling).toBe(d.getByTestId("technical-summary"));
+    // 22 November 2026: then where it came from, with what that means for this run, then the technical summary
+    const source = d.getByTestId("source-line");
+    expect(plain.nextElementSibling).toBe(source);
+    expect(text(source)).toBe(
+      "Proven in the lab Run on a copy of acme-sign 1.4.2 on this computer, in demo mode (a plain process on this computer, not isolated). Your live system was not touched.",
+    );
+    expect(source.nextElementSibling).toBe(d.getByTestId("technical-summary"));
     expect(within(toggle).queryByText(text(plain))).toBeNull(); // (the narrow row no longer shows it)
     expect(d.getAllByRole("heading", { level: 4 }).map((h) => h.textContent)).toEqual([
       "What happened",
@@ -996,3 +1003,42 @@ describe("Evidence, the compact row (phase 5b)", () => {
     expect(lines.every((l) => !/[,:]$/.test((l ?? "").trim()))).toBe(true);
   });
 });
+
+// 22 November 2026: where each result came from. One tag per row beside the reviewer's word: a server test is read
+// live, a program's test is run on a copy here, and a test that couldn't run has none.
+describe("Evidence, where each result came from", () => {
+  it("draws one tag beside each row's result, and none for a test that couldn't run", async () => {
+    const fetchMock = await open();
+    const tagOf = (title: string) => within(rowOf(title)).queryAllByTestId("source-tag").map((t) => t.getAttribute("data-source"));
+    expect(tagOf("Old TLS versions")).toEqual(["live"]);
+    expect(tagOf("Certificate strength")).toEqual(["live"]);
+    expect(tagOf("Official test vectors")).toEqual(["lab"]);
+    expect(tagOf("Speed and size")).toEqual(["lab"]);
+    expect(tagOf("Post-quantum readiness")).toEqual([]);
+    expect(within(rowOf("Old TLS versions")).getByTestId("source-tag").textContent).toBe("Observed live");
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+});
+
+// 22 November 2026: a library on Evidence's Dependencies tab. Its answers taken together give its one tag (release notes:
+// Published), and each answer in its panel has the tag of its own label, which keeps its words in that tag's look.
+describe("Evidence, where a library's answers came from", () => {
+  const tagged: LibraryEvidenceRow = {
+    ...opensslRow,
+    source_tag: published(),
+    cells: (opensslRow.cells ?? []).map((c) => ({ ...c, source_tag: published() })),
+  };
+
+  it("tags the library's row once, and each answer in its panel by its own label", async () => {
+    await openGrouped({ "GET /api/plans/1/checks": { body: { ...checksView, libraries: [tagged] } } }, { openItem: tagged.id });
+    const libraryPanel = await screen.findByTestId("library-panel");
+    const row = within(groupOf("dependencies")).getAllByTestId("source-tag").filter((t) => !libraryPanel.contains(t));
+    expect(row.map((t) => t.textContent)).toEqual(["Published"]);
+    const inPanel = within(libraryPanel).getAllByTestId("source-tag");
+    expect(inPanel.map((t) => t.getAttribute("data-source"))).toEqual(["published"]);
+    // the source the release notes are quoted from keeps its words and takes Published's look
+    const sources = within(within(libraryPanel).getByRole("region", { name: "Sources" })).getAllByText("Release notes say");
+    expect(sources.map((t) => t.getAttribute("data-source"))).toEqual(["published"]);
+  });
+});
+

@@ -64,7 +64,7 @@ const connect = () => inSummary().getByRole("button", { name: "Connect demo code
 const listRow = (fixId: string) => screen.getAllByTestId("fix-row").find((r) => r.getAttribute("data-key") === fixId)!;
 
 describe("Fixes, a library's fix from Otto: the two proof rows", () => {
-  it("shows two plain rows in place of the Proof line: Passed on public copies, Not yet on your system", async () => {
+  it("shows two plain rows in place of the Proof line: Passed on public copies, Not yet in this assessment", async () => {
     await open(fixesWith([updateFix(), tlsFix]), UPDATE_FIX);
     // The rows are named by the view; there is no row called Proof, and nothing reads "None".
     expect(rowNames()).toEqual(["What it suggests", PUBLIC_LABEL, HERE_LABEL, "Who approves"]);
@@ -80,6 +80,10 @@ describe("Fixes, a library's fix from Otto: the two proof rows", () => {
     expect(text(within(here!).getByTestId("proof-row-text"))).toBe("Update the library, then press Retest.");
     // the second row says plainly what a retest here runs on; the first row is the pack's trial and has no such note
     expect(text(within(here!).getByTestId("proof-row-note"))).toBe(HERE_NOTE);
+    // 22 November 2026: where each row came from, beside its word: the pack's trial ran on public copies here; "Not yet" has none
+    expect(within(onPublic!).getAllByTestId("source-tag").map((t) => t.textContent)).toEqual(["Proven in the lab"]);
+    expect(within(onPublic!).getByTestId("source-tag").getAttribute("title")).toBe("Run on a copy on this computer, never on your live system.");
+    expect(within(here!).queryAllByTestId("source-tag")).toEqual([]);
     expect(within(onPublic!).queryByTestId("proof-row-note")).toBeNull();
     // The fix is still text only, and still labelled as Otto's.
     expect(text(inSummary().getByTestId("fix-status"))).toBe("Text only");
@@ -339,7 +343,7 @@ describe("the fixtures' row words", () => {
   it("are the words the backend sends", () => {
     expect([publicPassed.line, hereNotYet.line]).toEqual([
       "Proven on public copies: Passed. 6.5.6 fails the advisory check; 6.5.7 passes.",
-      "Proven on your system: Not yet. Update the library, then press Retest.",
+      "Proven in this assessment: Not yet. Update the library, then press Retest.",
     ]);
   });
 });

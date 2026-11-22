@@ -631,7 +631,9 @@ def _details_section(fix: dict, modes: list[str], ran_sha256: str | None) -> dic
         facts.append(fact("Pull request", value))
     if review is not None:
         facts.append(fact("Proof finished", [{"t": "time", "v": review["reviewed_at"]},
-                                             _t(f", after {_duration(proof['started_at'], review['reviewed_at'])} "), {"t": "tag", "v": "measured"}]))
+                                             _t(f", after {_duration(proof['started_at'], review['reviewed_at'])} "),
+                                             # (timed on this computer, while the changed code ran here: the lab's look)
+                                             {"t": "tag", "v": "measured", "s": "lab"}]))
     elif proof is not None and proof["state"] == "interrupted":
         facts.append(fact("Proof started", [{"t": "time", "v": proof["started_at"]}, _t(". It was interrupted before every test had run.")]))
     facts.append(fact("Mode", [_t(join_and([present.MODE_WORDS.get(mode, mode) for mode in modes]))]))
@@ -863,7 +865,7 @@ def text_fix(fix: dict, *, titles: list[str], is_demo: bool, result: dict, addre
         "labels": [OTTO_FIX_LABEL] if (fix.get("otto_fix") or {}).get("kind") == "update" else [], "is_demo": is_demo,
         "what": {"label": "What it suggests", "paragraphs": [[_t(words["what"])]], "server_line": None},
         "proof": {"state": "none", "badge": None, "muted": None,
-                  "text": ("In the two rows below: on public copies, and on your system." if proof_rows else
+                  "text": ("In the two rows below: on public copies, and in this assessment." if proof_rows else
                            "None. This suggestion is text only: the app has not applied it or tested it.")},
         "proof_rows": proof_rows,
         "pull_request": None, "approvers": {"text": approves, "options": None, "rows": None, "footnote": None},

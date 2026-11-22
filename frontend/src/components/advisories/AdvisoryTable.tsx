@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { AdvisoryRow } from "../../api";
 import { DataTable, type Column } from "../layout";
-import { StatusChip } from "../ui";
+import { StatusChip, WhereFromTag } from "../ui";
 
 /** The 5c fixes: the tag "New" beside an advisory that first arrived with the most recently installed test pack. Which
  * pack that was is said on hover, and to a screen reader in place of the bare word ("New: arrived with test pack
@@ -62,11 +62,14 @@ function ProposalCell({ row }: { row: AdvisoryRow }) {
   );
 }
 
-/** The latest result of the advisory's check here, exactly as the view words and tones it. */
+/** The latest result of the advisory's check here, exactly as the view words and tones it, with where it came from. */
 function ResultCell({ row }: { row: AdvisoryRow }) {
   return (
     <>
-      <StatusChip label={row.result.label} tone={row.result.tone} size="sm" wrap testId="advisory-result" />
+      <span className="flex flex-wrap items-center gap-1">
+        <StatusChip label={row.result.label} tone={row.result.tone} size="sm" wrap testId="advisory-result" />
+        <WhereFromTag tag={row.result.source_tag} />
+      </span>
       {row.result.text ? <span className="mt-1 block text-xs text-slate-400">{row.result.text}</span> : null}
     </>
   );

@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { api, errorMessage, type ApprovalsView, type ApplyView, type ChangeButton, type ChangeView } from "../../api";
-import { DemoDataLabel, ErrorBox, PrimaryButton, RichTextView, SecondaryButton, saveFile } from "../ui";
+import { DemoDataLabel, ErrorBox, PrimaryButton, RichTextView, SecondaryButton, WhereFromTag, saveFile } from "../ui";
 import { ChangeBadgeView, Section, Steps } from "./ChangeParts";
 import { ChangeTry } from "./ChangeTry";
 
@@ -98,6 +98,8 @@ function Applied({ view }: { view: ApplyView }) {
       <div className="flex flex-wrap items-center gap-2">
         <h4 className={H4}>{view.title}</h4>
         <ChangeBadgeView badge={view.badge} testId="change-applied-badge" />
+        {/* 22 November 2026: measured again on the server itself */}
+        <WhereFromTag tag={view.source_tag} />
       </div>
       <div className="mt-1.5 space-y-1.5 text-sm text-slate-300">
         {view.paragraphs.map((parts, i) => (
