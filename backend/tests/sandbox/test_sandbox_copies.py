@@ -289,3 +289,33 @@ def test_the_subjects_of_an_image_are_the_copies_and_the_two_dummy_controls():
     assert set(table) == {"thing-1.0.0", "thing-1.0.1", "dummy-yes:thing-1.0.0", "dummy-no:thing-1.0.0", "dummy-yes:thing-1.0.1", "dummy-no:thing-1.0.1"}
     for command in table.values():
         assert command[0] == "/usr/local/bin/python" and "-I" in command      # (isolated: nothing beside the copy is on its path)
+
+
+def test_a_plan_made_before_a_librarys_copy_could_run_says_so_and_is_not_called_an_old_plan(tmp_path, monkeypatch):
+    """A test plan is made while starkbank-ecdsa can't be run here. A research run then makes a public copy of it, and
+    the engine suggests tests this plan never had. The box "Not tested, and why" gives the true reason (the plan is not
+    from an earlier version of the app), and its advice holds: the same file brought in again gets those tests."""
+    from sandbox_helpers import sandbox_lab, turn_on
+    lab = sandbox_lab(tmp_path, monkeypatch)
+    try:
+        turn_on(lab)
+        file = b"location,type,claim,value\nstarkbank-ecdsa 2.0.0,software,signature_algorithm,ECDSA P-256\n"
+        plan = lab.ensure_plan(lab.import_file("libraries.csv", file)["id"])["id"]
+        before = lab.plan_view(plan)
+        assert before["tests"] == []
+        assert before["not_tested"]["items"] == ["starkbank-ecdsa 2.0.0: its tests can't run. Only our own demo components can run in this version."]
+        copies.write_set(lab.settings.sandbox_dir, copy_set("a"))             # what a research run leaves on this computer
+        copies.forget_cache()
+        missing = [line for line in lab.plan_view(plan)["not_tested"]["items"] if ": no " in line]
+        assert [line.split(" test. ")[0] for line in missing] == ["starkbank-ecdsa 2.0.0: no Independent exam (Wycheproof)",
+                                                                   "starkbank-ecdsa 2.0.0: no Attacker tricks (our short list)"]
+        for line in missing:
+            assert line.endswith(" test. This test plan was made before a public copy of this library could be run here. "
+                                 "Import the file again to test it.")
+            assert "earlier version" not in line
+        again = lab.ensure_plan(lab.import_file("libraries.csv", file)["id"])["id"]
+        assert [t["kind"] for t in lab.plan_view(again)["tests"]] == ["official_vectors", "bad_signatures"]
+        assert not [line for line in (lab.plan_view(again)["not_tested"] or {"items": []})["items"] if ": no " in line]
+    finally:
+        copies.forget_cache()
+        lab.stop()

@@ -305,12 +305,17 @@ class TestLabMixin:
             def kind_of(i):
                 return specs[i.id][2].kind if specs.get(i.id) and specs[i.id][2] else (specs.get(i.id) or ({},))[0].get("kind")
             known = {(self._item_key(plan, claims, specs[i.id][0]), kind_of(i)) for i in every if i.id in specs}
+            # Sandbox research: a library that could not be run when its plan was made can get a public copy later (a
+            # research run makes one). The engine then suggests tests this plan never had, and the plan is not an old one.
+            copied_since = {"software:" + str(p["ref"]) for p in research.programs(claims)
+                            if real_libraries.is_sandbox(p["component"], p["version"])}
             for test in proposal.get("tests") or []:
                 key = self._item_key(plan, claims, test)
                 if (key, test["kind"]) not in known:
                     name = key.split(":", 1)[-1] if key.startswith("server:") else label.get(key.split(":", 1)[-1], key.split(":", 1)[-1])
-                    lines.append(f"{name}: no {present.TITLES[test['kind']]} test. This test plan was made by an earlier "
-                                 "version that tested only the first server and program. Import the file again to test it.")
+                    why = ("This test plan was made before a public copy of this library could be run here." if key in copied_since
+                           else "This test plan was made by an earlier version that tested only the first server and program.")
+                    lines.append(f"{name}: no {present.TITLES[test['kind']]} test. {why} Import the file again to test it.")
         with self.db() as db:
             confirmed = {r.address: r.confirmed for r in db.scalars(select(AddressRow).where(AddressRow.import_id == plan.import_id)).all()}
         used = set(key_of.values())

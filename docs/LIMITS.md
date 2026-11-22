@@ -642,6 +642,10 @@ rules. Off by default, and only for Isogeny's own sandbox. What it does not do, 
 - **A sandbox copy only answers signature checks.** Speed and size is left out for it, and Verify reads "Couldn't
   check" for a claim about it, with that reason. Its tests still run.
 - **A retest on another version** works only for versions the copy set holds.
+- **A test plan made before a library's copy existed keeps what it had.** When a research run makes a public copy of a
+  library, its standard tests (the Independent exam, Attacker tricks) are not added to a plan that is already there.
+  The plan lists them under "Not tested, and why", says that it was made before a public copy of the library could
+  be run here, and says to import the file again; a new import of the same file gets them.
 - **The fix can read "Not proven" for an honest reason.** For the demo library the publisher's fixed version passes
   the advisory check and still fails the Independent exam and Attacker tricks, so the fix is not offered as proven.
 - **A container is not a separate machine.** The lock-down is the runner's own (no network, read-only files, no

@@ -389,6 +389,10 @@ test("sandbox research: no fix yet, the fix is published, a test is proven on pu
     await card.getByRole("button", { name: /^Run / }).click();
     await expect(card).toHaveAttribute("data-status", "done", { timeout: 600_000 });
     await expect(card.getByTestId("result-badge")).toHaveText("Failed");            // starkbank-ecdsa 2.0.0 is the affected version: the reviewer's word
+    // the plan was made before the library's public copy existed: the page gives that reason for the tests it lacks
+    const lacks = page.getByTestId("not-tested");
+    await expect(lacks).toContainText("starkbank-ecdsa 2.0.0: no Independent exam (Wycheproof) test. This test plan was made before a public copy of this library could be run here. Import the file again to test it.");
+    await expect(lacks).not.toContainText("earlier version");
     await shots(page, "16-checks-the-accepted-check-ran");
     await openAdvisories(page, assessment);
     await expect(advisoryRow(page)).toContainText("Failed");
