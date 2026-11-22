@@ -1026,7 +1026,7 @@ describe("Evidence, where a library's answers came from", () => {
   const tagged: LibraryEvidenceRow = {
     ...opensslRow,
     source_tag: published(),
-    cells: opensslRow.cells.map((c) => ({ ...c, source_tag: published() })),
+    cells: (opensslRow.cells ?? []).map((c) => ({ ...c, source_tag: published() })),
   };
 
   it("tags the library's row once, and each answer in its panel by its own label", async () => {
