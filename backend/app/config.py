@@ -62,6 +62,10 @@ class Settings:
     # folder of recorded registry answers and files on this computer that is read instead (tests, the walks, a demo
     # with no internet). Then nothing is fetched from anywhere.
     registry_source_dir: Path | None = None    # EVIDENCE_LAB_REGISTRY_SOURCE
+    # The Watch list's clock, which looks by itself while Sandbox research is on. A test, a walk or a script that
+    # wants no look by itself starts the app without it (EVIDENCE_LAB_WATCH_CLOCK=off); it never runs on a computer
+    # that is not marked as the sandbox.
+    watch_clock: bool = True
 
     @property
     def db_path(self) -> Path:
@@ -115,7 +119,8 @@ def load_settings(data_dir: str | os.PathLike | None = None, demo_tls_port: int 
                     otto_updates_dir=Path(updates).resolve() if updates else None,
                     otto_recorded_dir=Path(recorded).resolve() if recorded else None,
                     advisory_source_dir=Path(advisory_source).resolve() if advisory_source else None,
-                    sandbox_research=sandbox_marked(), registry_source_dir=Path(registry_source).resolve() if registry_source else None)
+                    sandbox_research=sandbox_marked(), registry_source_dir=Path(registry_source).resolve() if registry_source else None,
+                    watch_clock=os.environ.get("EVIDENCE_LAB_WATCH_CLOCK", "").strip().lower() not in ("0", "off", "false", "no"))
 
 
 

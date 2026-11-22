@@ -19,6 +19,7 @@ works. A test for it still has to be designed, registered, run and reviewed befo
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Callable
 
 from sqlalchemy import select
@@ -36,6 +37,7 @@ SEEN, FIX, FIX_GONE, FIX_CHANGED, VERSIONS_CHANGED, WITHDRAWN, GONE, BACK = (
 NO_FIX, FIX_PUBLISHED, IS_WITHDRAWN, IS_GONE = "no_fix", "fix_published", "withdrawn", "gone"
 SEPARATOR = "~"                     # an item's key: the advisory's id, then the library
 MAX_REASON = 300
+GAP_DAYS = 3                        # more days than this between two looks is said in an item's history
 
 
 # ---------------------------------------------------------------- the rule (pure; no database, no network)
@@ -178,6 +180,7 @@ class WatchListMixin:
     look_for_advisories: Callable[..., dict]
     decision_name: Callable[..., str]
     sandbox_on: Callable[[], bool]
+    watch_clock_next: Callable[[int], str | None]
 
     # ---------------------------------------------------------------- reading
 
@@ -216,6 +219,9 @@ class WatchListMixin:
                 if advisory is not None:
                     break
             item["advisory"] = advisory
+            # A stretch with no look at all (the app was off, or the switch): said in the history, never papered over.
+            times = [row.at for n, row in enumerate(rows, start=1) if n >= item["first"]["look"]]
+            item["gaps"] = [{"from": a, "to": b} for a, b in zip(times, times[1:], strict=False) if _days_between(a, b) > GAP_DAYS]
             found = lookup.Found(advisory=advisory or {}, ranges=facts_as_ranges(item["ranges"]), versions=[], record_id=item["id"])
             item["fits"] = [{**lib, **lookup.names_version(found, lib["version"])} for lib in libraries if lib["library"] == item["library"]]
             listed = next((standing[i] for i in item["ids"] if i in standing), None)
@@ -239,7 +245,7 @@ class WatchListMixin:
         return words.view(items=items, look=_look_words(rows[-1]) if rows else None, looks=len(rows), closed=closed,
                           packages=[p.words for p in packages], skipped=skipped,
                           recorded=self.settings.advisory_source_dir is not None,
-                          next_look=self.watch_clock_next(plan_id) if hasattr(self, "watch_clock_next") and not closed else None)
+                          next_look=self.watch_clock_next(plan_id) if not closed else None)
 
     def watch_list_summary(self, plan_id: int) -> dict | None:
         """For the Overview: how many watched weaknesses have no fix yet, and how many have a fix published and no
@@ -338,5 +344,11 @@ def _look_words(row: OttoLookupRow) -> dict:
 
 
 def _now() -> str:
-    from datetime import datetime, timezone
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _days_between(a: str, b: str) -> float:
+    try:
+        return (datetime.fromisoformat(b.replace("Z", "+00:00")) - datetime.fromisoformat(a.replace("Z", "+00:00"))).total_seconds() / 86400
+    except ValueError:
+        return 0.0

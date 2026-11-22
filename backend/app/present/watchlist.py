@@ -35,6 +35,18 @@ STOP = {"label": "Stop watching", "reason_label": "Reason (optional)", "max": 30
 WATCH = {"label": "Watch again"}
 
 
+CLOCK_SOON = "It is looked at by itself within the next minutes, and then about once a day."
+CLOCK_NOT_RUNNING = "The clock that looks by itself is not running in this copy of the app. Look now looks on a click."
+
+
+def clock_next_line(at: str) -> str:
+    return f"It is looked at again by itself, about once a day: next at about {stamp(at)}."
+
+
+def clock_failed_line(at: str, reason: str, until: str) -> str:
+    return f"Couldn't look by itself on {stamp(at)}: {reason} It is tried again at about {stamp(until)}."
+
+
 def waiting_pack_line(version: object, made_here: bool) -> str:
     return (f"Test pack {version}, made on this computer, holds it and is not installed yet. Install it in Settings, under Test packs."
             if made_here else f"Built-in test pack {version} holds it and is not installed yet.")
@@ -135,6 +147,8 @@ def _history(item: dict) -> list[str]:
         text = (f"{stamp(m['at'])}: {who} stopped watching it" + (f" ({m['reason']})." if m.get("reason") else ".") if m["kind"] == "stop"
                 else f"{stamp(m['at'])}: {who} started watching it again.")
         happened.append((m["at"], 1, text))
+    for gap in item.get("gaps") or []:
+        happened.append((gap["to"], -1, f"No look was made between {stamp(gap['from'])} and {stamp(gap['to'])}."))
     lines = [text for _, _, text in sorted(happened, key=lambda h: (h[0], h[1]))]
     if item["quiet"]:
         n = item["quiet"]

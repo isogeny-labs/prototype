@@ -23,6 +23,7 @@ from app.run import runner
 from app.checks.addresses import AddressError, is_loopback_ip, parse_address, resolve_all
 from app.changewatch.state import ChangeWatchMixin
 from app.changewatch.views import ChangeWatchViewMixin
+from app.changewatch.clock import WatchClockMixin
 from app.changewatch.watchlist import WatchListMixin
 from app.whatif.facts import WhatIfMixin
 from app.impact.reach import ImpactMixin
@@ -100,7 +101,7 @@ def run_json(r: VerifyRunRow) -> dict:
 
 class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesMixin, DependenciesMixin, EvidenceMixin,
           ProjectsMixin, LedgerMixin, RelationsMixin, OverviewMixin, OttoMixin, ProposalsMixin, DiscoverMixin, SaidMixin,
-          ChangeWatchMixin, ChangeWatchViewMixin, WhatIfMixin, ImpactMixin, SandboxMixin, WatchListMixin):
+          ChangeWatchMixin, ChangeWatchViewMixin, WhatIfMixin, ImpactMixin, SandboxMixin, WatchListMixin, WatchClockMixin):
     def __init__(self, settings: Settings, db_path: Path | None = None, allow_external_demo_server: bool = False):
         self.settings = settings
         settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -136,6 +137,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         self._init_changes()
         self._init_otto()
         self._init_discover()       # phase 6: Look for new advisories, and the research run it can start
+        self._init_watch_clock()    # sandbox research: the Watch list's clock (it runs only on a marked computer, with the switch on)
         try:
             # The evidence signing key: made once, on first start, kept in the data folder (mode 0600).
             ensure_signing_key(settings.data_dir)
@@ -150,6 +152,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
             self.demo.versions = tuple(applied.get("versions") or self.demo.versions)
         self.demo.start()
         self.jobs.start()
+        self.watch_clock_start()
         if self.mode.docker_running and not _swept:
             _swept = True
             runner.sweep_stale_containers()
@@ -159,6 +162,7 @@ class Lab(TestLabMixin, ChangesMixin, FixesMixin, MigrationMixin, SystemChangesM
         # A test still unfinished now is interrupted, not answered: it must write nothing, or it would record
         # "the server did not answer" about a demo server that we ourselves are about to stop.
         self._stopping = True
+        self.watch_clock_stop()
         self.stop_research()        # (phase 6: a research run that is still going is ended with the app, never left behind)
         self.jobs.stop()
         self.demo.stop()
