@@ -94,17 +94,29 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BEFORE: ${{ github.event.before }}
+          BRANCH: ${{ github.ref_name }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           if [ "$EVENT" = "pull_request" ]; then
             base=$(git rev-parse HEAD^1)
-          elif [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
-               && git fetch --quiet --depth=1 origin "$BEFORE"; then
-            base=$BEFORE
+          elif [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
+            # A push to the default branch: what this push added.
+            if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+                 && git fetch --quiet --depth=1 origin "$BEFORE"; then
+              base=$BEFORE
+            else
+              base=$(git rev-parse HEAD^1)
+            fi
           else
-            # A new branch: compare with the default branch.
-            git fetch --quiet --depth=1 origin "$DEFAULT_BRANCH"
-            base=$(git rev-parse FETCH_HEAD)
+            # A push to another branch: what the branch changed since it left the default branch. (Comparing with
+            # the commit before the push would count the default branch's own files after a merge of it.)
+            git fetch --quiet --depth=50 origin "$DEFAULT_BRANCH"
+            default=$(git rev-parse FETCH_HEAD)
+            for _ in 1 2 3 4 5 6 7 8; do
+              git merge-base HEAD "$default" > /dev/null 2>&1 && break
+              git fetch --quiet --deepen=100 origin "$BRANCH" "$DEFAULT_BRANCH"
+            done
+            base=$(git merge-base HEAD "$default" 2>/dev/null || echo "$default")
           fi
           echo "Compared with $base"
           echo "sha=$base" >> "$GITHUB_OUTPUT"
