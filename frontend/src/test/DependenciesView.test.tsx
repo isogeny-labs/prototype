@@ -12,6 +12,7 @@ import {
 } from "./dependenciesFixtures";
 import { mockApi, text } from "./fixtures";
 import { migrationView } from "./migrationFixtures";
+import { ofAnswer, ofLibrary } from "./sourceFixtures";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -498,5 +499,48 @@ describe("Dependencies view: the library row (phase 5b)", () => {
     expect(headers()).toEqual(["Library", "Answers"]);
     expect(text(row("openssl 3.0.22"))).toContain("No to all three");
     expect(within(row("openssl 3.0.22")).getAllByTestId("blocks-marker").length).toBeGreaterThan(0);
+  });
+});
+
+// 22 November 2026: where each answer came from. A library is there because the list names it (From your file); each
+// answer gets the tag of its own label (release notes: Published; a public copy: Proven in the lab), and an answer the
+// app has not got rests on the list. The label keeps its words. Reading the page starts nothing.
+describe("Dependencies, where each answer came from", () => {
+  const tagged = (v: View): View => ({
+    ...v,
+    groups: v.groups.map((g) => ({
+      ...g,
+      rows: g.rows.map((r) => ({ ...r, source_tag: ofLibrary(), cells: r.cells.map((c) => ({ ...c, source_tag: ofAnswer(c.label, c.answer) })) })),
+    })),
+  });
+
+  it("tags every library and every answer, each answer once, by its own label", async () => {
+    const view = tagged(DEPENDENCIES_DEMO);
+    await open(view);
+    for (const r of allRows(view)) {
+      const el = row(r.label);
+      // the library's own tag, then one per answer
+      expect(within(el).getAllByTestId("source-tag").map((t) => t.getAttribute("data-source"))).toEqual([
+        "file",
+        ...r.cells.map((c) => ofAnswer(c.label, c.answer).key),
+      ]);
+    }
+    const openssl = allRows(view).find((r) => r.cells.some((c) => c.label === "release_notes"))!;
+    expect(cells(row(openssl.label)).map((c) => within(c).queryByTestId("source-tag")?.textContent)).toContain("Published");
+    expect(allRows(view).flatMap((r) => r.cells).some((c) => c.answer === "doesnt_apply")).toBe(true);
+  });
+
+  it("its panel says why the library is there, and each answer keeps its own label in its tag's look", async () => {
+    const view = tagged(DEPENDENCIES_DEMO);
+    await open(view);
+    const openssl = allRows(view).find((r) => r.cells.some((c) => c.label === "release_notes"))!;
+    const d = detail(openssl.label);
+    expect(text(d.getAllByTestId("source-line")[0]!)).toBe(
+      "From your file Listed in your dependency list. The app has not checked that your system loads it.",
+    );
+    const cell = detailCells(openssl.label).find((c) => c.getAttribute("data-answer") === "no")!;
+    expect(within(cell).getByTestId("source-tag").textContent).toBe("Published");
+    const label = within(cell).getByText(openssl.cells.find((c) => c.label === "release_notes")!.label_words!);
+    expect(label.getAttribute("data-source")).toBe("published");
   });
 });

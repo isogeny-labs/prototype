@@ -103,6 +103,12 @@ export const OVERVIEW_BLOCKS: OverviewBlocks = {
         { label: "False", value: 3, link: link("inventory/verify", "verification") },
         { label: "Couldn't check", value: 2, link: link("inventory/verify", "verification") },
       ],
+      // 22 November 2026: how many of the group's checks rest on each source, in the backend's order and words
+      source_counts: [
+        { key: "live", label: "Observed live", meaning: "Read from a system at an address in your file that you confirmed, with handshakes only. The app only observes it.", count: 8 },
+        { key: "lab", label: "Proven in the lab", meaning: "Run on a copy on this computer, never on your live system.", count: 2 },
+        { key: "file", label: "From your file", meaning: "Nothing has been observed or run for it yet: it rests only on your file.", count: 2 },
+      ],
       empty_text: null,
     },
     {

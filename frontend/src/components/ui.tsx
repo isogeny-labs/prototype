@@ -33,15 +33,19 @@ const WHERE_FROM_LOOK: Record<WhereFrom["key"], string> = {
 
 export function WhereFromTag({ tag, testId = "source-tag" }: { tag: WhereFrom | null | undefined; testId?: string }) {
   if (!tag) return null;
+  // The space before it is for a screen reader and a copy ("Failed Observed live"); a flex box draws only its gap.
   return (
-    <span
-      data-testid={testId}
-      data-source={tag.key}
-      title={tag.meaning}
-      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none ${WHERE_FROM_LOOK[tag.key]}`}
-    >
-      {tag.label}
-    </span>
+    <>
+      {" "}
+      <span
+        data-testid={testId}
+        data-source={tag.key}
+        title={tag.meaning}
+        className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none ${WHERE_FROM_LOOK[tag.key]}`}
+      >
+        {tag.label}
+      </span>
+    </>
   );
 }
 
@@ -50,7 +54,7 @@ export function WhereFromLine({ tag }: { tag: WhereFrom | null | undefined }) {
   if (!tag) return null;
   return (
     <p data-testid="source-line" data-source={tag.key} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px] leading-snug text-slate-300">
-      <WhereFromTag tag={tag} />
+      <WhereFromTag tag={tag} />{" "}
       <span data-testid="source-note">{tag.note ?? tag.meaning}</span>
     </p>
   );

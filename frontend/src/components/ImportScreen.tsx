@@ -123,6 +123,12 @@ function ClaimDetails({ claim, tag }: { claim: Claim; tag: Source | null | undef
           <span className="font-medium">{claim.claimed_value}</span>
           <FromFile tag={tag} />
         </dd>
+        {/* 22 November 2026: what the tag means for this claim, in the backend's sentence */}
+        {tag?.note ? (
+          <dd data-testid="source-note" className="mt-1 text-xs text-slate-400">
+            {tag.note}
+          </dd>
+        ) : null}
       </div>
       <div>
         <dt className="text-xs uppercase tracking-wide text-slate-500">Source in the file</dt>

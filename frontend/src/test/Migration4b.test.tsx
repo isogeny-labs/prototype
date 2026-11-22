@@ -55,11 +55,11 @@ describe("Migration 4b, two tracks", () => {
   it("draws one line per track on the list card, then the plan line", async () => {
     await open(migrationView4b);
     // Beside the open panel the row is compact: its name, its plan line and each track's name with its pill.
-    expect(text(card("localhost:8451"))).toBe("localhost:8451Next: authentication · Phase 2Key exchange◑Hybrid (interim)Authentication○Classical");
+    expect(text(card("localhost:8451"))).toBe("localhost:8451Next: authentication · Phase 2Key exchange◑Hybrid (interim)Authentication○Classical Observed live");
     fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
     const first = card("localhost:8451");
     expect(within(first).getAllByTestId("card-track").map((r) => text(r))).toEqual(["Key exchange◑Hybrid (interim)", "Authentication○Classical"]);
-    expect(text(first)).toBe("Serverlocalhost:8451Key exchange◑Hybrid (interim)Authentication○ClassicalNext: authentication · Phase 2");
+    expect(text(first)).toBe("Serverlocalhost:8451Key exchange◑Hybrid (interim)Authentication○Classical Observed liveNext: authentication · Phase 2");
     expect(text(within(card("localhost:8455")).getAllByTestId("card-track")[1])).toBe("Authentication●Post-quantum (ML-DSA-65)");
     expect(text(within(card("acme-sign 1.4.2")).getByTestId("card-track"))).toBe("Signatures○Classical");
     expect(text(within(card("acme-sign 9.9")).getByTestId("card-track"))).toBe("Signatures?Couldn't check");
@@ -173,13 +173,20 @@ describe("Migration 4b, the change box in each state", () => {
     await openWith(triedPassedPicker);
     const tried = within(screen.getByTestId("change-try"));
     expect(tried.getByRole("heading", { level: 4, name: "Try on a test copy: passed" })).not.toBeNull();
-    expect(tried.getAllByRole("columnheader").map((h) => h.textContent)).toEqual(triedPassedPicker.try!.columns);
+    // each column says where it came from under its name (22 November 2026): before is read live, after is the test copy
+    expect(tried.getAllByRole("columnheader").map((h) => text(h))).toEqual(
+      triedPassedPicker.try!.columns.map((c, i) => [c, triedPassedPicker.try!.column_source_tags![i]?.label].filter(Boolean).join(" ")),
+    );
+    expect(tried.getAllByTestId("column-source-tag").map((t) => t.textContent)).toEqual(["Observed live", "Proven in the lab"]);
     expect(tried.getAllByRole("rowheader").map((h) => h.textContent)).toEqual(["Key exchange", "Classical-only clients", "First message"]);
     // Cells keep their source tags.
     expect(tried.getAllByText("measured on the copy")).toHaveLength(3);
     const verdict = tried.getByTestId("change-verdict");
     expect(verdict.getAttribute("data-look")).toBe("pass");
-    expect(text(verdict)).toBe("Try passed. The copy measures what Hybrid promises, and the control was read correctly.");
+    expect(text(verdict)).toBe(
+      "Try passed. Proven in the lab The copy measures what Hybrid promises, and the control was read correctly. " +
+        "Run on a test copy of the server on this computer, with the change. Your live server was not changed.",
+    );
     expect(tried.getByTestId("change-try-note").textContent).toBe("Real nginx was not tried: that needs isolated mode (Docker).");
 
     const disclosure = tried.getByRole("button", { name: "Details and evidence: the test copy" });

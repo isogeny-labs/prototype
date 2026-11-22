@@ -93,10 +93,10 @@ describe("Fixes, the page", () => {
     expect(screen.getByTestId("disclaimer").textContent).toBe(DISCLAIMER);
 
     expect(screen.getByRole("navigation", { name: "Open findings with a fix (2)" })).not.toBeNull();
-    // Beside the open panel, a row is the fix and its status.
-    expect(rows().map((row) => Array.from(row.children).map((cell) => cell.textContent))).toEqual([
-      ["acme-sign accepts out-of-range signatures", "Ready for review"],
-      ["Server accepts TLS 1.2", "Text only"],
+    // Beside the open panel, a row is the fix and its status, with where it came from (22 November 2026).
+    expect(rows().map((row) => Array.from(row.children).map((cell) => text(cell)))).toEqual([
+      ["acme-sign accepts out-of-range signatures", "Ready for review Proven in the lab"],
+      ["Server accepts TLS 1.2", "Text only Observed live"],
     ]);
     expect(listItems().map((b) => b.getAttribute("aria-current"))).toEqual(["true", null]);
     // Both came from failed tests, so both sit in Crypto tests, the tab the page opens on (Verification has none).
@@ -1265,9 +1265,10 @@ describe("Fixes, the four work groups", () => {
     render(<Harness start={null} />);
     await screen.findAllByTestId("fix-row");
     fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
-    expect(rows().map((row) => Array.from(row.children).map((cell) => cell.textContent))).toEqual([
-      ["acme-sign accepts out-of-range signatures", "Came from 2 failed tests: Official test vectors, Bad signatures", "Ready for review"],
-      ["Server accepts TLS 1.2", "Came from 1 failed test: Old TLS versions", "Text only"],
+    // where it came from sits under its Came from line (22 November 2026)
+    expect(rows().map((row) => Array.from(row.children).map((cell) => text(cell)))).toEqual([
+      ["acme-sign accepts out-of-range signatures", "Came from 2 failed tests: Official test vectors, Bad signatures Proven in the lab", "Ready for review"],
+      ["Server accepts TLS 1.2", "Came from 1 failed test: Old TLS versions Observed live", "Text only"],
     ]);
     // The fix shows once, in its own group; Migration only links to it.
     expect(within(groupSection("Migration")).queryAllByTestId("fix-row")).toHaveLength(0);
@@ -1481,3 +1482,25 @@ describe("Fixes, the summary counts each status word", () => {
     ]);
   });
 });
+
+// 22 November 2026: where each fix came from. A fix carries the tag of the finding it came from, and its proof its own:
+// the proof reruns the plan's tests on the changed code on this computer. The panel says what that means in one sentence.
+describe("Fixes, where each fix came from", () => {
+  it("draws one tag per fix row and, in the panel, its sentence under Came from and the proof's own tag beside its word", async () => {
+    const fetchMock = await open(fixesViews.ready);
+    expect(rows().map((r) => within(r).getAllByTestId("source-tag").map((t) => t.getAttribute("data-source")))).toEqual([["lab"], ["live"]]);
+    expect(text(inSummary().getByTestId("source-line"))).toBe(
+      "Proven in the lab From tests that failed on a copy of acme-sign 1.4.2 on this computer. Your live system was not touched.",
+    );
+    const proofTags = inSummary().getAllByTestId("source-tag").filter((t) => !t.closest("[data-testid='source-line']"));
+    expect(proofTags.map((t) => t.textContent)).toEqual(["Proven in the lab"]);
+    expect(proofTags[0]!.closest("p, div")!.textContent).toContain("Proof passed");
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
+  });
+
+  it("a proof that has not finished has no tag", async () => {
+    await open(fixesViews.proving);
+    expect(inSummary().getAllByTestId("source-tag").filter((t) => !t.closest("[data-testid='source-line']"))).toEqual([]);
+  });
+});
+

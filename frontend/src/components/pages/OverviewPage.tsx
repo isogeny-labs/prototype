@@ -35,12 +35,14 @@ function Counts({ label, counts, link }: { label: string; counts: { open: number
 function SourceCounts({ counts }: { counts: SourceCount[] }) {
   return (
     <p data-testid="overview-source-counts" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
-      <span>Where these came from:</span>
+      {/* the spaces are for a screen reader and a copy: a flex box draws only the gaps */}
+      <span>Where these came from:</span>{" "}
       {counts.map((c, i) => (
         <span key={c.key} data-testid="overview-source-count" data-source={c.key} className="inline-flex items-center gap-1">
           {i > 0 ? <span aria-hidden="true">·</span> : null}
-          <span className="tabular-nums text-slate-300">{c.count}</span>
-          <WhereFromTag tag={{ key: c.key, label: c.label, meaning: c.meaning, note: null }} testId="overview-source-tag" />
+          {i > 0 ? " " : null}
+          <span className="tabular-nums text-slate-300">{c.count}</span>{" "}
+          <WhereFromTag tag={{ key: c.key, label: c.label, meaning: c.meaning, note: null }} testId="overview-source-tag" />{" "}
         </span>
       ))}
     </p>

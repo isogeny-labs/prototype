@@ -13,6 +13,8 @@ import type {
 } from "../api";
 import { cantTry, readyToTry, textOnly } from "./changeFixtures";
 import { DISCLAIMER, result } from "./fixtures";
+import { fromFile, live } from "./sourceFixtures";
+import type { Source } from "../api";
 
 // A realistic Migration view for the phase 4a demo file (migration-demo.csv): five local test servers and two
 // signing programs, worded as in the approved mockups. Built from small helpers so each system reads clearly.
@@ -223,6 +225,8 @@ function server(
     options_title: "The four options",
     choice: null,
     choices_note: CHOICES_NOTE,
+    // 22 November 2026: a server's status is read from the server
+    source_tag: live(`localhost:${port}`),
     ...rest,
   };
 }
@@ -344,12 +348,21 @@ const signOptions: MigrationOption[] = [
   },
 ];
 
+/** 22 November 2026: a signing program's status is measured by running a copy of it here. */
+const SIGN_SOURCE: Source = {
+  key: "lab",
+  label: "Proven in the lab",
+  meaning: "Run on a copy on this computer, never on your live system.",
+  note: "Measured by running a copy of acme-sign 1.4.2 on this computer. Your live system was not touched.",
+};
+
 const sign142: MigrationSystem = {
   key: "software:acme-sign-1.4.2",
   kind_label: "Signing program",
   name: "acme-sign 1.4.2",
   status: { code: "classical", label: "Classical: ECDSA P-256" },
   plan_line: "Plan: Hybrid · Phase 2",
+  source_tag: SIGN_SOURCE,
   measuring: null,
   today: today(
     "It says it signs with ECDSA P-256, and a signature it made checked out as ECDSA P-256 in an independent library, so it is Classical.",
@@ -377,6 +390,7 @@ const sign99: MigrationSystem = {
   name: "acme-sign 9.9",
   status: COULDNT,
   plan_line: "No plan yet: status not measured",
+  source_tag: fromFile("This system has no measurement yet, so what is shown rests only on your file."),
   measuring: null,
   today: today("Couldn't check: only our own demo components can run in this version.", [], { control_line: null }),
   settings: settingsOf(fields(["long", "assumed"], ["internal", "assumed"], ["yes", "assumed"])),

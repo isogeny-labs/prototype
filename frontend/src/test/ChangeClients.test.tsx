@@ -2,8 +2,8 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ChangeView, TryClients } from "../api";
 import { ChangeBox } from "../components/change/ChangeBox";
-import { readyToApply, triedPassedPicker } from "./changeFixtures";
-import { mockApi } from "./fixtures";
+import { appliedMatches, readyToApply, triedPassedPicker } from "./changeFixtures";
+import { mockApi, text } from "./fixtures";
 
 afterEach(cleanup);
 
@@ -86,3 +86,27 @@ describe("Who can still connect, in a try (phase 4e)", () => {
     expect(screen.getByTestId("change-try")).toBeTruthy();
   });
 });
+
+// 22 November 2026: where a server change's steps came from. Before is a reading of the server (Observed live), the try
+// a test copy on this computer (Proven in the lab), and After Apply a new reading of the server itself (Observed live).
+describe("A server change, where each step came from", () => {
+  it("tags the try's columns and its verdict, and After Apply, each beside its own word", () => {
+    const fetchMock = show(appliedMatches);
+    const tryBox = within(screen.getByTestId("change-try"));
+    expect(tryBox.getAllByTestId("column-source-tag").map((t) => [t.textContent, t.getAttribute("data-source")])).toEqual([
+      ["Observed live", "live"],
+      ["Proven in the lab", "lab"],
+    ]);
+    const verdict = tryBox.getByTestId("change-verdict");
+    expect(within(verdict).getByTestId("source-tag").textContent).toBe("Proven in the lab");
+    expect(text(verdict)).toContain("Try passed. Proven in the lab The copy measures what Hybrid promises");
+    expect(text(within(verdict).getByTestId("source-note"))).toBe(
+      "Run on a test copy of the server on this computer, with the change. Your live server was not changed.",
+    );
+    const applied = screen.getByTestId("change-applied-badge").parentElement!;
+    expect(within(applied).getByTestId("source-tag").textContent).toBe("Observed live");
+    expect(within(applied).getByTestId("source-tag").getAttribute("title")).toContain("handshakes only");
+    expect(fetchMock.mock.calls).toEqual([]);
+  });
+});
+

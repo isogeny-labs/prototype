@@ -15,6 +15,7 @@ import type {
   TestKind,
   VerifyRun,
 } from "../api";
+import { couldntCheck, labCopy, live, ofClaim } from "./sourceFixtures";
 
 export const session: Session = {
   setup_required: false,
@@ -75,6 +76,8 @@ export const demoImport: Import = {
   claims,
   addresses: [address],
   skipped: [],
+  // 22 November 2026: a claim on Import is there because the file says so
+  claim_source_tag: ofClaim("acme-pay-cbom.json"),
 };
 
 const evidence = {
@@ -102,6 +105,7 @@ export const run: VerifyRun = {
       evidence: [evidence],
       summary: "The server accepts TLS 1.2, so \u2018TLS 1.3 only\u2019 is not true.",
       also_noticed: [],
+      source_tag: live("localhost:8443"),
     },
     {
       claim_id: 2,
@@ -112,6 +116,7 @@ export const run: VerifyRun = {
       evidence: [{ ...evidence, title: "Certificate read", command: "openssl x509 -noout -text" }],
       summary: "The server's ID card (its certificate) uses ECDSA P-256, which matches the claim.",
       also_noticed: ["While checking the certificate, the handshakes showed this server also accepts TLS 1.0 and TLS 1.1."],
+      source_tag: live("localhost:8443"),
     },
     {
       claim_id: 3,
@@ -122,6 +127,7 @@ export const run: VerifyRun = {
       evidence: [],
       summary: "acme-sign didn't start in time, so we couldn't check which signature algorithm it uses.",
       also_noticed: [],
+      source_tag: couldntCheck(),
     },
   ],
 };
@@ -397,6 +403,7 @@ export const vectorsResult: LabResult = {
   plain: "acme-sign 1.4.2 accepted 3 forged signatures out of 484 official cases, so it failed.",
   also_noticed: [],
   also_noticed_title: "Also noticed",
+  source_tag: labCopy("acme-sign 1.4.2"),
   control: {
     outcome: "as_expected",
     line: "Control: a deliberately broken signer failed this test, as expected.",
@@ -549,8 +556,17 @@ export const speedAfter: LabResult = {
   suggested_fix: "None needed. No slowdown beyond measured noise was found.",
 };
 
+/** 22 November 2026: where a result came from, by the backend's rule: a server test is read live, every other test runs a
+ * copy here, and a test that couldn't run has no tag. */
+const SERVER_TESTS: TestKind[] = ["tls_versions", "certificate", "pq_readiness"];
+function sourceOf(kind: TestKind, r: LabResult): LabResult["source_tag"] {
+  if (r.code === "couldnt_run" || r.code === "couldnt_trust") return null;
+  return SERVER_TESTS.includes(kind) ? live("localhost:8443") : labCopy(r.component ?? "acme-sign 1.4.2");
+}
+
 function row(item_id: number, kind: TestKind, title: string, control_line: string, r: LabResult | null): LabRow {
-  return { item_id, kind, title, control_line, result: r, result_status: null, after: null, after_status: null, group: null };
+  const shown = r ? { ...r, source_tag: sourceOf(kind, r) } : r;
+  return { item_id, kind, title, control_line, result: shown, result_status: null, after: null, after_status: null, group: null };
 }
 
 export const labRows: LabRow[] = [

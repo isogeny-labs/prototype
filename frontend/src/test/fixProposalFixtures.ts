@@ -11,6 +11,12 @@ const m = (v: string) => ({ t: "mono" as const, v });
 export const PUBLIC_LABEL = "Proven on public copies";
 export const HERE_LABEL = "Proven in this assessment";
 
+/** What each proof row's tag means for it, in the backend's words (backend/app/present/otto.py). */
+export const PROOF_ROW_NOTES: Record<FixProofRow["key"], string> = {
+  public: "Otto's registered trial, run on public copies of the affected and the fixed version on this computer.",
+  here: "This assessment's own retest, run on a public copy of the updated version on this computer.",
+};
+
 /** One proof row as the view sends it: the row's own word and tone, its sentence, its links and (first row) the ledger. */
 export function proofRow(
   key: FixProofRow["key"],
@@ -23,7 +29,17 @@ export function proofRow(
   const label = key === "public" ? PUBLIC_LABEL : HERE_LABEL;
   // The row's chip is a word and a tone, as the backend words it. The second row also says what a retest here runs on.
   const note = key === "here" ? HERE_NOTE : null;
-  return { key, label, badge: { label: word, tone } as FixProofRow["badge"], text, line: `${label}: ${word}. ${text}`, links, ledger, note };
+  // 22 November 2026: both rows are runs on public copies on this computer (lab); "Not yet" rests on nothing and has no tag.
+  const source_tag: FixProofRow["source_tag"] =
+    word === "Not yet"
+      ? null
+      : {
+          key: "lab",
+          label: "Proven in the lab",
+          meaning: "Run on a copy on this computer, never on your live system.",
+          note: PROOF_ROW_NOTES[key],
+        };
+  return { key, label, badge: { label: word, tone } as FixProofRow["badge"], text, line: `${label}: ${word}. ${text}`, links, ledger, note, source_tag };
 }
 
 /** Under the second row: what the row is about (a public copy of the updated version, not the system you run). */
