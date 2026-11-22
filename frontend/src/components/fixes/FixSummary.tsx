@@ -3,7 +3,7 @@ import type { FixAction, FixApprovers, FixButton, FixDetail, FixProofRow, OttoPr
 import { LedgerView } from "../advisories/parts";
 import { ProposalCard } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
-import { DemoDataLabel, PrimaryButton, ResultBadge, SecondaryButton, Spinner, StatusChip as ToneChip, formatTime, saveFile } from "../ui";
+import { DemoDataLabel, PrimaryButton, ResultBadge, SecondaryButton, Spinner, StatusChip as ToneChip, WhereFromLine, WhereFromTag, formatTime, saveFile } from "../ui";
 import { MergeDialog } from "./MergeDialog";
 import { DT, Rich, StatusChip } from "./parts";
 
@@ -56,6 +56,8 @@ function Proof({ proof }: { proof: FixDetail["proof"] }) {
     return (
       <div className="flex flex-wrap items-start gap-2.5">
         <ResultBadge label={proof.badge.label} tone={proof.badge.tone} />
+        {/* 22 November 2026: a proof runs the changed code on this computer */}
+        <WhereFromTag tag={proof.source_tag} />
         <p className="min-w-0 flex-1 basis-64 text-slate-300">{words}</p>
       </div>
     );
@@ -79,6 +81,8 @@ function ProofRowView({ row }: { row: FixProofRow }) {
     <>
       <div className="flex flex-wrap items-start gap-2.5">
         <ToneChip label={row.badge.label} tone={row.badge.tone} testId="proof-row-badge" />
+        {/* 22 November 2026: both rows are runs on public copies on this computer; "Not yet" rests on none */}
+        <WhereFromTag tag={row.source_tag} />
         <p data-testid="proof-row-text" className="min-w-0 flex-1 basis-64 break-words text-slate-300">
           {row.text}
         </p>
@@ -237,6 +241,10 @@ export function FixSummary({ fix, busy, onRequest, planId, onProposalDecided }: 
       <p data-testid="fix-source" className="mt-1 text-sm text-slate-400">
         <Rich parts={fix.source} />
       </p>
+      {/* 22 November 2026: where the finding this fix answers came from, with what that means */}
+      <div className="mt-2">
+        <WhereFromLine tag={fix.source_tag} />
+      </div>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         <StatusChip status={fix.status} />
         {fix.labels.map((label) => (

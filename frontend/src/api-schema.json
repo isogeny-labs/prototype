@@ -18036,6 +18036,10 @@
             "type": "string",
             "title": "Label"
           },
+          "meaning": {
+            "type": "string",
+            "title": "Meaning"
+          },
           "count": {
             "type": "integer",
             "title": "Count"
@@ -18046,6 +18050,7 @@
         "required": [
           "key",
           "label",
+          "meaning",
           "count"
         ],
         "title": "SourceCount",
@@ -18324,6 +18329,17 @@
             ],
             "title": "Remove Blocked",
             "description": "Phase 5c: why this card has no remove button (it is undone on Advisories)."
+          },
+          "source_tag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "22 November 2026: where its result came from; null until it has one."
           }
         },
         "additionalProperties": false,

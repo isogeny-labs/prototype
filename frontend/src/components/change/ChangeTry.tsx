@@ -52,6 +52,7 @@ export function ChangeTry({ view, onViewFix }: { view: TryView; onViewFix: (fixI
             <RichTable
               columns={view.columns}
               rows={view.rows.map((row) => ({ label: row.label, cells: row.cells }))}
+              columnTags={view.column_source_tags ?? []}
             />
           ) : null}
           {view.verdict ? (

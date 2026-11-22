@@ -224,6 +224,7 @@ class SourceCount(Shape):
     """How many of a group's checks rest on one source (the Overview's line)."""
     key: SourceKey
     label: str
+    meaning: str
     count: int
 
 
@@ -268,6 +269,7 @@ class TestCard(Shape):
     advisory: CardAdvisory | None = Field(default=None, description="Phase 5c, an advisory check only: the advisory it came from.")
     from_otto: str | None = Field(default=None, description='Phase 5c: "From Otto" on a check that came from an accepted proposal.')
     remove_blocked: str | None = Field(default=None, description="Phase 5c: why this card has no remove button (it is undone on Advisories).")
+    source_tag: Source | None = Field(default=None, description="22 November 2026: where its result came from; null until it has one.")
 
 
 class CardAdvisory(Shape):

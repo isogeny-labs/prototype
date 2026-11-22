@@ -919,6 +919,7 @@ export interface StateCounts {
 export interface SourceCount {
   key: "live" | "lab" | "file" | "published";
   label: string;
+  meaning: string;
   count: number;
 }
 export interface OverviewFact {
@@ -4036,6 +4037,10 @@ export interface TestCard {
    * Phase 5c: why this card has no remove button (it is undone on Advisories).
    */
   remove_blocked?: string | null;
+  /**
+   * 22 November 2026: where its result came from; null until it has one.
+   */
+  source_tag?: Source | null;
 }
 export interface ProjectBody {
   name: string;

@@ -409,7 +409,9 @@ class TestLabMixin:
                         card.update(present.status_view("not_run"), result=None)
                     else:
                         b = {"code": result["code"], "label": result["label"], "tone": result["tone"]}
-                        card.update(status="done", status_text=b["label"], progress=None, result=b)
+                        card.update(status="done", status_text=b["label"], progress=None, result=b,
+                                    # where it came from (22 November 2026): the card's first result, as Evidence tags it
+                                    source_tag=present_source.of_test(kind, result, (spec.get("target") or {}).get("address")))
                 card["can_run"] = not running
                 card["can_remove"] = not kept and not live and not any(j is not None and j.status != "done" for j in reruns)
                 tests.append(card)

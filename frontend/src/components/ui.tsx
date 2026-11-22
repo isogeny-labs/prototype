@@ -1,18 +1,69 @@
 import { useContext, useEffect, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import type { RichText, RowStatus, Tone } from "../api";
+import type { RichText, RowStatus, Source as WhereFrom, Tone } from "../api";
 import { CLOSED_SENTENCE, useReadOnly } from "../readOnly";
 import { formatTime } from "../time";
 import { HiddenPageNotesContext } from "./layout";
 
 /** Small label saying where a value came from (rule: every number says its source). */
-export function SourceTag({ children }: { children: ReactNode }) {
+export function SourceTag({ children, source = null }: { children: ReactNode; source?: WhereFrom["key"] | null }) {
+  // (22 November 2026: a small tag the backend marked with its source gets that source's look; its words stay)
   return (
-    <span className="inline-block rounded border border-slate-700 px-1.5 py-0.5 text-[11px] leading-none text-slate-400 whitespace-nowrap">
+    <span
+      data-source={source ?? undefined}
+      className={`inline-block rounded border px-1.5 py-0.5 text-[11px] leading-none whitespace-nowrap ${
+        source ? SMALL_TAG_LOOK[source] : "border-slate-700 text-slate-400"
+      }`}
+    >
       {children}
     </span>
   );
 }
+
+/** Where it came from (22 November 2026): the one tag beside a result's, a status's or a fix's own word. Its words always
+ * say it (colour only helps): sky blue Observed live, indigo Proven in the lab, dashed grey From your file, grey Published
+ * (never green or amber, which are passed and failed, nor violet, which is Demo data). Its words, what it means (on
+ * hover) and the item's own sentence come from the backend. It decides nothing. */
+const WHERE_FROM_LOOK: Record<WhereFrom["key"], string> = {
+  live: "border-sky-400/60 bg-sky-400/10 text-sky-200",
+  lab: "border-indigo-400/60 bg-indigo-400/10 text-indigo-200",
+  file: "border-dashed border-slate-500 text-slate-300",
+  published: "border-slate-500 bg-slate-500/10 text-slate-300",
+};
+
+export function WhereFromTag({ tag, testId = "source-tag" }: { tag: WhereFrom | null | undefined; testId?: string }) {
+  if (!tag) return null;
+  return (
+    <span
+      data-testid={testId}
+      data-source={tag.key}
+      title={tag.meaning}
+      className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none ${WHERE_FROM_LOOK[tag.key]}`}
+    >
+      {tag.label}
+    </span>
+  );
+}
+
+/** In an item's panel: the tag and, beside it, what it means for this item (its own sentence, else the tag's meaning). */
+export function WhereFromLine({ tag }: { tag: WhereFrom | null | undefined }) {
+  if (!tag) return null;
+  return (
+    <p data-testid="source-line" data-source={tag.key} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px] leading-snug text-slate-300">
+      <WhereFromTag tag={tag} />
+      <span data-testid="source-note">{tag.note ?? tag.meaning}</span>
+    </p>
+  );
+}
+
+/** A small tag the backend marked with its source keeps its words and gets that source's look (the cost table's
+ * "measured on our test server", a try's "measured on the copy"). */
+const SMALL_TAG_LOOK: Record<WhereFrom["key"], string> = {
+  live: "border-sky-400/50 text-sky-300",
+  lab: "border-indigo-400/50 text-indigo-300",
+  file: "border-dashed border-slate-600 text-slate-400",
+  published: "border-slate-500 text-slate-400",
+};
 
 export function DemoDataLabel() {
   return (
@@ -217,7 +268,7 @@ export function RichTextView({
             </span>
           );
         }
-        if (part.t === "tag") return <SourceTag key={i}>{part.v}</SourceTag>;
+        if (part.t === "tag") return <SourceTag key={i} source={part.s ?? null}>{part.v}</SourceTag>;
         if (part.t === "demo") return <DemoDataLabel key={i} />;
         if (part.t === "time") {
           return (

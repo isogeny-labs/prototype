@@ -260,7 +260,7 @@ def counted(sources: list[dict | None], extra_file: int = 0) -> list[dict]:
         if s is not None:
             n[s["key"]] += 1
     n[FILE] += extra_file
-    return [{"key": k, "label": LABELS[k], "count": n[k]} for k in KEYS if n[k]]
+    return [{"key": k, "label": LABELS[k], "meaning": MEANINGS[k], "count": n[k]} for k in KEYS if n[k]]
 
 
 __all__ = ["FILE", "KEYS", "LAB", "LABELS", "LIVE", "MEANINGS", "PUBLISHED", "after_change", "colour_tags", "counted", "family_of",

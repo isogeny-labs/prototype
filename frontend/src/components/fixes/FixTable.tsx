@@ -4,6 +4,7 @@ import { DataTable, FilterSelect, GroupSection, GroupTabs, SearchInput, Toolbar,
 import { FromOttoTag, ProposalStatusChip } from "../otto/ProposalCard";
 import { ItemLinkView } from "../related";
 import { StatusChip } from "./parts";
+import { WhereFromTag } from "../ui";
 
 interface Props {
   title: string;
@@ -82,6 +83,12 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
               ))}
             </span>
           ) : null}
+          {/* 22 November 2026: where that finding came from */}
+          {fix.source_tag ? (
+            <span className="mt-1 block">
+              <WhereFromTag tag={fix.source_tag} />
+            </span>
+          ) : null}
         </span>
       ),
     },
@@ -90,7 +97,17 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
   // Phase 5b: beside an open panel, a row is the fix and its status.
   const compactColumns: Column<FixDetail>[] = [
     { ...columns[0]!, minWidth: 150 },
-    { ...columns[2]!, minWidth: 112 },
+    {
+      ...columns[2]!,
+      minWidth: 112,
+      // (beside an open panel "Came from" is not drawn: the tag of where the fix came from sits under its status)
+      render: (fix) => (
+        <span className="flex flex-col items-start gap-1">
+          <StatusChip status={fix.status} />
+          <WhereFromTag tag={fix.source_tag} />
+        </span>
+      ),
+    },
   ];
 
   const byId = new Map(fixes.map((f) => [f.id, f]));

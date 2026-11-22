@@ -19,7 +19,7 @@ import { StatusPill } from "./migration/parts";
 import type { SaveChoice } from "./migration/OptionCard";
 import { DataTable, DetailPanel, FilterSelect, ItemPageContext, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "./layout";
 import { FromOttoTag, ProposalStatusChip } from "./otto/ProposalCard";
-import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton } from "./ui";
+import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton, WhereFromTag } from "./ui";
 
 const POLL_MS = 1000;
 
@@ -324,19 +324,22 @@ export function MigrationScreen({
       key: "status",
       header: "Tracks",
       minWidth: 120,
-      render: (s) =>
-        (s.tracks_brief ?? []).length > 0 ? (
-          <span className="flex flex-col items-start gap-1">
-            {(s.tracks_brief ?? []).map((brief, i) => (
+      render: (s) => (
+        <span className="flex flex-col items-start gap-1">
+          {(s.tracks_brief ?? []).length > 0 ? (
+            (s.tracks_brief ?? []).map((brief, i) => (
               <span key={i} data-testid="compact-track" className="flex flex-col items-start gap-0.5">
                 <span className="text-[11px] text-slate-400">{brief.title}</span>
                 <StatusPill status={brief.status} />
               </span>
-            ))}
-          </span>
-        ) : (
-          <StatusPill status={s.status} />
-        ),
+            ))
+          ) : (
+            <StatusPill status={s.status} />
+          )}
+          {/* 22 November 2026: where its status came from */}
+          <WhereFromTag tag={s.source_tag} />
+        </span>
+      ),
     },
   ];
   const columns: Column<MigrationSystem>[] = [
@@ -367,6 +370,8 @@ export function MigrationScreen({
           ) : (
             <StatusPill status={s.status} />
           )}
+          {/* 22 November 2026: where its status came from (live on a server, lab on a signing program, the file before a measurement) */}
+          <WhereFromTag tag={s.source_tag} />
           <span className="text-xs text-slate-400">{s.plan_line}</span>
         </div>
       ),

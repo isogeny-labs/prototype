@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { ChangeBadge, ChangeSection, ChangeStep, RichText } from "../../api";
-import { RichTextView } from "../ui";
+import type { ChangeBadge, ChangeSection, ChangeStep, RichText, Source } from "../../api";
+import { RichTextView, WhereFromTag } from "../ui";
 
 const CELL_MONO = "whitespace-nowrap font-mono text-xs text-slate-200";
 const TH = "border-b border-slate-800 px-2.5 py-1.5 text-left align-bottom text-xs font-medium uppercase tracking-wide text-slate-400";
@@ -90,7 +90,16 @@ function CodeBlock({ code }: { code: string }) {
 const H4 = "text-[13px] font-semibold text-slate-100";
 
 /** A table the view sends: the first column is the row label, every cell is a sentence of rich parts. */
-export function RichTable({ columns, rows }: { columns: string[]; rows: { label: ReactNode; cells: RichText[] }[] }) {
+export function RichTable({
+  columns,
+  rows,
+  columnTags = [],
+}: {
+  columns: string[];
+  rows: { label: ReactNode; cells: RichText[] }[];
+  /** 22 November 2026: where each column came from (a try: the server as measured before, live; each copy, lab). */
+  columnTags?: (Source | null)[];
+}) {
   return (
     <div className="mt-2 overflow-x-auto rounded-lg border border-slate-800 bg-slate-950 px-3 py-1">
       <table className="w-full border-collapse text-[13px]">
@@ -99,6 +108,11 @@ export function RichTable({ columns, rows }: { columns: string[]; rows: { label:
             {columns.map((column, i) => (
               <th key={i} scope="col" className={TH}>
                 {column}
+                {columnTags[i] ? (
+                  <span className="mt-1 block font-normal normal-case tracking-normal">
+                    <WhereFromTag tag={columnTags[i]} testId="column-source-tag" />
+                  </span>
+                ) : null}
               </th>
             ))}
           </tr>

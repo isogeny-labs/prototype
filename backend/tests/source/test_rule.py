@@ -137,9 +137,10 @@ def test_the_small_tags_already_on_a_page_keep_their_words_and_get_their_sources
 
 def test_the_overview_counts_in_the_fixed_order_and_leaves_out_the_sources_with_none():
     tags = [S.live("a"), S.live("b"), S.tag("lab"), None]
-    assert S.counted(tags, extra_file=2) == [{"key": "live", "label": "Observed live", "count": 2},
-                                             {"key": "lab", "label": "Proven in the lab", "count": 1},
-                                             {"key": "file", "label": "From your file", "count": 2}]
+    assert [{k: c[k] for k in ("key", "label", "count")} for c in S.counted(tags, extra_file=2)] == [
+        {"key": "live", "label": "Observed live", "count": 2}, {"key": "lab", "label": "Proven in the lab", "count": 1},
+        {"key": "file", "label": "From your file", "count": 2}]
+    assert all(c["meaning"] == S.MEANINGS[c["key"]] for c in S.counted(tags))
     assert S.counted([]) == []
 
 

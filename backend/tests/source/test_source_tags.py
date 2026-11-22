@@ -172,10 +172,9 @@ def test_a_fresh_assessment_every_claim_answer_and_system_says_what_it_rests_on(
     assert all(r["source_tag"] is None for r in _check_rows(views["checks"]) if r["kind"] not in ("verify",))
     assert {_key(s["source_tag"]) for s in views["migration"]["systems"]} == {"file"}
     verification = next(g for g in views["checks"]["groups"] if g["key"] == "verification")
-    assert verification["source_counts"] == [{"key": "live", "label": "Observed live", "count": 2},
-                                             {"key": "lab", "label": "Proven in the lab", "count": 1}]
+    assert [(c["key"], c["count"]) for c in verification["source_counts"]] == [("live", 2), ("lab", 1)]
     migration = next(g for g in views["checks"]["groups"] if g["key"] == "migration")
-    assert migration["source_counts"] == [{"key": "file", "label": "From your file", "count": 2}]     # a server and a program, not measured
+    assert [(c["key"], c["count"]) for c in migration["source_counts"]] == [("file", 2)]     # a server and a program, not measured
     # reading every page wrote nothing and started nothing, and reads the same again
     assert everything_kept(lab) == before and not lab.jobs.live(fresh.pid)
     assert _every_tag(_views(fresh)) == _every_tag(views)
