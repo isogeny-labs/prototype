@@ -30,9 +30,13 @@ def act(lab, model, snap: dict, action: str, target: str) -> str:
         if not sandbox.wanted(lab, advisory):
             return research.act(lab, model, snap, action, target)
         lines, before = [], None
-        while before != lab.ledger.head()["head"]:        # one step after another; each needs the checker's verdict on the one before
+        stopped: list[str] = []
+        # One step after another; each needs the checker's verdict on the one before. A stop ends it for this run (an
+        # answer that could not be tried is kept in the ledger, so the ledger moved on: that alone must not start the
+        # same step again, and with it another call to Claude).
+        while before != lab.ledger.head()["head"] and not stopped:
             before = lab.ledger.head()["head"]
-            lines.append(sandbox.propose_test(lab, model, target, advisory, snap) if about[1] == "test"
+            lines.append(sandbox.propose_test(lab, model, target, advisory, snap, stopped) if about[1] == "test"
                          else sandbox.propose_fix(lab, model, target, advisory))
             for cid, _ in research.step_claims(lab.state(), about[0]):
                 if not lab.state().settled(cid):

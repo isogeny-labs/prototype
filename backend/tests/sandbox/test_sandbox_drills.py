@@ -377,10 +377,10 @@ def test_a_download_that_came_back_damaged_is_a_stop_and_a_package_that_cant_be_
     assert build.unsettled(lab, lab.state(), ADVISORY, live=True) is None                           # settled, with its reason
 
 
-def test_an_answer_claude_gave_is_kept_when_the_step_stops_after_the_call_and_it_is_not_one_of_the_three_drafts(before_the_asking_code, monkeypatch):
+def test_an_answer_claude_gave_is_kept_when_the_step_stops_after_the_call_and_a_later_run_tries_it_without_asking_again(before_the_asking_code, monkeypatch):
     """Every Claude step is kept with its prompt, its answer, its tokens and its cost: also one whose copies could not
-    be built. (The review: such a call was in no ledger.) It was never tried, so it does not count as a draft and its
-    author is told nothing about it."""
+    be built. (The review: such a call was in no ledger, and the author was asked, and paid, again.) It was never
+    tried, so it is not one of the three drafts; a later run tries that same answer, and nobody is asked a second time."""
     lab, qid, advisory = before_the_asking_code
     author = _Counts(demo.ASKING["a"], live=True)
 
@@ -388,19 +388,56 @@ def test_an_answer_claude_gave_is_kept_when_the_step_stops_after_the_call_and_it
         raise sandbox.copies.CopyError("the image of the public copies of starkbank-ecdsa could not be built (is Docker running, and are the base "
                                        "images prepared?)", later=True)
     monkeypatch.setattr(sandbox.maker, "make_set", no_image)
-    for n in range(1, 5):                                     # four times: more than the three drafts an author has
+    for _ in range(5):                                        # run after run while the image can't be built
         said = sandbox.propose_test(lab, author, qid, advisory, {})
         assert "left for a later run" in said and "could not be built" in said
         _verify_all(lab)
-        assert len(author.prompts) == n and "Your earlier drafts" not in author.prompts[-1]
-    drafts = sandbox.drafts_of(lab.state(), lab, ADVISORY, "a")
-    assert len(drafts) == 4 and _dead_ends(lab) == []
-    for cid, art in drafts:
-        assert art["outcome"] == "refused" and art["drafted"]["stopped"] is True and art["refusal"].startswith("It was not tried: ")
-        assert art["step"]["cost_nano_usd"] == 4_000_000 and art["step"]["model"] == "a-model-for-a-test" and art["step"]["answer"] == author.answer
-        assert lab._accepted(cid, lab.state())                # the pinned checker takes the record: the prompt and the answer are whole
-    assert [art["drafted"]["attempt"] for _, art in drafts] == [1, 2, 3, 4]
-    assert build.unsettled(lab, lab.state(), ADVISORY, live=True) is not None
+    assert len(author.prompts) == 1                           # asked once: the answer was there from then on
+    (cid, art), = sandbox.drafts_of(lab.state(), lab, ADVISORY, "a")
+    assert art["outcome"] == "refused" and art["drafted"]["stopped"] is True and art["refusal"].startswith("It was not tried: ")
+    assert art["step"]["cost_nano_usd"] == 4_000_000 and art["step"]["model"] == "a-model-for-a-test" and art["step"]["answer"] == author.answer
+    assert lab._accepted(cid, lab.state())                    # the pinned checker takes the record: the prompt and the answer are whole
+    assert _dead_ends(lab) == [] and build.unsettled(lab, lab.state(), ADVISORY, live=True) is not None
+    # the day the image can be built, that same answer is tried, and it is used: no second call, and no second cost
+    seen: dict = {}
+    _stand_ins(monkeypatch, seen=seen)
+    said = sandbox.propose_test(lab, author, qid, advisory, {})
+    assert "passed the fixed rules and the known-answer check" in said and len(author.prompts) == 1
+    assert seen["asking"] == {"kind": "written", "author": "Claude (author a)", "source": demo.ASKING["a"]["asking_code"]}
+    _verify_all(lab)
+    first, second = sandbox.drafts_of(lab.state(), lab, ADVISORY, "a")
+    assert second[1]["outcome"] == "used" and second[1]["drafted"]["retried"] is True and second[1]["drafted"]["attempt"] == 2
+    assert second[1]["step"]["cost_nano_usd"] == 0 and "it is tried now, and nothing was asked again" in second[1]["step"]["how"]
+    assert second[1]["step"]["answer"] == first[1]["step"]["answer"] and sandbox.accepted_draft(lab.state(), lab, ADVISORY, "a") is not None
+
+
+def test_after_a_stop_the_research_step_asks_nothing_more_in_that_run(before_the_asking_code, monkeypatch):
+    """The agent takes one step after another while the ledger moves on. An answer that could not be tried is kept in
+    the ledger, so the ledger moved on: that must not start the step again, and with it another call to Claude."""
+    from ottolab import sandbox_agent
+    lab, qid, advisory = before_the_asking_code
+    author = _Counts(demo.ASKING["a"], live=True)
+
+    def no_image(**kwargs):
+        raise sandbox.copies.CopyError("the image of the public copies of starkbank-ecdsa could not be built", later=True)
+    monkeypatch.setattr(sandbox.maker, "make_set", no_image)
+    said = sandbox_agent.act(lab, author, {"advisories": [advisory]}, "propose", qid)
+    assert len(author.prompts) == 1 and "left for a later run" in said                # asked once, and once only
+    assert len(sandbox.drafts_of(lab.state(), lab, ADVISORY, "a")) == 1
+    # the next run tries that same answer, and still asks nobody
+    again = _Counts(demo.ASKING["a"], live=True)
+    assert "left for a later run" in sandbox_agent.act(lab, again, {"advisories": [advisory]}, "propose", qid) and again.prompts == []
+
+
+def test_a_draft_the_fixed_rules_refuse_is_asked_for_again_in_the_same_step_three_times_at_most(before_the_asking_code):
+    """A refusal is another matter than a stop: the author is told why and asked again, at once."""
+    from ottolab import sandbox_agent
+    lab, qid, advisory = before_the_asking_code
+    cheat = _Counts({"asking_code": "from ellipticcurve import x\n\nOWN_REFUSALS = ()\n\n\ndef check_signature(public_key, message, signature):\n    return True\n",
+                     "notes": ""})
+    said = sandbox_agent.act(lab, cheat, {"advisories": [advisory]}, "propose", qid)
+    assert len(cheat.prompts) == 3 and "after 3 drafts by one author" in said
+    assert "Your earlier drafts" not in cheat.prompts[0] and "draft 2:" in cheat.prompts[2]
 
 
 def _stand_ins(monkeypatch, known_of=None, seen: dict | None = None):

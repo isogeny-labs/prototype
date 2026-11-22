@@ -304,12 +304,13 @@ def _record_draft(lab, question_id: str, advisory_id: str, step, outcome: str, p
 
 class _KeptStep:
     """A Claude step that was recorded before and is used again: the same prompt and the same answer. Nothing was asked
-    this time, so this use counts no tokens and no cost."""
+    this time, so this use counts no tokens and no cost. `note` says why it is used again."""
 
-    def __init__(self, record: dict, other: str) -> None:
-        how = " ".join(f"{record.get('how') or ''} Used again from {other}: the same library, and nothing was asked again.".split())
+    def __init__(self, record: dict, note: str) -> None:
+        how = " ".join(f"{record.get('how') or ''} {note}".split())
         self._record = {**record, "input_tokens": 0, "output_tokens": 0, "cost_nano_usd": 0, "how": how[:300]}
         self.source = record["source"]
+        self.answer = record["answer"]
 
     def record(self) -> dict:
         return dict(self._record)
@@ -355,6 +356,9 @@ def write_asking(lab, model: OttoModel, question_id: str, advisory: dict, plan_r
     # (a draft whose copies could not be built or checked was kept in the ledger and never tried: it does not count
     #  as one of the three, and its author gets nothing back about it)
     tried = [art for _, art in earlier if not (art.get("drafted") or {}).get("stopped")]
+    # ... and where the newest draft is such a one, it is tried now: nobody is asked (and paid) a second time for an
+    # answer that is already there.
+    waiting = earlier[-1][1] if earlier and (earlier[-1][1].get("drafted") or {}).get("stopped") else None
     cannot = next((art for art in tried if art.get("outcome") == "used" and (art.get("parsed") or {}).get("decision") == "cannot"), None)
     if cannot is not None:
         raise DeadEnd(f"No test yet: the library can't be asked this question. Claude noted: {cannot['parsed']['notes']}")
@@ -383,7 +387,7 @@ def write_asking(lab, model: OttoModel, question_id: str, advisory: dict, plan_r
     if kept is not None:
         # One library, one piece of asking code by each author: the code of the earlier trial that held is used again.
         other, kept_claim, kept_parsed, kept_step = kept
-        step = _KeptStep(kept_step, other)
+        step = _KeptStep(kept_step, f"Used again from {other}: the same library, and nothing was asked again.")
         drafted["reused_from"] = kept_claim
         try:
             screens.check(language, kept_parsed["asking_code"], names)
@@ -393,11 +397,16 @@ def write_asking(lab, model: OttoModel, question_id: str, advisory: dict, plan_r
                           "today's rules, and a second piece of asking code for one library is not written.") from None
         answer = {"decision": "code", "asking_code": kept_parsed["asking_code"], "notes": str(kept_parsed.get("notes") or "")}
     else:
-        template = (maker.TEMPLATES / language / maker.LANGUAGE_FILES[language][0]).read_text(encoding="utf-8")
-        feedback = [str(art.get("refusal") or "it was not used") for art in tried]
-        text = asking.prompt(library=library, package=package, registry_words=registries.WORDS[registry], language=language, template=template,
-                             library_material=asking.material(tree, language, fixed), author=author, feedback=feedback or None)
-        step = model.ask("write_wrapper", text)          # raises ModelError when no answer comes: nothing is recorded, nothing is settled
+        if waiting is not None:
+            step = _KeptStep(waiting["step"], "It could not be tried when it was given; it is tried now, and nothing was asked again.")
+            drafted["retried"] = True
+        else:
+            template = (maker.TEMPLATES / language / maker.LANGUAGE_FILES[language][0]).read_text(encoding="utf-8")
+            feedback = [str(art.get("refusal") or "it was not used") for art in tried]
+            text = asking.prompt(library=library, package=package, registry_words=registries.WORDS[registry], language=language,
+                                 template=template, library_material=asking.material(tree, language, fixed), author=author,
+                                 feedback=feedback or None)
+            step = model.ask("write_wrapper", text)      # raises ModelError when no answer comes: nothing is recorded, nothing is settled
         try:
             answer = asking.check_answer(step.answer, language, names)
         except prompts.Refused as refused:
@@ -436,9 +445,10 @@ def write_asking(lab, model: OttoModel, question_id: str, advisory: dict, plan_r
         if not all(controls_hold(known, v) for v in copies.versions_of(record)):
             raise Later("the known-answer check's own two controls did not answer as they must on every copy, so the check can't be relied on")
     except (Later, DeadEnd) as stop:
-        if not said and kept is None:
+        if not said and kept is None and waiting is None:
             # Claude was asked and the answer is kept, though it could not be tried: a stop, never one of the three
-            # drafts. (Code that is used again was not asked for this time, so there is nothing new to keep.)
+            # drafts. A later run tries this same answer. (An answer that is used again was not asked for this time,
+            # so there is nothing new to keep.)
             _record_draft(lab, question_id, aid, step, "refused", None, f"It was not tried: {stop}"[:280], {**drafted, "stopped": True})
         raise
     parsed = {**answer, **drafted, "asking_sha256": record["asking"]["sha256"], "set": record["id"], "set_file": set_rel,
@@ -566,9 +576,10 @@ def register(lab, question_id: str, advisory: dict, reading: dict, design: dict,
 
 # ---------------------------------------------------------------- the two steps the agent takes
 
-def propose_test(lab, model: OttoModel, question_id: str, advisory: dict, snap: dict) -> str:
+def propose_test(lab, model: OttoModel, question_id: str, advisory: dict, snap: dict, stopped: list[str] | None = None) -> str:
     """Take the next step towards a registered trial on sandbox copies. Returns one plain line; leaves the ledger as it
-    is when there is nothing it can honestly add."""
+    is when there is nothing it can honestly add. `stopped`: where the caller wants to know that this step ended in a
+    stop (the reason is put there). After a stop nothing more is tried in this run: a later run takes it up."""
     st = lab.state()
     aid = advisory["id"]
     steps = [c["artifact"]["step"]["step"] for _, c in research.step_claims(st, aid)]
@@ -599,9 +610,13 @@ def propose_test(lab, model: OttoModel, question_id: str, advisory: dict, snap: 
     except Later as stop:
         reason = str(stop)
         note_stop(aid, reason[0].upper() + reason[1:] + ("" if reason.endswith(".") else "."))
+        if stopped is not None:
+            stopped.append(reason)
         return f"{aid}: left for a later run ({stop})"
     except ModelError as no_answer:          # no answer came for the asking code: nothing is recorded, nothing is settled
         note_stop(aid, str(no_answer))
+        if stopped is not None:
+            stopped.append(str(no_answer))
         return f"{aid}: {no_answer}"
 
 

@@ -611,7 +611,7 @@ rules. Off by default, and only for Isogeny's own sandbox. What it does not do, 
   fingerprint did not hold, a registry answer that is not valid, Docker not answering and a control that did not
   answer are stops (tried again by a later run); a package with no plain-Python file, a file that is not a package
   file, or needs that can't be met are settled. A draft Claude wrote whose copies could then not be built is kept in
-  the ledger as not tried, and its author is asked again by a later run: that call is paid for twice.
+  the ledger as not tried; a later run tries that same answer, and nobody is asked a second time for it.
 - **Both authors are Claude** (or, on recorded answers, the build), and the replay is a second role of the same build
   on the same computer. An outside replay would be stronger and is not in this prototype.
 - **The known-answer check asks 24 fresh questions** for each version. It shows that the code really asks the library.
