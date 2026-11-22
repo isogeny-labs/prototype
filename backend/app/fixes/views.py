@@ -115,7 +115,10 @@ class FixesMixin:
         for fix in states:
             titles = list(dict.fromkeys(self._answer_title(db, a) for a in fix["answers"]))
             if fix["source_kind"] == "migration":
-                shown = self._migration_fix_view(db, plan, fix, is_demo)   # phase 4a: the migration plan's how-to and blockers
+                worded = self._migration_fix_view(db, plan, fix, is_demo)  # phase 4a: the migration plan's how-to and blockers
+                if worded is None:
+                    continue   # no longer in the plan since it was listed (the next read lists the plan as it is)
+                shown = worded
             elif fix["source_kind"] == "dependency":
                 shown = self._dependency_fix_view(db, plan, fix, is_demo)  # phase 4d: update a library that blocks a track
             elif fix["source_kind"] == "developer_change":
