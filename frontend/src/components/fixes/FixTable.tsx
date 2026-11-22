@@ -74,6 +74,12 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
       render: (fix) => (
         <span className="text-xs text-slate-400">
           {fix.list_source}
+          {/* 22 November 2026: where that finding came from, right under the sentence that names it (and above its links) */}
+          {fix.source_tag ? (
+            <span className="mt-1 block">
+              <WhereFromTag tag={fix.source_tag} />
+            </span>
+          ) : null}
           {(fix.came_from_links ?? []).length > 0 ? (
             <span className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5" onClick={(e) => e.stopPropagation()}>
               {(fix.came_from_links ?? []).map((c, i) => (
@@ -81,12 +87,6 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
                   {c.label}
                 </ItemLinkView>
               ))}
-            </span>
-          ) : null}
-          {/* 22 November 2026: where that finding came from */}
-          {fix.source_tag ? (
-            <span className="mt-1 block">
-              <WhereFromTag tag={fix.source_tag} />
             </span>
           ) : null}
         </span>
