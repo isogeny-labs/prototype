@@ -31,7 +31,15 @@ const LAB = "GET /api/plans/1/lab";
 // The rows of the newest retest's block, as the default view lists them.
 const BLOCK_IDS = newestBlock.rows.map((r) => r.id);
 
-function Harness({ group = null, item = null, readOnly = false }: { group?: string | null; item?: string | null; readOnly?: boolean }) {
+function Harness({
+  group = null,
+  item = null,
+  readOnly = false,
+}: {
+  group?: string | null;
+  item?: string | null;
+  readOnly?: boolean;
+}) {
   const [current, setCurrent] = useState<PlanView | null>(plan);
   return (
     <ReadOnlyProvider readOnly={readOnly}>
@@ -42,8 +50,17 @@ function Harness({ group = null, item = null, readOnly = false }: { group?: stri
   );
 }
 
-async function open(view: ChecksView = checksView, routes: Parameters<typeof mockApi>[0] = {}, props: Parameters<typeof Harness>[0] = {}) {
-  const fetchMock = mockApi({ [CHECKS]: { body: view }, [LAB]: { body: lab }, "GET /api/import/7/plan": { body: plan }, ...routes });
+async function open(
+  view: ChecksView = checksView,
+  routes: Parameters<typeof mockApi>[0] = {},
+  props: Parameters<typeof Harness>[0] = {},
+) {
+  const fetchMock = mockApi({
+    [CHECKS]: { body: view },
+    [LAB]: { body: lab },
+    "GET /api/import/7/plan": { body: plan },
+    ...routes,
+  });
   render(<Harness {...props} />);
   await screen.findAllByTestId("group-section");
   return fetchMock;
@@ -74,7 +91,9 @@ describe("Checks, the page", () => {
     expect(screen.getByRole("tabpanel", { name: "Verification" }).getAttribute("data-group")).toBe("verification");
     expect(within(section("verification")).getByTestId("group-question").textContent).toBe("Is the scanner file true?");
     // Verification: one row per claim checked, with the result in Verify's own words.
-    expect(rowsIn("verification").map((r) => text(within(r).getByTestId("result-badge")))).toEqual(["False", "True", "? Couldn't check"].map((w) => expect.stringContaining(w.replace("? ", ""))));
+    expect(rowsIn("verification").map((r) => text(within(r).getByTestId("result-badge")))).toEqual(
+      ["False", "True", "? Couldn't check"].map((w) => expect.stringContaining(w.replace("? ", ""))),
+    );
     // Crypto tests: the test plan exactly as it was (its cards and buttons), then the other runs (the retest, in
     // the block of the version it ran on).
     expect(within(section("encryption")).getAllByTestId("test-card")).toHaveLength(plan.tests.length);
@@ -83,20 +102,32 @@ describe("Checks, the page", () => {
     expect(rowsIn("encryption").map((r) => r.getAttribute("data-check"))).toEqual(BLOCK_IDS);
     expect(shownGroups()).toEqual(["encryption"]);
     expect(within(section("encryption")).getByRole("heading", { level: 2, name: "Crypto tests" })).not.toBeNull();
-    expect(within(section("encryption")).getByTestId("group-question").textContent).toBe("Is the cryptography built right?");
+    expect(within(section("encryption")).getByTestId("group-question").textContent).toBe(
+      "Is the cryptography built right?",
+    );
     // An empty group stays and says why.
-    expect(within(section("migration")).getByTestId("group-empty").textContent).toBe("Nothing measured yet. Measure status is on Migration.");
-    expect(within(section("dependencies")).getByTestId("group-empty").textContent).toBe("No dependency list yet. Add one on Dependencies.");
+    expect(within(section("migration")).getByTestId("group-empty").textContent).toBe(
+      "Nothing measured yet. Measure status is on Migration.",
+    );
+    expect(within(section("dependencies")).getByTestId("group-empty").textContent).toBe(
+      "No dependency list yet. Add one on Dependencies.",
+    );
     // The page starts nothing by itself: it only asked for the list.
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
   });
 
   it("shows each group's three counts and where its checks are started", async () => {
     await open();
-    expect(within(section("verification")).getByTestId("group-counts").textContent).toBe("Open 0 · In progress 0 · Done 3");
-    expect(within(section("verification")).getByRole("link", { name: "Started on Import" }).getAttribute("href")).toBe("#/a/101/inventory/import");
+    expect(within(section("verification")).getByTestId("group-counts").textContent).toBe(
+      "Open 0 · In progress 0 · Done 3",
+    );
+    expect(within(section("verification")).getByRole("link", { name: "Started on Import" }).getAttribute("href")).toBe(
+      "#/a/101/inventory/import",
+    );
     expect(within(section("encryption")).getByText("The test plan is here")).not.toBeNull();
-    expect(within(section("migration")).getByRole("link", { name: "Started on Migration" }).getAttribute("href")).toBe("#/a/101/migration/systems");
+    expect(within(section("migration")).getByRole("link", { name: "Started on Migration" }).getAttribute("href")).toBe(
+      "#/a/101/migration/systems",
+    );
   });
 
   it("a row shows what ran, on what, where it came from, its result, when it last ran and how many times", async () => {
@@ -123,7 +154,11 @@ describe("Checks, the page", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value: "retest" } });
     expect(rowsIn("verification")).toHaveLength(0);
     expect(rowsIn("encryption").map((r) => r.getAttribute("data-came-from"))).toEqual(["retest", "retest", "retest"]);
-    expect(within(section("encryption")).getAllByTestId("part-section").map((p) => p.getAttribute("data-part"))).toEqual(["retests"]);
+    expect(
+      within(section("encryption"))
+        .getAllByTestId("part-section")
+        .map((p) => p.getAttribute("data-part")),
+    ).toEqual(["retests"]);
     // Filtered to retests, the test plan itself is not shown.
     expect(within(section("encryption")).queryAllByTestId("test-card")).toHaveLength(0);
     fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value: "all" } });
@@ -136,24 +171,36 @@ describe("Checks, the page", () => {
     expect(rowsIn("verification").map((r) => r.getAttribute("data-check"))).toEqual(["claim-2"]);
     // While a search is on, each tab says how many of its rows match, so nothing found hides behind another tab.
     const matches = () =>
-      Object.fromEntries(screen.getAllByTestId("group-tab").map((t) => [t.getAttribute("data-group"), within(t).queryByTestId("group-tab-matches")?.textContent]));
+      Object.fromEntries(
+        screen
+          .getAllByTestId("group-tab")
+          .map((t) => [t.getAttribute("data-group"), within(t).queryByTestId("group-tab-matches")?.textContent]),
+      );
     expect(matches()).toEqual({ verification: "1", encryption: "0", migration: "0", dependencies: "0" });
     expect(tabOf("verification").getAttribute("aria-describedby")).toBeTruthy();
-    expect(document.getElementById(tabOf("verification").getAttribute("aria-describedby")!)!.textContent).toBe("1 row matches");
+    expect(document.getElementById(tabOf("verification").getAttribute("aria-describedby")!)!.textContent).toBe(
+      "1 row matches",
+    );
     // the tab's name is still the group's name
     expect(screen.getByRole("tab", { name: "Verification" })).toBe(tabOf("verification"));
     fireEvent.change(screen.getByRole("searchbox", { name: "Search checks" }), { target: { value: "official" } });
     // (Crypto tests: the rows its parts list for the search, and the tests of its plan whose names match)
     const said = matches().encryption;
     expect(Number(said)).toBeGreaterThan(0);
-    expect(Number(said)).toBe(rowsIn("encryption").length + planRows.filter((r) => r.name.toLowerCase().includes("official")).length);
+    expect(Number(said)).toBe(
+      rowsIn("encryption").length + planRows.filter((r) => r.name.toLowerCase().includes("official")).length,
+    );
     fireEvent.change(screen.getByRole("searchbox", { name: "Search checks" }), { target: { value: "" } });
     expect(screen.queryAllByTestId("group-tab-matches")).toHaveLength(0);
   });
 
   it("switches tabs: one group at a time, by a click or the arrow keys, Home and End, and a click on the open tab changes nothing", async () => {
     const tabsSaid: string[] = [];
-    const fetchMock = mockApi({ [CHECKS]: { body: checksView }, [LAB]: { body: lab }, "GET /api/import/7/plan": { body: plan } });
+    const fetchMock = mockApi({
+      [CHECKS]: { body: checksView },
+      [LAB]: { body: lab },
+      "GET /api/import/7/plan": { body: plan },
+    });
     function Told() {
       const [current, setCurrent] = useState<PlanView | null>(plan);
       return (
@@ -166,7 +213,9 @@ describe("Checks, the page", () => {
     await screen.findAllByTestId("group-section");
     fireEvent.click(screen.getByRole("tab", { name: "Migration" }));
     expect(shownGroups()).toEqual(["migration"]);
-    expect(within(screen.getByRole("tabpanel")).getByTestId("group-empty").textContent).toBe("Nothing measured yet. Measure status is on Migration.");
+    expect(within(screen.getByRole("tabpanel")).getByTestId("group-empty").textContent).toBe(
+      "Nothing measured yet. Measure status is on Migration.",
+    );
     // the tab chosen goes to the address (the app keeps it there, so Back returns)
     expect(tabsSaid).toEqual(["migration"]);
     // a click on the open tab: nothing
@@ -202,7 +251,12 @@ describe("Checks, the page", () => {
   });
 
   it("closes it too when the tab changes from outside the page (the sidebar's link, Back)", async () => {
-    mockApi({ [CHECKS]: { body: checksView }, [LAB]: { body: lab }, "GET /api/import/7/plan": { body: plan }, "GET /api/plans/1/checks/claim-1": { body: { ...retestDetail, check: verifyRows[0]! } } });
+    mockApi({
+      [CHECKS]: { body: checksView },
+      [LAB]: { body: lab },
+      "GET /api/import/7/plan": { body: plan },
+      "GET /api/plans/1/checks/claim-1": { body: { ...retestDetail, check: verifyRows[0]! } },
+    });
     const { rerender } = render(<Harness />);
     await screen.findAllByTestId("group-section");
     fireEvent.click(rowsIn("verification")[0]!);
@@ -241,15 +295,18 @@ describe("Checks, a check's panel", () => {
     const fetchMock = await open(checksView, routes);
     fireEvent.click(rowsIn("encryption")[0]!);
     const panel = within(await screen.findByTestId("check-panel"));
-    expect(within(screen.getByTestId("detail-panel")).getByRole("heading", { level: 2, name: "Official test vectors" })).not.toBeNull();
+    expect(
+      within(screen.getByTestId("detail-panel")).getByRole("heading", { level: 2, name: "Official test vectors" }),
+    ).not.toBeNull();
     expect(text(screen.getByTestId("check-panel"))).toContain(retestRow.plain!);
     expect(panel.getByTestId("open-where-started").getAttribute("href")).toBe("#/a/101/evidence?item=retest-1");
     expect(panel.getByTestId("see-the-evidence").getAttribute("href")).toBe("#/a/101/evidence?item=retest-1");
     const runs = await panel.findByTestId("earlier-runs");
-    expect(within(runs).getAllByRole("listitem").map((li) => text(li))).toEqual([
-      expect.stringContaining("Passed"),
-      expect.stringContaining("Failed"),
-    ]);
+    expect(
+      within(runs)
+        .getAllByRole("listitem")
+        .map((li) => text(li)),
+    ).toEqual([expect.stringContaining("Passed"), expect.stringContaining("Failed")]);
     expect(text(runs)).toContain("Test plan");
     const related = within(panel.getByTestId("related"));
     expect(related.getAllByTestId("related-link").map((a) => a.getAttribute("href"))).toEqual([
@@ -266,7 +323,11 @@ describe("Checks, a check's panel", () => {
     const table = within(section("encryption")).getAllByTestId("data-table").at(-1)!;
     expect(table.getAttribute("data-compact")).toBe("true");
     // the link named the test's retest by its older id: the row of the newest block is the one marked as open
-    expect(rowsIn("encryption").filter((r) => r.getAttribute("aria-selected") === "true" || r.getAttribute("data-selected") === "true").map((r) => r.getAttribute("data-check"))).toEqual([BLOCK_IDS[0]]);
+    expect(
+      rowsIn("encryption")
+        .filter((r) => r.getAttribute("aria-selected") === "true" || r.getAttribute("data-selected") === "true")
+        .map((r) => r.getAttribute("data-check")),
+    ).toEqual([BLOCK_IDS[0]]);
     fireEvent.click(screen.getByRole("button", { name: "Close details" }));
     expect(screen.queryByTestId("check-panel")).toBeNull();
   });
@@ -306,10 +367,16 @@ describe("Checks, an advisory check (phase 5c)", () => {
 
   it("opens from the address the Advisories page links to, and its Related names the advisory with the way back", async () => {
     expect(link).toEqual({ page: "checks", item: "test-6" });
-    const fetchMock = await open(view, { [`GET /api/plans/1/checks/${check.id}`]: { body: detail } }, { item: check.id });
+    const fetchMock = await open(
+      view,
+      { [`GET /api/plans/1/checks/${check.id}`]: { body: detail } },
+      { item: check.id },
+    );
     const panel = within(await screen.findByTestId("check-panel"));
     expect(screen.getByTestId("check-panel").getAttribute("data-check")).toBe(check.id);
-    expect(within(screen.getByTestId("detail-panel")).getByRole("heading", { level: 2, name: advisoryCheckRow.title })).not.toBeNull();
+    expect(
+      within(screen.getByTestId("detail-panel")).getByRole("heading", { level: 2, name: advisoryCheckRow.title }),
+    ).not.toBeNull();
     expect(text(screen.getByTestId("check-panel"))).toContain(advisoryCheckRow.result!.plain);
     // The sixth Related line: the advisory, under the backend's title, opening it on Advisories.
     const related = within(await panel.findByTestId("related"));
@@ -387,17 +454,25 @@ describe("Checks, the same measurement and the links between groups (phase 5b, p
   it("marks a row that is the same measurement as another, and names it with a link in its panel", async () => {
     await open(view(), { "GET /api/plans/1/checks/claim-4": { body: { ...retestDetail, check: pqClaim } } });
     const row = rowsIn("verification")[0]!;
-    expect(within(row).getByTestId("same-measurement-marker").textContent).toBe("The same measurement as Post-quantum status");
+    expect(within(row).getByTestId("same-measurement-marker").textContent).toBe(
+      "The same measurement as Post-quantum status",
+    );
     fireEvent.click(row);
     const same = within(await screen.findByTestId("check-panel")).getByTestId("same-measurement");
-    expect(text(same)).toBe("The same measurement as Post-quantum status on localhost:8451 (Migration). Each keeps its own run and its own result.");
-    expect(within(same).getByRole("link").getAttribute("href")).toBe("#/a/101/checks?item=system-server%3Alocalhost%3A8451");
+    expect(text(same)).toBe(
+      "The same measurement as Post-quantum status on localhost:8451 (Migration). Each keeps its own run and its own result.",
+    );
+    expect(within(same).getByRole("link").getAttribute("href")).toBe(
+      "#/a/101/checks?item=system-server%3Alocalhost%3A8451",
+    );
   });
 
   it("links a check of another group from Migration's foot, without listing it twice", async () => {
     await open(view());
     const foot = within(section("migration")).getByTestId("group-also");
-    expect(text(foot)).toBe("Also relates to this group: localhost:8451 is post-quantum on localhost:8451 (in Verification; the same measurement as Measure status)");
+    expect(text(foot)).toBe(
+      "Also relates to this group: localhost:8451 is post-quantum on localhost:8451 (in Verification; the same measurement as Measure status)",
+    );
     expect(within(foot).getByTestId("also-link").getAttribute("href")).toBe("#/a/101/checks?item=claim-4");
     expect(rowsIn("migration")).toHaveLength(0);
     expect(rowsIn("verification")).toHaveLength(1);
@@ -405,12 +480,19 @@ describe("Checks, the same measurement and the links between groups (phase 5b, p
 
   it("shows a test of the plan once, as its card, even when its newest run came right after an Apply", async () => {
     const afterApply = { ...planRows[2]!, came_from: { key: "after_apply", label: "After Apply" } };
-    await open({ ...checksView, groups: checkGroups({ encryption: [planRows[0]!, planRows[1]!, afterApply, retestRow] }) });
+    await open({
+      ...checksView,
+      groups: checkGroups({ encryption: [planRows[0]!, planRows[1]!, afterApply, retestRow] }),
+    });
     expect(rowsIn("encryption").map((r) => r.getAttribute("data-check"))).toEqual(BLOCK_IDS);
   });
 
   it("a finished test of the plan links to its result on Evidence", async () => {
-    const fetchMock = mockApi({ [CHECKS]: { body: checksView }, [LAB]: { body: lab }, "GET /api/import/7/plan": { body: runningPlan } });
+    const fetchMock = mockApi({
+      [CHECKS]: { body: checksView },
+      [LAB]: { body: lab },
+      "GET /api/import/7/plan": { body: runningPlan },
+    });
     function Ran() {
       const [current, setCurrent] = useState<PlanView | null>(runningPlan);
       return (
@@ -421,17 +503,26 @@ describe("Checks, the same measurement and the links between groups (phase 5b, p
     }
     render(<Ran />);
     await screen.findAllByTestId("group-section");
-    const done = within(section("encryption")).getAllByTestId("test-card").find((c) => c.getAttribute("data-status") === "done")!;
-    expect(within(done).getByTestId("see-the-evidence").getAttribute("href")).toBe(`#/a/101/evidence?item=test-${runningPlan.tests[0]!.id}`);
+    const done = within(section("encryption"))
+      .getAllByTestId("test-card")
+      .find((c) => c.getAttribute("data-status") === "done")!;
+    expect(within(done).getByTestId("see-the-evidence").getAttribute("href")).toBe(
+      `#/a/101/evidence?item=test-${runningPlan.tests[0]!.id}`,
+    );
     // Not-run tests have no such link.
-    const notRun = within(section("encryption")).getAllByTestId("test-card").filter((c) => c.getAttribute("data-status") !== "done");
+    const notRun = within(section("encryption"))
+      .getAllByTestId("test-card")
+      .filter((c) => c.getAttribute("data-status") !== "done");
     expect(notRun.every((c) => within(c).queryByTestId("see-the-evidence") === null)).toBe(true);
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
   });
 });
 
 describe("Checks, the test plan is drawn once: it is there before the list of checks, and stays as it is when the list arrives", () => {
-  const part = (key: string) => within(section("encryption")).getAllByTestId("part-section").find((p) => p.getAttribute("data-part") === key)!;
+  const part = (key: string) =>
+    within(section("encryption"))
+      .getAllByTestId("part-section")
+      .find((p) => p.getAttribute("data-part") === key)!;
 
   it("keeps the + Add test menu open, and the keyboard's place in it, when the list arrives after the menu was opened", async () => {
     // The list of checks answers late (a busy computer). The plan is on the page at once, with its buttons.
@@ -439,7 +530,9 @@ describe("Checks, the test plan is drawn once: it is there before the list of ch
     const late = new Promise<Response>((resolve) => (answer = resolve));
     const fetchMock = mockApi({ [LAB]: { body: lab }, "GET /api/import/7/plan": { body: plan } });
     const answered = fetchMock.getMockImplementation()!;
-    fetchMock.mockImplementation((input, init) => (String(input) === "/api/plans/1/checks" ? late : answered(input, init)));
+    fetchMock.mockImplementation((input, init) =>
+      String(input) === "/api/plans/1/checks" ? late : answered(input, init),
+    );
     // (Continue to checks opens Crypto tests: the address names it, so the plan is drawn before the list is here)
     render(<Harness group="encryption" />);
     const add = await screen.findByRole("button", { name: "+ Add test" });
@@ -477,13 +570,14 @@ describe("Checks, the test plan is read fresh when the page opens", () => {
     const now = { ...plan, can_run_all: false, running: true };
     const fetchMock = await open(checksView, { "GET /api/import/7/plan": { body: now } });
     await waitFor(() =>
-      expect((within(section("encryption")).getByRole("button", { name: "Run all" }) as HTMLButtonElement).disabled).toBe(true),
+      expect(
+        (within(section("encryption")).getByRole("button", { name: "Run all" }) as HTMLButtonElement).disabled,
+      ).toBe(true),
     );
     expect(calls(fetchMock)).toContain("GET /api/import/7/plan");
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
   });
 });
-
 
 // The 5c fixes: only the Crypto tests group changes. It has four labelled, foldable parts, each with a count: Test
 // plan, Retests by version, Fix proofs, and Tries on a test copy (only when a server change was tried). A run shows in
@@ -492,7 +586,10 @@ describe("Checks, Crypto tests in four parts", () => {
   const parts = () => within(section("encryption")).getAllByTestId("part-section");
   const part = (key: string) => parts().find((p) => p.getAttribute("data-part") === key)!;
   const blocksIn = (key: string) => within(part(key)).queryAllByTestId("block-section");
-  const withParts = (over: Parameters<typeof encryptionParts>[0]): ChecksView => ({ ...checksView, groups: checkGroups({ parts: encryptionParts(over) }) });
+  const withParts = (over: Parameters<typeof encryptionParts>[0]): ChecksView => ({
+    ...checksView,
+    groups: checkGroups({ parts: encryptionParts(over) }),
+  });
 
   it("labels each part and gives each its count; Tries on a test copy shows only when a server change was tried", async () => {
     await open(withParts({ retests: [newestBlock, olderBlock], proofs: [proofBlock] }));
@@ -502,9 +599,14 @@ describe("Checks, Crypto tests in four parts", () => {
       "▾Retests by version2 versions",
       "▾Fix proofs1 proof",
     ]);
-    expect(parts().map((p) => within(p).getAllByTestId("part-count")[0]!.textContent)).toEqual(["3 tests", "2 versions", "1 proof"]);
+    expect(parts().map((p) => within(p).getAllByTestId("part-count")[0]!.textContent)).toEqual([
+      "3 tests",
+      "2 versions",
+      "1 proof",
+    ]);
     // the other three groups are as they were: no parts in them
-    for (const key of ["verification", "migration", "dependencies"]) expect(within(section(key)).queryByTestId("part-section")).toBeNull();
+    for (const key of ["verification", "migration", "dependencies"])
+      expect(within(section(key)).queryByTestId("part-section")).toBeNull();
   });
 
   it("adds Change watch once the tests picked for a developer's change were run: one block for each run, each row leading back to the change", async () => {
@@ -526,14 +628,21 @@ describe("Checks, Crypto tests in four parts", () => {
     await open(withParts({ tries: [tryRow] }));
     expect(parts().map((p) => p.getAttribute("data-part"))).toEqual(["plan", "retests", "proofs", "tries"]);
     expect(within(part("tries")).getByTestId("part-count").textContent).toBe("1 try");
-    expect(within(part("tries")).getAllByTestId("check-row").map((r) => r.getAttribute("data-check"))).toEqual([tryRow.id]);
+    expect(
+      within(part("tries"))
+        .getAllByTestId("check-row")
+        .map((r) => r.getAttribute("data-check")),
+    ).toEqual([tryRow.id]);
   });
 
   it("heads the test plan with the version the file names, and keeps its buttons inside that part", async () => {
     await open();
-    expect(within(part("plan")).getByTestId("part-note").textContent).toBe("First runs, on the version the file names: acme-sign 1.4.2.");
+    expect(within(part("plan")).getByTestId("part-note").textContent).toBe(
+      "First runs, on the version the file names: acme-sign 1.4.2.",
+    );
     expect(within(part("plan")).getAllByTestId("test-card")).toHaveLength(plan.tests.length);
-    for (const name of ["Run all", "+ Add test"]) expect(within(part("plan")).getByRole("button", { name })).not.toBeNull();
+    for (const name of ["Run all", "+ Add test"])
+      expect(within(part("plan")).getByRole("button", { name })).not.toBeNull();
     // a first run shows in the plan only: no row of the plan is listed again under the retests
     expect(within(part("retests")).queryAllByTestId("test-card")).toHaveLength(0);
   });
@@ -564,14 +673,18 @@ describe("Checks, Crypto tests in four parts", () => {
       for (const words of [v.label, v.tag!, v.note]) expect(text(items[i]!)).toContain(words);
     });
     expect(menu.getByText(lab.retest.menu_note)).not.toBeNull();
-    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);      // opening the menu runs nothing
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]); // opening the menu runs nothing
     fireEvent.click(menu.getAllByRole("menuitem")[0]!);
     await waitFor(() => expect(calls(fetchMock)).toContain("POST /api/plans/1/retest"));
     const sent = fetchMock.mock.calls.find(([url]) => String(url) === "/api/plans/1/retest")![1]!;
     expect(JSON.parse(String(sent.body))).toEqual({ version: "1.4.3", component: "acme-sign" });
     // the page then shows how far the retest is, in the view's own words, and the button is off while it runs
-    expect((await within(part("retests")).findByTestId("retest-progress")).textContent).toBe("Retest running: 1 of 5 tests finished.");
-    expect((within(part("retests")).getByRole("button", { name: "Retest new version" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((await within(part("retests")).findByTestId("retest-progress")).textContent).toBe(
+      "Retest running: 1 of 5 tests finished.",
+    );
+    expect(
+      (within(part("retests")).getByRole("button", { name: "Retest new version" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it("reads the test plan again once a retest has started here, so Run all is off at once and not when the server refuses a click", async () => {
@@ -591,20 +704,29 @@ describe("Checks, Crypto tests in four parts", () => {
     await waitFor(() => expect(runAll().disabled).toBe(true));
     const sent = calls(fetchMock);
     expect(sent.lastIndexOf("GET /api/import/7/plan")).toBeGreaterThan(sent.indexOf("POST /api/plans/1/retest"));
-    expect(sent.filter((c) => c.startsWith("POST"))).toEqual(["POST /api/plans/1/retest"]);      // one start, nothing else
+    expect(sent.filter((c) => c.startsWith("POST"))).toEqual(["POST /api/plans/1/retest"]); // one start, nothing else
   });
 
   it("turns the button off with the same reason Evidence gives", async () => {
-    const off = { ...lab, retest: { ...lab.retest, can_start: false, blocked_reason: "Run every test first: 2 of 5 have no result yet." } };
+    const off = {
+      ...lab,
+      retest: { ...lab.retest, can_start: false, blocked_reason: "Run every test first: 2 of 5 have no result yet." },
+    };
     await open(checksView, { [LAB]: { body: off } });
-    const button = (await within(part("retests")).findByRole("button", { name: "Retest new version" })) as HTMLButtonElement;
+    const button = (await within(part("retests")).findByRole("button", {
+      name: "Retest new version",
+    })) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    expect(within(part("retests")).getByTestId("retest-blocked").textContent).toBe("Run every test first: 2 of 5 have no result yet.");
+    expect(within(part("retests")).getByTestId("retest-blocked").textContent).toBe(
+      "Run every test first: 2 of 5 have no result yet.",
+    );
   });
 
   it("in a closed assessment the button is off with the closed sentence", async () => {
     await open(checksView, {}, { readOnly: true });
-    const button = (await within(part("retests")).findByRole("button", { name: "Retest new version" })) as HTMLButtonElement;
+    const button = (await within(part("retests")).findByRole("button", {
+      name: "Retest new version",
+    })) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     expect(button.getAttribute("title")).toBe(CLOSED_SENTENCE);
   });
@@ -615,13 +737,21 @@ describe("Checks, Crypto tests in four parts", () => {
     expect(within(newest).getByRole("heading", { level: 4 }).textContent).toContain("acme-sign 1.4.3");
     expect(within(newest).getByTestId("block-line").textContent).toBe(newestBlock.line);
     expect(within(newest).getByRole("button").getAttribute("aria-expanded")).toBe("true");
-    expect(within(newest).getAllByTestId("check-row").map((r) => r.getAttribute("data-check"))).toEqual(BLOCK_IDS);
+    expect(
+      within(newest)
+        .getAllByTestId("check-row")
+        .map((r) => r.getAttribute("data-check")),
+    ).toEqual(BLOCK_IDS);
     // the older version: its heading is there, its rows are not, until its heading is clicked
     expect(within(older).getByRole("heading", { level: 4 }).textContent).toContain("acme-sign 1.4.3-otto");
     expect(within(older).getByRole("button").getAttribute("aria-expanded")).toBe("false");
     expect(within(older).queryAllByTestId("check-row")).toHaveLength(0);
     fireEvent.click(within(older).getByRole("button"));
-    expect(within(older).getAllByTestId("check-row").map((r) => r.getAttribute("data-check"))).toEqual(["retest-1-on-1"]);
+    expect(
+      within(older)
+        .getAllByTestId("check-row")
+        .map((r) => r.getAttribute("data-check")),
+    ).toEqual(["retest-1-on-1"]);
     // and the newest folds shut from its heading
     fireEvent.click(within(newest).getByRole("button"));
     expect(within(newest).queryAllByTestId("check-row")).toHaveLength(0);
@@ -630,13 +760,19 @@ describe("Checks, Crypto tests in four parts", () => {
   it("marks a server test that a retest ran again unchanged", async () => {
     await open();
     const rows = within(part("retests")).getAllByTestId("check-row");
-    expect(rows.map((r) => within(r).queryByTestId("check-mark")?.textContent ?? null)).toEqual([null, null, " · tested again as it is"]);
+    expect(rows.map((r) => within(r).queryByTestId("check-mark")?.textContent ?? null)).toEqual([
+      null,
+      null,
+      " · tested again as it is",
+    ]);
     expect(text(rows[2]!.children[0]!)).toContain("localhost:8443 · tested again as it is");
   });
 
   it("opens a row of an older block on that block's own run", async () => {
     const detail: CheckDetail = { ...retestDetail, check: olderBlock.rows[0]!, runs: [retestDetail.runs[0]!] };
-    const fetchMock = await open(withParts({ retests: [newestBlock, olderBlock] }), { "GET /api/plans/1/checks/retest-1-on-1": { body: detail } });
+    const fetchMock = await open(withParts({ retests: [newestBlock, olderBlock] }), {
+      "GET /api/plans/1/checks/retest-1-on-1": { body: detail },
+    });
     fireEvent.click(within(blocksIn("retests")[1]!).getByRole("button"));
     fireEvent.click(within(blocksIn("retests")[1]!).getByTestId("check-row"));
     const panel = await screen.findByTestId("check-panel");
@@ -648,18 +784,27 @@ describe("Checks, Crypto tests in four parts", () => {
   it("shows one block for each proof, with the changed code's version", async () => {
     await open(withParts({ proofs: [proofBlock] }));
     const [block] = blocksIn("proofs") as [HTMLElement];
-    expect(within(block).getByRole("heading", { level: 4 }).textContent).toContain("acme-sign 1.4.3 (the changed code)");
-    expect(within(block).getAllByTestId("check-row").map((r) => r.getAttribute("data-check"))).toEqual(["proof-1-in-1"]);
+    expect(within(block).getByRole("heading", { level: 4 }).textContent).toContain(
+      "acme-sign 1.4.3 (the changed code)",
+    );
+    expect(
+      within(block)
+        .getAllByTestId("check-row")
+        .map((r) => r.getAttribute("data-check")),
+    ).toEqual(["proof-1-in-1"]);
     expect(within(block).getByTestId("check-row").getAttribute("data-came-from")).toBe("proof");
   });
 
   it("Came from finds a retest's run that came right after an Apply in its block, and never shows a block as empty", async () => {
     // The newest run of this retest's server test came right after an Apply: its row says so in "Came from".
-    const afterApply = blockRow(3, 2, "Old TLS versions", "localhost:8443", true, { came_from: { key: "after_apply", label: "After Apply" } });
+    const afterApply = blockRow(3, 2, "Old TLS versions", "localhost:8443", true, {
+      came_from: { key: "after_apply", label: "After Apply" },
+    });
     const block = { ...newestBlock, rows: [newestBlock.rows[0]!, afterApply] };
     const onlyAfter = { ...olderBlock, rows: [{ ...afterApply, id: "retest-3-on-1", alias: null }] };
     await open(withParts({ retests: [block, onlyAfter] }));
-    const from = (value: string) => fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value } });
+    const from = (value: string) =>
+      fireEvent.change(screen.getByRole("combobox", { name: "Came from" }), { target: { value } });
 
     from("after_apply");
     // the Retests part is there for that row, in the blocks that hold one; the plan and the proofs are not
@@ -704,7 +849,11 @@ describe("Checks, where each result came from", () => {
   it("draws exactly one tag beside each row's result, with the backend's words and what they mean on hover", async () => {
     const fetchMock = await open();
     const rows = rowsIn("verification");
-    expect(rows.map((r) => tagsOf(r).map((t) => t.textContent))).toEqual([["Observed live"], ["Observed live"], ["From your file"]]);
+    expect(rows.map((r) => tagsOf(r).map((t) => t.textContent))).toEqual([
+      ["Observed live"],
+      ["Observed live"],
+      ["From your file"],
+    ]);
     expect(rows.map((r) => tagsOf(r)[0]!.getAttribute("data-source"))).toEqual(["live", "live", "file"]);
     expect(tagsOf(rows[0]!)[0]!.getAttribute("title")).toBe(verifyRows[0]!.source_tag!.meaning);
     // the tag sits in the result's own cell, beside its word
@@ -713,7 +862,11 @@ describe("Checks, where each result came from", () => {
     // a program's test is lab, a server's test live
     const tests = rowsIn("encryption");
     expect(tests.map((r) => tagsOf(r).map((t) => t.getAttribute("data-source")))).toEqual([["lab"], ["lab"], ["live"]]);
-    expect(tests.map((r) => text(r.children[0]!))).toEqual([expect.stringContaining("acme-sign"), expect.stringContaining("acme-sign"), expect.stringContaining("localhost:8443")]);
+    expect(tests.map((r) => text(r.children[0]!))).toEqual([
+      expect.stringContaining("acme-sign"),
+      expect.stringContaining("acme-sign"),
+      expect.stringContaining("localhost:8443"),
+    ]);
     expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);
   });
 

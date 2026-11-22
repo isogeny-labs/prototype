@@ -7,7 +7,8 @@ import { mockApi, text } from "./fixtures";
 
 afterEach(cleanup);
 
-const DECIDES = "This is information. Whether the try passed is decided by the system's own measurement above, and Apply is not held off by it: you decide.";
+const DECIDES =
+  "This is information. Whether the try passed is decided by the system's own measurement above, and Apply is not held off by it: you decide.";
 const NOTE =
   "Stand-ins are our own OpenSSL offering what each profile says, not your devices. They check no certificate's trust, and accept only the signature types their profile lists.";
 const COLUMNS = ["Client stand-in (Demo data)", "Today", "On the test copy", "Result"];
@@ -20,18 +21,66 @@ export const TLS_CLIENTS: TryClients = {
   warning: "Sort out the 1 that breaks before you apply this change.",
   columns: COLUMNS,
   rows: [
-    { id: "old-terminal", name: "Payment terminal, old firmware", offers: "TLS 1.2 only; classical key exchange (X25519, P-256); classical certificates only.", label: "Demo data", today: "TLS 1.2, classical (P-256)", on_copy: "Refused (protocol version)", word: "Breaks", word_key: "breaks", tone: "fail", note: null },
-    { id: "partner-classical", name: "Partner system, classical only", offers: "TLS 1.2 and 1.3; classical key exchange.", label: "Demo data", today: "TLS 1.3, classical (P-256)", on_copy: "TLS 1.3, classical (P-256)", word: "Connects", word_key: "connects", tone: "pass", note: null },
-    { id: "new-terminal", name: "Payment terminal, new firmware", offers: "TLS 1.2 and 1.3; hybrid first.", label: "Demo data", today: "TLS 1.3, classical (P-256)", on_copy: "TLS 1.3, classical (P-256)", word: "Connects", word_key: "connects", tone: "pass", note: null },
-    { id: "pq-only", name: "Post-quantum-only client", offers: "TLS 1.3 only; ML-KEM-768 by itself.", label: "Demo data", today: "Refused (handshake failure)", on_copy: "Refused (handshake failure)", word: "Didn't connect before either", word_key: "not_before", tone: "neutral", note: null },
+    {
+      id: "old-terminal",
+      name: "Payment terminal, old firmware",
+      offers: "TLS 1.2 only; classical key exchange (X25519, P-256); classical certificates only.",
+      label: "Demo data",
+      today: "TLS 1.2, classical (P-256)",
+      on_copy: "Refused (protocol version)",
+      word: "Breaks",
+      word_key: "breaks",
+      tone: "fail",
+      note: null,
+    },
+    {
+      id: "partner-classical",
+      name: "Partner system, classical only",
+      offers: "TLS 1.2 and 1.3; classical key exchange.",
+      label: "Demo data",
+      today: "TLS 1.3, classical (P-256)",
+      on_copy: "TLS 1.3, classical (P-256)",
+      word: "Connects",
+      word_key: "connects",
+      tone: "pass",
+      note: null,
+    },
+    {
+      id: "new-terminal",
+      name: "Payment terminal, new firmware",
+      offers: "TLS 1.2 and 1.3; hybrid first.",
+      label: "Demo data",
+      today: "TLS 1.3, classical (P-256)",
+      on_copy: "TLS 1.3, classical (P-256)",
+      word: "Connects",
+      word_key: "connects",
+      tone: "pass",
+      note: null,
+    },
+    {
+      id: "pq-only",
+      name: "Post-quantum-only client",
+      offers: "TLS 1.3 only; ML-KEM-768 by itself.",
+      label: "Demo data",
+      today: "Refused (handshake failure)",
+      on_copy: "Refused (handshake failure)",
+      word: "Didn't connect before either",
+      word_key: "not_before",
+      tone: "neutral",
+      note: null,
+    },
   ],
   note: NOTE,
   decides: DECIDES,
-  control: "Control: the same stand-ins on our own hybrid and classical test servers, started for this run, read as they must.",
+  control:
+    "Control: the same stand-ins on our own hybrid and classical test servers, started for this run, read as they must.",
   no_answer: null,
 };
 
-const withClients = (base: ChangeView, clients: TryClients): ChangeView => ({ ...base, try: { ...base.try!, clients } });
+const withClients = (base: ChangeView, clients: TryClients): ChangeView => ({
+  ...base,
+  try: { ...base.try!, clients },
+});
 
 function show(change: ChangeView) {
   const fetchMock = mockApi({});
@@ -44,8 +93,12 @@ describe("Who can still connect, in a try (phase 4e)", () => {
     show(withClients(triedPassedPicker, TLS_CLIENTS));
     const block = within(screen.getByTestId("change-clients"));
     expect(block.getByText("Who can still connect")).toBeTruthy();
-    expect(block.getByTestId("clients-summary").textContent).toBe("1 breaks, 2 connect, 1 didn't connect before either.");
-    expect(block.getByTestId("clients-warning").textContent).toBe("Sort out the 1 that breaks before you apply this change.");
+    expect(block.getByTestId("clients-summary").textContent).toBe(
+      "1 breaks, 2 connect, 1 didn't connect before either.",
+    );
+    expect(block.getByTestId("clients-warning").textContent).toBe(
+      "Sort out the 1 that breaks before you apply this change.",
+    );
     expect(block.getByRole("list", { name: COLUMNS[0] })).toBeTruthy();
     const rows = block.getAllByTestId("clients-row");
     expect(rows.map((r) => r.getAttribute("data-word"))).toEqual(["breaks", "connects", "connects", "not_before"]);
@@ -58,7 +111,9 @@ describe("Who can still connect, in a try (phase 4e)", () => {
       "Refused (protocol version)",
     ]);
     // the word comes first in the row, before the name
-    expect(rows[0]!.textContent!.indexOf("Breaks")).toBeLessThan(rows[0]!.textContent!.indexOf("Payment terminal, old firmware"));
+    expect(rows[0]!.textContent!.indexOf("Breaks")).toBeLessThan(
+      rows[0]!.textContent!.indexOf("Payment terminal, old firmware"),
+    );
     expect(block.getByTestId("clients-decides").textContent).toBe(DECIDES);
     expect(block.getByTestId("clients-note").textContent).toBe(NOTE);
   });
@@ -68,16 +123,36 @@ describe("Who can still connect, in a try (phase 4e)", () => {
     const block = screen.getByTestId("change-clients");
     expect(within(block).queryAllByRole("button")).toHaveLength(0);
     const apply = screen.getByRole("button", { name: /^Apply to/ }) as HTMLButtonElement;
-    expect(apply.disabled).toBe(false);                     // the warning holds nothing off: the person decides
+    expect(apply.disabled).toBe(false); // the warning holds nothing off: the person decides
     expect(block.textContent).not.toMatch(/secure|score|severity/i);
   });
 
   it("says when it is running, and when the stand-ins gave no answer", () => {
-    show(withClients(triedPassedPicker, { ...TLS_CLIENTS, running: { status: "running", status_text: "Running", progress: { text: "connecting the client stand-ins", percent: null } }, rows: [] }));
+    show(
+      withClients(triedPassedPicker, {
+        ...TLS_CLIENTS,
+        running: {
+          status: "running",
+          status_text: "Running",
+          progress: { text: "connecting the client stand-ins", percent: null },
+        },
+        rows: [],
+      }),
+    );
     expect(within(screen.getByTestId("change-clients")).queryByTestId("clients-row")).toBeNull();
     cleanup();
-    show(withClients(triedPassedPicker, { ...TLS_CLIENTS, summary: null, warning: null, rows: [], no_answer: "No answer from the client stand-ins: the control did not behave as it must." }));
-    expect(screen.getByTestId("clients-no-answer").textContent).toBe("No answer from the client stand-ins: the control did not behave as it must.");
+    show(
+      withClients(triedPassedPicker, {
+        ...TLS_CLIENTS,
+        summary: null,
+        warning: null,
+        rows: [],
+        no_answer: "No answer from the client stand-ins: the control did not behave as it must.",
+      }),
+    );
+    expect(screen.getByTestId("clients-no-answer").textContent).toBe(
+      "No answer from the client stand-ins: the control did not behave as it must.",
+    );
   });
 
   it("draws nothing for a try made before this check", () => {
@@ -93,7 +168,9 @@ describe("A server change, where each step came from", () => {
   it("tags the try's columns and its verdict, and After Apply, each beside its own word", () => {
     const fetchMock = show(appliedMatches);
     const tryBox = within(screen.getByTestId("change-try"));
-    expect(tryBox.getAllByTestId("column-source-tag").map((t) => [t.textContent, t.getAttribute("data-source")])).toEqual([
+    expect(
+      tryBox.getAllByTestId("column-source-tag").map((t) => [t.textContent, t.getAttribute("data-source")]),
+    ).toEqual([
       ["Observed live", "live"],
       ["Proven in the lab", "lab"],
     ]);
@@ -115,7 +192,11 @@ describe("A server change, where each step came from", () => {
       applied: null,
       try: {
         ...appliedMatches.try!,
-        verdict: { label: "No answer from the try.", look: "warn", text: "A copy could not be measured, or its control did not behave." },
+        verdict: {
+          label: "No answer from the try.",
+          look: "warn",
+          text: "A copy could not be measured, or its control did not behave.",
+        },
         source_tag: null,
         column_source_tags: [null, appliedMatches.try!.column_source_tags![1]!, null],
       },

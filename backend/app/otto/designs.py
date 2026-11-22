@@ -11,6 +11,7 @@ accept-everything control, and judged by the same rule as the Independent exam (
 
 Nothing here decides a result, and nothing here runs anything.
 """
+
 from __future__ import annotations
 
 import re
@@ -24,10 +25,10 @@ BLOCK = "signature_cases"
 CASE_SET = "ecdsa_p256"
 CONTROL = "accept_all_verifier"
 RULE = "all_cases_match"
-PROPOSED_BY = "isogeny.otto-pack/1"       # who proposed an advisory check: the pack, never the rule engine or the reviewer
+PROPOSED_BY = "isogeny.otto-pack/1"  # who proposed an advisory check: the pack, never the rule engine or the reviewer
 MAX_CASES = 484
 MAX_TEXT = 400
-MAX_REASON = 700        # "one or two plain sentences": why no test fits, or what a fix does
+MAX_REASON = 700  # "one or two plain sentences": why no test fits, or what a fix does
 _ADVISORY_ID = re.compile(r"^[A-Z0-9][A-Z0-9-]{3,39}$")
 _CASE_ID = re.compile(r"^[0-9]{1,5}$")
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -35,14 +36,22 @@ _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 BLOCKS: dict[str, dict] = {
     BLOCK: {
         "title": "Published signature cases",
-        "what": ("Hands the program published ECDSA P-256 signatures (Project Wycheproof, pinned by SHA-256), one at a time, and "
-                 "compares its accept or reject with the published right answer."),
+        "what": (
+            "Hands the program published ECDSA P-256 signatures (Project Wycheproof, pinned by SHA-256), one at a time, and "
+            "compares its accept or reject with the published right answer."
+        ),
         "fits": "A program or library that checks ECDSA P-256 signatures over SHA-256, in DER form.",
-        "controls": {CONTROL: "A deliberately broken checker that accepts every signature. It must get every must-reject case wrong, "
-                              "so the selection needs at least one must-reject case."},
+        "controls": {
+            CONTROL: "A deliberately broken checker that accepts every signature. It must get every must-reject case wrong, "
+            "so the selection needs at least one must-reject case."
+        },
         "rule": "Passed only if every answer is right. Any wrong answer means Failed.",
-        "cannot": ["timing or other side channels", "signing (only checking)", "any other curve, hash or signature scheme",
-                   "a crash that the program turns into a plain rejection"],
+        "cannot": [
+            "timing or other side channels",
+            "signing (only checking)",
+            "any other curve, hash or signature scheme",
+            "a crash that the program turns into a plain rejection",
+        ],
     },
 }
 
@@ -52,7 +61,12 @@ class DesignError(ValueError):
 
 
 def _text(value: object, name: str, limit: int = MAX_TEXT) -> str:
-    if not isinstance(value, str) or not value.strip() or len(value) > limit or any(ord(ch) < 32 and ch not in "\n\t" for ch in value):
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or len(value) > limit
+        or any(ord(ch) < 32 and ch not in "\n\t" for ch in value)
+    ):
         raise DesignError(f"The design's {name} is not a short piece of plain text.")
     return value.strip()
 
@@ -74,13 +88,21 @@ def case_index() -> dict:
     for flag, kind in kinds.items():
         note = notes.get(flag) or {}
         kind["note"] = {k: note[k] for k in ("bugType", "description", "effect", "cves") if k in note}
-    return {"set": CASE_SET, "file": pin["file"], "sha256": pin["sha256"], "commit": vectors.WYCHEPROOF_COMMIT,
-            "source_url": vectors.WYCHEPROOF_SOURCE_URL, "cases": len(cases), "kinds": {k: kinds[k] for k in sorted(kinds)}}
+    return {
+        "set": CASE_SET,
+        "file": pin["file"],
+        "sha256": pin["sha256"],
+        "commit": vectors.WYCHEPROOF_COMMIT,
+        "source_url": vectors.WYCHEPROOF_SOURCE_URL,
+        "cases": len(cases),
+        "kinds": {k: kinds[k] for k in sorted(kinds)},
+    }
 
 
 def _published_notes() -> dict:
     import json
-    path = vectors.load_wycheproof(CASE_SET).path     # (loading checks the pin first)
+
+    path = vectors.load_wycheproof(CASE_SET).path  # (loading checks the pin first)
     notes = json.loads(path.read_bytes()).get("notes")
     return notes if isinstance(notes, dict) else {}
 
@@ -91,8 +113,13 @@ def select_cases(select: object) -> list[str]:
     if not isinstance(select, dict) or set(select) - {"flags", "ids"}:
         raise DesignError("The design's selection must name flags, ids or both, and nothing else.")
     flags, ids = select.get("flags", []), select.get("ids", [])
-    if not isinstance(flags, list) or not isinstance(ids, list) or not (flags or ids) \
-            or not all(isinstance(f, str) for f in flags) or not all(isinstance(i, str) and _CASE_ID.match(i) for i in ids):
+    if (
+        not isinstance(flags, list)
+        or not isinstance(ids, list)
+        or not (flags or ids)
+        or not all(isinstance(f, str) for f in flags)
+        or not all(isinstance(i, str) and _CASE_ID.match(i) for i in ids)
+    ):
         raise DesignError("The design's selection must name at least one flag or case id, as text.")
     cases = vectors.load_wycheproof(CASE_SET).cases
     known_flags = {flag for case in cases for flag in case.flags}
@@ -132,16 +159,40 @@ def check_design(design: object) -> dict:
     if question.count("{program}") != 1:
         raise DesignError("The design's question must name the program once, as {program}.")
     step = design["model_step"]
-    if not isinstance(step, dict) or set(step) != {"prompt_sha256", "answer_sha256"} or not all(isinstance(v, str) and _HEX64.match(v) for v in step.values()):
+    if (
+        not isinstance(step, dict)
+        or set(step) != {"prompt_sha256", "answer_sha256"}
+        or not all(isinstance(v, str) and _HEX64.match(v) for v in step.values())
+    ):
         raise DesignError("The design does not say which recorded answer it was made from.")
     cases, pin = design["cases"], vectors.WYCHEPROOF[CASE_SET]
-    if not isinstance(cases, dict) or set(cases) != {"set", "file", "sha256", "commit", "source_url", "select", "ids", "must_reject", "must_accept"}:
+    if not isinstance(cases, dict) or set(cases) != {
+        "set",
+        "file",
+        "sha256",
+        "commit",
+        "source_url",
+        "select",
+        "ids",
+        "must_reject",
+        "must_accept",
+    }:
         raise DesignError("The design's case list is not in the shape this version knows.")
-    if (cases["set"], cases["file"], cases["sha256"], cases["commit"], cases["source_url"]) != \
-            (CASE_SET, pin["file"], pin["sha256"], vectors.WYCHEPROOF_COMMIT, vectors.WYCHEPROOF_SOURCE_URL):
+    if (cases["set"], cases["file"], cases["sha256"], cases["commit"], cases["source_url"]) != (
+        CASE_SET,
+        pin["file"],
+        pin["sha256"],
+        vectors.WYCHEPROOF_COMMIT,
+        vectors.WYCHEPROOF_SOURCE_URL,
+    ):
         raise DesignError("The design was made for a test file other than the one pinned in this version.")
     ids = cases["ids"]
-    if not isinstance(ids, list) or not ids or len(ids) > MAX_CASES or not all(isinstance(i, str) and _CASE_ID.match(i) for i in ids):
+    if (
+        not isinstance(ids, list)
+        or not ids
+        or len(ids) > MAX_CASES
+        or not all(isinstance(i, str) and _CASE_ID.match(i) for i in ids)
+    ):
         raise DesignError("The design names no cases, or names them in a form this version does not know.")
     if select_cases(cases["select"]) != ids:
         raise DesignError("The cases the design lists are not the ones its own selection picks from the pinned file.")
@@ -149,7 +200,9 @@ def check_design(design: object) -> dict:
     if (cases["must_reject"], cases["must_accept"]) != (reject, accept):
         raise DesignError("The design's case counts do not match the pinned file.")
     if reject < 1:
-        raise DesignError("The design has no case that must be rejected, so its control could never fail. It is not offered.")
+        raise DesignError(
+            "The design has no case that must be rejected, so its control could never fail. It is not offered."
+        )
     return design
 
 
@@ -171,27 +224,56 @@ def spec_for(design: dict, pack: dict, program: dict, advisory: dict) -> dict:
     total, reject, accept = len(cases["ids"]), cases["must_reject"], cases["must_accept"]
     name = program["component"]
     short = vectors.WYCHEPROOF_COMMIT[:7]
-    parts = (f"{reject} that must be rejected" + (f" and {accept} that must be accepted" if accept else ""))
+    parts = f"{reject} that must be rejected" + (f" and {accept} that must be accepted" if accept else "")
     return {
-        "schema": research.SPEC_SCHEMA, "kind": research.ADVISORY_KIND, "title": title_of(design),
-        "card": {"description": (f"Reruns the {total} published test {'case' if total == 1 else 'cases'} that match advisory {design['advisory']} "
-                                 f"on {name}: {parts}."),
-                 "why": design["why"]},
+        "schema": research.SPEC_SCHEMA,
+        "kind": research.ADVISORY_KIND,
+        "title": title_of(design),
+        "card": {
+            "description": (
+                f"Reruns the {total} published test {'case' if total == 1 else 'cases'} that match advisory {design['advisory']} "
+                f"on {name}: {parts}."
+            ),
+            "why": design["why"],
+        },
         "question": design["question"].replace("{program}", name),
         "method": "Run the verify command once per case and compare its answer with the published one.",
         "target": {"kind": "software", "component": name, "algorithm": program["algorithm"], "claim": program["claim"]},
-        "inputs": {"advisory": {"id": design["advisory"], "plain_name": design["plain_name"], "quote": advisory["quote"],
-                                "source": dict(advisory["source"]), "pack": pack["version"], "pack_fingerprint": pack["fingerprint"],
-                                "design_sha256": design_sha256(design)},
-                   "files": [{"set": cases["set"], "file": cases["file"], "sha256": cases["sha256"], "cases": total, "used_on": "component"}],
-                   "cases": list(cases["ids"]), "must_reject": reject, "must_accept": accept,
-                   "commit": cases["commit"], "source_url": cases["source_url"]},
-        "inputs_text": [f"{total} {'case' if total == 1 else 'cases'} from Wycheproof testvectors_v1/{cases['file']}, pinned to commit {short}: {parts}.",
-                        f"Chosen for advisory {design['advisory']} by test pack {pack['version']} (design fingerprint {design_sha256(design)[:12]}), "
-                        "and tried on public copies before the pack was signed."],
-        "control": {"kind": CONTROL,
-                    "text": "The same cases run against a deliberately broken signer, which must get every invalid case wrong.",
-                    "must": {"wrong_on": "every invalid case"}},
+        "inputs": {
+            "advisory": {
+                "id": design["advisory"],
+                "plain_name": design["plain_name"],
+                "quote": advisory["quote"],
+                "source": dict(advisory["source"]),
+                "pack": pack["version"],
+                "pack_fingerprint": pack["fingerprint"],
+                "design_sha256": design_sha256(design),
+            },
+            "files": [
+                {
+                    "set": cases["set"],
+                    "file": cases["file"],
+                    "sha256": cases["sha256"],
+                    "cases": total,
+                    "used_on": "component",
+                }
+            ],
+            "cases": list(cases["ids"]),
+            "must_reject": reject,
+            "must_accept": accept,
+            "commit": cases["commit"],
+            "source_url": cases["source_url"],
+        },
+        "inputs_text": [
+            f"{total} {'case' if total == 1 else 'cases'} from Wycheproof testvectors_v1/{cases['file']}, pinned to commit {short}: {parts}.",
+            f"Chosen for advisory {design['advisory']} by test pack {pack['version']} (design fingerprint {design_sha256(design)[:12]}), "
+            "and tried on public copies before the pack was signed.",
+        ],
+        "control": {
+            "kind": CONTROL,
+            "text": "The same cases run against a deliberately broken signer, which must get every invalid case wrong.",
+            "must": {"wrong_on": "every invalid case"},
+        },
         "rule": {"type": RULE, "valid": "accept", "invalid": "reject", "acceptable": "not counted"},
         "rule_text": f"Passed only if all {total} answers are right. Any wrong answer means Failed.",
     }
@@ -203,6 +285,7 @@ def fits(program: dict) -> bool:
 
 
 # ---------------------------------------------------------------- a model's design note -> a design
+
 
 def compile_note(note: object, advisory_id: str, plain_name: str, step: dict) -> dict:
     """The design a design note describes. Raises DesignError with the plain reason when the note asks for something
@@ -219,13 +302,28 @@ def compile_note(note: object, advisory_id: str, plain_name: str, step: dict) ->
     reject, accept = _counts(ids)
     pin = vectors.WYCHEPROOF[CASE_SET]
     select = {k: list(note["select"][k]) for k in ("flags", "ids") if note["select"].get(k)}
-    design = {"schema": DESIGN_SCHEMA, "advisory": advisory_id, "block": BLOCK, "plain_name": _text(plain_name, "plain name", 80),
-              "question": _text(note.get("question"), "question"), "why": _text(note.get("why"), "reason"),
-              "cases": {"set": CASE_SET, "file": pin["file"], "sha256": pin["sha256"], "commit": vectors.WYCHEPROOF_COMMIT,
-                        "source_url": vectors.WYCHEPROOF_SOURCE_URL, "select": select, "ids": ids,
-                        "must_reject": reject, "must_accept": accept},
-              "control": CONTROL, "rule": RULE,
-              "model_step": {"prompt_sha256": step["prompt_sha256"], "answer_sha256": step["answer_sha256"]}}
+    design = {
+        "schema": DESIGN_SCHEMA,
+        "advisory": advisory_id,
+        "block": BLOCK,
+        "plain_name": _text(plain_name, "plain name", 80),
+        "question": _text(note.get("question"), "question"),
+        "why": _text(note.get("why"), "reason"),
+        "cases": {
+            "set": CASE_SET,
+            "file": pin["file"],
+            "sha256": pin["sha256"],
+            "commit": vectors.WYCHEPROOF_COMMIT,
+            "source_url": vectors.WYCHEPROOF_SOURCE_URL,
+            "select": select,
+            "ids": ids,
+            "must_reject": reject,
+            "must_accept": accept,
+        },
+        "control": CONTROL,
+        "rule": RULE,
+        "model_step": {"prompt_sha256": step["prompt_sha256"], "answer_sha256": step["answer_sha256"]},
+    }
     return check_design(design)
 
 

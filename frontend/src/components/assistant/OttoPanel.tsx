@@ -113,10 +113,16 @@ export function OttoPanel({
     [assessmentId],
   );
   const current = view && view.assessment_id === assessmentId ? view : null;
-  const tabs = useMemo(() => (current?.tabs ?? []).filter((t) => tabPrefs.closed[t.key] !== t.mark), [current, tabPrefs]);
+  const tabs = useMemo(
+    () => (current?.tabs ?? []).filter((t) => tabPrefs.closed[t.key] !== t.mark),
+    [current, tabPrefs],
+  );
   // A closed tab that came back (something new happened in its thread) is open again for good: it is not hidden a
   // second time when its thread later reads as it did when the tab was closed (a proof that fails, runs, fails again).
-  const returned = (current?.tabs ?? []).filter((t) => t.key in tabPrefs.closed && tabPrefs.closed[t.key] !== t.mark).map((t) => t.key).join(",");
+  const returned = (current?.tabs ?? [])
+    .filter((t) => t.key in tabPrefs.closed && tabPrefs.closed[t.key] !== t.mark)
+    .map((t) => t.key)
+    .join(",");
   useEffect(() => {
     if (!returned) return;
     const back = returned.split(",");
@@ -132,7 +138,11 @@ export function OttoPanel({
   useEffect(() => setPicked(null), [page, assessmentId]);
   const pageThread = current?.thread ?? null;
   const selected: AssistantTab | null =
-    tabs.find((t) => t.key === picked) ?? tabs.find((t) => t.key === pageThread) ?? tabs.find((t) => t.key === lastSelected.current) ?? tabs[0] ?? null;
+    tabs.find((t) => t.key === picked) ??
+    tabs.find((t) => t.key === pageThread) ??
+    tabs.find((t) => t.key === lastSelected.current) ??
+    tabs[0] ??
+    null;
   const selectedKey = selected?.key ?? null;
   const selectedMark = selected?.mark ?? null;
   useEffect(() => {
@@ -168,7 +178,12 @@ export function OttoPanel({
   // ---- phase 6b: the text box. What was typed last and what came back for it; nothing of it is sent on by itself.
   const [typed, setTyped] = useState("");
   const [asking, setAsking] = useState(false);
-  const [exchange, setExchange] = useState<{ said: string; reply: AssistantReply; confirmed: boolean; stale?: boolean } | null>(null);
+  const [exchange, setExchange] = useState<{
+    said: string;
+    reply: AssistantReply;
+    confirmed: boolean;
+    stale?: boolean;
+  } | null>(null);
   const [askError, setAskError] = useState<string | null>(null);
   const boxRef = useRef<HTMLTextAreaElement>(null);
   const boxId = useId();
@@ -241,7 +256,10 @@ export function OttoPanel({
     setAsking(true);
     setAskError(null);
     try {
-      const reply = current.box.kept && planId !== null ? await api.say(planId, page, item, words) : await api.getAnswer(assessmentId, page, item, words);
+      const reply =
+        current.box.kept && planId !== null
+          ? await api.say(planId, page, item, words)
+          : await api.getAnswer(assessmentId, page, item, words);
       setTyped("");
       setExchange({ said: words, reply, confirmed: false });
       setConfirming(null);
@@ -257,7 +275,8 @@ export function OttoPanel({
         }
       }
       if ((reply.kind === "went" || reply.kind === "page_only") && reply.go) onGoTo?.(reply.go);
-      if (reply.kind === "card" && reply.entry && reply.open) setConfirming({ entry: reply.entry.id, key: reply.open.key, place: "reply" });
+      if (reply.kind === "card" && reply.entry && reply.open)
+        setConfirming({ entry: reply.entry.id, key: reply.open.key, place: "reply" });
     } catch (e) {
       setAskError(errorMessage(e));
     } finally {
@@ -277,7 +296,10 @@ export function OttoPanel({
       return;
     }
     const entry = (confirming.place === "page" ? pageEntries : threadEntries)?.find((e) => e.id === confirming.entry);
-    const still = confirming.key === "step" ? entry?.step?.confirm : entry?.decisions.find((d) => d.key === confirming.key)?.confirm;
+    const still =
+      confirming.key === "step"
+        ? entry?.step?.confirm
+        : entry?.decisions.find((d) => d.key === confirming.key)?.confirm;
     if (!still) {
       setConfirming(null);
       setReason("");
@@ -287,35 +309,35 @@ export function OttoPanel({
     const place: Place = where ?? (compact ? "thread" : "page");
     const mine = confirming?.entry === entry.id && confirming.place === place;
     return (
-    <EntryCard
-      key={entry.id}
-      entry={entry}
-      compact={compact}
-      confirming={mine ? confirming.key : null}
-      reason={reason}
-      onReason={setReason}
-      sending={sending}
-      error={mine ? sendError : null}
-      onAsk={(key) => ask(entry, key, place)}
-      onCancel={cancel}
-      who={current ? { ...current.recorded_as, ask: !current.recorded_as.typed && !nameAsked } : null}
-      name={name}
-      onName={setName}
-      onConfirmDecision={(decision) => {
-        if (planId === null) return;
-        const why = decision.key === "reject" ? reason.trim() || undefined : undefined;
-        const typed = current && !current.recorded_as.typed && !nameAsked ? name.trim() : "";
-        void confirm(async () => {
-          // (the name, when one was typed, is kept first: the decision is then recorded under it)
-          if (typed) await api.setDecisionName(typed);
-          prefs.setOttoNameAsked();
-          setNameAsked(true);
-          setName("");
-          return api.decideProposal(planId, entry.id, decision.key, why);
-        });
-      }}
-      onConfirmStep={(step) => void confirm(() => sendStep(step.action), pageAfter(step.action))}
-    />
+      <EntryCard
+        key={entry.id}
+        entry={entry}
+        compact={compact}
+        confirming={mine ? confirming.key : null}
+        reason={reason}
+        onReason={setReason}
+        sending={sending}
+        error={mine ? sendError : null}
+        onAsk={(key) => ask(entry, key, place)}
+        onCancel={cancel}
+        who={current ? { ...current.recorded_as, ask: !current.recorded_as.typed && !nameAsked } : null}
+        name={name}
+        onName={setName}
+        onConfirmDecision={(decision) => {
+          if (planId === null) return;
+          const why = decision.key === "reject" ? reason.trim() || undefined : undefined;
+          const typed = current && !current.recorded_as.typed && !nameAsked ? name.trim() : "";
+          void confirm(async () => {
+            // (the name, when one was typed, is kept first: the decision is then recorded under it)
+            if (typed) await api.setDecisionName(typed);
+            prefs.setOttoNameAsked();
+            setNameAsked(true);
+            setName("");
+            return api.decideProposal(planId, entry.id, decision.key, why);
+          });
+        }}
+        onConfirmStep={(step) => void confirm(() => sendStep(step.action), pageAfter(step.action))}
+      />
     );
   };
 
@@ -358,7 +380,12 @@ export function OttoPanel({
       {current ? (
         <div className="space-y-4 px-4 pb-6 text-sm">
           {current.notices.map((notice) => (
-            <p key={notice} data-testid="otto-notice" role="status" className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300">
+            <p
+              key={notice}
+              data-testid="otto-notice"
+              role="status"
+              className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-300"
+            >
               {notice}
             </p>
           ))}
@@ -376,7 +403,9 @@ export function OttoPanel({
                     data-selected={isSelected}
                     data-dot={dot}
                     className={`inline-flex items-center rounded-lg border text-xs ${
-                      isSelected ? "border-slate-500 bg-slate-800 text-slate-100" : "border-slate-700 bg-slate-900 text-slate-300"
+                      isSelected
+                        ? "border-slate-500 bg-slate-800 text-slate-100"
+                        : "border-slate-700 bg-slate-900 text-slate-300"
                     }`}
                   >
                     <button
@@ -439,14 +468,26 @@ export function OttoPanel({
           </section>
 
           {current.elsewhere.lines.length > 0 || current.elsewhere.empty ? (
-            <section data-testid="otto-elsewhere" data-count={current.elsewhere.count} aria-label={current.elsewhere.title}>
+            <section
+              data-testid="otto-elsewhere"
+              data-count={current.elsewhere.count}
+              aria-label={current.elsewhere.title}
+            >
               {current.elsewhere.lines.length > 0 ? (
                 <>
                   <Heading>{current.elsewhere.title}</Heading>
                   <ul className="space-y-1.5">
                     {current.elsewhere.lines.map((line) => (
-                      <li key={line.text} data-testid="otto-elsewhere-line" data-thread={line.thread} onClickCapture={() => reopen(line.thread)}>
-                        <ItemLinkView link={line.link} className="break-words text-[13px] text-sky-300 underline-offset-2 hover:underline">
+                      <li
+                        key={line.text}
+                        data-testid="otto-elsewhere-line"
+                        data-thread={line.thread}
+                        onClickCapture={() => reopen(line.thread)}
+                      >
+                        <ItemLinkView
+                          link={line.link}
+                          className="break-words text-[13px] text-sky-300 underline-offset-2 hover:underline"
+                        >
                           {line.text}
                         </ItemLinkView>
                       </li>
@@ -461,13 +502,16 @@ export function OttoPanel({
             </section>
           ) : null}
 
-          {selected ? (
-            <SoFar key={selected.key} tab={selected} card={(entry) => card(entry, true)} />
-          ) : null}
+          {selected ? <SoFar key={selected.key} tab={selected} card={(entry) => card(entry, true)} /> : null}
 
           {/* Phase 6b: what was typed last and what came back for it, then the text box with its example chips. */}
           {exchange ? (
-            <section data-testid="otto-reply" data-kind={exchange.reply.kind} aria-label="The answer" className="rounded-lg border border-slate-700 bg-slate-950/40 p-3">
+            <section
+              data-testid="otto-reply"
+              data-kind={exchange.reply.kind}
+              aria-label="The answer"
+              className="rounded-lg border border-slate-700 bg-slate-950/40 p-3"
+            >
               <p data-testid="otto-reply-said" className="break-words text-xs text-slate-400">
                 You said: <span className="text-slate-200">{exchange.said}</span>
               </p>
@@ -485,7 +529,11 @@ export function OttoPanel({
               {exchange.reply.whatif ? (
                 <WhatIfCard
                   whatif={exchange.reply.whatif}
-                  tryCard={exchange.reply.entry && !exchange.confirmed && !exchange.stale ? card(exchange.reply.entry, false, "reply") : null}
+                  tryCard={
+                    exchange.reply.entry && !exchange.confirmed && !exchange.stale
+                      ? card(exchange.reply.entry, false, "reply")
+                      : null
+                  }
                 />
               ) : (
                 <Facts facts={exchange.reply.facts ?? []} />
@@ -495,8 +543,8 @@ export function OttoPanel({
               ) : null}
               {exchange.reply.entry && !exchange.confirmed && exchange.stale ? (
                 <p data-testid="otto-reply-stale" className="mt-1.5 text-xs text-slate-400">
-                  Something has changed in this assessment since this answer, so its card is no longer shown. Say it again to see where it stands
-                  now.
+                  Something has changed in this assessment since this answer, so its card is no longer shown. Say it
+                  again to see where it stands now.
                 </p>
               ) : null}
               {exchange.confirmed ? (
@@ -603,7 +651,12 @@ export function OttoPanel({
                 }}
                 className="min-w-0 flex-1 resize-none rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-sm text-slate-100 placeholder:text-slate-600 focus:border-sky-500 focus:outline-none"
               />
-              <SecondaryButton testId="otto-box-send" allowWhenClosed disabled={asking || typed.trim() === ""} onClick={() => void say(typed)}>
+              <SecondaryButton
+                testId="otto-box-send"
+                allowWhenClosed
+                disabled={asking || typed.trim() === ""}
+                onClick={() => void say(typed)}
+              >
                 {current.box.send}
               </SecondaryButton>
             </div>
@@ -633,14 +686,21 @@ export function OttoPanel({
 function Facts({ facts, compact = false }: { facts: AssistantFact[]; compact?: boolean }) {
   if (facts.length === 0) return null;
   return (
-    <ol data-testid="otto-facts" className={`mt-2 list-decimal space-y-1.5 pl-5 marker:text-slate-500 ${compact ? "text-xs" : "text-[13px]"}`}>
+    <ol
+      data-testid="otto-facts"
+      className={`mt-2 list-decimal space-y-1.5 pl-5 marker:text-slate-500 ${compact ? "text-xs" : "text-[13px]"}`}
+    >
       {facts.map((fact, n) => (
         <li key={`${n}-${fact.text}`} data-testid="otto-fact" className="break-words text-slate-200">
           {fact.text}
           {fact.link ? (
             <>
               {" "}
-              <ItemLinkView link={fact.link} testId="otto-fact-link" className="whitespace-nowrap text-xs text-sky-300 underline-offset-2 hover:underline">
+              <ItemLinkView
+                link={fact.link}
+                testId="otto-fact-link"
+                className="whitespace-nowrap text-xs text-sky-300 underline-offset-2 hover:underline"
+              >
                 {fact.label ?? "Open"}
               </ItemLinkView>
             </>
@@ -663,7 +723,13 @@ function SoFar({ tab, card }: { tab: AssistantTab; card: (entry: AssistantEntry)
   const hidden = all ? 0 : Math.max(0, entries.length - SO_FAR_SHOWN);
   const shown = hidden > 0 ? entries.slice(hidden) : entries;
   return (
-    <section id="otto-thread" role="tabpanel" aria-labelledby={`otto-tab-${tab.key}`} data-testid="otto-so-far" data-thread={tab.key}>
+    <section
+      id="otto-thread"
+      role="tabpanel"
+      aria-labelledby={`otto-tab-${tab.key}`}
+      data-testid="otto-so-far"
+      data-thread={tab.key}
+    >
       <Heading>
         {tab.so_far_title}: {tab.label}
       </Heading>
@@ -691,7 +757,10 @@ function SoFar({ tab, card }: { tab: AssistantTab; card: (entry: AssistantEntry)
 function Mark({ entry }: { entry: AssistantEntry }) {
   if (entry.kind === "suggestion") return <FromOttoTag label={entry.mark} testId="otto-entry-mark" />;
   return (
-    <span data-testid="otto-entry-mark" className="inline-block whitespace-nowrap rounded border border-slate-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-300">
+    <span
+      data-testid="otto-entry-mark"
+      className="inline-block whitespace-nowrap rounded border border-slate-700 px-1.5 py-0.5 text-[11px] font-medium text-slate-300"
+    >
       {entry.mark}
     </span>
   );
@@ -735,7 +804,8 @@ function EntryCard({
   const proposal = entry.proposal;
   const step = entry.step;
   // (only a button that can be confirmed has a Confirm step: one a new read turned off shows as a button again, with its reason)
-  const found = confirming && confirming !== "step" ? (entry.decisions.find((d) => d.key === confirming) ?? null) : null;
+  const found =
+    confirming && confirming !== "step" ? (entry.decisions.find((d) => d.key === confirming) ?? null) : null;
   const decision = found?.confirm ? found : null;
   const blocked = entry.decisions.filter((d) => !d.can && d.blocked_reason);
   // When the Confirm step closes (Cancel, or its request is answered), the keyboard's place goes back to the button
@@ -753,7 +823,13 @@ function EntryCard({
       before === "step"
         ? root.querySelectorAll<HTMLButtonElement>('[data-testid="otto-step"]')
         : root.querySelectorAll<HTMLButtonElement>('[data-testid="otto-decision"]');
-    const index = before === "step" ? 0 : Math.max(0, entry.decisions.findIndex((d) => d.key === before));
+    const index =
+      before === "step"
+        ? 0
+        : Math.max(
+            0,
+            entry.decisions.findIndex((d) => d.key === before),
+          );
     (buttons[index] ?? buttons[0])?.focus({ preventScroll: true });
   }, [confirming, entry.decisions]);
   return (
@@ -770,17 +846,26 @@ function EntryCard({
         <Mark entry={entry} />
         {entry.badge ? (
           entry.kind === "suggestion" ? (
-            <ProposalStatusChip status={{ word: entry.badge.label, tone: entry.badge.tone }} testId="otto-entry-badge" />
+            <ProposalStatusChip
+              status={{ word: entry.badge.label, tone: entry.badge.tone }}
+              testId="otto-entry-badge"
+            />
           ) : entry.badge.label ? (
             <StatusChip label={entry.badge.label} tone={entry.badge.tone} size="sm" wrap testId="otto-entry-badge" />
           ) : null
         ) : null}
       </div>
-      <p data-testid="otto-entry-title" className={`mt-1.5 break-words text-slate-100 ${compact ? "text-[13px]" : "font-medium"}`}>
+      <p
+        data-testid="otto-entry-title"
+        className={`mt-1.5 break-words text-slate-100 ${compact ? "text-[13px]" : "font-medium"}`}
+      >
         {entry.title}
       </p>
       {entry.text ? (
-        <p data-testid="otto-entry-text" className={`mt-1 break-words text-slate-300 ${compact ? "text-xs" : "text-[13px]"}`}>
+        <p
+          data-testid="otto-entry-text"
+          className={`mt-1 break-words text-slate-300 ${compact ? "text-xs" : "text-[13px]"}`}
+        >
           {entry.text}
         </p>
       ) : null}
@@ -810,11 +895,21 @@ function EntryCard({
         <div className="mt-2.5 flex flex-wrap items-center gap-2">
           {entry.decisions.map((d) =>
             d.key === "accept" ? (
-              <PrimaryButton key={d.key} testId="otto-decision" disabled={!d.can || sending} onClick={() => onAsk(d.key)}>
+              <PrimaryButton
+                key={d.key}
+                testId="otto-decision"
+                disabled={!d.can || sending}
+                onClick={() => onAsk(d.key)}
+              >
                 {d.label}
               </PrimaryButton>
             ) : (
-              <SecondaryButton key={d.key} testId="otto-decision" disabled={!d.can || sending} onClick={() => onAsk(d.key)}>
+              <SecondaryButton
+                key={d.key}
+                testId="otto-decision"
+                disabled={!d.can || sending}
+                onClick={() => onAsk(d.key)}
+              >
                 {d.label}
               </SecondaryButton>
             ),
@@ -870,7 +965,11 @@ function EntryCard({
                 {entry.title}
               </SecondaryButton>
               {step.running ? (
-                <span role="status" data-testid="otto-step-running" className="inline-flex items-center gap-1.5 text-xs text-slate-300">
+                <span
+                  role="status"
+                  data-testid="otto-step-running"
+                  className="inline-flex items-center gap-1.5 text-xs text-slate-300"
+                >
                   <Spinner className="h-3.5 w-3.5" />
                   {step.progress ?? "Running"}
                 </span>
@@ -932,7 +1031,10 @@ function ConfirmStep({
       className="mt-2.5 rounded-lg border border-slate-600 bg-slate-950/60 p-2.5 focus:outline-none focus-visible:ring-1 focus-visible:ring-sky-500"
     >
       <p className="text-[13px] font-semibold text-slate-100">{confirm.title}</p>
-      <ul data-testid="otto-confirm-lines" className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-slate-300 marker:text-slate-500">
+      <ul
+        data-testid="otto-confirm-lines"
+        className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-slate-300 marker:text-slate-500"
+      >
         {confirm.lines.map((line) => (
           <li key={line} className="break-words">
             {line}

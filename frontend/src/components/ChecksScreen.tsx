@@ -1,7 +1,15 @@
 import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePanelStamp } from "../changes";
-import { api, errorMessage, type CheckGroup, type CheckRow, type ChecksView, type LabView, type PlanView } from "../api";
+import {
+  api,
+  errorMessage,
+  type CheckGroup,
+  type CheckRow,
+  type ChecksView,
+  type LabView,
+  type PlanView,
+} from "../api";
 import { CheckPanel } from "./checks/CheckPanel";
 import { CheckTable } from "./checks/CheckTable";
 import {
@@ -84,7 +92,11 @@ function usePlanHolder() {
       el.appendChild(holder);
       // Moving it takes the keyboard's place away. Give it back, unless the person is somewhere else by now.
       const was = focused.current;
-      if (was && holder.contains(was) && (document.activeElement === null || document.activeElement === document.body)) {
+      if (
+        was &&
+        holder.contains(was) &&
+        (document.activeElement === null || document.activeElement === document.body)
+      ) {
         was.focus({ preventScroll: true });
       }
     },
@@ -93,7 +105,18 @@ function usePlanHolder() {
   return { holder, hosted, host };
 }
 
-export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = null, result = null, from = null, onFilters, onGroup, onGroupShown }: Props) {
+export function ChecksScreen({
+  importId,
+  plan,
+  onPlan,
+  openItem = null,
+  group = null,
+  result = null,
+  from = null,
+  onFilters,
+  onGroup,
+  onGroupShown,
+}: Props) {
   const planHolder = usePlanHolder();
   const tabIds = useId();
   const [view, setView] = useState<ChecksView | null>(null);
@@ -171,7 +194,11 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   const every = useMemo(
     () =>
       (view?.groups ?? []).flatMap((g) => [
-        ...(g.parts ? [...g.parts.retests.blocks, ...g.parts.proofs.blocks, ...(g.parts.changes?.blocks ?? [])].flatMap((b) => b.rows) : []),
+        ...(g.parts
+          ? [...g.parts.retests.blocks, ...g.parts.proofs.blocks, ...(g.parts.changes?.blocks ?? [])].flatMap(
+              (b) => b.rows,
+            )
+          : []),
         ...g.rows,
       ]),
     [view],
@@ -195,7 +222,9 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
       ? [
           ...g.rows.filter((r) => r.id.startsWith("test-")),
           ...(g.parts
-            ? [...g.parts.retests.blocks, ...g.parts.proofs.blocks, ...(g.parts.changes?.blocks ?? [])].flatMap((b) => b.rows).concat(g.parts.tries?.rows ?? [])
+            ? [...g.parts.retests.blocks, ...g.parts.proofs.blocks, ...(g.parts.changes?.blocks ?? [])]
+                .flatMap((b) => b.rows)
+                .concat(g.parts.tries?.rows ?? [])
             : g.rows.filter((r) => !r.id.startsWith("test-"))),
         ]
       : g.rows;
@@ -232,14 +261,17 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   const asPage = Boolean(useContext(ItemPageContext)?.asPage);
   useEffect(() => {
     if (asPage || !view || active === null || openId === null) return;
-    const holder = view.groups.find((g) => [...g.rows, ...tabRows(g)].some((r) => r.id === openId || (r.alias != null && r.alias === openId)));
+    const holder = view.groups.find((g) =>
+      [...g.rows, ...tabRows(g)].some((r) => r.id === openId || (r.alias != null && r.alias === openId)),
+    );
     if (holder && holder.key !== active) setOpenId(null);
     // (only when the tab changes: a check opened from a link opens its own tab with it)
   }, [active]);
   // While a search or a filter is on, each tab says how many of its rows match.
   const narrowedAny = needle !== "" || fromFilter !== "all" || resultFilter !== "all";
   const matches = useMemo(
-    () => (narrowedAny && view ? Object.fromEntries(view.groups.map((g) => [g.key, tabRows(g).filter(fits).length])) : null),
+    () =>
+      narrowedAny && view ? Object.fromEntries(view.groups.map((g) => [g.key, tabRows(g).filter(fits).length])) : null,
     // (`fits` reads the search and the two filters named here)
     [narrowedAny, view, needle, fromFilter, resultFilter],
   );
@@ -249,14 +281,23 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   const planOnly = useMemo(() => {
     if (resultFilter === "all" || !view) return null;
     const ids = new Set<number>();
-    for (const g of view.groups) for (const r of g.rows) if (r.id.startsWith("test-") && r.result?.label === resultFilter) ids.add(Number(r.id.slice(5)));
+    for (const g of view.groups)
+      for (const r of g.rows)
+        if (r.id.startsWith("test-") && r.result?.label === resultFilter) ids.add(Number(r.id.slice(5)));
     return ids;
   }, [view, resultFilter]);
   // (the first thing in the page in both of its states below, so it is the same drawing before and after the list arrives)
   const thePlan =
     planHolder.holder && planHolder.hosted
       ? createPortal(
-          <TestsScreen importId={importId} plan={plan} onPlan={onPlan} embedded only={planOnly} onlyLabel={planOnly ? resultFilter : undefined} />,
+          <TestsScreen
+            importId={importId}
+            plan={plan}
+            onPlan={onPlan}
+            embedded
+            only={planOnly}
+            onlyLabel={planOnly ? resultFilter : undefined}
+          />,
           planHolder.holder,
         )
       : null;
@@ -276,7 +317,8 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
   }
 
   const groups = view.groups.filter((g) => g.key === active);
-  const toggleOpen = (r: CheckRow) => setOpenId(r.id === openId || (r.alias != null && r.alias === openId) ? null : r.id);
+  const toggleOpen = (r: CheckRow) =>
+    setOpenId(r.id === openId || (r.alias != null && r.alias === openId) ? null : r.id);
 
   /** The 5c fixes: Crypto tests in four labelled parts. Each run shows in one part only. */
   function encryptionParts(g: CheckGroup) {
@@ -284,8 +326,10 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
     type Part = NonNullable<CheckGroup["parts"]>["retests"];
     // "Came from" picks a part by what the part is, and also by its rows: a retest's newest run can have come right
     // after an Apply or a Roll back, and "After Apply" must find it in its block.
-    const holds = (part: Part) => [...part.rows, ...part.blocks.flatMap((b) => b.rows)].some((r) => r.came_from.key === fromFilter);
-    const wanted = (origin: string, part?: Part) => fromFilter === "all" || fromFilter === origin || (part ? holds(part) : false);
+    const holds = (part: Part) =>
+      [...part.rows, ...part.blocks.flatMap((b) => b.rows)].some((r) => r.came_from.key === fromFilter);
+    const wanted = (origin: string, part?: Part) =>
+      fromFilter === "all" || fromFilter === origin || (part ? holds(part) : false);
     // (with any filter on, a block that holds a match is open, and one that holds none is left out: it would say that
     // nothing has finished in it)
     const narrowed = needle !== "" || resultFilter !== "all" || fromFilter !== "all";
@@ -298,7 +342,12 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
         // the newest block is open; an older one opens when it is asked for, or when it holds the open row or a match
         const shown = blockOpen[b.key] ?? (b.newest || narrowed || b.rows.some((r) => r.id === openId));
         return (
-          <BlockSection key={b.key} block={b} open={shown} onToggle={() => setBlockOpen((o) => ({ ...o, [b.key]: !shown }))}>
+          <BlockSection
+            key={b.key}
+            block={b}
+            open={shown}
+            onToggle={() => setBlockOpen((o) => ({ ...o, [b.key]: !shown }))}
+          >
             {rows.length > 0 ? (
               <CheckTable label={`${part.label}: ${b.title}`} rows={rows} selectedId={openId} onOpen={toggleOpen} />
             ) : (
@@ -337,7 +386,10 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
                         setTick((n) => n + 1);
                         // The plan above is the app's copy from before the retest: read it again, so Run, Run all and ×
                         // turn off with the reason now, not when the server refuses a click.
-                        void api.getPlan(importId).then((fresh) => fresh && onPlan(fresh)).catch(() => undefined);
+                        void api
+                          .getPlan(importId)
+                          .then((fresh) => fresh && onPlan(fresh))
+                          .catch(() => undefined);
                       })
                       .catch((e: unknown) => setError(errorMessage(e)))
                       .finally(() => setRetesting(false));
@@ -379,20 +431,17 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
       {thePlan}
       <PageHeader title="Checks" description={view.subline} />
       {active !== null ? (
-        <GroupTabs
-          groups={view.groups}
-          active={active}
-          onChoose={choose}
-          idBase={tabIds}
-          matches={matches}
-        />
+        <GroupTabs groups={view.groups} active={active} onChoose={choose} idBase={tabIds} matches={matches} />
       ) : null}
       <Toolbar>
         <SearchInput value={search} onChange={setSearch} label="Search checks" placeholder="Search checks" />
         <FilterSelect
           label="Came from"
           value={fromFilter}
-          options={[{ value: "all", label: "Anywhere" }, ...view.came_from_options.map((o) => ({ value: o.key, label: o.label }))]}
+          options={[
+            { value: "all", label: "Anywhere" },
+            ...view.came_from_options.map((o) => ({ value: o.key, label: o.label })),
+          ]}
           onChange={setFromFilter}
         />
         <FilterSelect
@@ -401,7 +450,10 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
           // (a value from the address that no row reads now is still an option: the control shows the filter that is on)
           options={[
             { value: "all", label: "All results" },
-            ...Array.from(new Set([...results, ...(resultFilter !== "all" ? [resultFilter] : [])])).map((r) => ({ value: r, label: r })),
+            ...Array.from(new Set([...results, ...(resultFilter !== "all" ? [resultFilter] : [])])).map((r) => ({
+              value: r,
+              label: r,
+            })),
           ]}
           onChange={setResultFilter}
         />
@@ -414,7 +466,9 @@ export function ChecksScreen({ importId, plan, onPlan, openItem = null, group = 
             {groups.map((g) => {
               // A test of the plan shows as its card (even when its newest run came right after an Apply); never twice.
               const rows = g.rows
-                .filter((r) => (g.key === "encryption" ? r.came_from.key !== "plan" && !r.id.startsWith("test-") : true))
+                .filter((r) =>
+                  g.key === "encryption" ? r.came_from.key !== "plan" && !r.id.startsWith("test-") : true,
+                )
                 .filter(keep);
               const showPlan = g.key === "encryption" && (fromFilter === "all" || fromFilter === "plan");
               return (

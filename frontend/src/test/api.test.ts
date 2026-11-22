@@ -4,15 +4,20 @@ import { api } from "../api";
 /** A stand-in for fetch whose answers are given by the test, one by one, in any order. */
 function slowFetch() {
   const asked: { path: string; method: string; answer: (body: unknown) => void; fail: () => void }[] = [];
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
-    new Promise<Response>((resolve, reject) => {
-      asked.push({
-        path: String(input),
-        method: init?.method ?? "GET",
-        answer: (body) => resolve(new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } })),
-        fail: () => reject(new TypeError("network")),
-      });
-    }),
+  vi.stubGlobal(
+    "fetch",
+    (input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((resolve, reject) => {
+        asked.push({
+          path: String(input),
+          method: init?.method ?? "GET",
+          answer: (body) =>
+            resolve(
+              new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }),
+            ),
+          fail: () => reject(new TypeError("network")),
+        });
+      }),
   );
   return asked;
 }
@@ -61,7 +66,10 @@ describe("a read that was on its way while a change was answered", () => {
       await settle();
       asked[asked.length - 1]!.answer({ round });
       await change;
-      asked.filter((a) => a.method === "GET").at(-1)!.answer({ read: round }); // (the newest ask of the read)
+      asked
+        .filter((a) => a.method === "GET")
+        .at(-1)!
+        .answer({ read: round }); // (the newest ask of the read)
       await settle();
     }
     expect(asked.filter((a) => a.method === "GET")).toHaveLength(3); // the first, and two more

@@ -1,4 +1,5 @@
 """Live handshakes against throwaway TLS servers on this computer (spare ports)."""
+
 from types import SimpleNamespace
 
 from app.checks import tlsprobe
@@ -11,8 +12,15 @@ NO_DEMO = DemoContext(False, "localhost", 1, False, None, None)
 
 
 def row(port, confirmed=True, host="localhost", ip="127.0.0.1"):
-    return SimpleNamespace(address=f"{host}:{port}", host=host, port=port, resolved_ip=ip, is_loopback=True,
-                           confirmed=confirmed, error=None)
+    return SimpleNamespace(
+        address=f"{host}:{port}",
+        host=host,
+        port=port,
+        resolved_ip=ip,
+        is_loopback=True,
+        confirmed=confirmed,
+        error=None,
+    )
 
 
 def check(port, **kw):
@@ -23,7 +31,11 @@ def test_demo_style_server_accepts_tls12_with_the_old_cipher_and_tls13(tls_serve
     session = ProbeSession("127.0.0.1", tls_server("demo"), "localhost")
     versions, evidence = session.versions()
     assert {v: o.status for v, o in versions.items()} == {
-        "TLS 1.3": "accepted", "TLS 1.2": "accepted", "TLS 1.1": "refused", "TLS 1.0": "refused"}
+        "TLS 1.3": "accepted",
+        "TLS 1.2": "accepted",
+        "TLS 1.1": "refused",
+        "TLS 1.0": "refused",
+    }
     assert versions["TLS 1.2"].cipher == DEMO_TLS12_CIPHER == "ECDHE-ECDSA-AES128-SHA"
     assert session.handshakes == 4
     assert evidence[0].tool == "Python ssl module" and "OpenSSL" in evidence[0].tool_version
@@ -83,7 +95,12 @@ def test_tls13_groups_pinned_on_demo_style_server(tls_server):
 
 def test_cipher_suites_per_version(tls_server):
     c = check(tls_server("demo"))
-    real = ["ECDHE-ECDSA-AES128-SHA", "TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384", "TLS_CHACHA20_POLY1305_SHA256"]
+    real = [
+        "ECDHE-ECDSA-AES128-SHA",
+        "TLS_AES_128_GCM_SHA256",
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_CHACHA20_POLY1305_SHA256",
+    ]
     res = c.cipher_suites({"suites": real})
     assert res["result"] == COULDNT and "can't offer" in res["reason"], res  # never True: see test_phase1_review.py
     assert res["found"] == f"The server accepts {', '.join(real[:3])} and {real[3]}."
@@ -96,8 +113,9 @@ def test_cipher_suites_per_version(tls_server):
 
 
 def test_port_with_no_tls_or_nothing_listening_is_couldnt_check(listener):
-    res = AddressCheck(row(listener.port), NO_DEMO, session_factory=lambda *a: ProbeSession(*a, timeout=0.5)) \
-        .protocol_versions({"versions": ["TLS 1.3"]})
+    res = AddressCheck(
+        row(listener.port), NO_DEMO, session_factory=lambda *a: ProbeSession(*a, timeout=0.5)
+    ).protocol_versions({"versions": ["TLS 1.3"]})
     assert res["result"] == COULDNT and "didn't confirm or refuse" in res["found"]
     assert listener.connections() == 1  # no answer to the first handshake, so we did not keep trying
     port = listener.port
@@ -111,12 +129,14 @@ def test_local_tooling_errors_are_never_a_refusal(tls_server, monkeypatch):
     """If this computer's TLS library cannot offer an old version, we fall back to a hand-built hello;
     and if that cannot tell either, the answer is Couldn't check - not True."""
     import ssl
+
     real = ProbeSession._context
 
     def broken(self, version, ciphers):
         if version in ("TLS 1.0", "TLS 1.1"):
             raise ssl.SSLError("NO_PROTOCOLS_AVAILABLE")
         return real(self, version, ciphers)
+
     monkeypatch.setattr(ProbeSession, "_context", broken)
     c = check(tls_server("tls13only"))
     res = c.protocol_versions({"versions": ["TLS 1.3"]})
@@ -165,8 +185,18 @@ def test_hostile_stored_address_is_blocked_before_any_connection():
         c = AddressCheck(row(443, host=host), NO_DEMO, session_factory=lambda *a: made.append(a))  # noqa: B023
         assert c.protocol_versions({"versions": ["TLS 1.3"]})["result"] == COULDNT
         assert made == []
-    c = AddressCheck(SimpleNamespace(address="localhost:70000", host="localhost", port=70000, resolved_ip="127.0.0.1",
-                                     is_loopback=True, confirmed=True, error=None), NO_DEMO)
+    c = AddressCheck(
+        SimpleNamespace(
+            address="localhost:70000",
+            host="localhost",
+            port=70000,
+            resolved_ip="127.0.0.1",
+            is_loopback=True,
+            confirmed=True,
+            error=None,
+        ),
+        NO_DEMO,
+    )
     assert c.session is None and "65535" in c.blocked
 
 
@@ -184,7 +214,10 @@ def test_s_client_output_is_parsed_not_exit_codes():
     assert classify_s_client(ok)[0] == "accepted"
     assert classify_s_client(ok, want_suite="TLS_AES_128_GCM_SHA256")[0] == "unknown"
     assert classify_s_client(ok.replace("TLSv1.3", "TLSv1.2"))[0] == "unknown"
-    assert classify_s_client("error:0A000410:SSL routines::sslv3 alert handshake failure:SSL alert number 40\n")[0] == "refused"
+    assert (
+        classify_s_client("error:0A000410:SSL routines::sslv3 alert handshake failure:SSL alert number 40\n")[0]
+        == "refused"
+    )
     assert classify_s_client("tlsv1 alert protocol version: SSL alert number 70")[0] == "refused"
     assert classify_s_client("SSL alert number 80")[0] == "unknown"  # internal_error is not a refusal
     assert classify_s_client("Call to SSL_CONF_cmd(-groups, X25519MLKEM768) failed")[0] == "unknown"

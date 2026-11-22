@@ -1,9 +1,11 @@
 import { useState } from "react";
 import type { TestProofCode } from "../../api";
 
-const TAG = "inline-block whitespace-nowrap rounded border border-slate-500 bg-slate-700/40 px-2 py-0.5 text-xs font-medium text-slate-100";
+const TAG =
+  "inline-block whitespace-nowrap rounded border border-slate-500 bg-slate-700/40 px-2 py-0.5 text-xs font-medium text-slate-100";
 /** Code as text. Long lines wrap inside the block, so a narrow panel never scrolls sideways. Nothing here runs it. */
-const CODE = "mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-800 bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-200 [overflow-wrap:anywhere]";
+const CODE =
+  "mt-2 max-h-96 overflow-y-auto whitespace-pre-wrap rounded-md border border-slate-800 bg-slate-950 p-3 font-mono text-xs leading-relaxed text-slate-200 [overflow-wrap:anywhere]";
 
 function Source({ source, testId }: { source: string; testId: string }) {
   return (
@@ -37,7 +39,10 @@ export function AskingCode({ code }: { code: TestProofCode }) {
         </p>
       ) : null}
       {code.known_lines.length > 0 ? (
-        <ul data-testid="asking-code-known" className="mt-1.5 list-disc space-y-1 pl-5 text-[13px] text-slate-300 marker:text-slate-500">
+        <ul
+          data-testid="asking-code-known"
+          className="mt-1.5 list-disc space-y-1 pl-5 text-[13px] text-slate-300 marker:text-slate-500"
+        >
           {code.known_lines.map((line, i) => (
             <li key={i} className="break-words">
               {line}

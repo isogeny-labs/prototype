@@ -52,7 +52,8 @@ export function ResultOttoBlock({ block }: { block?: OttoResultBlock | null }) {
 
         <div data-testid="result-otto-decisions" data-count={block.decisions.count}>
           <h4 className={H}>
-            {block.decisions.title} <span className="font-normal tabular-nums text-slate-500">({block.decisions.count})</span>
+            {block.decisions.title}{" "}
+            <span className="font-normal tabular-nums text-slate-500">({block.decisions.count})</span>
           </h4>
           {block.decisions.rows.length > 0 ? (
             <ol className="mt-1 space-y-1 text-[13px] text-slate-300">

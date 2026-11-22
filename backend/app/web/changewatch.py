@@ -1,6 +1,7 @@
 """Change watch (phase 6d): the page's one read and its two actions. Each action is one click by the person at the
 keyboard. Neither has a body: nothing here accepts software, a file or text. A demo change is named by one of our own
 names, a change by the id the view gave it."""
+
 from __future__ import annotations
 
 import re
@@ -19,8 +20,8 @@ _CHANGE_ID = re.compile(r"change-[0-9a-f]{12}")
 
 
 class WatchStopBody(BaseModel):
-    item: StrictStr = Field(max_length=200)                              # the item's key, as the view gave it
-    reason: StrictStr | None = Field(default=None, max_length=2000)      # optional (held to 300 after cleaning)
+    item: StrictStr = Field(max_length=200)  # the item's key, as the view gave it
+    reason: StrictStr | None = Field(default=None, max_length=2000)  # optional (held to 300 after cleaning)
 
 
 class WatchAgainBody(BaseModel):
@@ -36,7 +37,9 @@ def routes(lab, require_login) -> APIRouter:
         """The Changes view: every developer's change in the connected demo repository, read now. It only reads."""
         return lab.change_watch_view(plan_id)
 
-    @router.post("/api/plans/{plan_id}/change-watch/demo/{name}", dependencies=login, responses=shows(models.ChangeWatchView))
+    @router.post(
+        "/api/plans/{plan_id}/change-watch/demo/{name}", dependencies=login, responses=shows(models.ChangeWatchView)
+    )
     def bring_in_demo_change(plan_id: int, name: str):
         """Bring in a demo change (Demo data): one branch with one commit, written into this assessment's own copy of
         the repository. It runs nothing. `name` is one of our own names for a bundled change, and nothing else."""
@@ -45,7 +48,9 @@ def routes(lab, require_login) -> APIRouter:
         lab.bring_in_demo_change(plan_id, name)
         return lab.change_watch_view(plan_id)
 
-    @router.post("/api/plans/{plan_id}/change-watch/{change_id}/run", dependencies=login, responses=shows(models.ChangeWatchView))
+    @router.post(
+        "/api/plans/{plan_id}/change-watch/{change_id}/run", dependencies=login, responses=shows(models.ChangeWatchView)
+    )
     def run_picked_tests(plan_id: int, change_id: str):
         """Run the picked tests (then: Run again). Sent by that button, or by its Confirm in the Otto panel."""
         if len(change_id) != 19 or not _CHANGE_ID.fullmatch(change_id):

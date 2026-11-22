@@ -11,6 +11,7 @@ Outcome of one question for one copy:
   {"state": "refused", "note": "<the library's own words>"}   the library itself said it does not have it
   {"state": "no_answer", "why": "<what went wrong>"}           anything else: a crash, a time-out, no copy, no server
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -35,8 +36,12 @@ def _keygen(target, algorithm: str) -> tuple[dict | None, dict]:
     """Ask the library for a key pair of this algorithm. (None, outcome) when it refused or did not answer."""
     batch = target.run_job({"op": "call", "command": "keygen", "input": {"algorithm": algorithm}}, TIME_LIMIT)
     line = batch.lines[0] if batch.lines else None
-    step = {"title": f"Ask the library for an {algorithm} key pair", "command": batch.command, "started_at": batch.started_at,
-            "duration_ms": batch.duration_ms}
+    step = {
+        "title": f"Ask the library for an {algorithm} key pair",
+        "command": batch.command,
+        "started_at": batch.started_at,
+        "duration_ms": batch.duration_ms,
+    }
     if not batch.ok or line is None:
         return None, {"state": "no_answer", "why": _short(batch.problem or "no answer"), "steps": [step]}
     out = line.get("out")
@@ -59,13 +64,20 @@ def _kem(target) -> dict:
         return outcome
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import mlkem
-    ours = mlkem.MLKEM768PrivateKey.generate()   # the app's own throwaway test key; it never leaves this function
+
+    ours = mlkem.MLKEM768PrivateKey.generate()  # the app's own throwaway test key; it never leaves this function
     peer = ours.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex()
     batch = target.run_job({"op": "kem_roundtrip", "algorithm": "ML-KEM-768", "peer_public_key": peer}, 3 * TIME_LIMIT)
     steps = {line.get("step"): line for line in batch.lines}
-    outcome["steps"].append({"title": "One key exchange: key pair, encapsulate, decapsulate, and a message for the app",
-                             "command": batch.command, "started_at": batch.started_at, "duration_ms": batch.duration_ms,
-                             "output": {s: (one.get("error") or "ok") for s, one in steps.items()}})
+    outcome["steps"].append(
+        {
+            "title": "One key exchange: key pair, encapsulate, decapsulate, and a message for the app",
+            "command": batch.command,
+            "started_at": batch.started_at,
+            "duration_ms": batch.duration_ms,
+            "output": {s: (one.get("error") or "ok") for s, one in steps.items()},
+        }
+    )
     for step in ("keygen", "encaps", "decaps", "encaps_to_app"):
         line = steps.get(step)
         if line is None or line.get("error") or not isinstance(line.get("out"), dict):
@@ -75,13 +87,25 @@ def _kem(target) -> dict:
             return {**outcome, "state": "no_answer", "why": f"the {step} step: {_short(why)}"}
     made = steps["encaps_to_app"]["out"]
     try:
-        same = hashlib.sha256(ours.decapsulate(bytes.fromhex(str(made.get("ciphertext"))))).hexdigest() == made.get("shared_secret_sha256")
+        same = hashlib.sha256(ours.decapsulate(bytes.fromhex(str(made.get("ciphertext"))))).hexdigest() == made.get(
+            "shared_secret_sha256"
+        )
     except (ValueError, TypeError):
         same = False
     both = steps["decaps"]["out"].get("same_secret") is True
-    outcome["steps"].append({"title": "Reference library (cryptography) decapsulates the library's message to the app",
-                             "output": "same shared secret" if same else "not the same shared secret"})
-    return {**outcome, "state": "made", "confirmed": bool(same and both), "same_secret_inside": both, "reference_agrees": same}
+    outcome["steps"].append(
+        {
+            "title": "Reference library (cryptography) decapsulates the library's message to the app",
+            "output": "same shared secret" if same else "not the same shared secret",
+        }
+    )
+    return {
+        **outcome,
+        "state": "made",
+        "confirmed": bool(same and both),
+        "same_secret_inside": both,
+        "reference_agrees": same,
+    }
 
 
 def _dsa(target) -> dict:
@@ -91,9 +115,15 @@ def _dsa(target) -> dict:
     message = os.urandom(32).hex()
     batch = target.run_job({"op": "roundtrip", "algorithm": "ML-DSA-65", "message": message}, 3 * TIME_LIMIT)
     steps = {line.get("step"): line for line in batch.lines}
-    outcome["steps"].append({"title": "One signature: key pair, sign, verify", "command": batch.command,
-                             "started_at": batch.started_at, "duration_ms": batch.duration_ms,
-                             "output": {s: (one.get("error") or "ok") for s, one in steps.items()}})
+    outcome["steps"].append(
+        {
+            "title": "One signature: key pair, sign, verify",
+            "command": batch.command,
+            "started_at": batch.started_at,
+            "duration_ms": batch.duration_ms,
+            "output": {s: (one.get("error") or "ok") for s, one in steps.items()},
+        }
+    )
     for step in ("keygen", "sign", "verify"):
         line = steps.get(step)
         if line is None or line.get("error") or not isinstance(line.get("out"), dict):
@@ -102,12 +132,21 @@ def _dsa(target) -> dict:
     public, signature = steps["keygen"]["out"].get("public_key"), steps["sign"]["out"].get("signature")
     own = steps["verify"]["out"].get("valid") is True
     from app.run import reference
+
     try:
         agrees = bool(reference.verify_mldsa65(str(public), message, str(signature)))
     except Exception as exc:  # a reference library without ML-DSA: no answer either way
-        return {**outcome, "state": "no_answer", "why": f"the reference library can't check ML-DSA-65 here ({exc.__class__.__name__})"}
-    outcome["steps"].append({"title": "Reference library (cryptography) checks the same signature",
-                             "output": "the signature verifies as ML-DSA-65" if agrees else "the signature does not verify as ML-DSA-65"})
+        return {
+            **outcome,
+            "state": "no_answer",
+            "why": f"the reference library can't check ML-DSA-65 here ({exc.__class__.__name__})",
+        }
+    outcome["steps"].append(
+        {
+            "title": "Reference library (cryptography) checks the same signature",
+            "output": "the signature verifies as ML-DSA-65" if agrees else "the signature does not verify as ML-DSA-65",
+        }
+    )
     return {**outcome, "state": "made", "confirmed": bool(own and agrees), "own_check": own, "reference_agrees": agrees}
 
 
@@ -120,17 +159,35 @@ def _tls(target, ports: dict | None, why_no_server: str | None) -> dict:
         return {"state": "no_answer", "why": "this copy has no TLS client to measure with"}
     classical_done = classical["exit"] == 0 and "CONNECTION ESTABLISHED" in classical["output"]
     text = hybrid["output"]
-    refusal = next((line.strip() for line in text.splitlines() if "cannot be set" in line or "SSL_CONF_cmd(-groups" in line), None)
+    refusal = next(
+        (line.strip() for line in text.splitlines() if "cannot be set" in line or "SSL_CONF_cmd(-groups" in line), None
+    )
     group_line = next((line.strip() for line in text.splitlines() if "Negotiated TLS1.3 group" in line), None)
-    out = {"hybrid": {"command": hybrid["command"], "exit": hybrid["exit"], "output": text[-1500:]},
-           "classical": {"command": classical["command"], "exit": classical["exit"], "output": classical["output"][-800:],
-                         "completed": classical_done}}
+    out = {
+        "hybrid": {"command": hybrid["command"], "exit": hybrid["exit"], "output": text[-1500:]},
+        "classical": {
+            "command": classical["command"],
+            "exit": classical["exit"],
+            "output": classical["output"][-800:],
+            "completed": classical_done,
+        },
+    }
     if refusal is not None:
         return {"state": "refused", "note": _short(refusal, 300), "handshakes": out}
     if hybrid["exit"] == 0 and "CONNECTION ESTABLISHED" in text:
         # the test server accepts only X25519MLKEM768, so a completed handshake with it used that group
-        return {"state": "made", "confirmed": True, "group_line": group_line, "classical_completed": classical_done, "handshakes": out}
-    return {"state": "no_answer", "why": "the handshake neither completed nor was refused by the library", "handshakes": out}
+        return {
+            "state": "made",
+            "confirmed": True,
+            "group_line": group_line,
+            "classical_completed": classical_done,
+            "handshakes": out,
+        }
+    return {
+        "state": "no_answer",
+        "why": "the handshake neither completed nor was refused by the library",
+        "handshakes": out,
+    }
 
 
 def _ask(target, questions: list[str], ports: dict | None, why_no_server: str | None) -> dict:
@@ -152,8 +209,11 @@ def run_capability(spec: dict, ctx: RunContext) -> dict:
         return problem("needs_isolated_mode", real_libraries.NEEDS_ISOLATED + ", and this run is in demo mode.")
     if target_spec.get("target_kind") != "public_copy":
         return problem("harness_error", "Only the public pinned copy can be measured in this version.")
-    copies = {"subject": (target_spec["name"], target_spec["version"]), "capable": real_libraries.CAPABLE_CONTROL,
-              "incapable": real_libraries.INCAPABLE_CONTROL}
+    copies = {
+        "subject": (target_spec["name"], target_spec["version"]),
+        "capable": real_libraries.CAPABLE_CONTROL,
+        "incapable": real_libraries.INCAPABLE_CONTROL,
+    }
     targets = {}
     for role, (name, version) in copies.items():
         try:
@@ -161,12 +221,16 @@ def run_capability(spec: dict, ctx: RunContext) -> dict:
         except ValueError:
             return problem("harness_error", f"{name} {version} has no pinned copy.")
         if not (ctx.mode.real_images or {}).get(targets[role].family):
-            return problem("real_image_missing", f"The container image of {targets[role].copy['label']} is not prepared on this computer.")
+            return problem(
+                "real_image_missing",
+                f"The container image of {targets[role].copy['label']} is not prepared on this computer.",
+            )
     raw: dict = {"target": targets["subject"].describe(), "questions": questions}
     with ExitStack() as stack:
         ports, why = None, None
         if "x25519mlkem768" in questions:
             from app.checks import pqtls
+
             ok, text = pqtls.available()
             if ok:
                 try:
@@ -178,6 +242,14 @@ def run_capability(spec: dict, ctx: RunContext) -> dict:
         ctx.progress("asking the library", 10)
         raw["subject"] = _ask(targets["subject"], questions, ports, why)
         ctx.progress("asking the two control copies", 60)
-        raw["controls"] = {"capable": {"copy": targets["capable"].describe(), "answers": _ask(targets["capable"], questions, ports, why)},
-                           "incapable": {"copy": targets["incapable"].describe(), "answers": _ask(targets["incapable"], questions, ports, why)}}
+        raw["controls"] = {
+            "capable": {
+                "copy": targets["capable"].describe(),
+                "answers": _ask(targets["capable"], questions, ports, why),
+            },
+            "incapable": {
+                "copy": targets["incapable"].describe(),
+                "answers": _ask(targets["incapable"], questions, ports, why),
+            },
+        }
     return raw

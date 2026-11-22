@@ -76,7 +76,12 @@ function NavLink({
   const base = `flex items-center gap-2.5 rounded-md text-sm transition-colors ${collapsed ? "justify-center p-2" : nested ? "py-1.5 pl-9 pr-2" : "px-2.5 py-1.5"}`;
   if (disabled) {
     return (
-      <a role="link" aria-disabled="true" title={reason ?? label} className={`${base} cursor-not-allowed text-slate-600`}>
+      <a
+        role="link"
+        aria-disabled="true"
+        title={reason ?? label}
+        className={`${base} cursor-not-allowed text-slate-600`}
+      >
         {nested && !collapsed ? null : <Icon name={icon} />}
         {collapsed ? <span className="sr-only">{label}</span> : <span className="truncate">{label}</span>}
       </a>
@@ -90,7 +95,9 @@ function NavLink({
       aria-label={ariaLabel}
       title={collapsed ? label : undefined}
       className={`${base} ${
-        current ? "bg-slate-800/80 font-medium text-slate-50" : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
+        current
+          ? "bg-slate-800/80 font-medium text-slate-50"
+          : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-100"
       }`}
     >
       {nested && !collapsed ? null : <Icon name={icon} className={`h-4 w-4 ${current ? "text-sky-300" : ""}`} />}
@@ -127,10 +134,18 @@ function AssessmentPicker({
         className="flex w-full items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900/60 px-2.5 py-1.5 text-left text-sm text-slate-100 hover:border-slate-600"
       >
         <span className="truncate">{assessment.title}</span>
-        <StatusChip label={assessment.status.label} tone={assessment.status.key === "open" ? "pass" : "neutral"} size="sm" />
+        <StatusChip
+          label={assessment.status.label}
+          tone={assessment.status.key === "open" ? "pass" : "neutral"}
+          size="sm"
+        />
       </button>
       {open ? (
-        <div role="menu" aria-label="Assessments" className="absolute left-0 right-0 top-10 z-30 rounded-lg border border-slate-700 bg-slate-900 p-1 shadow-xl">
+        <div
+          role="menu"
+          aria-label="Assessments"
+          className="absolute left-0 right-0 top-10 z-30 rounded-lg border border-slate-700 bg-slate-900 p-1 shadow-xl"
+        >
           {assessments.map((a) => (
             <a
               key={a.id}
@@ -200,10 +215,17 @@ export function Sidebar({
   const page = route.kind === "assessment" ? route.page : null;
   const id = assessment?.id ?? null;
   return (
-    <div data-testid="sidebar" data-collapsed={collapsed || undefined} className={`flex h-full flex-col gap-4 ${collapsed ? "w-16 px-2" : "w-64 px-3"} py-4`}>
+    <div
+      data-testid="sidebar"
+      data-collapsed={collapsed || undefined}
+      className={`flex h-full flex-col gap-4 ${collapsed ? "w-16 px-2" : "w-64 px-3"} py-4`}
+    >
       <div className={`flex items-center ${collapsed ? "justify-center" : "justify-between"} gap-2`}>
         {collapsed ? (
-          <span aria-label="Isogeny Labs" className="grid h-7 w-7 place-items-center rounded-md bg-sky-500 text-xs font-bold text-slate-950">
+          <span
+            aria-label="Isogeny Labs"
+            className="grid h-7 w-7 place-items-center rounded-md bg-sky-500 text-xs font-bold text-slate-950"
+          >
             IL
           </span>
         ) : (
@@ -216,7 +238,12 @@ export function Sidebar({
             {workspace?.organization ?? ""}
           </p>
         )}
-        <ProjectSwitcher workspace={workspace} currentProjectId={projectId} collapsed={collapsed} onPick={onPickProject} />
+        <ProjectSwitcher
+          workspace={workspace}
+          currentProjectId={projectId}
+          collapsed={collapsed}
+          onPick={onPickProject}
+        />
         {projectId !== null ? (
           <div className="mt-2">
             <NavLink
@@ -235,7 +262,12 @@ export function Sidebar({
         {assessment && id !== null ? (
           <>
             {collapsed ? null : (
-              <AssessmentPicker assessment={assessment} assessments={assessments} onNewAssessment={onNewAssessment} onNavigate={onNavigate} />
+              <AssessmentPicker
+                assessment={assessment}
+                assessments={assessments}
+                onNewAssessment={onNewAssessment}
+                onNavigate={onNavigate}
+              />
             )}
             <ul className="space-y-0.5">
               {ASSESSMENT_ITEMS.map((item) => {
@@ -255,7 +287,11 @@ export function Sidebar({
                     {/* The four work groups of the open page, each opening its tab (named with the page for a screen
                         reader: "Migration" and "Dependencies" are pages of their own too). */}
                     {!item.children && groups && page === item.page && !collapsed && access[item.page].open ? (
-                      <ul data-testid="sidebar-groups" aria-label={`${item.label} groups`} className="mt-0.5 space-y-0.5">
+                      <ul
+                        data-testid="sidebar-groups"
+                        aria-label={`${item.label} groups`}
+                        className="mt-0.5 space-y-0.5"
+                      >
                         {groups.groups.map((g) => (
                           <li key={g.key}>
                             <NavLink
@@ -299,14 +335,30 @@ export function Sidebar({
           </>
         ) : collapsed ? null : (
           <p className="px-2.5 text-xs leading-relaxed text-slate-500">
-            {projectId !== null ? "Open an assessment to see its pages here." : "Open a project to see its assessment here."}
+            {projectId !== null
+              ? "Open an assessment to see its pages here."
+              : "Open a project to see its assessment here."}
           </p>
         )}
       </nav>
 
       <nav aria-label="Workspace" className="space-y-0.5 border-t border-slate-800 pt-3">
-        <NavLink href="#/projects" label="Projects" icon="projects" current={route.kind === "projects"} collapsed={collapsed} onNavigate={onNavigate} />
-        <NavLink href="#/settings" label="Settings" icon="settings" current={route.kind === "settings"} collapsed={collapsed} onNavigate={onNavigate} />
+        <NavLink
+          href="#/projects"
+          label="Projects"
+          icon="projects"
+          current={route.kind === "projects"}
+          collapsed={collapsed}
+          onNavigate={onNavigate}
+        />
+        <NavLink
+          href="#/settings"
+          label="Settings"
+          icon="settings"
+          current={route.kind === "settings"}
+          collapsed={collapsed}
+          onNavigate={onNavigate}
+        />
         <button
           type="button"
           onClick={onToggleCollapsed}

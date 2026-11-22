@@ -4,7 +4,10 @@ import { PrimaryButton, SecondaryButton } from "../ui";
 import { Chip, LineView } from "./parts";
 
 /** What Save sends; the answer is null when it was saved, or the reason it wasn't (shown in the box). */
-export type SaveChoice = (reason: string, reviewDate: string | null) => Promise<{ message: string; field: string | null } | null>;
+export type SaveChoice = (
+  reason: string,
+  reviewDate: string | null,
+) => Promise<{ message: string; field: string | null } | null>;
 
 function ChooseBox({ box, onSave, onCancel }: { box: MigrationChooseBox; onSave: SaveChoice; onCancel: () => void }) {
   const id = useId();

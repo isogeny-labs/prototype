@@ -80,7 +80,9 @@ describe("Import screen", () => {
     expect(first.getByText("localhost:8443 accepts TLS 1.3 only")).not.toBeNull();
     expect(first.getByText("TLS 1.3")).not.toBeNull();
     // 22 November 2026: where it came from, in the backend's words: the claim rests only on the file until Verify checks it
-    expect(first.getAllByTestId("source-tag").map((t) => [t.textContent, t.getAttribute("data-source")])).toEqual([["From your file", "file"]]);
+    expect(first.getAllByTestId("source-tag").map((t) => [t.textContent, t.getAttribute("data-source")])).toEqual([
+      ["From your file", "file"],
+    ]);
     expect(first.getAllByTestId("source-tag")[0]!.getAttribute("title")).toBe(demoImport.claim_source_tag!.meaning);
     expect(first.queryByText("from the file")).toBeNull();
     expect(first.getByText("components[0] (bom-ref tls-acme-pay)")).not.toBeNull();
@@ -111,7 +113,10 @@ describe("Import screen", () => {
     const props = renderImport(demoImport);
     fireEvent.click(screen.getByTestId("address-confirm"));
     await waitFor(() => expect(props.onAddressChanged).toHaveBeenCalledWith(confirmed));
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({ address: "localhost:8443", confirmed: true });
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      address: "localhost:8443",
+      confirmed: true,
+    });
   });
 
   it("keeps Verify claims off until every address is ticked", async () => {
@@ -174,7 +179,9 @@ describe("Import screen", () => {
       },
     });
     const props = renderImport(null);
-    fireEvent.change(screen.getByLabelText("Choose a file to import"), { target: { files: [new File(["x"], "broken.csv")] } });
+    fireEvent.change(screen.getByLabelText("Choose a file to import"), {
+      target: { files: [new File(["x"], "broken.csv")] },
+    });
     const alert = await screen.findByRole("alert");
     expect(text(alert)).toContain("We couldn't read that file");
     expect(text(alert)).toContain("The value column is empty.");
@@ -240,7 +247,9 @@ describe("Import screen", () => {
       },
     });
     renderImport(null);
-    fireEvent.change(screen.getByLabelText("Choose a file to import"), { target: { files: [new File(["x"], "broken.csv")] } });
+    fireEvent.change(screen.getByLabelText("Choose a file to import"), {
+      target: { files: [new File(["x"], "broken.csv")] },
+    });
     const alert = await screen.findByRole("alert");
     expect(text(alert).match(/line 3/gi)).toHaveLength(1);
     expect(text(alert)).toContain("Line 3: The value column is empty.");
@@ -335,7 +344,10 @@ describe("Import screen", () => {
 });
 
 describe("Import screen, phase 5b", () => {
-  const headers = () => within(screen.getByRole("table", { name: "What the file claims" })).getAllByRole("columnheader").map((h) => text(h));
+  const headers = () =>
+    within(screen.getByRole("table", { name: "What the file claims" }))
+      .getAllByRole("columnheader")
+      .map((h) => text(h));
 
   it("draws an algorithm's plain name with the technical name under it", () => {
     renderImport(demoImport);
@@ -357,17 +369,25 @@ describe("Import screen, phase 5b", () => {
 
   it("opens the claim a link names", () => {
     renderImport(demoImport, { openItem: "claim-3" });
-    expect(within(screen.getByTestId("claim-panel")).getByRole("heading", { level: 2 }).textContent).toContain("acme-sign 1.4.2");
+    expect(within(screen.getByTestId("claim-panel")).getByRole("heading", { level: 2 }).textContent).toContain(
+      "acme-sign 1.4.2",
+    );
   });
 
   it("keeps a linked claim's panel closed once the person has closed it, also when the file's data is read again", () => {
     // The page gets the file again whenever something on it is refreshed (an address ticked, Otto's line read again
     // on opening Import). A link opens its claim when the link or the file changes, never on such a read.
-    const props = { demoServer: session.demo_server, onImported: vi.fn(), onImportFailed: vi.fn(), onAddressChanged: vi.fn(), onVerified: vi.fn() };
+    const props = {
+      demoServer: session.demo_server,
+      onImported: vi.fn(),
+      onImportFailed: vi.fn(),
+      onAddressChanged: vi.fn(),
+      onVerified: vi.fn(),
+    };
     const { rerender } = render(<ImportScreen {...props} imp={demoImport} openItem="claim-3" />);
     fireEvent.click(within(screen.getByTestId("claim-panel")).getByRole("button", { name: "Close details" }));
     expect(screen.queryByTestId("claim-panel")).toBeNull();
-    rerender(<ImportScreen {...props} imp={{ ...demoImport }} openItem="claim-3" />);     // the same file, read again
+    rerender(<ImportScreen {...props} imp={{ ...demoImport }} openItem="claim-3" />); // the same file, read again
     expect(screen.queryByTestId("claim-panel")).toBeNull();
     // another file with that link opens its claim, as before
     rerender(<ImportScreen {...props} imp={{ ...demoImport, id: demoImport.id + 1 }} openItem="claim-3" />);
@@ -402,7 +422,14 @@ describe("Import screen: what Otto found (phase 5c)", () => {
 
   /** The page as the app shows it: inside the open assessment, so a link the backend sends has somewhere to go. */
   function renderInAssessment(imp: Import | null, readOnly = false) {
-    const props = { demoServer: session.demo_server, imp, onImported: vi.fn(), onImportFailed: vi.fn(), onAddressChanged: vi.fn(), onVerified: vi.fn() };
+    const props = {
+      demoServer: session.demo_server,
+      imp,
+      onImported: vi.fn(),
+      onImportFailed: vi.fn(),
+      onAddressChanged: vi.fn(),
+      onVerified: vi.fn(),
+    };
     render(
       <ReadOnlyProvider readOnly={readOnly}>
         <LinkProvider assessmentId={101} planId={1}>
@@ -437,7 +464,7 @@ describe("Import screen: what Otto found (phase 5c)", () => {
     expect(calls(fetchMock)).toEqual([]);
     expect(props.onVerified).not.toHaveBeenCalled();
     expect(props.onImported).not.toHaveBeenCalled();
-    window.history.replaceState(null, "", "#/");   // (the link moved the address; put it back for the tests after this one)
+    window.history.replaceState(null, "", "#/"); // (the link moved the address; put it back for the tests after this one)
   });
 
   it("sits with what the file claims, before the address ticks and Verify claims", () => {
@@ -447,7 +474,9 @@ describe("Import screen: what Otto found (phase 5c)", () => {
     const verify = screen.getByRole("button", { name: "Verify claims" });
     expect(table.compareDocumentPosition(line()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(line().compareDocumentPosition(verify) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(line().compareDocumentPosition(screen.getAllByTestId("address-confirm")[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      line().compareDocumentPosition(screen.getAllByTestId("address-confirm")[0]!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("with no check that fits it says why, with the same way to Advisories", () => {
@@ -456,7 +485,9 @@ describe("Import screen: what Otto found (phase 5c)", () => {
     expect(line().getAttribute("data-count")).toBe("0");
     expect(text(within(line()).getByTestId("import-otto-text"))).toBe(NONE_FIT.text);
     expect(text(within(line()).getByTestId("import-otto-note"))).toBe("Nothing runs on import.");
-    expect(within(line()).getByRole("link", { name: "Open Advisories" }).getAttribute("href")).toBe("#/a/101/advisories");
+    expect(within(line()).getByRole("link", { name: "Open Advisories" }).getAttribute("href")).toBe(
+      "#/a/101/advisories",
+    );
   });
 
   it("with no test pack installed it says so and points to Settings, Test packs", () => {
@@ -464,7 +495,9 @@ describe("Import screen: what Otto found (phase 5c)", () => {
     renderInAssessment({ ...demoImport, otto: NO_PACK });
     expect(line().getAttribute("data-count")).toBe("0");
     expect(text(within(line()).getByTestId("import-otto-text"))).toBe(NO_PACK.text);
-    expect(within(line()).getByRole("link", { name: "Open Settings" }).getAttribute("href")).toBe("#/settings?section=test-packs");
+    expect(within(line()).getByRole("link", { name: "Open Settings" }).getAttribute("href")).toBe(
+      "#/settings?section=test-packs",
+    );
   });
 
   it("draws nothing when the answer carries no such line, a null one, or no file is in", () => {
@@ -483,7 +516,9 @@ describe("Import screen: what Otto found (phase 5c)", () => {
     mockApi({});
     renderInAssessment({ ...demoImport, otto: FOUND }, true);
     expect(text(within(line()).getByTestId("import-otto-text"))).toBe(FOUND.text);
-    expect(within(line()).getByRole("link", { name: "Open Advisories" }).getAttribute("href")).toBe("#/a/101/advisories");
+    expect(within(line()).getByRole("link", { name: "Open Advisories" }).getAttribute("href")).toBe(
+      "#/a/101/advisories",
+    );
   });
 
   it("adds no word of its own: every word in the line is one the backend sent", () => {

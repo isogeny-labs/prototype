@@ -7,7 +7,17 @@ import { expect, test, type BrowserContext, type Locator, type Page } from "@pla
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { enterApp, importVerifyAndOpenTests, screenshotFolder, stepLink, stepNav, openFreshAssessment, stepName, evidenceRow, openGroupTab } from "./shared";
+import {
+  enterApp,
+  importVerifyAndOpenTests,
+  screenshotFolder,
+  stepLink,
+  stepNav,
+  openFreshAssessment,
+  stepName,
+  evidenceRow,
+  openGroupTab,
+} from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = screenshotFolder("phase4b");
@@ -52,7 +62,10 @@ function badgeIs(words: string): Promise<void> {
 }
 
 function tryRow(label: string): Locator {
-  return box().getByTestId("change-try").getByRole("row").filter({ has: page.getByRole("rowheader", { name: label, exact: true }) });
+  return box()
+    .getByTestId("change-try")
+    .getByRole("row")
+    .filter({ has: page.getByRole("rowheader", { name: label, exact: true }) });
 }
 
 async function goTo(step: string): Promise<void> {
@@ -60,12 +73,17 @@ async function goTo(step: string): Promise<void> {
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText(stepName(step));
   // (the old steps Tests and Evidence Lab are the test plan and the results: since 20 November 2026 they are the
   // Crypto tests tab of Checks and of Evidence)
-  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step)) await openGroupTab(page, "Crypto tests", stepName(step) as "Checks" | "Evidence");
+  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step))
+    await openGroupTab(page, "Crypto tests", stepName(step) as "Checks" | "Evidence");
 }
 
 async function pickFix(title: string): Promise<void> {
-  await page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByRole("button").filter({ hasText: title }).click();
-  await expect(page.getByTestId("detail-panel").getByRole("heading", { name: title, level: 2 })).toBeVisible();   // the panel's heading
+  await page
+    .getByRole("navigation", { name: /^Open findings with a fix/ })
+    .getByRole("button")
+    .filter({ hasText: title })
+    .click();
+  await expect(page.getByTestId("detail-panel").getByRole("heading", { name: title, level: 2 })).toBeVisible(); // the panel's heading
 }
 
 function cardStatuses(): Promise<string[]> {
@@ -111,7 +129,12 @@ test("Two tracks: 8451 shows Key exchange and Authentication, each with its Next
     await expect(track(key).getByTestId("track-why")).toContainText("Why:");
   }
   // The new measurements on the key exchange track.
-  for (const fact of ["Chosen by default?", "If the client lists classical first", "Classical-only clients", "Hybrid-only clients"]) {
+  for (const fact of [
+    "Chosen by default?",
+    "If the client lists classical first",
+    "Classical-only clients",
+    "Hybrid-only clients",
+  ]) {
     await expect(track("kex")).toContainText(fact);
   }
   await expect(page.getByText(/already there/i)).toHaveCount(0);
@@ -123,7 +146,9 @@ test("8452: Ready to try, Apply is off with its reason; the try shows before and
   await expect(track("kex").getByTestId("migration-status")).toContainText("Classical");
   await badgeIs("Ready to try");
   await expect(box().getByRole("button", { name: "Apply to localhost:8452" })).toBeDisabled();
-  await expect(box().getByTestId("change-reason")).toContainText("Apply unlocks after a try on a test copy has passed.");
+  await expect(box().getByTestId("change-reason")).toContainText(
+    "Apply unlocks after a try on a test copy has passed.",
+  );
   await expect(box().getByRole("button", { name: "Ask for approval" })).toBeDisabled();
   await expect(box().getByRole("button", { name: "Try on a test copy" })).toBeEnabled();
 
@@ -146,7 +171,9 @@ test("8452: Ready to try, Apply is off with its reason; the try shows before and
 });
 
 test("Approvals: Apply stays off until You and Demo reviewer A have both approved; Apply is one click and the app measures again", async () => {
-  await box().getByRole("checkbox", { name: /Demo reviewer A/ }).check();
+  await box()
+    .getByRole("checkbox", { name: /Demo reviewer A/ })
+    .check();
   await expect(box().getByRole("checkbox", { name: "You" })).toBeChecked();
   await expect(box().getByRole("checkbox", { name: /Demo reviewer B/ })).not.toBeChecked();
   await box().getByRole("button", { name: "Ask for approval" }).click();
@@ -163,7 +190,9 @@ test("Approvals: Apply stays off until You and Demo reviewer A have both approve
   // One click, no confirm dialog.
   await box().getByRole("button", { name: "Apply to localhost:8452" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(box().getByTestId("change-applied-badge")).toContainText("Applied · matches the try", { timeout: 90_000 });
+  await expect(box().getByTestId("change-applied-badge")).toContainText("Applied · matches the try", {
+    timeout: 90_000,
+  });
   await expect(track("kex").getByTestId("migration-status")).toContainText("Hybrid (interim)", { timeout: 30_000 });
   await box().getByTestId("change-applied").scrollIntoViewIfNeeded();
   await shot("03-applied.png");
@@ -171,7 +200,9 @@ test("Approvals: Apply stays off until You and Demo reviewer A have both approve
 
 test("Roadmap: 8452's key exchange moved to Done for now", async () => {
   await page.getByRole("button", { name: "Roadmap", exact: true }).click();
-  await expect(band("Done for now").getByTestId("roadmap-row").filter({ hasText: "localhost:8452" })).toContainText("Key exchange");
+  await expect(band("Done for now").getByTestId("roadmap-row").filter({ hasText: "localhost:8452" })).toContainText(
+    "Key exchange",
+  );
   await expect(band("Phase 1").getByTestId("roadmap-row").filter({ hasText: "localhost:8452" })).toHaveCount(0);
   await shot("04-roadmap-tracks.png");
 });
@@ -179,7 +210,9 @@ test("Roadmap: 8452's key exchange moved to Done for now", async () => {
 test("Fixes: the change reads In place (measured); Roll back (from Migration) puts it back, measures again, and Apply asks for a new try", async () => {
   await goTo("5. Fixes");
   await pickFix("Turn on hybrid key exchange on localhost:8452");
-  await expect(page.getByTestId("fix-summary").getByTestId("fix-status")).toHaveText("In place (measured)", { timeout: 60_000 });
+  await expect(page.getByTestId("fix-summary").getByTestId("fix-status")).toHaveText("In place (measured)", {
+    timeout: 60_000,
+  });
   await expect(box().getByTestId("change-badge")).toContainText("In place (measured)");
   await shot("05-fixes-change.png");
 
@@ -187,7 +220,9 @@ test("Fixes: the change reads In place (measured); Roll back (from Migration) pu
   await goTo("6. Migration");
   await openSystem("localhost:8452");
   await box().getByRole("button", { name: "Roll back" }).click();
-  await expect(box().getByTestId("change-applied-badge")).toContainText("Rolled back · measured as before", { timeout: 90_000 });
+  await expect(box().getByTestId("change-applied-badge")).toContainText("Rolled back · measured as before", {
+    timeout: 90_000,
+  });
   await badgeIs("Rolled back");
   await expect(track("kex").getByTestId("migration-status")).toContainText("Classical");
   await expect(track("kex").getByTestId("migration-status")).not.toContainText("Hybrid");
@@ -228,7 +263,8 @@ test("Acme Pay: Run all, then the TLS fix in Fixes has its change box (Ready to 
   await expect(box()).toHaveAttribute("data-change", "tls:server:localhost:8443");
   await expect(box().getByTestId("change-badge")).toContainText("Ready to try");
   await expect(page.getByTestId("fix-proof")).toHaveText(
-    "In the change box below: a try on a test copy of the demo server comes first, then the approvals, then Apply.");
+    "In the change box below: a try on a test copy of the demo server comes first, then the approvals, then Apply.",
+  );
 });
 
 test("Acme Pay: the try shows Failed then Passed; approve with You only; Apply; In place (measured)", async () => {
@@ -256,13 +292,18 @@ async function verifyAgain(): Promise<Locator> {
   await goTo("1. Import");
   await page.getByRole("button", { name: "Verify claims" }).click();
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
-  return page.getByTestId("result-row").filter({ hasText: "localhost:8443 accepts TLS 1.3 only" }).getByTestId("result-badge");
+  return page
+    .getByTestId("result-row")
+    .filter({ hasText: "localhost:8443 accepts TLS 1.3 only" })
+    .getByTestId("result-badge");
 }
 
 test("Acme Pay: after Apply Evidence Lab's Old TLS versions is Passed and Verify reads True; Roll back puts it back", async () => {
   await goTo("4. Evidence Lab");
   const old = evidenceRow(page, "Old TLS versions");
-  await expect(old.getByTestId("result-badge").locator("span:last-child").first()).toHaveText("Passed", { timeout: 60_000 });
+  await expect(old.getByTestId("result-badge").locator("span:last-child").first()).toHaveText("Passed", {
+    timeout: 60_000,
+  });
 
   await expect(await verifyAgain()).toHaveText("True");
 

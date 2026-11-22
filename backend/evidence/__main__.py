@@ -5,6 +5,7 @@ Since phase 5c a file may hold an Otto part (test packs, the assessment's Otto l
 after the file's own signature held: see evidence/otto.py. --previous names an older download of the same assessment:
 the older file's latest ledger entry must still be in this file's ledger. Exit codes stay 0 verified, 1 failed,
 2 not confirmed (also when Otto's own audit could not be run here, or a pack's signer is not one you trust)."""
+
 from __future__ import annotations
 
 import argparse
@@ -13,7 +14,15 @@ from pathlib import Path
 
 from app.canonical import loads_strict
 
-from . import FAILED, MAX_FILE_BYTES, SIGNER_NOT_CONFIRMED, VERIFIED, read_public_key, trusted_key_from_data_dir, verify_bytes
+from . import (
+    FAILED,
+    MAX_FILE_BYTES,
+    SIGNER_NOT_CONFIRMED,
+    VERIFIED,
+    read_public_key,
+    trusted_key_from_data_dir,
+    verify_bytes,
+)
 
 
 class _Parser(argparse.ArgumentParser):
@@ -35,11 +44,21 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     verify = sub.add_parser("verify", help="check an evidence .json file")
     verify.add_argument("file")
-    verify.add_argument("--public-key", help="the signer's public key you trust: 64 hex characters, or a file holding them")
-    verify.add_argument("--data-dir", help="the app's data folder (its public key file is used); default: this app's own")
-    verify.add_argument("--previous", help="an older download of the same assessment: its Otto ledger must still be inside this one")
-    verify.add_argument("--pack-key", action="append", default=[],
-                        help="a test pack signing key you trust besides the app's own: 64 hex characters, or a file holding them")
+    verify.add_argument(
+        "--public-key", help="the signer's public key you trust: 64 hex characters, or a file holding them"
+    )
+    verify.add_argument(
+        "--data-dir", help="the app's data folder (its public key file is used); default: this app's own"
+    )
+    verify.add_argument(
+        "--previous", help="an older download of the same assessment: its Otto ledger must still be inside this one"
+    )
+    verify.add_argument(
+        "--pack-key",
+        action="append",
+        default=[],
+        help="a test pack signing key you trust besides the app's own: 64 hex characters, or a file holding them",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -61,6 +80,7 @@ def main(argv: list[str] | None = None) -> int:
             data_dir = Path(args.data_dir)
         else:
             from app.config import load_settings
+
             data_dir = load_settings().data_dir
         trusted = trusted_key_from_data_dir(data_dir)
         where = f"this app's own key in {data_dir}"
@@ -80,19 +100,26 @@ def main(argv: list[str] | None = None) -> int:
                 return FAILED
             older = verify_bytes(older_raw, trusted)
             if older.code == FAILED or older.code != outcome.code:
-                print("Evidence NOT verified: the older file given with --previous does not verify the same way as this one "
-                      f"({older.message.removeprefix('Evidence NOT verified: ')})")
+                print(
+                    "Evidence NOT verified: the older file given with --previous does not verify the same way as this one "
+                    f"({older.message.removeprefix('Evidence NOT verified: ')})"
+                )
                 return FAILED
             if older.signer != outcome.signer:
-                print("Evidence NOT verified: the older file given with --previous was not signed with the same key as this one, "
-                      "so the two can't be downloads of the same assessment.")
+                print(
+                    "Evidence NOT verified: the older file given with --previous was not signed with the same key as this one, "
+                    "so the two can't be downloads of the same assessment."
+                )
                 return FAILED
             previous = _evidence_of(older_raw)
         from .otto import check_otto, needs_otto_part, pack_keys
+
         if "otto" not in evidence and needs_otto_part(evidence):
             # A file from this app that holds an advisory check always has its Otto part: the packs, the lock entries
             # and the ledger that binds each run. Without it those runs are bound to nothing.
-            print("Evidence NOT verified: the file holds an advisory check but no Otto part (its test packs and its ledger).")
+            print(
+                "Evidence NOT verified: the file holds an advisory check but no Otto part (its test packs and its ledger)."
+            )
             return FAILED
         if "otto" in evidence or previous is not None:
             if "otto" not in evidence:
@@ -110,9 +137,12 @@ def main(argv: list[str] | None = None) -> int:
     watch = None
     if outcome.code in (VERIFIED, SIGNER_NOT_CONFIRMED):
         from .changewatch import check_change_watch, needs_change_watch_part
+
         if "change_watch" not in evidence and needs_change_watch_part(evidence):
-            print("Evidence NOT verified: the file lists a run made for a developer's change but has no Change watch part "
-                  "(the change, the watch run and its record).")
+            print(
+                "Evidence NOT verified: the file lists a run made for a developer's change but has no Change watch part "
+                "(the change, the watch run and its record)."
+            )
             return FAILED
         if "change_watch" in evidence:
             watch = check_change_watch(evidence)
@@ -123,6 +153,7 @@ def main(argv: list[str] | None = None) -> int:
     watch_list = None
     if outcome.code in (VERIFIED, SIGNER_NOT_CONFIRMED) and "watch_list" in evidence:
         from .watchlist import check_watch_list
+
         watch_list = check_watch_list(evidence)
         if not watch_list.ok:
             print(f"Evidence NOT verified: the Watch list part: {watch_list.problem}")

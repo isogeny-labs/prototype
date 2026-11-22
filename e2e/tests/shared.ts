@@ -26,7 +26,25 @@ export const password: string = process.env.E2E_PASSWORD ?? "";
 if (!password) throw new Error("E2E_PASSWORD is not set; run the tests with `npm test` from the e2e folder.");
 
 export function screenshotFolder(
-  phase: "phase1" | "phase2" | "phase3a" | "phase3a-fixes" | "phase4a" | "phase4b" | "phase4c" | "phase4d" | "phase5a" | "phase5b" | "phase5c" | "phase5c-fixes" | "phase6a" | "phase6d" | "phase6e" | "group-tabs" | "impact" | "source-tags",
+  phase:
+    | "phase1"
+    | "phase2"
+    | "phase3a"
+    | "phase3a-fixes"
+    | "phase4a"
+    | "phase4b"
+    | "phase4c"
+    | "phase4d"
+    | "phase5a"
+    | "phase5b"
+    | "phase5c"
+    | "phase5c-fixes"
+    | "phase6a"
+    | "phase6d"
+    | "phase6e"
+    | "group-tabs"
+    | "impact"
+    | "source-tags",
 ): string {
   return path.join(REPO, "docs/screenshots", phase);
 }
@@ -43,7 +61,8 @@ export function screenshotFolder(
 export async function enterApp(page: Page, options: { ottoPanel?: boolean } = {}): Promise<void> {
   await page.addInitScript((shown: boolean) => {
     try {
-      if (window.localStorage.getItem("evidence-lab-copilot") === null) window.localStorage.setItem("evidence-lab-copilot", shown ? "shown" : "hidden");
+      if (window.localStorage.getItem("evidence-lab-copilot") === null)
+        window.localStorage.setItem("evidence-lab-copilot", shown ? "shown" : "hidden");
     } catch {
       /* (no storage: the app's default stands) */
     }
@@ -78,14 +97,34 @@ const STEP_PAGES: Record<string, string> = {
 
 /** The sidebar's assessment pages, in order, once a file is in (Migration's three views open with it). */
 // Phase 5c: Advisories sits between Inventory and Checks. Phase 6d: Change watch comes after Fixes.
-export const SIDEBAR_PAGES = ["Overview", "Inventory", "Import", "Verify", "Advisories", "Checks", "Evidence", "Fixes", "Change watch", "Migration",
-                              "Systems", "Roadmap", "Dependencies"];
+export const SIDEBAR_PAGES = [
+  "Overview",
+  "Inventory",
+  "Import",
+  "Verify",
+  "Advisories",
+  "Checks",
+  "Evidence",
+  "Fixes",
+  "Change watch",
+  "Migration",
+  "Systems",
+  "Roadmap",
+  "Dependencies",
+];
 
 /** 20 November 2026: the sidebar lists the four work groups under the open page when it is Checks, Evidence or Fixes. The
  * sidebar's links, in order, with the open page's groups under it. */
 export function sidebarLinksOn(open: "Checks" | "Evidence" | "Fixes"): string[] {
   const at = SIDEBAR_PAGES.indexOf(open);
-  return [...SIDEBAR_PAGES.slice(0, at + 1), "Verification", "Crypto tests", "Migration", "Dependencies", ...SIDEBAR_PAGES.slice(at + 1)];
+  return [
+    ...SIDEBAR_PAGES.slice(0, at + 1),
+    "Verification",
+    "Crypto tests",
+    "Migration",
+    "Dependencies",
+    ...SIDEBAR_PAGES.slice(at + 1),
+  ];
 }
 
 /** The page an old step lands on, as the sidebar marks it current ("4. Evidence Lab" -> "Evidence"; "6. Migration"
@@ -122,7 +161,9 @@ export async function importVerifyAndOpenTests(page: Page): Promise<void> {
   await stepLink(page, "1. Import").click();
   // Wait for the import itself to be answered: until then the screen may still show an earlier import
   // (with its box already ticked), and the new file's box must be the one that gets ticked.
-  const imported = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/import/demo" && r.request().method() === "POST");
+  const imported = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === "/api/import/demo" && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Use demo file" }).click();
   expect((await imported).status()).toBe(200);
   await expect(page.getByTestId("claim-row")).toHaveCount(3);
@@ -168,7 +209,9 @@ export async function continueToChecks(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Continue to checks" }).click();
   await expect(page.getByRole("heading", { name: "Checks", level: 1 })).toBeVisible();
   await expect(page.getByTestId("test-card").first()).toBeVisible();
-  await expect(page.getByRole("tablist", { name: "Work groups" }).getByRole("tab", { name: "Crypto tests", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(
+    page.getByRole("tablist", { name: "Work groups" }).getByRole("tab", { name: "Crypto tests", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
 }
 
 /** Phase 5b: once a file is in, every page of the assessment opens (a page with nothing yet says what fills it). */
@@ -207,7 +250,9 @@ export async function shotBothThemes(page: Page, name: string, fullPage = true):
 
 /** The table row of one result, by its test title (inside a group's section when `within` is given). */
 export function evidenceRow(page: Page, title: string, within?: Locator): Locator {
-  return (within ?? page).getByTestId("evidence-row").filter({ has: page.getByTestId("lab-row-header").getByText(title, { exact: true }) });
+  return (within ?? page)
+    .getByTestId("evidence-row")
+    .filter({ has: page.getByTestId("lab-row-header").getByText(title, { exact: true }) });
 }
 
 /** What the detail panel shows for the open result (the old opened row). */
@@ -219,7 +264,8 @@ export function resultPanel(page: Page): Locator {
 export async function openResult(page: Page, title: string, within?: Locator): Promise<Locator> {
   const heading = page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: title, exact: true });
   // (the test results are Evidence's Crypto tests table: its tab is opened first, unless a panel is open on it already)
-  if ((await heading.count()) === 0 && (await page.getByRole("tablist", { name: "Work groups" }).count()) > 0) await openGroupTab(page, "Crypto tests", "Evidence");
+  if ((await heading.count()) === 0 && (await page.getByRole("tablist", { name: "Work groups" }).count()) > 0)
+    await openGroupTab(page, "Crypto tests", "Evidence");
   if ((await heading.count()) === 0) await evidenceRow(page, title, within).click();
   await expect(heading).toBeVisible();
   return resultPanel(page);
@@ -255,45 +301,89 @@ export interface Copy {
 
 /** A copy of the app on its own ports and data folder. mode "demo" forces demo mode; "auto" lets it choose. `more`
  * adds settings of the copy's own (never a key: a copy is started with a short, fixed environment). */
-export async function startCopy(browser: Browser, offset: number, mode: "demo" | "auto", more: Record<string, string> = {}): Promise<Copy> {
+export async function startCopy(
+  browser: Browser,
+  offset: number,
+  mode: "demo" | "auto",
+  more: Record<string, string> = {},
+): Promise<Copy> {
   const port = Number(process.env.E2E_APP_PORT ?? "8010") + offset;
   const tlsPort = Number(process.env.E2E_DEMO_TLS_PORT ?? "8443") + offset;
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-copy-"));
-  const env: Record<string, string> = { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", EVIDENCE_LAB_DATA_DIR: dataDir,
-                                         EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort), ...more };
+  const env: Record<string, string> = {
+    PATH: process.env.PATH ?? "",
+    HOME: process.env.HOME ?? "",
+    EVIDENCE_LAB_DATA_DIR: dataDir,
+    EVIDENCE_LAB_DEMO_TLS_PORT: String(tlsPort),
+    ...more,
+  };
   if (mode === "demo") env.EVIDENCE_LAB_MODE = "demo";
-  for (const key of ["DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONTEXT", "XDG_RUNTIME_DIR"]) if (process.env[key]) env[key] = process.env[key] as string;
+  for (const key of ["DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONTEXT", "XDG_RUNTIME_DIR"])
+    if (process.env[key]) env[key] = process.env[key] as string;
   // To look into a walk that failed: E2E_APP_LOG=/some/file keeps what this copy of the app prints, with one line for
   // every request and its answer. Without it nothing is kept.
   const log = process.env.E2E_APP_LOG ? fs.openSync(process.env.E2E_APP_LOG, "a") : null;
-  const app = spawn(PYTHON, ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", String(port), "--log-level", log === null ? "warning" : "info"],
-                    { cwd: BACKEND, stdio: log === null ? "ignore" : ["ignore", log, log], env });
+  const app = spawn(
+    PYTHON,
+    [
+      "-m",
+      "uvicorn",
+      "app.main:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      String(port),
+      "--log-level",
+      log === null ? "warning" : "info",
+    ],
+    { cwd: BACKEND, stdio: log === null ? "ignore" : ["ignore", log, log], env },
+  );
   const context = await browser.newContext({ baseURL: `http://127.0.0.1:${port}` });
   let session: { mode: string } | null = null;
   await expect
-    .poll(async () => {
-      try {
-        session = await (await context.request.get("/api/session")).json();
-        return true;
-      } catch {
-        return false;
-      }
-    }, { timeout: 30_000 })
+    .poll(
+      async () => {
+        try {
+          session = await (await context.request.get("/api/session")).json();
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 30_000 },
+    )
     .toBe(true);
   const page = await context.newPage();
   if (log !== null) {
     // (and, in the same file, each request the page made: when it ended, its answer and how long it took)
     const started = Date.now();
-    const note = (line: string) => fs.writeSync(log, `[page +${((Date.now() - started) / 1000).toFixed(2)}s] ${line}\n`);
+    const note = (line: string) =>
+      fs.writeSync(log, `[page +${((Date.now() - started) / 1000).toFixed(2)}s] ${line}\n`);
     page.on("requestfinished", (request) => {
       if (!request.url().includes("/api/")) return;
-      void request.response().then((response) =>
-        note(`${request.method()} ${new URL(request.url()).pathname}${new URL(request.url()).search} -> ${response?.status() ?? "no answer"} (${Math.round(request.timing().responseEnd)} ms)`));
+      void request
+        .response()
+        .then((response) =>
+          note(
+            `${request.method()} ${new URL(request.url()).pathname}${new URL(request.url()).search} -> ${response?.status() ?? "no answer"} (${Math.round(request.timing().responseEnd)} ms)`,
+          ),
+        );
     });
-    page.on("requestfailed", (request) => note(`${request.method()} ${request.url()} failed: ${request.failure()?.errorText ?? "unknown"}`));
-    page.on("framenavigated", (frame) => (frame === page.mainFrame() ? note(`at ${new URL(frame.url()).hash}`) : undefined));
+    page.on("requestfailed", (request) =>
+      note(`${request.method()} ${request.url()} failed: ${request.failure()?.errorText ?? "unknown"}`),
+    );
+    page.on("framenavigated", (frame) =>
+      frame === page.mainFrame() ? note(`at ${new URL(frame.url()).hash}`) : undefined,
+    );
   }
-  return { app, context, page, dataDir, mode: (session as { mode: string } | null)?.mode ?? "demo", server: `localhost:${tlsPort}` };
+  return {
+    app,
+    context,
+    page,
+    dataDir,
+    mode: (session as { mode: string } | null)?.mode ?? "demo",
+    server: `localhost:${tlsPort}`,
+  };
 }
 
 export async function stopCopy(copy: Copy | null): Promise<void> {
@@ -311,7 +401,8 @@ export async function layoutProblems(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const problems: string[] = [];
     const doc = document.documentElement;
-    if (doc.scrollWidth > doc.clientWidth + 1) problems.push(`the page scrolls sideways (${doc.scrollWidth} > ${doc.clientWidth})`);
+    if (doc.scrollWidth > doc.clientWidth + 1)
+      problems.push(`the page scrolls sideways (${doc.scrollWidth} > ${doc.clientWidth})`);
     for (const t of Array.from(document.querySelectorAll<HTMLElement>('[data-testid="data-table"]'))) {
       if (t.offsetParent === null) continue;
       if (t.scrollWidth > t.clientWidth + 1) {
@@ -320,7 +411,9 @@ export async function layoutProblems(page: Page): Promise<string[]> {
       }
     }
     // A run of letters and digits must sit on one line (a break is allowed only at a space or punctuation).
-    const cells = Array.from(document.querySelectorAll<HTMLElement>("main td, main th, aside[role='complementary'] h2"));
+    const cells = Array.from(
+      document.querySelectorAll<HTMLElement>("main td, main th, aside[role='complementary'] h2"),
+    );
     for (const cell of cells) {
       const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -329,7 +422,11 @@ export async function layoutProblems(page: Page): Promise<string[]> {
           const range = document.createRange();
           range.setStart(node, m.index ?? 0);
           range.setEnd(node, (m.index ?? 0) + m[0].length);
-          const tops = new Set(Array.from(range.getClientRects()).filter((r) => r.width > 0).map((r) => Math.round(r.top)));
+          const tops = new Set(
+            Array.from(range.getClientRects())
+              .filter((r) => r.width > 0)
+              .map((r) => Math.round(r.top)),
+          );
           if (tops.size > 1) problems.push(`"${m[0]}" is broken between letters in "${text.trim().slice(0, 60)}"`);
         }
       }

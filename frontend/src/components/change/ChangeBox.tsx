@@ -109,7 +109,10 @@ function Applied({ view }: { view: ApplyView }) {
         ))}
       </div>
       {view.differences.length > 0 ? (
-        <ul data-testid="change-differences" className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200 marker:text-slate-500">
+        <ul
+          data-testid="change-differences"
+          className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-200 marker:text-slate-500"
+        >
           {view.differences.map((line, i) => (
             <li key={i}>{line}</li>
           ))}
@@ -222,7 +225,15 @@ export function ChangeBox({ change, planId, onChanged, onViewFix }: Props) {
           ticked={ticked}
           onTick={tick}
           disabled={pending}
-          onAsk={() => void run(() => api.changeAskApproval(planId, change.id, (picker?.options ?? []).filter((o) => ticked.has(o.id)).map((o) => o.id)))}
+          onAsk={() =>
+            void run(() =>
+              api.changeAskApproval(
+                planId,
+                change.id,
+                (picker?.options ?? []).filter((o) => ticked.has(o.id)).map((o) => o.id),
+              ),
+            )
+          }
           onApprove={(reviewer) => void run(() => api.changeApprove(planId, change.id, reviewer))}
         />
       ) : null}
@@ -240,11 +251,19 @@ export function ChangeBox({ change, planId, onChanged, onViewFix }: Props) {
             <div className="flex flex-wrap items-center gap-2.5">
               {buttons.map((button) =>
                 button.primary ? (
-                  <PrimaryButton key={button.action} disabled={pending || !button.enabled} onClick={() => press(button)}>
+                  <PrimaryButton
+                    key={button.action}
+                    disabled={pending || !button.enabled}
+                    onClick={() => press(button)}
+                  >
                     {button.label}
                   </PrimaryButton>
                 ) : (
-                  <SecondaryButton key={button.action} disabled={pending || !button.enabled} onClick={() => press(button)}>
+                  <SecondaryButton
+                    key={button.action}
+                    disabled={pending || !button.enabled}
+                    onClick={() => press(button)}
+                  >
                     {button.label}
                   </SecondaryButton>
                 ),

@@ -3,6 +3,7 @@
 It holds only short-lived things that are safe to lose: the one-time `state` of a GitHub login (10 minutes) and a
 copy of what GitHub said about a person (a few minutes). Nothing in it is a record, and no result is ever read from it.
 """
+
 from __future__ import annotations
 
 import threading
@@ -17,6 +18,7 @@ class Cache(Protocol):
     def set(self, key: str, value: bytes | str, ttl_seconds: int) -> None: ...
     def take(self, key: str) -> bytes | None:
         """Read and delete in one step (a one-time value can be used once only, even with several app processes)."""
+
     def delete(self, key: str) -> None: ...
     def ping(self) -> None: ...
 
@@ -27,6 +29,7 @@ def _bytes(value: bytes | str) -> bytes:
 
 class MemoryCache:
     """For one app process. Expired keys are dropped when touched and on every hundredth write."""
+
     kind = "memory"
 
     def __init__(self) -> None:
@@ -74,7 +77,7 @@ class RedisCache:
     kind = "redis"
 
     def __init__(self, url: str, prefix: str = "evidence-lab:") -> None:
-        import redis   # optional package (requirements-infra.in)
+        import redis  # optional package (requirements-infra.in)
 
         self._redis = redis.Redis.from_url(url, socket_timeout=5, socket_connect_timeout=5)
         self._prefix = prefix

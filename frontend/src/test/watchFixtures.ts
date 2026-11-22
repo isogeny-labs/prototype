@@ -35,7 +35,10 @@ export const noFix: WatchItem = {
     published_line: "Published on 22 January 2024.",
     quote: {
       title: "What the publisher says",
-      lines: ["Minerva timing attack on P-256 in python-ecdsa", "python-ecdsa has been found to be subject to a Minerva timing attack on the P-256 curve."],
+      lines: [
+        "Minerva timing attack on P-256 in python-ecdsa",
+        "python-ecdsa has been found to be subject to a Minerva timing attack on the P-256 curve.",
+      ],
       tag: QUOTE_TAG,
       source_line: "GitHub Advisory Database, read on 22 November 2026.",
       url: "https://osv.dev/vulnerability/GHSA-wj6h-64fc-37mp",
@@ -47,7 +50,10 @@ export const noFix: WatchItem = {
       yours: ["Your version is named: python-ecdsa 0.13.2, which your file lists."],
     },
     test: null,
-    history: { title: "History", lines: ["First seen here on 22 November 2026, 09:12 UTC, with no fixed version named."] },
+    history: {
+      title: "History",
+      lines: ["First seen here on 22 November 2026, 09:12 UTC, with no fixed version named."],
+    },
     stop: STOP,
     watch: null,
   },
@@ -99,7 +105,10 @@ export const stopped: WatchItem = {
     ...noFix.panel,
     history: {
       title: "History",
-      lines: [...noFix.panel.history.lines, "22 November 2026, 10:00 UTC: You stopped watching it (We do not sign with it.)."],
+      lines: [
+        ...noFix.panel.history.lines,
+        "22 November 2026, 10:00 UTC: You stopped watching it (We do not sign with it.).",
+      ],
     },
     stop: null,
     watch: { label: "Watch again", can: true, blocked_reason: null },

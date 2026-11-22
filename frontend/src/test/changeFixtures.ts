@@ -11,7 +11,13 @@ const t = (v: string): RichText => [{ t: "text", v }];
 const m = (v: string): RichText[number] => ({ t: "mono", v });
 const tag = (v: string): RichText[number] => ({ t: "tag", v });
 
-const btn = (action: ChangeButton["action"], label: string, primary: boolean, enabled = true, reason: string | null = null): ChangeButton => ({
+const btn = (
+  action: ChangeButton["action"],
+  label: string,
+  primary: boolean,
+  enabled = true,
+  reason: string | null = null,
+): ChangeButton => ({
   action,
   label,
   primary,
@@ -19,7 +25,12 @@ const btn = (action: ChangeButton["action"], label: string, primary: boolean, en
   reason,
 });
 
-const step = (key: ChangeStep["key"], label: string, state: ChangeStep["state"], text: string): ChangeStep => ({ key, label, state, text });
+const step = (key: ChangeStep["key"], label: string, state: ChangeStep["state"], text: string): ChangeStep => ({
+  key,
+  label,
+  state,
+  text,
+});
 
 export const tryEvidence = {
   ...result(61, "offered", "Hybrid", "pass", "The copy asked for X25519MLKEM768 in its first answer."),
@@ -29,9 +40,27 @@ export const tryEvidence = {
 const tryTable = {
   columns: ["", "Before: localhost:8452 as measured", "After: a test copy with the change"],
   rows: [
-    { label: "Key exchange", cells: [[m("Classical"), tag("measured")], [m("Hybrid (interim)"), tag("measured on the copy")]] },
-    { label: "Classical-only clients", cells: [[{ t: "text" as const, v: "connect " }, tag("measured")], [{ t: "text" as const, v: "still connect " }, tag("measured on the copy")]] },
-    { label: "First message", cells: [[{ t: "text" as const, v: "1,412 bytes " }, tag("measured")], [{ t: "text" as const, v: "2,580 bytes " }, tag("measured on the copy")]] },
+    {
+      label: "Key exchange",
+      cells: [
+        [m("Classical"), tag("measured")],
+        [m("Hybrid (interim)"), tag("measured on the copy")],
+      ],
+    },
+    {
+      label: "Classical-only clients",
+      cells: [
+        [{ t: "text" as const, v: "connect " }, tag("measured")],
+        [{ t: "text" as const, v: "still connect " }, tag("measured on the copy")],
+      ],
+    },
+    {
+      label: "First message",
+      cells: [
+        [{ t: "text" as const, v: "1,412 bytes " }, tag("measured")],
+        [{ t: "text" as const, v: "2,580 bytes " }, tag("measured on the copy")],
+      ],
+    },
   ] as { label: string; cells: RichText[] }[],
 };
 
@@ -41,7 +70,11 @@ const SECTIONS: ChangeView["sections"] = [
     title: "What changes",
     columns: ["", "Today", "After the change"],
     rows: [
-      [[{ t: "text", v: "Key exchange" }], [{ t: "text", v: "Classical (X25519)" }], [{ t: "text", v: "Hybrid: X25519MLKEM768 first" }]],
+      [
+        [{ t: "text", v: "Key exchange" }],
+        [{ t: "text", v: "Classical (X25519)" }],
+        [{ t: "text", v: "Hybrid: X25519MLKEM768 first" }],
+      ],
       [[{ t: "text", v: "Certificate" }], [{ t: "text", v: "ECDSA P-256" }], [{ t: "text", v: "Unchanged" }]],
     ],
   },
@@ -49,12 +82,20 @@ const SECTIONS: ChangeView["sections"] = [
     kind: "lines",
     title: "The exact lines",
     rows: [
-      { place: "tls.conf", lead: "Set the preferred groups:", code: "ssl_ecdh_curve X25519MLKEM768:X25519:prime256v1;" },
+      {
+        place: "tls.conf",
+        lead: "Set the preferred groups:",
+        code: "ssl_ecdh_curve X25519MLKEM768:X25519:prime256v1;",
+      },
       { place: "reload", lead: "Then reload:", code: "nginx -s reload" },
     ],
     note: "Nothing is sent to your server by this app.",
   },
-  { kind: "text", title: "What it costs", paragraphs: [t("Plainly: bigger first messages and two algorithms to keep up to date.")] },
+  {
+    kind: "text",
+    title: "What it costs",
+    paragraphs: [t("Plainly: bigger first messages and two algorithms to keep up to date.")],
+  },
 ];
 
 const FOOTNOTE = "This version has one login and no separate accounts. Each approval is recorded by name only.";
@@ -64,7 +105,11 @@ function base(over: Partial<ChangeView>): ChangeView {
     id: CHANGE_ID,
     title: "Your change: turn on hybrid key exchange on localhost:8452",
     badge: { label: "Ready to try", look: "neutral" },
-    intro: [...t("Built from your choice. It is only a description until you try it and apply it: "), m("localhost:8452"), ...t(" has not changed.")],
+    intro: [
+      ...t("Built from your choice. It is only a description until you try it and apply it: "),
+      m("localhost:8452"),
+      ...t(" has not changed."),
+    ],
     steps: [
       step("built", "Built", "done", "5:08 PM"),
       step("tried", "Tried on a test copy", "now", "not tried yet"),
@@ -94,20 +139,31 @@ export const trying: ChangeView = base({
   badge: { label: "Trying", look: "neutral" },
   try: {
     title: "Try on a test copy: running",
-    running: { status: "running", status_text: "Running the same measurement on a test copy", progress: { text: "hello 2 of 3", percent: null } },
+    running: {
+      status: "running",
+      status_text: "Running the same measurement on a test copy",
+      progress: { text: "hello 2 of 3", percent: null },
+    },
     verdict: null,
     columns: [],
     rows: [],
     notes: [],
     results: [],
   },
-  buttons: [btn("try", "Try on a test copy", true, false, "A try is running."), btn("download", "Download change", false)],
+  buttons: [
+    btn("try", "Try on a test copy", true, false, "A try is running."),
+    btn("download", "Download change", false),
+  ],
 });
 
 const passedTry: NonNullable<ChangeView["try"]> = {
   title: "Try on a test copy: passed",
   running: null,
-  verdict: { label: "Try passed.", look: "pass", text: "The copy measures what Hybrid promises, and the control was read correctly." },
+  verdict: {
+    label: "Try passed.",
+    look: "pass",
+    text: "The copy measures what Hybrid promises, and the control was read correctly.",
+  },
   columns: tryTable.columns,
   rows: tryTable.rows,
   notes: ["Real nginx was not tried: that needs isolated mode (Docker)."],
@@ -163,8 +219,22 @@ export const waitingOneApproval: ChangeView = base({
     title: "Who must approve before Apply",
     picker: null,
     rows: [
-      { reviewer: "you", name: "You", demo: false, approved_at: "2026-11-14T17:20:00Z", status_text: "approved, 5:20 PM", approve: null },
-      { reviewer: "reviewer-a", name: "Demo reviewer A", demo: true, approved_at: null, status_text: "not yet", approve: { label: "Approve as Demo reviewer A", enabled: true } },
+      {
+        reviewer: "you",
+        name: "You",
+        demo: false,
+        approved_at: "2026-11-14T17:20:00Z",
+        status_text: "approved, 5:20 PM",
+        approve: null,
+      },
+      {
+        reviewer: "reviewer-a",
+        name: "Demo reviewer A",
+        demo: true,
+        approved_at: null,
+        status_text: "not yet",
+        approve: { label: "Approve as Demo reviewer A", enabled: true },
+      },
     ],
     footnote: FOOTNOTE,
   },
@@ -189,12 +259,30 @@ export const readyToApply: ChangeView = base({
     title: "Who must approve before Apply",
     picker: null,
     rows: [
-      { reviewer: "you", name: "You", demo: false, approved_at: "2026-11-14T17:20:00Z", status_text: "approved, 5:20 PM", approve: null },
-      { reviewer: "reviewer-a", name: "Demo reviewer A", demo: true, approved_at: "2026-11-14T17:22:00Z", status_text: "approved, 5:22 PM", approve: null },
+      {
+        reviewer: "you",
+        name: "You",
+        demo: false,
+        approved_at: "2026-11-14T17:20:00Z",
+        status_text: "approved, 5:20 PM",
+        approve: null,
+      },
+      {
+        reviewer: "reviewer-a",
+        name: "Demo reviewer A",
+        demo: true,
+        approved_at: "2026-11-14T17:22:00Z",
+        status_text: "approved, 5:22 PM",
+        approve: null,
+      },
     ],
     footnote: FOOTNOTE,
   },
-  buttons: [btn("try", "Try again on a test copy", false), btn("apply", "Apply to localhost:8452", true), btn("download", "Download change", false)],
+  buttons: [
+    btn("try", "Try again on a test copy", false),
+    btn("apply", "Apply to localhost:8452", true),
+    btn("download", "Download change", false),
+  ],
 });
 
 export const appliedMatches: ChangeView = base({
@@ -211,7 +299,13 @@ export const appliedMatches: ChangeView = base({
   applied: {
     title: "After Apply",
     badge: { label: "Applied · matches the try", look: "pass" },
-    paragraphs: [[...t("We measured "), m("localhost:8452"), ...t(" again after Apply. Its key exchange is now Hybrid, as on the copy.")]],
+    paragraphs: [
+      [
+        ...t("We measured "),
+        m("localhost:8452"),
+        ...t(" again after Apply. Its key exchange is now Hybrid, as on the copy."),
+      ],
+    ],
     differences: [],
     history: ["Applied 14 Nov 2026, 5:30 PM, by You.", "Rolled back 13 Nov 2026, 9:02 AM, by You."],
     source_tag: afterChange("localhost:8452"),
@@ -222,12 +316,17 @@ export const appliedMatches: ChangeView = base({
 export const appliedMismatch: ChangeView = {
   ...appliedMatches,
   badge: { label: "Applied", look: "warn" },
-  steps: appliedMatches.steps.map((s) => (s.key === "measured" ? { ...s, state: "failed" as const, text: "does not match the try" } : s)),
+  steps: appliedMatches.steps.map((s) =>
+    s.key === "measured" ? { ...s, state: "failed" as const, text: "does not match the try" } : s,
+  ),
   applied: {
     title: "After Apply",
     badge: { label: "Applied · does not match the try", look: "fail" },
     paragraphs: [t("The measurement after Apply differs from the try.")],
-    differences: ["The copy was Hybrid; the server now measures Classical.", "The first message is 1,412 bytes, not 2,580."],
+    differences: [
+      "The copy was Hybrid; the server now measures Classical.",
+      "The first message is 1,412 bytes, not 2,580.",
+    ],
     history: ["Applied 14 Nov 2026, 5:30 PM, by You."],
   },
 };
@@ -238,7 +337,13 @@ export const cantTry: ChangeView = base({
   badge: { label: "Can't be tried here", look: "warn" },
   steps: [],
   buttons: [
-    btn("try", "Try on a test copy", true, false, "This change can't be tried here: it needs a gateway the app doesn't run."),
+    btn(
+      "try",
+      "Try on a test copy",
+      true,
+      false,
+      "This change can't be tried here: it needs a gateway the app doesn't run.",
+    ),
     btn("download", "Download change", false),
   ],
   note: "Hand the downloaded file to your team.",
@@ -250,7 +355,13 @@ export const textOnly: ChangeView = {
   badge: { label: "Text only", look: "neutral" },
   intro: t("Nothing to change now. The choice is recorded with a review date."),
   steps: [],
-  sections: [{ kind: "text", title: "What this means", paragraphs: [t("The server stays Classical until 14 Nov 2027, then you review it.")] }],
+  sections: [
+    {
+      kind: "text",
+      title: "What this means",
+      paragraphs: [t("The server stays Classical until 14 Nov 2027, then you review it.")],
+    },
+  ],
   try: null,
   approvals: null,
   applied: null,

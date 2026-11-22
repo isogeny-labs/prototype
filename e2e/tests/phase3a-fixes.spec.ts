@@ -7,13 +7,23 @@ import { expect, test, type BrowserContext, type Locator, type Page } from "@pla
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DISCLAIMER, enterApp, REPO, stepLink, openFreshAssessment, openGroupTab, resultPanel, toggleResult } from "./shared";
+import {
+  DISCLAIMER,
+  enterApp,
+  REPO,
+  stepLink,
+  openFreshAssessment,
+  openGroupTab,
+  resultPanel,
+  toggleResult,
+} from "./shared";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SHOTS = path.join(REPO, "docs/screenshots/phase3a-fixes");
 fs.mkdirSync(SHOTS, { recursive: true });
 const FILE = path.resolve(here, "../../demo/multi-target-demo.csv");
-const NOTE = "This server also accepts TLS 1.0 and TLS 1.1, both retired in 2021. The file didn't ask about this, so it doesn't change the result.";
+const NOTE =
+  "This server also accepts TLS 1.0 and TLS 1.1, both retired in 2021. The file didn't ask about this, so it doesn't change the result.";
 const SERVERS = ["localhost:8443", "localhost:8444", "localhost:8445", "localhost:8446"];
 // acme-sign 9.9 can't run (it is not one of ours), so since phase 4a it has no group: only its line under "Not tested, and why".
 const GROUPS = [...SERVERS.map((s) => `Server: ${s}`), "Signing program: acme-sign 1.4.2"];
@@ -63,17 +73,28 @@ test("upload the multi-target demo file: its three test servers start, and the s
 });
 
 test("Verify: one plain sentence on top of every row, the Also noticed note, the technical text folded", async () => {
-  await expect(page.getByTestId("result-row").getByTestId("result-badge")).toHaveText(
-    ["False", "True", "True", "True", "False", "True", "Couldn't check"]);
+  await expect(page.getByTestId("result-row").getByTestId("result-badge")).toHaveText([
+    "False",
+    "True",
+    "True",
+    "True",
+    "False",
+    "True",
+    "Couldn't check",
+  ]);
   await expect(page.getByTestId("verify-summary")).toHaveCount(7);
-  await expect(verifyRow("localhost:8443 accepts TLS 1.3 only").getByTestId("verify-summary"))
-    .toHaveText("The server accepts TLS 1.2, so ‘TLS 1.3 only’ is not true.");
-  await expect(verifyRow("localhost:8443 certificate").getByTestId("verify-summary"))
-    .toHaveText("The server's ID card (its certificate) uses ECDSA P-256, which matches the claim.");
-  await expect(verifyRow("localhost:8446 certificate").getByTestId("verify-summary"))
-    .toHaveText("The server's ID card (its certificate) uses RSA with a 1024-bit key, not RSA 2048 as the file claims.");
-  await expect(verifyRow("acme-sign 9.9").getByTestId("verify-summary"))
-    .toHaveText("We couldn't run acme-sign 9.9: only our own demo components can run in this version, so there is no answer either way.");
+  await expect(verifyRow("localhost:8443 accepts TLS 1.3 only").getByTestId("verify-summary")).toHaveText(
+    "The server accepts TLS 1.2, so ‘TLS 1.3 only’ is not true.",
+  );
+  await expect(verifyRow("localhost:8443 certificate").getByTestId("verify-summary")).toHaveText(
+    "The server's ID card (its certificate) uses ECDSA P-256, which matches the claim.",
+  );
+  await expect(verifyRow("localhost:8446 certificate").getByTestId("verify-summary")).toHaveText(
+    "The server's ID card (its certificate) uses RSA with a 1024-bit key, not RSA 2048 as the file claims.",
+  );
+  await expect(verifyRow("acme-sign 9.9").getByTestId("verify-summary")).toHaveText(
+    "We couldn't run acme-sign 9.9: only our own demo components can run in this version, so there is no answer either way.",
+  );
   // The note shows on the one row whose handshakes saw TLS 1.0 and 1.1, and that row is still True.
   await expect(page.getByTestId("also-noticed")).toHaveCount(1);
   const noticed = verifyRow("localhost:8445 certificate");
@@ -84,7 +105,9 @@ test("Verify: one plain sentence on top of every row, the Also noticed note, the
   const tls = verifyRow("localhost:8443 accepts TLS 1.3 only");
   await expect(page.getByText("Accepts TLS 1.3 and TLS 1.2", { exact: false })).toHaveCount(0);
   await tls.getByTestId("verify-details-toggle").click();
-  await expect(page.getByTestId("detail-panel").getByText("Accepts TLS 1.3 and TLS 1.2", { exact: false })).toBeVisible();
+  await expect(
+    page.getByTestId("detail-panel").getByText("Accepts TLS 1.3 and TLS 1.2", { exact: false }),
+  ).toBeVisible();
   await expect(page.getByText(/\bsecure\b/i).filter({ hasNotText: DISCLAIMER })).toHaveCount(0);
   await shot("01-verify-multi-target.png");
 });
@@ -101,9 +124,15 @@ test("Tests: grouped by target, with what isn't tested and why; eight tests in a
   await expect(page.getByRole("heading", { name: "Signing program: acme-sign 9.9", exact: true })).toHaveCount(0);
   const box = page.getByTestId("not-tested");
   await expect(box).toContainText("Not tested, and why");
-  await expect(box).toContainText("localhost:8444: no Certificate strength test. The file makes no claim about this server's certificate.");
-  await expect(box).toContainText("localhost:8445: no Old TLS versions test. The file makes no claim about which TLS versions this server accepts.");
-  await expect(box).toContainText("acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.");
+  await expect(box).toContainText(
+    "localhost:8444: no Certificate strength test. The file makes no claim about this server's certificate.",
+  );
+  await expect(box).toContainText(
+    "localhost:8445: no Old TLS versions test. The file makes no claim about which TLS versions this server accepts.",
+  );
+  await expect(box).toContainText(
+    "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.",
+  );
   await shot("02-tests-multi-target.png");
 });
 
@@ -112,7 +141,9 @@ test("Run all tests every target, in parallel, within the job limit", async () =
   let most = 0;
   const deadline = Date.now() + 240_000;
   for (;;) {
-    const statuses = await page.getByTestId("test-card").evaluateAll((cards) => cards.map((c) => c.getAttribute("data-status")));
+    const statuses = await page
+      .getByTestId("test-card")
+      .evaluateAll((cards) => cards.map((c) => c.getAttribute("data-status")));
     most = Math.max(most, statuses.filter((s) => s === "running").length);
     if (statuses.length === 8 && statuses.every((s) => s === "done")) break;
     expect(Date.now(), `still running: ${statuses.join(", ")}`).toBeLessThan(deadline);
@@ -125,20 +156,30 @@ test("Run all tests every target, in parallel, within the job limit", async () =
 test("Evidence Lab: grouped results, each with its plain line; 9.9 is only under Not tested; the note on 8445", async () => {
   await stepLink(page, "4. Evidence Lab").click();
   await expect(page.getByRole("heading", { name: "Evidence", level: 1 })).toBeVisible();
-  await openGroupTab(page, "Crypto tests", "Evidence");      // (the results are Evidence's Crypto tests tab)
+  await openGroupTab(page, "Crypto tests", "Evidence"); // (the results are Evidence's Crypto tests tab)
   await expect(page.getByTestId("lab-group")).toHaveCount(5);
   await expect(page.getByTestId("evidence-row")).toHaveCount(8);
-  await expect(page.getByTestId("not-tested")).toContainText("acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.");
+  await expect(page.getByTestId("not-tested")).toContainText(
+    "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.",
+  );
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   const g = (heading: string) => group("lab-group", heading);
   await expect(g("Server: localhost:8443").getByTestId("evidence-row").first()).toContainText(
-    "The server accepts TLS 1.2, so ‘TLS 1.3 only’ is not true.");
-  await expect(g("Server: localhost:8444").getByTestId("result-badge").locator("span:last-child")).toHaveText(["Passed"]);
+    "The server accepts TLS 1.2, so ‘TLS 1.3 only’ is not true.",
+  );
+  await expect(g("Server: localhost:8444").getByTestId("result-badge").locator("span:last-child")).toHaveText([
+    "Passed",
+  ]);
   await expect(g("Server: localhost:8445").getByTestId("also-noticed")).toContainText(NOTE);
-  await expect(g("Server: localhost:8445").getByTestId("result-badge").locator("span:last-child")).toHaveText(["Passed"]);
-  await expect(g("Server: localhost:8446").getByTestId("result-badge").locator("span:last-child")).toHaveText(["Failed"]);
-  await expect(g("Signing program: acme-sign 1.4.2").getByTestId("result-badge").locator("span:last-child"))
-    .toHaveText(["Failed", "Failed", "Measured"]);
+  await expect(g("Server: localhost:8445").getByTestId("result-badge").locator("span:last-child")).toHaveText([
+    "Passed",
+  ]);
+  await expect(g("Server: localhost:8446").getByTestId("result-badge").locator("span:last-child")).toHaveText([
+    "Failed",
+  ]);
+  await expect(g("Signing program: acme-sign 1.4.2").getByTestId("result-badge").locator("span:last-child")).toHaveText(
+    ["Failed", "Failed", "Measured"],
+  );
   await expect(page.getByRole("heading", { name: "Signing program: acme-sign 9.9", exact: true })).toHaveCount(0);
   // The technical text is inside the opened result.
   const program = g("Signing program: acme-sign 1.4.2");

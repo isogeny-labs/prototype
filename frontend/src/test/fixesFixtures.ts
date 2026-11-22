@@ -98,7 +98,14 @@ const changeSection: FixSection = {
 
 const cell = (label: string, tone: Tone, short: string): ProofCell => ({ label, tone, short });
 
-function proofRow(kind: TestKind, title: string, before: ProofCell, proof: ProofCell, control: string, check: string): ProofRow {
+function proofRow(
+  kind: TestKind,
+  title: string,
+  before: ProofCell,
+  proof: ProofCell,
+  control: string,
+  check: string,
+): ProofRow {
   return { kind, title, before, proof, waiting: null, control, check: { ok: true, text: check } };
 }
 
@@ -257,7 +264,11 @@ const notCheckedYet = (row: ProofRow): ProofRow => ({ ...row, check: { ok: null,
 const RUNNING: Partial<Record<TestKind, ProofRow["waiting"]>> = {
   official_vectors: { text: "Running", detail: "212 of 484 cases", percent: 44 },
   bad_signatures: { text: "Running", detail: "checking 12 of 16 signatures", percent: 37 },
-  speed_size: { text: "Running", detail: "waiting for the other tests to finish, so the timing is clean", percent: null },
+  speed_size: {
+    text: "Running",
+    detail: "waiting for the other tests to finish, so the timing is clean",
+    percent: null,
+  },
   pq_readiness: { text: "Running", detail: "waiting for a timing measurement to finish", percent: null },
 };
 
@@ -271,7 +282,9 @@ const proofRunningSection: FixSection = {
     "The app applied this change on a new branch of its own copy of the code and is now rerunning every locked test in your plan, with the old and the new version timed side by side. The runs go through the same steps as your first results: the same test runner, then the same automatic check that decides each result from what the run recorded. The fix template has no say in any result.",
   tables: proofTables(
     codeRows.map((row) => unfinished(row, RUNNING[row.kind] ?? null)),
-    serverRows.map((row) => (row.kind === "pq_readiness" ? unfinished(row, RUNNING[row.kind] ?? null) : notCheckedYet(row))),
+    serverRows.map((row) =>
+      row.kind === "pq_readiness" ? unfinished(row, RUNNING[row.kind] ?? null) : notCheckedYet(row),
+    ),
   ),
   verdict: null,
 };
@@ -286,7 +299,12 @@ function detailsSection(stage: Stage): FixSection {
   const facts: { label: string; value: RichText; fingerprint: boolean }[] = [
     {
       label: "Repository",
-      value: [m("acme-sign"), t(" "), { t: "demo", v: "Demo data" }, t(", the app's own copy. Nothing is sent anywhere else.")],
+      value: [
+        m("acme-sign"),
+        t(" "),
+        { t: "demo", v: "Demo data" },
+        t(", the app's own copy. Nothing is sent anywhere else."),
+      ],
       fingerprint: false,
     },
     {
@@ -323,7 +341,11 @@ function detailsSection(stage: Stage): FixSection {
   }
   facts.push({ label: "Mode", value: [t("Demo mode, not isolated")], fingerprint: false });
   if (finished) {
-    facts.push({ label: "Evidence fingerprint of the proof (SHA-256)", value: [t(PROOF_FINGERPRINT)], fingerprint: true });
+    facts.push({
+      label: "Evidence fingerprint of the proof (SHA-256)",
+      value: [t(PROOF_FINGERPRINT)],
+      fingerprint: true,
+    });
   }
   return {
     key: "details",
@@ -336,7 +358,9 @@ function detailsSection(stage: Stage): FixSection {
       (finished
         ? ' The full record of every run in this proof is in the files saved by "Download evidence", where the evidence fingerprint of the proof can be checked. That fingerprint is listed inside the evidence file; it is not the fingerprint of the file itself.'
         : "") +
-      (hasPullRequest ? ' "Download patch" saves this change as one file that a developer can apply to another copy of the code.' : ""),
+      (hasPullRequest
+        ? ' "Download patch" saves this change as one file that a developer can apply to another copy of the code.'
+        : ""),
     ran_on: {
       title: finished ? "What the tests ran on" : "What the tests are running on",
       text: [
@@ -394,7 +418,9 @@ const codeFixBase: FixDetail = {
     label: "What it changes",
     paragraphs: [
       [
-        t("A fix template exists for this failure: a ready-made change for a missing range check on the two signature numbers (r and s), written for "),
+        t(
+          "A fix template exists for this failure: a ready-made change for a missing range check on the two signature numbers (r and s), written for ",
+        ),
         m("acme-sign"),
         t("'s code. Connect the code to prepare the change and prove it."),
       ],
@@ -509,9 +535,18 @@ function waitingFix(youApprovedAt: string | null): FixDetail {
     status: { key: "waiting", word: "Waiting for approval", busy: false },
     pull_request: {
       title: PR_TITLE,
-      text: [t("Open since "), { t: "time", v: PR_OPENED }, t(". It stays inside the app; nothing is sent anywhere else.")],
+      text: [
+        t("Open since "),
+        { t: "time", v: PR_OPENED },
+        t(". It stays inside the app; nothing is sent anywhere else."),
+      ],
     },
-    approvers: { text: null, options: null, rows: [approvalRow("you", youApprovedAt), approvalRow("a", null)], footnote: ONE_LOGIN },
+    approvers: {
+      text: null,
+      options: null,
+      rows: [approvalRow("you", youApprovedAt), approvalRow("a", null)],
+      footnote: ONE_LOGIN,
+    },
     actions: {
       buttons: [{ action: "merge", label: "Merge pull request", primary: true, enabled: false }, downloadPatch],
       note: youApprovedAt
@@ -534,7 +569,12 @@ const readyToMergeFix: FixDetail = {
       t(". It stays inside the app; nothing is sent anywhere else. Every reviewer has approved. Not merged yet."),
     ],
   },
-  approvers: { text: null, options: null, rows: [approvalRow("you", APPROVED_YOU), approvalRow("a", APPROVED_A)], footnote: ONE_LOGIN },
+  approvers: {
+    text: null,
+    options: null,
+    rows: [approvalRow("you", APPROVED_YOU), approvalRow("a", APPROVED_A)],
+    footnote: ONE_LOGIN,
+  },
   actions: {
     buttons: [{ action: "merge", label: "Merge pull request", primary: true, enabled: true }, downloadPatch],
     note: "Every reviewer has approved. The app never merges on its own: you press the button and confirm.",
@@ -660,7 +700,10 @@ export const tlsSuggestion: TextSuggestion = {
     blocks: [
       { place: "nginx", code: `ssl_protocols TLSv1.2 TLSv1.3;\nssl_ciphers ${CIPHERS};` },
       { place: "Apache", code: `SSLProtocol -all +TLSv1.2 +TLSv1.3\nSSLCipherSuite ${CIPHERS}` },
-      { place: "AWS Application or Network Load Balancer (security policy)", code: "ELBSecurityPolicy-TLS13-1-2-Res-2021-06" },
+      {
+        place: "AWS Application or Network Load Balancer (security policy)",
+        code: "ELBSecurityPolicy-TLS13-1-2-Res-2021-06",
+      },
     ],
   },
 };
@@ -670,7 +713,11 @@ export const tlsFix: FixDetail = {
   kind: "text",
   title: "Server accepts TLS 1.2",
   list_source: "Came from 1 failed test: Old TLS versions",
-  source: [t("Came from 1 failed test on server "), m("localhost:8443"), t(": Old TLS versions. The file claims TLS 1.3 only.")],
+  source: [
+    t("Came from 1 failed test on server "),
+    m("localhost:8443"),
+    t(": Old TLS versions. The file claims TLS 1.3 only."),
+  ],
   status: { key: "text_only", word: "Text only", busy: false },
   labels: [],
   is_demo: true,
@@ -722,7 +769,8 @@ export const tlsFix: FixDetail = {
  * counts sort each status word as the backend does (app/ledger/groups.py). */
 const IN_PROGRESS_WORDS = ["Proving", "Ready for review", "Waiting for approval", "Ready to merge"];
 export function fixGroups(fixes: FixDetail[]): FixGroup[] {
-  const state = (f: FixDetail) => (f.status.word === "Merged" ? "done" : IN_PROGRESS_WORDS.includes(f.status.word) ? "in_progress" : "open");
+  const state = (f: FixDetail) =>
+    f.status.word === "Merged" ? "done" : IN_PROGRESS_WORDS.includes(f.status.word) ? "in_progress" : "open";
   const count = (list: FixDetail[]) => ({
     open: list.filter((f) => state(f) === "open").length,
     in_progress: list.filter((f) => state(f) === "in_progress").length,
@@ -736,7 +784,8 @@ export function fixGroups(fixes: FixDetail[]): FixGroup[] {
       question: "Is the scanner file true?",
       counts: none,
       fix_ids: [],
-      empty_text: "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Crypto tests.",
+      empty_text:
+        "Verification has no fixes of its own. A false claim's fix sits with the test that checks it, under Crypto tests.",
       also: [],
     },
     {
@@ -774,7 +823,8 @@ function view(codeFix: FixDetail): FixesView {
     plan_id: 1,
     is_demo: true,
     title: "Fixes",
-    subline: "Fixes for the findings in Evidence Lab. A code change is ready for review only after its proof has passed.",
+    subline:
+      "Fixes for the findings in Evidence Lab. A code change is ready for review only after its proof has passed.",
     disclaimer: DISCLAIMER,
     list_title: "Open findings with a fix (2)",
     empty_text: null,

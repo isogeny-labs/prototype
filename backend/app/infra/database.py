@@ -3,6 +3,7 @@
 PostgreSQL 14 or newer (CREATE OR REPLACE TRIGGER). The rules the database itself enforces are the same on both: the append-only tables refuse UPDATE and DELETE, and
 folders, projects and assessments refuse DELETE, whatever code asks (SQLite and PostgreSQL triggers).
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,7 +14,7 @@ from sqlalchemy.engine import make_url
 
 SQLITE_PREFIX = "sqlite"
 POSTGRES_PREFIX = "postgresql"
-SCHEMA_LOCK_KEY = 0x45564C42   # "EVLB": one app process at a time creates tables and triggers on PostgreSQL
+SCHEMA_LOCK_KEY = 0x45564C42  # "EVLB": one app process at a time creates tables and triggers on PostgreSQL
 
 
 @compiles(String, "postgresql")
@@ -30,7 +31,7 @@ def normalise_url(url: str | Path) -> str:
     url = url.strip()
     for old in ("postgres://", "postgresql://"):
         if url.startswith(old):
-            return "postgresql+psycopg://" + url[len(old):]
+            return "postgresql+psycopg://" + url[len(old) :]
     return url
 
 
@@ -55,8 +56,9 @@ def make_engine(url: str | Path) -> Engine:
     raise SystemExit(f"EVIDENCE_LAB_DATABASE_URL: only sqlite and postgresql are supported, not {dialect_of(url)}")
 
 
-def prepare_schema(engine: Engine, metadata, added_columns, append_only: tuple[str, ...],
-                   no_delete: tuple[str, ...]) -> None:
+def prepare_schema(
+    engine: Engine, metadata, added_columns, append_only: tuple[str, ...], no_delete: tuple[str, ...]
+) -> None:
     """Create missing tables and columns and the triggers. Safe to run on every start, by several processes at once."""
     if engine.dialect.name == POSTGRES_PREFIX:
         with engine.begin() as conn:
@@ -84,34 +86,58 @@ def _add_missing_columns(conn, added_columns) -> None:
 def _sqlite_triggers(conn, append_only, no_delete) -> None:
     for table in append_only:
         for verb in ("UPDATE", "DELETE"):
-            conn.execute(text(
-                f"CREATE TRIGGER IF NOT EXISTS {table}_no_{verb.lower()} BEFORE {verb} ON {table} "
-                f"BEGIN SELECT RAISE(ABORT, '{table} is append-only'); END;"))
-    for table in no_delete:   # phase 5a: folders, projects and assessments can be renamed, moved, archived; never removed
-        conn.execute(text(f"CREATE TRIGGER IF NOT EXISTS {table}_no_delete BEFORE DELETE ON {table} "
-                          f"BEGIN SELECT RAISE(ABORT, '{table} are never deleted'); END;"))
+            conn.execute(
+                text(
+                    f"CREATE TRIGGER IF NOT EXISTS {table}_no_{verb.lower()} BEFORE {verb} ON {table} "
+                    f"BEGIN SELECT RAISE(ABORT, '{table} is append-only'); END;"
+                )
+            )
+    for (
+        table
+    ) in no_delete:  # phase 5a: folders, projects and assessments can be renamed, moved, archived; never removed
+        conn.execute(
+            text(
+                f"CREATE TRIGGER IF NOT EXISTS {table}_no_delete BEFORE DELETE ON {table} "
+                f"BEGIN SELECT RAISE(ABORT, '{table} are never deleted'); END;"
+            )
+        )
 
 
 def _postgres_triggers(conn, append_only, no_delete) -> None:
-    conn.execute(text(
-        "CREATE OR REPLACE FUNCTION evidence_lab_refuse() RETURNS trigger LANGUAGE plpgsql AS $$ "
-        "BEGIN RAISE EXCEPTION '%', TG_ARGV[0] USING ERRCODE = 'restrict_violation'; END $$"))
+    conn.execute(
+        text(
+            "CREATE OR REPLACE FUNCTION evidence_lab_refuse() RETURNS trigger LANGUAGE plpgsql AS $$ "
+            "BEGIN RAISE EXCEPTION '%', TG_ARGV[0] USING ERRCODE = 'restrict_violation'; END $$"
+        )
+    )
     for table in append_only:
         for verb in ("UPDATE", "DELETE"):
-            conn.execute(text(
-                f'CREATE OR REPLACE TRIGGER {table}_no_{verb.lower()} BEFORE {verb} ON "{table}" '
-                f"FOR EACH ROW EXECUTE FUNCTION evidence_lab_refuse('{table} is append-only')"))
+            conn.execute(
+                text(
+                    f'CREATE OR REPLACE TRIGGER {table}_no_{verb.lower()} BEFORE {verb} ON "{table}" '
+                    f"FOR EACH ROW EXECUTE FUNCTION evidence_lab_refuse('{table} is append-only')"
+                )
+            )
         # TRUNCATE skips row triggers; refuse it too.
-        conn.execute(text(
-            f'CREATE OR REPLACE TRIGGER {table}_no_truncate BEFORE TRUNCATE ON "{table}" '
-            f"FOR EACH STATEMENT EXECUTE FUNCTION evidence_lab_refuse('{table} is append-only')"))
+        conn.execute(
+            text(
+                f'CREATE OR REPLACE TRIGGER {table}_no_truncate BEFORE TRUNCATE ON "{table}" '
+                f"FOR EACH STATEMENT EXECUTE FUNCTION evidence_lab_refuse('{table} is append-only')"
+            )
+        )
     for table in no_delete:
-        conn.execute(text(
-            f'CREATE OR REPLACE TRIGGER {table}_no_delete BEFORE DELETE ON "{table}" '
-            f"FOR EACH ROW EXECUTE FUNCTION evidence_lab_refuse('{table} are never deleted')"))
-        conn.execute(text(
-            f'CREATE OR REPLACE TRIGGER {table}_no_truncate BEFORE TRUNCATE ON "{table}" '
-            f"FOR EACH STATEMENT EXECUTE FUNCTION evidence_lab_refuse('{table} are never deleted')"))
+        conn.execute(
+            text(
+                f'CREATE OR REPLACE TRIGGER {table}_no_delete BEFORE DELETE ON "{table}" '
+                f"FOR EACH ROW EXECUTE FUNCTION evidence_lab_refuse('{table} are never deleted')"
+            )
+        )
+        conn.execute(
+            text(
+                f'CREATE OR REPLACE TRIGGER {table}_no_truncate BEFORE TRUNCATE ON "{table}" '
+                f"FOR EACH STATEMENT EXECUTE FUNCTION evidence_lab_refuse('{table} are never deleted')"
+            )
+        )
 
 
 def ping(engine: Engine) -> None:

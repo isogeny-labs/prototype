@@ -16,6 +16,7 @@ before the app starts; the app itself never builds or downloads anything.
 
 It always exits with code 0, so it can never stop the app from starting. `--check` only reports.
 """
+
 from __future__ import annotations
 
 import base64
@@ -33,18 +34,26 @@ from app.config import COMPONENTS_DIR, NGINX_IMAGE, OPENSSL_IMAGE, PYTHON_BASE_I
 from app.run.runner import _docker_env, components_image_tag, docker_running, image_present, real_image_tag
 
 PULL_LIMIT_SECONDS = 120
-REAL_PULL_LIMIT_SECONDS = 900     # the two Java images are a few hundred MB each
+REAL_PULL_LIMIT_SECONDS = 900  # the two Java images are a few hundred MB each
 BUILD_LIMIT_SECONDS = 180
 REAL_BUILD_LIMIT_SECONDS = 600
 DOWNLOAD_LIMIT_SECONDS = 60
 MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024
-DOWNLOADS_DIR = REPO_ROOT / "data" / "downloads"   # checked copies of the pinned library files, kept between runs
+DOWNLOADS_DIR = REPO_ROOT / "data" / "downloads"  # checked copies of the pinned library files, kept between runs
 
 
 def _run(args: list[str], limit: int) -> bool:
     try:
-        done = subprocess.run(["docker", *args], capture_output=True, text=True, errors="replace", timeout=limit,
-                              stdin=subprocess.DEVNULL, shell=False, env=_docker_env())
+        done = subprocess.run(
+            ["docker", *args],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=limit,
+            stdin=subprocess.DEVNULL,
+            shell=False,
+            env=_docker_env(),
+        )
     except (OSError, subprocess.TimeoutExpired):
         return False
     return done.returncode == 0
@@ -55,11 +64,24 @@ def pull(reference: str, limit: int = PULL_LIMIT_SECONDS) -> bool:
 
 
 def build(tag: str) -> bool:
-    return _run(["build", "--pull=false", "--network", "none", "-t", tag, "-f", str(COMPONENTS_DIR / "Dockerfile"),
-                 str(COMPONENTS_DIR)], BUILD_LIMIT_SECONDS)
+    return _run(
+        [
+            "build",
+            "--pull=false",
+            "--network",
+            "none",
+            "-t",
+            tag,
+            "-f",
+            str(COMPONENTS_DIR / "Dockerfile"),
+            str(COMPONENTS_DIR),
+        ],
+        BUILD_LIMIT_SECONDS,
+    )
 
 
 # ---------------------------------------------------------------- real libraries (phase 4c)
+
 
 def _matches(data: bytes, pin: dict) -> bool:
     """Is this exactly the pinned file? By SHA-256, or by npm's integrity value (SHA-512, base64)."""
@@ -77,7 +99,9 @@ def fetch(pin: dict, folder: Path = DOWNLOADS_DIR) -> Path | None:
     except OSError:
         pass
     try:
-        with urllib.request.urlopen(pin["url"], timeout=DOWNLOAD_LIMIT_SECONDS) as answer:   # a fixed https address from the pins
+        with urllib.request.urlopen(
+            pin["url"], timeout=DOWNLOAD_LIMIT_SECONDS
+        ) as answer:  # a fixed https address from the pins
             data = answer.read(MAX_DOWNLOAD_BYTES + 1)
     except (OSError, ValueError):
         return None
@@ -100,13 +124,23 @@ def build_real(family: str, tag: str, files: list[Path]) -> bool:
         context = Path(folder)
         _copy_tree(COMPONENTS_DIR, context / "components")
         _copy_tree(real_libraries.REAL_DIR / family, context / "real")
-        for shared in pins.get("shared_files", []):   # phase 4d: a wrapper file another family's folder holds
+        for shared in pins.get("shared_files", []):  # phase 4d: a wrapper file another family's folder holds
             shutil.copy(real_libraries.REAL_DIR / shared, context / "real" / Path(shared).name)
         (context / "pkgs").mkdir()
         for path in files:
             shutil.copy(path, context / "pkgs" / path.name)
-        args = ["build", "--pull=false", "--network", "none", "-t", tag, "-f", str(context / "real" / "Dockerfile"),
-                "--build-arg", f"PYTHON_BASE={PYTHON_BASE_IMAGE}"]
+        args = [
+            "build",
+            "--pull=false",
+            "--network",
+            "none",
+            "-t",
+            tag,
+            "-f",
+            str(context / "real" / "Dockerfile"),
+            "--build-arg",
+            f"PYTHON_BASE={PYTHON_BASE_IMAGE}",
+        ]
         for name, reference in pins["images"].items():
             args += ["--build-arg", f"{name}={reference}"]
         return _run([*args, str(context)], REAL_BUILD_LIMIT_SECONDS)
@@ -129,7 +163,9 @@ def prepare_real(family: str, check_only: bool, say, base_ready: bool) -> bool:
     for pin in pins["downloads"]:
         path = fetch(pin)
         if path is None:
-            say(f"  could not get {pin['file']} with the pinned fingerprint (no internet, or the file is not the pinned one).")
+            say(
+                f"  could not get {pin['file']} with the pinned fingerprint (no internet, or the file is not the pinned one)."
+            )
             return False
         files.append(path)
     say(f"Building the {pins['label']} image (once, no network needed) ...")
@@ -158,8 +194,10 @@ def prepare_otto(check_only: bool, say) -> bool:
         except OSError:
             ready = False
     found = otto_harness.status()
-    say(f"Otto harness: {'ready' if ready and found.installed else 'missing'}  ({lock.repository} at {lock.commit[:12]}, "
-        f"version {lock.version})")
+    say(
+        f"Otto harness: {'ready' if ready and found.installed else 'missing'}  ({lock.repository} at {lock.commit[:12]}, "
+        f"version {lock.version})"
+    )
     if not (ready and found.installed):
         say("Otto: advisory checks are off until it is installed. Everything else works as before.")
     return bool(ready and found.installed)
@@ -169,12 +207,16 @@ def main(argv: list[str] | None = None, say=print) -> int:
     args = sys.argv[1:] if argv is None else argv
     check_only = "--check" in args
     prepare_otto(check_only, say)
-    if "--otto" in args:      # only the Otto harness: it needs no Docker, so ./run-demo.sh asks for it on every computer
+    if "--otto" in args:  # only the Otto harness: it needs no Docker, so ./run-demo.sh asks for it on every computer
         return 0
     if not docker_running():
         say("Isolated mode: not available (Docker is not running). The app will run in demo mode.")
         return 0
-    bases = (("Python base image", PYTHON_BASE_IMAGE), ("OpenSSL checker image", OPENSSL_IMAGE), ("nginx lab image", NGINX_IMAGE))
+    bases = (
+        ("Python base image", PYTHON_BASE_IMAGE),
+        ("OpenSSL checker image", OPENSSL_IMAGE),
+        ("nginx lab image", NGINX_IMAGE),
+    )
     present = {}
     for label, reference in bases:
         present[reference] = image_present(reference)
@@ -195,19 +237,27 @@ def main(argv: list[str] | None = None, say=print) -> int:
         say(f"{label}: {'ready' if present[reference] else 'missing'}  ({reference})")
     say(f"Demo components image: {'ready' if built else 'missing'}  ({tag})")
     for family, ready in real.items():
-        say(f"Real library, {real_libraries.FAMILIES[family]['label']}: {'ready' if ready else 'missing'}  ({real_image_tag(family)})")
+        say(
+            f"Real library, {real_libraries.FAMILIES[family]['label']}: {'ready' if ready else 'missing'}  ({real_image_tag(family)})"
+        )
     if built:
         say("Isolated mode: ready. Demo software will run in a locked-down container with no network.")
     else:
         say("Isolated mode: not ready. The app will run in demo mode.")
     missing = [real_libraries.FAMILIES[f]["label"] for f, ready in real.items() if not ready]
     if built and missing:
-        say(f"Real libraries: {', '.join(missing)} can't run until {'its image is' if len(missing) == 1 else 'their images are'} "
-            "prepared (needs internet once). The app says so wherever one is named.")
+        say(
+            f"Real libraries: {', '.join(missing)} can't run until {'its image is' if len(missing) == 1 else 'their images are'} "
+            "prepared (needs internet once). The app says so wherever one is named."
+        )
     if not present[OPENSSL_IMAGE]:
-        say("Post-quantum check: the OpenSSL checker image is missing, so it needs OpenSSL 3.5 or newer on this computer.")
+        say(
+            "Post-quantum check: the OpenSSL checker image is missing, so it needs OpenSSL 3.5 or newer on this computer."
+        )
     if not present[NGINX_IMAGE]:
-        say("Real nginx in the lab: the nginx lab image is missing, so a try runs on the test copy only and the lab nginx can't start.")
+        say(
+            "Real nginx in the lab: the nginx lab image is missing, so a try runs on the test copy only and the lab nginx can't start."
+        )
     return 0
 
 

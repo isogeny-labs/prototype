@@ -11,6 +11,7 @@ What IS stored, and only ever added to: the settings the file or the user gave (
 own choices (migration_choices). Nothing the app works out is written to either. Since phase 4b the app changes a
 system only when a person presses Apply, after a passing try on a test copy and every approval asked for, and only on
 our own servers (system_changes.py); it measures again right after, and can roll back."""
+
 from __future__ import annotations
 
 import hashlib
@@ -28,7 +29,15 @@ from app.present import tracks as present_tracks
 from app.engine import research
 from app.canonical import canonical_bytes
 from app.db import (
-    AddressRow, ImportRow, MigrationChoiceRow, PlanItemRow, PlanRow, ReviewRow, SystemSettingRow, VerifyRunRow, iso,
+    AddressRow,
+    ImportRow,
+    MigrationChoiceRow,
+    PlanItemRow,
+    PlanRow,
+    ReviewRow,
+    SystemSettingRow,
+    VerifyRunRow,
+    iso,
 )
 from app.errors import BadRequest, Conflict, NotFound
 from app.names import clean_text
@@ -50,16 +59,31 @@ class MigrationMixin:
     """Mixed into Lab. Needs: db, jobs, engine, and from TestLabMixin: _plan, _claims, _lock_spec, _submit, _latest_run,
     _result, _result_cache, _plan_lock, ensure_plan, lab_view."""
 
-    _dependency_blockers: Callable[..., dict[str, dict]]   # from DependenciesMixin (phase 4d); declared for the type check only
+    _dependency_blockers: Callable[
+        ..., dict[str, dict]
+    ]  # from DependenciesMixin (phase 4d); declared for the type check only
 
     # ---------------------------------------------------------------- the systems and their measurements
 
     @staticmethod
     def _systems(claims: list[dict]) -> list[dict]:
         """Every system the file names, servers first, in file order."""
-        out = [{"key": "server:" + a, "kind": "server", "name": a, "target": a, "measure": "pq_status"} for a in research.servers(claims)]
-        out += [{"key": "software:" + p["ref"], "kind": "software", "name": p["label"], "target": p["ref"], "measure": "signing_status",
-                 "program": p} for p in research.programs(claims) if p.get("role") != "key_exchange"]   # (a key exchange program has no track yet)
+        out = [
+            {"key": "server:" + a, "kind": "server", "name": a, "target": a, "measure": "pq_status"}
+            for a in research.servers(claims)
+        ]
+        out += [
+            {
+                "key": "software:" + p["ref"],
+                "kind": "software",
+                "name": p["label"],
+                "target": p["ref"],
+                "measure": "signing_status",
+                "program": p,
+            }
+            for p in research.programs(claims)
+            if p.get("role") != "key_exchange"
+        ]  # (a key exchange program has no track yet)
         return out
 
     def _measurement_hash(self, claims: list[dict], system: dict) -> tuple[dict, str]:
@@ -69,14 +93,23 @@ class MigrationMixin:
     def _ensure_migration_items(self, db, plan: PlanRow) -> list[PlanItemRow]:
         """Write down and lock each system's measurement, once. They are plan items the Tests step never shows."""
         claims = self._claims(db.get(ImportRow, plan.import_id))
-        have = {r.spec_hash: r for r in db.scalars(select(PlanItemRow).where(PlanItemRow.plan_id == plan.id,
-                                                                           PlanItemRow.origin == MIGRATION_ORIGIN)).all()}
+        have = {
+            r.spec_hash: r
+            for r in db.scalars(
+                select(PlanItemRow).where(PlanItemRow.plan_id == plan.id, PlanItemRow.origin == MIGRATION_ORIGIN)
+            ).all()
+        }
         items = []
         for n, system in enumerate(self._systems(claims)):
             spec, key = self._measurement_hash(claims, system)
             if key not in have:
-                have[key] = PlanItemRow(plan_id=plan.id, spec_hash=self._lock_spec(db, spec), position=10_000 + n,
-                                        origin=MIGRATION_ORIGIN, removed=False)
+                have[key] = PlanItemRow(
+                    plan_id=plan.id,
+                    spec_hash=self._lock_spec(db, spec),
+                    position=10_000 + n,
+                    origin=MIGRATION_ORIGIN,
+                    removed=False,
+                )
                 db.add(have[key])
             items.append(have[key])
         db.commit()
@@ -87,40 +120,75 @@ class MigrationMixin:
     def _migration_states(self, db, plan: PlanRow) -> list[dict]:
         imp = db.get(ImportRow, plan.import_id)
         claims = self._claims(imp)
-        items = {r.spec_hash: r for r in db.scalars(select(PlanItemRow).where(PlanItemRow.plan_id == plan.id,
-                                                                            PlanItemRow.origin == MIGRATION_ORIGIN)).all()}
+        items = {
+            r.spec_hash: r
+            for r in db.scalars(
+                select(PlanItemRow).where(PlanItemRow.plan_id == plan.id, PlanItemRow.origin == MIGRATION_ORIGIN)
+            ).all()
+        }
         addresses = {a.address: a for a in db.scalars(select(AddressRow).where(AddressRow.import_id == imp.id)).all()}
         given: dict[tuple[str, str], SystemSettingRow] = {}
-        for row in db.scalars(select(SystemSettingRow).where(SystemSettingRow.import_id == imp.id).order_by(SystemSettingRow.id)).all():
-            given[(row.system_key, row.field)] = row   # the newest row of a field is the one in force
-        verify = db.scalars(select(VerifyRunRow).where(VerifyRunRow.import_id == imp.id).order_by(VerifyRunRow.id.desc()).limit(1)).first()
-        named = self._dependency_blockers(db, plan)   # phase 4d: {} when the import has no dependency list
-        verified = {r.get("claim_id"): r.get("result") for r in (verify.results or []) if isinstance(r, dict)} if verify else {}
+        for row in db.scalars(
+            select(SystemSettingRow).where(SystemSettingRow.import_id == imp.id).order_by(SystemSettingRow.id)
+        ).all():
+            given[(row.system_key, row.field)] = row  # the newest row of a field is the one in force
+        verify = db.scalars(
+            select(VerifyRunRow).where(VerifyRunRow.import_id == imp.id).order_by(VerifyRunRow.id.desc()).limit(1)
+        ).first()
+        named = self._dependency_blockers(db, plan)  # phase 4d: {} when the import has no dependency list
+        verified = (
+            {r.get("claim_id"): r.get("result") for r in (verify.results or []) if isinstance(r, dict)}
+            if verify
+            else {}
+        )
         today = _today()
         states = []
         for system in self._systems(claims):
             _, key = self._measurement_hash(claims, system)
             item = items.get(key)
             if item is None:
-                continue   # not written down yet (the step has not been opened)
+                continue  # not written down yet (the step has not been opened)
             kind = system["kind"]
-            state: dict = {"key": system["key"], "kind": kind, "name": system["name"], "item_id": item.id,
-                           "address": system["target"] if kind == "server" else None, "program": system.get("program"),
-                           "job": None, "result": None, "run_id": None, "measured_at": None, "code": None, "reason_code": None,
-                           "reason": None, "detail": {}, "raw": {}, "status": None}
+            state: dict = {
+                "key": system["key"],
+                "kind": kind,
+                "name": system["name"],
+                "item_id": item.id,
+                "address": system["target"] if kind == "server" else None,
+                "program": system.get("program"),
+                "job": None,
+                "result": None,
+                "run_id": None,
+                "measured_at": None,
+                "code": None,
+                "reason_code": None,
+                "reason": None,
+                "detail": {},
+                "raw": {},
+                "status": None,
+            }
             job = self.jobs.get((item.id, MIGRATION_ORIGIN))
             if job is not None and job.status != "done":
-                state["job"] = present.status_view(job.status, job.progress_text, job.progress_percent, self.jobs.max_parallel)
+                state["job"] = present.status_view(
+                    job.status, job.progress_text, job.progress_percent, self.jobs.max_parallel
+                )
             # The last reviewed measurement stands while a new one runs (phase 4b: so a system's change, and its entry in
             # Fixes, stays on screen during the measurement right after an Apply or a Roll back).
             run = self._latest_run(db, item.id, MIGRATION_ORIGIN, None)
             result = self._result(db, run) if run is not None else None
             if result is not None:
                 review = db.scalars(select(ReviewRow).where(ReviewRow.run_id == run.id)).first()
-                stands = self._result_cache[run.id][2] and result["code"] == review.code   # the read gate
-                state.update(result=result, run_id=run.id, measured_at=run.finished_at, code=result["code"],
-                             reason_code=review.reason_code if stands else None, reason=review.reason if stands else None,
-                             detail=dict(review.detail or {}) if stands else {}, raw=run.raw if stands and isinstance(run.raw, dict) else {})
+                stands = self._result_cache[run.id][2] and result["code"] == review.code  # the read gate
+                state.update(
+                    result=result,
+                    run_id=run.id,
+                    measured_at=run.finished_at,
+                    code=result["code"],
+                    reason_code=review.reason_code if stands else None,
+                    reason=review.reason if stands else None,
+                    detail=dict(review.detail or {}) if stands else {},
+                    raw=run.raw if stands and isinstance(run.raw, dict) else {},
+                )
                 state["status"] = result["code"] if stands and result["code"] in STATUSES else None
             # the three settings: what the user set, else what the file gave, else the default ("assumed")
             row = addresses.get(system["target"]) if kind == "server" else None
@@ -129,18 +197,33 @@ class MigrationMixin:
             for field in rules.FIELDS:
                 stored = given.get((system["key"], field))
                 ok = stored is not None and stored.value in rules.FIELDS[field]
-                state["settings"][field] = {"value": stored.value if ok else defaults[field], "source": stored.source if ok else "assumed"}
+                state["settings"][field] = {
+                    "value": stored.value if ok else defaults[field],
+                    "source": stored.source if ok else "assumed",
+                }
             values = {f: s["value"] for f, s in state["settings"].items()}
             # what the file says about it, and what Verify made of that claim
             wanted = "post_quantum" if kind == "server" else "signature_algorithm"
-            claim = next((c for c in imp.claims if c.kind == wanted and
-                          (c.location == system["target"] if kind == "server" else c.ref == system["target"])), None)
-            state["claim"] = {"claimed": claim.claimed_value, "verify": verified.get(claim.id)} if claim is not None else None
+            claim = next(
+                (
+                    c
+                    for c in imp.claims
+                    if c.kind == wanted
+                    and (c.location == system["target"] if kind == "server" else c.ref == system["target"])
+                ),
+                None,
+            )
+            state["claim"] = (
+                {"claimed": claim.claimed_value, "verify": verified.get(claim.id)} if claim is not None else None
+            )
             # the fixed rules
             status = state["status"]
             detail = state["detail"]
-            facts = ({"tls13": detail.get("tls13"), "weak_certificate": bool((detail.get("certificate") or {}).get("weak"))} if kind == "server"
-                     else {"post_quantum_signatures": status == "pq_only" or detail.get("can_make_pq") is True})   # phase 4c: measured on a real library
+            facts = (
+                {"tls13": detail.get("tls13"), "weak_certificate": bool((detail.get("certificate") or {}).get("weak"))}
+                if kind == "server"
+                else {"post_quantum_signatures": status == "pq_only" or detail.get("can_make_pq") is True}
+            )  # phase 4c: measured on a real library
             state["offered"] = rules.offered(kind, status)
             state["recommendation"] = rules.recommend(kind, status, values)
             state["blockers"] = {o: rules.blockers(kind, o, facts) for o in rules.OPTIONS}
@@ -153,10 +236,14 @@ class MigrationMixin:
             measured_on = self._date_of(state["measured_at"]) or today
             state["default_review_date"] = rules.default_review_date(measured_on).isoformat() if status else None
             # the user's own choices: the newest one in force, the older ones kept
-            chosen = [{"option": c.option, "reason": c.reason, "review_date": c.review_date, "at": iso(c.created_at)}
-                      for c in db.scalars(select(MigrationChoiceRow).where(MigrationChoiceRow.plan_id == plan.id,
-                                                                          MigrationChoiceRow.system_key == system["key"])
-                                          .order_by(MigrationChoiceRow.id.desc())).all()]
+            chosen = [
+                {"option": c.option, "reason": c.reason, "review_date": c.review_date, "at": iso(c.created_at)}
+                for c in db.scalars(
+                    select(MigrationChoiceRow)
+                    .where(MigrationChoiceRow.plan_id == plan.id, MigrationChoiceRow.system_key == system["key"])
+                    .order_by(MigrationChoiceRow.id.desc())
+                ).all()
+            ]
             state["choice"], state["history"] = (chosen[0], chosen[1:]) if chosen else (None, [])
             applies = bool(state["choice"]) and state["choice"]["option"] in state["offered"]
             state["choice_applies"] = applies
@@ -164,11 +251,16 @@ class MigrationMixin:
             state["plan_option"] = state["choice"]["option"] if applies else rec["option"] if rec else None
             state["plan_source"] = "choice" if applies else "recommendation" if rec else None
             option = state["plan_option"]
-            state["band"] = rules.band(kind, status, option, values, state["blockers"].get(option, []) if option else [])
+            state["band"] = rules.band(
+                kind, status, option, values, state["blockers"].get(option, []) if option else []
+            )
             state["review_date"] = None
             if option == "keep":
                 mine = state["choice"]["review_date"] if applies and state["choice"].get("review_date") else None
-                state["review_date"] = {"value": mine or state["default_review_date"], "source": "chosen" if mine else "assumed"}
+                state["review_date"] = {
+                    "value": mine or state["default_review_date"],
+                    "source": "chosen" if mine else "assumed",
+                }
             # Phase 4b: two tracks (key exchange and authentication for a server, signatures for a program), each placed on
             # the roadmap by itself. The Fixes entries (the change, and a weak certificate) are added by _with_changes.
             state["tracks"] = present_tracks.tracks_of(state)
@@ -204,7 +296,7 @@ class MigrationMixin:
         try:
             return ipaddress.ip_address(row.resolved_ip or row.host).is_global
         except ValueError:
-            return row.host != "localhost"   # a name that has not been looked up yet: not this computer
+            return row.host != "localhost"  # a name that has not been looked up yet: not this computer
 
     @staticmethod
     def _date_of(stamp: str | None) -> date | None:
@@ -223,31 +315,50 @@ class MigrationMixin:
         the Otto panel's next step). Opening the Migration page writes each system's measurement down and locks it,
         once; this read does not: it counts the systems the file names, and takes what was measured from the records
         there are."""
-        with self.db() as db:                                                   # type: ignore[attr-defined]
-            plan = self._plan(db, plan_id)                                      # type: ignore[attr-defined]
-            systems = self._systems(self._claims(db.get(ImportRow, plan.import_id)))        # type: ignore[attr-defined]
-            busy = self.jobs.busy(("migration", plan_id)) or self.jobs.busy(("changes", plan_id))       # type: ignore[attr-defined]
+        with self.db() as db:  # type: ignore[attr-defined]
+            plan = self._plan(db, plan_id)  # type: ignore[attr-defined]
+            systems = self._systems(self._claims(db.get(ImportRow, plan.import_id)))  # type: ignore[attr-defined]
+            busy = self.jobs.busy(("migration", plan_id)) or self.jobs.busy(("changes", plan_id))  # type: ignore[attr-defined]
             states = self._migration_states(db, plan)
-        return {"busy": bool(busy),
-                "measure": present_migration.measure_button(len(systems), bool(busy), sum(1 for s in states if s["job"] is None),
-                                                            any(s["code"] is not None for s in states))}
+        return {
+            "busy": bool(busy),
+            "measure": present_migration.measure_button(
+                len(systems),
+                bool(busy),
+                sum(1 for s in states if s["job"] is None),
+                any(s["code"] is not None for s in states),
+            ),
+        }
 
     def migration_view(self, plan_id: int) -> dict:
         with self._plan_lock, self.db() as db:
             self._ensure_migration_items(db, self._plan(db, plan_id))
-        lab = self.lab_view(plan_id)   # for the download button: the same rule as Evidence Lab's
+        lab = self.lab_view(plan_id)  # for the download button: the same rule as Evidence Lab's
         with self.db() as db:
             plan = self._plan(db, plan_id)
             imp = db.get(ImportRow, plan.import_id)
-            busy = self.jobs.busy(("migration", plan_id)) or self.jobs.busy(("changes", plan_id))   # asked first: the screen asks again
+            busy = self.jobs.busy(("migration", plan_id)) or self.jobs.busy(
+                ("changes", plan_id)
+            )  # asked first: the screen asks again
             states = self._with_changes(db, plan, self._migration_states(db, plan))
             measured = [s["measured_at"] for s in states if s["measured_at"]]
             view = present_migration.view(
-                plan_id=plan.id, import_id=imp.id, is_demo=bool(imp.is_demo), filename=imp.filename, states=states,
-                busy=busy or self.jobs.busy(("migration", plan_id)), finished=sum(1 for s in states if s["job"] is None),
-                measured_at=max(measured) if measured else None, today=_today(),
-                download={"can_start": lab["download"]["can_start"] and not busy, "blocked_reason": lab["download"]["blocked_reason"]
-                          if not lab["download"]["can_start"] else ("A measurement is running." if busy else None)})
+                plan_id=plan.id,
+                import_id=imp.id,
+                is_demo=bool(imp.is_demo),
+                filename=imp.filename,
+                states=states,
+                busy=busy or self.jobs.busy(("migration", plan_id)),
+                finished=sum(1 for s in states if s["job"] is None),
+                measured_at=max(measured) if measured else None,
+                today=_today(),
+                download={
+                    "can_start": lab["download"]["can_start"] and not busy,
+                    "blocked_reason": lab["download"]["blocked_reason"]
+                    if not lab["download"]["can_start"]
+                    else ("A measurement is running." if busy else None),
+                },
+            )
             return self._with_otto_plan(db, plan, view)
 
     def _with_otto_plan(self, db, plan: PlanRow, view: dict) -> dict:
@@ -255,12 +366,13 @@ class MigrationMixin:
         They are added beside what was there: no status, recommendation, blocker or band is touched, so everything the
         migration answer key grades reads as before. Only a plan with an advisory check has any."""
         from app.present import otto as present_otto
+
         by_system: dict[str, list[dict]] = {}
-        if self._otto_checks(db, plan.id):                                                    # type: ignore[attr-defined]
-            for p in self._proposals(db, plan, ("plan",)):                                    # type: ignore[attr-defined]
+        if self._otto_checks(db, plan.id):  # type: ignore[attr-defined]
+            for p in self._proposals(db, plan, ("plan",)):  # type: ignore[attr-defined]
                 if not p["current"] and p["state"] == "proposed":
-                    continue        # open, and Otto no longer proposes it (its check has passed since): nothing to decide here
-                shown = present_otto.proposal_view(p, self.otto_ledger_about(plan.id, p.get("objective_id")))   # type: ignore[attr-defined]
+                    continue  # open, and Otto no longer proposes it (its check has passed since): nothing to decide here
+                shown = present_otto.proposal_view(p, self.otto_ledger_about(plan.id, p.get("objective_id")))  # type: ignore[attr-defined]
                 by_system.setdefault(str(p["about"].get("system")), []).append(shown)
         for system in view["systems"]:
             system["otto"] = present_otto.plan_block(by_system.get(system["key"], []))
@@ -304,11 +416,17 @@ class MigrationMixin:
             plan = self._plan(db, plan_id)
             self._ensure_migration_items(db, plan)
             self._system_state(db, plan, system_key)
-            db.add(SystemSettingRow(import_id=plan.import_id, system_key=system_key, field=field, value=value, source="user"))
+            db.add(
+                SystemSettingRow(
+                    import_id=plan.import_id, system_key=system_key, field=field, value=value, source="user"
+                )
+            )
             db.commit()
         return self.migration_view(plan_id)
 
-    def choose_migration_option(self, plan_id: int, system_key: str, option: str, reason: str, review_date: str | None) -> dict:
+    def choose_migration_option(
+        self, plan_id: int, system_key: str, option: str, reason: str, review_date: str | None
+    ) -> dict:
         """Record the user's own choice for one system, with why and when. A new row every time: nothing is overwritten."""
         if option not in rules.OPTIONS:
             raise BadRequest("That option is not known.", field="option")
@@ -331,14 +449,31 @@ class MigrationMixin:
                 problem = rules.review_date_problem(review_date, _today())
                 if problem:
                     latest = present_migration.day(rules.LATEST_REVIEW)
-                    raise BadRequest({"missing": "Give a review date. Keeping classical always has one, never “forever”.",
-                                      "past": "The review date must be after today.",
-                                      "too_late": f"The review date can't be later than {latest}, NIST's date."}[problem], field="review_date")
+                    raise BadRequest(
+                        {
+                            "missing": "Give a review date. Keeping classical always has one, never “forever”.",
+                            "past": "The review date must be after today.",
+                            "too_late": f"The review date can't be later than {latest}, NIST's date.",
+                        }[problem],
+                        field="review_date",
+                    )
                 kept = date.fromisoformat(str(review_date)).isoformat()
-            db.add(MigrationChoiceRow(plan_id=plan.id, system_key=system_key, option=option, reason=why, review_date=kept,
-                                      basis={"status": state["status"], "run_id": state["run_id"],
-                                             "recommended": rec["option"] if rec else None, "rule": rec["rule"] if rec else None,
-                                             "settings": {f: dict(s) for f, s in state["settings"].items()}}))
+            db.add(
+                MigrationChoiceRow(
+                    plan_id=plan.id,
+                    system_key=system_key,
+                    option=option,
+                    reason=why,
+                    review_date=kept,
+                    basis={
+                        "status": state["status"],
+                        "run_id": state["run_id"],
+                        "recommended": rec["option"] if rec else None,
+                        "rule": rec["rule"] if rec else None,
+                        "settings": {f: dict(s) for f, s in state["settings"].items()},
+                    },
+                )
+            )
             db.commit()
         return self.migration_view(plan_id)
 
@@ -352,15 +487,36 @@ class MigrationMixin:
         fixes = []
         for state in self._with_changes(db, plan, self._migration_states(db, plan)):
             entries = dict(state["fix_ids"])
-            entries.pop("no_pq_signature", None)            # the program's change is that entry
+            entries.pop("no_pq_signature", None)  # the program's change is that entry
             for what, fix_id in entries.items():
-                fixes.append({"id": fix_id, "test_kind": "pq_status" if state["kind"] == "server" else "signing_status", "kind": "text",
-                              "status": "text_only", "source_kind": "migration",
-                              "answers": [{"item_id": state["item_id"], "kind": "pq_status" if state["kind"] == "server" else "signing_status",
-                                           "run_id": state["run_id"], "phase": MIGRATION_ORIGIN}],
-                              "component": None, "template_id": None, "rerun_blocked": None, "connection": None, "change": None,
-                              "proofs": 0, "proof": None, "pull_request": None, "merge": None, "actions": {},
-                              "migration": {"system": state["key"], "what": what, "option": state["plan_option"]}})
+                fixes.append(
+                    {
+                        "id": fix_id,
+                        "test_kind": "pq_status" if state["kind"] == "server" else "signing_status",
+                        "kind": "text",
+                        "status": "text_only",
+                        "source_kind": "migration",
+                        "answers": [
+                            {
+                                "item_id": state["item_id"],
+                                "kind": "pq_status" if state["kind"] == "server" else "signing_status",
+                                "run_id": state["run_id"],
+                                "phase": MIGRATION_ORIGIN,
+                            }
+                        ],
+                        "component": None,
+                        "template_id": None,
+                        "rerun_blocked": None,
+                        "connection": None,
+                        "change": None,
+                        "proofs": 0,
+                        "proof": None,
+                        "pull_request": None,
+                        "merge": None,
+                        "actions": {},
+                        "migration": {"system": state["key"], "what": what, "option": state["plan_option"]},
+                    }
+                )
         return fixes
 
     def _migration_fix_view(self, db, plan: PlanRow, fix: dict, is_demo: bool) -> dict | None:
@@ -368,7 +524,14 @@ class MigrationMixin:
         plan: Fixes lists the entries from one read of the plan and words each from a second, and a choice, a setting or a
         measurement that lands in between can take an entry away (a plan that becomes Keep classical by recommendation
         has no change). The caller leaves it out of that read; the next read lists the plan as it is."""
-        state = next((s for s in self._with_changes(db, plan, self._migration_states(db, plan)) if s["key"] == fix["migration"]["system"]), None)
+        state = next(
+            (
+                s
+                for s in self._with_changes(db, plan, self._migration_states(db, plan))
+                if s["key"] == fix["migration"]["system"]
+            ),
+            None,
+        )
         if state is None:
             raise NotFound("That system is not in this file.")
         what = fix["migration"]["what"]

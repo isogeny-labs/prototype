@@ -1,6 +1,7 @@
 """Change watch and Otto: a watch run of an advisory check is kept apart from Otto's side too. It is a run of a
 developer's change, not of the assessment: no proposal is made or moved by it, the Project overview's line about
 advisory checks does not count it, and the check's own result on Advisories stays (the review of phase 6d)."""
+
 import json
 
 import pytest
@@ -18,10 +19,19 @@ REVERT = "dev/revert-range-check"
 def _what_otto_shows(lab, plan_id: int) -> dict:
     """Everything Otto shows for the assessment: its proposals of every kind, Advisories, and the Project overview."""
     project = lab.assessment_for(plan_id=plan_id).project_id
-    text = lambda value: json.dumps(value, sort_keys=True, default=str)          # noqa: E731
-    return {"proposals": {kind: text(lab.otto_proposals(plan_id, (kind,))) for kind in ("check", "fix", "plan", "dependency")},
-            "advisories": text(lab.advisories_view(plan_id)), "project": text(lab.project_overview(project)["otto"]),
-            "own": [(r["title"], (r["after"] or r["result"] or {}).get("label")) for r in lab.lab_view(plan_id)["rows"] if r["kind"] == "advisory_cases"]}
+    text = lambda value: json.dumps(value, sort_keys=True, default=str)  # noqa: E731
+    return {
+        "proposals": {
+            kind: text(lab.otto_proposals(plan_id, (kind,))) for kind in ("check", "fix", "plan", "dependency")
+        },
+        "advisories": text(lab.advisories_view(plan_id)),
+        "project": text(lab.project_overview(project)["otto"]),
+        "own": [
+            (r["title"], (r["after"] or r["result"] or {}).get("label"))
+            for r in lab.lab_view(plan_id)["rows"]
+            if r["kind"] == "advisory_cases"
+        ],
+    }
 
 
 def test_a_watch_run_of_an_advisory_check_changes_nothing_otto_shows(tmp_path, monkeypatch):
@@ -43,7 +53,7 @@ def test_a_watch_run_of_an_advisory_check_changes_nothing_otto_shows(tmp_path, m
             lab.otto_decide(plan.id, proposal["id"], "accept")
         try:
             lab.connect_code(plan.id)
-        except Conflict:            # (the change is Otto's proposal: a person accepts it before the code can be connected)
+        except Conflict:  # (the change is Otto's proposal: a person accepts it before the code can be connected)
             for proposal in lab.otto_proposals(plan.id, ("fix",)):
                 if proposal["state"] == "proposed" and proposal["current"]:
                     lab.otto_decide(plan.id, proposal["id"], "accept")
@@ -58,9 +68,13 @@ def test_a_watch_run_of_an_advisory_check_changes_nothing_otto_shows(tmp_path, m
 
         listed = lab.bring_in_demo_change(plan.id, "revert-range-check")
         change = next(c for c in listed["changes"] if c["branch"] == REVERT)
-        assert "advisory_cases" in [t["kind"] for t in change["picked"]]          # the advisory check runs acme-sign: it is picked
+        assert "advisory_cases" in [
+            t["kind"] for t in change["picked"]
+        ]  # the advisory check runs acme-sign: it is picked
         before = _what_otto_shows(lab, plan.id)
-        assert before["own"] and all(label == "Passed" for _, label in before["own"])    # on the fixed version, after the retest
+        assert before["own"] and all(
+            label == "Passed" for _, label in before["own"]
+        )  # on the fixed version, after the retest
         with lab.db() as db:
             newest = db.scalar(select(TestRunRow.id).order_by(TestRunRow.id.desc()).limit(1))
 
@@ -89,7 +103,7 @@ def test_a_watch_run_of_an_advisory_check_changes_nothing_otto_shows(tmp_path, m
         made = lab.export_evidence(plan.id)
         _, raw, _ = lab.evidence_file(made["id"], "json")
         evidence = json.loads(raw)["evidence"]
-        watch_run, = evidence["change_watch"]["runs"]
+        (watch_run,) = evidence["change_watch"]["runs"]
         advisory = next(t for t in watch_run["tests"] if t["kind"] == "advisory_cases")
         assert advisory["now"]["result"]["label"] == "Failed" and advisory["before"]["result"]["label"] == "Passed"
         bound = json.dumps(evidence["otto"]["ledger"])
@@ -97,6 +111,7 @@ def test_a_watch_run_of_an_advisory_check_changes_nothing_otto_shows(tmp_path, m
         path = tmp_path / "evidence.json"
         path.write_bytes(raw)
         from evidence.__main__ import main
+
         assert main(["verify", str(path), "--data-dir", str(lab.settings.data_dir), "--pack-key", public]) == 0
     finally:
         lab.stop()

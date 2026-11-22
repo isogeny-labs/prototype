@@ -1,7 +1,15 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { DataTable, DetailPanel, GroupSection, PANEL_MAX, PANEL_MIN, TableWithPanel, type Column } from "../components/layout";
+import {
+  DataTable,
+  DetailPanel,
+  GroupSection,
+  PANEL_MAX,
+  PANEL_MIN,
+  TableWithPanel,
+  type Column,
+} from "../components/layout";
 
 describe("DetailPanel", () => {
   it("is not there while closed", () => {
@@ -127,7 +135,15 @@ function Table() {
   const [open, setOpen] = useState<Row | null>(null);
   return (
     <>
-      <DataTable label="Tests" columns={COLUMNS} rows={ROWS} rowKey={(r) => r.id} rowTestId="row" selectedKey={open?.id ?? null} onRowClick={setOpen} />
+      <DataTable
+        label="Tests"
+        columns={COLUMNS}
+        rows={ROWS}
+        rowKey={(r) => r.id}
+        rowTestId="row"
+        selectedKey={open?.id ?? null}
+        onRowClick={setOpen}
+      />
       <DetailPanel open={open !== null} title={open?.name ?? ""} onClose={() => setOpen(null)}>
         <p>Detail of {open?.name}</p>
       </DetailPanel>
@@ -305,7 +321,9 @@ describe("phase 5b: a work group's heading", () => {
   it("stays when it is empty and says why, instead of its rows", () => {
     render(<Group empty />);
     const section = screen.getByRole("region", { name: "Migration" });
-    expect(within(section).getByTestId("group-empty").textContent).toBe("Nothing measured yet. Measure status is on Migration.");
+    expect(within(section).getByTestId("group-empty").textContent).toBe(
+      "Nothing measured yet. Measure status is on Migration.",
+    );
     expect(within(section).queryByText("The rows")).toBeNull();
   });
 });
@@ -326,7 +344,7 @@ describe("the open item", () => {
       );
     }
     const page = render(<Page open={false} item={null} />);
-    expect(reported).toEqual([]);                       // a closed panel reports nothing
+    expect(reported).toEqual([]); // a closed panel reports nothing
     page.rerender(<Page open item="test-5" />);
     expect(reported).toEqual(["test-5"]);
     page.rerender(<Page open item="test-6" />);

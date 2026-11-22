@@ -62,7 +62,9 @@ describe("closed assessment banner", () => {
   it("its New assessment button stays on, starts a new assessment and opens it on Import", async () => {
     const fetchMock = await openClosed("overview", {
       "POST /api/projects/10/assessments": { body: { id: 102 } },
-      "GET /api/assessments/102": { body: assessmentView({ id: 102, number: 3, title: "Assessment 3", file: null, import: null, plan_id: null }) },
+      "GET /api/assessments/102": {
+        body: assessmentView({ id: 102, number: 3, title: "Assessment 3", file: null, import: null, plan_id: null }),
+      },
     });
     const banner = within(screen.getByTestId("closed-banner"));
     const fresh = banner.getByRole("button", { name: "New assessment" }) as HTMLButtonElement;
@@ -128,6 +130,10 @@ describe("closed assessment is read-only", () => {
     const before = calls(fetchMock).length;
     fireEvent.click(button("Use demo file"));
     fireEvent.click(button("Verify claims"));
-    expect(calls(fetchMock).slice(before).filter((c) => c.startsWith("POST"))).toEqual([]);
+    expect(
+      calls(fetchMock)
+        .slice(before)
+        .filter((c) => c.startsWith("POST")),
+    ).toEqual([]);
   });
 });

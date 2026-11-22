@@ -5,6 +5,7 @@ claim "TLS 1.3 only" comes back False. Its certificate is a self-signed TEST cer
 generated on first start; the test key stays in the data folder (file mode 0600) and is never
 printed, logged or stored as evidence.
 """
+
 from __future__ import annotations
 
 import datetime
@@ -43,25 +44,31 @@ def ensure_demo_certificate(data_dir: Path) -> tuple[Path, Path]:
         except ValueError:
             pass
     key = ec.generate_private_key(ec.SECP256R1())
-    name = x509.Name([
-        x509.NameAttribute(NameOID.COMMON_NAME, "localhost"),
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Acme Pay Demo (test certificate)"),
-    ])
+    name = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COMMON_NAME, "localhost"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Acme Pay Demo (test certificate)"),
+        ]
+    )
     now = datetime.datetime.now(datetime.timezone.utc)
     cert = (
         x509.CertificateBuilder()
-        .subject_name(name).issuer_name(name)
+        .subject_name(name)
+        .issuer_name(name)
         .public_key(key.public_key())
         .serial_number(x509.random_serial_number())
         .not_valid_before(now - datetime.timedelta(days=1))
         .not_valid_after(now + datetime.timedelta(days=825))
-        .add_extension(x509.SubjectAlternativeName(
-            [x509.DNSName("localhost"), x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]), critical=False)
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName("localhost"), x509.IPAddress(ipaddress.ip_address("127.0.0.1"))]),
+            critical=False,
+        )
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
         .sign(key, hashes.SHA256())
     )
-    pem_key = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
-                                serialization.NoEncryption())
+    pem_key = key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    )
     for path in (key_path, cert_path):
         try:
             path.unlink()
@@ -80,10 +87,15 @@ def certificate_fingerprint(cert_path: Path) -> str:
     return hashlib.sha256(cert.public_bytes(serialization.Encoding.DER)).hexdigest()
 
 
-def make_server_context(cert_path: Path, key_path: Path, *, ciphers: str = DEMO_TLS12_CIPHER,
-                        minimum: ssl.TLSVersion = ssl.TLSVersion.TLSv1_2,
-                        maximum: ssl.TLSVersion = ssl.TLSVersion.TLSv1_3,
-                        group: str | None = DEMO_GROUP) -> ssl.SSLContext:
+def make_server_context(
+    cert_path: Path,
+    key_path: Path,
+    *,
+    ciphers: str = DEMO_TLS12_CIPHER,
+    minimum: ssl.TLSVersion = ssl.TLSVersion.TLSv1_2,
+    maximum: ssl.TLSVersion = ssl.TLSVersion.TLSv1_3,
+    group: str | None = DEMO_GROUP,
+) -> ssl.SSLContext:
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.minimum_version = minimum
     ctx.maximum_version = maximum
@@ -162,11 +174,14 @@ class DemoServer:
         except OSError as exc:
             if exc.errno == errno.EADDRINUSE:
                 self.port_in_use = True
-                self.error = (f"Port {self.port} on this computer is already used by another program, so the demo "
-                              "server could not start. Close that program and restart Evidence Lab.")
+                self.error = (
+                    f"Port {self.port} on this computer is already used by another program, so the demo "
+                    "server could not start. Close that program and restart Evidence Lab."
+                )
             else:
-                self.error = (f"The demo server could not start on port {self.port} "
-                              f"({exc.strerror or exc.__class__.__name__}).")
+                self.error = (
+                    f"The demo server could not start on port {self.port} ({exc.strerror or exc.__class__.__name__})."
+                )
             return
         self.running, self.error = True, None
 
@@ -175,8 +190,12 @@ class DemoServer:
 
     def context_for(self, versions) -> ssl.SSLContext:
         """A server context for the demo certificate that accepts exactly these TLS versions (lowest to highest)."""
-        order = {"TLS 1.0": ssl.TLSVersion.TLSv1, "TLS 1.1": ssl.TLSVersion.TLSv1_1, "TLS 1.2": ssl.TLSVersion.TLSv1_2,
-                 "TLS 1.3": ssl.TLSVersion.TLSv1_3}
+        order = {
+            "TLS 1.0": ssl.TLSVersion.TLSv1,
+            "TLS 1.1": ssl.TLSVersion.TLSv1_1,
+            "TLS 1.2": ssl.TLSVersion.TLSv1_2,
+            "TLS 1.3": ssl.TLSVersion.TLSv1_3,
+        }
         chosen = [v for v in order if v in versions] or ["TLS 1.2", "TLS 1.3"]
         cert_path, key_path = ensure_demo_certificate(self.data_dir)
         return make_server_context(cert_path, key_path, minimum=order[chosen[0]], maximum=order[chosen[-1]])
@@ -188,7 +207,10 @@ class DemoServer:
             ctx = self.context_for(versions)
         except (OSError, ValueError, ssl.SSLError) as exc:
             return False, f"the demo server could not take these settings ({exc.__class__.__name__})"
-        self.versions = tuple(v for v in ("TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3") if v in versions) or ("TLS 1.2", "TLS 1.3")
+        self.versions = tuple(v for v in ("TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3") if v in versions) or (
+            "TLS 1.2",
+            "TLS 1.3",
+        )
         if self._server is not None:
             self._server._ctx = ctx
         return True, "the demo server now accepts " + " and ".join(self.versions)

@@ -1,6 +1,7 @@
 """The two measuring tests: speed and size of the signing component, and the ML-DSA-65 comparison.
 Both take the gate exclusively while they measure, so no other test job is running component work at the
 same moment. Raw timings only; the slowdown rule is applied by the reviewer."""
+
 from __future__ import annotations
 
 import time
@@ -28,10 +29,17 @@ def _benches(lines: list[dict], roles: list[str]) -> tuple[dict | None, list[dic
             continue
         role = roles[index] if number % 2 == 0 else roles[len(roles) - 1 - index]
         out = line.get("out") if isinstance(line.get("out"), dict) else {}
-        bench = {"round": number, "subject": line.get("subject"), "role": role, "rc": line.get("rc"),
-                 "sign_ms": out.get("sign_ms"), "verify_ms": out.get("verify_ms"),
-                 "signature_bytes": out.get("signature_bytes"), "public_key_bytes": out.get("public_key_bytes"),
-                 "all_verified": out.get("all_verified")}
+        bench = {
+            "round": number,
+            "subject": line.get("subject"),
+            "role": role,
+            "rc": line.get("rc"),
+            "sign_ms": out.get("sign_ms"),
+            "verify_ms": out.get("verify_ms"),
+            "signature_bytes": out.get("signature_bytes"),
+            "public_key_bytes": out.get("public_key_bytes"),
+            "all_verified": out.get("all_verified"),
+        }
         if line.get("error"):
             bench["error"] = str(line["error"])[:120]
         benches.append(bench)
@@ -44,7 +52,7 @@ def run_speed_size(spec: dict, ctx: RunContext) -> dict:
         return problem("not_a_demo_component", NOT_DEMO)
     if (stopped := real_problem(ctx)) is not None:
         return stopped
-    post_quantum = spec["target"].get("algorithm") == "ML-DSA-65"   # phase 4c: a library that signs with ML-DSA-65
+    post_quantum = spec["target"].get("algorithm") == "ML-DSA-65"  # phase 4c: a library that signs with ML-DSA-65
     inputs = spec["inputs"]
     rounds, repeats = inputs["rounds"], inputs["repeats"]
     if ctx.baseline_version is not None:
@@ -67,8 +75,14 @@ def run_speed_size(spec: dict, ctx: RunContext) -> dict:
     with ctx.gate.exclusive():
         ctx.begin()
         ctx.progress(f"measuring, round 1 of {rounds}", 0)
-        job = {"op": "bench_rounds", "keygen_with": keygen_with, "subjects": subjects, "rounds": rounds,
-               "repeats": repeats, "message": inputs["message"]}
+        job = {
+            "op": "bench_rounds",
+            "keygen_with": keygen_with,
+            "subjects": subjects,
+            "rounds": rounds,
+            "repeats": repeats,
+            "message": inputs["message"],
+        }
         if post_quantum:
             job["algorithm"] = "ML-DSA-65"
         result = ctx.runner.run_job(job, time_limit=300.0, on_line=on_line, **family_args(ctx))
@@ -80,11 +94,19 @@ def run_speed_size(spec: dict, ctx: RunContext) -> dict:
             out = problem("component_no_answer", "The component did not make a test key.")
             out["batch"] = batch_info(result)
             return out
-        measured = (reference.bench_mldsa65 if post_quantum else reference.bench_ecdsa_p256)(rounds * repeats, inputs["message"])
+        measured = (reference.bench_mldsa65 if post_quantum else reference.bench_ecdsa_p256)(
+            rounds * repeats, inputs["message"]
+        )
     ctx.progress("checking the result", 97)
-    return {"benches": benches, "subjects": dict(zip(roles, subjects)),  # noqa: B905
-            "reference": {k: measured[k] for k in ("library", "sign_ms", "verify_ms", "signature_bytes", "public_key_bytes")},
-            "exclusive": True, "batch": batch_info(result)}
+    return {
+        "benches": benches,
+        "subjects": dict(zip(roles, subjects)),  # noqa: B905
+        "reference": {
+            k: measured[k] for k in ("library", "sign_ms", "verify_ms", "signature_bytes", "public_key_bytes")
+        },
+        "exclusive": True,
+        "batch": batch_info(result),
+    }
 
 
 def _ms(seconds: float) -> float:
@@ -123,11 +145,21 @@ def measure_mldsa65(repeats: int, message: bytes) -> tuple[dict, dict]:
         verify_ms.append(_ms(t4 - t3))
     altered = bytearray(signature)
     altered[len(altered) // 2] ^= 0x01
-    control = {"genuine_accepted": accepted(public, signature), "altered_rejected": not accepted(public, bytes(altered)),
-               "what": "one byte in the middle of a genuine signature was changed"}
-    timings = {"library": reference.LIBRARY, "repeats": repeats, "clock": "time.perf_counter", "keygen_ms": keygen_ms,
-               "sign_ms": sign_ms, "verify_ms": verify_ms, "public_key_bytes": len(public.public_bytes_raw()),
-               "signature_bytes": len(signature)}
+    control = {
+        "genuine_accepted": accepted(public, signature),
+        "altered_rejected": not accepted(public, bytes(altered)),
+        "what": "one byte in the middle of a genuine signature was changed",
+    }
+    timings = {
+        "library": reference.LIBRARY,
+        "repeats": repeats,
+        "clock": "time.perf_counter",
+        "keygen_ms": keygen_ms,
+        "sign_ms": sign_ms,
+        "verify_ms": verify_ms,
+        "public_key_bytes": len(public.public_bytes_raw()),
+        "signature_bytes": len(signature),
+    }
     return timings, control
 
 
@@ -141,13 +173,25 @@ def run_mldsa_compare(spec: dict, ctx: RunContext) -> dict:
         try:
             timings, control = measure_mldsa65(inputs["repeats"], bytes.fromhex(inputs["message"]))
         except Exception as exc:  # for example: a cryptography build without ML-DSA
-            return problem("harness_error", f"ML-DSA-65 is not available in the reference library on this computer ({exc.__class__.__name__}).")
+            return problem(
+                "harness_error",
+                f"ML-DSA-65 is not available in the reference library on this computer ({exc.__class__.__name__}).",
+            )
         component = None
         if key is not None:
             ctx.progress("measuring the signing component", 60)
-            result = ctx.runner.run_job({"op": "bench_rounds", "keygen_with": key, "subjects": [key], "rounds": 1,
-                                         "repeats": inputs["component_repeats"], "message": inputs["message"]}, time_limit=120.0,
-                                        **family_args(ctx))
+            result = ctx.runner.run_job(
+                {
+                    "op": "bench_rounds",
+                    "keygen_with": key,
+                    "subjects": [key],
+                    "rounds": 1,
+                    "repeats": inputs["component_repeats"],
+                    "message": inputs["message"],
+                },
+                time_limit=120.0,
+                **family_args(ctx),
+            )
             _, benches = _benches(result.lines, ["subject"])
             component = {"key": key, "benches": benches, "batch": batch_info(result)}
             if not result.ok:

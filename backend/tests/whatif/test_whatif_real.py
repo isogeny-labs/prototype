@@ -4,6 +4,7 @@ Retest new version's own request and nothing else; that retest runs the locked t
 its container; and the same question then shows the run's results as this assessment's own.
 
 A test that needs Docker is slow by itself (tests/conftest.py)."""
+
 from types import SimpleNamespace
 
 import pytest
@@ -30,7 +31,7 @@ def real(docker_ready, tmp_path_factory):
         imp = lab.import_file("elliptic.csv", csv_bytes(ELLIPTIC_ONLY))
         lab.verify(imp["id"])
         pid = lab.ensure_plan(imp["id"])["id"]
-        early = lab.whatif_view(pid, "elliptic", "6.5.7")             # before any test has run
+        early = lab.whatif_view(pid, "elliptic", "6.5.7")  # before any test has run
         lab.run_all(pid)
         lab.wait_until_idle(pid, 900)
         aid = lab.assessment_for(plan_id=pid).id
@@ -43,24 +44,41 @@ def real(docker_ready, tmp_path_factory):
         if action is not None:
             lab.start_retest(action["plan_id"], action["version"], action["component"])
             lab.wait_until_idle(pid, 900)
-        yield SimpleNamespace(lab=lab, pid=pid, aid=aid, early=early, before=before, reply=reply, action=action,
-                              nothing_started=nothing_started, runs_before=runs_before, after=lab.whatif_view(pid, "elliptic", "6.5.7"))
+        yield SimpleNamespace(
+            lab=lab,
+            pid=pid,
+            aid=aid,
+            early=early,
+            before=before,
+            reply=reply,
+            action=action,
+            nothing_started=nothing_started,
+            runs_before=runs_before,
+            after=lab.whatif_view(pid, "elliptic", "6.5.7"),
+        )
     finally:
         lab.stop()
 
 
 def test_before_any_test_has_run_the_try_is_off_with_evidences_own_reason(real):
     part = real.early["test_copy"]
-    assert part["offered"] is False and part["reason"] and (part["button"], part["version"]) == ("Retest new version", "6.5.7")
-    assert _own(real.early) == []                # no reviewed result on elliptic yet, and the part says so
-    assert next(g for g in real.early["facts"] if g["key"] == "own_results")["none"] == "No test of the plan has a reviewed result on elliptic yet."
+    assert (
+        part["offered"] is False
+        and part["reason"]
+        and (part["button"], part["version"]) == ("Retest new version", "6.5.7")
+    )
+    assert _own(real.early) == []  # no reviewed result on elliptic yet, and the part says so
+    assert (
+        next(g for g in real.early["facts"] if g["key"] == "own_results")["none"]
+        == "No test of the plan has a reviewed result on elliptic yet."
+    )
 
 
 def test_with_first_results_on_6_5_6_the_what_if_shows_them_as_the_assessments_own_and_offers_the_try(real):
     models.WhatIf.model_validate(real.before)
     own = _own(real.before)
     assert own and all(" on elliptic 6.5.6: " in line for line in own)
-    assert any(line.endswith(": Failed.") for line in own)           # the official vectors fail on 6.5.6 (one published case)
+    assert any(line.endswith(": Failed.") for line in own)  # the official vectors fail on 6.5.6 (one published case)
     part = real.before["test_copy"]
     assert (part["offered"], part["reason"], part["component"], part["version"]) == (True, None, "elliptic", "6.5.7")
     assert any("public copy of the new version" in line for line in part["changes"])
@@ -68,10 +86,19 @@ def test_with_first_results_on_6_5_6_the_what_if_shows_them_as_the_assessments_o
 
 def test_the_panel_hands_back_retest_new_versions_own_card_and_asking_started_nothing(real):
     reply = real.reply
-    assert (reply["kind"], reply["thread"], reply["text"]) == ("whatif", "fixing", "What if elliptic is updated to 6.5.7?")
+    assert (reply["kind"], reply["thread"], reply["text"]) == (
+        "whatif",
+        "fixing",
+        "What if elliptic is updated to 6.5.7?",
+    )
     step = reply["entry"]["step"]
     assert (step["needs"], step["can"], step["blocked_reason"]) == ("confirm", True, None)
-    assert {k: v for k, v in real.action.items() if v is not None} == {"type": "retest", "plan_id": real.pid, "version": "6.5.7", "component": "elliptic"}
+    assert {k: v for k, v in real.action.items() if v is not None} == {
+        "type": "retest",
+        "plan_id": real.pid,
+        "version": "6.5.7",
+        "component": "elliptic",
+    }
     assert step["confirm"]["title"] and step["confirm"]["lines"]
     assert real.nothing_started is True
 
@@ -82,12 +109,14 @@ def test_the_retest_ran_on_the_public_copy_of_6_5_7_and_the_what_if_then_shows_i
     assert (view["columns"]["before"], view["columns"]["after"]) == ("Before: elliptic 6.5.6", "After: elliptic 6.5.7")
     own = _own(real.after)
     on_new = [line for line in own if " on elliptic 6.5.7: " in line]
-    assert on_new and len(own) == len(_own(real.before)) + len(on_new)       # the first results stay; the retest's are added
+    assert on_new and len(own) == len(_own(real.before)) + len(on_new)  # the first results stay; the retest's are added
     # the official vectors and the tricks pass on 6.5.7 (the speed test reads one of its two words)
     assert sum(1 for line in on_new if line.endswith(": Passed.")) >= 2
     assert not any(line.endswith(": Failed.") for line in on_new)
     # every line still leads to its test on Evidence, and nothing here words a result of its own
     lines = next(g for g in real.after["facts"] if g["key"] == "own_results")["lines"]
-    assert all(line["label"] == "This assessment's reviewed runs" and line["link"]["page"] == "evidence" for line in lines)
+    assert all(
+        line["label"] == "This assessment's reviewed runs" and line["link"]["page"] == "evidence" for line in lines
+    )
     words = str(real.after).lower()
     assert "secure" not in words and "severity" not in words and "score" not in words

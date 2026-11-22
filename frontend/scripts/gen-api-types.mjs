@@ -32,7 +32,8 @@ function tidy(node, isShape) {
     else if (key === "$ref" && typeof value === "string") out[key] = value.replace("#/components/schemas/", "#/$defs/");
     else if (key === "title" && !isShape) continue;
     else if (key === "default" || key === "discriminator") continue;
-    else if (key === "properties") out[key] = Object.fromEntries(Object.entries(value).map(([k, v]) => [k, tidy(v, false)]));
+    else if (key === "properties")
+      out[key] = Object.fromEntries(Object.entries(value).map(([k, v]) => [k, tidy(v, false)]));
     else out[key] = tidy(value, false);
   }
   return out;
@@ -52,8 +53,14 @@ const body = await compile(root, "ApiShapes", {
 // The empty root type is only the generator's entry point, and its "referenced by" notes say nothing useful.
 const withoutRoot = body
   .replace(/export interface ApiShapes \{\s*\}\n*/, "")
-  .replace(/ \*\n \* This (?:interface|type) was referenced by `ApiShapes`'s JSON-Schema\n \* via the `definition` "[^"]+"\.\n/g, "")
-  .replace(/\/\*\*\n \* This (?:interface|type) was referenced by `ApiShapes`'s JSON-Schema\n \* via the `definition` "[^"]+"\.\n \*\/\n/g, "");
+  .replace(
+    / \*\n \* This (?:interface|type) was referenced by `ApiShapes`'s JSON-Schema\n \* via the `definition` "[^"]+"\.\n/g,
+    "",
+  )
+  .replace(
+    /\/\*\*\n \* This (?:interface|type) was referenced by `ApiShapes`'s JSON-Schema\n \* via the `definition` "[^"]+"\.\n \*\/\n/g,
+    "",
+  );
 const text =
   "// GENERATED from the backend's API description (src/api-schema.json). Do not edit by hand.\n" +
   "// The shapes live in backend/app/web/models.py; see scripts/gen-api-types.mjs for how to remake this file.\n\n" +

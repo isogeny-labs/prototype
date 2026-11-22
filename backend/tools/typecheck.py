@@ -7,6 +7,7 @@
 The baseline (mypy-baseline.txt) lists each problem by file, message and code, without its line number, so moving
 code around does not break it. A problem found more often than the baseline allows counts as new.
 """
+
 from __future__ import annotations
 
 import re
@@ -21,8 +22,9 @@ LINE = re.compile(r"^(?P<path>[^:\s]+\.py):(?P<line>\d+): error: (?P<msg>.*?)\s+
 
 
 def run_mypy() -> tuple[Counter, dict[str, list[str]], str]:
-    proc = subprocess.run([sys.executable, "-m", "mypy", "--config-file", "mypy.ini"], cwd=BACKEND,
-                          capture_output=True, text=True)
+    proc = subprocess.run(
+        [sys.executable, "-m", "mypy", "--config-file", "mypy.ini"], cwd=BACKEND, capture_output=True, text=True
+    )
     found: Counter = Counter()
     where: dict[str, list[str]] = {}
     for raw in proc.stdout.splitlines():
@@ -54,8 +56,10 @@ def main(argv: list[str]) -> int:
         print("The type checker could not run:\n" + failure)
         return 2
     if "--write-baseline" in argv:
-        lines = ["# Type-check problems that were already there (count, then file: message [code]). "
-                 "Made by tools/typecheck.py --write-baseline."]
+        lines = [
+            "# Type-check problems that were already there (count, then file: message [code]). "
+            "Made by tools/typecheck.py --write-baseline."
+        ]
         lines += [f"{n}\t{key}" for key, n in sorted(found.items())]
         BASELINE.write_text("\n".join(lines) + "\n", encoding="utf-8")
         print(f"Baseline written: {sum(found.values())} problems in {len(found)} kinds.")

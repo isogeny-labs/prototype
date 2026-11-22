@@ -9,13 +9,15 @@ const PATHS: Record<string, string> = {
   evidence: "M7 3h7l5 5v13H7zM14 3v5h5M10 14l2 2 4-4",
   fixes: "M14.5 5.5a4 4 0 0 0-5.3 5.3L4 16l4 4 5.2-5.2a4 4 0 0 0 5.3-5.3l-2.6 2.6-2.4-.6-.6-2.4z",
   // (an eye: Change watch)
-  watch: "M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
+  watch:
+    "M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
   migration: "M4 7h11l-3-3m3 3-3 3M20 17H9l3 3m-3-3 3-3",
   systems: "M5 5h14v5H5zM5 14h14v5H5zM8 7.5h.01M8 16.5h.01",
   roadmap: "M4 6h6v4H4zM10 8h4M14 6h6v4h-6zM14 16h6v4h-6zM17 10v6",
   dependencies: "M12 3 4 7.5v9L12 21l8-4.5v-9zM4 7.5l8 4.5 8-4.5M12 12v9",
   projects: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
-  settings: "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1",
+  settings:
+    "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1",
   collapse: "M15 6l-6 6 6 6",
   expand: "M9 6l6 6-6 6",
   menu: "M4 7h16M4 12h16M4 17h16",
@@ -27,7 +29,16 @@ const PATHS: Record<string, string> = {
 
 export function Icon({ name, className = "h-4 w-4" }: { name: string; className?: string }) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${className}`}>
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`shrink-0 ${className}`}
+    >
       <path d={PATHS[name] ?? PATHS.overview} />
     </svg>
   );

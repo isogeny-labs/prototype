@@ -1,5 +1,6 @@
 """Phase 5b: Rerun as new assessment (the same scanner file in a fresh assessment, the file only), the kept copy of each
 scanner file, and a phase 5a database opening unchanged."""
+
 import hashlib
 import sqlite3
 
@@ -37,14 +38,18 @@ def test_rerun_brings_the_same_file_into_a_new_open_assessment_and_copies_nothin
 def test_rerun_works_on_a_closed_assessment_and_reads_the_kept_copy_of_an_uploaded_file(client):
     pid, first = _project(client)
     data = csv_bytes("localhost:9443, tls, protocol_versions, TLS1.3")
-    r = client.post("/api/import/file", params={"filename": "mine.csv", "assessment_id": first}, content=data,
-                    headers={"Content-Type": "application/octet-stream"})
+    r = client.post(
+        "/api/import/file",
+        params={"filename": "mine.csv", "assessment_id": first},
+        content=data,
+        headers={"Content-Type": "application/octet-stream"},
+    )
     assert r.status_code == 200, r.text
     client.post(f"/api/assessments/{first}", json={"close": True, "signed_off_by": "Sam Lee"})
     made = client.post(f"/api/assessments/{first}/rerun").json()
     new = client.get(f"/api/assessments/{made['id']}").json()
     assert new["status"]["key"] == "open" and new["file"]["filename"] == "mine.csv"
-    assert new["purpose"]["label"] == "Full review"                       # the box's default
+    assert new["purpose"]["label"] == "Full review"  # the box's default
     lab = client.app.state.lab
     with lab.db() as db:
         copies = db.scalars(select(ImportFileRow).order_by(ImportFileRow.id)).all()
@@ -117,11 +122,16 @@ def test_raw_sql_cannot_change_or_delete_a_purpose_a_sign_off_or_a_kept_file(cli
     from sqlalchemy import text
     from sqlalchemy.exc import DBAPIError
     import pytest
+
     pid, first = _project(client)
     client.post("/api/import/demo", params={"assessment_id": first})
     client.post(f"/api/assessments/{first}", json={"close": True, "signed_off_by": "Sam Lee"})
     lab = client.app.state.lab
-    for table, column in (("assessment_details", "purpose"), ("assessment_signoffs", "signed_off_by"), ("import_files", "filename")):
+    for table, column in (
+        ("assessment_details", "purpose"),
+        ("assessment_signoffs", "signed_off_by"),
+        ("import_files", "filename"),
+    ):
         with lab.db() as db:
             assert db.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar() >= 1
             for statement in (f"UPDATE {table} SET {column} = 'x'", f"DELETE FROM {table}"):

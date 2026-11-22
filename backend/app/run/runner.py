@@ -11,6 +11,7 @@ command is one fixed list (DOCKER_RUN_FLAGS). Nothing in it comes from a request
 there is no host folder mounted, and this module never builds or downloads an image (only
 `python -m app.prepare` does). A run never falls back from one mode to the other.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -38,14 +39,18 @@ DEMO_FORCED = " Isolated mode is switched off for this run."
 ISOLATED_LINE = "Isolated mode: our demo software runs in a locked-down container with no network."
 # Phase 4c: what the isolated-mode line adds about the real libraries, by which of their images are prepared.
 REAL_ALL_LINE = " Real libraries run the same way, each in its own container."
-REAL_SOME_LINE = " Real libraries run the same way, each in its own container; not prepared on this computer: {missing}."
+REAL_SOME_LINE = (
+    " Real libraries run the same way, each in its own container; not prepared on this computer: {missing}."
+)
 REAL_NONE_LINE = " The real libraries are not prepared on this computer; ./run-demo.sh prepares them."
-ISOLATED_UNAVAILABLE_LINE = "Isolated mode was asked for, but it is not available on this computer, so tests that run software can't run."
+ISOLATED_UNAVAILABLE_LINE = (
+    "Isolated mode was asked for, but it is not available on this computer, so tests that run software can't run."
+)
 
 # BatchResult.problem values (plain text; fixed, so callers can map them to reason codes)
 PROBLEM_TIMEOUT = "timeout"
 PROBLEM_ISOLATED = "isolated mode is not available"
-PROBLEM_REAL_NEEDS_ISOLATED = "real software runs only in isolated mode"      # phase 4c: never as a local program
+PROBLEM_REAL_NEEDS_ISOLATED = "real software runs only in isolated mode"  # phase 4c: never as a local program
 PROBLEM_REAL_IMAGE_MISSING = "this library's container image is not prepared"
 PROBLEM_TOO_MUCH_OUTPUT = "too much output"
 PROBLEM_NO_DONE = "the test harness stopped before it finished"
@@ -62,10 +67,37 @@ LOCAL_DRIVER = COMPONENTS_DIR / "harness" / "driver.py"
 
 # The ONE fixed flag list for running components in a container. No -v, no --privileged, no --device, no -e.
 DOCKER_RUN_FLAGS: tuple[str, ...] = (
-    "--rm", "-i", "--pull", "never", "--label", CONTAINER_LABEL, "--network", "none", "--read-only",
-    "--tmpfs", "/scratch:rw,noexec,nosuid,nodev,size=64m,uid=65534,gid=65534,mode=700", "--workdir", "/scratch", "--user", "65534:65534",
-    "--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--memory", "256m", "--memory-swap", "256m",
-    "--cpus", "2", "--pids-limit", "64", "--ipc", "none", "--log-driver", "none",
+    "--rm",
+    "-i",
+    "--pull",
+    "never",
+    "--label",
+    CONTAINER_LABEL,
+    "--network",
+    "none",
+    "--read-only",
+    "--tmpfs",
+    "/scratch:rw,noexec,nosuid,nodev,size=64m,uid=65534,gid=65534,mode=700",
+    "--workdir",
+    "/scratch",
+    "--user",
+    "65534:65534",
+    "--cap-drop",
+    "ALL",
+    "--security-opt",
+    "no-new-privileges",
+    "--memory",
+    "256m",
+    "--memory-swap",
+    "256m",
+    "--cpus",
+    "2",
+    "--pids-limit",
+    "64",
+    "--ipc",
+    "none",
+    "--log-driver",
+    "none",
 )
 CONTAINER_COMMAND: tuple[str, ...] = ("python", "-I", "-X", "pycache_prefix=/scratch/pyc", CONTAINER_DRIVER)
 # In a real-library image (phase 4c) the same driver is told to read that image's own table of subjects.
@@ -75,12 +107,12 @@ _DOCKER_ENV_KEYS = ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG", "DOCKER_CONT
 
 @dataclass(frozen=True)
 class ModeInfo:
-    name: str                     # "demo" | "isolated"
-    line: str                     # the sentence shown on screen
-    reason: str | None            # why not isolated, in plain words
+    name: str  # "demo" | "isolated"
+    line: str  # the sentence shown on screen
+    reason: str | None  # why not isolated, in plain words
     docker_running: bool
     components_image: str | None  # our image tag, only if it is present locally
-    openssl_image: str | None     # the pinned OpenSSL checker image, only if it is present locally
+    openssl_image: str | None  # the pinned OpenSSL checker image, only if it is present locally
     real_images: dict = field(default_factory=dict)  # phase 4c: family -> its image tag, only those present locally
 
 
@@ -90,13 +122,14 @@ class BatchResult:
     lines: list[dict]
     problem: str | None
     mode: str
-    command: str        # plain display text of what was run
+    command: str  # plain display text of what was run
     started_at: str
     duration_ms: int
     stderr_tail: str
 
 
 # ------------------------------------------------------------------ docker helpers (read-only questions)
+
 
 def _docker_env() -> dict[str, str]:
     env = {k: os.environ[k] for k in _DOCKER_ENV_KEYS if k in os.environ}
@@ -107,8 +140,16 @@ def _docker_env() -> dict[str, str]:
 def _docker(args: list[str], timeout: float) -> tuple[int | None, str]:
     """Run the docker client with an argument list. (None, "") when docker is missing or does not answer in time."""
     try:
-        done = subprocess.run(["docker", *args], capture_output=True, text=True, errors="replace", timeout=timeout,
-                              stdin=subprocess.DEVNULL, shell=False, env=_docker_env())
+        done = subprocess.run(
+            ["docker", *args],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=timeout,
+            stdin=subprocess.DEVNULL,
+            shell=False,
+            env=_docker_env(),
+        )
     except (OSError, subprocess.TimeoutExpired):
         return None, ""
     return done.returncode, done.stdout
@@ -118,8 +159,9 @@ def components_image_tag() -> str:
     """Our image's tag, derived from the exact files in demo/components: change a file and the tag changes,
     so a stale image is never used by mistake."""
     digest = hashlib.sha256()
-    files = sorted(p for p in COMPONENTS_DIR.rglob("*")
-                   if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc")
+    files = sorted(
+        p for p in COMPONENTS_DIR.rglob("*") if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
+    )
     for path in files:
         digest.update(path.relative_to(COMPONENTS_DIR).as_posix().encode() + b"\0")
         digest.update(hashlib.sha256(path.read_bytes()).hexdigest().encode() + b"\n")
@@ -140,11 +182,14 @@ def real_image_tag(family: str) -> str:
     digest = hashlib.sha256()
     _files_digest(digest, COMPONENTS_DIR)
     _files_digest(digest, real_libraries.REAL_DIR / family)
-    for shared in pins.get("shared_files", []):   # phase 4d: a wrapper file another family's folder holds
+    for shared in pins.get("shared_files", []):  # phase 4d: a wrapper file another family's folder holds
         path = real_libraries.REAL_DIR / shared
         digest.update(shared.encode() + b"\0" + hashlib.sha256(path.read_bytes()).hexdigest().encode() + b"\n")
-    digest.update(json.dumps({"base": PYTHON_BASE_IMAGE, "images": pins["images"], "downloads": pins["downloads"]},
-                             sort_keys=True).encode())
+    digest.update(
+        json.dumps(
+            {"base": PYTHON_BASE_IMAGE, "images": pins["images"], "downloads": pins["downloads"]}, sort_keys=True
+        ).encode()
+    )
     return f"{real_libraries.IMAGE_REPOSITORY}-{family}:{digest.hexdigest()[:16]}"
 
 
@@ -200,17 +245,23 @@ def real_line(real_images: dict) -> str:
     missing = [real_libraries.FAMILIES[f]["label"] for f in real_libraries.FAMILIES if not real_images.get(f)]
     if not missing:
         return REAL_ALL_LINE
-    return REAL_NONE_LINE if len(missing) == len(real_libraries.FAMILIES) else REAL_SOME_LINE.format(missing=", ".join(missing))
+    return (
+        REAL_NONE_LINE
+        if len(missing) == len(real_libraries.FAMILIES)
+        else REAL_SOME_LINE.format(missing=", ".join(missing))
+    )
 
 
 def detect_mode(settings: Settings) -> ModeInfo:
     running, components, openssl = _probe()
     if settings.force_mode == "demo":
-        return ModeInfo("demo", DEMO_LINE + DEMO_FORCED, "Isolated mode is switched off for this run.", running, components, openssl)
+        return ModeInfo(
+            "demo", DEMO_LINE + DEMO_FORCED, "Isolated mode is switched off for this run.", running, components, openssl
+        )
     if running and components:
         real = _probe_real(running)
         return ModeInfo("isolated", ISOLATED_LINE + real_line(real), None, True, components, openssl, real)
-    reason = ("Docker is running, but the test images are not prepared yet." if running else "Docker is not running.")
+    reason = "Docker is running, but the test images are not prepared yet." if running else "Docker is not running."
     if settings.force_mode == "isolated":  # asked for, not available: say so; never quietly run un-isolated instead
         return ModeInfo("isolated", ISOLATED_UNAVAILABLE_LINE, reason, running, None, openssl)
     return ModeInfo("demo", DEMO_LINE + (DEMO_IMAGES_MISSING if running else ""), reason, running, components, openssl)
@@ -244,6 +295,7 @@ def sweep_stale_containers(older_than: float = STALE_AFTER_SECONDS) -> None:
 
 # ------------------------------------------------------------------ running one job
 
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
@@ -254,18 +306,24 @@ def _describe_job(job: dict) -> str:
         return f"call: {job.get('subject')} {job.get('command')}"
     if op == "verify_batch":
         cases, subjects = job.get("cases"), job.get("subjects")
-        return (f"verify_batch: {len(cases) if isinstance(cases, list) else '?'} cases, one verify call per case, "
-                f"on {', '.join(map(str, subjects)) if isinstance(subjects, list) else '?'}")
+        return (
+            f"verify_batch: {len(cases) if isinstance(cases, list) else '?'} cases, one verify call per case, "
+            f"on {', '.join(map(str, subjects)) if isinstance(subjects, list) else '?'}"
+        )
     if op == "roundtrip":
         return f"roundtrip: {job.get('subject')} keygen, sign, verify (the test key stays inside the harness)"
     if op == "bench_rounds":
         subjects = job.get("subjects")
-        return (f"bench_rounds: {job.get('rounds')} rounds of {job.get('repeats')} sign+verify, "
-                f"on {', '.join(map(str, subjects)) if isinstance(subjects, list) else '?'}")
+        return (
+            f"bench_rounds: {job.get('rounds')} rounds of {job.get('repeats')} sign+verify, "
+            f"on {', '.join(map(str, subjects)) if isinstance(subjects, list) else '?'}"
+        )
     if op == "kat_batch":
         cases = job.get("cases")
-        return (f"kat_batch: {len(cases) if isinstance(cases, list) else '?'} official cases, one adapter call per case, "
-                f"on {job.get('subject')} (answers are reported as SHA-256 fingerprints only)")
+        return (
+            f"kat_batch: {len(cases) if isinstance(cases, list) else '?'} official cases, one adapter call per case, "
+            f"on {job.get('subject')} (answers are reported as SHA-256 fingerprints only)"
+        )
     if op == "kem_roundtrip":
         return f"kem_roundtrip: {job.get('subject')} keygen, encaps, decaps (keys and shared secrets stay inside the harness)"
     return "unknown job"
@@ -279,8 +337,18 @@ class ComponentRunner:
 
     # The two command lines. Nothing from the job reaches either of them: the job only travels on stdin.
     def _container_argv(self, name: str, family: str | None = None) -> list[str]:
-        if family is not None:  # a real library: its own image, the same flags, the driver told to read the image's table
-            return ["docker", "run", "--name", name, *DOCKER_RUN_FLAGS, str(self.mode.real_images[family]), *REAL_CONTAINER_COMMAND]
+        if (
+            family is not None
+        ):  # a real library: its own image, the same flags, the driver told to read the image's table
+            return [
+                "docker",
+                "run",
+                "--name",
+                name,
+                *DOCKER_RUN_FLAGS,
+                str(self.mode.real_images[family]),
+                *REAL_CONTAINER_COMMAND,
+            ]
         return ["docker", "run", "--name", name, *DOCKER_RUN_FLAGS, str(self.mode.components_image), *CONTAINER_COMMAND]
 
     @staticmethod
@@ -293,12 +361,20 @@ class ComponentRunner:
             image = self.mode.real_images.get(family) or f"(the {family} image, not prepared)"
             return f"docker run {' '.join(DOCKER_RUN_FLAGS)} {image} {' '.join(REAL_CONTAINER_COMMAND)}    (job on stdin: {what})"
         if self.mode.name == "isolated":
-            return (f"docker run {' '.join(DOCKER_RUN_FLAGS)} {self.mode.components_image} {' '.join(CONTAINER_COMMAND)}"
-                    f"    (job on stdin: {what})")
+            return (
+                f"docker run {' '.join(DOCKER_RUN_FLAGS)} {self.mode.components_image} {' '.join(CONTAINER_COMMAND)}"
+                f"    (job on stdin: {what})"
+            )
         return f"python -I demo/components/harness/driver.py    (job on stdin: {what})"
 
-    def run_job(self, job: dict, *, time_limit: float = 120.0,
-                on_line: Callable[[dict], None] | None = None, family: str | None = None) -> BatchResult:
+    def run_job(
+        self,
+        job: dict,
+        *,
+        time_limit: float = 120.0,
+        on_line: Callable[[dict], None] | None = None,
+        family: str | None = None,
+    ) -> BatchResult:
         """`family` names a real library's image (phase 4c). Such a job runs only there, in isolated mode: never
         as a local process, and never in another image."""
         started, t0 = _now(), time.perf_counter()
@@ -307,8 +383,9 @@ class ComponentRunner:
 
         def result(ok: bool, lines: list[dict], problem: str | None, stderr: bytes = b"") -> BatchResult:
             tail = redact(stderr[-STDERR_TAIL:].decode("utf-8", "replace"))
-            return BatchResult(ok, lines, problem, self.mode.name, display, started,
-                               int((time.perf_counter() - t0) * 1000), tail)
+            return BatchResult(
+                ok, lines, problem, self.mode.name, display, started, int((time.perf_counter() - t0) * 1000), tail
+            )
 
         if family is not None and not isolated:
             return result(False, [], PROBLEM_REAL_NEEDS_ISOLATED)
@@ -325,8 +402,16 @@ class ComponentRunner:
                 argv, cwd = self._local_argv(scratch), scratch
                 env = {"PATH": os.defpath, "LANG": "C.UTF-8", "PYTHONIOENCODING": "utf-8"}
             try:
-                proc = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                        cwd=cwd, env=env, shell=False, start_new_session=True)
+                proc = subprocess.Popen(
+                    argv,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=cwd,
+                    env=env,
+                    shell=False,
+                    start_new_session=True,
+                )
             except OSError:
                 return result(False, [], PROBLEM_ISOLATED if isolated else PROBLEM_NOT_STARTED)
             try:
@@ -334,7 +419,9 @@ class ComponentRunner:
             finally:
                 self._stop(proc, name, isolated)
 
-    def _converse(self, proc, payload: bytes, name: str, isolated: bool, time_limit: float, on_line, result) -> BatchResult:
+    def _converse(
+        self, proc, payload: bytes, name: str, isolated: bool, time_limit: float, on_line, result
+    ) -> BatchResult:
         events: queue.Queue = queue.Queue()
         stderr_chunks: list[bytes] = []
 
@@ -370,7 +457,7 @@ class ComponentRunner:
                 if not chunk:
                     return
                 if kept < 4 * STDERR_TAIL:  # keep a little, keep draining so the program never blocks on stderr
-                    stderr_chunks.append(chunk[:4 * STDERR_TAIL])
+                    stderr_chunks.append(chunk[: 4 * STDERR_TAIL])
                     kept += len(chunk)
 
         for target in (feed, read_out, read_err):

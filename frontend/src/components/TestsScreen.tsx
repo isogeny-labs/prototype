@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type DragEvent,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { api, errorMessage, type PlanView, type TestCard } from "../api";
 import { CLOSED_SENTENCE, useReadOnly } from "../readOnly";
 import {
@@ -42,8 +34,7 @@ function isAdvisoryCheck(card: TestCard): boolean {
 /** The order after moving one card to the place of another. */
 function moved(order: number[], id: number, toIndex: number): number[] {
   const from = order.indexOf(id);
-  if (from < 0 || toIndex < 0 || toIndex >= order.length || from === toIndex)
-    return order;
+  if (from < 0 || toIndex < 0 || toIndex >= order.length || from === toIndex) return order;
   const next = order.filter((x) => x !== id);
   next.splice(toIndex, 0, id);
   return next;
@@ -136,7 +127,11 @@ function Card({
         {/* 22 November 2026: where its result came from (a server test is read live; every other test runs a copy here) */}
         <WhereFromTag tag={card.source_tag} />
         {/* Phase 5b: a finished test opens its result on Evidence (its record, every run, Related). */}
-        <ItemLinkView link={{ page: "evidence", item: `test-${card.id}` }} testId="see-the-evidence" className="text-xs text-sky-300 hover:underline">
+        <ItemLinkView
+          link={{ page: "evidence", item: `test-${card.id}` }}
+          testId="see-the-evidence"
+          className="text-xs text-sky-300 hover:underline"
+        >
           See the evidence
         </ItemLinkView>
       </span>
@@ -199,7 +194,15 @@ function Card({
   if (compact) {
     // Phase 5b: beside an open panel, a row stacks: the handle and the name, then its status, Run and the ×.
     return (
-      <tr data-testid="test-card" data-test={card.id} data-kind={card.kind} data-status={card.status} onDragOver={onDragOver} onDrop={onDrop} className={rowClass}>
+      <tr
+        data-testid="test-card"
+        data-test={card.id}
+        data-kind={card.kind}
+        data-status={card.status}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        className={rowClass}
+      >
         <td colSpan={5} className="px-3 py-2.5 align-top">
           <div className="flex items-start gap-2">
             {handle}
@@ -221,7 +224,15 @@ function Card({
   }
 
   return (
-    <tr data-testid="test-card" data-test={card.id} data-kind={card.kind} data-status={card.status} onDragOver={onDragOver} onDrop={onDrop} className={rowClass}>
+    <tr
+      data-testid="test-card"
+      data-test={card.id}
+      data-kind={card.kind}
+      data-status={card.status}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      className={rowClass}
+    >
       <td className="w-12 px-4 py-3 align-top">{handle}</td>
       <td className="min-w-0 px-4 py-3 align-top">
         {title}
@@ -361,12 +372,14 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
     ? splitByGroup(current.groups, current.tests, (t) => t.group)
     : [{ key: null, items: current.tests }];
   const sections = targets.flatMap((target) =>
-    LISTS.map((list) => ({ key: target.key, list, items: target.items.filter((t) => isAdvisoryCheck(t) === (list.key === "advisory")) })),
+    LISTS.map((list) => ({
+      key: target.key,
+      list,
+      items: target.items.filter((t) => isAdvisoryCheck(t) === (list.key === "advisory")),
+    })),
   );
   const sectionOf = new Map<number, number>();
-  sections.forEach((section, i) =>
-    section.items.forEach((t) => sectionOf.set(t.id, i)),
-  );
+  sections.forEach((section, i) => section.items.forEach((t) => sectionOf.set(t.id, i)));
 
   /** Moves a card to a place inside its own list, and sends the whole plan in its new order: the cards of that list
    * take that list's own places in the plan, and every other card stays where it is. */
@@ -383,8 +396,7 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
     const byId = new Map(current.tests.map((t) => [t.id, t]));
     onPlan({ ...current, tests: next.flatMap((x) => byId.get(x) ?? []) });
     const sectionKey = sections[at]!.key;
-    const heading =
-      sectionKey !== null ? headings.get(sectionKey)?.heading : undefined;
+    const heading = sectionKey !== null ? headings.get(sectionKey)?.heading : undefined;
     const listName = sections[at]!.list.label;
     if (card) {
       setAnnounce(
@@ -398,76 +410,63 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
 
   const dragSection = dragId !== null ? sectionOf.get(dragId) : undefined;
 
-  function renderCards(
-    items: TestCard[],
-    sectionIndex: number,
-    headingLevel: 2 | 3,
-  ) {
+  function renderCards(items: TestCard[], sectionIndex: number, headingLevel: 2 | 3) {
     return items.map((card, index) =>
       only && !only.has(card.id) ? null : (
-      <Card
-        key={card.id}
-        card={card}
-        position={index + 1}
-        total={items.length}
-        headingLevel={headingLevel}
-        compact={compact}
-        locked={busy}
-        dragging={dragId === card.id}
-        dropTarget={
-          dragId !== null &&
-          dragId !== card.id &&
-          overId === card.id &&
-          dragSection === sectionIndex
-        }
-        handleRef={(el) => {
-          if (el) handles.current.set(card.id, el);
-          else handles.current.delete(card.id);
-        }}
-        onRun={() => void act(() => api.runTest(current.id, card.id))}
-        onRemove={() => void act(() => api.removeTest(current.id, card.id))}
-        onMoveBy={(delta) => {
-          focusAfter.current = card.id;
-          reorder(card.id, index + delta);
-        }}
-        onDragStart={(e) => {
-          setDragId(card.id);
-          e.dataTransfer.effectAllowed = "move";
-          e.dataTransfer.setData("text/plain", String(card.id));
-          const li = e.currentTarget.closest("tr");
-          if (li && typeof e.dataTransfer.setDragImage === "function")
-            e.dataTransfer.setDragImage(li, 20, 20);
-        }}
-        onDragOver={(e) => {
-          // A card can't be dropped into another group: no drop is offered there.
-          if (dragId === null || dragSection !== sectionIndex) return;
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-          if (overId !== card.id) setOverId(card.id);
-        }}
-        onDrop={(e) => {
-          if (dragId === null || dragSection !== sectionIndex) return;
-          e.preventDefault();
-          const id = dragId;
-          setDragId(null);
-          setOverId(null);
-          reorder(id, index);
-        }}
-        onDragEnd={() => {
-          setDragId(null);
-          setOverId(null);
-        }}
-      />
+        <Card
+          key={card.id}
+          card={card}
+          position={index + 1}
+          total={items.length}
+          headingLevel={headingLevel}
+          compact={compact}
+          locked={busy}
+          dragging={dragId === card.id}
+          dropTarget={dragId !== null && dragId !== card.id && overId === card.id && dragSection === sectionIndex}
+          handleRef={(el) => {
+            if (el) handles.current.set(card.id, el);
+            else handles.current.delete(card.id);
+          }}
+          onRun={() => void act(() => api.runTest(current.id, card.id))}
+          onRemove={() => void act(() => api.removeTest(current.id, card.id))}
+          onMoveBy={(delta) => {
+            focusAfter.current = card.id;
+            reorder(card.id, index + delta);
+          }}
+          onDragStart={(e) => {
+            setDragId(card.id);
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", String(card.id));
+            const li = e.currentTarget.closest("tr");
+            if (li && typeof e.dataTransfer.setDragImage === "function") e.dataTransfer.setDragImage(li, 20, 20);
+          }}
+          onDragOver={(e) => {
+            // A card can't be dropped into another group: no drop is offered there.
+            if (dragId === null || dragSection !== sectionIndex) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            if (overId !== card.id) setOverId(card.id);
+          }}
+          onDrop={(e) => {
+            if (dragId === null || dragSection !== sectionIndex) return;
+            e.preventDefault();
+            const id = dragId;
+            setDragId(null);
+            setOverId(null);
+            reorder(id, index);
+          }}
+          onDragEnd={() => {
+            setDragId(null);
+            setOverId(null);
+          }}
+        />
       ),
     );
   }
 
   const cardTable = (rowsOfCards: ReactNode, label: string) => (
     <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/30">
-      <table
-        aria-label={label}
-        className="w-full border-collapse text-left text-sm"
-      >
+      <table aria-label={label} className="w-full border-collapse text-left text-sm">
         <thead>
           {compact ? (
             <tr className="border-b border-slate-800 text-xs font-medium uppercase tracking-wider text-slate-500">
@@ -476,23 +475,23 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
               </th>
             </tr>
           ) : (
-          <tr className="border-b border-slate-800 text-xs font-medium uppercase tracking-wider text-slate-500">
-            <th scope="col" className="px-4 py-2.5 font-medium">
-              <span className="sr-only">Reorder</span>
-            </th>
-            <th scope="col" className="px-4 py-2.5 font-medium">
-              Test
-            </th>
-            <th scope="col" className="px-4 py-2.5 font-medium">
-              Status
-            </th>
-            <th scope="col" className="px-4 py-2.5 font-medium">
-              <span className="sr-only">Run</span>
-            </th>
-            <th scope="col" className="px-4 py-2.5 font-medium">
-              <span className="sr-only">Remove</span>
-            </th>
-          </tr>
+            <tr className="border-b border-slate-800 text-xs font-medium uppercase tracking-wider text-slate-500">
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                <span className="sr-only">Reorder</span>
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Test
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                Status
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                <span className="sr-only">Run</span>
+              </th>
+              <th scope="col" className="px-4 py-2.5 font-medium">
+                <span className="sr-only">Remove</span>
+              </th>
+            </tr>
           )}
         </thead>
         <tbody>{rowsOfCards}</tbody>
@@ -518,7 +517,10 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
         <div key={list.key} data-testid="plan-list" data-list={list.key} className={n > 0 ? "mt-5" : ""}>
           <ListHeading className="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-200">
             {list.label}
-            <span data-testid="plan-list-count" className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px] font-medium tabular-nums text-slate-300">
+            <span
+              data-testid="plan-list-count"
+              className="rounded-full border border-slate-700 px-2 py-0.5 text-[11px] font-medium tabular-nums text-slate-300"
+            >
               {listed}
             </span>
             {list.key === "advisory" ? <FromOttoTag testId="plan-list-from-otto" /> : null}
@@ -574,10 +576,7 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
 
       {current.not_tested ? (
         <div className="mt-4">
-          <NotTestedBox
-            title={current.not_tested.title}
-            items={current.not_tested.items}
-          />
+          <NotTestedBox title={current.not_tested.title} items={current.not_tested.items} />
         </div>
       ) : null}
 
@@ -590,7 +589,11 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
       {/* Phase 6b: with the Result filter of Checks on, the plan lists only the tests that fit it. Said in one line,
           with what Run all still does: the button runs the whole plan, listed or not. */}
       {only && current.tests.length > 0 ? (
-        <p data-testid="plan-narrowed" role="status" className="mt-4 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-[13px] text-slate-300">
+        <p
+          data-testid="plan-narrowed"
+          role="status"
+          className="mt-4 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-[13px] text-slate-300"
+        >
           {(() => {
             const total = current.tests.length;
             const listed = current.tests.filter((t) => only.has(t.id)).length;
@@ -605,32 +608,21 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
       ) : null}
 
       {current.tests.length === 0 ? (
-        <p className="mt-6 text-sm text-slate-400">
-          There are no tests in the plan.
-        </p>
+        <p className="mt-6 text-sm text-slate-400">There are no tests in the plan.</p>
       ) : current.grouped ? (
         <div className="mt-6 flex flex-col gap-6">
           {targets.map((section, i) => {
-            const group =
-              section.key !== null ? headings.get(section.key) : undefined;
+            const group = section.key !== null ? headings.get(section.key) : undefined;
             // (a target none of whose tests is listed is not drawn: no bare heading)
-            if (only && !LISTS.some((_, n) => sections[i * LISTS.length + n]!.items.some((card) => only.has(card.id)))) return null;
+            if (only && !LISTS.some((_, n) => sections[i * LISTS.length + n]!.items.some((card) => only.has(card.id))))
+              return null;
             return (
-              <section
-                key={section.key ?? `rest-${i}`}
-                data-testid="test-group"
-                data-group={section.key ?? ""}
-              >
+              <section key={section.key ?? `rest-${i}`} data-testid="test-group" data-group={section.key ?? ""}>
                 {group ? (
                   <>
-                    <TargetHeading className="text-base font-semibold text-slate-100">
-                      {group.heading}
-                    </TargetHeading>
+                    <TargetHeading className="text-base font-semibold text-slate-100">{group.heading}</TargetHeading>
                     {group.note ? (
-                      <p
-                        data-testid="test-group-note"
-                        className="mt-0.5 text-[13px] text-slate-400"
-                      >
+                      <p data-testid="test-group-note" className="mt-0.5 text-[13px] text-slate-400">
                         {group.note}
                       </p>
                     ) : null}
@@ -650,15 +642,11 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
         data-testid="disclaimer"
         className="mt-4 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300"
       >
-        Passing these tests doesn't prove a system secure. It shows these
-        specific checks passed.
+        Passing these tests doesn't prove a system secure. It shows these specific checks passed.
       </p>
 
       <div ref={menuRef} className="relative mt-4">
-        <SecondaryButton
-          expanded={menuOpen}
-          onClick={() => setMenuOpen((v) => !v)}
-        >
+        <SecondaryButton expanded={menuOpen} onClick={() => setMenuOpen((v) => !v)}>
           + Add test
         </SecondaryButton>
         {menuOpen ? (
@@ -667,9 +655,7 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
             aria-label={current.catalog_title}
             className="absolute left-0 top-11 z-10 w-[470px] max-w-[calc(100vw-2rem)] rounded-[10px] border border-slate-600 bg-slate-900 p-1.5 shadow-2xl shadow-black/60"
           >
-            <p className="px-2.5 pb-1.5 pt-2 text-xs text-slate-400">
-              {current.catalog_title}
-            </p>
+            <p className="px-2.5 pb-1.5 pt-2 text-xs text-slate-400">{current.catalog_title}</p>
             {current.catalog.length === 0 ? (
               <p className="px-2.5 py-2 text-[13px] text-slate-300">
                 Every test in the catalog is already in the plan.
@@ -688,18 +674,14 @@ export function TestsScreen({ importId, plan, onPlan, embedded = false, only = n
                   }}
                   className="block w-full rounded-md p-2.5 text-left hover:bg-slate-800 focus-visible:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <span className="text-sm font-semibold text-slate-100">
-                    {item.title}
-                  </span>
+                  <span className="text-sm font-semibold text-slate-100">{item.title}</span>
                   {item.tag ? (
                     <>
                       {" "}
                       <SourceTag>{item.tag}</SourceTag>
                     </>
                   ) : null}
-                  <span className="mt-0.5 block text-[13px] text-slate-400">
-                    {item.description}
-                  </span>
+                  <span className="mt-0.5 block text-[13px] text-slate-400">{item.description}</span>
                 </button>
               ))
             )}

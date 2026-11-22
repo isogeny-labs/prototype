@@ -7,6 +7,7 @@ found is written to the database by the work itself (a run record and a review).
 ExclusiveGate lets a timing measurement have the computer to itself: ordinary test work holds the gate
 "shared", a measurement holds it "exclusive". A waiting measurement stops new shared work from starting,
 so it is never kept waiting for ever."""
+
 from __future__ import annotations
 
 import asyncio
@@ -73,7 +74,7 @@ class Job:
     def __init__(self, key: tuple, group: object = None):
         self.key = key
         self.group = group
-        self.status = "waiting"            # waiting | running | done
+        self.status = "waiting"  # waiting | running | done
         self.progress_text: str | None = None
         self.progress_percent: int | None = None
         self.queued_at = _now()
@@ -81,7 +82,7 @@ class Job:
         self.finished_at: str | None = None
         self.logs: list[str] = []
         self.run_id: int | None = None
-        self.error: str | None = None      # only if the work itself raised (it should not)
+        self.error: str | None = None  # only if the work itself raised (it should not)
 
     def progress(self, text: str, percent: int | None = None) -> None:
         self.progress_text, self.progress_percent = text, percent
@@ -102,7 +103,7 @@ class JobRunner:
         self._pool: ThreadPoolExecutor | None = None
         self._semaphore: asyncio.Semaphore | None = None
         self.running_now = 0
-        self.most_at_once = 0              # the largest number of jobs that ran at the same moment
+        self.most_at_once = 0  # the largest number of jobs that ran at the same moment
 
     # ---------------------------------------------------------------- start / stop
 
@@ -182,6 +183,7 @@ class JobRunner:
     def wait_idle(self, timeout: float, group: object = None) -> bool:
         """Wait until no job is waiting or running (for one plan, or at all). False if the time ran out."""
         import time
+
         deadline = time.monotonic() + timeout
         while True:
             with self._lock:

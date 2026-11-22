@@ -4,6 +4,7 @@ The file is data. Names, versions and package addresses are kept as text, shown 
 command line; what may run is fixed in backend/app/real_libraries.py. Every refusal is one plain sentence
 (ImportFileError, shown on the screen as it is). The CSV and CBOM claim readers are not touched by this module.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,8 +21,20 @@ READ = "Evidence Lab reads dependency lists in CycloneDX JSON (1.5 or 1.6) or SP
 # What the list itself marks as the customer's own software: a group heading, not a library to look up.
 TOP_TYPES = ("application", "container")
 # Entries that are not libraries: listed as a count, not looked up.
-NOT_LIBRARIES = ("operating-system", "file", "cryptographic-asset", "data", "machine-learning-model", "device",
-                 "device-driver", "firmware", "OPERATING-SYSTEM", "FILE", "DEVICE", "FIRMWARE")
+NOT_LIBRARIES = (
+    "operating-system",
+    "file",
+    "cryptographic-asset",
+    "data",
+    "machine-learning-model",
+    "device",
+    "device-driver",
+    "firmware",
+    "OPERATING-SYSTEM",
+    "FILE",
+    "DEVICE",
+    "FIRMWARE",
+)
 TEXT_LIMIT = 300
 
 
@@ -31,16 +44,16 @@ class Component:
     name: str
     version: str | None
     purl: str | None
-    kind: str          # the list's own word: library, application, container, operating-system, ...
+    kind: str  # the list's own word: library, application, container, operating-system, ...
     order: int
 
 
 @dataclass
 class DependencyList:
-    format: str                      # "CycloneDX 1.6", "SPDX 2.3", ...
-    described: str | None            # the key of what the list describes, if it says
+    format: str  # "CycloneDX 1.6", "SPDX 2.3", ...
+    described: str | None  # the key of what the list describes, if it says
     components: dict[str, Component]
-    edges: dict[str, list[str]] = field(default_factory=dict)   # key -> keys it depends on (or contains)
+    edges: dict[str, list[str]] = field(default_factory=dict)  # key -> keys it depends on (or contains)
 
 
 def _text(value: object) -> str | None:
@@ -60,7 +73,9 @@ def read_dependency_list(data: bytes) -> DependencyList:
     if not data or not data.strip():
         raise ImportFileError(f"This file is empty. {READ}", field="file")
     if len(data) > MAX_LIST_BYTES:
-        raise ImportFileError("This dependency list is larger than 16 MB. Evidence Lab reads lists up to 16 MB.", field="file")
+        raise ImportFileError(
+            "This dependency list is larger than 16 MB. Evidence Lab reads lists up to 16 MB.", field="file"
+        )
     try:
         doc = json.loads(data.decode("utf-8-sig"))
     except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
@@ -76,11 +91,14 @@ def read_dependency_list(data: bytes) -> DependencyList:
 
 # ---------------------------------------------------------------- CycloneDX
 
+
 def _cyclonedx(doc: dict) -> DependencyList:
     version = doc.get("specVersion")
     if version not in CYCLONEDX_VERSIONS:
-        raise ImportFileError(f"This is CycloneDX {_said(version) or '(no version)'}, which this version doesn't read. {READ}",
-                              field="specVersion")
+        raise ImportFileError(
+            f"This is CycloneDX {_said(version) or '(no version)'}, which this version doesn't read. {READ}",
+            field="specVersion",
+        )
     components: dict[str, Component] = {}
     counter = [0]
 
@@ -90,12 +108,21 @@ def _cyclonedx(doc: dict) -> DependencyList:
         name = _text(raw.get("name"))
         counter[0] += 1
         if counter[0] > MAX_COMPONENTS:
-            raise ImportFileError(f"This dependency list names more than {MAX_COMPONENTS:,} components. "
-                                  f"Evidence Lab reads lists of up to {MAX_COMPONENTS:,}.", field="components")
+            raise ImportFileError(
+                f"This dependency list names more than {MAX_COMPONENTS:,} components. "
+                f"Evidence Lab reads lists of up to {MAX_COMPONENTS:,}.",
+                field="components",
+            )
         key = _text(raw.get("bom-ref")) or f"component-{counter[0]}"
         if name and key not in components:
-            components[key] = Component(key=key, name=name, version=_text(raw.get("version")), purl=_text(raw.get("purl")),
-                                        kind=_text(raw.get("type")) or "library", order=counter[0])
+            components[key] = Component(
+                key=key,
+                name=name,
+                version=_text(raw.get("version")),
+                purl=_text(raw.get("purl")),
+                kind=_text(raw.get("type")) or "library",
+                order=counter[0],
+            )
         nested = raw.get("components")
         if isinstance(nested, list):
             for child in nested:
@@ -109,7 +136,7 @@ def _cyclonedx(doc: dict) -> DependencyList:
     described = add(meta.get("component"), 0) if isinstance(meta, dict) else None
     listed = doc.get("components")
     if listed is not None and not isinstance(listed, list):
-        raise ImportFileError("\"components\" must be a list.", field="components")
+        raise ImportFileError('"components" must be a list.', field="components")
     for raw in listed or []:
         add(raw, 1)
     deps = doc.get("dependencies")
@@ -124,16 +151,20 @@ def _cyclonedx(doc: dict) -> DependencyList:
 
 # ---------------------------------------------------------------- SPDX
 
+
 def _spdx(doc: dict) -> DependencyList:
     version = doc.get("spdxVersion")
     if version not in SPDX_VERSIONS:
         raise ImportFileError(f"This is {_said(version)}, which this version doesn't read. {READ}", field="spdxVersion")
     packages = doc.get("packages")
     if packages is not None and not isinstance(packages, list):
-        raise ImportFileError("\"packages\" must be a list.", field="packages")
+        raise ImportFileError('"packages" must be a list.', field="packages")
     if packages and len(packages) > MAX_COMPONENTS:
-        raise ImportFileError(f"This dependency list names more than {MAX_COMPONENTS:,} components. "
-                              f"Evidence Lab reads lists of up to {MAX_COMPONENTS:,}.", field="packages")
+        raise ImportFileError(
+            f"This dependency list names more than {MAX_COMPONENTS:,} components. "
+            f"Evidence Lab reads lists of up to {MAX_COMPONENTS:,}.",
+            field="packages",
+        )
     components: dict[str, Component] = {}
     for i, raw in enumerate(packages or [], start=1):
         if not isinstance(raw, dict):
@@ -149,10 +180,15 @@ def _spdx(doc: dict) -> DependencyList:
                 break
         purpose = _text(raw.get("primaryPackagePurpose"))
         kind = purpose.lower() if purpose else "library"
-        components[key] = Component(key=key, name=name, version=_text(raw.get("versionInfo")), purl=purl, kind=kind, order=i)
+        components[key] = Component(
+            key=key, name=name, version=_text(raw.get("versionInfo")), purl=purl, kind=kind, order=i
+        )
     doc_id = _text(doc.get("SPDXID")) or "SPDXRef-DOCUMENT"
-    described_list = [d for d in doc.get("documentDescribes", []) if isinstance(d, str)] \
-        if isinstance(doc.get("documentDescribes"), list) else []
+    described_list = (
+        [d for d in doc.get("documentDescribes", []) if isinstance(d, str)]
+        if isinstance(doc.get("documentDescribes"), list)
+        else []
+    )
     edges: dict[str, list[str]] = {}
     rels = doc.get("relationships")
     for rel in rels if isinstance(rels, list) else []:
@@ -171,8 +207,18 @@ def _spdx(doc: dict) -> DependencyList:
     return _finish(f"SPDX {version.removeprefix('SPDX-')}", described, components, edges)
 
 
-def _finish(fmt: str, described: str | None, components: dict[str, Component], edges: dict[str, list[str]]) -> DependencyList:
-    edges = {k: list(dict.fromkeys(v for v in vs if v in components and v != k)) for k, vs in edges.items() if k in components}
-    if not any(c.kind not in TOP_TYPES and c.kind not in NOT_LIBRARIES and c.key != described for c in components.values()):
-        raise ImportFileError(f"This {fmt} file names no libraries, so there is nothing to look up.", field="components")
+def _finish(
+    fmt: str, described: str | None, components: dict[str, Component], edges: dict[str, list[str]]
+) -> DependencyList:
+    edges = {
+        k: list(dict.fromkeys(v for v in vs if v in components and v != k))
+        for k, vs in edges.items()
+        if k in components
+    }
+    if not any(
+        c.kind not in TOP_TYPES and c.kind not in NOT_LIBRARIES and c.key != described for c in components.values()
+    ):
+        raise ImportFileError(
+            f"This {fmt} file names no libraries, so there is nothing to look up.", field="components"
+        )
     return DependencyList(format=fmt, described=described, components=components, edges=edges)

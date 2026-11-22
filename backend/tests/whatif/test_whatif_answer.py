@@ -1,6 +1,7 @@
 """Phase 6e, first half: a what-if typed to the Otto panel. Fixed rules read it; the answer is what the app knows, in
 four parts, filed under Fixing; the one thing that could be started is Evidence's own Retest new version, as that
 button's card with its Confirm step; and asking starts nothing and decides nothing."""
+
 import hashlib
 import json
 from types import SimpleNamespace
@@ -20,8 +21,13 @@ ASK = "If I update elliptic to 6.5.7, how does that affect my libraries and depe
 
 def _kept(lab) -> dict:
     with lab.db() as db:
-        tables = sorted(sa_inspect(db.get_bind()).get_table_names())   # every table, on SQLite or PostgreSQL
-        return {t: hashlib.sha256(repr(sorted(map(repr, db.execute(text(f'select * from "{t}"')).fetchall()))).encode()).hexdigest() for t in tables}
+        tables = sorted(sa_inspect(db.get_bind()).get_table_names())  # every table, on SQLite or PostgreSQL
+        return {
+            t: hashlib.sha256(
+                repr(sorted(map(repr, db.execute(text(f'select * from "{t}"')).fetchall()))).encode()
+            ).hexdigest()
+            for t in tables
+        }
 
 
 @pytest.fixture(scope="module")
@@ -39,38 +45,61 @@ def asked(tmp_path_factory):
         lab.wait_until_idle(plan.id, 120)
         aid = lab.assessment_for(plan_id=plan.id).id
         before = _kept(lab)
-        replies = {s: lab.assistant_answer(aid, page, None, s) for s, page in (
-            (ASK, "migration/dependencies"), ("what if we upgrade acme-sign to 1.4.3?", "evidence"), ("What if I update left-pad to 1.3.0?", "overview"),
-            ("what if I update elliptic to 6.5.7 and python-ecdsa to 0.13.3?", "checks"), ("update elliptic to 6.5.7", "checks"),
-            ("What can you do?", "migration/dependencies"))}
-        yield SimpleNamespace(lab=lab, plan=plan, aid=aid, replies=replies, untouched=_kept(lab) == before, idle=lab.jobs.live(plan.id) == [])
+        replies = {
+            s: lab.assistant_answer(aid, page, None, s)
+            for s, page in (
+                (ASK, "migration/dependencies"),
+                ("what if we upgrade acme-sign to 1.4.3?", "evidence"),
+                ("What if I update left-pad to 1.3.0?", "overview"),
+                ("what if I update elliptic to 6.5.7 and python-ecdsa to 0.13.3?", "checks"),
+                ("update elliptic to 6.5.7", "checks"),
+                ("What can you do?", "migration/dependencies"),
+            )
+        }
+        yield SimpleNamespace(
+            lab=lab,
+            plan=plan,
+            aid=aid,
+            replies=replies,
+            untouched=_kept(lab) == before,
+            idle=lab.jobs.live(plan.id) == [],
+        )
     finally:
         lab.stop()
 
 
-@pytest.mark.parametrize("sentence, library, version", [
-    ("What if I update elliptic to 6.5.7?", "elliptic", "6.5.7"),
-    (ASK, "elliptic", "6.5.7"),
-    ("what happens if we upgrade python-ecdsa from 0.13.2 to 0.13.3", "python-ecdsa", "0.13.3"),
-    ("Otto, what if we move openssl to 3.5.0?", "openssl", "3.5.0"),
-    ("suppose I bump the elliptic package to v6.5.7", "elliptic", "6.5.7"),
-    ("what would happen if someone updated bn.js to 5.2.1: does it break?", "bn.js", "5.2.1"),
-    ("What if we update elliptic to 6.5.7. Does anything break?", "elliptic", "6.5.7"),
-    ("What if I update @noble/curves to 1.4.0?", "@noble/curves", "1.4.0"),
-])
-def test_fixed_rules_read_a_what_if_and_cut_the_library_and_the_version_from_the_persons_own_words(sentence, library, version):
+@pytest.mark.parametrize(
+    "sentence, library, version",
+    [
+        ("What if I update elliptic to 6.5.7?", "elliptic", "6.5.7"),
+        (ASK, "elliptic", "6.5.7"),
+        ("what happens if we upgrade python-ecdsa from 0.13.2 to 0.13.3", "python-ecdsa", "0.13.3"),
+        ("Otto, what if we move openssl to 3.5.0?", "openssl", "3.5.0"),
+        ("suppose I bump the elliptic package to v6.5.7", "elliptic", "6.5.7"),
+        ("what would happen if someone updated bn.js to 5.2.1: does it break?", "bn.js", "5.2.1"),
+        ("What if we update elliptic to 6.5.7. Does anything break?", "elliptic", "6.5.7"),
+        ("What if I update @noble/curves to 1.4.0?", "@noble/curves", "1.4.0"),
+    ],
+)
+def test_fixed_rules_read_a_what_if_and_cut_the_library_and_the_version_from_the_persons_own_words(
+    sentence, library, version
+):
     read = commands.read(sentence)
     assert (read["key"], read["library"], read["version"], read["several"]) == ("what_if", library, version, False)
 
 
-@pytest.mark.parametrize("sentence, key", [
-    ("update elliptic to 6.5.7", None),                         # names no button of this app, and is no question
-    ("what if i update elliptic", None),                        # no version
-    ("what if I update elliptic to the newest version?", None),  # a version starts with a digit
-    ("What happens if I accept this?", "ask"),                  # still the fixed question of 6c
-    ("what if I accept the java fix", None),
-    ("run all", "run_all"), ("show me failed checks", "filter"),
-])
+@pytest.mark.parametrize(
+    "sentence, key",
+    [
+        ("update elliptic to 6.5.7", None),  # names no button of this app, and is no question
+        ("what if i update elliptic", None),  # no version
+        ("what if I update elliptic to the newest version?", None),  # a version starts with a digit
+        ("What happens if I accept this?", "ask"),  # still the fixed question of 6c
+        ("what if I accept the java fix", None),
+        ("run all", "run_all"),
+        ("show me failed checks", "filter"),
+    ],
+)
 def test_what_is_no_what_if_is_not_read_as_one(sentence, key):
     assert commands.read(sentence)["key"] == key
 
@@ -78,12 +107,29 @@ def test_what_is_no_what_if_is_not_read_as_one(sentence, key):
 def test_the_answer_is_what_the_app_knows_in_four_parts_filed_under_fixing(asked):
     reply = asked.replies[ASK]
     models.AssistantReply.model_validate(reply)
-    assert (reply["kind"], reply["thread"], reply["text"], reply["label"]) == ("whatif", "fixing", "What if elliptic is updated to 6.5.7?", "From what the app knows")
+    assert (reply["kind"], reply["thread"], reply["text"], reply["label"]) == (
+        "whatif",
+        "fixing",
+        "What if elliptic is updated to 6.5.7?",
+        "From what the app knows",
+    )
     card = reply["whatif"]
-    assert [g["key"] for g in card["facts"]] == ["used", "needs", "advisories", "trial", "post_quantum", "blocks", "own_results"]
+    assert [g["key"] for g in card["facts"]] == [
+        "used",
+        "needs",
+        "advisories",
+        "trial",
+        "post_quantum",
+        "blocks",
+        "own_results",
+    ]
     assert card["explanation"] == "Live Otto is off. This is what the app knows." and card["hypotheses"]
     # the scanner file does not name elliptic: nothing to rerun, so no card to press, and the reason is said
-    assert reply["entry"] is None and card["test_copy"]["offered"] is False and "does not name elliptic" in card["test_copy"]["reason"]
+    assert (
+        reply["entry"] is None
+        and card["test_copy"]["offered"] is False
+        and "does not name elliptic" in card["test_copy"]["reason"]
+    )
     # the same facts as plain lines, for what is kept of the exchange
     assert len(reply["facts"]) == sum(len(g["lines"]) or 1 for g in card["facts"])
     assert reply["facts"][0]["text"].startswith("Where the library is used: elliptic 6.5.6 is in your dependency list")
@@ -95,14 +141,21 @@ def test_where_the_page_offers_the_retest_the_answer_hands_back_that_buttons_own
     models.AssistantReply.model_validate(reply)
     assert reply["kind"] == "whatif" and reply["whatif"]["test_copy"]["offered"] is True
     entry = reply["entry"]
-    assert (entry["what"], entry["title"]) == ("next:retest", "Retest new version") and entry["where"]["label"] == "On Evidence"
+    assert (entry["what"], entry["title"]) == ("next:retest", "Retest new version") and entry["where"][
+        "label"
+    ] == "On Evidence"
     action = {k: v for k, v in entry["step"]["action"].items() if v is not None}
     assert action == {"type": "retest", "plan_id": asked.plan.id, "version": "1.4.3", "component": "acme-sign"}
-    assert entry["step"]["can"] is True and entry["step"]["confirm"]["names"] == "This is the Retest new version button on Evidence."
+    assert (
+        entry["step"]["can"] is True
+        and entry["step"]["confirm"]["names"] == "This is the Retest new version button on Evidence."
+    )
     # it is the very card the panel shows beside Evidence
-    beside = [e for e in asked.lab.assistant_view(asked.aid, "evidence")["on_page"]["entries"] if e["id"] == entry["id"]]
+    beside = [
+        e for e in asked.lab.assistant_view(asked.aid, "evidence")["on_page"]["entries"] if e["id"] == entry["id"]
+    ]
     assert beside and beside[0]["step"] == entry["step"]
-    assert reply["open"] is None                          # the Confirm step is not opened for the person: they press the button first
+    assert reply["open"] is None  # the Confirm step is not opened for the person: they press the button first
 
 
 def test_asking_started_nothing_and_changed_nothing(asked):
@@ -112,12 +165,16 @@ def test_asking_started_nothing_and_changed_nothing(asked):
 def test_a_library_the_app_knows_nothing_about_gets_an_answer_that_says_so(asked):
     reply = asked.replies["What if I update left-pad to 1.3.0?"]
     assert reply["kind"] == "whatif" and reply["whatif"]["known"] is False and reply["entry"] is None
-    assert reply["whatif"]["hypotheses"] == [{"text": "The app holds nothing about this library, so everything about the update is open."}]
+    assert reply["whatif"]["hypotheses"] == [
+        {"text": "The app holds nothing about this library, so everything about the update is open."}
+    ]
 
 
 def test_two_updates_in_one_sentence_are_not_answered_for_the_first_alone_and_a_bare_update_is_no_command(asked):
     two = asked.replies["what if I update elliptic to 6.5.7 and python-ecdsa to 0.13.3?"]
-    assert two["kind"] == "cannot" and two["text"].startswith("I can't do that. A what-if is about one library and one version at a time.")
+    assert two["kind"] == "cannot" and two["text"].startswith(
+        "I can't do that. A what-if is about one library and one version at a time."
+    )
     assert two["whatif"] is None
     bare = asked.replies["update elliptic to 6.5.7"]
     assert bare["kind"] == "cannot" and "What if I update elliptic to 6.5.7?" in [c["say"] for c in bare["can"]]
@@ -145,22 +202,28 @@ def test_in_a_closed_assessment_the_facts_are_given_and_nothing_can_be_started(a
     reply = lab.assistant_answer(aid, "evidence", None, "what if we upgrade acme-sign to 1.4.3?")
     models.AssistantReply.model_validate(reply)
     assert reply["kind"] == "whatif" and reply["whatif"]["facts"]
-    assert reply["whatif"]["test_copy"]["offered"] is False and "closed" in reply["whatif"]["test_copy"]["reason"].lower()
+    assert (
+        reply["whatif"]["test_copy"]["offered"] is False and "closed" in reply["whatif"]["test_copy"]["reason"].lower()
+    )
     assert reply["entry"] is None or reply["entry"]["step"]["can"] is False
 
 
 # ---------------------------------------------------------------- the separate review of 19 November 2026
 
-@pytest.mark.parametrize("sentence, several", [
-    ("what if I update elliptic to 6.5.7 then ecdsa to 0.13.3", True),
-    ("what if I update elliptic to 6.5.7 or ecdsa to 0.13.3", True),
-    ("what if I update elliptic to 6.5.7 & ecdsa to 0.13.3", True),
-    ("what if I update elliptic to 6.5.7 / ecdsa to 0.13.3", True),
-    ("what if I update elliptic to 6.5.7 with bn.js to 5.0.0", True),
-    ("what if I update elliptic to 6.5.7 and java to 18?", True),
-    ("if I update elliptic to 6.5.7, how does that affect the move to 2027 plans?", False),
-    ("if I update elliptic to 6.5.7, how does that affect my 2 systems up to 3 years", False),
-])
+
+@pytest.mark.parametrize(
+    "sentence, several",
+    [
+        ("what if I update elliptic to 6.5.7 then ecdsa to 0.13.3", True),
+        ("what if I update elliptic to 6.5.7 or ecdsa to 0.13.3", True),
+        ("what if I update elliptic to 6.5.7 & ecdsa to 0.13.3", True),
+        ("what if I update elliptic to 6.5.7 / ecdsa to 0.13.3", True),
+        ("what if I update elliptic to 6.5.7 with bn.js to 5.0.0", True),
+        ("what if I update elliptic to 6.5.7 and java to 18?", True),
+        ("if I update elliptic to 6.5.7, how does that affect the move to 2027 plans?", False),
+        ("if I update elliptic to 6.5.7, how does that affect my 2 systems up to 3 years", False),
+    ],
+)
 def test_a_second_update_is_noticed_whatever_word_joins_it_and_a_number_that_is_no_version_is_not(sentence, several):
     """Finding 4: two updates in one sentence are never answered for the first one alone, and a number that is no
     version ("the move to 2027 plans") is no second update."""
@@ -180,6 +243,8 @@ def test_an_everyday_name_of_the_panels_own_table_is_read_as_its_library_and_pyt
     assert [line["link"]["item"] for line in advisories] == ["CVE-2022-21449"]
     language = lab.assistant_answer(aid, "evidence", None, "What if we update Python to 3.12?")
     assert language["kind"] == "whatif" and language["whatif"]["title"] == "What if python is updated to 3.12?"
-    assert language["whatif"]["library"] == {"key": None, "label": "python"} and language["whatif"]["have"] == ["3.12.3"]
+    assert language["whatif"]["library"] == {"key": None, "label": "python"} and language["whatif"]["have"] == [
+        "3.12.3"
+    ]
     used = next(g for g in language["whatif"]["facts"] if g["key"] == "used")["lines"]
     assert used[0]["text"].startswith("python 3.12.3 is in your dependency list")

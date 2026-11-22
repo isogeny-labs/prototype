@@ -12,6 +12,7 @@ copy this app starts with the change, and the separate reviewer reviews each run
 measurement after Apply matches it, and whether Roll back put things back are fixed rules in reviewer.py, worked out
 on every read from the reviewed runs, and never stored. What is stored, in tables that only accept new rows: each try
 (with the change exactly as tried), each request for approval, each approval, each Apply and each Roll back."""
+
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -26,8 +27,18 @@ from app.migration import rules
 from app.fixes.changes import REVIEWERS
 from app.config import DEMO_HOSTNAME
 from app.db import (
-    ApplyApprovalRow, ApplyRequestRow, ApplyRow, ChangeTryRow, ImportRow, PlanItemRow, PlanRow, RetestRow, ReviewRow,
-    RollbackRow, TestRunRow, TestSpecRow,
+    ApplyApprovalRow,
+    ApplyRequestRow,
+    ApplyRow,
+    ChangeTryRow,
+    ImportRow,
+    PlanItemRow,
+    PlanRow,
+    RetestRow,
+    ReviewRow,
+    RollbackRow,
+    TestRunRow,
+    TestSpecRow,
 )
 from app.errors import BadRequest, Conflict, NotFound
 from app.engine.reviewer import apply_outcome, change_try_outcome, meets_promise, rollback_outcome
@@ -35,13 +46,22 @@ from app.clients import design as clients_design
 from app.lab.testlab import CLIENTS_ORIGIN, MIGRATION_ORIGIN, read_spec
 
 LAB_NGINX_SETTINGS = {"groups": "X25519:P-256", "versions": ["TLS 1.2", "TLS 1.3"], "certificate": "ecdsa-p256"}
-DEMO_SERVER_SETTINGS = {"groups": "P-256", "versions": ["TLS 1.2", "TLS 1.3"], "certificate": "ecdsa-p256"}   # demo_server.DEMO_GROUP
+DEMO_SERVER_SETTINGS = {
+    "groups": "P-256",
+    "versions": ["TLS 1.2", "TLS 1.3"],
+    "certificate": "ecdsa-p256",
+}  # demo_server.DEMO_GROUP
 TRY_PHASES = ("try", "try_nginx")
-CLIENTS_PHASE = "try_clients"   # phase 4e: the "Who can still connect" run of a try, on its first copy
-NO_CONNECTOR = ("Try on a test copy and Apply need a connector to this server, which comes in a later phase. Download the change "
-                "and apply it yourself; then press Measure again.")
-COPY_WORDS = {"demo_test_server": "a test copy with the change", "lab_nginx": "a copy of the lab nginx with the change",
-              "demo_server": "a test copy with the change"}
+CLIENTS_PHASE = "try_clients"  # phase 4e: the "Who can still connect" run of a try, on its first copy
+NO_CONNECTOR = (
+    "Try on a test copy and Apply need a connector to this server, which comes in a later phase. Download the change "
+    "and apply it yourself; then press Measure again."
+)
+COPY_WORDS = {
+    "demo_test_server": "a test copy with the change",
+    "lab_nginx": "a copy of the lab nginx with the change",
+    "demo_server": "a test copy with the change",
+}
 
 
 def _now() -> str:
@@ -56,7 +76,9 @@ class SystemChangesMixin:
 
     def _settings_history(self, db, address: str) -> tuple[ApplyRow | None, list]:
         """(the Apply in force on this address, every apply and roll back of it in time order)."""
-        applies = db.scalars(select(ApplyRow).where(ApplyRow.address == address, ApplyRow.accepted.is_(True)).order_by(ApplyRow.id)).all()
+        applies = db.scalars(
+            select(ApplyRow).where(ApplyRow.address == address, ApplyRow.accepted.is_(True)).order_by(ApplyRow.id)
+        ).all()
         events, in_force = [], None
         for row in applies:
             back = db.scalars(select(RollbackRow).where(RollbackRow.apply_id == row.id)).first()
@@ -78,34 +100,81 @@ class SystemChangesMixin:
 
     # ---------------------------------------------------------------- where a change can be tried and applied
 
-    def _target_of(self, db, imp: ImportRow, kind: str, address: str | None) -> tuple[str | None, dict | None, str | None, str | None]:
+    def _target_of(
+        self, db, imp: ImportRow, kind: str, address: str | None
+    ) -> tuple[str | None, dict | None, str | None, str | None]:
         """(target, the server's own settings before any Apply, words for the target, why there is none)."""
         if address is None:
             return None, None, None, "This is a signing program, not a server: there is no setting to apply here."
         port = int(address.rsplit(":", 1)[1]) if ":" in address else None
         host = address.rsplit(":", 1)[0]
-        if host == DEMO_HOSTNAME and kind == "migration" and self._is_migration_demo(imp.id) and port in self.migration_servers.ports:
+        if (
+            host == DEMO_HOSTNAME
+            and kind == "migration"
+            and self._is_migration_demo(imp.id)
+            and port in self.migration_servers.ports
+        ):
             if port not in self.migration_servers.running:
-                return None, None, None, self.migration_servers.problems.get(port) or f"The demo test server for {address} is not running."
-            return "demo_test_server", self.migration_servers.role_settings(port), f"our demo test server on {address}", None
-        if host == DEMO_HOSTNAME and kind == "migration" and self._is_lab_nginx_file(imp.id) and port == self.settings.lab_nginx_port:
+                return (
+                    None,
+                    None,
+                    None,
+                    self.migration_servers.problems.get(port) or f"The demo test server for {address} is not running.",
+                )
+            return (
+                "demo_test_server",
+                self.migration_servers.role_settings(port),
+                f"our demo test server on {address}",
+                None,
+            )
+        if (
+            host == DEMO_HOSTNAME
+            and kind == "migration"
+            and self._is_lab_nginx_file(imp.id)
+            and port == self.settings.lab_nginx_port
+        ):
             usable, why = lab_nginx.ready(self.mode)
             if not usable:
                 return None, None, None, why + " In demo mode, without Docker, the lab nginx can't run."
             if not self.lab_nginx_server.running:
                 return None, None, None, "The lab nginx is not running. Import demo/lab-nginx.csv again to start it."
-            return "lab_nginx", dict(LAB_NGINX_SETTINGS), f"the lab nginx on {address} ({lab_nginx.NGINX_VERSION_WORDS})", None
+            return (
+                "lab_nginx",
+                dict(LAB_NGINX_SETTINGS),
+                f"the lab nginx on {address} ({lab_nginx.NGINX_VERSION_WORDS})",
+                None,
+            )
         if kind == "migration" and imp.is_demo and host == DEMO_HOSTNAME and port in tuple(self.settings.extra_ports):
-            return None, None, None, ("This test server of the multi-target demo runs on Python's built-in TLS, which can't be set to "
-                                      "post-quantum key exchange, so this change can't be tried or applied to it here. The test servers of "
-                                      "the migration demo (demo/migration-demo.csv) can be.")
+            return (
+                None,
+                None,
+                None,
+                (
+                    "This test server of the multi-target demo runs on Python's built-in TLS, which can't be set to "
+                    "post-quantum key exchange, so this change can't be tried or applied to it here. The test servers of "
+                    "the migration demo (demo/migration-demo.csv) can be."
+                ),
+            )
         if kind == "migration" and imp.is_demo and address == self.settings.demo_address:
-            return None, None, None, ("This demo server runs on Python's built-in TLS, which can't be set to post-quantum key exchange, so "
-                                      "this change can't be tried or applied to it here. The test servers of the migration demo "
-                                      "(demo/migration-demo.csv) can be.")
+            return (
+                None,
+                None,
+                None,
+                (
+                    "This demo server runs on Python's built-in TLS, which can't be set to post-quantum key exchange, so "
+                    "this change can't be tried or applied to it here. The test servers of the migration demo "
+                    "(demo/migration-demo.csv) can be."
+                ),
+            )
         if kind == "tls" and imp.is_demo and address == self.settings.demo_address:
             if not self.demo.running:
-                return None, None, None, (self.demo.error or "The demo server is not running.") + " Only the demo server this app runs can be changed."
+                return (
+                    None,
+                    None,
+                    None,
+                    (self.demo.error or "The demo server is not running.")
+                    + " Only the demo server this app runs can be changed.",
+                )
             return "demo_server", dict(DEMO_SERVER_SETTINGS), f"the demo server on {address}", None
         return None, None, None, NO_CONNECTOR
 
@@ -132,10 +201,19 @@ class SystemChangesMixin:
             address = state["address"]
             if state["kind"] == "software":
                 if option in ("hybrid", "full_pq") and not rules.in_place(state["status"], option):
-                    change = change_builder.build(key=key, kind="migration", option="sign_both" if option == "hybrid" else "mldsa_only",
-                                                  system_key=state["key"], address=None, name=state["name"], before=None, before_auth=None,
-                                                  target=None, target_words=None,
-                                                  no_target="This is a signing program: its change is to the program and its library.")
+                    change = change_builder.build(
+                        key=key,
+                        kind="migration",
+                        option="sign_both" if option == "hybrid" else "mldsa_only",
+                        system_key=state["key"],
+                        address=None,
+                        name=state["name"],
+                        before=None,
+                        before_auth=None,
+                        target=None,
+                        target_words=None,
+                        no_target="This is a signing program: its change is to the program and its library.",
+                    )
                     out.append(self._with_item(change, state))
                 continue
             if option in ("keep", "wrap"):
@@ -143,11 +221,23 @@ class SystemChangesMixin:
                     continue
                 review = (state.get("review_date") or {}).get("value")
                 seen = self._seen_settings(state)
-                change = change_builder.build(key=key, kind="migration", option=option, system_key=state["key"], address=address,
-                                              name=state["name"], before=None, before_auth=None, target=None, target_words=None,
-                                              no_target="Nothing is applied for this option.",
-                                              extra={"review_date": review,
-                                                     "versions_words": lab_servers.versions_words(seen) if seen and seen["versions"] else None})
+                change = change_builder.build(
+                    key=key,
+                    kind="migration",
+                    option=option,
+                    system_key=state["key"],
+                    address=address,
+                    name=state["name"],
+                    before=None,
+                    before_auth=None,
+                    target=None,
+                    target_words=None,
+                    no_target="Nothing is applied for this option.",
+                    extra={
+                        "review_date": review,
+                        "versions_words": lab_servers.versions_words(seen) if seen and seen["versions"] else None,
+                    },
+                )
                 out.append(self._with_item(change, state))
                 continue
             target, initial, words, why = self._target_of(db, imp, "migration", address)
@@ -161,12 +251,23 @@ class SystemChangesMixin:
                 # a server this app can't read the settings of: build from what was measured, and say so
                 before = self._seen_settings(state)
                 seen_only = before is not None
-            before_auth = ((state["detail"].get("auth") or {}).get("status") if state.get("detail") else None)
+            before_auth = (state["detail"].get("auth") or {}).get("status") if state.get("detail") else None
             if applied_here or self._ever_applied(db, key):
                 before_auth = self._auth_before(db, key) or before_auth
-            change = change_builder.build(key=key, kind="migration", option=option, system_key=state["key"], address=address,
-                                          name=state["name"], before=before, before_auth=before_auth, target=target,
-                                          target_words=words, no_target=why, extra={"seen_only": seen_only})
+            change = change_builder.build(
+                key=key,
+                kind="migration",
+                option=option,
+                system_key=state["key"],
+                address=address,
+                name=state["name"],
+                before=before,
+                before_auth=before_auth,
+                target=target,
+                target_words=words,
+                no_target=why,
+                extra={"seen_only": seen_only},
+            )
             out.append(self._with_item(change, state))
         return out
 
@@ -181,11 +282,18 @@ class SystemChangesMixin:
         if not versions or not group or not certificate:
             return None
         kinds = {words: kind for kind, words in lab_servers.CERTIFICATE_WORDS.items()}
-        return lab_servers.normal({"groups": group, "versions": versions, "certificate": kinds.get(certificate, certificate)})
+        return lab_servers.normal(
+            {"groups": group, "versions": versions, "certificate": kinds.get(certificate, certificate)}
+        )
 
     @staticmethod
     def _with_item(change: dict, state: dict) -> dict:
-        return {**change, "_item_id": state["item_id"], "_run_id": state.get("run_id"), "_plan_source": state.get("plan_source")}
+        return {
+            **change,
+            "_item_id": state["item_id"],
+            "_run_id": state.get("run_id"),
+            "_plan_source": state.get("plan_source"),
+        }
 
     def _ever_applied(self, db, key: str) -> bool:
         return db.scalar(select(func.count(ApplyRow.id)).where(ApplyRow.change_key == key)) > 0
@@ -204,20 +312,40 @@ class SystemChangesMixin:
         out = []
         for item in self._items(db, plan.id):
             spec, ok = read_spec(db.get(TestSpecRow, item.spec_hash))
-            if not ok or spec.get("kind") != "tls_versions" or (spec.get("target") or {}).get("address") != self.settings.demo_address:
+            if (
+                not ok
+                or spec.get("kind") != "tls_versions"
+                or (spec.get("target") or {}).get("address") != self.settings.demo_address
+            ):
                 continue
             if list((spec.get("inputs") or {}).get("claimed") or []) != ["TLS 1.3"]:
                 continue
             key = f"tls:server:{self.settings.demo_address}"
-            failed = db.scalar(select(func.count(ReviewRow.id)).join(TestRunRow, TestRunRow.id == ReviewRow.run_id)
-                               .where(TestRunRow.plan_item_id == item.id, ReviewRow.code == "failed")) > 0
+            failed = (
+                db.scalar(
+                    select(func.count(ReviewRow.id))
+                    .join(TestRunRow, TestRunRow.id == ReviewRow.run_id)
+                    .where(TestRunRow.plan_item_id == item.id, ReviewRow.code == "failed")
+                )
+                > 0
+            )
             if not failed and not self._ever_applied(db, key):
                 continue
             target, initial, words, why = self._target_of(db, imp, "tls", self.settings.demo_address)
             before = self._base_settings(db, self.settings.demo_address, initial or dict(DEMO_SERVER_SETTINGS))
-            change = change_builder.build(key=key, kind="tls", option="tls13", system_key="server:" + self.settings.demo_address,
-                                          address=self.settings.demo_address, name=self.settings.demo_address, before=before,
-                                          before_auth=None, target=target, target_words=words, no_target=why)
+            change = change_builder.build(
+                key=key,
+                kind="tls",
+                option="tls13",
+                system_key="server:" + self.settings.demo_address,
+                address=self.settings.demo_address,
+                name=self.settings.demo_address,
+                before=before,
+                before_auth=None,
+                target=target,
+                target_words=words,
+                no_target=why,
+            )
             latest = self._latest_run(db, item.id, "first", None)
             out.append({**change, "_item_id": item.id, "_run_id": latest.id if latest else None, "_plan_source": "fix"})
             break
@@ -244,8 +372,15 @@ class SystemChangesMixin:
             return None
         review = db.scalars(select(ReviewRow).where(ReviewRow.run_id == run.id)).first()
         stands = self._result_cache[run.id][2] and result["code"] == review.code
-        return {"code": result["code"], "detail": dict(review.detail or {}) if stands else {}, "control": review.control_outcome,
-                "result": result, "run_id": run.id, "finished_at": run.finished_at, "raw": run.raw if stands else {}}
+        return {
+            "code": result["code"],
+            "detail": dict(review.detail or {}) if stands else {},
+            "control": review.control_outcome,
+            "result": result,
+            "run_id": run.id,
+            "finished_at": run.finished_at,
+            "raw": run.raw if stands else {},
+        }
 
     def _first_after(self, db, item_id: int, phases: tuple[str, ...], after_run_id: int) -> TestRunRow | None:
         """The first reviewed run after an Apply or a Roll back of the same locked test (same fingerprint, so the same
@@ -254,14 +389,22 @@ class SystemChangesMixin:
         item = db.get(PlanItemRow, item_id)
         same = select(PlanItemRow.id).where(PlanItemRow.spec_hash == item.spec_hash) if item is not None else None
         where = TestRunRow.plan_item_id.in_(same) if same is not None else TestRunRow.plan_item_id == item_id
-        return db.scalars(select(TestRunRow).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
-                          .where(where, TestRunRow.phase.in_(phases), TestRunRow.id > after_run_id)
-                          .order_by(TestRunRow.id).limit(1)).first()
+        return db.scalars(
+            select(TestRunRow)
+            .join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
+            .where(where, TestRunRow.phase.in_(phases), TestRunRow.id > after_run_id)
+            .order_by(TestRunRow.id)
+            .limit(1)
+        ).first()
 
     def _newest_in(self, db, item_id: int, phases: tuple[str, ...]) -> TestRunRow | None:
-        return db.scalars(select(TestRunRow).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
-                          .where(TestRunRow.plan_item_id == item_id, TestRunRow.phase.in_(phases))
-                          .order_by(TestRunRow.id.desc()).limit(1)).first()
+        return db.scalars(
+            select(TestRunRow)
+            .join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
+            .where(TestRunRow.plan_item_id == item_id, TestRunRow.phase.in_(phases))
+            .order_by(TestRunRow.id.desc())
+            .limit(1)
+        ).first()
 
     @staticmethod
     def _remeasure_phases(change: dict) -> tuple[str, ...]:
@@ -271,18 +414,43 @@ class SystemChangesMixin:
 
     def _change_records(self, db, plan: PlanRow, change: dict) -> dict:
         key, fp, item_id = change["key"], change["fingerprint"], change["_item_id"]
-        tries = db.scalars(select(ChangeTryRow).where(ChangeTryRow.plan_id == plan.id, ChangeTryRow.change_key == key,
-                                                      ChangeTryRow.change_fp == fp).order_by(ChangeTryRow.id.desc())).all()
+        tries = db.scalars(
+            select(ChangeTryRow)
+            .where(ChangeTryRow.plan_id == plan.id, ChangeTryRow.change_key == key, ChangeTryRow.change_fp == fp)
+            .order_by(ChangeTryRow.id.desc())
+        ).all()
         latest = tries[0] if tries else None
-        rec: dict = {"try": None, "try_outcome": None, "try_copies": [], "try_before": None, "clients": None, "request": None, "approvals": {},
-                     "applies": [], "in_force": None, "apply": None, "apply_after": None, "apply_outcome": None, "rollback": None,
-                     "rollback_after": None, "rollback_outcome": None, "busy": False, "latest": None, "in_place": None}
-        live = {j.key for j in self.jobs.live(("changes", plan.id))} | {j.key for j in self.jobs.live(("migration", plan.id))} | \
-               {j.key for j in self.jobs.live(plan.id)}
+        rec: dict = {
+            "try": None,
+            "try_outcome": None,
+            "try_copies": [],
+            "try_before": None,
+            "clients": None,
+            "request": None,
+            "approvals": {},
+            "applies": [],
+            "in_force": None,
+            "apply": None,
+            "apply_after": None,
+            "apply_outcome": None,
+            "rollback": None,
+            "rollback_after": None,
+            "rollback_outcome": None,
+            "busy": False,
+            "latest": None,
+            "in_place": None,
+        }
+        live = (
+            {j.key for j in self.jobs.live(("changes", plan.id))}
+            | {j.key for j in self.jobs.live(("migration", plan.id))}
+            | {j.key for j in self.jobs.live(plan.id)}
+        )
         rec["busy"] = any(k[0] == item_id for k in live)
         if latest is not None:
             rec["try"] = latest
-            rec["try_before"] = self._measured(db, db.get(TestRunRow, latest.before_run_id)) if latest.before_run_id else None
+            rec["try_before"] = (
+                self._measured(db, db.get(TestRunRow, latest.before_run_id)) if latest.before_run_id else None
+            )
             copies, running = [], False
             for copy in latest.copies:
                 if copy.get("skipped"):
@@ -298,16 +466,26 @@ class SystemChangesMixin:
             rec["try_outcome"] = {"code": "running"} if running else change_try_outcome(change["promise"], copies)
             # Phase 4e: who can still connect, measured on the try's first copy. It decides nothing about the try.
             rec["clients"] = self._clients_of_try(db, plan, latest, rec["busy"])
-        req = db.scalars(select(ApplyRequestRow).where(ApplyRequestRow.plan_id == plan.id, ApplyRequestRow.change_key == key,
-                                                       ApplyRequestRow.change_fp == fp).order_by(ApplyRequestRow.id.desc())).first()
+        req = db.scalars(
+            select(ApplyRequestRow)
+            .where(
+                ApplyRequestRow.plan_id == plan.id, ApplyRequestRow.change_key == key, ApplyRequestRow.change_fp == fp
+            )
+            .order_by(ApplyRequestRow.id.desc())
+        ).first()
         if req is not None:
             rec["request"] = req
-            rec["approvals"] = {a.reviewer: a for a in db.scalars(select(ApplyApprovalRow).where(ApplyApprovalRow.request_id == req.id)).all()}
+            rec["approvals"] = {
+                a.reviewer: a
+                for a in db.scalars(select(ApplyApprovalRow).where(ApplyApprovalRow.request_id == req.id)).all()
+            }
         if change.get("address"):
             in_force, events = self._settings_history(db, change["address"])
             rec["in_force"] = in_force
             rec["events"] = events
-        rec["applies"] = db.scalars(select(ApplyRow).where(ApplyRow.change_key == key).order_by(ApplyRow.id.desc())).all()
+        rec["applies"] = db.scalars(
+            select(ApplyRow).where(ApplyRow.change_key == key).order_by(ApplyRow.id.desc())
+        ).all()
         phases = self._remeasure_phases(change)
         if rec["applies"]:
             row = rec["applies"][0]
@@ -317,15 +495,23 @@ class SystemChangesMixin:
                 tried_copy = next((c for c in rec_try_copies(self, db, tried, item_id)), None) if tried else None
                 after = self._measured(db, self._first_after(db, item_id, phases, row.runs_before))
                 rec["apply_after"] = after
-                rec["apply_outcome"] = (apply_outcome(change["promise"], tried_copy, after) if after else {"code": "measuring"})
+                rec["apply_outcome"] = (
+                    apply_outcome(change["promise"], tried_copy, after) if after else {"code": "measuring"}
+                )
                 back = db.scalars(select(RollbackRow).where(RollbackRow.apply_id == row.id)).first()
                 if back is not None:
                     rec["rollback"] = back
                     if back.accepted:
-                        before = self._measured(db, db.get(TestRunRow, tried.before_run_id)) if tried and tried.before_run_id else None
+                        before = (
+                            self._measured(db, db.get(TestRunRow, tried.before_run_id))
+                            if tried and tried.before_run_id
+                            else None
+                        )
                         after_back = self._measured(db, self._first_after(db, item_id, phases, back.runs_before))
                         rec["rollback_after"] = after_back
-                        rec["rollback_outcome"] = rollback_outcome(before, after_back) if after_back else {"code": "measuring"}
+                        rec["rollback_outcome"] = (
+                            rollback_outcome(before, after_back) if after_back else {"code": "measuring"}
+                        )
         rec["latest"] = self._measured(db, self._newest_in(db, item_id, phases))
         if change["promise"]:
             ok, _ = meets_promise(change["promise"], rec["latest"])
@@ -339,9 +525,13 @@ class SystemChangesMixin:
         triable = bool(change.get("settings_after"))
         gates = {"try": None, "ask": None, "approve": None, "apply": None, "rollback": None}
         if not triable:
-            return {"try": "Nothing to try for this option.", "ask": "Nothing to approve for this option.",
-                    "approve": "Nothing to approve for this option.", "apply": "Nothing is applied for this option.",
-                    "rollback": "Nothing was applied."}
+            return {
+                "try": "Nothing to try for this option.",
+                "ask": "Nothing to approve for this option.",
+                "approve": "Nothing to approve for this option.",
+                "apply": "Nothing is applied for this option.",
+                "rollback": "Nothing was applied.",
+            }
         if rec["busy"]:
             busy = "Wait: a try, an Apply, a measurement or a roll back of this system is running."
             gates.update({k: busy for k in gates})
@@ -349,20 +539,30 @@ class SystemChangesMixin:
         if target is None:
             gates["try"] = change.get("no_target") or NO_CONNECTOR
             # a server that is not ours needs a connector; one of ours that can't take this change says why
-            gates["apply"] = ("Apply needs a connector to this server, which comes in a later phase. Download the change and apply it yourself."
-                              if change.get("no_target") in (None, NO_CONNECTOR) else change["no_target"])
+            gates["apply"] = (
+                "Apply needs a connector to this server, which comes in a later phase. Download the change and apply it yourself."
+                if change.get("no_target") in (None, NO_CONNECTOR)
+                else change["no_target"]
+            )
         elif change.get("_run_id") is None:
             gates["try"] = "Measure this system first (Measure status), so there is something to compare the try with."
         in_force = rec.get("in_force")
         others_applied = in_force is not None and in_force.change_fp != change["fingerprint"]
         last_event = max([e[2] for e in rec.get("events") or []], default=None)
-        stale_try = rec.get("try") is not None and last_event is not None and _aware(rec["try"].created_at) < _aware(last_event)
+        stale_try = (
+            rec.get("try") is not None and last_event is not None and _aware(rec["try"].created_at) < _aware(last_event)
+        )
         if gates["apply"] is None:
             if stale_try and in_force is None:
-                gates["apply"] = "The server changed since this try (an Apply or a Roll back). Try again on a test copy first."
+                gates["apply"] = (
+                    "The server changed since this try (an Apply or a Roll back). Try again on a test copy first."
+                )
             elif outcome != "passed":
-                gates["apply"] = ("Apply unlocks after a try on a test copy has passed." if outcome in (None, "not_run")
-                                  else "The latest try did not pass, so Apply stays off. Try again once the change is right.")
+                gates["apply"] = (
+                    "Apply unlocks after a try on a test copy has passed."
+                    if outcome in (None, "not_run")
+                    else "The latest try did not pass, so Apply stays off. Try again once the change is right."
+                )
             elif rec["request"] is None:
                 gates["apply"] = "Ask for approval first: Apply unlocks when every reviewer you pick has approved."
             elif any(r not in rec["approvals"] for r in rec["request"].reviewers):
@@ -402,12 +602,23 @@ class SystemChangesMixin:
             copies = [{"label": COPY_WORDS[target], "phase": "try", "skipped": None}]
             if target in ("demo_test_server", "demo_server"):
                 usable, why = lab_nginx.ready(self.mode)
-                copies.append({"label": "real nginx (1.31.8, OpenSSL 3.5.9) with the same change", "phase": "try_nginx",
-                               "skipped": None if usable else why})
+                copies.append(
+                    {
+                        "label": "real nginx (1.31.8, OpenSSL 3.5.9) with the same change",
+                        "phase": "try_nginx",
+                        "skipped": None if usable else why,
+                    }
+                )
             with self.db() as db:
-                row = ChangeTryRow(plan_id=plan.id, change_key=key, change_fp=change["fingerprint"],
-                                   change={k: v for k, v in change.items() if not k.startswith("_")}, item_id=change["_item_id"],
-                                   before_run_id=change["_run_id"], copies=copies)
+                row = ChangeTryRow(
+                    plan_id=plan.id,
+                    change_key=key,
+                    change_fp=change["fingerprint"],
+                    change={k: v for k, v in change.items() if not k.startswith("_")},
+                    item_id=change["_item_id"],
+                    before_run_id=change["_run_id"],
+                    copies=copies,
+                )
                 db.add(row)
                 # Phase 4e: the "Who can still connect" test of this change on this server, locked before it runs
                 clients = self._clients_item(db, plan, change)
@@ -420,18 +631,25 @@ class SystemChangesMixin:
                 if copy["skipped"]:
                     continue
                 starter = self._copy_starter(change, copy["phase"])
-                self._submit_copy(plan, item, copy["phase"], try_id, copy["label"], starter, clients=clients if n == 0 else None)
+                self._submit_copy(
+                    plan, item, copy["phase"], try_id, copy["label"], starter, clients=clients if n == 0 else None
+                )
         return {"ok": True}
 
     def _clients_item(self, db, plan: PlanRow, change: dict) -> PlanItemRow:
         """Phase 4e: the hidden plan item of the "Who can still connect" test of this change on this server (the same
         change on the same server is the same test). Written down and locked here, before any run."""
         spec = clients_design.design(address=change["address"], change=change)
-        spec_hash = self._lock_spec(db, spec, proposed_by=clients_design.PROPOSED_BY)      # type: ignore[attr-defined]
-        item = db.scalars(select(PlanItemRow).where(PlanItemRow.plan_id == plan.id, PlanItemRow.origin == CLIENTS_ORIGIN,
-                                                    PlanItemRow.spec_hash == spec_hash)).first()
+        spec_hash = self._lock_spec(db, spec, proposed_by=clients_design.PROPOSED_BY)  # type: ignore[attr-defined]
+        item = db.scalars(
+            select(PlanItemRow).where(
+                PlanItemRow.plan_id == plan.id, PlanItemRow.origin == CLIENTS_ORIGIN, PlanItemRow.spec_hash == spec_hash
+            )
+        ).first()
         if item is None:
-            item = PlanItemRow(plan_id=plan.id, spec_hash=spec_hash, position=30_000, origin=CLIENTS_ORIGIN, removed=False)
+            item = PlanItemRow(
+                plan_id=plan.id, spec_hash=spec_hash, position=30_000, origin=CLIENTS_ORIGIN, removed=False
+            )
             db.add(item)
             db.flush()
         return item
@@ -439,9 +657,13 @@ class SystemChangesMixin:
     def _clients_of_try(self, db, plan: PlanRow, tried: ChangeTryRow, busy: bool) -> dict | None:
         """Phase 4e: the reviewed "Who can still connect" run of one try, through the read gate: {"run": measured}, or
         {"running": True} while its job runs, or None for a try made before this check existed."""
-        run = db.scalars(select(TestRunRow).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
-                         .where(TestRunRow.plan_id == plan.id, TestRunRow.phase == CLIENTS_PHASE, TestRunRow.retest_id == tried.id)
-                         .order_by(TestRunRow.id.desc()).limit(1)).first()
+        run = db.scalars(
+            select(TestRunRow)
+            .join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
+            .where(TestRunRow.plan_id == plan.id, TestRunRow.phase == CLIENTS_PHASE, TestRunRow.retest_id == tried.id)
+            .order_by(TestRunRow.id.desc())
+            .limit(1)
+        ).first()
         if run is not None:
             return {"run": self._measured(db, run), "spec": read_spec(db.get(TestSpecRow, run.spec_hash))[0]}
         return {"running": True} if busy else None
@@ -454,27 +676,56 @@ class SystemChangesMixin:
             return lambda: self._demo_copy(after)
         port = int(change["address"].rsplit(":", 1)[1])
         keep = self.migration_servers.certificate_of(port)
-        return lambda: lab_servers.test_copy(after, keep if keep and lab_servers.keep_kind(keep) == after["certificate"] else None)
+        return lambda: lab_servers.test_copy(
+            after, keep if keep and lab_servers.keep_kind(keep) == after["certificate"] else None
+        )
 
     @contextmanager
     def _demo_copy(self, settings: dict):
         """A test copy of the Acme Pay demo server: the same demo certificate, accepting only the new TLS versions."""
         from app.servers.demo_server import TlsServer
+
         server = TlsServer(self.demo.context_for(settings["versions"]), 0)
         try:
-            yield {"port": server.port, "fingerprint": self.demo.fingerprint, "settings": settings, "accepted": "the copy started"}
+            yield {
+                "port": server.port,
+                "fingerprint": self.demo.fingerprint,
+                "settings": settings,
+                "accepted": "the copy started",
+            }
         finally:
             server.close()
 
-    def _submit_copy(self, plan: PlanRow, item: PlanItemRow, phase: str, try_id: int, label: str, starter,
-                     clients: PlanItemRow | None = None) -> None:
+    def _submit_copy(
+        self,
+        plan: PlanRow,
+        item: PlanItemRow,
+        phase: str,
+        try_id: int,
+        label: str,
+        starter,
+        clients: PlanItemRow | None = None,
+    ) -> None:
         """`clients` (phase 4e): the "Who can still connect" test, run on the same copy right after the system's own
         measurement, while the copy is still up (it decides nothing about the try)."""
-        args = {"plan_id": plan.id, "import_id": plan.import_id, "item_id": item.id, "spec_hash": item.spec_hash, "phase": phase,
-                "retest_id": try_id, "component_name": None, "component_version": None, "baseline_version": None, "own": False,
-                "copy_label": label}
-        stand_ins = ({**args, "item_id": clients.id, "spec_hash": clients.spec_hash, "phase": CLIENTS_PHASE}
-                     if clients is not None else None)
+        args = {
+            "plan_id": plan.id,
+            "import_id": plan.import_id,
+            "item_id": item.id,
+            "spec_hash": item.spec_hash,
+            "phase": phase,
+            "retest_id": try_id,
+            "component_name": None,
+            "component_version": None,
+            "baseline_version": None,
+            "own": False,
+            "copy_label": label,
+        }
+        stand_ins = (
+            {**args, "item_id": clients.id, "spec_hash": clients.spec_hash, "phase": CLIENTS_PHASE}
+            if clients is not None
+            else None
+        )
 
         def job_fn(job):
             job.progress("starting the copy", 5)
@@ -485,29 +736,50 @@ class SystemChangesMixin:
                         job.progress("connecting the client stand-ins", 90)
                         try:
                             self._run_one(job, {**stand_ins, "copy": copy})
-                        except Exception as exc:   # never a second measurement of the copy: the stand-ins' run alone is lost
+                        except (
+                            Exception
+                        ) as exc:  # never a second measurement of the copy: the stand-ins' run alone is lost
                             job.log(f"the client stand-ins could not be run ({exc.__class__.__name__})")
-            except (lab_nginx.NginxUnavailable, OSError, Exception) as exc:   # the copy could not start: recorded, never a crash
-                text = str(exc) if isinstance(exc, lab_nginx.NginxUnavailable) else f"the copy could not be started ({exc.__class__.__name__})"
+            except (
+                lab_nginx.NginxUnavailable,
+                OSError,
+                Exception,
+            ) as exc:  # the copy could not start: recorded, never a crash
+                text = (
+                    str(exc)
+                    if isinstance(exc, lab_nginx.NginxUnavailable)
+                    else f"the copy could not be started ({exc.__class__.__name__})"
+                )
                 self._run_one(job, {**args, "copy_problem": text})
                 if stand_ins is not None:
                     self._run_one(job, {**stand_ins, "copy_problem": text})
+
         try:
             self.jobs.submit((item.id, phase), job_fn, group=("changes", plan.id))
         except ValueError as exc:
             raise Conflict("A try of this system is already running.") from exc
 
     def ask_approval(self, plan_id: int, key: str, reviewers: list[str]) -> dict:
-        if (not isinstance(reviewers, list) or not reviewers or len(set(reviewers)) != len(reviewers)
-                or not all(isinstance(r, str) and r in REVIEWERS for r in reviewers)):
+        if (
+            not isinstance(reviewers, list)
+            or not reviewers
+            or len(set(reviewers)) != len(reviewers)
+            or not all(isinstance(r, str) and r in REVIEWERS for r in reviewers)
+        ):
             raise BadRequest("Pick one or more reviewers from the list.", field="reviewers")
         with self._plan_lock:
             plan, change, rec, gates = self._locked(plan_id, key)
             if gates["ask"]:
                 raise Conflict(gates["ask"])
             with self.db() as db:
-                db.add(ApplyRequestRow(plan_id=plan.id, change_key=key, change_fp=change["fingerprint"],
-                                       reviewers=[r for r in REVIEWERS if r in reviewers]))
+                db.add(
+                    ApplyRequestRow(
+                        plan_id=plan.id,
+                        change_key=key,
+                        change_fp=change["fingerprint"],
+                        reviewers=[r for r in REVIEWERS if r in reviewers],
+                    )
+                )
                 db.commit()
         return {"ok": True}
 
@@ -546,13 +818,30 @@ class SystemChangesMixin:
                 raise Conflict(gates["apply"])
             address, target = change["address"], change["target"]
             with self.db() as db:
-                before = dict(self._settings_in_force(address) or self._base_settings(db, address, change["settings_before"]) or {})
+                before = dict(
+                    self._settings_in_force(address)
+                    or self._base_settings(db, address, change["settings_before"])
+                    or {}
+                )
             runs_before = self._max_run_id()
             accepted, words = self._put_in_force(target, address, change["settings_after"])
             with self.db() as db:
-                db.add(ApplyRow(plan_id=plan.id, change_key=key, change_fp=change["fingerprint"], address=address, target=target,
-                                try_id=rec["try"].id, request_id=rec["request"].id, settings_before=before,
-                                settings_after=change["settings_after"], accepted=bool(accepted), words=words[:500], runs_before=runs_before))
+                db.add(
+                    ApplyRow(
+                        plan_id=plan.id,
+                        change_key=key,
+                        change_fp=change["fingerprint"],
+                        address=address,
+                        target=target,
+                        try_id=rec["try"].id,
+                        request_id=rec["request"].id,
+                        settings_before=before,
+                        settings_after=change["settings_after"],
+                        accepted=bool(accepted),
+                        words=words[:500],
+                        runs_before=runs_before,
+                    )
+                )
                 db.commit()
             if accepted:
                 self._remeasure(plan, change)
@@ -574,7 +863,9 @@ class SystemChangesMixin:
             runs_before = self._max_run_id()
             accepted, words = self._put_in_force(row.target, row.address, row.settings_before, keep)
             with self.db() as db:
-                db.add(RollbackRow(apply_id=row.id, accepted=bool(accepted), words=words[:500], runs_before=runs_before))
+                db.add(
+                    RollbackRow(apply_id=row.id, accepted=bool(accepted), words=words[:500], runs_before=runs_before)
+                )
                 db.commit()
             if accepted:
                 self._remeasure(plan, change)
@@ -588,7 +879,10 @@ class SystemChangesMixin:
             if change["kind"] == "tls":
                 for item in self._items(db, plan.id):
                     spec, _ = read_spec(db.get(TestSpecRow, item.spec_hash))
-                    if (spec.get("target") or {}).get("address") == change["address"] and spec.get("kind") in ("tls_versions", "certificate"):
+                    if (spec.get("target") or {}).get("address") == change["address"] and spec.get("kind") in (
+                        "tls_versions",
+                        "certificate",
+                    ):
                         db.expunge(item)
                         items.append(item)
             else:
@@ -598,7 +892,9 @@ class SystemChangesMixin:
         phase, rerun = MIGRATION_ORIGIN, None
         if change["kind"] == "tls":
             with self.db() as db:
-                rerun = db.scalars(select(RetestRow).where(RetestRow.plan_id == plan.id).order_by(RetestRow.id.desc()).limit(1)).first()
+                rerun = db.scalars(
+                    select(RetestRow).where(RetestRow.plan_id == plan.id).order_by(RetestRow.id.desc()).limit(1)
+                ).first()
                 if rerun is not None:
                     db.expunge(rerun)
             phase = "retest" if rerun is not None else "first"
@@ -606,7 +902,7 @@ class SystemChangesMixin:
             try:
                 self._submit(plan, item, phase, rerun)
             except Conflict:
-                pass   # already waiting or running: that run counts
+                pass  # already waiting or running: that run counts
 
     def wait_until_changes_idle(self, plan_id: int, timeout: float = 300.0) -> None:
         for group in (("changes", plan_id), ("migration", plan_id), plan_id):
@@ -647,18 +943,34 @@ def change_history(lab, db, plan: PlanRow, current: list[dict] | None = None) ->
         running = any(c["measured"] is None and not c["skipped"] for c in shown)
         outcome = {"code": "running"} if running else change_try_outcome((t.change or {}).get("promise") or {}, copies)
         before = lab._measured(db, db.get(TestRunRow, t.before_run_id)) if t.before_run_id else None
-        entry = {"row": t, "copies": shown, "outcome": outcome, "before": before,
-                 "clients": lab._clients_of_try(db, plan, t, False)}     # phase 4e: who can still connect (None before it)
+        entry = {
+            "row": t,
+            "copies": shown,
+            "outcome": outcome,
+            "before": before,
+            "clients": lab._clients_of_try(db, plan, t, False),
+        }  # phase 4e: who can still connect (None before it)
         h["tries"].append(entry)
         by_id[t.id] = entry
     for change in current or []:
-        if change["key"] not in out and db.scalar(select(func.count(ApplyRow.id)).where(ApplyRow.change_key == change["key"])):
-            out[change["key"]] = {"change": {k: v for k, v in change.items() if not k.startswith("_")}, "tries": [],
-                                  "approval_requests": [], "applies": []}
+        if change["key"] not in out and db.scalar(
+            select(func.count(ApplyRow.id)).where(ApplyRow.change_key == change["key"])
+        ):
+            out[change["key"]] = {
+                "change": {k: v for k, v in change.items() if not k.startswith("_")},
+                "tries": [],
+                "approval_requests": [],
+                "applies": [],
+            }
     for key, h in out.items():
-        for req in db.scalars(select(ApplyRequestRow).where(ApplyRequestRow.plan_id == plan.id, ApplyRequestRow.change_key == key)
-                              .order_by(ApplyRequestRow.id)).all():
-            approvals = db.scalars(select(ApplyApprovalRow).where(ApplyApprovalRow.request_id == req.id).order_by(ApplyApprovalRow.id)).all()
+        for req in db.scalars(
+            select(ApplyRequestRow)
+            .where(ApplyRequestRow.plan_id == plan.id, ApplyRequestRow.change_key == key)
+            .order_by(ApplyRequestRow.id)
+        ).all():
+            approvals = db.scalars(
+                select(ApplyApprovalRow).where(ApplyApprovalRow.request_id == req.id).order_by(ApplyApprovalRow.id)
+            ).all()
             h["approval_requests"].append({"row": req, "approvals": approvals})
         phases = SystemChangesMixin._remeasure_phases(h["change"] or {"kind": "migration"})
         promise = (h["change"] or {}).get("promise") or {}
@@ -667,22 +979,51 @@ def change_history(lab, db, plan: PlanRow, current: list[dict] | None = None) ->
             tried = by_id.get(row.try_id)
             if tried is None:
                 other = db.get(ChangeTryRow, row.try_id)
-                tried = {"row": other, "copies": [{"label": c["label"], "phase": c["phase"], "skipped": c.get("skipped"),
-                                                   "measured": None if c.get("skipped") else
-                                                   lab._measured(db, lab._latest_run(db, other.item_id, c["phase"], other.id))}
-                                                  for c in other.copies],
-                         "before": lab._measured(db, db.get(TestRunRow, other.before_run_id)) if other.before_run_id else None}
+                tried = {
+                    "row": other,
+                    "copies": [
+                        {
+                            "label": c["label"],
+                            "phase": c["phase"],
+                            "skipped": c.get("skipped"),
+                            "measured": None
+                            if c.get("skipped")
+                            else lab._measured(db, lab._latest_run(db, other.item_id, c["phase"], other.id)),
+                        }
+                        for c in other.copies
+                    ],
+                    "before": lab._measured(db, db.get(TestRunRow, other.before_run_id))
+                    if other.before_run_id
+                    else None,
+                }
             item_id = tried["row"].item_id
-            tried_copy = next((c["measured"] for c in (tried or {}).get("copies", []) if c["measured"] is not None), None)
-            after = lab._measured(db, lab._first_after(db, item_id, phases, row.runs_before)) if row.accepted and item_id else None
+            tried_copy = next(
+                (c["measured"] for c in (tried or {}).get("copies", []) if c["measured"] is not None), None
+            )
+            after = (
+                lab._measured(db, lab._first_after(db, item_id, phases, row.runs_before))
+                if row.accepted and item_id
+                else None
+            )
             back = db.scalars(select(RollbackRow).where(RollbackRow.apply_id == row.id)).first()
-            after_back = (lab._measured(db, lab._first_after(db, item_id, phases, back.runs_before))
-                          if back is not None and back.accepted and item_id else None)
-            h["applies"].append({
-                "row": row, "from_this_import": row.plan_id == plan.id, "after": after,
-                "outcome": (apply_outcome(promise, tried_copy, after) if after else None) if row.accepted else None,
-                "rollback": back, "after_rollback": after_back,
-                "rollback_outcome": rollback_outcome((tried or {}).get("before"), after_back) if after_back else None})
+            after_back = (
+                lab._measured(db, lab._first_after(db, item_id, phases, back.runs_before))
+                if back is not None and back.accepted and item_id
+                else None
+            )
+            h["applies"].append(
+                {
+                    "row": row,
+                    "from_this_import": row.plan_id == plan.id,
+                    "after": after,
+                    "outcome": (apply_outcome(promise, tried_copy, after) if after else None) if row.accepted else None,
+                    "rollback": back,
+                    "after_rollback": after_back,
+                    "rollback_outcome": rollback_outcome((tried or {}).get("before"), after_back)
+                    if after_back
+                    else None,
+                }
+            )
     return out
 
 

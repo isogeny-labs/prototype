@@ -10,6 +10,7 @@ then start the app with
 "Log in with GitHub" then goes to this server, which sends the browser straight back with a code, as GitHub does
 after a person clicks Authorize. Test data only; it listens on 127.0.0.1 unless --host says otherwise.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -63,7 +64,10 @@ def handler(login: str, orgs: list[str]):
                 return self._json(404, {"message": "Not Found"})
             form = parse_qs(self.rfile.read(int(self.headers.get("Content-Length") or 0)).decode())
             code = (form.get("code") or [""])[0]
-            if form.get("client_secret") != [CLIENT_SECRET] or codes.pop(code, None) != (form.get("redirect_uri") or [""])[0]:
+            if (
+                form.get("client_secret") != [CLIENT_SECRET]
+                or codes.pop(code, None) != (form.get("redirect_uri") or [""])[0]
+            ):
                 return self._json(200, {"error": "bad_verification_code"})
             token = "ghu_fake_" + secrets.token_urlsafe(16)
             tokens.add(token)

@@ -1,4 +1,5 @@
 """Records: locked tests, append-only runs and reviews, and the exact canonical form their fingerprints use."""
+
 import hashlib
 import json
 
@@ -13,12 +14,27 @@ from app.lab.testlab import read_spec
 from conftest import demo_plan, run_kind
 
 DEMO_CLAIMS = [
-    {"location": "localhost:8443", "location_kind": "server", "kind": "protocol_versions", "claimed_value": "TLS 1.3",
-     "detail": {"host": "localhost", "port": 8443, "versions": ["TLS 1.3"]}},
-    {"location": "localhost:8443", "location_kind": "server", "kind": "certificate", "claimed_value": "ECDSA P-256",
-     "detail": {"host": "localhost", "port": 8443, "algorithm": "ECDSA P-256"}},
-    {"location": "acme-sign 1.4.2", "location_kind": "software", "kind": "signature_algorithm", "claimed_value": "ECDSA P-256",
-     "detail": {"component": "acme-sign", "version": "1.4.2", "algorithm": "ECDSA P-256"}},
+    {
+        "location": "localhost:8443",
+        "location_kind": "server",
+        "kind": "protocol_versions",
+        "claimed_value": "TLS 1.3",
+        "detail": {"host": "localhost", "port": 8443, "versions": ["TLS 1.3"]},
+    },
+    {
+        "location": "localhost:8443",
+        "location_kind": "server",
+        "kind": "certificate",
+        "claimed_value": "ECDSA P-256",
+        "detail": {"host": "localhost", "port": 8443, "algorithm": "ECDSA P-256"},
+    },
+    {
+        "location": "acme-sign 1.4.2",
+        "location_kind": "software",
+        "kind": "signature_algorithm",
+        "claimed_value": "ECDSA P-256",
+        "detail": {"component": "acme-sign", "version": "1.4.2", "algorithm": "ECDSA P-256"},
+    },
 ]
 
 
@@ -36,7 +52,9 @@ def test_canonical_form_is_exact():
 def _all_specs():
     engine = RuleEngine(3, 20)
     specs = engine.propose_tests(DEMO_CLAIMS)["tests"]
-    return specs + [engine.design_test({"catalog_id": k, "claims": DEMO_CLAIMS}) for k in ("pq_readiness", "mldsa_compare")]
+    return specs + [
+        engine.design_test({"catalog_id": k, "claims": DEMO_CLAIMS}) for k in ("pq_readiness", "mldsa_compare")
+    ]
 
 
 def test_a_locked_test_names_no_version_mode_or_time():
@@ -62,7 +80,9 @@ def test_a_locked_test_names_no_version_mode_or_time():
     for spec in _all_specs():
         text_form = canonical_bytes(spec).decode()
         assert "1.4.2" not in text_form and "1.4.3" not in text_form, spec["kind"]
-        assert not {"version", "mode", "started_at", "finished_at", "locked_at", "baseline_version", "time"} & set(keys(spec))
+        assert not {"version", "mode", "started_at", "finished_at", "locked_at", "baseline_version", "time"} & set(
+            keys(spec)
+        )
         assert not list(floats(spec)), "thresholds are whole numbers, so the fingerprint is exact"
         for part in ("question", "method", "inputs", "control", "rule", "target"):
             assert spec[part], part
@@ -106,8 +126,12 @@ def test_a_run_refuses_to_start_when_the_stored_test_was_changed(lab):
     plan = demo_plan(lab)
     with lab.db() as db:  # only possible by removing the guard first: this is someone tampering with the database file
         db.execute(text("DROP TRIGGER test_specs_no_update"))
-        db.execute(text("UPDATE test_specs SET canonical = replace(canonical, 'Any wrong answer means Failed', 'Up to five wrong answers still pass') "
-                        "WHERE kind = 'bad_signatures'"))
+        db.execute(
+            text(
+                "UPDATE test_specs SET canonical = replace(canonical, 'Any wrong answer means Failed', 'Up to five wrong answers still pass') "
+                "WHERE kind = 'bad_signatures'"
+            )
+        )
         db.commit()
     result = run_kind(lab, plan, "bad_signatures")
     assert result["label"] == "Couldn't trust this run"

@@ -14,8 +14,8 @@ const CLOSED = "This assessment is closed. Start a new one to continue.";
 
 let context: BrowserContext;
 let page: Page;
-let acmePay: string;          // the address of Acme Pay's first assessment (#/a/<id>/...)
-let evidenceRows: string[];   // Evidence as left, before switching away
+let acmePay: string; // the address of Acme Pay's first assessment (#/a/<id>/...)
+let evidenceRows: string[]; // Evidence as left, before switching away
 
 /** One picture in the dark look and one in the light look (the same page, the same moment). */
 async function shots(name: string, opts: { fullPage?: boolean } = {}): Promise<void> {
@@ -71,7 +71,14 @@ test("Load demo projects: a Demo folder with one project per demo file, each wit
   await expect(page.getByRole("status").filter({ hasText: /demo projects/ })).toBeVisible({ timeout: 60_000 });
   await page.goto("/#/projects");
   const rows = page.getByTestId("project-row");
-  for (const name of ["Acme Pay", "Migration demo", "Multi-target", "Lab nginx (isolated mode)", "Real libraries (isolated mode)", "Real public servers (needs internet)"]) {
+  for (const name of [
+    "Acme Pay",
+    "Migration demo",
+    "Multi-target",
+    "Lab nginx (isolated mode)",
+    "Real libraries (isolated mode)",
+    "Real public servers (needs internet)",
+  ]) {
     await expect(projectRow(name)).toHaveCount(1);
   }
   // Real public servers were not contacted: nothing is verified there.
@@ -79,7 +86,9 @@ test("Load demo projects: a Demo folder with one project per demo file, each wit
   // Running it twice adds nothing.
   await page.goto("/#/settings");
   await page.getByRole("button", { name: "Load demo projects" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "The demo projects are already here. Nothing was added." })).toBeVisible();
+  await expect(
+    page.getByRole("status").filter({ hasText: "The demo projects are already here. Nothing was added." }),
+  ).toBeVisible();
   await page.goto("/#/projects");
   await expect(projectRow("Acme Pay")).toHaveCount(1);
   await shots("01-projects-home");
@@ -138,7 +147,7 @@ test("run Acme Pay: Verify claims, then every suggested test", async () => {
 test("Evidence: a table of results; a row opens the detail panel; Fixes and Migration in the new layout", async () => {
   await stepLink(page, "Evidence").click();
   await expect(page.getByText(DISCLAIMER)).toBeVisible();
-  await openGroupTab(page, "Crypto tests", "Evidence");      // (the results are Evidence's Crypto tests tab)
+  await openGroupTab(page, "Crypto tests", "Evidence"); // (the results are Evidence's Crypto tests tab)
   const rows = page.getByTestId("evidence-row");
   await expect(rows).toHaveCount(5);
   evidenceRows = await rows.allInnerTexts();
@@ -157,11 +166,11 @@ test("Evidence: a table of results; a row opens the detail panel; Fixes and Migr
 
   await stepLink(page, "Systems").click();
   await page.getByRole("button", { name: /^Measure status/ }).click();
-  await expect(page.getByRole("button", { name: /^Measure again/ })).toBeEnabled({ timeout: 120_000 });   // every system measured
+  await expect(page.getByRole("button", { name: /^Measure again/ })).toBeEnabled({ timeout: 120_000 }); // every system measured
   await shots("09-migration-systems");
   await stepLink(page, "Roadmap").click();
   await expect(page.getByTestId("roadmap-band").first()).toBeVisible();
-  await expect(page.getByTestId("detail-panel")).toHaveCount(0);   // the Roadmap opens with no panel
+  await expect(page.getByTestId("detail-panel")).toHaveCount(0); // the Roadmap opens with no panel
   await shots("10-migration-roadmap");
   // Phase 5a follow-up (approved by Kevin on 17 November 2026): a system's name on the Roadmap opens that system's
   // detail panel. Opening it changes nothing: no request but reads goes to the backend.
@@ -198,7 +207,9 @@ test("switch to Migration demo, then back: Acme Pay is exactly as it was left", 
   await switchTo("Acme Pay");
   expect(page.url()).toContain(acmePay);
   // The Overview's counts are Acme Pay's own: 3 claims checked, 1 false (expected.json), tests run.
-  const verification = page.getByTestId("overview-group").filter({ has: page.getByRole("heading", { name: "Verification" }) });
+  const verification = page
+    .getByTestId("overview-group")
+    .filter({ has: page.getByRole("heading", { name: "Verification" }) });
   await expect(verification.getByTestId("overview-fact")).toHaveText(["True 2", "False 1", "Couldn't check 0"]);
   await expect(page.getByTestId("finding-count").filter({ hasText: "False claims" })).toHaveText("False claims 1");
   await shots("02-overview-after");
@@ -269,7 +280,7 @@ test("New assessment: a fresh pass in Acme Pay; the old one stays open until it 
   await stepLink(page, "Evidence").click();
   await openGroupTab(page, "Crypto tests", "Evidence");
   await expect(page.getByTestId("evidence-row")).toHaveCount(5);
-  expect(await page.getByTestId("evidence-row").allInnerTexts()).toEqual(evidenceRows);   // kept exactly as it was
+  expect(await page.getByTestId("evidence-row").allInnerTexts()).toEqual(evidenceRows); // kept exactly as it was
   await expect(page.getByRole("button", { name: "Download evidence" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Retest new version" })).toBeDisabled();
   // The backend refuses it too: a changing request on a closed assessment answers with the same sentence.

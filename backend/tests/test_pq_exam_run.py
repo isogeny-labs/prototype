@@ -18,9 +18,16 @@ class FakeRunner:
         lines = []
         for asked in job["cases"]:
             case = self.cases[asked["id"]]
-            line = {"subject": job["subject"], "id": case.id, "rc": 0, "error": None, "declined": case.expect == "refuse",
-                    "valid": {"accept": True, "reject": False}.get(case.expect) if case.command == "verify" else None,
-                    "answer_sha256": case.answer_sha256, "ms": 1.0}
+            line = {
+                "subject": job["subject"],
+                "id": case.id,
+                "rc": 0,
+                "error": None,
+                "declined": case.expect == "refuse",
+                "valid": {"accept": True, "reject": False}.get(case.expect) if case.command == "verify" else None,
+                "answer_sha256": case.answer_sha256,
+                "ms": 1.0,
+            }
             lines.append(line)
             if on_line:
                 on_line(line)
@@ -29,8 +36,16 @@ class FakeRunner:
 
 def context(fake, family_images):
     mode = runner.ModeInfo("isolated", "", None, True, "components-image", None, family_images)
-    return RunContext(settings=None, mode=mode, runner=fake, gate=None, progress=lambda text, percent: None, log=lambda text: None,
-                      address_check=lambda address: None, component=("openssl", "3.5.9"))
+    return RunContext(
+        settings=None,
+        mode=mode,
+        runner=fake,
+        gate=None,
+        progress=lambda text, percent: None,
+        log=lambda text: None,
+        address_check=lambda address: None,
+        component=("openssl", "3.5.9"),
+    )
 
 
 def spec_for(kind):
@@ -45,11 +60,16 @@ def test_the_library_runs_in_its_own_image_and_every_control_in_the_openssl_imag
     # as if the library examined lived in another family's image
     monkeypatch.setattr(signing, "family_of", lambda ctx, version=None: "another-library")
     monkeypatch.setattr(pqvectors, "family_of", lambda ctx, version=None: "another-library")
-    raw = pqvectors.run_pq_exam(spec_for("mlkem_vectors"), context(fake, {"another-library": "image-a", "openssl": "image-o"}))
+    raw = pqvectors.run_pq_exam(
+        spec_for("mlkem_vectors"), context(fake, {"another-library": "image-a", "openssl": "image-o"})
+    )
     assert "problem" not in raw
     assert fake.calls[0] == ("openssl-3.5.9", "another-library", 655)
     assert [(subject, family) for subject, family, _ in fake.calls[1:]] == [
-        ("control-pq-wrong-answer", "openssl"), ("control-pq-skip-key-check", "openssl"), ("control-pq-skip-key-check", "openssl")]
+        ("control-pq-wrong-answer", "openssl"),
+        ("control-pq-skip-key-check", "openssl"),
+        ("control-pq-skip-key-check", "openssl"),
+    ]
     assert [n for _, _, n in fake.calls[1:]] == [125, 300, 230]
     assert len(raw["subject"]["answers"]) == 655 and set(raw["controls"]) == {"keygen", "encaps", "decaps"}
 
@@ -59,8 +79,11 @@ def test_the_signature_exam_asks_the_accept_everything_control_for_verification(
     fake = FakeRunner(cases)
     raw = pqvectors.run_pq_exam(spec_for("mldsa_vectors"), context(fake, {"openssl": "image-o"}))
     assert [(subject, family, n) for subject, family, n in fake.calls] == [
-        ("openssl-3.5.9", "openssl", 475), ("control-pq-wrong-answer", "openssl", 25), ("control-pq-wrong-answer", "openssl", 191),
-        ("control-accept-all", "openssl", 255)]
+        ("openssl-3.5.9", "openssl", 475),
+        ("control-pq-wrong-answer", "openssl", 25),
+        ("control-pq-wrong-answer", "openssl", 191),
+        ("control-accept-all", "openssl", 255),
+    ]
     assert raw["controls"]["verify"]["control"] == "accept_all"
 
 
@@ -71,4 +94,4 @@ def test_a_real_library_is_never_examined_outside_isolated_mode_or_without_its_i
     demo.mode = runner.ModeInfo("demo", "", None, False, None, None)
     assert pqvectors.run_pq_exam(spec, demo)["problem"]["code"] == "needs_isolated_mode"
     assert pqvectors.run_pq_exam(spec, context(fake, {}))["problem"]["code"] == "real_image_missing"
-    assert fake.calls == []   # nothing was started either time
+    assert fake.calls == []  # nothing was started either time

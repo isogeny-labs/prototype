@@ -1,6 +1,7 @@
 """Phase 5b: a migration change's try on a test copy, and the measurements the app made by itself after Apply and Roll
 back, in the list of checks: each run once, in Migration, with where it came from and the change box it links back to.
 (The walk takes a while, so it is in the full set.)"""
+
 import pytest
 
 from app.servers import migration_servers
@@ -24,7 +25,7 @@ def changed(tmp_path_factory):
         plan = lab.ensure_plan(imp["id"])
         lab.measure_migration(plan["id"])
         lab.wait_until_measured(plan["id"], 300)
-        address = f"localhost:{ports[1]}"                      # c1: classical, internet-facing, long-lived
+        address = f"localhost:{ports[1]}"  # c1: classical, internet-facing, long-lived
         key = f"migration:server:{address}"
         lab.try_change(plan["id"], key)
         lab.wait_until_changes_idle(plan["id"])
@@ -55,7 +56,7 @@ def test_the_measurements_after_apply_and_roll_back_are_runs_of_the_systems_own_
     row = next(r for r in led["rows"] if r["id"] == f"system-server:{address}")
     origins = [h["came_from"] for h in row["history"]]
     assert origins[:2] == ["After Roll back", "After Apply"] and origins[-1] == "Measure status"
-    assert row["came_from"]["label"] == "After Roll back"              # where its newest run came from
+    assert row["came_from"]["label"] == "After Roll back"  # where its newest run came from
     # the newest result is the one the Systems page shows
     system = next(s for s in lab.migration_view(pid)["systems"] if s["key"] == f"server:{address}")
     assert row["result"]["label"] == system["status"]["label"]
@@ -69,7 +70,9 @@ def test_the_change_is_one_fix_in_migration_with_its_counts(changed):
     view = lab.fixes_view(pid)
     fix = next(f for f in view["fixes"] if (f.get("change_box") or {}).get("id") == key)
     assert fix["group"] == "migration" and fix["status"]["word"] == "Rolled back" and fix["fix_state"] == "open"
-    assert fix["came_from_links"] == [{"label": "The migration plan", "link": {"page": "migration/systems", "item": f"server:{address}"}}]
+    assert fix["came_from_links"] == [
+        {"label": "The migration plan", "link": {"page": "migration/systems", "item": f"server:{address}"}}
+    ]
     detail = lab.check_detail(pid, f"system-server:{address}")
     lines = {line["kind"]: line for line in detail["related"]}
     assert fix["id"] in {i["link"]["item"] for i in lines["fix"]["items"]}

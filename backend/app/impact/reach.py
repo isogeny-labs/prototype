@@ -24,6 +24,7 @@ It reads the scanner files, the dependency lists and the knowledge base. It runs
 nothing: no result, no status and no count anywhere else changes because of it. What each fix is about is read from
 the fix as Fixes already has it.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -45,6 +46,7 @@ SERVER, SOFTWARE = "server", "software"
 class Part:
     """What a change touches. kind "server" (address) or "software" (name and version, with its package address
     when it has one). `library` is the knowledge base's id when the knowledge base recognises it."""
+
     kind: str
     address: str | None = None
     name: str | None = None
@@ -66,8 +68,14 @@ def server_part(address: str) -> Part:
 
 def software_part(name: str, version: str | None, purl: str | None = None) -> Part:
     entry = knowledge_base().find(purl, name)
-    return Part(kind=SOFTWARE, name=str(name), version=version, purl=purl, library=entry.library if entry else None,
-                roles=tuple(entry.roles) if entry else ())
+    return Part(
+        kind=SOFTWARE,
+        name=str(name),
+        version=version,
+        purl=purl,
+        library=entry.library if entry else None,
+        roles=tuple(entry.roles) if entry else (),
+    )
 
 
 def same_version(a: object, b: object) -> bool:
@@ -89,11 +97,18 @@ def software_match(part: Part, name: object, version: object, purl: object = Non
         return "package" if mine == theirs and same_version(part.version, version) else None
     entry = knowledge_base().find(purl, name)
     if part.library is not None or entry is not None:
-        return ("knowledge_base" if (entry is not None and entry.library == part.library and same_version(part.version, version))
-                else None)
+        return (
+            "knowledge_base"
+            if (entry is not None and entry.library == part.library and same_version(part.version, version))
+            else None
+        )
     # software the knowledge base knows nothing about (the customer's own, or our demo programs): the exact version
     # text, as a dependency entry is tied to a signing program ("1.4.3-otto" is another program than "1.4.3")
-    same_text = isinstance(version, str) and isinstance(part.version, str) and version.strip().casefold() == part.version.strip().casefold()
+    same_text = (
+        isinstance(version, str)
+        and isinstance(part.version, str)
+        and version.strip().casefold() == part.version.strip().casefold()
+    )
     return "name_version" if same_text and name.strip().casefold() == str(part.name or "").strip().casefold() else None
 
 
@@ -129,9 +144,16 @@ class ImpactMixin:
         imp = db.get(ImportRow, import_id)
         claims = self._claims(imp) if imp is not None else []
         servers = list(research.servers(claims))
-        programs = [{"name": str(p["component"]), "version": p.get("version"), "ref": p["ref"], "role": p.get("role"),
-                     "system": "software:" + p["ref"] if p.get("role") != "key_exchange" else None}
-                    for p in research.programs(claims)]
+        programs = [
+            {
+                "name": str(p["component"]),
+                "version": p.get("version"),
+                "ref": p["ref"],
+                "role": p.get("role"),
+                "system": "software:" + p["ref"] if p.get("role") != "key_exchange" else None,
+            }
+            for p in research.programs(claims)
+        ]
         components: list[dict] = []
         if newest is not None:
             row = db.get(DependencyListRow, newest)
@@ -139,8 +161,10 @@ class ImpactMixin:
             pairs = [(p["component"], p["version"]) for p in self._programs(claims)]
             tree = build_tree(dl, pairs)
             row_ids = {r.key: f"row-{n + 1}" for n, r in enumerate(tree.rows)}
-            components = [{"key": c.key, "name": c.name, "version": c.version, "purl": c.purl, "row": row_ids.get(c.key)}
-                          for c in sorted(dl.components.values(), key=lambda c: c.order)]
+            components = [
+                {"key": c.key, "name": c.name, "version": c.version, "purl": c.purl, "row": row_ids.get(c.key)}
+                for c in sorted(dl.components.values(), key=lambda c: c.order)
+            ]
         cache[key] = {"servers": servers, "programs": programs, "components": components}
         return cache[key]
 
@@ -160,7 +184,9 @@ class ImpactMixin:
             if ctx["state"] is not None:
                 row = self._latest_list(db, imp.id)
                 ctx["dl"] = from_store(row.parsed)
-                ctx["tops"] = top_keys(ctx["dl"], [(p["component"], p["version"]) for p in self._programs(ctx["claims"])])
+                ctx["tops"] = top_keys(
+                    ctx["dl"], [(p["component"], p["version"]) for p in self._programs(ctx["claims"])]
+                )
             mine = self.assessment_for(plan_id=plan.id)
             ctx["mine"] = mine.id if mine is not None else None
             ctx["closed"] = mine is not None and mine.closed_at is not None
@@ -173,7 +199,7 @@ class ImpactMixin:
         ctx = self._impact_context(db, plan, ctx)
         claims, systems, state = ctx["claims"], ctx["systems"], ctx["state"]
         here: list[dict] = []
-        reached: dict[str, dict] = {}       # system key -> the system, for the count
+        reached: dict[str, dict] = {}  # system key -> the system, for the count
 
         def reach(system_key: str | None) -> dict | None:
             s = systems.get(system_key) if system_key else None
@@ -184,15 +210,29 @@ class ImpactMixin:
         # (a) the scanner file
         if part.kind == SERVER:
             if any(server_match(part, a) for a in research.servers(claims)):
-                here.append({"kind": "file", "as": "server", "how": "address", "system": reach("server:" + str(part.address)),
-                             "label": str(part.address)})
+                here.append(
+                    {
+                        "kind": "file",
+                        "as": "server",
+                        "how": "address",
+                        "system": reach("server:" + str(part.address)),
+                        "label": str(part.address),
+                    }
+                )
         else:
             for p in research.programs(claims):
                 how = software_match(part, p["component"], p.get("version"))
                 if how:
                     system = reach("software:" + p["ref"]) if p.get("role") != "key_exchange" else None
-                    here.append({"kind": "file", "as": "signing program" if p.get("role") != "key_exchange" else "key exchange program",
-                                 "how": how, "system": system, "label": p["label"]})
+                    here.append(
+                        {
+                            "kind": "file",
+                            "as": "signing program" if p.get("role") != "key_exchange" else "key exchange program",
+                            "how": how,
+                            "system": system,
+                            "label": p["label"],
+                        }
+                    )
         # (b) the newest dependency list
         listed = state is not None
         if state is not None:
@@ -219,8 +259,15 @@ class ImpactMixin:
                             continue
                         r = rows_by_key.get(c.key)
                         if c.key in tops:
-                            here.append({"kind": "top", "label": label(c), "how": how, "tie": tie_of(c.key),
-                                         "described": c.key == dl.described})
+                            here.append(
+                                {
+                                    "kind": "top",
+                                    "label": label(c),
+                                    "how": how,
+                                    "tie": tie_of(c.key),
+                                    "described": c.key == dl.described,
+                                }
+                            )
                         else:
                             here.append({"kind": "row", "label": label(c), "how": how, "row": r["id"] if r else None})
             seen: set[str] = set()
@@ -229,14 +276,26 @@ class ImpactMixin:
                     if top_key in seen or top_key in matched:
                         continue
                     seen.add(top_key)
-                    here.append({"kind": "user", "label": label(dl.components[top_key]), "via": via, "tie": tie_of(top_key),
-                                 "described": top_key == dl.described})
+                    here.append(
+                        {
+                            "kind": "user",
+                            "label": label(dl.components[top_key]),
+                            "via": via,
+                            "tie": tie_of(top_key),
+                            "described": top_key == dl.described,
+                        }
+                    )
         # (c) elsewhere in the organization
         closed = ctx["closed"]
         elsewhere = [] if closed else self._impact_elsewhere(db, part, ctx)
-        return {"part": {"kind": part.kind, "label": part.label, "library": part.library, "roles": list(part.roles)},
-                "here": here, "listed": listed, "closed": closed, "elsewhere": elsewhere,
-                "count": len(reached) + len(elsewhere)}
+        return {
+            "part": {"kind": part.kind, "label": part.label, "library": part.library, "roles": list(part.roles)},
+            "here": here,
+            "listed": listed,
+            "closed": closed,
+            "elsewhere": elsewhere,
+            "count": len(reached) + len(elsewhere),
+        }
 
     def _impact_visible(self, db, mine: int | None) -> list[tuple[AssessmentRow, ProjectRow, int | None]]:
         """Every other assessment with a file that the organization shows, newest first: not archived, in a project that
@@ -255,12 +314,23 @@ class ImpactMixin:
                 folder_id = f.parent_id
             return False
 
-        rows = db.execute(select(AssessmentRow, ProjectRow).join(ProjectRow, ProjectRow.id == AssessmentRow.project_id)
-                          .order_by(AssessmentRow.id.desc())).all()
-        newest = dict(db.execute(select(DependencyListRow.import_id, func.max(DependencyListRow.id))
-                                 .group_by(DependencyListRow.import_id)).all())
-        return [(a, p, newest.get(a.import_id)) for a, p in rows
-                if not (a.id == mine or a.import_id is None or a.archived or p.archived or folder_hidden(p.folder_id))]
+        rows = db.execute(
+            select(AssessmentRow, ProjectRow)
+            .join(ProjectRow, ProjectRow.id == AssessmentRow.project_id)
+            .order_by(AssessmentRow.id.desc())
+        ).all()
+        newest = dict(
+            db.execute(
+                select(DependencyListRow.import_id, func.max(DependencyListRow.id)).group_by(
+                    DependencyListRow.import_id
+                )
+            ).all()
+        )
+        return [
+            (a, p, newest.get(a.import_id))
+            for a, p in rows
+            if not (a.id == mine or a.import_id is None or a.archived or p.archived or folder_hidden(p.folder_id))
+        ]
 
     def _impact_elsewhere(self, db, part: Part, ctx: dict) -> list[dict]:
         if "visible" not in ctx:
@@ -272,10 +342,17 @@ class ImpactMixin:
             if hit is None:
                 continue
             slot = found.get(p.id)
-            if slot is None:       # newest first: the first one found in a project is its newest
-                found[p.id] = {"project": {"id": p.id, "name": p.name},
-                               "assessment": {"id": a.id, "title": a.name or f"Assessment {a.number}", "closed": a.closed_at is not None},
-                               "more": 0, **hit}
+            if slot is None:  # newest first: the first one found in a project is its newest
+                found[p.id] = {
+                    "project": {"id": p.id, "name": p.name},
+                    "assessment": {
+                        "id": a.id,
+                        "title": a.name or f"Assessment {a.number}",
+                        "closed": a.closed_at is not None,
+                    },
+                    "more": 0,
+                    **hit,
+                }
             else:
                 slot["more"] += 1
         return list(found.values())
@@ -286,22 +363,36 @@ class ImpactMixin:
         if part.kind == SERVER:
             for address in facts["servers"]:
                 if server_match(part, address):
-                    return {"as": "server", "how": "address", "label": address,
-                            "link": {"page": "migration/systems", "item": "server:" + address}}
+                    return {
+                        "as": "server",
+                        "how": "address",
+                        "label": address,
+                        "link": {"page": "migration/systems", "item": "server:" + address},
+                    }
             return None
         for p in facts["programs"]:
             how = software_match(part, p["name"], p["version"])
             if how:
                 text = f"{p['name']} {p['version']}" if p["version"] else p["name"]
-                return {"as": "signing program" if p["system"] else "key exchange program", "how": how, "label": text,
-                        "link": {"page": "migration/systems", "item": p["system"]} if p["system"] else {"page": "inventory/import", "item": None}}
+                return {
+                    "as": "signing program" if p["system"] else "key exchange program",
+                    "how": how,
+                    "label": text,
+                    "link": {"page": "migration/systems", "item": p["system"]}
+                    if p["system"]
+                    else {"page": "inventory/import", "item": None},
+                }
         for c in facts["components"]:
             how = software_match(part, c["name"], c["version"], c["purl"])
             if how:
                 text = f"{c['name']} {c['version']}" if c["version"] else c["name"]
-                return {"as": "dependency list", "how": how, "label": text, "link": {"page": "migration/dependencies", "item": c["row"]}}
+                return {
+                    "as": "dependency list",
+                    "how": how,
+                    "label": text,
+                    "link": {"page": "migration/dependencies", "item": c["row"]},
+                }
         return None
-
 
     # ---------------------------------------------------------------- what each fix is about
 
@@ -309,12 +400,13 @@ class ImpactMixin:
         """The block "What this change touches" for one fix of Fixes, or None for Change watch's entry (it is counted
         nowhere and is about a developer's branch). What the fix is about is read from the fix as Fixes has it."""
         from app.present import impact as words
+
         source = fix.get("source_kind")
         if source == "developer_change":
             return None
         ctx = self._impact_context(db, plan, ctx)
         if "changes" not in ctx:
-            ctx["changes"] = {c["key"]: c for c in self._plan_changes(db, plan)}        # type: ignore[attr-defined]
+            ctx["changes"] = {c["key"]: c for c in self._plan_changes(db, plan)}  # type: ignore[attr-defined]
         changes: dict = ctx["changes"]
         part: Part | None = None
         change: dict | None = None
@@ -338,8 +430,13 @@ class ImpactMixin:
             if row is None:
                 return None
             part = software_part(row["name"], row.get("version"), row.get("purl"))
-            firsts = [b.get("first_version") for s in (state.get("systems") or {}).values() for bs in s["blockers"].values()
-                      for b in bs if b["row_key"] == row["key"]]
+            firsts = [
+                b.get("first_version")
+                for s in (state.get("systems") or {}).values()
+                for bs in s["blockers"].values()
+                for b in bs
+                if b["row_key"] == row["key"]
+            ]
             first = next((f for f in firsts if f and f != "none_known"), None)
             compatible = f"{first} or later" if first else "a newer version"
             what = "a library"
@@ -359,7 +456,9 @@ class ImpactMixin:
             if address is not None:
                 part = server_part(address)
                 item_ids = {a["item_id"] for a in fix.get("answers") or []}
-                change = next((c for c in changes.values() if c.get("kind") == "tls" and c.get("_item_id") in item_ids), None)
+                change = next(
+                    (c for c in changes.values() if c.get("kind") == "tls" and c.get("_item_id") in item_ids), None
+                )
             else:
                 otto, real = fix.get("otto_fix") or {}, fix.get("real_library") or {}
                 name = (run.component_name if run is not None else None) or real.get("name")
@@ -367,7 +466,11 @@ class ImpactMixin:
                 if not name:
                     return None
                 part = software_part(str(name), version)
-                compatible = (otto.get("version") if otto.get("kind") == "update" else None) or real.get("fixed") or "the fixed version"
+                compatible = (
+                    (otto.get("version") if otto.get("kind") == "update" else None)
+                    or real.get("fixed")
+                    or "the fixed version"
+                )
                 what = "a library" if part.library else "a program"
         if part is None:
             return None
@@ -376,20 +479,30 @@ class ImpactMixin:
             connect = words.CONNECT_TEXT_ONLY
         else:
             connect = words.connect_line(facts["part"], change=change, signing_change=signing_change, what=what)
-        return words.block(facts, on_fix=True, compatible_for=compatible, connect=connect,
-                           apply_note=bool(part.kind == SERVER and change is not None and change.get("target")))
-
+        return words.block(
+            facts,
+            on_fix=True,
+            compatible_for=compatible,
+            connect=connect,
+            apply_note=bool(part.kind == SERVER and change is not None and change.get("target")),
+        )
 
     def _dependency_impact(self, db, plan: PlanRow, state: dict | None) -> dict[str, dict]:
         """Phase 4e: "Where it is used" for every library row of the Dependencies view, by the row's key."""
         from app.present import impact as words
+
         if state is None:
             return {}
         ctx = self._impact_context(db, plan, {"state": state})
-        return {r["key"]: words.block(self._impact(db, plan, software_part(r["name"], r.get("version"), r.get("purl")),
-                                                   own_row=r["key"], ctx=ctx), on_fix=False)
-                for r in state["rows"]}
-
+        return {
+            r["key"]: words.block(
+                self._impact(
+                    db, plan, software_part(r["name"], r.get("version"), r.get("purl")), own_row=r["key"], ctx=ctx
+                ),
+                on_fix=False,
+            )
+            for r in state["rows"]
+        }
 
     def _row_users(self, db, plan: PlanRow, state: dict | None) -> dict[str, list[dict]]:
         """For every library row of the dependency list: every top entry that reaches it ({"key", "label", "via"}), by
@@ -399,8 +512,14 @@ class ImpactMixin:
             return {}
         ctx = self._impact_context(db, plan, {"state": state})
         dl, tops = ctx["dl"], ctx["tops"]
-        return {r["key"]: [{"key": top, "label": label(dl.components[top]), "via": via} for top, via in reached_from(dl, r["key"], tops)]
-                for r in state["rows"] if r["key"] in dl.components}
+        return {
+            r["key"]: [
+                {"key": top, "label": label(dl.components[top]), "via": via}
+                for top, via in reached_from(dl, r["key"], tops)
+            ]
+            for r in state["rows"]
+            if r["key"] in dl.components
+        }
 
 
 __all__ = ["ImpactMixin", "Part", "server_part", "software_part", "software_match", "server_match", "same_version"]

@@ -2,6 +2,7 @@
 
 Everything else in the panel is a page's own sentence, repeated. Nothing here words a result.
 """
+
 from __future__ import annotations
 
 TITLE = "Otto"
@@ -13,21 +14,31 @@ SO_FAR = "This thread so far"
 # say it (the pages word their headers themselves; a test holds the three that are written out in the backend equal).
 PAGE_FOR = {
     "overview": "The Overview says where this assessment stands: what was verified, what was tested, what waits for a decision, and the next step.",
-    "inventory/import": ("Import brings in the file from your scanning tool that lists where encryption is used and how. It is read as data "
-                         "only; nothing in it is run."),
+    "inventory/import": (
+        "Import brings in the file from your scanning tool that lists where encryption is used and how. It is read as data "
+        "only; nothing in it is run."
+    ),
     "inventory/verify": "Verify checks each claim from the file against the real system and says True, False or Couldn't check, with the evidence.",
-    "advisories": ("Advisories lists every published advisory in the installed test packs. Where one has a test that fits a signing program "
-                   "of this assessment, its check is proposed: you accept or reject it."),
+    "advisories": (
+        "Advisories lists every published advisory in the installed test packs. Where one has a test that fits a signing program "
+        "of this assessment, its check is proposed: you accept or reject it."
+    ),
     "checks": "Checks lists every check in this assessment, wherever it was started. The test plan is under Crypto tests.",
     "evidence": "Evidence holds every result: what was run, what came back, what it shows and what it doesn't. The signed evidence file is downloaded here.",
-    "fixes": ("Fixes lists the fixes for the findings in Evidence, and what the migration plan needs done. A code change is ready for review "
-              "only after its proof has passed."),
-    "change-watch": ("Change watch lists every developer's change in the connected demo repository, with the tests picked for it. They run "
-                     "only when you ask, and their runs are kept apart from this assessment's own results."),
+    "fixes": (
+        "Fixes lists the fixes for the findings in Evidence, and what the migration plan needs done. A code change is ready for review "
+        "only after its proof has passed."
+    ),
+    "change-watch": (
+        "Change watch lists every developer's change in the connected demo repository, with the tests picked for it. They run "
+        "only when you ask, and their runs are kept apart from this assessment's own results."
+    ),
     "migration/systems": "Systems shows where each system stands on the move to post-quantum cryptography, with its options and its plan.",
     "migration/roadmap": "Roadmap gives every track of every system its place, built from your choices. It updates when a choice, a setting or a measurement changes.",
-    "migration/dependencies": ("Dependencies lists the libraries your dependency list names, and which of them can do post-quantum key exchange "
-                               "and signatures."),
+    "migration/dependencies": (
+        "Dependencies lists the libraries your dependency list names, and which of them can do post-quantum key exchange "
+        "and signatures."
+    ),
 }
 # Phase 6b: the text box.
 MARK_SAID = "You said"
@@ -49,30 +60,62 @@ LOOKING = "Looking at this panel runs nothing. Each button here first shows what
 LIVE_OFF, LIVE_ON = "Live Otto is off.", "Live Otto is on."
 SETTINGS_LINK = {"label": "Settings", "link": {"page": "settings", "item": None, "section": "live-otto"}}
 
-KIND_WORDS = {"check": ("proposed check", "proposed checks"), "fix": ("proposed fix", "proposed fixes"),
-              "plan": ("proposed plan change", "proposed plan changes"),
-              "dependency": ("proposed library update", "proposed library updates")}
+KIND_WORDS = {
+    "check": ("proposed check", "proposed checks"),
+    "fix": ("proposed fix", "proposed fixes"),
+    "plan": ("proposed plan change", "proposed plan changes"),
+    "dependency": ("proposed library update", "proposed library updates"),
+}
 
 # What a decision does, and what it does not: the Confirm step of a suggestion.
 ACCEPT_LINES = {
-    "check": ["Adds this check to the test plan, as “+ Add test” would.", "Runs nothing.", "You can undo it until the check has run."],
-    "fix": ["Records your decision to take this fix.", "Runs nothing and changes nothing on any system.",
-            "You can undo it until the fix has run or been applied."],
-    "plan": ["Adds this to the migration plan as something to fix first.", "Runs nothing and changes nothing on any system.",
-             "You can undo it until a newer result of the check passes."],
-    "dependency": ["Marks this library “update first”.", "Runs nothing and changes nothing on any system.", "You can undo it at any time."],
+    "check": [
+        "Adds this check to the test plan, as “+ Add test” would.",
+        "Runs nothing.",
+        "You can undo it until the check has run.",
+    ],
+    "fix": [
+        "Records your decision to take this fix.",
+        "Runs nothing and changes nothing on any system.",
+        "You can undo it until the fix has run or been applied.",
+    ],
+    "plan": [
+        "Adds this to the migration plan as something to fix first.",
+        "Runs nothing and changes nothing on any system.",
+        "You can undo it until a newer result of the check passes.",
+    ],
+    "dependency": [
+        "Marks this library “update first”.",
+        "Runs nothing and changes nothing on any system.",
+        "You can undo it at any time.",
+    ],
 }
-REJECT_LINES = ["It is not deleted: it stays on the record as “Not added”, with your reason, and can be taken up again later.",
-                "Runs nothing."]
+REJECT_LINES = [
+    "It is not deleted: it stays on the record as “Not added”, with your reason, and can be taken up again later.",
+    "Runs nothing.",
+]
 UNDO_LINES = {
-    "check": ["Takes this check out of the test plan again.", "Runs nothing. The proposal is open for a decision again."],
+    "check": [
+        "Takes this check out of the test plan again.",
+        "Runs nothing. The proposal is open for a decision again.",
+    ],
     "fix": ["Takes your accept back.", "Runs nothing. The proposal is open for a decision again."],
     "plan": ["Takes this off the migration plan again.", "Runs nothing. The proposal is open for a decision again."],
-    "dependency": ["Takes the mark “update first” off again.", "Runs nothing. The proposal is open for a decision again."],
+    "dependency": [
+        "Takes the mark “update first” off again.",
+        "Runs nothing. The proposal is open for a decision again.",
+    ],
 }
-RECONSIDER_LINES = ["Opens this proposal for a decision again.", "Runs nothing. The earlier decisions stay on the record."]
-DECISION_TITLES = {"accept": "Accept this {kind}?", "reject": "Reject this {kind}?", "undo": "Undo this accept?",
-                   "reconsider": "Take this {kind} up again?"}
+RECONSIDER_LINES = [
+    "Opens this proposal for a decision again.",
+    "Runs nothing. The earlier decisions stay on the record.",
+]
+DECISION_TITLES = {
+    "accept": "Accept this {kind}?",
+    "reject": "Reject this {kind}?",
+    "undo": "Undo this accept?",
+    "reconsider": "Take this {kind} up again?",
+}
 REASON = {"label": "Reason (optional, one short line)", "max": 300}
 
 
@@ -87,15 +130,32 @@ def names_button(button: str, page_label: str) -> str:
 
 def decision_confirm(kind: str, decision: str, kind_label: str, button: str, page_label: str) -> dict:
     """The Confirm step of one decision on a suggestion: what it does, what it does not, and which button it presses."""
-    lines = {"accept": ACCEPT_LINES[kind], "reject": REJECT_LINES, "undo": UNDO_LINES[kind], "reconsider": RECONSIDER_LINES}[decision]
-    return {"title": DECISION_TITLES[decision].format(kind=kind_label), "lines": list(lines), "names": names_button(button, page_label),
-            "confirm": CONFIRM, "cancel": CANCEL, "reason": dict(REASON) if decision == "reject" else None}
+    lines = {
+        "accept": ACCEPT_LINES[kind],
+        "reject": REJECT_LINES,
+        "undo": UNDO_LINES[kind],
+        "reconsider": RECONSIDER_LINES,
+    }[decision]
+    return {
+        "title": DECISION_TITLES[decision].format(kind=kind_label),
+        "lines": list(lines),
+        "names": names_button(button, page_label),
+        "confirm": CONFIRM,
+        "cancel": CANCEL,
+        "reason": dict(REASON) if decision == "reject" else None,
+    }
 
 
 def step_confirm(title: str, lines: list[str], button: str, page_label: str) -> dict:
     """The Confirm step of a next step: what the page's button will do, in a few plain lines."""
-    return {"title": title, "lines": [line for line in lines if line], "names": names_button(button, page_label),
-            "confirm": CONFIRM, "cancel": CANCEL, "reason": None}
+    return {
+        "title": title,
+        "lines": [line for line in lines if line],
+        "names": names_button(button, page_label),
+        "confirm": CONFIRM,
+        "cancel": CANCEL,
+        "reason": None,
+    }
 
 
 def counted(n: int, kind: str) -> str:

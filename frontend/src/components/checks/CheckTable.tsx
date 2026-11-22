@@ -10,7 +10,11 @@ export function FromOttoMark({ row }: { row: CheckRow }) {
   const from = row.from_otto;
   if (!from) return null;
   return (
-    <span data-testid="check-from-otto-mark" className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs" onClick={(e) => e.stopPropagation()}>
+    <span
+      data-testid="check-from-otto-mark"
+      className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs"
+      onClick={(e) => e.stopPropagation()}
+    >
       <FromOttoTag label={from.label} />
       <ItemLinkView link={from.link} testId="check-from-otto">
         {from.advisory}
@@ -56,7 +60,12 @@ const columns: Column<CheckRow>[] = [
       </>
     ),
   },
-  { key: "from", header: "Came from", minWidth: 120, render: (r) => <span className="text-xs text-slate-300">{r.came_from.label}</span> },
+  {
+    key: "from",
+    header: "Came from",
+    minWidth: 120,
+    render: (r) => <span className="text-xs text-slate-300">{r.came_from.label}</span>,
+  },
   { key: "result", header: "Result", minWidth: 120, render: (r) => <Result row={r} /> },
   {
     key: "when",
@@ -114,7 +123,9 @@ export function CheckTable({
       rowKey={(r) => r.id}
       rowTestId="check-row"
       rowAttrs={(r) => ({ "data-check": r.id, "data-group": r.group, "data-came-from": r.came_from.key })}
-      selectedKey={rows.find((r) => r.id === selectedId || (r.alias != null && r.alias === selectedId))?.id ?? selectedId}
+      selectedKey={
+        rows.find((r) => r.id === selectedId || (r.alias != null && r.alias === selectedId))?.id ?? selectedId
+      }
       onRowClick={onOpen}
       empty="No check matches this search."
     />

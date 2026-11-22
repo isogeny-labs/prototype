@@ -11,6 +11,7 @@ assessment, or, while Live Otto is off, the recorded answer for exactly this pro
 present the answer comes from Claude: a live call is made only by a person's click (Connect demo code), once, and
 within the spending limit of that one request. The answer is then stored and never asked for again.
 """
+
 from __future__ import annotations
 
 from app.engine import research
@@ -18,12 +19,14 @@ from app.otto import fixes, harness, model
 from app.run import components
 
 # Only our registered demo programs may run, so a change can be proven only if the program it gives is one of them.
-NOT_REGISTERED = ("the program it gives is not the same as any of our bundled demo components, byte for byte, and only those "
-                  "can run in this version, so it can't be proven here.")
+NOT_REGISTERED = (
+    "the program it gives is not the same as any of our bundled demo components, byte for byte, and only those "
+    "can run in this version, so it can't be proven here."
+)
 
 
-NOT_INSTALLED_NOTE = ("Otto is not installed on this computer, so a decision on its proposal could not be recorded.")
-PENDING_LABEL = "Not written yet"        # Live Otto is on and nobody has asked Claude yet: nothing is labelled as Otto's
+NOT_INSTALLED_NOTE = "Otto is not installed on this computer, so a decision on its proposal could not be recorded."
+PENDING_LABEL = "Not written yet"  # Live Otto is on and nobody has asked Claude yet: nothing is labelled as Otto's
 
 
 class OttoCouldNot(Exception):
@@ -39,7 +42,9 @@ class OttoEngine:
         return self.rules.engine_id
 
     def __getattr__(self, name: str):
-        return getattr(self.rules, name)      # propose_tests, design_test, design_capability, design_measurement, dig_deeper, review
+        return getattr(
+            self.rules, name
+        )  # propose_tests, design_test, design_capability, design_measurement, dig_deeper, review
 
     def __setattr__(self, name: str, value) -> None:
         # What this class has itself stays here. Every other part is the rule engine's own, so swapping one of them
@@ -66,9 +71,15 @@ class OttoEngine:
         question = {k: v for k, v in request.items() if k != "asking"}
         # Only the failed tests of the program itself are Otto's business (a failed server test is not in its code).
         # Each keeps its place in the request, because the answer names the failures by that place.
-        failed = [(place, r) for place, r in enumerate(request.get("failed") or [])
-                  if isinstance(r, dict) and r.get("kind") in research.SOFTWARE_TEST_KINDS]
-        first = next((r for _, r in failed if r.get("kind") == research.ADVISORY_KIND and isinstance(r.get("advisory"), dict)), None)
+        failed = [
+            (place, r)
+            for place, r in enumerate(request.get("failed") or [])
+            if isinstance(r, dict) and r.get("kind") in research.SOFTWARE_TEST_KINDS
+        ]
+        first = next(
+            (r for _, r in failed if r.get("kind") == research.ADVISORY_KIND and isinstance(r.get("advisory"), dict)),
+            None,
+        )
         if first is None or asking.get("template_only") or asking.get("plan_id") is None:
             return self.rules.propose_change(question)
         if not harness.status().installed:
@@ -90,19 +101,29 @@ class OttoEngine:
             fallback = {**fallback, "otto_note": note}
         return fallback
 
-    def _otto_change(self, request: dict, plan_id: int, failed: list[tuple[int, dict]], advisory: dict,
-                     connect: bool) -> tuple[dict | None, str | None]:
+    def _otto_change(
+        self, request: dict, plan_id: int, failed: list[tuple[int, dict]], advisory: dict, connect: bool
+    ) -> tuple[dict | None, str | None]:
         lab = self._lab
         component, files = request.get("component") or {}, request.get("files") or {}
-        asked = [{"title": r.get("title") or research.title_of(r.get("kind")), "wrong": list((r.get("detail") or {}).get("wrong") or [])}
-                 for _, r in failed]
+        asked = [
+            {
+                "title": r.get("title") or research.title_of(r.get("kind")),
+                "wrong": list((r.get("detail") or {}).get("wrong") or []),
+            }
+            for _, r in failed
+        ]
         prompt = fixes.write_fix_prompt(component, advisory, asked, files)
         digest = model.sha256_text(prompt)
         key = fixes.key_of(advisory["id"])
-        about = {"advisory": advisory["id"], "plain_name": advisory.get("plain_name"), "pack": advisory.get("pack"),
-                 "prompt_sha256": digest}
+        about = {
+            "advisory": advisory["id"],
+            "plain_name": advisory.get("plain_name"),
+            "pack": advisory.get("pack"),
+            "prompt_sha256": digest,
+        }
         stored = lab.otto_stored_step(plan_id, "write_fix", digest)
-        asked_now = False       # whether this very click asked Claude (the page then showed no answer to judge before it)
+        asked_now = False  # whether this very click asked Claude (the page then showed no answer to judge before it)
         if stored is not None:
             answer, source, how, step_id = stored["answer"], stored["source"], stored["how"], stored["id"]
             about.update(model=stored["model"], at=stored["at"], ledger_entry=stored["claim_id"])
@@ -113,7 +134,7 @@ class OttoEngine:
                 # and only a person's click asks for it. Looking at the page lists the fix as not written yet.
                 if not connect:
                     return self._pending(request, failed, advisory, key), None
-                step = client.ask("write_fix", prompt)          # the live call; ModelError says why there is no answer
+                step = client.ask("write_fix", prompt)  # the live call; ModelError says why there is no answer
                 asked_now = True
             else:
                 step = client.recorded("write_fix", prompt)
@@ -133,15 +154,33 @@ class OttoEngine:
         try:
             change = self._usable(answer, component, files, len(failed))
         except fixes.Refused as exc:
-            if asked_now:   # the person asked for Otto's change and there is none to connect: say so, connect nothing
+            if asked_now:  # the person asked for Otto's change and there is none to connect: say so, connect nothing
                 raise OttoCouldNot(f"The written change could not be used: {exc}") from None
             # The page already said this and offered the fix template in its place, so that is what is connected.
             return None, f"One was written, but it could not be used: {exc}"
-        about.update(source=source, how=how, step_id=step_id, answer_sha256=model.sha256_text(answer), title=change["title"],
-                     summary=change["summary"], pending=False)
-        return {"template_id": key, "title": change["title"], "branch": "fix/" + key, "label": fixes.LABEL,
-                "answers": [failed[n][0] for n in change["answers"]],     # the places in the request of the failures it answers
-                "files": change["files"], "edits": change["edits"], "written_by": "otto", "proposed_by": fixes.OTTO_ID, "otto": about}, None
+        about.update(
+            source=source,
+            how=how,
+            step_id=step_id,
+            answer_sha256=model.sha256_text(answer),
+            title=change["title"],
+            summary=change["summary"],
+            pending=False,
+        )
+        return {
+            "template_id": key,
+            "title": change["title"],
+            "branch": "fix/" + key,
+            "label": fixes.LABEL,
+            "answers": [
+                failed[n][0] for n in change["answers"]
+            ],  # the places in the request of the failures it answers
+            "files": change["files"],
+            "edits": change["edits"],
+            "written_by": "otto",
+            "proposed_by": fixes.OTTO_ID,
+            "otto": about,
+        }, None
 
     @staticmethod
     def _usable(answer: str, component: dict, files: dict, failures: int) -> dict:
@@ -158,8 +197,23 @@ class OttoEngine:
         """Live Otto is on and no answer exists yet: the fix is listed so a person can connect the code, which is the
         click that asks Claude. It holds no change yet."""
         answers = [place for place, r in failed if r.get("kind") == research.ADVISORY_KIND]
-        return {"template_id": key, "title": f"A change for {advisory['id']}, written by Otto when the code is connected",
-                "branch": "fix/" + key, "label": PENDING_LABEL, "answers": answers, "files": dict(request.get("files") or {}), "edits": [],
-                "written_by": "otto", "proposed_by": fixes.OTTO_ID,
-                "otto": {"advisory": advisory["id"], "plain_name": advisory.get("plain_name"), "pack": advisory.get("pack"), "pending": True,
-                         "summary": None, "source": "live", "how": "Live: Claude, through your key"}}
+        return {
+            "template_id": key,
+            "title": f"A change for {advisory['id']}, written by Otto when the code is connected",
+            "branch": "fix/" + key,
+            "label": PENDING_LABEL,
+            "answers": answers,
+            "files": dict(request.get("files") or {}),
+            "edits": [],
+            "written_by": "otto",
+            "proposed_by": fixes.OTTO_ID,
+            "otto": {
+                "advisory": advisory["id"],
+                "plain_name": advisory.get("plain_name"),
+                "pack": advisory.get("pack"),
+                "pending": True,
+                "summary": None,
+                "source": "live",
+                "how": "Live: Claude, through your key",
+            },
+        }

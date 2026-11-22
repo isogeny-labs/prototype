@@ -1,4 +1,5 @@
 """Phase 5b: the Checks page, one check's detail, and the Related block of any item."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends

@@ -4,6 +4,7 @@ An assessment holds at most one import; everything else of a pass (Verify, the p
 dependencies) is already keyed by that import, so each assessment keeps its own data without any change to them.
 Names, places and the archived flag can change. Nothing is ever deleted (the database refuses it).
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -12,8 +13,19 @@ from typing import Any, Callable
 from sqlalchemy import func, select
 
 from app.db import (
-    AppSettingRow, AssessmentDetailRow, AssessmentRow, AssessmentSignoffRow, FolderRow, ImportFileRow, ImportRow, PlanRow,
-    ProjectRow, TestRunRow, VerifyRunRow, iso, now_utc,
+    AppSettingRow,
+    AssessmentDetailRow,
+    AssessmentRow,
+    AssessmentSignoffRow,
+    FolderRow,
+    ImportFileRow,
+    ImportRow,
+    PlanRow,
+    ProjectRow,
+    TestRunRow,
+    VerifyRunRow,
+    iso,
+    now_utc,
 )
 from app.errors import BadRequest, Conflict, NotFound
 from app.names import ALGORITHM_NAMES, clean_text
@@ -22,25 +34,35 @@ from app.ledger import groups as G
 from app.projects.counts import assessment_counts
 
 CLOSED_SENTENCE = "This assessment is closed. Start a new one to continue."
-IMPORT_KEY = "imp" + "ort"   # spelled in two parts, as in evidence/export.py: tests/test_prepare.py scans for the bare word
+IMPORT_KEY = (
+    "imp" + "ort"
+)  # spelled in two parts, as in evidence/export.py: tests/test_prepare.py scans for the bare word
 DEFAULT_ORGANIZATION = "My organization"
 UNFILED_PROJECT = "Imported without a project"
 NAME_MAX = 120
 # Phase 5b: what an assessment is for. A label only: it changes nothing else.
 PURPOSES: tuple[tuple[str, str], ...] = (
-    ("full_review", "Full review"), ("compliance_review", "Compliance review"), ("migration_wave", "Migration wave"),
-    ("release_check", "Release check"), ("advisory_response", "Advisory response"), ("other", "Other"),
+    ("full_review", "Full review"),
+    ("compliance_review", "Compliance review"),
+    ("migration_wave", "Migration wave"),
+    ("release_check", "Release check"),
+    ("advisory_response", "Advisory response"),
+    ("other", "Other"),
 )
 PURPOSE_LABELS = dict(PURPOSES)
 DEFAULT_PURPOSE = "full_review"
 REFERENCE_MAX = 200
 NOTE_MAX = 500
-ONE_LOGIN_LINE = ("This app has one login, so whoever is at the keyboard records the name. It is kept with the time, "
-                  "in the assessment and in its evidence.")
+ONE_LOGIN_LINE = (
+    "This app has one login, so whoever is at the keyboard records the name. It is kept with the time, "
+    "in the assessment and in its evidence."
+)
 NEWER_LINE = "Closed when a newer assessment was started."
 DEMO_CBOM_NAME = "acme-pay-cbom.json"
-RERUN_MISSING = ("This assessment's file was brought in before the app kept a copy of each file. Bring the file in again "
-                 "in a new assessment.")
+RERUN_MISSING = (
+    "This assessment's file was brought in before the app kept a copy of each file. Bring the file in again "
+    "in a new assessment."
+)
 
 
 def _name(value: Any, what: str) -> str:
@@ -117,8 +139,12 @@ class ProjectsMixin:
     @staticmethod
     def _details(db, a: AssessmentRow) -> tuple[dict | None, str | None]:
         """The purpose ({key, label}, or None for an assessment made before phase 5b) and the reference."""
-        row = db.scalars(select(AssessmentDetailRow).where(AssessmentDetailRow.assessment_id == a.id)
-                         .order_by(AssessmentDetailRow.id.desc()).limit(1)).first()
+        row = db.scalars(
+            select(AssessmentDetailRow)
+            .where(AssessmentDetailRow.assessment_id == a.id)
+            .order_by(AssessmentDetailRow.id.desc())
+            .limit(1)
+        ).first()
         if row is None:
             return None, None
         return {"key": row.purpose, "label": PURPOSE_LABELS.get(row.purpose, row.purpose)}, row.reference
@@ -138,16 +164,34 @@ class ProjectsMixin:
     def _assessment_brief(self, db, a: AssessmentRow) -> dict:
         imp = db.get(ImportRow, a.import_id) if a.import_id else None
         purpose, reference = self._details(db, a)
-        return {"id": a.id, "number": a.number, "title": assessment_title(a), "name": a.name,
-                "purpose": purpose, "reference": reference,
-                "status": self._assessment_status(a, self._signoff(db, a)), "archived": bool(a.archived),
-                "created_at": iso(a.created_at), "closed_at": iso(a.closed_at) if a.closed_at else None,
-                "file": ({"import_id": imp.id, "filename": imp.filename, "format": imp.format, "is_demo": bool(imp.is_demo),
-                          "imported_at": iso(imp.created_at)} if imp is not None else None)}
+        return {
+            "id": a.id,
+            "number": a.number,
+            "title": assessment_title(a),
+            "name": a.name,
+            "purpose": purpose,
+            "reference": reference,
+            "status": self._assessment_status(a, self._signoff(db, a)),
+            "archived": bool(a.archived),
+            "created_at": iso(a.created_at),
+            "closed_at": iso(a.closed_at) if a.closed_at else None,
+            "file": (
+                {
+                    "import_id": imp.id,
+                    "filename": imp.filename,
+                    "format": imp.format,
+                    "is_demo": bool(imp.is_demo),
+                    "imported_at": iso(imp.created_at),
+                }
+                if imp is not None
+                else None
+            ),
+        }
 
     @staticmethod
     def _last_activity(db, a: AssessmentRow) -> datetime:
         """When this assessment was last worked on: started, its file brought in, verified, a check run, signed off."""
+
         def as_dt(value: Any) -> datetime | None:
             if value is None:
                 return None
@@ -158,16 +202,23 @@ class ProjectsMixin:
             except ValueError:
                 return None
             return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
         times = [as_dt(a.created_at), as_dt(a.closed_at)]
         if a.import_id is not None:
             imp = db.get(ImportRow, a.import_id)
             times.append(as_dt(imp.created_at) if imp is not None else None)
-            verify = db.scalars(select(VerifyRunRow).where(VerifyRunRow.import_id == a.import_id)
-                                .order_by(VerifyRunRow.id.desc()).limit(1)).first()
+            verify = db.scalars(
+                select(VerifyRunRow)
+                .where(VerifyRunRow.import_id == a.import_id)
+                .order_by(VerifyRunRow.id.desc())
+                .limit(1)
+            ).first()
             times.append(as_dt(verify.finished_at) if verify is not None else None)
             plan = db.scalars(select(PlanRow).where(PlanRow.import_id == a.import_id)).first()
             if plan is not None:
-                run = db.scalars(select(TestRunRow).where(TestRunRow.plan_id == plan.id).order_by(TestRunRow.id.desc()).limit(1)).first()
+                run = db.scalars(
+                    select(TestRunRow).where(TestRunRow.plan_id == plan.id).order_by(TestRunRow.id.desc()).limit(1)
+                ).first()
                 times.append(as_dt(run.finished_at or run.started_at) if run is not None else None)
         return max(t for t in times if t is not None)
 
@@ -196,32 +247,61 @@ class ProjectsMixin:
                 latest = self._worked_on_last(db, p.id) or self._worked_on_last(db, p.id, include_archived=True)
                 every = db.scalars(select(AssessmentRow).where(AssessmentRow.project_id == p.id)).all()
                 shown = [a for a in every if not a.archived]
-                rows.append({"id": p.id, "name": p.name, "folder_id": p.folder_id, "archived": bool(p.archived),
-                             "is_demo": p.demo_key not in (None, "unfiled"), "created_at": iso(p.created_at),
-                             "path": self._folder_path(db, p.folder_id), "assessments": len(every),
-                             "open_count": sum(1 for a in shown if a.closed_at is None),
-                             "closed_count": sum(1 for a in shown if a.closed_at is not None),
-                             "latest": self._assessment_brief(db, latest) if latest is not None else None,
-                             "_import": latest.import_id if latest is not None else None})
-            folder_rows = [{"id": f.id, "name": f.name, "parent_id": f.parent_id, "archived": bool(f.archived),
-                            "path": self._folder_path(db, f.parent_id)} for f in folders]
+                rows.append(
+                    {
+                        "id": p.id,
+                        "name": p.name,
+                        "folder_id": p.folder_id,
+                        "archived": bool(p.archived),
+                        "is_demo": p.demo_key not in (None, "unfiled"),
+                        "created_at": iso(p.created_at),
+                        "path": self._folder_path(db, p.folder_id),
+                        "assessments": len(every),
+                        "open_count": sum(1 for a in shown if a.closed_at is None),
+                        "closed_count": sum(1 for a in shown if a.closed_at is not None),
+                        "latest": self._assessment_brief(db, latest) if latest is not None else None,
+                        "_import": latest.import_id if latest is not None else None,
+                    }
+                )
+            folder_rows = [
+                {
+                    "id": f.id,
+                    "name": f.name,
+                    "parent_id": f.parent_id,
+                    "archived": bool(f.archived),
+                    "path": self._folder_path(db, f.parent_id),
+                }
+                for f in folders
+            ]
         for r in rows:
             r["counts"] = assessment_counts(self, r.pop("_import"))
-        return {"organization": self.organization_name(), "folders": folder_rows, "projects": rows,
-                "purposes": [{"key": k, "label": v} for k, v in PURPOSES], "one_login_line": ONE_LOGIN_LINE,
-                "algorithm_names": [{"technical": tech, "plain": plain} for tech, plain in ALGORITHM_NAMES]}
+        return {
+            "organization": self.organization_name(),
+            "folders": folder_rows,
+            "projects": rows,
+            "purposes": [{"key": k, "label": v} for k, v in PURPOSES],
+            "one_login_line": ONE_LOGIN_LINE,
+            "algorithm_names": [{"technical": tech, "plain": plain} for tech, plain in ALGORITHM_NAMES],
+        }
 
     def project_view(self, project_id: int) -> dict:
         with self.db() as db:
             p = db.get(ProjectRow, project_id)
             if p is None:
                 raise NotFound("That project does not exist.")
-            assessments = db.scalars(select(AssessmentRow).where(AssessmentRow.project_id == p.id)
-                                     .order_by(AssessmentRow.id.desc())).all()
-            return {"id": p.id, "name": p.name, "folder_id": p.folder_id, "archived": bool(p.archived),
-                    "is_demo": p.demo_key not in (None, "unfiled"), "path": self._folder_path(db, p.folder_id),
-                    "assessments": [self._assessment_brief(db, a) for a in assessments],
-                    "next_name": f"Assessment {max((a.number for a in assessments), default=0) + 1}"}
+            assessments = db.scalars(
+                select(AssessmentRow).where(AssessmentRow.project_id == p.id).order_by(AssessmentRow.id.desc())
+            ).all()
+            return {
+                "id": p.id,
+                "name": p.name,
+                "folder_id": p.folder_id,
+                "archived": bool(p.archived),
+                "is_demo": p.demo_key not in (None, "unfiled"),
+                "path": self._folder_path(db, p.folder_id),
+                "assessments": [self._assessment_brief(db, a) for a in assessments],
+                "next_name": f"Assessment {max((a.number for a in assessments), default=0) + 1}",
+            }
 
     def assessment_view(self, assessment_id: int) -> dict:
         with self.db() as db:
@@ -232,7 +312,12 @@ class ProjectsMixin:
             brief = self._assessment_brief(db, a)
             plan = db.scalars(select(PlanRow).where(PlanRow.import_id == a.import_id)).first() if a.import_id else None
             plan_id = plan.id if plan is not None else None
-            project = {"id": p.id, "name": p.name, "is_demo": p.demo_key not in (None, "unfiled"), "archived": bool(p.archived)}
+            project = {
+                "id": p.id,
+                "name": p.name,
+                "is_demo": p.demo_key not in (None, "unfiled"),
+                "archived": bool(p.archived),
+            }
             path = self._folder_path(db, p.folder_id)
             import_id = a.import_id
         imp = self.import_json_for(import_id) if import_id else None
@@ -240,16 +325,22 @@ class ProjectsMixin:
         counts = assessment_counts(self, import_id)
         # Phase 5c: how many of Otto's proposals nobody has decided yet, by kind, each linking to the page it lives on.
         # A closed assessment and one without Otto have nothing waiting: nothing can be decided there.
-        waiting = self.otto_waiting(plan_id if self._can_decide(plan_id) else None)      # type: ignore[attr-defined]
-        return {**brief, "organization": self.organization_name(), "project": project, "path": path,
-                IMPORT_KEY: imp, "plan_id": plan_id,
-                "blocks": self.assessment_blocks(import_id, plan_id),   # type: ignore[attr-defined]   # phase 5b
-                "has_verify": counts["claims"] is not None,
-                "has_results": bool(summary and summary.get("has_results")),
-                "has_migration": bool(summary and summary.get("has_migration")),
-                "counts": counts,
-                "waiting": present_otto.waiting_view(waiting),
-                "next_step": self._next_step(brief, counts, summary, waiting)}
+        waiting = self.otto_waiting(plan_id if self._can_decide(plan_id) else None)  # type: ignore[attr-defined]
+        return {
+            **brief,
+            "organization": self.organization_name(),
+            "project": project,
+            "path": path,
+            IMPORT_KEY: imp,
+            "plan_id": plan_id,
+            "blocks": self.assessment_blocks(import_id, plan_id),  # type: ignore[attr-defined]   # phase 5b
+            "has_verify": counts["claims"] is not None,
+            "has_results": bool(summary and summary.get("has_results")),
+            "has_migration": bool(summary and summary.get("has_migration")),
+            "counts": counts,
+            "waiting": present_otto.waiting_view(waiting),
+            "next_step": self._next_step(brief, counts, summary, waiting),
+        }
 
     def assessment_core(self, assessment_id: int) -> dict:
         """The few things the Otto panel's read needs of an assessment (phase 6a): its status, its file and its plan.
@@ -262,21 +353,30 @@ class ProjectsMixin:
             plan = db.scalars(select(PlanRow).where(PlanRow.import_id == a.import_id)).first() if a.import_id else None
             return {**brief, "import_id": a.import_id, "plan_id": plan.id if plan is not None else None}
 
-    def next_step_from(self, core: dict, summary: dict | None, verified: bool, fixes: list[dict] | None, waiting: dict | None) -> dict:
+    def next_step_from(
+        self, core: dict, summary: dict | None, verified: bool, fixes: list[dict] | None, waiting: dict | None
+    ) -> dict:
         """The Overview's own next step, from parts a caller has already read (the Otto panel, phase 6a): the same rule
         and the same sentence as `assessment_view`, without reading every page's view again. `fixes`: the Fixes
         page's list, or None when no test has run and nothing was measured. `waiting`: undecided proposals by kind."""
-        if fixes is not None:      # (phase 6d: as `assessment_counts` counts them, without the entries listed apart)
+        if fixes is not None:  # (phase 6d: as `assessment_counts` counts them, without the entries listed apart)
             fixes = [f for f in fixes if not f.get("apart")]
-        counts = {"claims": {} if verified else None,
-                  "tests": {} if summary and summary.get("has_results") else None,
-                  "fixes": ({"total": len(fixes),
-                             "open": sum(1 for f in fixes if f.get("fix_state", G.fix_state(f["status"]["word"])) == "open")}
-                            if fixes is not None else None)}
+        counts = {
+            "claims": {} if verified else None,
+            "tests": {} if summary and summary.get("has_results") else None,
+            "fixes": (
+                {
+                    "total": len(fixes),
+                    "open": sum(1 for f in fixes if f.get("fix_state", G.fix_state(f["status"]["word"])) == "open"),
+                }
+                if fixes is not None
+                else None
+            ),
+        }
         return self._next_step(core, counts, summary, waiting)
 
     def _can_decide(self, plan_id: int | None) -> bool:
-        return plan_id is not None and self._decisions_blocked(plan_id) is None      # type: ignore[attr-defined]
+        return plan_id is not None and self._decisions_blocked(plan_id) is None  # type: ignore[attr-defined]
 
     @staticmethod
     def _next_step(brief: dict, counts: dict, summary: dict | None, waiting: dict | None = None) -> dict:
@@ -285,41 +385,78 @@ class ProjectsMixin:
         waiting = waiting or {}
         new_checks = int(waiting.get("check") or 0)
         if brief["status"]["key"] == "closed":
-            return {"page": "overview", "label": "New assessment",
-                    "text": "This assessment is closed and kept as it was. Start a new one in this project to continue."}
+            return {
+                "page": "overview",
+                "label": "New assessment",
+                "text": "This assessment is closed and kept as it was. Start a new one in this project to continue.",
+            }
         if brief["file"] is None:
-            return {"page": "inventory/import", "label": "Bring in a scanner file",
-                    "text": "Start by bringing in the file your scanner made, or use the demo file."}
+            return {
+                "page": "inventory/import",
+                "label": "Bring in a scanner file",
+                "text": "Start by bringing in the file your scanner made, or use the demo file.",
+            }
         if counts["claims"] is None:
-            return {"page": "inventory/import", "label": "Verify claims",
-                    "text": "Check each claim in the file against the real system."}
+            return {
+                "page": "inventory/import",
+                "label": "Verify claims",
+                "text": "Check each claim in the file against the real system.",
+            }
         # (before the first run, on purpose: a check accepted now runs with the suggested tests, in one go)
         if new_checks:
-            return {"page": "advisories", "label": "Open advisories",
-                    "text": (f"{new_checks} advisory {'check is' if new_checks == 1 else 'checks are'} proposed from the installed test "
-                             f"packs. Accept or reject {'it' if new_checks == 1 else 'each one'}: accepting runs nothing.")}
+            return {
+                "page": "advisories",
+                "label": "Open advisories",
+                "text": (
+                    f"{new_checks} advisory {'check is' if new_checks == 1 else 'checks are'} proposed from the installed test "
+                    f"packs. Accept or reject {'it' if new_checks == 1 else 'each one'}: accepting runs nothing."
+                ),
+            }
         if counts["tests"] is None:
-            return {"page": "checks", "label": "Open checks",
-                    "text": "Run the suggested tests on what the file names. The test plan is on Checks."}
+            return {
+                "page": "checks",
+                "label": "Open checks",
+                "text": "Run the suggested tests on what the file names. The test plan is on Checks.",
+            }
         if waiting.get("fix"):
             n = int(waiting["fix"])
-            return {"page": "fixes", "label": "Open fixes",
-                    "text": (f"{'A fix is' if n == 1 else f'{n} fixes are'} proposed for a failed advisory check. Accept or reject "
-                             f"{'it' if n == 1 else 'each one'}: accepting runs nothing.")}
+            return {
+                "page": "fixes",
+                "label": "Open fixes",
+                "text": (
+                    f"{'A fix is' if n == 1 else f'{n} fixes are'} proposed for a failed advisory check. Accept or reject "
+                    f"{'it' if n == 1 else 'each one'}: accepting runs nothing."
+                ),
+            }
         if counts["fixes"] and counts["fixes"]["open"]:
-            return {"page": "fixes", "label": "Open fixes",
-                    "text": "Some failed tests or migration steps have a suggested fix waiting."}
+            return {
+                "page": "fixes",
+                "label": "Open fixes",
+                "text": "Some failed tests or migration steps have a suggested fix waiting.",
+            }
         if waiting.get("plan"):
-            return {"page": "migration/systems", "label": "Open migration",
-                    "text": "A change to the migration plan is proposed, from a result. Accept or reject it: accepting changes no system."}
+            return {
+                "page": "migration/systems",
+                "label": "Open migration",
+                "text": "A change to the migration plan is proposed, from a result. Accept or reject it: accepting changes no system.",
+            }
         if waiting.get("dependency"):
-            return {"page": "migration/dependencies", "label": "Open dependencies",
-                    "text": "An update is proposed for a library that a published advisory names. Accept or reject it: accepting runs nothing."}
+            return {
+                "page": "migration/dependencies",
+                "label": "Open dependencies",
+                "text": "An update is proposed for a library that a published advisory names. Accept or reject it: accepting runs nothing.",
+            }
         if not (summary and summary.get("has_migration")):
-            return {"page": "migration/systems", "label": "Open migration",
-                    "text": "Measure where each system stands on the move to post-quantum cryptography."}
-        return {"page": "evidence", "label": "Open evidence",
-                "text": "Every step so far has a result. Download the evidence to keep a signed record."}
+            return {
+                "page": "migration/systems",
+                "label": "Open migration",
+                "text": "Measure where each system stands on the move to post-quantum cryptography.",
+            }
+        return {
+            "page": "evidence",
+            "label": "Open evidence",
+            "text": "Every step so far has a result. Download the evidence to keep a signed record.",
+        }
 
     # ---------------------------------------------------------------- folders
 
@@ -345,7 +482,9 @@ class ProjectsMixin:
                     if db.get(FolderRow, target) is None:
                         raise NotFound("That folder does not exist.")
                     if target == f.id or any(step["id"] == f.id for step in self._folder_path(db, target)):
-                        raise BadRequest("A folder can't go inside itself or one of its own folders.", field="parent_id")
+                        raise BadRequest(
+                            "A folder can't go inside itself or one of its own folders.", field="parent_id"
+                        )
                 f.parent_id = target
             if "archived" in changes:
                 f.archived = bool(changes["archived"])
@@ -388,8 +527,9 @@ class ProjectsMixin:
 
     # ---------------------------------------------------------------- assessments
 
-    def new_assessment(self, project_id: int, name: str | None = None, purpose: str | None = None,
-                       reference: str | None = None) -> dict:
+    def new_assessment(
+        self, project_id: int, name: str | None = None, purpose: str | None = None, reference: str | None = None
+    ) -> dict:
         """A fresh, empty assessment in this project. Since phase 5b it closes nothing: any number can be open."""
         purpose_key = _purpose(purpose or DEFAULT_PURPOSE)
         ref = _optional_text(reference, REFERENCE_MAX)
@@ -398,8 +538,12 @@ class ProjectsMixin:
             p = db.get(ProjectRow, project_id)
             if p is None:
                 raise NotFound("That project does not exist.")
-            number = (db.scalar(select(func.max(AssessmentRow.number)).where(AssessmentRow.project_id == p.id)) or 0) + 1
-            a = AssessmentRow(project_id=p.id, number=number, name=given if given and given != f"Assessment {number}" else None)
+            number = (
+                db.scalar(select(func.max(AssessmentRow.number)).where(AssessmentRow.project_id == p.id)) or 0
+            ) + 1
+            a = AssessmentRow(
+                project_id=p.id, number=number, name=given if given and given != f"Assessment {number}" else None
+            )
             db.add(a)
             db.flush()
             db.add(AssessmentDetailRow(assessment_id=a.id, purpose=purpose_key, reference=ref))
@@ -408,11 +552,14 @@ class ProjectsMixin:
 
     def next_assessment_name(self, project_id: int) -> str:
         with self.db() as db:
-            number = (db.scalar(select(func.max(AssessmentRow.number)).where(AssessmentRow.project_id == project_id)) or 0) + 1
+            number = (
+                db.scalar(select(func.max(AssessmentRow.number)).where(AssessmentRow.project_id == project_id)) or 0
+            ) + 1
         return f"Assessment {number}"
 
-    def rerun_assessment(self, assessment_id: int, name: str | None = None, purpose: str | None = None,
-                         reference: str | None = None) -> dict:
+    def rerun_assessment(
+        self, assessment_id: int, name: str | None = None, purpose: str | None = None, reference: str | None = None
+    ) -> dict:
         """Rerun as new assessment (phase 5b): a new assessment in the same project, and the same scanner file brought
         in again the normal way. The file only: no results, no choices; the address ticks are given again. Allowed on a
         closed assessment (it changes nothing in it)."""
@@ -432,15 +579,16 @@ class ProjectsMixin:
             if data is None:
                 raise Conflict(RERUN_MISSING)
         made = self.new_assessment(project_id, name, purpose, reference)
-        if demo_cbom:   # the demo file, exactly as Use demo file brings it in
-            imported = self.import_demo(assessment_id=made["id"])   # type: ignore[attr-defined]
+        if demo_cbom:  # the demo file, exactly as Use demo file brings it in
+            imported = self.import_demo(assessment_id=made["id"])  # type: ignore[attr-defined]
         else:
-            imported = self.import_file(filename, data, assessment_id=made["id"])   # type: ignore[attr-defined]
+            imported = self.import_file(filename, data, assessment_id=made["id"])  # type: ignore[attr-defined]
         return {"id": made["id"], "notices": list(imported.get("notices") or [])}
 
     def _bundled_demo_file(self, filename: str) -> bytes | None:
         """For a file brought in before phase 5b: the bundled demo files can be made again; anything else can't."""
         from app.projects.demo import DEMO_PROJECTS, demo_file_bytes
+
         if filename not in {f for _, _, f in DEMO_PROJECTS} or filename == DEMO_CBOM_NAME:
             return None
         return demo_file_bytes(self, filename)
@@ -457,14 +605,20 @@ class ProjectsMixin:
                 if target is None:
                     raise NotFound("That project does not exist.")
                 a.project_id = target.id
-                a.number = (db.scalar(select(func.max(AssessmentRow.number)).where(AssessmentRow.project_id == target.id)) or 0) + 1
+                a.number = (
+                    db.scalar(select(func.max(AssessmentRow.number)).where(AssessmentRow.project_id == target.id)) or 0
+                ) + 1
             if "archived" in changes:
                 a.archived = bool(changes["archived"])
             if "purpose" in changes or "reference" in changes:
                 if a.closed_at is not None:
                     raise Conflict(CLOSED_SENTENCE)
                 current, current_ref = self._details(db, a)
-                key = _purpose(changes["purpose"]) if "purpose" in changes else (current["key"] if current else DEFAULT_PURPOSE)
+                key = (
+                    _purpose(changes["purpose"])
+                    if "purpose" in changes
+                    else (current["key"] if current else DEFAULT_PURPOSE)
+                )
                 ref = _optional_text(changes["reference"], REFERENCE_MAX) if "reference" in changes else current_ref
                 db.add(AssessmentDetailRow(assessment_id=a.id, purpose=key, reference=ref))
             if changes.get("close"):
@@ -472,11 +626,19 @@ class ProjectsMixin:
                     raise Conflict("This assessment is already closed. It can't be reopened.")
                 by = _optional_text(changes.get("signed_off_by"), NAME_MAX)
                 if not by:
-                    raise BadRequest("Type the name of the person who signs this assessment off.", field="signed_off_by")
+                    raise BadRequest(
+                        "Type the name of the person who signs this assessment off.", field="signed_off_by"
+                    )
                 now = now_utc()
                 a.closed_at, a.closed_why = now, "closed"
-                db.add(AssessmentSignoffRow(assessment_id=a.id, signed_off_by=by, note=_optional_text(changes.get("note"), NOTE_MAX),
-                                            signed_at=now))
+                db.add(
+                    AssessmentSignoffRow(
+                        assessment_id=a.id,
+                        signed_off_by=by,
+                        note=_optional_text(changes.get("note"), NOTE_MAX),
+                        signed_at=now,
+                    )
+                )
             db.commit()
             return {"id": a.id}
 
@@ -523,7 +685,9 @@ class ProjectsMixin:
         """Within the import's own transaction: put the new import into its assessment (or the unfiled project)."""
         if assessment_id is None:
             p = self._unfiled_project(db)
-            number = (db.scalar(select(func.max(AssessmentRow.number)).where(AssessmentRow.project_id == p.id)) or 0) + 1
+            number = (
+                db.scalar(select(func.max(AssessmentRow.number)).where(AssessmentRow.project_id == p.id)) or 0
+            ) + 1
             a = AssessmentRow(project_id=p.id, number=number, import_id=import_id)
             db.add(a)
             db.flush()
@@ -536,7 +700,9 @@ class ProjectsMixin:
 
     # ---------------------------------------------------------------- the closed guard
 
-    def assessment_for(self, import_id: int | None = None, plan_id: int | None = None, run_id: int | None = None) -> AssessmentRow | None:
+    def assessment_for(
+        self, import_id: int | None = None, plan_id: int | None = None, run_id: int | None = None
+    ) -> AssessmentRow | None:
         with self.db() as db:
             if run_id is not None:
                 run = db.get(TestRunRow, run_id)
@@ -550,7 +716,9 @@ class ProjectsMixin:
                 return None
             return db.scalars(select(AssessmentRow).where(AssessmentRow.import_id == import_id)).first()
 
-    def refuse_if_closed(self, import_id: int | None = None, plan_id: int | None = None, run_id: int | None = None) -> None:
+    def refuse_if_closed(
+        self, import_id: int | None = None, plan_id: int | None = None, run_id: int | None = None
+    ) -> None:
         a = self.assessment_for(import_id=import_id, plan_id=plan_id, run_id=run_id)
         if a is not None and a.closed_at is not None:
             raise Conflict(CLOSED_SENTENCE)
@@ -564,12 +732,18 @@ class ProjectsMixin:
             p = db.get(ProjectRow, a.project_id)
             purpose, reference = self._details(db, a)
             signoff = self._signoff(db, a)
-            return {"organization": self.organization_name(),
-                    "folders": [f["name"] for f in self._folder_path(db, p.folder_id)],
-                    "project": p.name, "assessment": assessment_title(a), "assessment_number": a.number,
-                    "opened_at": iso(a.created_at), "closed_at": iso(a.closed_at) if a.closed_at else None,
-                    "status": "closed" if a.closed_at else "open",
-                    "purpose": purpose["label"] if purpose else None, "reference": reference,
-                    "signed_off_by": signoff["by"] if signoff else None, "signed_off_at": signoff["at"] if signoff else None,
-                    "signoff_note": signoff["note"] if signoff else None}
-
+            return {
+                "organization": self.organization_name(),
+                "folders": [f["name"] for f in self._folder_path(db, p.folder_id)],
+                "project": p.name,
+                "assessment": assessment_title(a),
+                "assessment_number": a.number,
+                "opened_at": iso(a.created_at),
+                "closed_at": iso(a.closed_at) if a.closed_at else None,
+                "status": "closed" if a.closed_at else "open",
+                "purpose": purpose["label"] if purpose else None,
+                "reference": reference,
+                "signed_off_by": signoff["by"] if signoff else None,
+                "signed_off_at": signoff["at"] if signoff else None,
+                "signoff_note": signoff["note"] if signoff else None,
+            }

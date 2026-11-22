@@ -18,6 +18,7 @@ One kind of objective uses it.
 as one, and it is not the person's decision either: that is the entry's own `decision` field. This checker never
 sees whether anything passed or failed.
 """
+
 import json
 import re
 import sys
@@ -27,10 +28,27 @@ STAMP = re.compile(r"\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?(Z|\+00:00
 KEY = re.compile(r"\A[a-z][a-z0-9_]{0,23}\Z")
 KINDS = ("check", "fix", "plan", "dependency")
 # (the state before, the decision) -> the state after. Nothing else is a step this app has.
-STEPS = {("proposed", "accept"): "accepted", ("proposed", "reject"): "rejected",
-         ("accepted", "undo"): "proposed", ("rejected", "reconsider"): "proposed"}
+STEPS = {
+    ("proposed", "accept"): "accepted",
+    ("proposed", "reject"): "rejected",
+    ("accepted", "undo"): "proposed",
+    ("rejected", "reconsider"): "proposed",
+}
 # A decision entry holds exactly these. With no other field there is no place for a result, whatever it might be called.
-FIELDS = {"proposal", "proposal_kind", "proposal_sha256", "title", "decision", "before", "after", "by", "at", "reason", "number", "about"}
+FIELDS = {
+    "proposal",
+    "proposal_kind",
+    "proposal_sha256",
+    "title",
+    "decision",
+    "before",
+    "after",
+    "by",
+    "at",
+    "reason",
+    "number",
+    "about",
+}
 MAX_ABOUT = 12
 
 
@@ -93,7 +111,14 @@ def main():
     if problem:
         print(json.dumps({"status": "reject", "detail": problem}))
     else:
-        print(json.dumps({"status": "accept", "detail": "whole and in order (this is not a result of a test, and not the decision itself)"}))
+        print(
+            json.dumps(
+                {
+                    "status": "accept",
+                    "detail": "whole and in order (this is not a result of a test, and not the decision itself)",
+                }
+            )
+        )
 
 
 main()

@@ -1,6 +1,7 @@
 """The advisory snapshot: a dated file of real published advisories, each with pieces of its official text copied
 word for word. It is DATA. This reader takes it only when it is exactly the shape below; anything else is refused
 with one plain sentence, and nothing in it is ever run."""
+
 from __future__ import annotations
 
 import json
@@ -16,7 +17,7 @@ MAX_EXCERPT_CHARS = 4000
 MAX_ADVISORY_CHARS = 16000
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _ID = re.compile(r"^[A-Z0-9][A-Z0-9-]{3,39}$")
-_ALIAS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{3,39}$")   # e.g. GHSA-cj8x-r9fp-q656
+_ALIAS = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{3,39}$")  # e.g. GHSA-cj8x-r9fp-q656
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._ -]{0,59}$")
 
@@ -38,7 +39,12 @@ def _date(value: object, what: str) -> str:
 
 
 def _link(value: object, what: str) -> str:
-    if not isinstance(value, str) or not value.startswith("https://") or len(value) > 400 or any(ch.isspace() for ch in value):
+    if (
+        not isinstance(value, str)
+        or not value.startswith("https://")
+        or len(value) > 400
+        or any(ch.isspace() for ch in value)
+    ):
         raise SnapshotError(f"The snapshot's {what} is not an https address.")
     return value
 
@@ -66,7 +72,11 @@ def check_snapshot(data: object) -> dict:
             raise SnapshotError("An advisory in the snapshot has no plain id, or its id is there twice.")
         seen.add(a["id"])
         what = f"advisory {a['id']}"
-        if not isinstance(a["aliases"], list) or len(a["aliases"]) > 8 or not all(isinstance(x, str) and _ALIAS.match(x) for x in a["aliases"]):
+        if (
+            not isinstance(a["aliases"], list)
+            or len(a["aliases"]) > 8
+            or not all(isinstance(x, str) and _ALIAS.match(x) for x in a["aliases"])
+        ):
             raise SnapshotError(f"The other names of {what} are not plain ids.")
         package = _keys(a["package"], {"name", "ecosystem"}, f"package of {what}")
         if not all(isinstance(package[k], str) and _NAME.match(package[k]) for k in ("name", "ecosystem")):
@@ -77,7 +87,11 @@ def check_snapshot(data: object) -> dict:
             raise SnapshotError(f"{what.capitalize()} has no source, or too many.")
         total = 0
         for source in sources:
-            s = _keys(source, {"title", "publisher", "url", "fetched_from", "fetched", "sha256", "license", "excerpts"}, f"source of {what}")
+            s = _keys(
+                source,
+                {"title", "publisher", "url", "fetched_from", "fetched", "sha256", "license", "excerpts"},
+                f"source of {what}",
+            )
             _text(s["title"], f"source title of {what}", 300)
             _text(s["publisher"], f"publisher of {what}", 200)
             _link(s["url"], f"link of {what}")
@@ -85,7 +99,9 @@ def check_snapshot(data: object) -> dict:
             _date(s["fetched"], f"date {what} was read")
             if not isinstance(s["sha256"], str) or not _HEX64.match(s["sha256"]):
                 raise SnapshotError(f"A source of {what} has no SHA-256 of the page that was read.")
-            if s["license"] is not None and (not isinstance(s["license"], str) or not s["license"].strip() or len(s["license"]) > 100):
+            if s["license"] is not None and (
+                not isinstance(s["license"], str) or not s["license"].strip() or len(s["license"]) > 100
+            ):
                 raise SnapshotError(f"The licence of a source of {what} is not plain text.")
             excerpts = s["excerpts"]
             if not isinstance(excerpts, list) or not 1 <= len(excerpts) <= MAX_EXCERPTS:
@@ -107,7 +123,7 @@ def read_snapshot(path: Path) -> dict:
         raise SnapshotError("The snapshot file is larger than this version takes.")
     try:
         data = json.loads(raw.decode("utf-8"))
-    except (ValueError, RecursionError):   # (UnicodeDecodeError is a ValueError)
+    except (ValueError, RecursionError):  # (UnicodeDecodeError is a ValueError)
         raise SnapshotError("The snapshot file is not valid JSON.") from None
     return check_snapshot(data)
 

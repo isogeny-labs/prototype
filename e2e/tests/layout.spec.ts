@@ -10,7 +10,18 @@
 import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { REPO, enterApp, layoutProblems, openFreshAssessment, openGroupTab, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
+import {
+  REPO,
+  enterApp,
+  layoutProblems,
+  openFreshAssessment,
+  openGroupTab,
+  screenshotFolder,
+  startCopy,
+  stepLink,
+  stopCopy,
+  type Copy,
+} from "./shared";
 
 const SHOTS = screenshotFolder("phase5b");
 const TAB_SHOTS = screenshotFolder("group-tabs");
@@ -81,7 +92,11 @@ async function measureTabs(prefix: string, rowIds: string[]): Promise<Record<str
     const rows = shown.locator(rowIds.map((id) => `[data-testid="${id}"]`).join(", "));
     listed[g.key] = await rows.count();
     // (a row opens by a click on its name: a link inside the row, such as a fix's "Came from" link, opens its own page)
-    await measure(`${prefix}-${i + 1}-${g.key}`, listed[g.key] > 0 ? () => rows.first().locator(":scope > *").first().click() : undefined, TAB_SHOTS);
+    await measure(
+      `${prefix}-${i + 1}-${g.key}`,
+      listed[g.key] > 0 ? () => rows.first().locator(":scope > *").first().click() : undefined,
+      TAB_SHOTS,
+    );
   }
   return listed;
 }
@@ -92,7 +107,9 @@ test.afterAll(async () => {
   await stopCopy(copy);
 });
 
-test("every table page at 1440 pixels wide, its panel closed and open: no sideways scrolling, no name broken between letters", async ({ browser }) => {
+test("every table page at 1440 pixels wide, its panel closed and open: no sideways scrolling, no name broken between letters", async ({
+  browser,
+}) => {
   copy = await startCopy(browser, 6, "demo");
   page = copy.page;
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -114,8 +131,13 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   await page.getByTestId("page-content").getByRole("button", { name: "Run all" }).click();
   await expect(page.getByTestId("test-card").getByTestId("result-badge")).toHaveCount(5, { timeout: 180_000 });
   await stepLink(page, "Systems").click();
-  await page.getByTestId("page-content").getByRole("button", { name: /^Measure status/ }).click();
-  await expect(page.getByTestId("page-content").getByRole("button", { name: /^Measure again/ })).toBeEnabled({ timeout: 120_000 });
+  await page
+    .getByTestId("page-content")
+    .getByRole("button", { name: /^Measure status/ })
+    .click();
+  await expect(page.getByTestId("page-content").getByRole("button", { name: /^Measure again/ })).toBeEnabled({
+    timeout: 120_000,
+  });
   await stepLink(page, "Dependencies").click();
   await page.getByLabel("Choose a dependency list").setInputFiles(LIST);
   await expect(page.getByTestId("dependency-row").first()).toBeVisible({ timeout: 30_000 });
@@ -166,16 +188,21 @@ test("every table page at 1440 pixels wide, its panel closed and open: no sidewa
   await measure("09-migration-systems", () => page.getByTestId("system-card").first().click());
   await stepLink(page, "Roadmap").click();
   await expect(page.getByTestId("roadmap-row").first()).toBeVisible();
-  await measure("10-migration-roadmap", () => page.getByTestId("roadmap-row").first().getByRole("button").first().click());
+  await measure("10-migration-roadmap", () =>
+    page.getByTestId("roadmap-row").first().getByRole("button").first().click(),
+  );
   await stepLink(page, "Dependencies").click();
   await expect(page.getByTestId("dependency-row").first()).toBeVisible();
-  await measure("11-migration-dependencies", () => page.getByTestId("dependency-row").filter({ hasText: "openssl 3.0.22" }).first().locator("p.font-mono").click());
+  await measure("11-migration-dependencies", () =>
+    page.getByTestId("dependency-row").filter({ hasText: "openssl 3.0.22" }).first().locator("p.font-mono").click(),
+  );
 
   // ---- The Overview, then a second pass of the same file (Rerun as new assessment), for the Project overview
   await stepLink(page, "Overview").click();
   await expect(page.getByTestId("overview-groups")).toBeVisible();
   // The Overview repeats what the pages say now: every test has run, the systems are measured, the list is in.
-  const group = (name: string) => page.getByTestId("overview-group").filter({ has: page.getByRole("heading", { name }) });
+  const group = (name: string) =>
+    page.getByTestId("overview-group").filter({ has: page.getByRole("heading", { name }) });
   await expect(group("Crypto tests")).toContainText("Checks: Open 0");
   await expect(group("Migration")).not.toContainText("Nothing measured yet.");
   await expect(group("Dependencies").getByTestId("overview-fact").first()).toContainText("Libraries");

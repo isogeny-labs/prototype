@@ -5,7 +5,9 @@ Projects table and Overview are the pages' own numbers, never more."""
 def _demo_assessment(client, name):
     made = client.post("/api/projects", json={"name": name}).json()
     imp = client.post("/api/import/demo", params={"assessment_id": made["assessment_id"]}).json()
-    client.post(f"/api/import/{imp['id']}/confirm-address", json={"address": imp["addresses"][0]["address"], "confirmed": True})
+    client.post(
+        f"/api/import/{imp['id']}/confirm-address", json={"address": imp["addresses"][0]["address"], "confirmed": True}
+    )
     return made, imp
 
 
@@ -27,13 +29,17 @@ def test_two_assessments_keep_their_own_data(client):
 def test_counts_are_the_pages_own_numbers(client):
     a, imp = _demo_assessment(client, "Acme Pay")
     aid = a["assessment_id"]
-    assert client.get(f"/api/assessments/{aid}").json()["counts"]["claims"] is None     # not verified: no number
+    assert client.get(f"/api/assessments/{aid}").json()["counts"]["claims"] is None  # not verified: no number
     run = client.post(f"/api/import/{imp['id']}/verify").json()
     view = client.get(f"/api/assessments/{aid}").json()
     words = [r["result"] for r in run["results"]]
-    assert view["counts"]["claims"] == {"checked": len(words), "false": words.count("False"), "true": words.count("True"),
-                                        "couldnt_check": words.count("Couldn't check")}
-    assert view["counts"]["claims"]["false"] == 1                                       # TLS 1.3 only is false (expected.json)
+    assert view["counts"]["claims"] == {
+        "checked": len(words),
+        "false": words.count("False"),
+        "true": words.count("True"),
+        "couldnt_check": words.count("Couldn't check"),
+    }
+    assert view["counts"]["claims"]["false"] == 1  # TLS 1.3 only is false (expected.json)
     assert view["counts"]["tests"] is None and view["counts"]["fixes"] is None and view["counts"]["systems"] is None
     assert view["next_step"]["page"] == "checks" and view["next_step"]["label"] == "Open checks"
     row = next(p for p in client.get("/api/workspace").json()["projects"] if p["id"] == a["id"])

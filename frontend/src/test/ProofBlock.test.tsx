@@ -28,7 +28,14 @@ describe("How this test was proven", () => {
   it("lists every part of the trial with its count and what had to happen, and never a Passed or a Failed", () => {
     render(<ProofBlock proof={proof()} open />);
     const rows = screen.getAllByTestId("proof-row");
-    expect(rows.map((r) => r.getAttribute("data-part"))).toEqual(["reference", "affected", "fixed", "control", "more-fixed-1", "more-fixed-2"]);
+    expect(rows.map((r) => r.getAttribute("data-part"))).toEqual([
+      "reference",
+      "affected",
+      "fixed",
+      "control",
+      "more-fixed-1",
+      "more-fixed-2",
+    ]);
     const affected = rows[1]!;
     expect(text(affected)).toContain("starkbank-ecdsa 2.0.0 (the version the advisory names as affected)");
     expect(text(within(affected).getByTestId("proof-count"))).toBe("1 of 64 cases wrong");
@@ -45,7 +52,9 @@ describe("How this test was proven", () => {
   it("says when the trial was registered, what it froze, how it was judged, that the replay was no outside party, and what it does not show", () => {
     render(<ProofBlock proof={proof()} open />);
     expect(text(screen.getByTestId("proof-registered"))).toContain("before the first run");
-    expect(text(screen.getByTestId("proof-registered"))).toContain("the registration is entry 13 and the first run is entry 14");
+    expect(text(screen.getByTestId("proof-registered"))).toContain(
+      "the registration is entry 13 and the first run is entry 14",
+    );
     const pins = screen.getByTestId("proof-pins");
     expect(text(pins)).toContain(`What was frozen, by SHA-256 (${proofBlock.registered.pins.length})`);
     expect(text(pins)).toContain(proofBlock.registered.pins[0]!.name);
@@ -69,7 +78,9 @@ describe("How this test was proven", () => {
     const source = screen.getByTestId("asking-code-source");
     expect(source.tagName).toBe("PRE");
     expect(source.textContent).toContain("def check_signature(public_key, message, signature):");
-    expect(screen.getByTestId("asking-code-second-source").textContent).toContain("parsed = Signature.fromDer(signature)");
+    expect(screen.getByTestId("asking-code-second-source").textContent).toContain(
+      "parsed = Signature.fromDer(signature)",
+    );
     expect(screen.getByTestId("asking-code-second-source").textContent).not.toBe(source.textContent);
     fireEvent.click(toggle);
     expect(screen.queryByTestId("asking-code-source")).toBeNull();
@@ -93,7 +104,9 @@ describe("How this test was proven", () => {
     expect(text(copies[0]!)).toContain("starkbank-ecdsa 2.0.0: starkbank-ecdsa-2.0.0.tar.gz, from PyPI");
     expect(text(copies[0]!)).toContain("the same as the registry's own");
     expect(text(copies[0]!)).toContain("Published on 8 October 2021.");
-    expect(text(screen.getByTestId("proof-left-out"))).toContain("starkbank-ecdsa 1.1.1 was left out before the trial was registered");
+    expect(text(screen.getByTestId("proof-left-out"))).toContain(
+      "starkbank-ecdsa 1.1.1 was left out before the trial was registered",
+    );
     expect(text(screen.getByTestId("proof-copies"))).toContain("The first fetch of a version trusts the registry.");
   });
 });
@@ -125,14 +138,18 @@ describe("a proposal with its proof", () => {
   });
 
   it("Reject takes an optional short reason, and Cancel records nothing", async () => {
-    const fetchMock = mockApi({ [route("reject")]: { body: rejectedProposal("We do not use this library in production") } });
+    const fetchMock = mockApi({
+      [route("reject")]: { body: rejectedProposal("We do not use this library in production") },
+    });
     const decided = vi.fn();
     render(<ProposalCard planId={7} proposal={withProof()} onDecided={decided} />);
     fireEvent.click(screen.getByTestId("proposal-reject"));
     fireEvent.click(within(screen.getByTestId("proposal-reject-dialog")).getByTestId("proposal-reject-cancel"));
     expect(calls(fetchMock)).toEqual([]);
     fireEvent.click(screen.getByTestId("proposal-reject"));
-    fireEvent.change(screen.getByTestId("proposal-reject-reason"), { target: { value: "We do not use this library in production" } });
+    fireEvent.change(screen.getByTestId("proposal-reject-reason"), {
+      target: { value: "We do not use this library in production" },
+    });
     fireEvent.click(screen.getByTestId("proposal-reject-confirm"));
     await waitFor(() => expect(decided).toHaveBeenCalledTimes(1));
     expect(calls(fetchMock)).toEqual([route("reject")]);

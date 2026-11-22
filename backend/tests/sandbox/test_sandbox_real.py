@@ -9,6 +9,7 @@ evidence file is then checked by the verify command.
 
 Slow: it needs Docker and the prepared images, Otto's harness, and the six public package files (fetched once by
 `tools/research_demo.py --sandbox`, kept in data/downloads)."""
+
 from __future__ import annotations
 
 import json
@@ -29,8 +30,10 @@ from tools import research_demo
 
 ID = "CVE-2021-43572"
 ITEM = f"{ID}~starkbank-ecdsa"
-FILES_SKIP = ("Skipped: the public package files of the sandbox demo are not on this computer "
-              "(run once, with internet: cd backend && .venv/bin/python tools/research_demo.py --sandbox /tmp/sandbox-demo).")
+FILES_SKIP = (
+    "Skipped: the public package files of the sandbox demo are not on this computer "
+    "(run once, with internet: cd backend && .venv/bin/python tools/research_demo.py --sandbox /tmp/sandbox-demo)."
+)
 
 
 def _runs(lab) -> int:
@@ -39,15 +42,29 @@ def _runs(lab) -> int:
 
 
 @pytest.mark.needs_otto
-def test_the_whole_line_from_no_fix_yet_to_a_proven_check_a_person_accepts_and_the_reviewer_decides(tmp_path, monkeypatch, docker_ready, capsys):
+def test_the_whole_line_from_no_fix_yet_to_a_proven_check_a_person_accepts_and_the_reviewer_decides(
+    tmp_path, monkeypatch, docker_ready, capsys
+):
     if not all((prepare.DOWNLOADS_DIR / pin["file"]).is_file() for pin in research_demo.SANDBOX_PINS):
-        pytest.skip(FILES_SKIP)                                  # (never fetched by a test: no test reaches a registry)
-    monkeypatch.delenv(model.KEY_ENV, raising=False)             # no key: only the answers recorded during the build
-    monkeypatch.setenv("EVIDENCE_LAB_SANDBOX_RESEARCH", "1")     # this computer is the sandbox (the research command reads it too)
+        pytest.skip(FILES_SKIP)  # (never fetched by a test: no test reaches a registry)
+    monkeypatch.delenv(model.KEY_ENV, raising=False)  # no key: only the answers recorded during the build
+    monkeypatch.setenv(
+        "EVIDENCE_LAB_SANDBOX_RESEARCH", "1"
+    )  # this computer is the sandbox (the research command reads it too)
     source, registry = research_demo.prepare_sandbox(tmp_path / "demo", day=1)
     monkeypatch.setenv("EVIDENCE_LAB_REGISTRY_SOURCE", str(registry))
-    lab = Lab(Settings(data_dir=tmp_path / "data", demo_tls_port=free_port(), advisory_source_dir=source, registry_source_dir=registry,
-                       sandbox_research=True, watch_clock=False, speed_rounds=25, speed_repeats=4))
+    lab = Lab(
+        Settings(
+            data_dir=tmp_path / "data",
+            demo_tls_port=free_port(),
+            advisory_source_dir=source,
+            registry_source_dir=registry,
+            sandbox_research=True,
+            watch_clock=False,
+            speed_rounds=25,
+            speed_repeats=4,
+        )
+    )
     lab.start()
     try:
         assert lab.mode.name == "isolated" and lab.sandbox_blocked() == []
@@ -70,8 +87,10 @@ def test_the_whole_line_from_no_fix_yet_to_a_proven_check_a_person_accepts_and_t
         assert item["status"]["key"] == "fix_published"
         block = lab.lookup_view(pid)
         assert block["last"]["rows"][0]["state"]["key"] == "new" and block["last"]["rows"][0]["sandbox"] is True
-        assert block["research"]["can"] is True and any(line.startswith("From PyPI: starkbank-ecdsa 2.0.1") for line in block["research"]["dialog"]["lines"])
-        assert lab.otto_proposals(pid, ("check",)) == []         # looking proposed nothing
+        assert block["research"]["can"] is True and any(
+            line.startswith("From PyPI: starkbank-ecdsa 2.0.1") for line in block["research"]["dialog"]["lines"]
+        )
+        assert lab.otto_proposals(pid, ("check",)) == []  # looking proposed nothing
 
         # ---- the click: design and prove
         runs_before = _runs(lab)
@@ -80,13 +99,18 @@ def test_the_whole_line_from_no_fix_yet_to_a_proven_check_a_person_accepts_and_t
         with lab.db() as db:
             end = db.scalars(select(OttoResearchRow).where(OttoResearchRow.kind == "finished")).one()
         assert end.exit_code == 0, end.output[-25:]
-        assert end.sandbox is True and end.live is False and end.spent_nano == 0 and end.installed_first == ["2026.11.1", "2026.11.2"]
+        assert (
+            end.sandbox is True
+            and end.live is False
+            and end.spent_nano == 0
+            and end.installed_first == ["2026.11.1", "2026.11.2"]
+        )
         made = end.pack_version
         installed = lab.otto_view()["packs"]["installed"]
         assert installed[-1]["version"] == made and installed[-1]["made_here"] is True
         view = lab.advisories_view(pid)
         assert problems(view, models.AdvisoriesView, "advisories after a sandbox research run") == []
-        assert _runs(lab) == runs_before                         # nothing of the assessment ran
+        assert _runs(lab) == runs_before  # nothing of the assessment ran
 
         # ---- the pack: second format, with everything the proof rests on
         with lab.db() as db:
@@ -94,15 +118,32 @@ def test_the_whole_line_from_no_fix_yet_to_a_proven_check_a_person_accepts_and_t
         assert pack.pack["schema"] == packs.PACK_SCHEMA_2
         entry = pack.advisory(ID)
         arms, extra = entry["test"]["trial"]["arms"], entry["test"]["sandbox"]
-        assert entry["test"]["state"] == "ready" and entry["test"]["trial"]["outcome"] == "supported" and entry["test"]["trial"]["replayed"] is True
+        assert (
+            entry["test"]["state"] == "ready"
+            and entry["test"]["trial"]["outcome"] == "supported"
+            and entry["test"]["trial"]["replayed"] is True
+        )
         assert (arms["affected"]["version"], arms["affected"]["wrong"], arms["affected"]["total"]) == ("2.0.0", 1, 64)
         assert (arms["fixed"]["version"], arms["fixed"]["wrong"]) == ("2.0.1", 0) and arms["accept-all"]["wrong"] == 64
-        assert arms["affected-b"]["agree"] == 64 and arms["fixed-b"]["agree"] == 64          # the two authors' code agreed on every case
-        assert extra["versions"]["more_fixed"] == ["2.0.2", "2.3.1"] and all(arms[f"more-fixed-{n}"]["wrong"] == 0 for n in (1, 2))
-        assert {v["version"] for v in extra["versions"]["left_out"]} == {"1.1.0", "1.1.1"}  # the frozen code does not work there: left out, with the reason
+        assert (
+            arms["affected-b"]["agree"] == 64 and arms["fixed-b"]["agree"] == 64
+        )  # the two authors' code agreed on every case
+        assert extra["versions"]["more_fixed"] == ["2.0.2", "2.3.1"] and all(
+            arms[f"more-fixed-{n}"]["wrong"] == 0 for n in (1, 2)
+        )
+        assert {v["version"] for v in extra["versions"]["left_out"]} == {
+            "1.1.0",
+            "1.1.1",
+        }  # the frozen code does not work there: left out, with the reason
         assert extra["known"]["controls_refused"] is True and extra["second_known"]["controls_refused"] is True
-        assert extra["versions"]["after_last_affected"] is False             # the publisher named the fixed version itself
-        assert [s["step"] for s in entry["steps"]] == ["read_advisory", "design_test", "write_wrapper", "write_wrapper", "propose_fix"]
+        assert extra["versions"]["after_last_affected"] is False  # the publisher named the fixed version itself
+        assert [s["step"] for s in entry["steps"]] == [
+            "read_advisory",
+            "design_test",
+            "write_wrapper",
+            "write_wrapper",
+            "propose_fix",
+        ]
         assert all(s["source"] == "recorded" and s["model"] is None and s["cost_nano_usd"] == 0 for s in entry["steps"])
         # the publisher's fix is not offered as proven: the fixed version still fails other locked tests, and that is said
         assert entry["fix"]["state"] == "not_proven" and entry["fix"]["version"] == "2.0.1"
@@ -117,14 +158,19 @@ def test_the_whole_line_from_no_fix_yet_to_a_proven_check_a_person_accepts_and_t
         assert "Claude" not in card["proof"]["code"]["line"] and card["proof"]["table"]["columns"][1] == "Count"
         mine = next(p for p in lab.otto_proposals(pid, ("check",)) if p["about"]["advisory"] == ID)
         lab.otto_decide(pid, mine["id"], "accept")
-        assert _runs(lab) == runs_before                         # accepting ran nothing
+        assert _runs(lab) == runs_before  # accepting ran nothing
         item_id = next(r["item_id"] for r in lab.lab_view(pid)["rows"] if ID in str(r.get("title")))
 
         # ---- the accepted check runs on the sandbox copy, and the separate reviewer decides it
         lab.run_test(pid, item_id)
         lab.wait_until_idle(pid, 600)
         result = next(r for r in lab.lab_view(pid)["rows"] if r["item_id"] == item_id)["result"]
-        assert (result["code"], result["label"], result["component"], result["mode"]) == ("failed", "Failed", "starkbank-ecdsa 2.0.0", "isolated")
+        assert (result["code"], result["label"], result["component"], result["mode"]) == (
+            "failed",
+            "Failed",
+            "starkbank-ecdsa 2.0.0",
+            "isolated",
+        )
         assert "got 1 of the 64 published cases" in result["plain"] and result["sandbox_copy"] is True
         assert result["control"]["outcome"] == "as_expected"
         here = next(r for r in lab.advisories_view(pid)["rows"] if r["id"] == ID)["panel"]["here"]["rows"][0]
@@ -142,16 +188,25 @@ def test_the_whole_line_from_no_fix_yet_to_a_proven_check_a_person_accepts_and_t
         capsys.readouterr()
         assert evidence_main(["verify", str(path), "--data-dir", str(lab.settings.data_dir)]) == 0
         said = capsys.readouterr().out
-        assert "Evidence verified" in said and "1 test tried on sandbox copies" in said and "on a sandbox copy, each in an image named after a copy set" in said
+        assert (
+            "Evidence verified" in said
+            and "1 test tried on sandbox copies" in said
+            and "on a sandbox copy, each in an image named after a copy set" in said
+        )
 
         # ---- the switch off: the copy is no longer seen, and nothing of it runs
         lab.set_sandbox(on=False)
         from app import real_libraries
+
         assert real_libraries.library("starkbank-ecdsa", "2.0.0") is None
         # ... and the run that was made on it still says what it ran on: a sandbox copy, never "demo" (the stored run
         # names its image), on screen and in the report
         still = next(r for r in lab.lab_view(pid)["rows"] if r["item_id"] == item_id)["result"]
-        assert still["sandbox_copy"] is True and still["real"] is True and (still["code"], still["label"]) == ("failed", "Failed")
+        assert (
+            still["sandbox_copy"] is True
+            and still["real"] is True
+            and (still["code"], still["label"]) == ("failed", "Failed")
+        )
         tags = {m["label"]: m["tag"] for m in still["run_record"]["meta"]}
         assert tags["Component"] == "sandbox copy" and tags["Code"] == "sandbox copy"
         report = lab.evidence_file(lab.export_evidence(pid)["id"], "html")[1].decode("utf-8")

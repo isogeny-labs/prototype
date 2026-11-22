@@ -9,6 +9,7 @@ computer's own git access), works out its fingerprint and version, writes the lo
 bump, run `check`, then the backend tests and the accuracy check: a failed audit of a ledger we keep stops the bump.
 Changing the pin needs Kevin's OK, like any dependency change.
 """
+
 from __future__ import annotations
 
 import json
@@ -58,10 +59,15 @@ def bump(commit: str, source: str | None) -> int:
         except OSError:
             print("That commit has no otto/__init__.py with a version in it.")
             return 1
-        lock = {"repository": repository, "url": url, "commit": commit, "version": version,
-                "tree_sha256": harness.tree_sha256(work),
-                "note": "One exact commit of Adam's Otto harness. Fetched by app.prepare into backend/.otto/<commit>/, "
-                        "never copied into this repository. Move it with tools/otto_pin.py, on purpose."}
+        lock = {
+            "repository": repository,
+            "url": url,
+            "commit": commit,
+            "version": version,
+            "tree_sha256": harness.tree_sha256(work),
+            "note": "One exact commit of Adam's Otto harness. Fetched by app.prepare into backend/.otto/<commit>/, "
+            "never copied into this repository. Move it with tools/otto_pin.py, on purpose.",
+        }
     harness.LOCK_PATH.write_text(json.dumps(lock, indent=2) + "\n", encoding="utf-8")
     harness._forget()
     ok = harness.fetch(harness.read_lock(), say=print)
@@ -85,7 +91,9 @@ def main(argv: list[str]) -> int:
     if argv[:1] == ["show"]:
         return show()
     if argv[:1] == ["bump"] and len(argv) >= 2:
-        source = argv[argv.index("--source") + 1] if "--source" in argv and argv.index("--source") + 1 < len(argv) else None
+        source = (
+            argv[argv.index("--source") + 1] if "--source" in argv and argv.index("--source") + 1 < len(argv) else None
+        )
         return bump(argv[1], source)
     if argv[:1] == ["check"]:
         return check()

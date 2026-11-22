@@ -2,6 +2,7 @@
 
 Nothing here opens a connection to the address being checked.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -44,9 +45,7 @@ def validate_host(host: str) -> str:
     except ValueError:
         pass
     if host.startswith("-") or not _HOSTNAME_RE.fullmatch(host):
-        raise AddressError(
-            f"{host!r} is not a valid host name (letters, digits, dots and hyphens only) or IP address"
-        )
+        raise AddressError(f"{host!r} is not a valid host name (letters, digits, dots and hyphens only) or IP address")
     if re.fullmatch(r"[0-9.]+", host):
         raise AddressError(f"{host!r} is not a valid IP address")
     return host.lower()

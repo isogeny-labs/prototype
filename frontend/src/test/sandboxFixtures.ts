@@ -45,7 +45,12 @@ export const sandboxOff: OttoSandboxSection = {
 /** An ordinary install: not marked, demo mode. */
 export const sandboxBlocked: OttoSandboxSection = {
   ...sandboxOff,
-  switch: { label: "Sandbox research", on: false, can_turn_on: false, blocked_reasons: [NOT_MARKED, "It needs isolated mode. Docker is not running."] },
+  switch: {
+    label: "Sandbox research",
+    on: false,
+    can_turn_on: false,
+    blocked_reasons: [NOT_MARKED, "It needs isolated mode. Docker is not running."],
+  },
   status_line: "Sandbox research is off, and can't be turned on here.",
 };
 
@@ -73,4 +78,7 @@ export const sandboxByItself: OttoSandboxSection = {
     "Sandbox research is on. The app looks for published weaknesses by itself, and designs and proves tests by itself within the spending limits. Every proposal waits for your Accept.",
 };
 
-export const settingsWith = (sandbox: OttoSandboxSection, live = false): OttoSettingsView => ({ ...(live ? ottoLiveOn : ottoInstalledTwo), sandbox });
+export const settingsWith = (sandbox: OttoSandboxSection, live = false): OttoSettingsView => ({
+  ...(live ? ottoLiveOn : ottoInstalledTwo),
+  sandbox,
+});

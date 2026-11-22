@@ -27,7 +27,8 @@ export function ProjectSwitcher({
     const hiddenFolders = new Set<number>();
     // A folder is hidden when it, or a folder above it, is archived.
     for (const f of workspace.folders) {
-      if (f.archived || f.path.some((p) => workspace.folders.find((x) => x.id === p.id)?.archived)) hiddenFolders.add(f.id);
+      if (f.archived || f.path.some((p) => workspace.folders.find((x) => x.id === p.id)?.archived))
+        hiddenFolders.add(f.id);
     }
     const q = query.trim().toLowerCase();
     const projects = workspace.projects.filter(
@@ -46,7 +47,12 @@ export function ProjectSwitcher({
     const out: React.ReactNode[] = [];
     for (const f of visible.folders.filter((x) => x.parent_id === parent)) {
       out.push(
-        <li key={`f${f.id}`} role="none" className="mt-1 flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-slate-500" style={{ paddingLeft: 8 + depth * 14 }}>
+        <li
+          key={`f${f.id}`}
+          role="none"
+          className="mt-1 flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-slate-500"
+          style={{ paddingLeft: 8 + depth * 14 }}
+        >
           <Icon name="folder" className="h-3.5 w-3.5" />
           {f.name}
         </li>,
@@ -117,7 +123,9 @@ export function ProjectSwitcher({
           <ul role="listbox" aria-label="Projects" className="quiet-scroll mt-1 max-h-80 overflow-y-auto">
             {tree(null, 0)}
           </ul>
-          {visible.projects.length === 0 ? <p className="px-2 py-3 text-sm text-slate-400">No project matches.</p> : null}
+          {visible.projects.length === 0 ? (
+            <p className="px-2 py-3 text-sm text-slate-400">No project matches.</p>
+          ) : null}
         </div>
       ) : null}
     </div>

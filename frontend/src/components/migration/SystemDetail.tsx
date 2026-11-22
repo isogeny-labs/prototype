@@ -1,5 +1,11 @@
 import { useRef, useState, type ReactNode, type RefObject } from "react";
-import { errorMessage, type MigrationOptionKey, type MigrationSettingField, type MigrationSystem, type MigrationTrack } from "../../api";
+import {
+  errorMessage,
+  type MigrationOptionKey,
+  type MigrationSettingField,
+  type MigrationSystem,
+  type MigrationTrack,
+} from "../../api";
 import { ResultDetail } from "../lab/ResultDetail";
 import { ChangeBox } from "../change/ChangeBox";
 import { ProposalCard } from "../otto/ProposalCard";
@@ -8,7 +14,15 @@ import { OptionCard, type SaveChoice } from "./OptionCard";
 import { StatusPill } from "./parts";
 import { CLOSED_SENTENCE, useReadOnly } from "../../readOnly";
 
-function Box({ children, testId, className = "border-slate-800" }: { children: ReactNode; testId: string; className?: string }) {
+function Box({
+  children,
+  testId,
+  className = "border-slate-800",
+}: {
+  children: ReactNode;
+  testId: string;
+  className?: string;
+}) {
   return (
     <section data-testid={testId} className={`rounded-xl border bg-slate-900/40 p-4 ${className}`}>
       {children}
@@ -20,7 +34,11 @@ const H3 = "text-[15px] font-semibold text-slate-100";
 
 function TrackBox({ track }: { track: MigrationTrack }) {
   return (
-    <div data-testid="migration-track" data-track={track.key} className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+    <div
+      data-testid="migration-track"
+      data-track={track.key}
+      className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"
+    >
       <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{track.title}</p>
       <div className="mt-1.5 flex flex-wrap items-start gap-3">
         <StatusPill status={track.status} large />
@@ -204,7 +222,7 @@ function Settings({
   onChange: (field: MigrationSettingField["field"], value: string) => void;
 }) {
   const settings = system.settings;
-  const closed = useReadOnly();   // phase 5a: a closed assessment is read-only
+  const closed = useReadOnly(); // phase 5a: a closed assessment is read-only
   return (
     <Box testId="migration-settings">
       <h3 className={H3}>{settings.title}</h3>
@@ -258,7 +276,10 @@ function Cost({ cost }: { cost: NonNullable<MigrationSystem["cost"]> }) {
         <table className="w-full border-collapse text-[13px]">
           <thead>
             <tr>
-              <th scope="col" className="border-b border-slate-800 px-2.5 py-1.5 text-left align-bottom text-xs font-medium uppercase tracking-wide text-slate-400">
+              <th
+                scope="col"
+                className="border-b border-slate-800 px-2.5 py-1.5 text-left align-bottom text-xs font-medium uppercase tracking-wide text-slate-400"
+              >
                 {rowLabel ?? ""}
               </th>
               {heads.map((head, i) => (
@@ -297,7 +318,10 @@ function Recommendation({ system, onSeeEvidence }: { system: MigrationSystem; on
   const rec = system.recommendation;
   const none = rec.none_text !== null;
   return (
-    <Box testId="migration-recommendation" className={none ? "border-dashed border-slate-600" : "border-sky-400/60 bg-sky-400/5"}>
+    <Box
+      testId="migration-recommendation"
+      className={none ? "border-dashed border-slate-600" : "border-sky-400/60 bg-sky-400/5"}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <h3 className={H3}>{rec.title}</h3>
         {rec.tag ? <SourceTag>{rec.tag}</SourceTag> : null}
@@ -393,7 +417,9 @@ export function SystemDetail({
       <Settings system={system} busy={busy} onChange={onSetting} />
       {system.cost ? <Cost cost={system.cost} /> : null}
       <Recommendation system={system} onSeeEvidence={seeEvidence} />
-      {system.change ? <ChangeBox change={system.change} planId={planId} onChanged={onChanged} onViewFix={onViewFix} /> : null}
+      {system.change ? (
+        <ChangeBox change={system.change} planId={planId} onChanged={onChanged} onViewFix={onViewFix} />
+      ) : null}
       {hasOptions ? (
         <section data-testid="migration-options" aria-labelledby={`options-${system.key}`}>
           <h3 id={`options-${system.key}`} className={`${H3} mb-2 px-1`}>

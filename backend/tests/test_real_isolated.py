@@ -3,6 +3,7 @@
 The first two tests need no Docker: a real library never runs as a local program, and never without its own image.
 The rest start the prepared real-library images and are skipped with a message when Docker is not running or the
 image of the family they need has not been prepared (cd backend && .venv/bin/python -m app.prepare)."""
+
 import json
 import os
 import subprocess
@@ -13,10 +14,15 @@ from app import real_libraries
 from app.run import runner
 from app.engine import vectors
 
-SUBJECTS = [("openjdk-17.0.2", "openjdk", "17.0.2", "java"), ("openjdk-17.0.3", "openjdk", "17.0.3", "java"),
-            ("python-ecdsa-0.13.2", "python-ecdsa", "0.13.2", "python-ecdsa"), ("python-ecdsa-0.13.3", "python-ecdsa", "0.13.3", "python-ecdsa"),
-            ("elliptic-6.5.6", "elliptic", "6.5.6", "elliptic"), ("elliptic-6.5.7", "elliptic", "6.5.7", "elliptic"),
-            ("openssl-3.5.9", "openssl", "3.5.9", "openssl")]
+SUBJECTS = [
+    ("openjdk-17.0.2", "openjdk", "17.0.2", "java"),
+    ("openjdk-17.0.3", "openjdk", "17.0.3", "java"),
+    ("python-ecdsa-0.13.2", "python-ecdsa", "0.13.2", "python-ecdsa"),
+    ("python-ecdsa-0.13.3", "python-ecdsa", "0.13.3", "python-ecdsa"),
+    ("elliptic-6.5.6", "elliptic", "6.5.6", "elliptic"),
+    ("elliptic-6.5.7", "elliptic", "6.5.7", "elliptic"),
+    ("openssl-3.5.9", "openssl", "3.5.9", "openssl"),
+]
 
 
 def info_job(subject: str) -> dict:
@@ -27,8 +33,10 @@ def need(mode, *families: str) -> None:
     """Skip with a clear message when the image of a family this test needs is not prepared."""
     missing = [family for family in families if not mode.real_images.get(family)]
     if missing:
-        pytest.skip(f"Skipped: the real-library image for {', '.join(missing)} is not prepared "
-                    "(run: cd backend && .venv/bin/python -m app.prepare).")
+        pytest.skip(
+            f"Skipped: the real-library image for {', '.join(missing)} is not prepared "
+            "(run: cd backend && .venv/bin/python -m app.prepare)."
+        )
 
 
 def spy_on_processes(monkeypatch) -> list[list[str]]:
@@ -38,30 +46,51 @@ def spy_on_processes(monkeypatch) -> list[list[str]]:
     def spy(argv, *args, **kw):
         started.append(list(argv))
         return real_popen(argv, *args, **kw)
+
     monkeypatch.setattr(runner.subprocess, "Popen", spy)
     return started
 
 
 # ------------------------------------------------------------------ no Docker needed
 
+
 def test_demo_mode_never_runs_a_real_library_as_a_local_program(monkeypatch):
     started = spy_on_processes(monkeypatch)
     mode = runner.ModeInfo("demo", "", None, False, None, None)
     result = runner.ComponentRunner(mode).run_job(info_job("openssl-3.5.9"), family="openssl")
-    assert not result.ok and result.problem == runner.PROBLEM_REAL_NEEDS_ISOLATED and result.lines == [] and result.mode == "demo"
+    assert (
+        not result.ok
+        and result.problem == runner.PROBLEM_REAL_NEEDS_ISOLATED
+        and result.lines == []
+        and result.mode == "demo"
+    )
     assert started == [], f"a process was started for a real library in demo mode: {started}"
 
 
 def test_an_isolated_mode_without_that_familys_image_does_not_run_it(monkeypatch):
     started = spy_on_processes(monkeypatch)
-    for images in ({}, {"java": "evidence-lab-real-java:0000000000000000"}):   # none at all, or only another family's
-        mode = runner.ModeInfo("isolated", runner.ISOLATED_LINE, None, True, "evidence-lab-components:0000000000000000", None, real_images=images)
+    for images in ({}, {"java": "evidence-lab-real-java:0000000000000000"}):  # none at all, or only another family's
+        mode = runner.ModeInfo(
+            "isolated",
+            runner.ISOLATED_LINE,
+            None,
+            True,
+            "evidence-lab-components:0000000000000000",
+            None,
+            real_images=images,
+        )
         result = runner.ComponentRunner(mode).run_job(info_job("openssl-3.5.9"), family="openssl")
-        assert not result.ok and result.problem == runner.PROBLEM_REAL_IMAGE_MISSING and result.lines == [] and result.mode == "isolated"
+        assert (
+            not result.ok
+            and result.problem == runner.PROBLEM_REAL_IMAGE_MISSING
+            and result.lines == []
+            and result.mode == "isolated"
+        )
     assert started == [], f"a process was started although the image is missing: {started}"
 
 
 # ------------------------------------------------------------------ real containers
+
 
 @pytest.mark.parametrize("subject, name, version, family", SUBJECTS, ids=[s[0] for s in SUBJECTS])
 def test_each_subject_says_what_it_is_from_the_library_itself(docker_ready, subject, name, version, family):
@@ -77,13 +106,22 @@ def test_each_subject_says_what_it_is_from_the_library_itself(docker_ready, subj
 def test_the_blank_signature_is_accepted_by_java_17_0_2_and_rejected_by_17_0_3(docker_ready):
     need(docker_ready, "java")
     vector_set = vectors.load_bad_signatures()
-    cases = [{"id": c.id, "public_key": c.public_key, "message": c.message, "signature": c.signature} for c in vector_set.cases if c.id == "r0-s0"]
+    cases = [
+        {"id": c.id, "public_key": c.public_key, "message": c.message, "signature": c.signature}
+        for c in vector_set.cases
+        if c.id == "r0-s0"
+    ]
     assert len(cases) == 1, "the bad-signature list has no case r0-s0"
     result = runner.ComponentRunner(docker_ready).run_job(
-        {"op": "verify_batch", "subjects": ["openjdk-17.0.2", "openjdk-17.0.3"], "cases": cases}, time_limit=120, family="java")
+        {"op": "verify_batch", "subjects": ["openjdk-17.0.2", "openjdk-17.0.3"], "cases": cases},
+        time_limit=120,
+        family="java",
+    )
     assert result.ok, (result.problem, result.stderr_tail)
     answers = {line["subject"]: line["valid"] for line in result.lines if line["id"] == "r0-s0"}
-    assert answers == {"openjdk-17.0.2": True, "openjdk-17.0.3": False}, f"(CVE-2022-21449) the blank signature: {answers}"
+    assert answers == {"openjdk-17.0.2": True, "openjdk-17.0.3": False}, (
+        f"(CVE-2022-21449) the blank signature: {answers}"
+    )
 
 
 def test_a_subject_of_another_familys_image_is_refused_and_nothing_runs(docker_ready):
@@ -97,8 +135,19 @@ def test_a_real_library_runs_with_the_same_fixed_lock_down_as_our_demo_component
     need(docker_ready, "openssl")
     image = docker_ready.real_images["openssl"]
     assert runner.ComponentRunner(docker_ready)._container_argv("x", "openssl") == [
-        "docker", "run", "--name", "x", *runner.DOCKER_RUN_FLAGS, image, *runner.REAL_CONTAINER_COMMAND]
-    assert "--network" in runner.DOCKER_RUN_FLAGS and "none" in runner.DOCKER_RUN_FLAGS and "--read-only" in runner.DOCKER_RUN_FLAGS
+        "docker",
+        "run",
+        "--name",
+        "x",
+        *runner.DOCKER_RUN_FLAGS,
+        image,
+        *runner.REAL_CONTAINER_COMMAND,
+    ]
+    assert (
+        "--network" in runner.DOCKER_RUN_FLAGS
+        and "none" in runner.DOCKER_RUN_FLAGS
+        and "--read-only" in runner.DOCKER_RUN_FLAGS
+    )
     started = spy_on_processes(monkeypatch)
     result = runner.ComponentRunner(docker_ready).run_job(info_job("openssl-3.5.9"), family="openssl")
     assert result.ok and len(started) == 1
@@ -108,7 +157,7 @@ def test_a_real_library_runs_with_the_same_fixed_lock_down_as_our_demo_component
     assert "-v" not in argv and "--privileged" not in argv and "host" not in argv
 
 
-PROBE = r'''
+PROBE = r"""
 import json, os, socket
 out = {"uid": os.getuid(), "cwd": os.getcwd()}
 
@@ -135,14 +184,19 @@ out["connect"] = {"1.1.1.1:443": can_connect(("1.1.1.1", 443)), "host gateway": 
                   "name lookup": can_connect(("example.com", 443))}
 out["docker_socket"] = [p for p in ("/var/run/docker.sock", "/run/docker.sock") if os.path.exists(p)]
 print(json.dumps(out))
-'''
+"""
 
 
 def test_inside_a_real_library_image_there_is_no_network_and_the_files_are_read_only(docker_ready):
     need(docker_ready, "openssl")
     argv = runner.ComponentRunner(docker_ready)._container_argv("evlab-" + os.urandom(6).hex(), "openssl")
-    assert tuple(argv[-len(runner.REAL_CONTAINER_COMMAND):]) == runner.REAL_CONTAINER_COMMAND
-    argv = argv[:-len(runner.REAL_CONTAINER_COMMAND)] + ["python", "-I", "-c", PROBE]   # the same container, another command
+    assert tuple(argv[-len(runner.REAL_CONTAINER_COMMAND) :]) == runner.REAL_CONTAINER_COMMAND
+    argv = argv[: -len(runner.REAL_CONTAINER_COMMAND)] + [
+        "python",
+        "-I",
+        "-c",
+        PROBE,
+    ]  # the same container, another command
     done = subprocess.run(argv, capture_output=True, text=True, timeout=60, stdin=subprocess.DEVNULL)
     assert done.returncode == 0, done.stderr[-500:]
     seen = json.loads(done.stdout)

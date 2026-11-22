@@ -4,6 +4,7 @@ fix and about the code each side of before and after ran on.
 This module gathers and passes on. It decides nothing and holds no sentence: where a fix stands comes from
 changes.fix_states (worked out from the stored records, every verdict through the read gate), and the words are
 in present_fixes.py. What it reads from a plan's copy of the repository is text to show: nothing from it is run."""
+
 from __future__ import annotations
 
 import hashlib
@@ -60,28 +61,42 @@ class FixesMixin:
             # Asked first, on purpose. If a job ends while the rest is put together, the screen is told to ask
             # again and the next answer is the settled one. Asked last, a proof that ended in between would be
             # shown as still running with nothing left to make the screen ask again.
-            busy = (self.jobs.busy(plan.id) or self.jobs.busy(("changes", plan.id)) or self.jobs.busy(("migration", plan.id))
-                    or self.jobs.busy(("dependencies", plan.id)))
+            busy = (
+                self.jobs.busy(plan.id)
+                or self.jobs.busy(("changes", plan.id))
+                or self.jobs.busy(("migration", plan.id))
+                or self.jobs.busy(("dependencies", plan.id))
+            )
             pairs = self._fix_details(db, plan)
             shown = [detail for _, detail in pairs]
-            view = present_fixes.view(plan.id, bool(imp.is_demo), shown, busy or any(d["status"]["busy"] for d in shown),
-                                      counted=sum(1 for state, _ in pairs if not G.fix_is_apart(state)))
+            view = present_fixes.view(
+                plan.id,
+                bool(imp.is_demo),
+                shown,
+                busy or any(d["status"]["busy"] for d in shown),
+                counted=sum(1 for state, _ in pairs if not G.fix_is_apart(state)),
+            )
             # Phase 5b: the four work groups, each fix's group and the links for where it came from.
             systems = {s["item_id"]: s["key"] for s in self._migration_states(db, plan)}
             # The libraries of the dependency list, asked only when a fix is about a real library.
             listed: set = set()
             if any(state.get("real_library") for state, _ in pairs):
                 deps = self._dependency_state(db, plan)
-                listed = {(str(r.get("library") or r.get("name") or "").casefold(), str(r.get("version") or ""))
-                          for r in (deps or {}).get("rows") or []}
+                listed = {
+                    (str(r.get("library") or r.get("name") or "").casefold(), str(r.get("version") or ""))
+                    for r in (deps or {}).get("rows") or []
+                }
             view = group_fixes(view, pairs, systems, listed)
             # Phase 5c: Otto's proposed plan changes are decided on Migration and are no entry here. Where this page's
             # Migration group is empty, it says so with them, so it never reads as if nothing were proposed.
             group = next((g for g in view["groups"] if g["key"] == "migration"), None)
             # (asked only for a plan that has a check of Otto's: this view is read again while something runs)
-            if group is not None and group.get("empty_text") and self._otto_checks(db, plan.id):      # type: ignore[attr-defined]
-                plans = [p for p in self._proposals(db, plan, ("plan",), fixes=[state for state, _ in pairs])      # type: ignore[attr-defined]
-                         if p["current"] or p["state"] != "proposed"]
+            if group is not None and group.get("empty_text") and self._otto_checks(db, plan.id):  # type: ignore[attr-defined]
+                plans = [
+                    p
+                    for p in self._proposals(db, plan, ("plan",), fixes=[state for state, _ in pairs])  # type: ignore[attr-defined]
+                    if p["current"] or p["state"] != "proposed"
+                ]
                 line = present_otto.fixes_plan_line(plans)
                 if line:
                     group["empty_text"] = f"{group['empty_text']} {line}"
@@ -103,62 +118,94 @@ class FixesMixin:
         states = self._fixes(db, plan)
         is_demo = bool(db.get(ImportRow, plan.import_id).is_demo)
         # Phase 5c: Otto's fixes are proposals. Each one's state, decisions and buttons, worded once for every screen.
-        proposals = ({p["id"]: p for p in self._proposals(db, plan, ("fix",), fixes=states)}       # type: ignore[attr-defined]
-                     if any(fix.get("proposal") for fix in states) else {})
-        answered = {fix["id"]: self._answered(db, fix) for fix in states
-                    if fix["kind"] == "text" and fix["source_kind"] not in ("migration", "applied_change", "dependency", "developer_change")}
+        proposals = (
+            {p["id"]: p for p in self._proposals(db, plan, ("fix",), fixes=states)}  # type: ignore[attr-defined]
+            if any(fix.get("proposal") for fix in states)
+            else {}
+        )
+        answered = {
+            fix["id"]: self._answered(db, fix)
+            for fix in states
+            if fix["kind"] == "text"
+            and fix["source_kind"] not in ("migration", "applied_change", "dependency", "developer_change")
+        }
         server_findings = sum(1 for _, address in answered.values() if address is not None)
         claims = self._claims(db.get(ImportRow, plan.import_id))
         several = len(research.servers(claims)) > 1 or len(research.programs(claims)) > 1
         tls_changes = self._tls_changes(db, plan)
-        impact_ctx: dict = {}    # phase 4e: what every fix's "What this change touches" shares, read once
+        impact_ctx: dict = {}  # phase 4e: what every fix's "What this change touches" shares, read once
         out = []
         for fix in states:
             titles = list(dict.fromkeys(self._answer_title(db, a) for a in fix["answers"]))
             if fix["source_kind"] == "migration":
-                worded = self._migration_fix_view(db, plan, fix, is_demo)  # phase 4a: the migration plan's how-to and blockers
+                worded = self._migration_fix_view(
+                    db, plan, fix, is_demo
+                )  # phase 4a: the migration plan's how-to and blockers
                 if worded is None:
-                    continue   # no longer in the plan since it was listed (the next read lists the plan as it is)
+                    continue  # no longer in the plan since it was listed (the next read lists the plan as it is)
                 shown = worded
             elif fix["source_kind"] == "dependency":
-                shown = self._dependency_fix_view(db, plan, fix, is_demo)  # phase 4d: update a library that blocks a track
+                shown = self._dependency_fix_view(
+                    db, plan, fix, is_demo
+                )  # phase 4d: update a library that blocks a track
             elif fix["source_kind"] == "developer_change":
-                shown = present_fixes.developer_change_fix(fix)            # phase 6d: a developer's change makes passing tests fail
+                shown = present_fixes.developer_change_fix(
+                    fix
+                )  # phase 6d: a developer's change makes passing tests fail
             elif fix["source_kind"] == "applied_change":
-                change = next(c for c in tls_changes if c["key"] == fix["change_key"])     # phase 4b: an Apply still in force
+                change = next(
+                    c for c in tls_changes if c["key"] == fix["change_key"]
+                )  # phase 4b: an Apply still in force
                 rec = self._change_records(db, plan, change)
-                shown = present_fixes.applied_change_fix(fix, present_changes.change_view(change, rec, self._change_gates(change, rec)),
-                                                         change["address"], is_demo)
+                shown = present_fixes.applied_change_fix(
+                    fix,
+                    present_changes.change_view(change, rec, self._change_gates(change, rec)),
+                    change["address"],
+                    is_demo,
+                )
             elif fix["kind"] == "code":
                 shown = self._code_fix_detail(db, plan, fix, titles, server_findings)
             else:
                 run, address = answered[fix["id"]]
-                shown = present_fixes.text_fix(fix, titles=titles, is_demo=is_demo, result=self._result(db, run), address=address,
-                                               tls=self._tls_outcome(db, run) if fix["answers"][-1]["kind"] == "tls_versions" else None,
-                                               name_target=several)
+                shown = present_fixes.text_fix(
+                    fix,
+                    titles=titles,
+                    is_demo=is_demo,
+                    result=self._result(db, run),
+                    address=address,
+                    tls=self._tls_outcome(db, run) if fix["answers"][-1]["kind"] == "tls_versions" else None,
+                    name_target=several,
+                )
                 change = next((c for c in tls_changes if c["_item_id"] == fix["answers"][-1]["item_id"]), None)
-                if change is not None:   # phase 4b (SPEC 7c): try, approve, Apply and Roll back on the demo server
+                if change is not None:  # phase 4b (SPEC 7c): try, approve, Apply and Roll back on the demo server
                     rec = self._change_records(db, plan, change)
                     box = present_changes.change_view(change, rec, self._change_gates(change, rec))
                     shown = present_fixes.with_change_box(shown, box)
             shown.setdefault("change_box", None)
-            shown.setdefault("advisories", None)   # phase 4c: only a text fix for a real library carries any
-            shown.setdefault("proof_rows", None)   # phase 5c: only a library's fix from Otto has the two rows
+            shown.setdefault("advisories", None)  # phase 4c: only a text fix for a real library carries any
+            shown.setdefault("proof_rows", None)  # phase 5c: only a library's fix from Otto has the two rows
             # Where it came from (22 November 2026): the finding it answers; its proof line carries its own (a proof runs the
             # changed code on this computer), and so do its two proof rows and its try. It decides nothing.
-            where = (answered[fix["id"]][1] if fix["id"] in answered else
-                     next((c["address"] for c in tls_changes if c["key"] == fix.get("change_key")), None)
-                     if fix["source_kind"] == "applied_change" else None)
+            where = (
+                answered[fix["id"]][1]
+                if fix["id"] in answered
+                else next((c["address"] for c in tls_changes if c["key"] == fix.get("change_key")), None)
+                if fix["source_kind"] == "applied_change"
+                else None
+            )
             shown["source_tag"] = present_source.of_fix(fix, where)
             # (only a proof that ran and was believed; one that was not run, can't be trusted or did not finish has no tag)
             proof_source = present_source.of_proof(shown.get("proof"))
             if proof_source is not None:
                 shown["proof"]["source_tag"] = proof_source
             # Phase 4e: where the part this fix changes is used (it reads; it decides and changes nothing)
-            shown["impact"] = self._fix_impact(db, plan, fix, answered, impact_ctx)       # type: ignore[attr-defined]
+            shown["impact"] = self._fix_impact(db, plan, fix, answered, impact_ctx)  # type: ignore[attr-defined]
             proposal = proposals.get((fix.get("proposal") or {}).get("id"))
-            shown["proposal"] = (present_otto.proposal_view(proposal, self.otto_ledger_about(plan.id, proposal.get("objective_id")))   # type: ignore[attr-defined]
-                                 if proposal is not None else None)
+            shown["proposal"] = (
+                present_otto.proposal_view(proposal, self.otto_ledger_about(plan.id, proposal.get("objective_id")))  # type: ignore[attr-defined]
+                if proposal is not None
+                else None
+            )
             out.append((fix, shown))
         present_fixes.link_same_updates(out)
         return out
@@ -181,27 +228,56 @@ class FixesMixin:
         for version in detail["accepted_outside_claim"]:
             found = _HANDSHAKE.fullmatch(str((states.get(version) or {}).get("detail")))
             suites[version] = found.group(1) if found else None
-        return {"claimed": list(detail["claimed"]), "accepted": list(detail["accepted_outside_claim"]), "suites": suites}
+        return {
+            "claimed": list(detail["claimed"]),
+            "accepted": list(detail["accepted_outside_claim"]),
+            "suites": suites,
+        }
 
     def _code_fix_detail(self, db, plan: PlanRow, fix: dict, titles: list[str], server_findings: int) -> dict:
         change, proof, request = fix["change"], fix["proof"], fix["pull_request"]
         rows, modes, ran_sha256 = [], [self.mode.name], None
         if proof is not None:
             runs = [db.get(TestRunRow, t["proof"]["run_id"]) for t in proof["tests"] if t["proof"] is not None]
-            rows = [{"kind": t["kind"], "title": TITLES.get(t["kind"], str(t["kind"])), "group": "server" if t["target"] in ("server", "other_program") else "code", "target": t["target"],
-                     "first": self._result(db, db.get(TestRunRow, t["first"]["run_id"])) if t["first"] is not None else None,
-                     "proof": self._result(db, db.get(TestRunRow, t["proof"]["run_id"])) if t["proof"] is not None else None,
-                     "job": t["job"], "check": t["check"]} for t in proof["tests"]]
+            rows = [
+                {
+                    "kind": t["kind"],
+                    "title": TITLES.get(t["kind"], str(t["kind"])),
+                    "group": "server" if t["target"] in ("server", "other_program") else "code",
+                    "target": t["target"],
+                    "first": self._result(db, db.get(TestRunRow, t["first"]["run_id"]))
+                    if t["first"] is not None
+                    else None,
+                    "proof": self._result(db, db.get(TestRunRow, t["proof"]["run_id"]))
+                    if t["proof"] is not None
+                    else None,
+                    "job": t["job"],
+                    "check": t["check"],
+                }
+                for t in proof["tests"]
+            ]
             modes = list(dict.fromkeys(run.mode for run in runs)) or modes
             # What the tests ran on is what each run wrote down when it started: the registered component's own SHA-256.
-            ran_sha256 = next((code["file_sha256"] for code in (self._run_code(db, run.id) for run in runs) if code is not None), None)
+            ran_sha256 = next(
+                (code["file_sha256"] for code in (self._run_code(db, run.id) for run in runs) if code is not None), None
+            )
         if change is not None and ran_sha256 is None:
             ran_sha256 = self._registered_sha256(change["built"]["matches"])  # no run yet: what a run would run on
         return present_fixes.code_fix(
-            fix, plan_id=plan.id, titles=titles, server_findings=server_findings, plan_tests=len(self._items(db, plan.id)),
-            reviewers=changes.REVIEWERS, parts=self._changed_lines(fix) if change is not None else None, rows=rows, modes=modes,
+            fix,
+            plan_id=plan.id,
+            titles=titles,
+            server_findings=server_findings,
+            plan_tests=len(self._items(db, plan.id)),
+            reviewers=changes.REVIEWERS,
+            parts=self._changed_lines(fix) if change is not None else None,
+            rows=rows,
+            modes=modes,
             ran_sha256=ran_sha256,
-            patch_name=changes.patch_name(fix["connection"]["repository"], request["number"]) if request is not None else None)
+            patch_name=changes.patch_name(fix["connection"]["repository"], request["number"])
+            if request is not None
+            else None,
+        )
 
     @staticmethod
     def _registered_sha256(matches: dict | None) -> str | None:
@@ -220,10 +296,16 @@ class FixesMixin:
             for file in fix["change"]["files"]:
                 old, new = _text_lines(repo.read_blob(file["old_blob"])), _text_lines(repo.read_blob(file["new_blob"]))
                 for part in file["parts"]:
-                    out.append({"title": part["title"], "why": part["why"],
-                                "removed": part["old_end"] - part["old_start"], "added": part["new_end"] - part["new_start"],
-                                "before": _block(old, part["old_start"], part["old_end"], "-", part),
-                                "after": _block(new, part["new_start"], part["new_end"], "+", part)})
+                    out.append(
+                        {
+                            "title": part["title"],
+                            "why": part["why"],
+                            "removed": part["old_end"] - part["old_start"],
+                            "added": part["new_end"] - part["new_start"],
+                            "before": _block(old, part["old_start"], part["old_end"], "-", part),
+                            "after": _block(new, part["new_start"], part["new_end"], "+", part),
+                        }
+                    )
         except (GitRepoError, OSError, UnicodeDecodeError):
             return None
         return out
@@ -245,5 +327,9 @@ class FixesMixin:
     def _column_code(self, db, rows: list[dict], side: str) -> dict | None:
         """The code one side of before and after ran on ("result" or "after"), when every result on that side in
         which a component of ours ran did so on the same code; otherwise None, and nothing is said about it."""
-        codes = [code for code in (self._run_code(db, row[side]["run_id"]) for row in rows if row[side] is not None) if code is not None]
+        codes = [
+            code
+            for code in (self._run_code(db, row[side]["run_id"]) for row in rows if row[side] is not None)
+            if code is not None
+        ]
         return codes[0] if codes and all(code == codes[0] for code in codes) else None

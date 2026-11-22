@@ -53,9 +53,12 @@ export function WhereFromTag({ tag, testId = "source-tag" }: { tag: WhereFrom | 
 export function WhereFromLine({ tag }: { tag: WhereFrom | null | undefined }) {
   if (!tag) return null;
   return (
-    <p data-testid="source-line" data-source={tag.key} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px] leading-snug text-slate-300">
-      <WhereFromTag tag={tag} />{" "}
-      <span data-testid="source-note">{tag.note ?? tag.meaning}</span>
+    <p
+      data-testid="source-line"
+      data-source={tag.key}
+      className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px] leading-snug text-slate-300"
+    >
+      <WhereFromTag tag={tag} /> <span data-testid="source-note">{tag.note ?? tag.meaning}</span>
     </p>
   );
 }
@@ -81,7 +84,10 @@ export function ErrorBox({ title, children }: { title?: string; children: ReactN
   // An item on a page of its own: the list page is kept but hidden, so what it says is shown above the item instead.
   const notes = useContext(HiddenPageNotesContext);
   const box = (
-    <div role="alert" className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+    <div
+      role="alert"
+      className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+    >
       {title ? <p className="font-semibold">{title}</p> : null}
       <div className={title ? "mt-1" : undefined}>{children}</div>
     </div>
@@ -166,7 +172,9 @@ export function SecondaryButton({
 
 export function Wordmark({ large }: { large?: boolean }) {
   return (
-    <span className={`inline-flex items-center gap-2 font-semibold tracking-tight text-slate-50 ${large ? "text-2xl" : "text-base"}`}>
+    <span
+      className={`inline-flex items-center gap-2 font-semibold tracking-tight text-slate-50 ${large ? "text-2xl" : "text-base"}`}
+    >
       <span
         aria-hidden="true"
         className={`grid place-items-center rounded-md bg-sky-500 font-bold text-slate-950 ${large ? "h-8 w-8 text-base" : "h-6 w-6 text-xs"}`}
@@ -233,7 +241,11 @@ export function StatusChip({
   return (
     <span data-testid={testId} data-tone={tone} title={title} className={chipClass(tone, size, wrap)}>
       {/* The symbol is drawn by CSS, so the chip's text is exactly the backend's word. */}
-      <span aria-hidden="true" data-symbol={look.symbol} className="font-mono text-[0.85em] before:content-[attr(data-symbol)]" />
+      <span
+        aria-hidden="true"
+        data-symbol={look.symbol}
+        className="font-mono text-[0.85em] before:content-[attr(data-symbol)]"
+      />
       <span>{label}</span>
     </span>
   );
@@ -278,7 +290,12 @@ export function RichTextView({
             </span>
           );
         }
-        if (part.t === "tag") return <SourceTag key={i} source={part.s ?? null}>{part.v}</SourceTag>;
+        if (part.t === "tag")
+          return (
+            <SourceTag key={i} source={part.s ?? null}>
+              {part.v}
+            </SourceTag>
+          );
         if (part.t === "demo") return <DemoDataLabel key={i} />;
         if (part.t === "time") {
           return (
@@ -323,7 +340,11 @@ export function ProgressBar({ label, percent }: { label: string; percent: number
 export function StatusView({ status }: { status: RowStatus }) {
   const progress = status.progress;
   return (
-    <div data-testid="job-status" data-status={status.status} className="flex items-start gap-2 text-[13px] text-slate-300">
+    <div
+      data-testid="job-status"
+      data-status={status.status}
+      className="flex items-start gap-2 text-[13px] text-slate-300"
+    >
       {status.status === "running" ? (
         <Spinner className="mt-0.5 h-3.5 w-3.5" />
       ) : (
@@ -432,7 +453,10 @@ export function splitByGroup<T>(
 export function NameText({ text, className = "" }: { text: string; className?: string }) {
   const long = text.split(/\s+/).some((part) => part.length > 24);
   return (
-    <span title={long ? text : undefined} className={`${long ? "block max-w-[10rem] truncate" : "[overflow-wrap:normal]"} ${className}`}>
+    <span
+      title={long ? text : undefined}
+      className={`${long ? "block max-w-[10rem] truncate" : "[overflow-wrap:normal]"} ${className}`}
+    >
       {text}
     </span>
   );

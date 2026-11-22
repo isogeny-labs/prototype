@@ -22,9 +22,19 @@ describe("The tag of where it came from", () => {
       </>,
     );
     const tags = screen.getAllByTestId("source-tag");
-    expect(tags.map((t) => t.textContent)).toEqual(["Observed live", "Proven in the lab", "From your file", "Published"]);
+    expect(tags.map((t) => t.textContent)).toEqual([
+      "Observed live",
+      "Proven in the lab",
+      "From your file",
+      "Published",
+    ]);
     expect(tags.map((t) => t.getAttribute("data-source"))).toEqual(["live", "lab", "file", "published"]);
-    expect(tags.map((t) => t.getAttribute("title"))).toEqual([MEANINGS.live, MEANINGS.lab, MEANINGS.file, MEANINGS.published]);
+    expect(tags.map((t) => t.getAttribute("title"))).toEqual([
+      MEANINGS.live,
+      MEANINGS.lab,
+      MEANINGS.file,
+      MEANINGS.published,
+    ]);
     expect(Object.values(LABELS)).toEqual(tags.map((t) => t.textContent));
   });
 
@@ -63,7 +73,10 @@ describe("The tag of where it came from", () => {
       </>,
     );
     const notes = screen.getAllByTestId("source-note").map((n) => n.textContent);
-    expect(notes).toEqual(["Read from localhost:8443, an address in your file that you confirmed, with handshakes only.", MEANINGS.file]);
+    expect(notes).toEqual([
+      "Read from localhost:8443, an address in your file that you confirmed, with handshakes only.",
+      MEANINGS.file,
+    ]);
     expect(screen.getAllByTestId("source-line").map((l) => l.getAttribute("data-source"))).toEqual(["live", "file"]);
   });
 
@@ -76,7 +89,11 @@ describe("The tag of where it came from", () => {
     ];
     const { container } = render(<RichTextView parts={parts} />);
     const small = Array.from(container.querySelectorAll("span.rounded"));
-    expect(small.map((t) => t.textContent)).toEqual(["measured on our test server", "published: FIPS 203", "not measured"]);
+    expect(small.map((t) => t.textContent)).toEqual([
+      "measured on our test server",
+      "published: FIPS 203",
+      "not measured",
+    ]);
     expect(small.map((t) => t.getAttribute("data-source"))).toEqual(["lab", "published", null]);
     for (const t of small) expect(t.className).not.toMatch(CLASHING);
   });

@@ -2,7 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import type { Evidence, Import, Result, ResultValue, Tone, VerifyRun } from "../api";
 import { DataTable, DetailPanel, PageHeader, TableWithPanel, type Column } from "./layout";
 import { ItemLinkView, RelatedFor } from "./related";
-import { AlsoNoticedList, DemoDataLabel, PrimaryButton, ResultBadge, SourceTag, WhereFromLine, WhereFromTag, formatTime } from "./ui";
+import {
+  AlsoNoticedList,
+  DemoDataLabel,
+  PrimaryButton,
+  ResultBadge,
+  SourceTag,
+  WhereFromLine,
+  WhereFromTag,
+  formatTime,
+} from "./ui";
 
 // "True" only means the claim matched what we measured, so it is drawn as a calm match, not as "safe". The chip
 // carries its words and a symbol, so nothing depends on colour alone.
@@ -83,7 +92,10 @@ export function VerifyResultDetails({ result }: { result: Result }) {
       <div>
         <p className="text-xs uppercase tracking-wide text-slate-500">What we found</p>
         <p className="mt-1 text-sm text-slate-200">
-          {result.found} <SourceTag source={result.source_tag && result.source_tag.key !== "file" ? result.source_tag.key : null}>measured</SourceTag>
+          {result.found}{" "}
+          <SourceTag source={result.source_tag && result.source_tag.key !== "file" ? result.source_tag.key : null}>
+            measured
+          </SourceTag>
         </p>
         <p className="mt-1.5 text-xs text-slate-400">
           {result.result === "Couldn't check" && result.reason ? result.reason : badge.meaning}
@@ -120,7 +132,11 @@ export function VerifyScreen({ imp, run, onContinue, openItem = null }: Props) {
   if (run === null) {
     return (
       <section aria-label="Verify" className="space-y-6">
-        <PageHeader eyebrow={imp.is_demo ? <DemoDataLabel /> : undefined} title="Verify" description={`Each claim from ${imp.filename}, checked against the real system.`} />
+        <PageHeader
+          eyebrow={imp.is_demo ? <DemoDataLabel /> : undefined}
+          title="Verify"
+          description={`Each claim from ${imp.filename}, checked against the real system.`}
+        />
         <p data-testid="verify-empty" className="text-sm text-slate-400">
           Nothing verified yet.{" "}
           <ItemLinkView link={{ page: "inventory/import", item: null }}>Verify claims is on Import.</ItemLinkView>
@@ -238,7 +254,9 @@ export function VerifyScreen({ imp, run, onContinue, openItem = null }: Props) {
             open={selected !== null}
             item={selected ? `claim-${selected.claim_id}` : null}
             title={selected ? selected.claim.text : ""}
-            subtitle={selected ? <ResultBadge label={selected.result} tone={BADGES[selected.result].tone} /> : undefined}
+            subtitle={
+              selected ? <ResultBadge label={selected.result} tone={BADGES[selected.result].tone} /> : undefined
+            }
             onClose={close}
           >
             {selected ? (

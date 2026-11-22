@@ -1,4 +1,5 @@
 """`python -m evidence verify file.json`: passes on a fresh file and fails on ANY change, however small."""
+
 import ast
 import json
 import subprocess
@@ -18,10 +19,17 @@ BACKEND = Path(__file__).resolve().parents[1]
 def small_file(data_dir: Path) -> tuple[bytes, str]:
     """A small but awkward evidence file: accents, escapes, floats, nesting, empty things."""
     public = ensure_signing_key(data_dir)
-    evidence_part = {"schema": "isogeny.evidence/1", "signer_key_fingerprint": key_fingerprint(public),
-                     "generated_at": "2026-11-11T01:58:10.000Z", "disclaimer": "café ≤ ±2.4% \U0001f512",
-                     "text": "line one\nline \"two\"\ttab \\ slash \u001b end", "numbers": [0, -1, 7.0312, 1e-07, 1e+22, 12345678901234567890],
-                     "tests": [{"spec_hash": "ab" * 32, "runs": [], "ok": True, "none": None, "empty": {}, "Mixed Case Key": "Value"}]}
+    evidence_part = {
+        "schema": "isogeny.evidence/1",
+        "signer_key_fingerprint": key_fingerprint(public),
+        "generated_at": "2026-11-11T01:58:10.000Z",
+        "disclaimer": "café ≤ ±2.4% \U0001f512",
+        "text": 'line one\nline "two"\ttab \\ slash \u001b end',
+        "numbers": [0, -1, 7.0312, 1e-07, 1e22, 12345678901234567890],
+        "tests": [
+            {"spec_hash": "ab" * 32, "runs": [], "ok": True, "none": None, "empty": {}, "Mixed Case Key": "Value"}
+        ],
+    }
     return sign_envelope(evidence_part, data_dir), public
 
 
@@ -37,19 +45,26 @@ def test_every_single_byte_changed_fails_small_file(tmp_path):
     assert 600 < len(raw) < 2000
     tried = 0
     for position in range(len(raw)):
-        masks = [0x01, 0x80] + ([0x20] if chr(raw[position]).isalpha() else []) + ([0x02, 0x04, 0x08, 0x10, 0x40] if position % 7 == 0 else [])
+        masks = (
+            [0x01, 0x80]
+            + ([0x20] if chr(raw[position]).isalpha() else [])
+            + ([0x02, 0x04, 0x08, 0x10, 0x40] if position % 7 == 0 else [])
+        )
         for mask in masks:
             changed = bytearray(raw)
             changed[position] ^= mask
-            for trusted in (public, None):   # with or without a trusted key, a changed file is a failure, never "not confirmed"
+            for trusted in (
+                public,
+                None,
+            ):  # with or without a trusted key, a changed file is a failure, never "not confirmed"
                 outcome = verify_bytes(bytes(changed), trusted)
                 assert outcome.code == FAILED, f"byte {position} xor {mask:#04x} was not noticed"
                 assert outcome.message.startswith("Evidence NOT verified: ")
             tried += 1
     assert tried > 2 * len(raw)
-    for position in range(len(raw) + 1):   # one byte added or removed anywhere
+    for position in range(len(raw) + 1):  # one byte added or removed anywhere
         assert verify_bytes(raw[:position] + b" " + raw[position:], public).code == FAILED
-        assert verify_bytes(raw[:position] + raw[position + 1:], public).code == FAILED or position == len(raw)
+        assert verify_bytes(raw[:position] + raw[position + 1 :], public).code == FAILED or position == len(raw)
 
 
 @pytest.mark.slow
@@ -65,7 +80,9 @@ def test_a_broad_sample_of_bytes_changed_fails_real_file(demo_flow):
         for mask in [0x01] + ([0x20] if chr(raw[position]).isalpha() else []):
             changed = bytearray(raw)
             changed[position] ^= mask
-            assert verify_bytes(bytes(changed), public).code == FAILED, f"byte {position} xor {mask:#04x} was not noticed"
+            assert verify_bytes(bytes(changed), public).code == FAILED, (
+                f"byte {position} xor {mask:#04x} was not noticed"
+            )
 
 
 def test_same_content_written_differently_fails(tmp_path):
@@ -77,7 +94,9 @@ def test_same_content_written_differently_fails(tmp_path):
         "space at the start": b" " + raw,
         "spaces after separators": same(envelope, sort_keys=True),
         "pretty printed": same(envelope, sort_keys=True, indent=1),
-        "keys in another order": same({k: envelope[k] for k in ("signature", "public_key", "fingerprint", "evidence")}, separators=(",", ":")),
+        "keys in another order": same(
+            {k: envelope[k] for k in ("signature", "public_key", "fingerprint", "evidence")}, separators=(",", ":")
+        ),
         "non-ASCII escaped": json.dumps(envelope, sort_keys=True, separators=(",", ":")).encode("ascii"),
         "uppercase fingerprint": canonical_bytes({**envelope, "fingerprint": envelope["fingerprint"].upper()}),
         "uppercase signature": canonical_bytes({**envelope, "signature": envelope["signature"].upper()}),
@@ -87,7 +106,10 @@ def test_same_content_written_differently_fails(tmp_path):
         "a missing part": canonical_bytes({k: v for k, v in envelope.items() if k != "signature"}),
         "byte order mark": b"\xef\xbb\xbf" + raw,
         "two files glued together": raw + raw,
-        "empty": b"", "not json": b"hello", "a list": b"[]", "not utf-8": b"\xff\xfe" + raw,
+        "empty": b"",
+        "not json": b"hello",
+        "a list": b"[]",
+        "not utf-8": b"\xff\xfe" + raw,
         "NaN inside": raw.replace(b"7.0312", b"NaN"),
         "short signature": canonical_bytes({**envelope, "signature": envelope["signature"][:-2]}),
         "wrong schema": sign_envelope({**envelope["evidence"], "schema": "something/else"}, tmp_path),
@@ -117,7 +139,7 @@ def test_a_file_signed_again_with_another_key_fails(tmp_path):
     forged = sign_envelope({**edited, "signer_key_fingerprint": key_fingerprint(other_public)}, tmp_path / "theirs")
     outcome = verify_bytes(forged, public)
     assert outcome.code == FAILED and "not by the key you trust" in outcome.message
-    assert verify_bytes(forged, other_public).ok   # (it is a real file of that other app)
+    assert verify_bytes(forged, other_public).ok  # (it is a real file of that other app)
     # with no trusted key at all, the best it can get is "not confirmed", never a pass
     unknown = verify_bytes(forged, None)
     assert unknown.code == SIGNER_NOT_CONFIRMED and not unknown.ok
@@ -128,7 +150,9 @@ def run_cli(*args, cwd=BACKEND, env_data_dir=None):
     env = {"PATH": "/usr/bin:/bin"}
     if env_data_dir is not None:
         env["EVIDENCE_LAB_DATA_DIR"] = str(env_data_dir)
-    return subprocess.run([sys.executable, "-m", "evidence", *args], cwd=cwd, env=env, capture_output=True, text=True, timeout=60)
+    return subprocess.run(
+        [sys.executable, "-m", "evidence", *args], cwd=cwd, env=env, capture_output=True, text=True, timeout=60
+    )
 
 
 def test_the_command_line(tmp_path):
@@ -142,16 +166,25 @@ def test_the_command_line(tmp_path):
     fingerprint = json.loads(raw)["fingerprint"]
 
     ok = run_cli("verify", str(good), "--data-dir", str(data_dir))
-    assert ok.returncode == 0 and ok.stdout.startswith("Evidence verified\n") and fingerprint in ok.stdout, ok.stdout + ok.stderr
+    assert ok.returncode == 0 and ok.stdout.startswith("Evidence verified\n") and fingerprint in ok.stdout, (
+        ok.stdout + ok.stderr
+    )
     assert key_fingerprint(public) in ok.stdout and "Signer confirmed" in ok.stdout
-    assert run_cli("verify", str(good), env_data_dir=data_dir).returncode == 0          # the app's own data folder is the default
+    assert (
+        run_cli("verify", str(good), env_data_dir=data_dir).returncode == 0
+    )  # the app's own data folder is the default
     assert run_cli("verify", str(good), "--public-key", public).returncode == 0
     assert run_cli("verify", str(good), "--public-key", str(data_dir / PUBLIC_KEY_FILE)).returncode == 0
 
-    for args in (("verify", str(bad), "--data-dir", str(data_dir)), ("verify", str(bad), "--public-key", public),
-                 ("verify", str(bad), "--data-dir", str(tmp_path / "empty"))):
+    for args in (
+        ("verify", str(bad), "--data-dir", str(data_dir)),
+        ("verify", str(bad), "--public-key", public),
+        ("verify", str(bad), "--data-dir", str(tmp_path / "empty")),
+    ):
         failed = run_cli(*args)
-        assert failed.returncode == 1 and failed.stdout.startswith("Evidence NOT verified: "), failed.stdout + failed.stderr
+        assert failed.returncode == 1 and failed.stdout.startswith("Evidence NOT verified: "), (
+            failed.stdout + failed.stderr
+        )
         assert "Evidence verified" not in failed.stdout
 
     wrong_key = run_cli("verify", str(good), "--public-key", "00" * 32)
@@ -163,7 +196,13 @@ def test_the_command_line(tmp_path):
     assert "This is not a pass." in unknown.stdout
     assert run_cli("verify", str(good), env_data_dir=tmp_path / "empty").returncode == 2
 
-    for args in (("verify", str(tmp_path / "missing.json")), ("verify", str(good), "--public-key", "zz"), ("verify",), (), ("sign", str(good))):
+    for args in (
+        ("verify", str(tmp_path / "missing.json")),
+        ("verify", str(good), "--public-key", "zz"),
+        ("verify",),
+        (),
+        ("sign", str(good)),
+    ):
         refused = run_cli(*args)
         assert refused.returncode == 1 and "Evidence verified" not in refused.stdout, args
     # the private key is never needed, read or shown by the checker
@@ -181,7 +220,11 @@ def test_the_checker_imports_almost_nothing_from_the_app():
                 modules.add(("." * node.level) + (node.module or ""))
         app_modules = {m for m in modules if m == "app" or m.startswith("app.")}
         assert app_modules <= {"app.canonical", "app.config"}, app_modules
-        assert not {m for m in modules if m.split(".")[0] in ("subprocess", "pickle", "sqlalchemy", "fastapi", "requests", "socket")}
+        assert not {
+            m
+            for m in modules
+            if m.split(".")[0] in ("subprocess", "pickle", "sqlalchemy", "fastapi", "requests", "socket")
+        }
     assert evidence.SIGNING_CONTEXT == __import__("app.evidence.export").evidence.export.SIGNING_CONTEXT
 
 

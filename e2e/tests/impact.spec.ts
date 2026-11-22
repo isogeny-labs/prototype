@@ -19,7 +19,19 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, PYTHON, REPO, enterApp, layoutProblems, openGroupTab, screenshotFolder, startCopy, stepLink, stopCopy, type Copy } from "./shared";
+import {
+  BACKEND,
+  PYTHON,
+  REPO,
+  enterApp,
+  layoutProblems,
+  openGroupTab,
+  screenshotFolder,
+  startCopy,
+  stepLink,
+  stopCopy,
+  type Copy,
+} from "./shared";
 
 const SHOTS = screenshotFolder("impact");
 const LIST = path.join(REPO, "demo/dependencies-demo.cdx.json");
@@ -30,7 +42,8 @@ let page: Page;
 
 const detail = (): Locator => page.getByTestId("detail-panel");
 const impact = (): Locator => detail().getByTestId("impact");
-const box = (): Locator => detail().getByTestId("change-box").or(page.getByTestId("migration-system").getByTestId("change-box")).first();
+const box = (): Locator =>
+  detail().getByTestId("change-box").or(page.getByTestId("migration-system").getByTestId("change-box")).first();
 const clients = (): Locator => box().getByTestId("change-clients");
 
 /** One picture of the window in the dark look and one in the light look, with the top of `focus` just under the
@@ -81,7 +94,11 @@ async function openProject(name: string): Promise<void> {
 }
 
 async function pickFix(title: string): Promise<void> {
-  await page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByRole("button").filter({ hasText: title }).click();
+  await page
+    .getByRole("navigation", { name: /^Open findings with a fix/ })
+    .getByRole("button")
+    .filter({ hasText: title })
+    .click();
   await expect(detail().getByRole("heading", { name: title, level: 2 })).toBeVisible();
 }
 
@@ -95,13 +112,14 @@ async function tryOnACopy(): Promise<void> {
   await box().getByRole("button", { name: "Try on a test copy" }).click();
   await expect(box().getByTestId("change-verdict")).toContainText("Try passed.", { timeout: 120_000 });
   await expect(clients().getByTestId("clients-summary")).toBeVisible({ timeout: 60_000 });
-  await expect(box()).toHaveAttribute("data-busy", "false", { timeout: 60_000 });     // the try's job has ended
+  await expect(box()).toHaveAttribute("data-busy", "false", { timeout: 60_000 }); // the try's job has ended
 }
 
 async function words(): Promise<Record<string, string>> {
   const rows = clients().getByTestId("clients-row");
   const out: Record<string, string> = {};
-  for (const row of await rows.all()) out[(await row.getAttribute("data-client")) ?? ""] = (await row.getByTestId("clients-word").innerText()).trim();
+  for (const row of await rows.all())
+    out[(await row.getAttribute("data-client")) ?? ""] = (await row.getByTestId("clients-word").innerText()).trim();
   return out;
 }
 
@@ -136,7 +154,9 @@ test("setup: Load demo projects; Acme Pay verified, Run all, the demo dependency
   await expect(page.getByTestId("test-card").getByTestId("result-badge")).toHaveCount(5, { timeout: 180_000 });
   await stepLink(page, "6. Migration").click();
   await page.getByRole("button", { name: "Dependencies", exact: true }).click();
-  const added = page.waitForResponse((r) => /\/api\/plans\/\d+\/dependencies\?/.test(r.url()) && r.request().method() === "POST");
+  const added = page.waitForResponse(
+    (r) => /\/api\/plans\/\d+\/dependencies\?/.test(r.url()) && r.request().method() === "POST",
+  );
   await page.getByLabel("Choose a dependency list").setInputFiles(LIST);
   expect((await added).status()).toBe(200);
   await page.getByLabel("Part of: acme-pay-server 1.0.0").selectOption({ label: `Server: ${copy!.server}` });
@@ -152,14 +172,21 @@ test("flow 1: the acme-sign fix says every system it touches, and that whether i
   const here = impact().getByTestId("impact-here").getByTestId("impact-line");
   await expect(here.first()).toContainText("acme-sign 1.4.2");
   await expect(here.first()).toContainText("A signing program in your scanner file.");
-  await expect(impact().getByTestId("impact-here")).toContainText("The thing your dependency list describes. Uses it directly.");
+  await expect(impact().getByTestId("impact-here")).toContainText(
+    "The thing your dependency list describes. Uses it directly.",
+  );
   const elsewhere = impact().getByTestId("impact-elsewhere").getByTestId("impact-line");
   await expect(elsewhere).toHaveCount(2);
-  await expect(elsewhere.filter({ hasText: "Migration demo › Assessment 1" })).toContainText("Names acme-sign 1.4.2 as a signing program (the same name and version).");
+  await expect(elsewhere.filter({ hasText: "Migration demo › Assessment 1" })).toContainText(
+    "Names acme-sign 1.4.2 as a signing program (the same name and version).",
+  );
   await expect(elsewhere.filter({ hasText: "Multi-target › Assessment 1" })).toContainText("Open");
   await expect(impact().getByTestId("impact-compatible")).toHaveText(
-    "Not known. Your dependency list names the exact version installed, not the versions each part that uses it accepts.");
-  await expect(impact().getByTestId("impact-connect")).toContainText("No client check: this fix changes a signing program");
+    "Not known. Your dependency list names the exact version installed, not the versions each part that uses it accepts.",
+  );
+  await expect(impact().getByTestId("impact-connect")).toContainText(
+    "No client check: this fix changes a signing program",
+  );
   await expect(impact().getByRole("button")).toHaveCount(0);
   await noBannedWords(impact());
   await shots("01-fix-what-it-touches", impact());
@@ -167,7 +194,9 @@ test("flow 1: the acme-sign fix says every system it touches, and that whether i
   // a place elsewhere opens that assessment, on its system; Back returns
   await elsewhere.filter({ hasText: "Multi-target › Assessment 1" }).getByTestId("impact-link").click();
   await expect(page.getByRole("navigation", { name: "Breadcrumb" })).toContainText("Multi-target");
-  await expect(page.getByTestId("migration-system").getByRole("heading", { name: "acme-sign 1.4.2", level: 2 })).toBeVisible();
+  await expect(
+    page.getByTestId("migration-system").getByRole("heading", { name: "acme-sign 1.4.2", level: 2 }),
+  ).toBeVisible();
   await page.goBack();
   await expect(impact().getByTestId("impact-count")).toHaveText("Re-check these 3 after the change.");
 });
@@ -177,19 +206,28 @@ test("flow 1: the OpenSSL update traces to the server; a library on Dependencies
   await pickFix("Update OpenSSL to 3.5.0 or later");
   await expect(impact().getByTestId("impact-count")).toHaveText("Re-check this one after the change.");
   await expect(impact().getByTestId("impact-here")).toContainText(
-    `Your own software, from your dependency list. Uses it, through python 3.12.3. Part of ${copy!.server} (set by you).`);
+    `Your own software, from your dependency list. Uses it, through python 3.12.3. Part of ${copy!.server} (set by you).`,
+  );
   await expect(impact().getByTestId("impact-compatible")).toContainText("Not known.");
   await expect(impact().getByTestId("impact-connect")).toContainText("This updates a TLS library");
   await shots("02-fix-openssl-update", impact());
 
   await stepLink(page, "6. Migration").click();
   await page.getByRole("button", { name: "Dependencies", exact: true }).click();
-  await page.getByTestId("dependency-row").filter({ has: page.locator("p.font-mono", { hasText: /^elliptic 6\.5\.6$/ }) }).locator("p.font-mono").click();
+  await page
+    .getByTestId("dependency-row")
+    .filter({ has: page.locator("p.font-mono", { hasText: /^elliptic 6\.5\.6$/ }) })
+    .locator("p.font-mono")
+    .click();
   await expect(impact().getByRole("heading", { name: "Where it is used" })).toBeVisible();
   await expect(impact().getByTestId("impact-here")).toContainText("acme-ledger 5.1.0");
-  await expect(impact().getByTestId("impact-here")).toContainText("Not tied to a system of your file: choose one with Part of on Dependencies.");
+  await expect(impact().getByTestId("impact-here")).toContainText(
+    "Not tied to a system of your file: choose one with Part of on Dependencies.",
+  );
   await expect(impact().getByTestId("impact-elsewhere")).toContainText("Real libraries (isolated mode) › Assessment 1");
-  await expect(impact().getByTestId("impact-elsewhere")).toContainText("the knowledge base recognises it as elliptic, at the same version");
+  await expect(impact().getByTestId("impact-elsewhere")).toContainText(
+    "the knowledge base recognises it as elliptic, at the same version",
+  );
   await expect(impact().getByTestId("impact-count")).toHaveText("Re-check this one if you change it.");
   await noBannedWords(impact());
   await shots("03-library-where-it-is-used", impact());
@@ -201,12 +239,23 @@ test("flow 2: the Acme Pay server's TLS fix, tried on a test copy: the old firmw
   await openGroupTab(page, "Crypto tests", "Fixes");
   await pickFix("Server accepts TLS 1.2");
   await expect(impact().getByTestId("impact-count")).toHaveText("Re-check these 2 after the change.");
-  await expect(impact().getByTestId("impact-note").first()).toHaveText("Apply changes this one server for every assessment that names it.");
+  await expect(impact().getByTestId("impact-note").first()).toHaveText(
+    "Apply changes this one server for every assessment that names it.",
+  );
   await expect(impact().getByTestId("impact-connect")).toContainText("also connects four demo client stand-ins");
   await tryOnACopy();
-  expect(await words()).toEqual({ "old-terminal": "Breaks", "partner-classical": "Connects", "new-terminal": "Connects", "pq-only": "Didn't connect before either" });
-  await expect(clients().getByTestId("clients-summary")).toHaveText("1 breaks, 2 connect, 1 didn't connect before either.");
-  await expect(clients().getByTestId("clients-warning")).toHaveText("Sort out the 1 that breaks before you apply this change.");
+  expect(await words()).toEqual({
+    "old-terminal": "Breaks",
+    "partner-classical": "Connects",
+    "new-terminal": "Connects",
+    "pq-only": "Didn't connect before either",
+  });
+  await expect(clients().getByTestId("clients-summary")).toHaveText(
+    "1 breaks, 2 connect, 1 didn't connect before either.",
+  );
+  await expect(clients().getByTestId("clients-warning")).toHaveText(
+    "Sort out the 1 that breaks before you apply this change.",
+  );
   await expect(clients().getByTestId("clients-row").first()).toContainText("Refused (protocol version)");
   await expect(clients().getByRole("button")).toHaveCount(0);
   await noBannedWords(clients());
@@ -232,23 +281,43 @@ test("flow 2: on the migration demo, Hybrid on 8452 breaks none; Full post-quant
 
   await openSystem("localhost:8452");
   await tryOnACopy();
-  expect(await words()).toEqual({ "old-terminal": "Falls back", "partner-classical": "Falls back", "new-terminal": "Connects", "pq-only": "Didn't connect before either" });
+  expect(await words()).toEqual({
+    "old-terminal": "Falls back",
+    "partner-classical": "Falls back",
+    "new-terminal": "Connects",
+    "pq-only": "Didn't connect before either",
+  });
   await expect(clients().getByTestId("clients-summary")).toHaveText(
-    "None break. 1 connects with hybrid or post-quantum key exchange; 2 fall back to classical key exchange; 1 didn't connect before either.");
+    "None break. 1 connects with hybrid or post-quantum key exchange; 2 fall back to classical key exchange; 1 didn't connect before either.",
+  );
   await expect(clients().getByTestId("clients-warning")).toHaveCount(0);
   await shots("05-hybrid-8452-none-break", clients());
   expect(await layoutProblems(page)).toEqual([]);
 
   await openSystem("localhost:8451");
-  const full = page.getByTestId("option-card").filter({ has: page.getByRole("heading", { name: "Full post-quantum", exact: true }) });
+  const full = page
+    .getByTestId("option-card")
+    .filter({ has: page.getByRole("heading", { name: "Full post-quantum", exact: true }) });
   await full.getByRole("button", { name: "Choose this option" }).click();
-  await full.getByTestId("choose-box").getByLabel(/Your reason/).fill("To see which clients break before turning it on.");
+  await full
+    .getByTestId("choose-box")
+    .getByLabel(/Your reason/)
+    .fill("To see which clients break before turning it on.");
   await full.getByTestId("choose-box").getByRole("button", { name: "Save choice" }).click();
   await expect(page.getByTestId("migration-choice")).toContainText("Full post-quantum");
   await tryOnACopy();
-  expect(await words()).toEqual({ "old-terminal": "Breaks", "partner-classical": "Breaks", "new-terminal": "Breaks", "pq-only": "Connects" });
-  await expect(clients().getByTestId("clients-summary")).toHaveText("3 break, 1 connects with hybrid or post-quantum key exchange.");
-  await expect(clients().getByTestId("clients-warning")).toHaveText("Sort out the 3 that break before you apply this change.");
+  expect(await words()).toEqual({
+    "old-terminal": "Breaks",
+    "partner-classical": "Breaks",
+    "new-terminal": "Breaks",
+    "pq-only": "Connects",
+  });
+  await expect(clients().getByTestId("clients-summary")).toHaveText(
+    "3 break, 1 connects with hybrid or post-quantum key exchange.",
+  );
+  await expect(clients().getByTestId("clients-warning")).toHaveText(
+    "Sort out the 3 that break before you apply this change.",
+  );
   await expect(clients().locator('[data-client="pq-only"]')).toContainText("New: it can't connect today.");
   await shots("06-full-pq-8451-three-break", clients());
 });
@@ -264,7 +333,9 @@ test("the stand-ins' run is on Checks and Evidence, and in the signed evidence f
   expect(await layoutProblems(page)).toEqual([]);
   // the evidence: the try of each change carries its stand-ins' words and run
   await stepLink(page, "Roadmap").click();
-  const created = page.waitForResponse((r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST");
+  const created = page.waitForResponse(
+    (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Download evidence" }).click();
   const made = await created;
   expect(made.status()).toBe(200);
@@ -272,11 +343,17 @@ test("the stand-ins' run is on Checks and Evidence, and in the signed evidence f
   const raw = await (await page.request.get(info.json.url)).body();
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-impact-")), "evidence.json");
   fs.writeFileSync(file, raw);
-  const changes = JSON.parse(raw.toString("utf-8")).evidence.changes as { change: { system_key: string }; rounds: { tries: { clients?: { stand_ins: { id: string; word: string }[] } }[] } }[];
+  const changes = JSON.parse(raw.toString("utf-8")).evidence.changes as {
+    change: { system_key: string };
+    rounds: { tries: { clients?: { stand_ins: { id: string; word: string }[] } }[] };
+  }[];
   const full = changes.find((c) => c.change.system_key === "server:localhost:8451")!;
   expect(full.rounds.tries.at(-1)!.clients!.stand_ins.filter((s) => s.word === "breaks")).toHaveLength(3);
   const report = await (await page.request.get(info.html.url)).text();
   expect(report).toContain("Who can still connect: ");
-  const run = spawnSync(PYTHON, ["-m", "evidence", "verify", file, "--data-dir", copy!.dataDir], { cwd: BACKEND, encoding: "utf-8" });
+  const run = spawnSync(PYTHON, ["-m", "evidence", "verify", file, "--data-dir", copy!.dataDir], {
+    cwd: BACKEND,
+    encoding: "utf-8",
+  });
   expect(run.status, `the evidence file should check: ${run.stdout} ${run.stderr}`).toBe(0);
 });

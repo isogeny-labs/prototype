@@ -17,7 +17,18 @@ import { Roadmap } from "./migration/Roadmap";
 import { SystemDetail } from "./migration/SystemDetail";
 import { StatusPill } from "./migration/parts";
 import type { SaveChoice } from "./migration/OptionCard";
-import { DataTable, DetailPanel, FilterSelect, ItemPageContext, PageHeader, SearchInput, SummaryCards, TableWithPanel, Toolbar, type Column } from "./layout";
+import {
+  DataTable,
+  DetailPanel,
+  FilterSelect,
+  ItemPageContext,
+  PageHeader,
+  SearchInput,
+  SummaryCards,
+  TableWithPanel,
+  Toolbar,
+  type Column,
+} from "./layout";
 import { FromOttoTag, ProposalStatusChip } from "./otto/ProposalCard";
 import { DemoDataLabel, ErrorBox, RichTextView, SecondaryButton, WhereFromTag } from "./ui";
 
@@ -59,14 +70,7 @@ function OttoMark({ system }: { system: MigrationSystem }) {
 }
 
 /** The Migration step. Every word, status, number and recommendation comes from the backend. */
-export function MigrationScreen({
-  importId,
-  onViewFix,
-  onPlanChanged,
-  tab: shownTab,
-  onTab,
-  openItem = null,
-}: Props) {
+export function MigrationScreen({ importId, onViewFix, onPlanChanged, tab: shownTab, onTab, openItem = null }: Props) {
   const [view, setView] = useState<MigrationView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [acting, setActing] = useState(false);
@@ -91,9 +95,7 @@ export function MigrationScreen({
   useEffect(() => {
     if (openItem && (openItem.startsWith("server:") || openItem.startsWith("software:"))) openSystem(openItem);
   }, [openItem, openSystem]);
-  const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(
-    new Set(),
-  );
+  const [detailsOpen, setDetailsOpen] = useState<ReadonlySet<string>>(new Set());
   const [choosing, setChoosing] = useState<{
     system: string;
     option: MigrationOptionKey;
@@ -134,10 +136,7 @@ export function MigrationScreen({
   }, [view]);
 
   // While measuring, ask again every second. Not while a button's own call is on its way: its answer is newer.
-  const polling =
-    view !== null &&
-    (view.busy || view.systems.some((s) => s.change?.busy === true)) &&
-    !acting;
+  const polling = view !== null && (view.busy || view.systems.some((s) => s.change?.busy === true)) && !acting;
   useEffect(() => {
     if (!polling) return;
     let live = true;
@@ -164,16 +163,11 @@ export function MigrationScreen({
   if (!view) {
     return (
       <section aria-labelledby="migration-title" className="space-y-4">
-        <h1
-          id="migration-title"
-          className="text-2xl font-semibold tracking-tight text-slate-50"
-        >
+        <h1 id="migration-title" className="text-2xl font-semibold tracking-tight text-slate-50">
           Migration
         </h1>
         {error ? (
-          <ErrorBox title="The migration plan couldn't be loaded">
-            {error}
-          </ErrorBox>
+          <ErrorBox title="The migration plan couldn't be loaded">{error}</ErrorBox>
         ) : (
           <p role="status" className="text-sm text-slate-400">
             Loading…
@@ -220,31 +214,16 @@ export function MigrationScreen({
     planChanged.current();
   }
 
-  function setting(
-    systemKey: string,
-    field: MigrationSettingField["field"],
-    value: string,
-  ) {
-    void act(
-      () => api.saveMigrationSetting(current.plan_id, systemKey, field, value),
-      true,
-    );
+  function setting(systemKey: string, field: MigrationSettingField["field"], value: string) {
+    void act(() => api.saveMigrationSetting(current.plan_id, systemKey, field, value), true);
   }
 
-  function saveChoice(
-    systemKey: string,
-  ): (option: MigrationOptionKey) => SaveChoice {
+  function saveChoice(systemKey: string): (option: MigrationOptionKey) => SaveChoice {
     return (option) => async (reason, reviewDate) => {
       setActing(true);
       setError(null);
       try {
-        const next = await api.saveMigrationChoice(
-          current.plan_id,
-          systemKey,
-          option,
-          reason,
-          reviewDate,
-        );
+        const next = await api.saveMigrationChoice(current.plan_id, systemKey, option, reason, reviewDate);
         setView(next);
         setChoosing(null);
         planChanged.current();
@@ -263,9 +242,7 @@ export function MigrationScreen({
   const measure = current.measure;
   const tabClass = (active: boolean) =>
     `rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-      active
-        ? "bg-slate-800 text-slate-50 shadow-sm"
-        : "text-slate-400 hover:text-slate-100"
+      active ? "bg-slate-800 text-slate-50 shadow-sm" : "text-slate-400 hover:text-slate-100"
     }`;
 
   // Summary cards: the systems, counted by the status the backend sent for each (never a score).
@@ -295,8 +272,8 @@ export function MigrationScreen({
   const listed = current.systems.filter(
     (s) =>
       s.key === system?.key ||
-      (statusFilter === "all" || s.status.code === statusFilter) &&
-      (!needle || [s.name, s.kind_label, s.plan_line, s.status.label].some((t) => t.toLowerCase().includes(needle))),
+      ((statusFilter === "all" || s.status.code === statusFilter) &&
+        (!needle || [s.name, s.kind_label, s.plan_line, s.status.label].some((t) => t.toLowerCase().includes(needle)))),
   );
   const statusOptions = [
     { value: "all", label: "All statuses" },
@@ -426,26 +403,17 @@ export function MigrationScreen({
           <div className="flex max-w-xs flex-col items-end gap-1.5">
             <SecondaryButton
               disabled={acting || !measure.enabled}
-              onClick={() =>
-                void act(() => api.measureMigration(current.plan_id), false)
-              }
+              onClick={() => void act(() => api.measureMigration(current.plan_id), false)}
             >
               {measure.label}
             </SecondaryButton>
             {measure.progress_text ? (
-              <p
-                role="status"
-                data-testid="measure-progress"
-                className="text-right text-xs text-slate-300"
-              >
+              <p role="status" data-testid="measure-progress" className="text-right text-xs text-slate-300">
                 {measure.progress_text}
               </p>
             ) : null}
             {!measure.enabled && measure.blocked_reason ? (
-              <p
-                data-testid="measure-blocked"
-                className="text-right text-xs text-slate-400"
-              >
+              <p data-testid="measure-blocked" className="text-right text-xs text-slate-400">
                 {measure.blocked_reason}
               </p>
             ) : null}
@@ -529,12 +497,25 @@ export function MigrationScreen({
               panelOpen={system !== null}
               table={
                 <nav aria-labelledby="migration-list-title" className="min-w-0">
-                  <h2 id="migration-list-title" className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
+                  <h2
+                    id="migration-list-title"
+                    className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500"
+                  >
                     {current.list_title}
                   </h2>
                   <Toolbar>
-                    <SearchInput value={search} onChange={setSearch} label="Search systems" placeholder="Search systems" />
-                    <FilterSelect label="Status" value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
+                    <SearchInput
+                      value={search}
+                      onChange={setSearch}
+                      label="Search systems"
+                      placeholder="Search systems"
+                    />
+                    <FilterSelect
+                      label="Status"
+                      value={statusFilter}
+                      options={statusOptions}
+                      onChange={setStatusFilter}
+                    />
                   </Toolbar>
                   <DataTable
                     label="Systems"
@@ -543,7 +524,10 @@ export function MigrationScreen({
                     rowKey={(s) => s.key}
                     rowTestId="system-card"
                     compactColumns={compactColumns}
-                    rowAttrs={(s) => ({ "data-system": s.key, "aria-current": s.key === system?.key ? "true" : undefined })}
+                    rowAttrs={(s) => ({
+                      "data-system": s.key,
+                      "aria-current": s.key === system?.key ? "true" : undefined,
+                    })}
                     selectedKey={system?.key ?? null}
                     onRowClick={(s) => openSystem(s.key)}
                     empty="No systems match this search."

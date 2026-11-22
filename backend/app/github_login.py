@@ -13,6 +13,7 @@ Who may log in: a login or numeric GitHub id in EVIDENCE_LAB_GITHUB_ALLOWED_USER
 organization in EVIDENCE_LAB_GITHUB_ALLOWED_ORGS (the App needs "Members: read-only" and to be installed on it);
 every GitHub account only with EVIDENCE_LAB_GITHUB_ALLOW_ANYONE=on. At least one is required (app/config.py).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -61,13 +62,22 @@ def start(github: GitHubSettings, cache: Cache, redirect_uri: str) -> tuple[str,
     """(the address to send the browser to, the state to put in its cookie)."""
     state = secrets.token_urlsafe(32)
     cache.set(_state_key(state), json.dumps({"redirect_uri": redirect_uri}), STATE_LIFETIME_SECONDS)
-    query = urlencode({"client_id": github.client_id, "redirect_uri": redirect_uri, "state": state,
-                       "allow_signup": "false"})
+    query = urlencode(
+        {"client_id": github.client_id, "redirect_uri": redirect_uri, "state": state, "allow_signup": "false"}
+    )
     return f"{github.web_url}/login/oauth/authorize?{query}", state
 
 
-def finish(github: GitHubSettings, cache: Cache, db: Session, *, code: str | None, state: str | None,
-           cookie_state: str | None, client: httpx.Client | None = None) -> str:
+def finish(
+    github: GitHubSettings,
+    cache: Cache,
+    db: Session,
+    *,
+    code: str | None,
+    state: str | None,
+    cookie_state: str | None,
+    client: httpx.Client | None = None,
+) -> str:
     """Check the answer from GitHub, record the person and return a new session token. Raises LoginRefused."""
     if not code or not state or len(code) > 200 or len(state) > 200:
         raise LoginRefused("GitHub did not send the login back. Please try again.")
@@ -83,8 +93,9 @@ def finish(github: GitHubSettings, cache: Cache, db: Session, *, code: str | Non
         token = _exchange(github, http, code, redirect_uri)
         user = _who(github, http, token)
         if not _allowed(github, http, token, user):
-            raise LoginRefused(f"The GitHub account {user.login} may not log in to this app. "
-                               "Ask the person who runs it to add you.")
+            raise LoginRefused(
+                f"The GitHub account {user.login} may not log in to this app. Ask the person who runs it to add you."
+            )
     except httpx.HTTPError as exc:
         raise LoginRefused("GitHub could not be reached. Please try again in a moment.") from exc
     finally:
@@ -95,9 +106,16 @@ def finish(github: GitHubSettings, cache: Cache, db: Session, *, code: str | Non
 
 
 def _exchange(github: GitHubSettings, http: httpx.Client, code: str, redirect_uri: str) -> str:
-    reply = http.post(f"{github.web_url}/login/oauth/access_token", headers={"Accept": "application/json"},
-                      data={"client_id": github.client_id, "client_secret": github.client_secret, "code": code,
-                            "redirect_uri": redirect_uri})
+    reply = http.post(
+        f"{github.web_url}/login/oauth/access_token",
+        headers={"Accept": "application/json"},
+        data={
+            "client_id": github.client_id,
+            "client_secret": github.client_secret,
+            "code": code,
+            "redirect_uri": redirect_uri,
+        },
+    )
     reply.raise_for_status()
     body = reply.json()
     token = body.get("access_token") if isinstance(body, dict) else None
@@ -107,9 +125,15 @@ def _exchange(github: GitHubSettings, http: httpx.Client, code: str, redirect_ur
 
 
 def _api(github: GitHubSettings, http: httpx.Client, token: str, path: str, params: dict | None = None):
-    reply = http.get(f"{github.api_url}{path}", params=params,
-                     headers={"Accept": "application/vnd.github+json", "Authorization": f"Bearer {token}",
-                              "X-GitHub-Api-Version": "2022-11-28"})
+    reply = http.get(
+        f"{github.api_url}{path}",
+        params=params,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
     reply.raise_for_status()
     return reply.json()
 
@@ -119,8 +143,12 @@ def _who(github: GitHubSettings, http: httpx.Client, token: str) -> GitHubUser:
     if not isinstance(body, dict) or not isinstance(body.get("id"), int) or not isinstance(body.get("login"), str):
         raise LoginRefused("GitHub's answer about this account could not be read. Please try again.")
     name, avatar = body.get("name"), body.get("avatar_url")
-    return GitHubUser(id=body["id"], login=body["login"][:100], name=name[:255] if isinstance(name, str) else None,
-                      avatar_url=avatar[:500] if isinstance(avatar, str) and avatar.startswith("https://") else None)
+    return GitHubUser(
+        id=body["id"],
+        login=body["login"][:100],
+        name=name[:255] if isinstance(name, str) else None,
+        avatar_url=avatar[:500] if isinstance(avatar, str) and avatar.startswith("https://") else None,
+    )
 
 
 def _allowed(github: GitHubSettings, http: httpx.Client, token: str, user: GitHubUser) -> bool:
@@ -129,9 +157,14 @@ def _allowed(github: GitHubSettings, http: httpx.Client, token: str, user: GitHu
     for org in sorted(github.allowed_orgs):
         # The person's own membership of the organization: active members only (not outside collaborators, not a
         # pending invitation). The GitHub App needs the organization permission "Members: read-only" for this.
-        reply = http.get(f"{github.api_url}/user/memberships/orgs/{org}",
-                         headers={"Accept": "application/vnd.github+json", "Authorization": f"Bearer {token}",
-                                  "X-GitHub-Api-Version": "2022-11-28"})
+        reply = http.get(
+            f"{github.api_url}/user/memberships/orgs/{org}",
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {token}",
+                "X-GitHub-Api-Version": "2022-11-28",
+            },
+        )
         if reply.status_code in (403, 404):
             continue
         reply.raise_for_status()

@@ -57,9 +57,16 @@ const ACME = "acme-sign 1.4.2";
 
 /** The Related block an advisory's panel asks for. */
 const relatedRoute = (id: string, lines: RelatedView["related"] = []): Routes => ({
-  [`GET /api/plans/1/related?key=${encodeURIComponent(`advisory:${id}`)}`]: { body: { key: `advisory:${id}`, related: lines } },
+  [`GET /api/plans/1/related?key=${encodeURIComponent(`advisory:${id}`)}`]: {
+    body: { key: `advisory:${id}`, related: lines },
+  },
 });
-const RELATED: Routes = { ...relatedRoute(BLANK, relatedOfAdvisory.related), ...relatedRoute(STOPS), ...relatedRoute(ZERO), ...relatedRoute(LOOSE) };
+const RELATED: Routes = {
+  ...relatedRoute(BLANK, relatedOfAdvisory.related),
+  ...relatedRoute(STOPS),
+  ...relatedRoute(ZERO),
+  ...relatedRoute(LOOSE),
+};
 
 /** How often the page told the app that a decision was recorded, so that it reads the test plan again. */
 let planChanged = 0;
@@ -77,7 +84,11 @@ function Harness({ item = null, readOnly = false }: { item?: string | null; read
   );
 }
 
-async function open(view: AdvisoriesView = advisoriesTwoPacks, routes: Routes = {}, props: Parameters<typeof Harness>[0] = {}) {
+async function open(
+  view: AdvisoriesView = advisoriesTwoPacks,
+  routes: Routes = {},
+  props: Parameters<typeof Harness>[0] = {},
+) {
   const fetchMock = mockApi({ [ADVISORIES]: { body: view }, ...RELATED, ...routes });
   render(<Harness {...props} />);
   await screen.findByTestId("advisories-standing");
@@ -107,7 +118,8 @@ const rows = () => screen.queryAllByTestId("advisory-row");
 const ids = () => rows().map((r) => r.getAttribute("data-advisory"));
 const rowOf = (id: string) => rows().find((r) => r.getAttribute("data-advisory") === id)!;
 /** One of the three chips of an advisory's row. */
-const chipOf = (id: string, name: "advisory-test" | "advisory-proposal" | "advisory-result") => within(rowOf(id)).getByTestId(name);
+const chipOf = (id: string, name: "advisory-test" | "advisory-proposal" | "advisory-result") =>
+  within(rowOf(id)).getByTestId(name);
 const posts = (fetchMock: ReturnType<typeof mockApi>) => calls(fetchMock).filter((c) => c.startsWith("POST"));
 /** How often the page's view was read. */
 const reads = (fetchMock: ReturnType<typeof mockApi>) => calls(fetchMock).filter((c) => c === ADVISORIES).length;
@@ -131,7 +143,8 @@ const hereRow = (program = ACME) =>
     .getAllByTestId("advisory-here-row")
     .find((r) => r.getAttribute("data-program") === program)!;
 const card = (program = ACME) => within(hereRow(program)).getByTestId("otto-proposal");
-const button = (name: Decision, program = ACME) => within(card(program)).getByTestId(`proposal-${name}`) as HTMLButtonElement;
+const button = (name: Decision, program = ACME) =>
+  within(card(program)).getByTestId(`proposal-${name}`) as HTMLButtonElement;
 /** A view whose first row is changed. */
 const withFirstRow = (view: AdvisoriesView, change: (row: AdvisoryRow) => AdvisoryRow): AdvisoriesView => ({
   ...view,
@@ -176,7 +189,13 @@ const twoProposed: AdvisoriesView = {
     fits: [ACME, SECOND],
     fits_text: `${ACME}, ${SECOND}`,
     proposal: { key: "proposed", label: "Proposed", tone: "warn", text: "2 proposed", keys: ["proposed"] },
-    panel: { ...r.panel, here: { ...r.panel.here, rows: [r.panel.here.rows[0]!, { ...r.panel.here.rows[0]!, program: SECOND, proposal: secondProposal }] } },
+    panel: {
+      ...r.panel,
+      here: {
+        ...r.panel.here,
+        rows: [r.panel.here.rows[0]!, { ...r.panel.here.rows[0]!, program: SECOND, proposal: secondProposal }],
+      },
+    },
   })),
   waiting: TWO_WAIT,
 };
@@ -184,7 +203,13 @@ const twoProposed: AdvisoriesView = {
 const oneOfTwoAccepted: AdvisoriesView = {
   ...withFirstRow(twoProposed, (r) => ({
     ...r,
-    proposal: { key: "mixed", label: "Mixed", tone: "warn", text: "1 proposed, 1 added", keys: ["proposed", "accepted"] },
+    proposal: {
+      key: "mixed",
+      label: "Mixed",
+      tone: "warn",
+      text: "1 proposed, 1 added",
+      keys: ["proposed", "accepted"],
+    },
     result: blankNotRun.result,
     panel: { ...r.panel, here: { ...r.panel.here, rows: [blankNotRun.panel.here.rows[0]!, r.panel.here.rows[1]!] } },
   })),
@@ -221,25 +246,31 @@ describe("Advisories, the page", () => {
     ["no pack is installed", advisoriesNoPack],
     ["the assessment is closed", advisoriesClosed],
     ["Otto is not installed", advisoriesOttoMissing],
-  ] as const)("says what waits for a decision when %s: the view's count, line, reason and note, and no button", async (_name, view) => {
-    const fetchMock = await open(view);
-    const block = waiting();
-    expect(block.getAttribute("data-count")).toBe(String(view.waiting.count));
-    expect(screen.getByTestId("advisories-waiting-line").textContent).toBe(view.waiting.line);
-    expect(screen.getByTestId("advisories-waiting-note").textContent).toBe(view.waiting.note);
-    // Why nothing can be decided is said once: not a second time when the line itself already is that reason.
-    const reason = view.waiting.blocked_reason && view.waiting.blocked_reason !== view.waiting.line ? view.waiting.blocked_reason : null;
-    const shown = screen.queryByTestId("advisories-waiting-reason");
-    if (reason) expect(shown!.textContent).toBe(reason);
-    else expect(shown).toBeNull();
-    // The block holds the view's words and nothing else.
-    expect(block.textContent).toBe(`${view.waiting.line}${reason ?? ""}${view.waiting.note}`);
-    // There is no button that decides several at once: the block has none, and with no panel open nothing on the page decides.
-    expect(within(block).queryAllByRole("button")).toEqual([]);
-    expect(document.querySelectorAll('[data-testid^="proposal-"], [data-testid="otto-proposal"]')).toHaveLength(0);
-    expect(screen.queryByTestId("add-new-checks")).toBeNull();
-    expect(posts(fetchMock)).toEqual([]);
-  });
+  ] as const)(
+    "says what waits for a decision when %s: the view's count, line, reason and note, and no button",
+    async (_name, view) => {
+      const fetchMock = await open(view);
+      const block = waiting();
+      expect(block.getAttribute("data-count")).toBe(String(view.waiting.count));
+      expect(screen.getByTestId("advisories-waiting-line").textContent).toBe(view.waiting.line);
+      expect(screen.getByTestId("advisories-waiting-note").textContent).toBe(view.waiting.note);
+      // Why nothing can be decided is said once: not a second time when the line itself already is that reason.
+      const reason =
+        view.waiting.blocked_reason && view.waiting.blocked_reason !== view.waiting.line
+          ? view.waiting.blocked_reason
+          : null;
+      const shown = screen.queryByTestId("advisories-waiting-reason");
+      if (reason) expect(shown!.textContent).toBe(reason);
+      else expect(shown).toBeNull();
+      // The block holds the view's words and nothing else.
+      expect(block.textContent).toBe(`${view.waiting.line}${reason ?? ""}${view.waiting.note}`);
+      // There is no button that decides several at once: the block has none, and with no panel open nothing on the page decides.
+      expect(within(block).queryAllByRole("button")).toEqual([]);
+      expect(document.querySelectorAll('[data-testid^="proposal-"], [data-testid="otto-proposal"]')).toHaveLength(0);
+      expect(screen.queryByTestId("add-new-checks")).toBeNull();
+      expect(posts(fetchMock)).toEqual([]);
+    },
+  );
 
   it("gives each state of the waiting block its own words: a count, nothing waiting, and the three reasons nothing can be decided", () => {
     // The fixtures are the backend's answers; this pins what the tests above compared the page with.
@@ -275,7 +306,15 @@ describe("Advisories, the page", () => {
           ...r.panel.here,
           rows: r.panel.here.rows.map((h) => ({
             ...h,
-            result: h.result ? { ...h.result, label: "Passed", tone: "pass" as const, component: "acme-sign 1.4.3-otto", ran_on: RAN_ON } : null,
+            result: h.result
+              ? {
+                  ...h.result,
+                  label: "Passed",
+                  tone: "pass" as const,
+                  component: "acme-sign 1.4.3-otto",
+                  ran_on: RAN_ON,
+                }
+              : null,
           })),
         },
       },
@@ -325,28 +364,38 @@ describe("Advisories, the page", () => {
     ["a rejected check", advisoriesRejected],
     ["a closed assessment", advisoriesClosed],
     ["Otto not installed", advisoriesOttoMissing],
-  ] as const)("never says score, and says 'secure' only inside the backend's standing line, with %s", async (_name, view) => {
-    await open(view);
-    // Every advisory's panel in turn, with everything in it (a folded part is in the page too).
-    for (const id of ids()) {
-      await openRow(id!);
+  ] as const)(
+    "never says score, and says 'secure' only inside the backend's standing line, with %s",
+    async (_name, view) => {
+      await open(view);
+      // Every advisory's panel in turn, with everything in it (a folded part is in the page too).
+      for (const id of ids()) {
+        await openRow(id!);
+        const all = document.body.textContent ?? "";
+        expect(all.match(/secure/gi), id!).toHaveLength(1);
+        expect(all, id!).not.toMatch(/\bscore|\bgrade\b|time.to.hack|\brisk level|\bseverity|\bcritical\b/i);
+      }
       const all = document.body.textContent ?? "";
-      expect(all.match(/secure/gi), id!).toHaveLength(1);
-      expect(all, id!).not.toMatch(/\bscore|\bgrade\b|time.to.hack|\brisk level|\bseverity|\bcritical\b/i);
-    }
-    const all = document.body.textContent ?? "";
-    expect(all.match(/secure/gi)).toHaveLength(1);
-    expect(screen.getByTestId("advisories-standing").textContent).toMatch(/secure/);
-    expect(all).not.toMatch(/\bscore|\bgrade\b|time.to.hack|\brisk level|\bseverity|\bcritical\b/i);
-    // Nothing on the page takes a file, and the only thing typed is the search (a reason is typed in the Reject dialog,
-    // which is there only once Reject was clicked): a pack comes from Settings, never from here.
-    expect(document.querySelector('input[type="file"], textarea, form')).toBeNull();
-    expect(Array.from(document.querySelectorAll("input")).map((i) => i.getAttribute("data-testid"))).toEqual(["advisories-search"]);
-    expect(all).not.toMatch(/upload|drop a file|choose a file/i);
-  });
+      expect(all.match(/secure/gi)).toHaveLength(1);
+      expect(screen.getByTestId("advisories-standing").textContent).toMatch(/secure/);
+      expect(all).not.toMatch(/\bscore|\bgrade\b|time.to.hack|\brisk level|\bseverity|\bcritical\b/i);
+      // Nothing on the page takes a file, and the only thing typed is the search (a reason is typed in the Reject dialog,
+      // which is there only once Reject was clicked): a pack comes from Settings, never from here.
+      expect(document.querySelector('input[type="file"], textarea, form')).toBeNull();
+      expect(Array.from(document.querySelectorAll("input")).map((i) => i.getAttribute("data-testid"))).toEqual([
+        "advisories-search",
+      ]);
+      expect(all).not.toMatch(/upload|drop a file|choose a file/i);
+    },
+  );
 
   it("says so, in a plain error box, when the advisories can't be loaded", async () => {
-    mockApi({ [ADVISORIES]: { status: 500, body: { error: { message: "The advisories could not be read.", line: null, field: null } } } });
+    mockApi({
+      [ADVISORIES]: {
+        status: 500,
+        body: { error: { message: "The advisories could not be read.", line: null, field: null } },
+      },
+    });
     render(<Harness />);
     expect(text(await screen.findByRole("alert"))).toContain("The advisories could not be read.");
     expect(screen.queryByTestId("advisories-waiting")).toBeNull();
@@ -395,7 +444,12 @@ describe("Advisories, the table", () => {
       expect(text(cells[5]), row.id).toBe([row.result.label, row.result.source_tag?.label].filter(Boolean).join(" "));
     }
     // The four rows of the two packs between them show every word the proposal column has for one program.
-    expect(view.rows.map((r) => r.proposal.label)).toEqual(["Added", "Nothing proposed", "Proposed", "Nothing proposed"]);
+    expect(view.rows.map((r) => r.proposal.label)).toEqual([
+      "Added",
+      "Nothing proposed",
+      "Proposed",
+      "Nothing proposed",
+    ]);
     expect(screen.queryByTestId("advisory-proposal-text")).toBeNull();
   });
 
@@ -439,12 +493,16 @@ describe("Advisories, the table", () => {
   });
 
   it("lets a long “Not added (reason)” chip wrap inside its cell, and the panel shows the whole reason", async () => {
-    const reason = "We will look at this again after the spring audit, once the signing service has moved to the new build pipeline";
+    const reason =
+      "We will look at this again after the spring audit, once the signing service has moved to the new build pipeline";
     const long = rejectedProposal(reason, { id: blankProposal.id });
     const view = withFirstRow(advisoriesRejected, (r) => ({
       ...r,
       proposal: { ...r.proposal, label: long.status.word },
-      panel: { ...r.panel, here: { ...r.panel.here, rows: [{ ...r.panel.here.rows[0]!, status: long.status.word, proposal: long }] } },
+      panel: {
+        ...r.panel,
+        here: { ...r.panel.here, rows: [{ ...r.panel.here.rows[0]!, status: long.status.word, proposal: long }] },
+      },
     }));
     await open(view);
     const chip = chipOf(BLANK, "advisory-proposal");
@@ -478,11 +536,15 @@ describe("Advisories, the table", () => {
     const view = advisoriesTwoPacks;
     await open(view);
     const select = screen.getByTestId("advisories-filter-test") as HTMLSelectElement;
-    expect(Array.from(select.options).map((o) => [o.value, o.textContent])).toEqual(view.filters.test.map((o) => [o.key, o.label]));
+    expect(Array.from(select.options).map((o) => [o.value, o.textContent])).toEqual(
+      view.filters.test.map((o) => [o.key, o.label]),
+    );
     expect(select.value).toBe("all");
     for (const option of view.filters.test) {
       fireEvent.change(select, { target: { value: option.key } });
-      expect(ids(), option.key).toEqual(view.rows.filter((r) => option.key === "all" || r.test.key === option.key).map((r) => r.id));
+      expect(ids(), option.key).toEqual(
+        view.rows.filter((r) => option.key === "all" || r.test.key === option.key).map((r) => r.id),
+      );
     }
     fireEvent.change(select, { target: { value: "not_offered" } });
     expect(ids()).toEqual([LOOSE]);
@@ -494,7 +556,9 @@ describe("Advisories, the table", () => {
     const view = advisoriesTwoPacks;
     await open(view);
     const select = screen.getByTestId("advisories-filter-decision") as HTMLSelectElement;
-    expect(Array.from(select.options).map((o) => [o.value, o.textContent])).toEqual(view.filters.decision.map((o) => [o.key, o.label]));
+    expect(Array.from(select.options).map((o) => [o.value, o.textContent])).toEqual(
+      view.filters.decision.map((o) => [o.key, o.label]),
+    );
     expect(select.value).toBe("all");
     // It sits between the Test and the Result filter, under its own name.
     const filters = Array.from(document.querySelectorAll("select")).map((s) => s.getAttribute("data-testid"));
@@ -502,7 +566,9 @@ describe("Advisories, the table", () => {
     expect(screen.getByLabelText("Decision")).toBe(select);
     for (const option of view.filters.decision) {
       fireEvent.change(select, { target: { value: option.key } });
-      expect(ids(), option.key).toEqual(view.rows.filter((r) => option.key === "all" || r.proposal.key === option.key).map((r) => r.id));
+      expect(ids(), option.key).toEqual(
+        view.rows.filter((r) => option.key === "all" || r.proposal.key === option.key).map((r) => r.id),
+      );
     }
     fireEvent.change(select, { target: { value: "proposed" } });
     expect(ids()).toEqual([ZERO]);
@@ -549,10 +615,14 @@ describe("Advisories, the table", () => {
     const view = advisoriesTwoPacks;
     await open(view);
     const select = screen.getByTestId("advisories-filter-result") as HTMLSelectElement;
-    expect(Array.from(select.options).map((o) => [o.value, o.textContent])).toEqual(view.filters.result.map((o) => [o.key, o.label]));
+    expect(Array.from(select.options).map((o) => [o.value, o.textContent])).toEqual(
+      view.filters.result.map((o) => [o.key, o.label]),
+    );
     for (const option of view.filters.result) {
       fireEvent.change(select, { target: { value: option.key } });
-      expect(ids(), option.key).toEqual(view.rows.filter((r) => option.key === "all" || r.result.key === option.key).map((r) => r.id));
+      expect(ids(), option.key).toEqual(
+        view.rows.filter((r) => option.key === "all" || r.result.key === option.key).map((r) => r.id),
+      );
     }
     fireEvent.change(select, { target: { value: "fail" } });
     expect(ids()).toEqual([BLANK]);
@@ -605,8 +675,12 @@ describe("Advisories, an advisory's panel", () => {
     await inPanel.findByTestId("advisory-related");
     // The plain name, the id and the day it was published head the panel.
     const heading = inPanel.getByRole("heading", { level: 2, name: named(blankFailed.name) });
-    expect(text(heading.parentElement)).toBe(`${blankFailed.name}${blankFailed.id}Published ${blankFailed.published_text}`);
-    expect(heading.compareDocumentPosition(inPanel.getByTestId("advisory-sentence")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(text(heading.parentElement)).toBe(
+      `${blankFailed.name}${blankFailed.id}Published ${blankFailed.published_text}`,
+    );
+    expect(
+      heading.compareDocumentPosition(inPanel.getByTestId("advisory-sentence")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(partsInOrder()).toEqual([
       "advisory-sentence",
       "advisory-publisher",
@@ -621,7 +695,9 @@ describe("Advisories, an advisory's panel", () => {
     expect(inPanel.getByTestId("advisory-sentence").textContent).toBe(blankFailed.panel.sentence);
     expect(posts(fetchMock)).toEqual([]);
     // The table beside the open panel is compact: the name, and one column that still carries the three chips.
-    expect(within(screen.getByTestId("advisories-table")).getByTestId("data-table").getAttribute("data-compact")).toBe("true");
+    expect(within(screen.getByTestId("advisories-table")).getByTestId("data-table").getAttribute("data-compact")).toBe(
+      "true",
+    );
     expect(Array.from(rowOf(BLANK).children)).toHaveLength(2);
     const status = rowOf(BLANK).children[1] as HTMLElement;
     expect(
@@ -713,13 +789,16 @@ describe("Advisories, an advisory's panel", () => {
     const block = inPanel.getByTestId("advisory-test-block");
     const inBlock = within(block);
     expect(inBlock.getByRole("heading", { level: 3, name: test.title })).not.toBeNull();
-    for (const words of [test.question, test.cases_line, test.control, test.rule]) expect(inBlock.getByText(words), words).not.toBeNull();
+    for (const words of [test.question, test.cases_line, test.control, test.rule])
+      expect(inBlock.getByText(words), words).not.toBeNull();
     // The fingerprint is cut short; the whole value shows on hover.
     const fingerprint = inBlock.getByTitle(test.design_fingerprint);
     expect(fingerprint.textContent).toBe(test.design_fingerprint.slice(0, 12));
     expect(text(block)).not.toContain(test.design_fingerprint);
     // Its label and reason are the view's.
-    expect(within(block).getByText(blankFailed.test.label).parentElement!.getAttribute("data-tone")).toBe(blankFailed.test.tone);
+    expect(within(block).getByText(blankFailed.test.label).parentElement!.getAttribute("data-tone")).toBe(
+      blankFailed.test.tone,
+    );
     expect(inBlock.getByTestId("advisory-test-reason").textContent).toBe(blankFailed.test.reason);
 
     const trial = within(inBlock.getByTestId("advisory-trial"));
@@ -780,19 +859,25 @@ describe("Advisories, an advisory's panel", () => {
     expect(finished.map((t) => t.getAttribute("datetime"))).toEqual([result.finished_at]);
     expect(proposed.contains(finished[0]!)).toBe(false);
     expect(inRow.getByRole("link", { name: "Open in Checks" }).getAttribute("href")).toBe("#/a/101/checks?item=test-6");
-    expect(inRow.getByRole("link", { name: "See the evidence" }).getAttribute("href")).toBe("#/a/101/evidence?item=test-6");
+    expect(inRow.getByRole("link", { name: "See the evidence" }).getAttribute("href")).toBe(
+      "#/a/101/evidence?item=test-6",
+    );
     // Two folded lists of ledger entries, each under its own name: the decisions on the proposal (inside it), then
     // the runs of the check.
     const [decisions, runs] = inRow.getAllByTestId("advisory-ledger") as HTMLDetailsElement[];
     expect(inRow.getAllByTestId("advisory-ledger")).toHaveLength(2);
     expect(proposed.contains(decisions!)).toBe(true);
-    expect(text(decisions!.querySelector("summary"))).toBe(`${row.proposal!.history.ledger!.title} (${row.proposal!.history.ledger!.count})`);
+    expect(text(decisions!.querySelector("summary"))).toBe(
+      `${row.proposal!.history.ledger!.title} (${row.proposal!.history.ledger!.count})`,
+    );
     expect(proposed.contains(runs!)).toBe(false);
     expect(runs!.open).toBe(false);
     expect(text(runs!.querySelector("summary"))).toBe(`${row.ledger!.title} (${row.ledger!.count})`);
-    expect(within(runs!).getAllByTestId("advisory-ledger-entry").map((li) => li.querySelector("time")!.getAttribute("datetime"))).toEqual(
-      row.ledger!.entries.map((e) => e.at),
-    );
+    expect(
+      within(runs!)
+        .getAllByTestId("advisory-ledger-entry")
+        .map((li) => li.querySelector("time")!.getAttribute("datetime")),
+    ).toEqual(row.ledger!.entries.map((e) => e.at));
     expect(text(runs!)).toContain(row.ledger!.note);
     // Neither ledger is drawn as a result.
     expect(decisions!.querySelector("[data-tone]")).toBeNull();
@@ -820,7 +905,9 @@ describe("Advisories, an advisory's panel", () => {
     row = within(hereRow());
     expect(within(card()).getByTestId("proposal-status").textContent).toBe("Added");
     expect(row.getByTestId("advisory-here-status").textContent).toBe(blankNotRun.panel.here.rows[0]!.status);
-    expect(row.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([["Open in Checks", "#/a/101/checks?item=test-6"]]);
+    expect(row.getAllByRole("link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
+      ["Open in Checks", "#/a/101/checks?item=test-6"],
+    ]);
     const ledger = blankNotRun.panel.here.rows[0]!.ledger!;
     const ledgers = row.getAllByTestId("advisory-ledger");
     expect(text(ledgers.at(-1)!.querySelector("summary"))).toBe(`${ledger.title} (${ledger.count})`);
@@ -831,7 +918,10 @@ describe("Advisories, an advisory's panel", () => {
     // Not among the recorded answers: a check with nothing proposed for it reads as the backend words it.
     const view = withFirstRow(advisoriesNotAdded, (r) => ({
       ...r,
-      panel: { ...r.panel, here: { ...r.panel.here, rows: [{ ...r.panel.here.rows[0]!, status: "Not in the test plan", proposal: null }] } },
+      panel: {
+        ...r.panel,
+        here: { ...r.panel.here, rows: [{ ...r.panel.here.rows[0]!, status: "Not in the test plan", proposal: null }] },
+      },
     }));
     await open(view);
     await openRow(BLANK);
@@ -851,7 +941,9 @@ describe("Advisories, an advisory's panel", () => {
     expect(block.querySelector("q")!.textContent).toBe(fix.quote!.text);
     const here = within(block).getByTestId("advisory-fix-here");
     expect(text(here)).toBe(`${fix.here!.line} ${fix.here!.label}`);
-    expect(within(here).getByRole("link", { name: fix.here!.label }).getAttribute("href")).toBe("#/a/101/fixes?item=fix-ecdsa-range-check");
+    expect(within(here).getByRole("link", { name: fix.here!.label }).getAttribute("href")).toBe(
+      "#/a/101/fixes?item=fix-ecdsa-range-check",
+    );
     // The fix is decided on Fixes: this block has no button.
     expect(within(block).queryByRole("button")).toBeNull();
   });
@@ -881,8 +973,12 @@ describe("Advisories, an advisory's panel", () => {
     const fetchMock = await open(advisoriesTwoPacks);
     const inPanel = await openRow(BLANK);
     const related = within(await inPanel.findByTestId("advisory-related"));
-    expect(calls(fetchMock)).toContain(`GET /api/plans/1/related?key=${encodeURIComponent(blankFailed.panel.related_key)}`);
-    expect(related.getAllByTestId("related-line").map((l) => l.getAttribute("data-kind"))).toEqual(relatedOfAdvisory.related.map((l) => l.kind));
+    expect(calls(fetchMock)).toContain(
+      `GET /api/plans/1/related?key=${encodeURIComponent(blankFailed.panel.related_key)}`,
+    );
+    expect(related.getAllByTestId("related-line").map((l) => l.getAttribute("data-kind"))).toEqual(
+      relatedOfAdvisory.related.map((l) => l.kind),
+    );
     // Each entry carries the backend's label and goes where the backend says: the check's evidence, the fix in Fixes.
     const [check, fix] = relatedOfAdvisory.related.map((l) => l.items[0]!);
     expect(related.getAllByTestId("related-link").map((a) => [a.textContent, a.getAttribute("href")])).toEqual([
@@ -892,7 +988,11 @@ describe("Advisories, an advisory's panel", () => {
     expect(partsInOrder().at(-1)).toBe("advisory-related");
     // An advisory nothing relates to yet has no Related block.
     const other = await openRow(STOPS);
-    await waitFor(() => expect(calls(fetchMock)).toContain(`GET /api/plans/1/related?key=${encodeURIComponent(stopsNoTest.panel.related_key)}`));
+    await waitFor(() =>
+      expect(calls(fetchMock)).toContain(
+        `GET /api/plans/1/related?key=${encodeURIComponent(stopsNoTest.panel.related_key)}`,
+      ),
+    );
     expect(other.queryByTestId("advisory-related")).toBeNull();
   });
 
@@ -909,7 +1009,9 @@ describe("Advisories, an advisory's panel", () => {
     expect(within(block).getByTestId("advisory-test-reason").textContent).toBe(noTest.reason);
     // No trial was run for it; Otto's ledger entries are there, folded.
     expect(within(block).queryByTestId("advisory-trial")).toBeNull();
-    expect(text(within(block).getByTestId("advisory-ledger").querySelector("summary"))).toBe(`${noTest.ledger!.title} (${noTest.ledger!.count})`);
+    expect(text(within(block).getByTestId("advisory-ledger").querySelector("summary"))).toBe(
+      `${noTest.ledger!.title} (${noTest.ledger!.count})`,
+    );
 
     // Otto proposes nothing for it: no row, no proposal, no button and no line on deciding.
     const here = inPanel.getByTestId("advisory-here");
@@ -922,7 +1024,9 @@ describe("Advisories, an advisory's panel", () => {
     expect(within(fix).queryByTestId("advisory-fix-label")).toBeNull();
     for (const line of stopsNoTest.panel.fix.lines) expect(within(fix).getByText(line), line).not.toBeNull();
     expect(within(fix).queryByTestId("advisory-fix-here")).toBeNull();
-    expect(within(inPanel.getByTestId("advisory-claude")).getAllByTestId("advisory-step")).toHaveLength(stopsNoTest.panel.claude.steps.length);
+    expect(within(inPanel.getByTestId("advisory-claude")).getAllByTestId("advisory-step")).toHaveLength(
+      stopsNoTest.panel.claude.steps.length,
+    );
     expect(partsInOrder()).toEqual([
       "advisory-sentence",
       "advisory-publisher",
@@ -949,7 +1053,9 @@ describe("Advisories, an advisory's panel", () => {
     expect(trial.getByRole("heading", { name: noTest.trial!.title })).not.toBeNull();
     expect(trial.getAllByRole("listitem").map((li) => li.textContent)).toEqual(noTest.trial!.lines);
     expect(within(block).getByTestId("advisory-ledger")).not.toBeNull();
-    expect(within(inPanel.getByTestId("advisory-here")).getByTestId("advisory-here-empty").textContent).toBe(looseNotOffered.panel.here.empty);
+    expect(within(inPanel.getByTestId("advisory-here")).getByTestId("advisory-here-empty").textContent).toBe(
+      looseNotOffered.panel.here.empty,
+    );
     expect(inPanel.queryByTestId("otto-proposal")).toBeNull();
   });
 
@@ -957,9 +1063,11 @@ describe("Advisories, an advisory's panel", () => {
     // Not in the samples (their advisories have neither): the fields are filled in here to see them drawn.
     const said = {
       title: "Otto's notes on reading it",
-      kind_line: "Kind of weakness, as recorded: the affected software accepts a signature it must reject, when checking ECDSA signatures.",
+      kind_line:
+        "Kind of weakness, as recorded: the affected software accepts a signature it must reject, when checking ECDSA signatures.",
       text: "The publisher lists Java 15 to 18 as affected.",
-      caption: "Claude's words from reading the advisory (Recorded during the build, not through the API). Information, not a result.",
+      caption:
+        "Claude's words from reading the advisory (Recorded during the build, not through the API). Information, not a result.",
     };
     const view = withFirstRow(advisoriesFailed, (r) => ({
       ...r,
@@ -976,10 +1084,20 @@ describe("Advisories, an advisory's panel", () => {
     expect(inPanel.getByTestId("advisory-notes-text").textContent).toBe(said.text);
     expect(text(fold)).toContain(said.caption);
     expect(text(inPanel.getByTestId("advisory-also-known-as"))).toContain("GHSA-4w7w-66w2-5vf9, JDK-8277233");
-    expect(partsInOrder().slice(0, 5)).toEqual(["advisory-sentence", "advisory-publisher", "advisory-sources", "advisory-affected", "advisory-test-block"]);
+    expect(partsInOrder().slice(0, 5)).toEqual([
+      "advisory-sentence",
+      "advisory-publisher",
+      "advisory-sources",
+      "advisory-affected",
+      "advisory-test-block",
+    ]);
     const notes = inPanel.getByTestId("advisory-notes");
-    expect(inPanel.getByTestId("advisory-affected").compareDocumentPosition(notes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(notes.compareDocumentPosition(inPanel.getByTestId("advisory-test-block")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      inPanel.getByTestId("advisory-affected").compareDocumentPosition(notes) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      notes.compareDocumentPosition(inPanel.getByTestId("advisory-test-block")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     // The second row has neither.
     inPanel = await openRow(STOPS);
@@ -991,11 +1109,18 @@ describe("Advisories, an advisory's panel", () => {
     const view = withFirstRow(advisoriesFailed, (r) => ({
       ...r,
       name: "An advisory that could not be read",
-      panel: { ...r.panel, sentence: "The advisory's text could not be matched to its publisher's page.", publisher: null, affected: null },
+      panel: {
+        ...r.panel,
+        sentence: "The advisory's text could not be matched to its publisher's page.",
+        publisher: null,
+        affected: null,
+      },
     }));
     await open(view);
     const inPanel = await openRow(BLANK);
-    expect(inPanel.getByTestId("advisory-sentence").textContent).toBe("The advisory's text could not be matched to its publisher's page.");
+    expect(inPanel.getByTestId("advisory-sentence").textContent).toBe(
+      "The advisory's text could not be matched to its publisher's page.",
+    );
     expect(inPanel.queryByTestId("advisory-publisher")).toBeNull();
     expect(inPanel.queryByTestId("advisory-affected")).toBeNull();
     expect(inPanel.getByTestId("advisory-sources")).not.toBeNull();
@@ -1011,7 +1136,9 @@ describe("Advisories, an advisory's panel", () => {
     expect(within(panel()).getByRole("heading", { level: 2, name: named(zeroNotAdded.name) })).not.toBeNull();
     fireEvent.click(within(panel()).getByRole("button", { name: "Close details" }));
     expect(screen.queryByTestId("advisory-panel")).toBeNull();
-    expect(within(screen.getByTestId("advisories-table")).getByTestId("data-table").getAttribute("data-compact")).toBeNull();
+    expect(
+      within(screen.getByTestId("advisories-table")).getByTestId("data-table").getAttribute("data-compact"),
+    ).toBeNull();
     // A row opens from the keyboard too; Escape closes it.
     fireEvent.keyDown(rowOf(STOPS), { key: "Enter" });
     await waitFor(() => expect(panel().getAttribute("data-advisory")).toBe(STOPS));
@@ -1039,7 +1166,13 @@ describe("Advisories, a test that was tried on sandbox copies", () => {
     panel: {
       ...blankNotAdded.panel,
       test: { ...blankNotAdded.panel.test!, proof: proof() },
-      here: { ...blankNotAdded.panel.here, rows: blankNotAdded.panel.here.rows.map((h) => ({ ...h, proposal: h.proposal ? { ...h.proposal, proof: proof() } : null })) },
+      here: {
+        ...blankNotAdded.panel.here,
+        rows: blankNotAdded.panel.here.rows.map((h) => ({
+          ...h,
+          proposal: h.proposal ? { ...h.proposal, proof: proof() } : null,
+        })),
+      },
     },
   };
 
@@ -1049,11 +1182,14 @@ describe("Advisories, a test that was tried on sandbox copies", () => {
     expect(inPanel.getByTestId("advisory-sandbox-label").textContent).toBe("Sandbox copy");
     expect(inPanel.getAllByTestId("proof-block")).toHaveLength(1);
     expect(within(card()).getByTestId("proof-block")).toBeTruthy();
-    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]);        // (showing the proof sent nothing)
+    expect(calls(fetchMock).filter((c) => c.startsWith("POST"))).toEqual([]); // (showing the proof sent nothing)
   });
 
   it("shows the proof with the test where no program has a proposal for it", async () => {
-    const alone: AdvisoryRow = { ...withProofOnCard, panel: { ...withProofOnCard.panel, here: { ...withProofOnCard.panel.here, rows: [] } } };
+    const alone: AdvisoryRow = {
+      ...withProofOnCard,
+      panel: { ...withProofOnCard.panel, here: { ...withProofOnCard.panel.here, rows: [] } },
+    };
     await open({ ...advisoriesNotAdded, rows: [alone, stopsNoTest] });
     const inPanel = await openRow(BLANK);
     const block = inPanel.getByTestId("advisory-test-block");
@@ -1061,7 +1197,10 @@ describe("Advisories, a test that was tried on sandbox copies", () => {
   });
 
   it("shows what a trial on sandbox copies showed for a test that is not offered", async () => {
-    const refused: AdvisoryRow = { ...looseNotOffered, panel: { ...looseNotOffered.panel, no_test: { ...looseNotOffered.panel.no_test!, proof: proof() } } };
+    const refused: AdvisoryRow = {
+      ...looseNotOffered,
+      panel: { ...looseNotOffered.panel, no_test: { ...looseNotOffered.panel.no_test!, proof: proof() } },
+    };
     await open({ ...advisoriesTwoPacks, rows: [refused] });
     const inPanel = await openRow(refused.id);
     expect(within(inPanel.getByTestId("advisory-no-test")).getByTestId("proof-block")).toBeTruthy();
@@ -1070,7 +1209,16 @@ describe("Advisories, a test that was tried on sandbox copies", () => {
   it("labels a result that came from a sandbox copy, and no other", async () => {
     const onCopy: AdvisoryRow = {
       ...blankFailed,
-      panel: { ...blankFailed.panel, here: { ...blankFailed.panel.here, rows: blankFailed.panel.here.rows.map((h) => ({ ...h, result: h.result ? { ...h.result, sandbox_copy: true } : null })) } },
+      panel: {
+        ...blankFailed.panel,
+        here: {
+          ...blankFailed.panel.here,
+          rows: blankFailed.panel.here.rows.map((h) => ({
+            ...h,
+            result: h.result ? { ...h.result, sandbox_copy: true } : null,
+          })),
+        },
+      },
     };
     await open({ ...advisoriesFailed, rows: [onCopy, stopsNoTest] });
     expect((await openRow(BLANK)).getByTestId("advisory-here-sandbox").textContent).toBe("Sandbox copy");
@@ -1097,7 +1245,11 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(inCard.getByTestId("proposal-status").textContent).toBe(shown.status.word);
     expect(inCard.getByTestId("proposal-status").getAttribute("data-tone")).toBe(shown.status.tone);
     expect(text(inCard.getByTestId("proposal-why"))).toBe(`${shown.why_label}: ${shown.why}`);
-    expect(within(inCard.getByTestId("proposal-lines")).getAllByRole("listitem").map((li) => li.textContent)).toEqual(shown.lines);
+    expect(
+      within(inCard.getByTestId("proposal-lines"))
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(shown.lines);
     expect(inCard.getByTestId("proposal-decided").textContent).toBe(shown.decided_line);
     expect(inCard.getByTestId("proposal-note").textContent).toBe(shown.note);
     // The program's name heads the row, so the proposal's own title is not said a second time.
@@ -1105,7 +1257,9 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(inCard.queryByTestId("proposal-title")).toBeNull();
     expect(text(panel())).not.toContain(shown.title);
     // Two buttons, in the view's words, and nothing decided yet: no history, and nothing was sent.
-    expect(Array.from(it.querySelectorAll("button")).map((b) => [b.getAttribute("data-testid"), b.textContent, b.disabled])).toEqual([
+    expect(
+      Array.from(it.querySelectorAll("button")).map((b) => [b.getAttribute("data-testid"), b.textContent, b.disabled]),
+    ).toEqual([
       ["proposal-accept", "Accept", false],
       ["proposal-reject", "Reject", false],
     ]);
@@ -1117,7 +1271,11 @@ describe("Advisories, Otto proposes and a person decides", () => {
 
   it("Accept records one decision on one proposal, then the page is read again and the app is told the test plan changed", async () => {
     const accept = decide(blankProposal.id, "accept");
-    const fetchMock = await openDeciding(advisoriesNotAdded, { route: accept, answer: blankProposalAccepted, then: advisoriesAddedNotRun });
+    const fetchMock = await openDeciding(advisoriesNotAdded, {
+      route: accept,
+      answer: blankProposalAccepted,
+      then: advisoriesAddedNotRun,
+    });
     expect(waiting().getAttribute("data-count")).toBe("1");
     expect(chipOf(BLANK, "advisory-proposal").textContent).toBe("Proposed");
     expect(chipOf(BLANK, "advisory-result").textContent).toBe(blankNotAdded.result.label);
@@ -1143,14 +1301,20 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(within(card()).getByTestId("proposal-status").textContent).toBe("Added");
     expect(within(card()).getByTestId("proposal-decided").textContent).toBe(blankProposalAccepted.decided_line);
     expect(within(card()).getByTestId("proposal-effect").textContent).toBe(blankProposalAccepted.effect);
-    expect(within(card()).getAllByTestId("proposal-decision").map((li) => li.textContent)).toEqual(blankProposalAccepted.history.rows.map((r) => r.line));
+    expect(
+      within(card())
+        .getAllByTestId("proposal-decision")
+        .map((li) => li.textContent),
+    ).toEqual(blankProposalAccepted.history.rows.map((r) => r.line));
     expect(within(card()).queryByTestId("proposal-accept")).toBeNull();
     expect(within(card()).queryByTestId("proposal-reject")).toBeNull();
     expect(button("undo").disabled).toBe(false);
     // The check is in the plan and has not run: nothing ran by accepting it.
     expect(within(hereRow()).getByTestId("advisory-here-status").textContent).toBe("Not run yet");
     expect(within(hereRow()).queryByTestId("advisory-here-result")).toBeNull();
-    expect(within(hereRow()).getByRole("link", { name: "Open in Checks" }).getAttribute("href")).toBe("#/a/101/checks?item=test-6");
+    expect(within(hereRow()).getByRole("link", { name: "Open in Checks" }).getAttribute("href")).toBe(
+      "#/a/101/checks?item=test-6",
+    );
     expect(all.filter((c) => !c.startsWith("GET "))).toEqual([accept]);
     // The app is told once that the test plan changed.
     expect(planChanged).toBe(1);
@@ -1159,7 +1323,11 @@ describe("Advisories, Otto proposes and a person decides", () => {
 
   it("Reject asks for an optional short reason, sends it, and the proposal stays on the page as “Not added (reason)”", async () => {
     const reject = decide(blankProposal.id, "reject");
-    const fetchMock = await openDeciding(advisoriesNotAdded, { route: reject, answer: blankProposalRejected, then: advisoriesRejected });
+    const fetchMock = await openDeciding(advisoriesNotAdded, {
+      route: reject,
+      answer: blankProposalRejected,
+      then: advisoriesRejected,
+    });
     await openRow(BLANK);
 
     // Reject opens a dialog in the view's words. Opening it records nothing, and neither does Cancel.
@@ -1169,7 +1337,9 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(within(box).getByRole("heading", { name: dialog.title })).not.toBeNull();
     expect(text(box)).toContain(dialog.line);
     expect(text(box)).toContain(dialog.reason_label);
-    fireEvent.change(within(box).getByTestId("proposal-reject-reason"), { target: { value: "A reason that is thrown away" } });
+    fireEvent.change(within(box).getByTestId("proposal-reject-reason"), {
+      target: { value: "A reason that is thrown away" },
+    });
     fireEvent.click(within(box).getByTestId("proposal-reject-cancel"));
     expect(screen.queryByTestId("proposal-reject-dialog")).toBeNull();
     expect(posts(fetchMock)).toEqual([]);
@@ -1193,7 +1363,11 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(card().getAttribute("data-state")).toBe("rejected");
     expect(within(card()).getByTestId("proposal-status").textContent).toBe("Not added (Not this quarter)");
     expect(within(card()).getByTestId("proposal-decided").textContent).toBe(blankProposalRejected.decided_line);
-    expect(within(card()).getAllByTestId("proposal-decision").map((li) => li.textContent)).toEqual(blankProposalRejected.history.rows.map((r) => r.line));
+    expect(
+      within(card())
+        .getAllByTestId("proposal-decision")
+        .map((li) => li.textContent),
+    ).toEqual(blankProposalRejected.history.rows.map((r) => r.line));
     expect(within(card()).queryByTestId("proposal-accept")).toBeNull();
     expect(button("reconsider").disabled).toBe(false);
     // The row says it once (the proposal does), and the check is not in the test plan.
@@ -1207,11 +1381,17 @@ describe("Advisories, Otto proposes and a person decides", () => {
 
   it("Reject with no reason sends none", async () => {
     const reject = decide(blankProposal.id, "reject");
-    const noReason = rejectedProposal("", { id: blankProposal.id, status: { key: "rejected", word: "Not added", tone: "neutral" } });
+    const noReason = rejectedProposal("", {
+      id: blankProposal.id,
+      status: { key: "rejected", word: "Not added", tone: "neutral" },
+    });
     const after = withFirstRow(advisoriesRejected, (r) => ({
       ...r,
       proposal: { ...r.proposal, label: "Not added" },
-      panel: { ...r.panel, here: { ...r.panel.here, rows: [{ ...r.panel.here.rows[0]!, status: "Not added", proposal: noReason }] } },
+      panel: {
+        ...r.panel,
+        here: { ...r.panel.here, rows: [{ ...r.panel.here.rows[0]!, status: "Not added", proposal: noReason }] },
+      },
     }));
     const fetchMock = await openDeciding(advisoriesNotAdded, { route: reject, answer: noReason, then: after });
     await openRow(BLANK);
@@ -1225,7 +1405,11 @@ describe("Advisories, Otto proposes and a person decides", () => {
 
   it("Undo takes an accepted check out of the test plan again: one request, the page read again, and the app told", async () => {
     const undo = decide(blankProposal.id, "undo");
-    const fetchMock = await openDeciding(advisoriesAddedNotRun, { route: undo, answer: blankProposalUndone, then: advisoriesAfterUndo });
+    const fetchMock = await openDeciding(advisoriesAddedNotRun, {
+      route: undo,
+      answer: blankProposalUndone,
+      then: advisoriesAfterUndo,
+    });
     await openRow(BLANK);
     expect(card().getAttribute("data-state")).toBe("accepted");
     expect(within(card()).getByTestId("proposal-note").textContent).toBe(blankProposalAccepted.note);
@@ -1247,7 +1431,11 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(within(hereRow()).queryByRole("link")).toBeNull();
     expect(within(hereRow()).queryByTestId("advisory-here-status")).toBeNull();
     // Both decisions stay on the record.
-    expect(within(card()).getAllByTestId("proposal-decision").map((li) => li.textContent)).toEqual(blankProposalUndone.history.rows.map((r) => r.line));
+    expect(
+      within(card())
+        .getAllByTestId("proposal-decision")
+        .map((li) => li.textContent),
+    ).toEqual(blankProposalUndone.history.rows.map((r) => r.line));
     expect(blankProposalUndone.history.rows).toHaveLength(2);
     // The test plan changed again, so the app is told.
     expect(planChanged).toBe(1);
@@ -1255,7 +1443,11 @@ describe("Advisories, Otto proposes and a person decides", () => {
 
   it("Reconsider takes a rejected proposal up again: one request, then the page is read again and the app is told", async () => {
     const reconsider = decide(blankProposal.id, "reconsider");
-    const fetchMock = await openDeciding(advisoriesRejected, { route: reconsider, answer: blankProposalReconsidered, then: advisoriesAfterReconsider });
+    const fetchMock = await openDeciding(advisoriesRejected, {
+      route: reconsider,
+      answer: blankProposalReconsidered,
+      then: advisoriesAfterReconsider,
+    });
     expect(waiting().getAttribute("data-count")).toBe("0");
     await openRow(BLANK);
     expect(card().getAttribute("data-state")).toBe("rejected");
@@ -1272,7 +1464,11 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(button("reject").disabled).toBe(false);
     expect(chipOf(BLANK, "advisory-proposal").textContent).toBe("Proposed");
     // The reject and its reason stay on the record.
-    expect(within(card()).getAllByTestId("proposal-decision").map((li) => li.textContent)).toEqual(blankProposalReconsidered.history.rows.map((r) => r.line));
+    expect(
+      within(card())
+        .getAllByTestId("proposal-decision")
+        .map((li) => li.textContent),
+    ).toEqual(blankProposalReconsidered.history.rows.map((r) => r.line));
     expect(text(within(card()).getByTestId("proposal-history"))).toContain("Not this quarter");
     expect(planChanged).toBe(1);
   });
@@ -1309,7 +1505,8 @@ describe("Advisories, Otto proposes and a person decides", () => {
     for (const id of ids()) {
       await openRow(id!);
       // every fold of the panel, opened
-      for (const fold of Array.from(panel().querySelectorAll("details"))) fireEvent.click(fold.querySelector("summary")!);
+      for (const fold of Array.from(panel().querySelectorAll("details")))
+        fireEvent.click(fold.querySelector("summary")!);
     }
     await openRow(ZERO);
     fireEvent.click(button("reject"));
@@ -1318,7 +1515,11 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(screen.queryByTestId("proposal-reject-dialog")).toBeNull();
     // Escape in the reason field closed the dialog only: the panel is still there.
     expect(panel().getAttribute("data-advisory")).toBe(ZERO);
-    await waitFor(() => expect(calls(fetchMock)).toContain(`GET /api/plans/1/related?key=${encodeURIComponent(looseNotOffered.panel.related_key)}`));
+    await waitFor(() =>
+      expect(calls(fetchMock)).toContain(
+        `GET /api/plans/1/related?key=${encodeURIComponent(looseNotOffered.panel.related_key)}`,
+      ),
+    );
     const all = calls(fetchMock);
     expect(all.every((c) => c.startsWith("GET "))).toBe(true);
     // The page was read once, and each panel asked only for its Related block.
@@ -1368,7 +1569,9 @@ describe("Advisories, Otto proposes and a person decides", () => {
   it("shows a refusal in the proposal, in the backend's words, and leaves the page as it was", async () => {
     const accept = decide(blankProposal.id, "accept");
     const refusal = "This proposal was decided in the meantime. Read the page again.";
-    const fetchMock = await open(advisoriesNotAdded, { [accept]: { status: 409, body: { error: { message: refusal, line: null, field: null } } } });
+    const fetchMock = await open(advisoriesNotAdded, {
+      [accept]: { status: 409, body: { error: { message: refusal, line: null, field: null } } },
+    });
     await openRow(BLANK);
     fireEvent.click(button("accept"));
     const alert = await within(card()).findByRole("alert");
@@ -1389,7 +1592,10 @@ describe("Advisories, Otto proposes and a person decides", () => {
     let asked = 0;
     const fetchMock = await open(advisoriesNotAdded, {
       // The first read answers; the read after the decision fails.
-      [ADVISORIES]: () => ((asked += 1) === 1 ? { body: advisoriesNotAdded } : { status: 500, body: { error: { message: trouble, line: null, field: null } } }),
+      [ADVISORIES]: () =>
+        (asked += 1) === 1
+          ? { body: advisoriesNotAdded }
+          : { status: 500, body: { error: { message: trouble, line: null, field: null } } },
       [accept]: { body: blankProposalAccepted },
     });
     await openRow(BLANK);
@@ -1409,7 +1615,11 @@ describe("Advisories, Otto proposes and a person decides", () => {
 
   it("decides each program's check by itself when the test fits several programs", async () => {
     const accept = decide(blankProposal.id, "accept");
-    const fetchMock = await openDeciding(twoProposed, { route: accept, answer: blankProposalAccepted, then: oneOfTwoAccepted });
+    const fetchMock = await openDeciding(twoProposed, {
+      route: accept,
+      answer: blankProposalAccepted,
+      then: oneOfTwoAccepted,
+    });
     // Before: both wait. The cell counts them, and the waiting line says two.
     expect(waiting().getAttribute("data-count")).toBe("2");
     expect(screen.getByTestId("advisories-waiting-line").textContent).toBe(TWO_WAIT.line);
@@ -1417,8 +1627,14 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(within(rowOf(BLANK)).getByTestId("advisory-proposal-text").textContent).toBe("2 proposed");
     const inPanel = await openRow(BLANK);
     // One row and one proposal per program, each with its own buttons.
-    expect(inPanel.getAllByTestId("advisory-here-row").map((r) => r.getAttribute("data-program"))).toEqual([ACME, SECOND]);
-    expect(inPanel.getAllByTestId("otto-proposal").map((c) => c.getAttribute("data-proposal"))).toEqual([blankProposal.id, secondProposal.id]);
+    expect(inPanel.getAllByTestId("advisory-here-row").map((r) => r.getAttribute("data-program"))).toEqual([
+      ACME,
+      SECOND,
+    ]);
+    expect(inPanel.getAllByTestId("otto-proposal").map((c) => c.getAttribute("data-proposal"))).toEqual([
+      blankProposal.id,
+      secondProposal.id,
+    ]);
     expect(inPanel.getAllByTestId("proposal-accept")).toHaveLength(2);
     expect(card(SECOND).contains(button("accept"))).toBe(false);
 
@@ -1461,9 +1677,15 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(planChanged).toBe(0);
     // Looking is still allowed: the result, the decisions on record and the links.
     expect(inPanel.getByTestId("advisory-here-result").textContent).toBe(view.rows[0]!.result.label);
-    expect(within(card()).getByTestId("proposal-decided").textContent).toBe(view.rows[0]!.panel.here.rows[0]!.proposal!.decided_line);
-    expect(inPanel.getByRole("link", { name: "See the evidence" }).getAttribute("href")).toBe("#/a/101/evidence?item=test-6");
-    expect(within(screen.getByTestId("advisories-packs-line")).getByRole("link").getAttribute("href")).toBe("#/settings?section=test-packs");
+    expect(within(card()).getByTestId("proposal-decided").textContent).toBe(
+      view.rows[0]!.panel.here.rows[0]!.proposal!.decided_line,
+    );
+    expect(inPanel.getByRole("link", { name: "See the evidence" }).getAttribute("href")).toBe(
+      "#/a/101/evidence?item=test-6",
+    );
+    expect(within(screen.getByTestId("advisories-packs-line")).getByRole("link").getAttribute("href")).toBe(
+      "#/settings?section=test-packs",
+    );
   });
 
   it("is off in a closed assessment by the page's own rule too, with the closed sentence", async () => {
@@ -1480,7 +1702,9 @@ describe("Advisories, Otto proposes and a person decides", () => {
     expect(posts(fetchMock)).toEqual([]);
     // Looking is still allowed: rows open, links work.
     await openRow(BLANK);
-    expect(within(screen.getByTestId("advisories-packs-line")).getByRole("link").getAttribute("href")).toBe("#/settings?section=test-packs");
+    expect(within(screen.getByTestId("advisories-packs-line")).getByRole("link").getAttribute("href")).toBe(
+      "#/settings?section=test-packs",
+    );
   });
 
   it("decides nothing when Otto is not installed: the backend turns every button off and says why, calmly", async () => {
@@ -1513,7 +1737,9 @@ describe("Advisories, Otto proposes and a person decides", () => {
     // What is already here stays: the result of the check that ran, in the reviewer's words, and who accepted it.
     expect(chipOf(BLANK, "advisory-result").textContent).toBe(view.rows[0]!.result.label);
     const inPanel = await openRow(BLANK);
-    expect(inPanel.getByTestId("advisory-here-result").textContent).toBe(view.rows[0]!.panel.here.rows[0]!.result!.label);
+    expect(inPanel.getByTestId("advisory-here-result").textContent).toBe(
+      view.rows[0]!.panel.here.rows[0]!.result!.label,
+    );
     expect(button("undo").disabled).toBe(true);
     expect(within(card()).getByTestId("proposal-blocked").textContent).toBe(NO_OTTO_REASON);
     expect(within(card()).getAllByTestId("proposal-decision")).toHaveLength(1);
@@ -1527,7 +1753,8 @@ describe("Advisories, Otto proposes and a person decides", () => {
 });
 
 describe("Advisories, the names the end-to-end walk looks for", () => {
-  const present = (ids: string[], root: HTMLElement = document.body) => ids.filter((id) => within(root).queryAllByTestId(id).length > 0);
+  const present = (ids: string[], root: HTMLElement = document.body) =>
+    ids.filter((id) => within(root).queryAllByTestId(id).length > 0);
   // The bulk "Add new checks" button is gone: each proposal is decided by itself.
   const GONE = ["advisories-add", "add-new-checks", "add-new-checks-reason", "add-new-checks-note"];
 
@@ -1558,8 +1785,11 @@ describe("Advisories, the names the end-to-end walk looks for", () => {
     expect(present(onPage, screen.getByTestId("advisories-page"))).toEqual(onPage);
     expect(present(GONE)).toEqual([]);
     expect(waiting().getAttribute("data-count")).toBe(String(advisoriesClosed.waiting.count));
-    expect(screen.getAllByTestId("advisory-row").map((r) => r.getAttribute("data-advisory"))).toEqual(advisoriesClosed.rows.map((r) => r.id));
-    for (const row of screen.getAllByTestId("advisory-row")) expect(present(["advisory-test", "advisory-proposal", "advisory-result"], row)).toHaveLength(3);
+    expect(screen.getAllByTestId("advisory-row").map((r) => r.getAttribute("data-advisory"))).toEqual(
+      advisoriesClosed.rows.map((r) => r.id),
+    );
+    for (const row of screen.getAllByTestId("advisory-row"))
+      expect(present(["advisory-test", "advisory-proposal", "advisory-result"], row)).toHaveLength(3);
     const inPanel = [
       "advisory-sentence",
       "advisory-publisher",
@@ -1602,21 +1832,38 @@ describe("Advisories, the names the end-to-end walk looks for", () => {
     const ledgers = within(panel()).getAllByTestId("advisory-ledger");
     expect(ledgers.map((d) => d.tagName)).toEqual(["DETAILS", "DETAILS", "DETAILS"]);
     expect(ledgers.map((d) => text(d.querySelector("summary")))).toEqual(
-      [blankFailed.panel.test!.ledger, here.proposal!.history.ledger!, here.ledger!].map((l) => `${l.title} (${l.count})`),
+      [blankFailed.panel.test!.ledger, here.proposal!.history.ledger!, here.ledger!].map(
+        (l) => `${l.title} (${l.count})`,
+      ),
     );
-    for (const folded of ["advisory-sources", "advisory-claude", "proposal-history"]) expect(within(panel()).getByTestId(folded).tagName, folded).toBe("DETAILS");
+    for (const folded of ["advisory-sources", "advisory-claude", "proposal-history"])
+      expect(within(panel()).getByTestId(folded).tagName, folded).toBe("DETAILS");
   });
 
   it("has the ids of a proposal nobody decided, of its Reject dialog, and of the cell's counts", async () => {
     await open(twoProposed, {}, { item: BLANK });
     await waitFor(() => expect(panel().getAttribute("data-advisory")).toBe(BLANK));
     expect(present(["advisory-here-row", "otto-proposal"], panel())).toHaveLength(2);
-    const proposed = ["proposal-label", "proposal-status", "proposal-why", "proposal-lines", "proposal-decided", "proposal-accept", "proposal-reject", "proposal-note"];
+    const proposed = [
+      "proposal-label",
+      "proposal-status",
+      "proposal-why",
+      "proposal-lines",
+      "proposal-decided",
+      "proposal-accept",
+      "proposal-reject",
+      "proposal-note",
+    ];
     expect(present(proposed, card())).toEqual(proposed);
     expect(card().getAttribute("data-state")).toBe("proposed");
     expect(present(["advisory-proposal-box", "advisory-proposal-text"], rowOf(BLANK))).toHaveLength(2);
     fireEvent.click(button("reject"));
-    const dialog = ["proposal-reject-dialog", "proposal-reject-reason", "proposal-reject-cancel", "proposal-reject-confirm"];
+    const dialog = [
+      "proposal-reject-dialog",
+      "proposal-reject-reason",
+      "proposal-reject-cancel",
+      "proposal-reject-confirm",
+    ];
     expect(present(dialog)).toEqual(dialog);
     expect(screen.getByTestId("proposal-reject-dialog").getAttribute("role")).toBe("dialog");
     expect(present(GONE)).toEqual([]);
@@ -1625,10 +1872,30 @@ describe("Advisories, the names the end-to-end walk looks for", () => {
   it("has the ids of a row without a test and of a page with no advisory", async () => {
     await open(advisoriesTwoPacks, {}, { item: STOPS });
     await waitFor(() => expect(panel().getAttribute("data-advisory")).toBe(STOPS));
-    expect(present(["advisory-no-test", "advisory-ledger", "advisory-here", "advisory-here-empty", "advisory-fix", "advisory-claude"], panel())).toHaveLength(6);
+    expect(
+      present(
+        [
+          "advisory-no-test",
+          "advisory-ledger",
+          "advisory-here",
+          "advisory-here-empty",
+          "advisory-fix",
+          "advisory-claude",
+        ],
+        panel(),
+      ),
+    ).toHaveLength(6);
     cleanup();
     await open(advisoriesNoPack);
-    expect(present(["advisories-empty", "advisories-table", "advisories-waiting", "advisories-waiting-line", "advisories-waiting-note"])).toHaveLength(5);
+    expect(
+      present([
+        "advisories-empty",
+        "advisories-table",
+        "advisories-waiting",
+        "advisories-waiting-line",
+        "advisories-waiting-note",
+      ]),
+    ).toHaveLength(5);
     expect(waiting().getAttribute("data-count")).toBe("0");
     expect(present(GONE)).toEqual([]);
   });
@@ -1679,12 +1946,20 @@ describe("Advisories in the app", () => {
     const names = nav()
       .getAllByRole("link")
       .map((a) => text(a));
-    expect(names.slice(names.indexOf("Verify"), names.indexOf("Checks") + 1)).toEqual(["Verify", "Advisories", "Checks"]);
+    expect(names.slice(names.indexOf("Verify"), names.indexOf("Checks") + 1)).toEqual([
+      "Verify",
+      "Advisories",
+      "Checks",
+    ]);
     fireEvent.click(link);
     await screen.findByTestId("advisories-standing");
     expect(window.location.hash).toBe("#/a/101/advisories");
     expect(nav().getByRole("link", { name: "Advisories" }).getAttribute("aria-current")).toBe("page");
-    expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByText("Advisories").getAttribute("aria-current")).toBe("page");
+    expect(
+      within(screen.getByRole("navigation", { name: "Breadcrumb" }))
+        .getByText("Advisories")
+        .getAttribute("aria-current"),
+    ).toBe("page");
     expect(rows()).toHaveLength(4);
   });
 
@@ -1733,7 +2008,9 @@ describe("Advisories in the app", () => {
 
   it("is read-only in a closed assessment: the banner shows, the page says nothing more can be decided, and Accept is off with the closed sentence", async () => {
     go("#/a/100/advisories");
-    const fetchMock = mockApi(appRoutes({ "GET /api/assessments/100": { body: closedAssessment }, [ADVISORIES]: { body: advisoriesClosed } }));
+    const fetchMock = mockApi(
+      appRoutes({ "GET /api/assessments/100": { body: closedAssessment }, [ADVISORIES]: { body: advisoriesClosed } }),
+    );
     render(<App />);
     await screen.findByTestId("advisories-standing");
     expect(screen.getByTestId("closed-banner")).not.toBeNull();
@@ -1753,7 +2030,11 @@ describe("Advisories in the app", () => {
     window.localStorage.setItem("evidence-lab-guided", "on");
     go("#/a/101/advisories");
     const accept = decide(blankProposal.id, "accept");
-    const fetchMock = mockApi(appRoutes(deciding(advisoriesNotAdded, [{ route: accept, answer: blankProposalAccepted, then: advisoriesAddedNotRun }])));
+    const fetchMock = mockApi(
+      appRoutes(
+        deciding(advisoriesNotAdded, [{ route: accept, answer: blankProposalAccepted, then: advisoriesAddedNotRun }]),
+      ),
+    );
     render(<App />);
     await screen.findByTestId("advisories-standing");
     expect(screen.queryByTestId("guided-bar")).toBeNull();
@@ -1770,7 +2051,11 @@ describe("Advisories in the app", () => {
   it("reads the test plan again after a reject too: the app is told of every decision", async () => {
     go("#/a/101/advisories");
     const reject = decide(blankProposal.id, "reject");
-    const fetchMock = mockApi(appRoutes(deciding(advisoriesNotAdded, [{ route: reject, answer: blankProposalRejected, then: advisoriesRejected }])));
+    const fetchMock = mockApi(
+      appRoutes(
+        deciding(advisoriesNotAdded, [{ route: reject, answer: blankProposalRejected, then: advisoriesRejected }]),
+      ),
+    );
     render(<App />);
     await screen.findByTestId("advisories-standing");
     const plans = () => calls(fetchMock).filter((c) => c === "GET /api/import/7/plan").length;
@@ -1794,7 +2079,8 @@ describe("Advisories, the fixtures", () => {
     expect(blankProposalAccepted.decided_line).toBe(acceptedProposal().decided_line);
     expect(blankProposalRejected.status).toEqual(rejectedProposal("Not this quarter").status);
     // One proposal throughout: every state carries the same id, and it is the one the decision route names.
-    for (const state of [blankProposalAccepted, blankProposalRejected, blankProposalUndone, blankProposalReconsidered]) expect(state.id).toBe(blankProposal.id);
+    for (const state of [blankProposalAccepted, blankProposalRejected, blankProposalUndone, blankProposalReconsidered])
+      expect(state.id).toBe(blankProposal.id);
     expect(blankProposal.id).not.toBe(zeroProposal.id);
     expect(blankProposal.id).not.toBe(secondProposal.id);
   });
@@ -1804,10 +2090,14 @@ describe("Advisories, the fixtures", () => {
 // beside its name, in the table and in its panel's title. The pack is named on hover and to a screen reader.
 describe("Advisories, the New tag", () => {
   const tagIn = (el: HTMLElement) => within(el).queryByTestId("advisory-new");
-  const row = (id: string) => screen.getAllByTestId("advisory-row").find((r) => r.getAttribute("data-advisory") === id)!;
+  const row = (id: string) =>
+    screen.getAllByTestId("advisory-row").find((r) => r.getAttribute("data-advisory") === id)!;
 
   async function show(view: AdvisoriesView, item: string | null = null) {
-    mockApi({ "GET /api/plans/1/advisories": { body: view }, "GET /api/plans/1/related?key=advisory%3ACVE-2024-42460": { body: { key: "", related: [] } } });
+    mockApi({
+      "GET /api/plans/1/advisories": { body: view },
+      "GET /api/plans/1/related?key=advisory%3ACVE-2024-42460": { body: { key: "", related: [] } },
+    });
     render(
       <LinkProvider assessmentId={101} planId={1}>
         <AdvisoriesScreen planId={1} openItem={item} />
@@ -1862,9 +2152,14 @@ describe("Advisories, where a check's result came from", () => {
   it("tags the result here beside its word, once per row, and says in the panel what that means for this program", async () => {
     const fetchMock = await open(advisoriesFailed);
     const cell = chipOf("CVE-2022-21449", "advisory-result").parentElement!;
-    expect(within(cell).getAllByTestId("source-tag").map((t) => [t.textContent, t.getAttribute("data-source")])).toEqual([["Proven in the lab", "lab"]]);
+    expect(
+      within(cell)
+        .getAllByTestId("source-tag")
+        .map((t) => [t.textContent, t.getAttribute("data-source")]),
+    ).toEqual([["Proven in the lab", "lab"]]);
     // a row with no result yet has no tag
-    for (const row of rows().filter((r) => r.getAttribute("data-advisory") !== "CVE-2022-21449")) expect(within(row).queryAllByTestId("source-tag")).toEqual([]);
+    for (const row of rows().filter((r) => r.getAttribute("data-advisory") !== "CVE-2022-21449"))
+      expect(within(row).queryAllByTestId("source-tag")).toEqual([]);
     await openRow("CVE-2022-21449");
     const line = within(hereRow()).getByTestId("source-line");
     expect(within(line).getByTestId("source-tag").textContent).toBe("Proven in the lab");
@@ -1874,4 +2169,3 @@ describe("Advisories, where a check's result came from", () => {
     expect(posts(fetchMock)).toEqual([]);
   });
 });
-

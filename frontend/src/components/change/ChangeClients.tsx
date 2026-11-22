@@ -36,7 +36,13 @@ export function ChangeClients({ view }: { view: TryClients }) {
             className="mt-2 divide-y divide-slate-800 rounded-lg border border-slate-800 bg-slate-950 px-3"
           >
             {view.rows.map((row) => (
-              <li key={row.id} data-testid="clients-row" data-client={row.id} data-word={row.word_key} className="py-2.5">
+              <li
+                key={row.id}
+                data-testid="clients-row"
+                data-client={row.id}
+                data-word={row.word_key}
+                className="py-2.5"
+              >
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <StatusChip label={row.word} tone={row.tone} size="sm" wrap testId="clients-word" />
                   <span className="font-medium text-slate-100">{row.name}</span>

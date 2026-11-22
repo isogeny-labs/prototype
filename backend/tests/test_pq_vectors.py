@@ -1,5 +1,6 @@
 """The two official post-quantum case sets (ML-KEM-768 and ML-DSA-65), read as data from the pinned files, and the
 fingerprint of an answer, which must be the same in the app and in the batch driver. No Docker."""
+
 import hashlib
 import importlib.util
 import json
@@ -39,10 +40,15 @@ def load_driver():
 
 # ---------------------------------------------------------------- the cases
 
+
 def test_mlkem_has_655_cases_in_three_parts(kem):
     assert len(kem) == 655
     assert Counter(c.part for c in kem) == {"keygen": 125, "encaps": 300, "decaps": 230}
-    assert [(p, n) for p, _, n in pq_vectors.EXAMS["mlkem_vectors"]["parts"]] == [("keygen", 125), ("encaps", 300), ("decaps", 230)]
+    assert [(p, n) for p, _, n in pq_vectors.EXAMS["mlkem_vectors"]["parts"]] == [
+        ("keygen", 125),
+        ("encaps", 300),
+        ("decaps", 230),
+    ]
 
 
 def test_mlkem_expectations_part_by_part(kem):
@@ -54,7 +60,11 @@ def test_mlkem_expectations_part_by_part(kem):
 def test_mldsa_has_475_cases_in_three_parts(dsa):
     assert len(dsa) == 475
     assert Counter(c.part for c in dsa) == {"keygen": 25, "sign": 195, "verify": 255}
-    assert [(p, n) for p, _, n in pq_vectors.EXAMS["mldsa_vectors"]["parts"]] == [("keygen", 25), ("sign", 195), ("verify", 255)]
+    assert [(p, n) for p, _, n in pq_vectors.EXAMS["mldsa_vectors"]["parts"]] == [
+        ("keygen", 25),
+        ("sign", 195),
+        ("verify", 255),
+    ]
 
 
 def test_mldsa_expectations_part_by_part(dsa):
@@ -66,8 +76,16 @@ def test_mldsa_expectations_part_by_part(dsa):
 def test_the_key_check_cases_that_the_controls_are_judged_by(kem):
     out_of_range = [c for c in kem if pq_vectors.KEY_OUT_OF_RANGE in c.flags]
     hash_wrong = [c for c in kem if pq_vectors.KEY_HASH_WRONG in c.flags]
-    assert len(out_of_range) == 117 and {c.part for c in out_of_range} == {"encaps"} and {c.expect for c in out_of_range} == {"refuse"}
-    assert len(hash_wrong) == 6 and {c.part for c in hash_wrong} == {"decaps"} and {c.expect for c in hash_wrong} == {"refuse"}
+    assert (
+        len(out_of_range) == 117
+        and {c.part for c in out_of_range} == {"encaps"}
+        and {c.expect for c in out_of_range} == {"refuse"}
+    )
+    assert (
+        len(hash_wrong) == 6
+        and {c.part for c in hash_wrong} == {"decaps"}
+        and {c.expect for c in hash_wrong} == {"refuse"}
+    )
     assert not set(c.id for c in out_of_range) & set(c.id for c in hash_wrong)
 
 
@@ -100,8 +118,11 @@ def test_every_input_value_is_hex_or_one_of_the_allowed_flags(kem, dsa):
                 elif key == "interface":
                     assert value in ("external", "internal", "mu"), c.id
                 else:
-                    assert isinstance(value, str) and HEX.fullmatch(value) and len(value) <= pq_vectors.MAX_HEX, (c.id, key)
-    driver = load_driver()      # the driver passes on exactly the keys the cases use
+                    assert isinstance(value, str) and HEX.fullmatch(value) and len(value) <= pq_vectors.MAX_HEX, (
+                        c.id,
+                        key,
+                    )
+    driver = load_driver()  # the driver passes on exactly the keys the cases use
     used = {key for c in kem + dsa for key in c.input}
     assert used <= set(driver.KAT_HEX_INPUTS) | set(NON_HEX_INPUTS)
     assert set(c.command for c in kem + dsa) <= set(driver.KAT_COMMANDS)
@@ -133,17 +154,30 @@ def test_the_exam_files_are_pinned_with_a_source_and_a_link():
         pins = pq_vectors.file_pins(exam)
         assert len(pins) == len(pq_vectors.EXAMS[exam]["files"])
         for pin in pins:
-            assert re.fullmatch(r"[0-9a-f]{64}", pin["sha256"]) and pin["source"] in (pq_vectors.NIST, pq_vectors.WYCHEPROOF)
+            assert re.fullmatch(r"[0-9a-f]{64}", pin["sha256"]) and pin["source"] in (
+                pq_vectors.NIST,
+                pq_vectors.WYCHEPROOF,
+            )
             assert pq_vectors.source_url(pin["file"]).startswith("https://github.com/")
-            assert (VECTORS_DIR / ("acvp" if pin["source"] == pq_vectors.NIST else "wycheproof") / pin["file"]).is_file()
+            assert (
+                VECTORS_DIR / ("acvp" if pin["source"] == pq_vectors.NIST else "wycheproof") / pin["file"]
+            ).is_file()
     with pytest.raises(KeyError):
         pq_vectors.source_url("nothing.json")
 
 
 # ---------------------------------------------------------------- a changed or missing file is refused
 
-@pytest.mark.parametrize("exam, name", [("mlkem_vectors", "wp_mlkem_encaps"), ("mlkem_vectors", "acvp_mlkem_keygen"),
-                                        ("mldsa_vectors", "acvp_mldsa_sigver"), ("mldsa_vectors", "wp_mldsa_verify")])
+
+@pytest.mark.parametrize(
+    "exam, name",
+    [
+        ("mlkem_vectors", "wp_mlkem_encaps"),
+        ("mlkem_vectors", "acvp_mlkem_keygen"),
+        ("mldsa_vectors", "acvp_mldsa_sigver"),
+        ("mldsa_vectors", "wp_mldsa_verify"),
+    ],
+)
 def test_a_changed_file_is_refused(monkeypatch, exam, name):
     folder, file, sha256, source = pq_vectors.FILES[name]
     changed = dict(pq_vectors.FILES, **{name: (folder, file, "0" * 64 if sha256[0] != "0" else "1" * 64, source)})
@@ -172,6 +206,7 @@ def test_a_file_with_the_right_name_but_other_content_is_refused(monkeypatch, tm
 
 # ---------------------------------------------------------------- the fingerprint of an answer is the driver's
 
+
 def test_the_answer_fields_are_the_drivers():
     driver = load_driver()
     assert driver.ANSWER_FIELDS == pq_vectors.ANSWER_FIELDS
@@ -179,14 +214,20 @@ def test_the_answer_fields_are_the_drivers():
     assert set(pq_vectors.ANSWER_FIELDS) == {"keygen", "encaps", "decaps", "sign"}
 
 
-SAMPLES = {"keygen": {"public_key": "AaBb01", "private_key": "CcDd02"}, "encaps": {"ciphertext": "0A0b", "shared_secret": "FF00"},
-           "decaps": {"shared_secret": "Ab12"}, "sign": {"signature": "DEADbeef"}}
+SAMPLES = {
+    "keygen": {"public_key": "AaBb01", "private_key": "CcDd02"},
+    "encaps": {"ciphertext": "0A0b", "shared_secret": "FF00"},
+    "decaps": {"shared_secret": "Ab12"},
+    "sign": {"signature": "DEADbeef"},
+}
 
 
 @pytest.mark.parametrize("command", sorted(SAMPLES))
 def test_the_fingerprint_is_the_same_value_the_driver_computes(command, monkeypatch):
     fields = SAMPLES[command]
-    by_hand = hashlib.sha256("\n".join(f"{n}={fields[n].lower()}" for n in pq_vectors.ANSWER_FIELDS[command]).encode("ascii")).hexdigest()
+    by_hand = hashlib.sha256(
+        "\n".join(f"{n}={fields[n].lower()}" for n in pq_vectors.ANSWER_FIELDS[command]).encode("ascii")
+    ).hexdigest()
     assert pq_vectors.answer_sha256(command, fields) == by_hand
     driver = load_driver()
     written = []
@@ -197,13 +238,21 @@ def test_the_fingerprint_is_the_same_value_the_driver_computes(command, monkeypa
     (line,) = written
     assert line["answer_sha256"] == by_hand == pq_vectors.answer_sha256(command, fields)
     assert line["declined"] is False and line["valid"] is None
-    assert not any(value in json.dumps(line) for value in fields.values())      # the answer itself is never written
+    assert not any(value in json.dumps(line) for value in fields.values())  # the answer itself is never written
 
 
 def test_the_fingerprint_changes_with_any_field_and_ignores_the_letter_case():
     base = {"public_key": "aabb", "private_key": "ccdd"}
-    assert pq_vectors.answer_sha256("keygen", base) == pq_vectors.answer_sha256("keygen", {"public_key": "AABB", "private_key": "CCDD"})
-    assert pq_vectors.answer_sha256("keygen", base) != pq_vectors.answer_sha256("keygen", {"public_key": "aabb", "private_key": "ccde"})
-    assert pq_vectors.answer_sha256("keygen", base) != pq_vectors.answer_sha256("keygen", {"public_key": "aabc", "private_key": "ccdd"})
+    assert pq_vectors.answer_sha256("keygen", base) == pq_vectors.answer_sha256(
+        "keygen", {"public_key": "AABB", "private_key": "CCDD"}
+    )
+    assert pq_vectors.answer_sha256("keygen", base) != pq_vectors.answer_sha256(
+        "keygen", {"public_key": "aabb", "private_key": "ccde"}
+    )
+    assert pq_vectors.answer_sha256("keygen", base) != pq_vectors.answer_sha256(
+        "keygen", {"public_key": "aabc", "private_key": "ccdd"}
+    )
     # the fields are in a fixed order, so swapping the two values is a different answer
-    assert pq_vectors.answer_sha256("keygen", base) != pq_vectors.answer_sha256("keygen", {"public_key": "ccdd", "private_key": "aabb"})
+    assert pq_vectors.answer_sha256("keygen", base) != pq_vectors.answer_sha256(
+        "keygen", {"public_key": "ccdd", "private_key": "aabb"}
+    )

@@ -1,6 +1,7 @@
 """Helpers for the Watch list tests: a folder of recorded answers that stands in for the public source, made from the
 real published records kept in demo/sandbox/advisories, and from changed copies of them that a test writes to play a
 later day (a fix is published, the record is withdrawn). The changed copies are made up for the tests."""
+
 from __future__ import annotations
 
 import copy
@@ -16,7 +17,7 @@ from sandbox_helpers import sandbox_lab, turn_on  # noqa: E402
 from app.config import DEMO_DIR  # noqa: E402
 
 RECORDS = DEMO_DIR / "sandbox" / "advisories"
-NO_FIX = "GHSA-wj6h-64fc-37mp"            # CVE-2024-23342, python-ecdsa: "introduced": "0" and no end
+NO_FIX = "GHSA-wj6h-64fc-37mp"  # CVE-2024-23342, python-ecdsa: "introduced": "0" and no end
 ITEM = "CVE-2024-23342~python-ecdsa"
 ECDSA_ONLY = ("python-ecdsa 0.13.2,software,signature_algorithm,ECDSA P-256",)
 
@@ -40,7 +41,9 @@ def write_source(folder: Path, records: list[dict], name: str = "PyPI__ecdsa") -
     return folder
 
 
-def watch_lab(tmp_path, monkeypatch, records: list[dict] | None = None, on: bool = True, claims=ECDSA_ONLY, **overrides):
+def watch_lab(
+    tmp_path, monkeypatch, records: list[dict] | None = None, on: bool = True, claims=ECDSA_ONLY, **overrides
+):
     """A started lab with Sandbox research on (stand-ins for the mode and the harness), a recorded source that answers
     with the real no-fix record about python-ecdsa, and a file that names python-ecdsa 0.13.2. Returns (lab, plan id,
     the source folder)."""

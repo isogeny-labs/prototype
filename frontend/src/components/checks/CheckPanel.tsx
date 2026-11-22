@@ -45,7 +45,14 @@ export function CheckPanel({
 
   const shown = detail && detail.check.id === id ? detail : null;
   return (
-    <DetailPanel open={check !== null} item={check?.id ?? null} title={check?.name ?? ""} subtitle={check?.ran_on} onClose={onClose} testId="detail-panel">
+    <DetailPanel
+      open={check !== null}
+      item={check?.id ?? null}
+      title={check?.name ?? ""}
+      subtitle={check?.ran_on}
+      onClose={onClose}
+      testId="detail-panel"
+    >
       {check ? (
         <div data-testid="check-panel" data-check={check.id} className="space-y-4 text-sm">
           <div className="flex flex-wrap items-center gap-2">
@@ -141,7 +148,10 @@ export function EarlierRuns({ runs }: { runs: CheckRun[] }) {
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Every run, newest first</h3>
       <ol className="space-y-1.5">
         {runs.map((r, i) => (
-          <li key={`${r.run_id ?? r.verify_run_id ?? i}`} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-300">
+          <li
+            key={`${r.run_id ?? r.verify_run_id ?? i}`}
+            className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-300"
+          >
             {r.label ? <ResultBadge label={r.label} tone={r.tone} /> : null}
             <span>{r.at ? formatTime(r.at) : ""}</span>
             <span className="text-slate-500">· {r.came_from}</span>

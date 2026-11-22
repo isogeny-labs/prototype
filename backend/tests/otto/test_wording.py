@@ -11,6 +11,7 @@ This test reads the code, not one walk of the app, so it holds for every state a
     are, for every pack built from now on (the two shipped packs are never rebuilt, and hold none of these), and
   - every piece of text the screens hold themselves (`frontend/src` outside its comments and its tests).
 """
+
 import ast
 import functools
 import re
@@ -19,19 +20,55 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 
 # The phrases Kevin listed, and the same verbs in another tense.
-BANNED = ("Otto wrote", "Otto writes", "Otto proposes", "Otto proposed", "in Otto's words", "In Otto's words", "Why Otto proposes it",
-          "Otto found", "Otto finds", "Otto has", "Otto's proposal", "Otto asked", "Otto asks", "Otto no longer",
-          # Not on the list, but the same thing: sentences that named Otto as the one acting. They were found by the
-          # separate reviewer of the 5c fixes and reworded too ("Only the answers recorded during the build are used.").
-          "Otto works", "Otto needs", "Otto adds", "Otto goes on", "Otto could not", "Otto's own change", "made by Otto", "Otto uses",
-          "Otto designs", "Otto reads", "Otto tries", "Otto looks", "Otto decides", "Otto runs", "Otto installs", "Otto sends")
+BANNED = (
+    "Otto wrote",
+    "Otto writes",
+    "Otto proposes",
+    "Otto proposed",
+    "in Otto's words",
+    "In Otto's words",
+    "Why Otto proposes it",
+    "Otto found",
+    "Otto finds",
+    "Otto has",
+    "Otto's proposal",
+    "Otto asked",
+    "Otto asks",
+    "Otto no longer",
+    # Not on the list, but the same thing: sentences that named Otto as the one acting. They were found by the
+    # separate reviewer of the 5c fixes and reworded too ("Only the answers recorded during the build are used.").
+    "Otto works",
+    "Otto needs",
+    "Otto adds",
+    "Otto goes on",
+    "Otto could not",
+    "Otto's own change",
+    "made by Otto",
+    "Otto uses",
+    "Otto designs",
+    "Otto reads",
+    "Otto tries",
+    "Otto looks",
+    "Otto decides",
+    "Otto runs",
+    "Otto installs",
+    "Otto sends",
+)
 # The one sentence with such a phrase that stays, word for word.
 KEPT = ("Otto has no say in any result.",)
 # What stays as it is, and must not have been swept away with the rest.
-STILL_THERE = ("From Otto", "Written by Otto", "Not written yet", "Live Otto", "Otto in this project", "Otto ledger entries",
-               "No recorded answer: this needs Live Otto.", "Otto is not installed on this computer",
-               # ("Otto has no say in any result." is put together when the sentence is worded: tests/otto/test_otto_fix.py reads it whole)
-               " has no say in any result.")
+STILL_THERE = (
+    "From Otto",
+    "Written by Otto",
+    "Not written yet",
+    "Live Otto",
+    "Otto in this project",
+    "Otto ledger entries",
+    "No recorded answer: this needs Live Otto.",
+    "Otto is not installed on this computer",
+    # ("Otto has no say in any result." is put together when the sentence is worded: tests/otto/test_otto_fix.py reads it whole)
+    " has no say in any result.",
+)
 # A record, not a sentence on a screen: what the assessment's Otto ledger keeps about a proposal's decisions. It is
 # written into the ledger with the first decision and is never shown by the app (the screens word a ledger entry
 # themselves). It stays as it was, so a ledger written today reads like one written by the 5c build.
@@ -44,18 +81,31 @@ def _backend_texts(path: Path) -> list[tuple[int, str]]:
     for node in ast.walk(tree):
         if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             body = getattr(node, "body", [])
-            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+            if (
+                body
+                and isinstance(body[0], ast.Expr)
+                and isinstance(body[0].value, ast.Constant)
+                and isinstance(body[0].value.value, str)
+            ):
                 notes.add(id(body[0].value))
     found: list[tuple[int, str]] = []
 
     class Reader(ast.NodeVisitor):
-        def visit_JoinedStr(self, node):            # an f-string: its fixed pieces, with a gap where a value goes
-            found.append((node.lineno, "".join(v.value if isinstance(v, ast.Constant) and isinstance(v.value, str) else "{…}"
-                                                for v in node.values)))
+        def visit_JoinedStr(self, node):  # an f-string: its fixed pieces, with a gap where a value goes
+            found.append(
+                (
+                    node.lineno,
+                    "".join(
+                        v.value if isinstance(v, ast.Constant) and isinstance(v.value, str) else "{…}"
+                        for v in node.values
+                    ),
+                )
+            )
 
         def visit_Constant(self, node):
             if isinstance(node.value, str) and id(node) not in notes:
                 found.append((node.lineno, node.value))
+
     Reader().visit(tree)
     return found
 
@@ -77,7 +127,9 @@ def _read_everything() -> list[tuple[str, int, str]]:
             out += [(str(path.relative_to(ROOT)), line, text) for line, text in _backend_texts(path)]
     # (of the research side only the pack builder: its other scripts are pinned by their fingerprints in the research
     # ledger, and what they hold is a prompt or a record, not a sentence on a screen)
-    out += [("backend/ottolab/build.py", line, text) for line, text in _backend_texts(ROOT / "backend/ottolab/build.py")]
+    out += [
+        ("backend/ottolab/build.py", line, text) for line, text in _backend_texts(ROOT / "backend/ottolab/build.py")
+    ]
     for path in sorted((ROOT / "frontend/src").rglob("*.ts*")):
         if "test" in path.parts or path.name.endswith(".gen.ts"):
             continue
@@ -111,12 +163,19 @@ def test_what_stays_is_still_there():
 def test_the_reader_of_this_test_sees_a_sentence_and_skips_a_note(tmp_path):
     """The test above is only worth something if its reader finds a sentence in code and passes over a docstring."""
     sample = tmp_path / "sample.py"
-    sample.write_text('"""Otto proposes this in a note for developers."""\n'
-                      'def f(name):\n    """Otto wrote nothing here."""\n'
-                      '    return f"Otto found {name} here", "plain"\n', encoding="utf-8")
+    sample.write_text(
+        '"""Otto proposes this in a note for developers."""\n'
+        'def f(name):\n    """Otto wrote nothing here."""\n'
+        '    return f"Otto found {name} here", "plain"\n',
+        encoding="utf-8",
+    )
     texts = [text for _, text in _backend_texts(sample)]
     assert "Otto found {…} here" in texts and not any("note for developers" in t or "wrote nothing" in t for t in texts)
     screen = tmp_path / "Sample.tsx"
-    screen.write_text("/** Otto proposes: a note. */\nconst a = <p>Why Otto proposes it</p>; // Otto asked\n", encoding="utf-8")
+    screen.write_text(
+        "/** Otto proposes: a note. */\nconst a = <p>Why Otto proposes it</p>; // Otto asked\n", encoding="utf-8"
+    )
     lines = [text for _, text in _screen_texts(screen)]
-    assert any("Why Otto proposes it" in t for t in lines) and not any("a note" in t or "Otto asked" in t for t in lines)
+    assert any("Why Otto proposes it" in t for t in lines) and not any(
+        "a note" in t or "Otto asked" in t for t in lines
+    )

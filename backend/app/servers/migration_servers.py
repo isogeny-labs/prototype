@@ -14,6 +14,7 @@ own ssl module, so they start even when post-quantum TLS is not available here. 
 the migration demo file is imported), never when the app starts. A port another program already uses, or anything
 else that stops a server, is reported in plain words and the app carries on.
 """
+
 from __future__ import annotations
 
 import errno
@@ -61,6 +62,7 @@ def claims_match(claims: list[tuple[str, str, str]], ports: tuple[int, ...]) -> 
     """Do these stored claims (location, kind, claimed value) come from the migration demo file?"""
     try:
         from app.importer.reader import parse_file
+
         parsed = parse_file(MIGRATION_FILE.name, file_for(tuple(ports)))
         expected = [(c.location, c.kind, c.claimed_value) for c in parsed.claims]
     except Exception:
@@ -68,8 +70,9 @@ def claims_match(claims: list[tuple[str, str, str]], ports: tuple[int, ...]) -> 
     return list(claims) == expected
 
 
-def _python_ssl_context(kind: str, common_name: str, *, maximum: ssl.TLSVersion, curves: tuple[str, ...],
-                        ciphers: str | None = None) -> tuple[ssl.SSLContext, bytes]:
+def _python_ssl_context(
+    kind: str, common_name: str, *, maximum: ssl.TLSVersion, curves: tuple[str, ...], ciphers: str | None = None
+) -> tuple[ssl.SSLContext, bytes]:
     """A Python-ssl server context with a fresh test certificate, and that certificate (DER). Python's ssl can
     only load a key from a file: it is written to a private temporary folder and deleted right after loading."""
     cert_pem, key_pem, der = pqtls.test_certificate(kind, common_name)
@@ -103,20 +106,35 @@ def _start(role: str, port: int):
     name = f"demo-{role.replace('_', '-')}"
     if role == "hybrid":
         cert_pem, key_pem, der = pqtls.test_certificate("ecdsa-p256", name)
-        return pqtls.Server(groups=pqtls.HYBRID_GROUPS, certificate_pem=cert_pem, key_pem=key_pem,
-                            min_version="TLS 1.2", max_version="TLS 1.3", port=port), der
+        return pqtls.Server(
+            groups=pqtls.HYBRID_GROUPS,
+            certificate_pem=cert_pem,
+            key_pem=key_pem,
+            min_version="TLS 1.2",
+            max_version="TLS 1.3",
+            port=port,
+        ), der
     if role == "pq_only":
         pqtls._require()  # say "can't run post-quantum TLS" before trying to make an ML-DSA key
         cert_pem, key_pem, der = pqtls.test_certificate("mldsa-65", name)
-        return pqtls.Server(groups="MLKEM768", certificate_pem=cert_pem, key_pem=key_pem,
-                            min_version="TLS 1.3", max_version="TLS 1.3", port=port), der
+        return pqtls.Server(
+            groups="MLKEM768",
+            certificate_pem=cert_pem,
+            key_pem=key_pem,
+            min_version="TLS 1.3",
+            max_version="TLS 1.3",
+            port=port,
+        ), der
     if role == "classical_internet":
-        ctx, der = _python_ssl_context("ecdsa-p256", name, maximum=ssl.TLSVersion.TLSv1_3, curves=("X25519", "prime256v1"))
+        ctx, der = _python_ssl_context(
+            "ecdsa-p256", name, maximum=ssl.TLSVersion.TLSv1_3, curves=("X25519", "prime256v1")
+        )
     elif role == "classical_internal":
         ctx, der = _python_ssl_context("ecdsa-p256", name, maximum=ssl.TLSVersion.TLSv1_3, curves=("prime256v1",))
     elif role == "legacy_tls12":
-        ctx, der = _python_ssl_context("rsa-2048", name, maximum=ssl.TLSVersion.TLSv1_2, curves=("prime256v1",),
-                                       ciphers=LEGACY_CIPHERS)
+        ctx, der = _python_ssl_context(
+            "rsa-2048", name, maximum=ssl.TLSVersion.TLSv1_2, curves=("prime256v1",), ciphers=LEGACY_CIPHERS
+        )
     else:
         raise ValueError(role)
     return TlsServer(ctx, port), der
@@ -127,6 +145,7 @@ def file_settings(ports: tuple[int, ...]) -> list[tuple[str, str, str]]:
     a stored import of exactly our demo file from a file that only makes the same claims."""
     try:
         from app.importer.reader import parse_file
+
         parsed = parse_file(MIGRATION_FILE.name, file_for(tuple(ports)))
         return sorted((s.location, s.field, s.value) for s in parsed.settings)
     except Exception:
@@ -135,7 +154,11 @@ def file_settings(ports: tuple[int, ...]) -> list[tuple[str, str, str]]:
 
 # Phase 4b: each role's settings, in the settings model of lab_servers (what a change starts from).
 ROLE_SETTINGS = {
-    "hybrid": {"groups": "X25519MLKEM768:X25519:P-256", "versions": ["TLS 1.2", "TLS 1.3"], "certificate": "ecdsa-p256"},
+    "hybrid": {
+        "groups": "X25519MLKEM768:X25519:P-256",
+        "versions": ["TLS 1.2", "TLS 1.3"],
+        "certificate": "ecdsa-p256",
+    },
     "classical_internet": {"groups": "X25519", "versions": ["TLS 1.2", "TLS 1.3"], "certificate": "ecdsa-p256"},
     "classical_internal": {"groups": "P-256", "versions": ["TLS 1.2", "TLS 1.3"], "certificate": "ecdsa-p256"},
     "legacy_tls12": {"groups": "P-256", "versions": ["TLS 1.2"], "certificate": "rsa-2048"},
@@ -155,7 +178,9 @@ class MigrationServers:
         self._keep: dict[int, tuple] = {}
         self._previous: dict[int, tuple] = {}
         self._servers: dict[int, object] = {}
-        self.fingerprints: dict[int, str] = {}  # so a check can tell our own test server from another program on the port
+        self.fingerprints: dict[
+            int, str
+        ] = {}  # so a check can tell our own test server from another program on the port
         self.problems: dict[int, str] = {}
         self._lock = threading.Lock()
 
@@ -170,6 +195,7 @@ class MigrationServers:
                     applied = self.settings_for(port)
                     if applied:
                         from app.servers.lab_servers import LabServer
+
                         lab = LabServer(applied, port, f"demo-{role.replace('_', '-')}")
                         server, der = lab, lab.certificate[2]
                         self.settings[port], self._keep[port] = lab.settings, lab.certificate
@@ -181,19 +207,27 @@ class MigrationServers:
                     self.problems.pop(port, None)
                 except pqtls.PqTlsUnavailable as exc:
                     reason = str(exc).strip().rstrip(".")
-                    self.problems[port] = (f"The demo test server for {where} could not start: this computer's copy of "
-                                           f"the cryptography library can't run post-quantum TLS ({reason}). "
-                                           "Its row will show Couldn't check.")
+                    self.problems[port] = (
+                        f"The demo test server for {where} could not start: this computer's copy of "
+                        f"the cryptography library can't run post-quantum TLS ({reason}). "
+                        "Its row will show Couldn't check."
+                    )
                 except OSError as exc:
                     if exc.errno == errno.EADDRINUSE:
-                        self.problems[port] = (f"Port {port} on this computer is already used by another program, so the "
-                                               f"demo test server for {where} could not start. Its row will show Couldn't check.")
+                        self.problems[port] = (
+                            f"Port {port} on this computer is already used by another program, so the "
+                            f"demo test server for {where} could not start. Its row will show Couldn't check."
+                        )
                     else:
-                        self.problems[port] = (f"The demo test server for {where} could not start "
-                                               f"({exc.strerror or exc.__class__.__name__}). Its row will show Couldn't check.")
+                        self.problems[port] = (
+                            f"The demo test server for {where} could not start "
+                            f"({exc.strerror or exc.__class__.__name__}). Its row will show Couldn't check."
+                        )
                 except Exception as exc:
-                    self.problems[port] = (f"The demo test server for {where} could not be set up "
-                                           f"({exc.__class__.__name__}). Its row will show Couldn't check.")
+                    self.problems[port] = (
+                        f"The demo test server for {where} could not be set up "
+                        f"({exc.__class__.__name__}). Its row will show Couldn't check."
+                    )
             return [self.problems[p] for p in self.ports if p in self.problems]
 
     @property
@@ -210,6 +244,7 @@ class MigrationServers:
         """Restart one running test server on the same port with new settings (phase 4b). The test certificate is
         kept when its kind doesn't change (or `keep` is given, on a roll back). (taken?, plain words)."""
         from app.servers.lab_servers import LabServer, keep_kind, normal
+
         with self._lock:
             old = self._servers.get(port)
             if old is None:
@@ -220,14 +255,19 @@ class MigrationServers:
             try:
                 old.close()
                 server = LabServer(s, port, f"demo-{port}", reuse)
-            except Exception as exc:   # the port is free again: put the earlier settings back so the server keeps answering
+            except (
+                Exception
+            ) as exc:  # the port is free again: put the earlier settings back so the server keeps answering
                 try:
                     back = LabServer(self.settings[port], port, f"demo-{port}", current)
                     self._servers[port], self.fingerprints[port] = back, back.fingerprint
                     self._keep[port] = back.certificate
                 except Exception:
                     self._servers.pop(port, None)
-                return False, f"the test server could not take these settings ({exc.__class__.__name__}); it kept the earlier ones"
+                return (
+                    False,
+                    f"the test server could not take these settings ({exc.__class__.__name__}); it kept the earlier ones",
+                )
             self._previous[port] = current
             self._servers[port], self.fingerprints[port] = server, server.fingerprint
             self.settings[port], self._keep[port] = server.settings, server.certificate

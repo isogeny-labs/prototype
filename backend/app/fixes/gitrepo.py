@@ -12,6 +12,7 @@ Limits, on purpose: loose objects only (no pack files), flat repositories (files
 UTF-8 text files, UTC times. Changes are lined up with Python's difflib, which is not git's own method (see
 `_matcher`).
 """
+
 from __future__ import annotations
 
 import difflib
@@ -23,7 +24,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-MAX_OBJECT_BYTES = 2_000_000   # nothing in a demo repository comes near this; bigger objects are refused
+MAX_OBJECT_BYTES = 2_000_000  # nothing in a demo repository comes near this; bigger objects are refused
 MAX_FILES = 200
 MAX_HISTORY = 500
 
@@ -148,9 +149,9 @@ class GitRepo:
             raw = unpack.decompress(target.read_bytes(), MAX_OBJECT_BYTES + 64)
         except zlib.error:
             raise GitRepoError("The repository holds a damaged object.") from None
-        if unpack.unconsumed_tail:                  # there is more than the size this app reads
+        if unpack.unconsumed_tail:  # there is more than the size this app reads
             raise GitRepoError("The repository holds an object that is too large to read.")
-        if not unpack.eof or unpack.unused_data:    # the file was cut short, or something was added after it
+        if not unpack.eof or unpack.unused_data:  # the file was cut short, or something was added after it
             raise GitRepoError("The repository holds a damaged object.")
         head, sep, body = raw.partition(b"\0")
         if not sep or head != kind.encode() + b" " + str(len(body)).encode():
@@ -179,17 +180,24 @@ class GitRepo:
             space, nul = body.find(b" ", at), body.find(b"\0", at)
             if space < 0 or nul < space or nul + 21 > len(body):
                 raise GitRepoError("The repository holds a damaged folder listing.")
-            mode, name = body[at:space], body[space + 1:nul].decode("utf-8", "replace")
+            mode, name = body[at:space], body[space + 1 : nul].decode("utf-8", "replace")
             if mode not in _FILE_MODES:
                 raise GitRepoError("This app only handles repositories whose files are all at the top level.")
-            files[check_file_name(name)] = body[nul + 1:nul + 21].hex()
+            files[check_file_name(name)] = body[nul + 1 : nul + 21].hex()
             at = nul + 21
         if len(files) > MAX_FILES:
             raise GitRepoError("That is more files than this app handles.")
         return files
 
-    def write_commit(self, tree: str, parents: tuple[str, ...] | list[str], author: Person, when: int, message: str,
-                     committer: Person | None = None) -> str:
+    def write_commit(
+        self,
+        tree: str,
+        parents: tuple[str, ...] | list[str],
+        author: Person,
+        when: int,
+        message: str,
+        committer: Person | None = None,
+    ) -> str:
         who = committer or author
         lines = [f"tree {_check_sha(tree)}"] + [f"parent {_check_sha(p)}" for p in parents]
         lines.append(f"author {_person_text(author.name)} <{_person_text(author.email)}> {int(when)} +0000")
@@ -214,8 +222,16 @@ class GitRepo:
                 people[key] = (Person(match["name"], match["email"]), int(match["time"]))
         if tree is None or "author" not in people or "committer" not in people:
             raise GitRepoError("The repository holds a commit this app cannot read.")
-        return Commit(sha, _check_sha(tree), tuple(_check_sha(p) for p in parents), people["author"][0],
-                      people["author"][1], people["committer"][0], people["committer"][1], message.rstrip("\n"))
+        return Commit(
+            sha,
+            _check_sha(tree),
+            tuple(_check_sha(p) for p in parents),
+            people["author"][0],
+            people["author"][1],
+            people["committer"][0],
+            people["committer"][1],
+            message.rstrip("\n"),
+        )
 
     # ------------------------------------------------------------------ branches
 
@@ -223,7 +239,7 @@ class GitRepo:
         text = _ref_text(self.path / "HEAD")
         if not text.startswith("ref: refs/heads/"):
             raise GitRepoError("The repository's HEAD does not name a branch.")
-        return check_branch_name(text[len("ref: refs/heads/"):])
+        return check_branch_name(text[len("ref: refs/heads/") :])
 
     def _branch_path(self, name: str) -> Path:
         return self.path / "refs" / "heads" / Path(*check_branch_name(name).split("/"))
@@ -270,8 +286,9 @@ class GitRepo:
     def file_ids(self, commit_sha: str) -> dict[str, str]:
         return self.read_tree(self.read_commit(commit_sha).tree)
 
-    def commit(self, branch: str, files: dict[str, bytes], message: str, author: Person, when: int,
-               expect: str | None) -> str:
+    def commit(
+        self, branch: str, files: dict[str, bytes], message: str, author: Person, when: int, expect: str | None
+    ) -> str:
         """Save `files` as the whole content of a new commit on `branch`. `expect` is the commit the branch
         points at now (None for a branch that does not exist yet and has no parent)."""
         tree = self.write_tree({name: self.write_blob(data) for name, data in files.items()})
@@ -279,7 +296,9 @@ class GitRepo:
         self.set_branch(branch, sha, expect)
         return sha
 
-    def branch_from(self, name: str, start: str, files: dict[str, bytes], message: str, author: Person, when: int) -> str:
+    def branch_from(
+        self, name: str, start: str, files: dict[str, bytes], message: str, author: Person, when: int
+    ) -> str:
         """A new branch `name` with one new commit on top of commit `start`."""
         if self.branch(name) is not None:
             raise GitRepoError("A branch with that name already exists.")
@@ -328,10 +347,12 @@ class GitRepo:
 
 # ---------------------------------------------------------------------- what changed between two texts
 
+
 @dataclass(frozen=True)
 class Spot:
     """One changed place: lines old_start..old_end (not included) of the old text became
     lines new_start..new_end of the new text. Counted from 0."""
+
     old_start: int
     old_end: int
     new_start: int
@@ -390,13 +411,20 @@ def unified_diff(old: bytes, new: bytes, name: str, context: int = 3) -> str:
         a, b = _lines(old.decode("utf-8")), _lines(new.decode("utf-8"))
     except UnicodeDecodeError:
         raise GitRepoError("This app only shows changes to text files.") from None
-    out = [f"diff --git a/{name} b/{name}\n", f"index {blob_id(old)[:7]}..{blob_id(new)[:7]} 100644\n",
-           f"--- a/{name}\n", f"+++ b/{name}\n"]
+    out = [
+        f"diff --git a/{name} b/{name}\n",
+        f"index {blob_id(old)[:7]}..{blob_id(new)[:7]} 100644\n",
+        f"--- a/{name}\n",
+        f"+++ b/{name}\n",
+    ]
     for group in _matcher(a, b).get_grouped_opcodes(context):
         out.append(f"@@ -{_range(group[0][1], group[-1][2])} +{_range(group[0][3], group[-1][4])} @@\n")
         for tag, i1, i2, j1, j2 in group:
-            for sign, lines in ((" ", a[i1:i2] if tag == "equal" else []), ("-", a[i1:i2] if tag in ("replace", "delete") else []),
-                                ("+", b[j1:j2] if tag in ("replace", "insert") else [])):
+            for sign, lines in (
+                (" ", a[i1:i2] if tag == "equal" else []),
+                ("-", a[i1:i2] if tag in ("replace", "delete") else []),
+                ("+", b[j1:j2] if tag in ("replace", "insert") else []),
+            ):
                 for line in lines:
                     out.append(sign + line if line.endswith("\n") else sign + line + "\n\\ No newline at end of file\n")
     return "".join(out) if len(out) > 4 else ""
@@ -417,7 +445,9 @@ def format_patch(commit: Commit, old_files: dict[str, bytes], new_files: dict[st
         raise GitRepoError("This app only writes patches for changes to files that already exist.")
     diffs, stats, added_all, removed_all = [], [], 0, 0
     for name in changed:
-        added, removed = count_changes(old_files[name].decode("utf-8", "replace"), new_files[name].decode("utf-8", "replace"))
+        added, removed = count_changes(
+            old_files[name].decode("utf-8", "replace"), new_files[name].decode("utf-8", "replace")
+        )
         stats.append(_stat_line(name, added, removed))
         added_all, removed_all = added_all + added, removed_all + removed
         diffs.append(unified_diff(old_files[name], new_files[name], name))
@@ -428,11 +458,18 @@ def format_patch(commit: Commit, old_files: dict[str, bytes], new_files: dict[st
         summary += f", {_plural(added_all, 'insertion')}(+)"
     if removed_all:
         summary += f", {_plural(removed_all, 'deletion')}(-)"
-    return "".join([
-        f"From {commit.sha} Mon Sep 17 00:00:00 2001\n",
-        f"From: {commit.author.name} <{commit.author.email}>\n",
-        f"Date: {when}\n",
-        f"Subject: [PATCH] {title}\n\n",
-        (body.strip("\n") + "\n") if body.strip() else "",
-        "---\n", *stats, summary + "\n\n", *diffs, "-- \n", footer.strip() + "\n\n",
-    ])
+    return "".join(
+        [
+            f"From {commit.sha} Mon Sep 17 00:00:00 2001\n",
+            f"From: {commit.author.name} <{commit.author.email}>\n",
+            f"Date: {when}\n",
+            f"Subject: [PATCH] {title}\n\n",
+            (body.strip("\n") + "\n") if body.strip() else "",
+            "---\n",
+            *stats,
+            summary + "\n\n",
+            *diffs,
+            "-- \n",
+            footer.strip() + "\n\n",
+        ]
+    )

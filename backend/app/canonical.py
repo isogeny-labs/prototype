@@ -2,6 +2,7 @@
 
 canonical_bytes: keys sorted, no spaces, UTF-8, no NaN. loads_strict: reads JSON and refuses
 duplicate keys, NaN / Infinity and anything after the value."""
+
 from __future__ import annotations
 
 import hashlib

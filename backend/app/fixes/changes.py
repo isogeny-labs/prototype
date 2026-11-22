@@ -10,6 +10,7 @@ itself is the proof, when the code is connected. Whether a change may be offered
 from stored records, and checked again every time it is shown or used.
 
 Records are append-only and no status is stored: where a fix stands is worked out from the rows each time."""
+
 from __future__ import annotations
 
 import hashlib
@@ -27,8 +28,22 @@ from app import real_libraries
 from app.engine import research
 from app.canonical import canonical_bytes
 from app.db import (
-    ApprovalRow, ChangeRow, CodeConnectionRow, ImportRow, MergeRow, PlanItemRow, PlanRow, ProofReviewRow, ProofRow, PullRequestRow, RetestRow,
-    ReviewRow, TestRunRow, TestSpecRow, WatchRunRow, iso,
+    ApprovalRow,
+    ChangeRow,
+    CodeConnectionRow,
+    ImportRow,
+    MergeRow,
+    PlanItemRow,
+    PlanRow,
+    ProofReviewRow,
+    ProofRow,
+    PullRequestRow,
+    RetestRow,
+    ReviewRow,
+    TestRunRow,
+    TestSpecRow,
+    WatchRunRow,
+    iso,
 )
 from app.errors import BadRequest, Conflict, NotFound
 from app.fixes.gitrepo import GitRepo, GitRepoError, Person, count_changes, format_patch
@@ -41,7 +56,7 @@ from app.otto.engine import OttoCouldNot
 # records each approval; the two demo reviewers are demo data.
 REVIEWERS = {"you": "You", "a": "Demo reviewer A", "b": "Demo reviewer B"}
 TEMPLATE_AUTHOR = Person("Evidence Lab fix template", "fix-template@example.invalid")
-OTTO_AUTHOR = Person("Otto (Evidence Lab)", "otto@example.invalid")   # phase 5c: the author of a change Otto wrote
+OTTO_AUTHOR = Person("Otto (Evidence Lab)", "otto@example.invalid")  # phase 5c: the author of a change Otto wrote
 MERGE_AUTHOR = Person("Evidence Lab user", "user@example.invalid")
 PATCH_FOOTER = "Isogeny Evidence Lab (demo)"
 PROOF_CHANGED = "The stored proof no longer matches its fingerprint."
@@ -56,12 +71,13 @@ def patch_name(repository: str, number: int) -> str:
     return f"{repository}-pull-request-{number}.patch"
 
 
-registered_version = components.registered_version      # the byte-for-byte check; nothing is run to find out
+registered_version = components.registered_version  # the byte-for-byte check; nothing is run to find out
 
 
 # ---------------------------------------------------------------- why an action is refused right now
 # Each takes one code fix as fix_states describes it and gives a plain sentence, or None when the action is
 # allowed. The actions and the description of a fix both use these, so a button and its refusal can't disagree.
+
 
 def _no_connect_of_ottos(state: str) -> str | None:
     """Connect demo code, for a change of Otto's (phase 5c): only after a person accepted Otto's proposal. `state` is
@@ -190,10 +206,14 @@ class ChangesMixin:
     """Mixed into Lab. Needs: db, settings, jobs, engine, reviewer, _stopping, and from TestLabMixin: _plan_lock,
     _plan, _items, _latest_run, _result, _verdict, _compare_blocked, _submit, start_retest."""
 
-    _fixes_for_dependencies: Callable[..., list[dict]]   # from DependenciesMixin (phase 4d); declared for the type check only
-    _fixes_for_developer_changes: Callable[..., list[dict]]   # from ChangeWatchMixin (phase 6d); declared for the type check only
-    _otto_pack_fix: Callable[..., dict | None]            # from OttoMixin (phase 5c)
-    _otto_state: Callable[..., str]                       # from ProposalsMixin (phase 5c): where a proposal stands
+    _fixes_for_dependencies: Callable[
+        ..., list[dict]
+    ]  # from DependenciesMixin (phase 4d); declared for the type check only
+    _fixes_for_developer_changes: Callable[
+        ..., list[dict]
+    ]  # from ChangeWatchMixin (phase 6d); declared for the type check only
+    _otto_pack_fix: Callable[..., dict | None]  # from OttoMixin (phase 5c)
+    _otto_state: Callable[..., str]  # from ProposalsMixin (phase 5c): where a proposal stands
 
     def _init_changes(self) -> None:
         self._proof_lock = threading.Lock()  # so that a proof is reviewed once when two of its jobs finish together
@@ -208,7 +228,9 @@ class ChangesMixin:
     def _shown(self, db, plan: PlanRow, items: list) -> list[dict]:
         """The results Evidence Lab has for each test now, in plan order: the newest reviewed first run and, once
         a retest exists, the newest reviewed run of the latest retest. Each as the read gate lets it through."""
-        retest = db.scalars(select(RetestRow).where(RetestRow.plan_id == plan.id).order_by(RetestRow.id.desc()).limit(1)).first()
+        retest = db.scalars(
+            select(RetestRow).where(RetestRow.plan_id == plan.id).order_by(RetestRow.id.desc()).limit(1)
+        ).first()
         phases = [("first", None)] + ([("retest", retest.id)] if retest is not None else [])
         claims = self._claims(db.get(ImportRow, plan.import_id))
         out = []
@@ -221,10 +243,20 @@ class ChangesMixin:
                 if run is not None:
                     result = self._result(db, run)
                     # own: the test runs the plan's own program, the code a code fix changes
-                    out.append({"item_id": item.id, "kind": kind, "phase": phase, "run_id": run.id, "component": run.component_name,
-                                "version": run.component_version, "code": result["code"], "tone": result["tone"],
-                                "own": bool(program and program["own"]),
-                                "other_program": bool(program and not program["own"])})
+                    out.append(
+                        {
+                            "item_id": item.id,
+                            "kind": kind,
+                            "phase": phase,
+                            "run_id": run.id,
+                            "component": run.component_name,
+                            "version": run.component_version,
+                            "code": result["code"],
+                            "tone": result["tone"],
+                            "own": bool(program and program["own"]),
+                            "other_program": bool(program and not program["own"]),
+                        }
+                    )
         return out
 
     def _repo(self, folder: str) -> GitRepo:
@@ -249,8 +281,15 @@ class ChangesMixin:
             return None
         return files if registered_version(plan.component_name, files) == plan.component_version else None
 
-    def _proposal(self, db, plan: PlanRow, shown: list[dict], files: dict[str, bytes], mode: str = "view",
-                  template_only: bool = False) -> tuple[dict, list[dict]] | None:
+    def _proposal(
+        self,
+        db,
+        plan: PlanRow,
+        shown: list[dict],
+        files: dict[str, bytes],
+        mode: str = "view",
+        template_only: bool = False,
+    ) -> tuple[dict, list[dict]] | None:
         """Ask the engine for a change that answers the plan's failed first results, giving it the code as text.
         Returns (the proposal, the results it answers), or None. A change may only edit files already there.
         `mode` is "view" when a page is only being shown (nothing is asked of Claude and nothing is written) and
@@ -273,13 +312,20 @@ class ChangesMixin:
         except UnicodeDecodeError:
             return None
         # The question is the same every time it is asked. Beside it, since phase 5c, the request says who is asking.
-        proposal = self.engine.propose_change({"component": {"name": plan.component_name, "version": plan.component_version},
-                                               "failed": request, "files": texts,
-                                               "asking": {"plan_id": plan.id, "mode": mode, "template_only": template_only}})
+        proposal = self.engine.propose_change(
+            {
+                "component": {"name": plan.component_name, "version": plan.component_version},
+                "failed": request,
+                "files": texts,
+                "asking": {"plan_id": plan.id, "mode": mode, "template_only": template_only},
+            }
+        )
         if not proposal or set(proposal["files"]) != set(texts):
             return None
         answered = [failed[i] for i in proposal["answers"] if isinstance(i, int) and 0 <= i < len(failed)]
-        return (proposal, answered) if answered else None  # a change that answers none of the failures is not a fix for them
+        return (
+            (proposal, answered) if answered else None
+        )  # a change that answers none of the failures is not a fix for them
 
     # ---------------------------------------------------------------- where every fix stands
 
@@ -294,7 +340,12 @@ class ChangesMixin:
         """Where fixes come from, as an explicit list. Phase 3a has one source; phase 3c adds a developer's change."""
         # phase 4a adds the migration plan's entries; phase 4d one entry per library that blocks a track; phase 6d (the
         # plan's 3c) one entry for each developer's change that makes tests fail which passed on the code before
-        return [self._fixes_for_failed_tests, self._fixes_for_migration, self._fixes_for_dependencies, self._fixes_for_developer_changes]
+        return [
+            self._fixes_for_failed_tests,
+            self._fixes_for_migration,
+            self._fixes_for_dependencies,
+            self._fixes_for_developer_changes,
+        ]
 
     def _fixes(self, db, plan: PlanRow) -> list[dict]:
         items = self._items(db, plan.id)
@@ -321,7 +372,9 @@ class ChangesMixin:
         # that only a retest found leaves the list once the next retest starts (docs/LIMITS.md says so).
         newest: dict[int, dict] = {}
         for r in shown:
-            if r["tone"] in ("pass", "fail") and (r["item_id"] not in newest or r["run_id"] > newest[r["item_id"]]["run_id"]):
+            if r["tone"] in ("pass", "fail") and (
+                r["item_id"] not in newest or r["run_id"] > newest[r["item_id"]]["run_id"]
+            ):
                 newest[r["item_id"]] = r
         # One text-only fix per failed test, so each server (or program) has its own suggestion. Its id is
         # "fix-<test>" while the plan holds one test of that kind (as it always was), else "fix-<test>-<item>".
@@ -333,11 +386,23 @@ class ChangesMixin:
         kept = {c["_item_id"] for c in self._tls_changes(db, plan) if self._ever_applied(db, c["key"])}
         for item_id in kept - {r["item_id"] for r in failed}:
             # its newest result passes now, so Evidence Lab shows no failure for it: answer the last failure on record
-            run = db.scalars(select(TestRunRow).join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
-                             .where(TestRunRow.plan_item_id == item_id, TestRunRow.phase == "first", ReviewRow.code == "failed")
-                             .order_by(TestRunRow.id.desc()).limit(1)).first()
+            run = db.scalars(
+                select(TestRunRow)
+                .join(ReviewRow, ReviewRow.run_id == TestRunRow.id)
+                .where(TestRunRow.plan_item_id == item_id, TestRunRow.phase == "first", ReviewRow.code == "failed")
+                .order_by(TestRunRow.id.desc())
+                .limit(1)
+            ).first()
             if run is not None:
-                failed.append({"item_id": item_id, "kind": self._kind(db, run.spec_hash), "run_id": run.id, "phase": "first", "tone": "fail"})
+                failed.append(
+                    {
+                        "item_id": item_id,
+                        "kind": self._kind(db, run.spec_hash),
+                        "run_id": run.id,
+                        "phase": "first",
+                        "tone": "fail",
+                    }
+                )
                 newest.setdefault(item_id, failed[-1])
         # Phase 4b: an Apply that is still in force on our demo server, made from another import of the file, has an entry
         # too, so its Roll back is always on a screen, even where this file's own tests show no failure.
@@ -345,10 +410,27 @@ class ChangesMixin:
         for change in self._tls_changes(db, plan):
             in_force, _ = self._settings_history(db, change["address"])
             if in_force is not None and change["_item_id"] not in listed:
-                fixes.append({"id": "fix-tls-versions-applied", "test_kind": "tls_versions", "kind": "text", "status": "text_only",
-                              "source_kind": "applied_change", "answers": [], "component": None, "template_id": None,
-                              "rerun_blocked": None, "connection": None, "change": None, "proofs": 0, "proof": None,
-                              "pull_request": None, "merge": None, "actions": {}, "change_key": change["key"]})
+                fixes.append(
+                    {
+                        "id": "fix-tls-versions-applied",
+                        "test_kind": "tls_versions",
+                        "kind": "text",
+                        "status": "text_only",
+                        "source_kind": "applied_change",
+                        "answers": [],
+                        "component": None,
+                        "template_id": None,
+                        "rerun_blocked": None,
+                        "connection": None,
+                        "change": None,
+                        "proofs": 0,
+                        "proof": None,
+                        "pull_request": None,
+                        "merge": None,
+                        "actions": {},
+                        "change_key": change["key"],
+                    }
+                )
         for item_id in dict.fromkeys(r["item_id"] for r in failed):
             mine = [r for r in failed if r["item_id"] == item_id and r["run_id"] not in answered]
             if not mine:
@@ -356,31 +438,66 @@ class ChangesMixin:
             kind = mine[0]["kind"]
             last = max(mine, key=lambda r: r["run_id"])
             # Phase 5c: for a failed advisory check, the fix the test pack carries for its advisory.
-            otto_fix = self._otto_pack_fix(db, last["item_id"], last.get("component")) if kind == research.ADVISORY_KIND else None
+            otto_fix = (
+                self._otto_pack_fix(db, last["item_id"], last.get("component"))
+                if kind == research.ADVISORY_KIND
+                else None
+            )
             # A library's fix from Otto stays listed once a retest on the fixed version has a result, so that its second
             # proof row ("Proven in this assessment") can be read where the fix is: it is a fact on record, with its date.
-            retested = bool(otto_fix and otto_fix.get("kind") == "update" and (otto_fix.get("here") or {}).get("state") != "not_yet")
+            retested = bool(
+                otto_fix and otto_fix.get("kind") == "update" and (otto_fix.get("here") or {}).get("state") != "not_yet"
+            )
             answers = mine if (newest[item_id]["tone"] == "fail" or item_id in kept or retested) else []
             if answers:
                 fix_id = "fix-" + str(kind).replace("_", "-") + ("" if len(per_kind[kind]) == 1 else f"-{item_id}")
                 # Phase 4c: a failure on a real library. The fix is its publisher's fixed version, where one is known;
                 # no code change or pull request is ever offered for other people's code.
                 library = real_libraries.library(last.get("component"), last.get("version"))
-                real = ({"name": last["component"], "version": last["version"],
-                         "fixed": real_libraries.fixed_version(last["component"], last["version"])} if library else None)
+                real = (
+                    {
+                        "name": last["component"],
+                        "version": last["version"],
+                        "fixed": real_libraries.fixed_version(last["component"], last["version"]),
+                    }
+                    if library
+                    else None
+                )
                 if otto_fix is not None and otto_fix.get("kind") == "update":
-                    otto_fix["program"] = f"{last.get('component')} {last.get('version')}" if last.get("version") else str(last.get("component"))
+                    otto_fix["program"] = (
+                        f"{last.get('component')} {last.get('version')}"
+                        if last.get("version")
+                        else str(last.get("component"))
+                    )
                 proposal = None
                 if otto_fix is not None and otto_fix.get("kind") == "update":
                     # ... and since Otto's fix is a proposal: where a person's decisions on it stand (the Fixes view words it)
                     pid = otto_proposals.update_fix_id(item_id)
                     proposal = {"id": pid, "state": self._otto_state(db, plan.id, pid)}
-                fixes.append({"id": fix_id, "test_kind": kind, "kind": "text", "status": "text_only",
-                              "source_kind": "failed_tests", "answers": [_answer(r) for r in answers], "component": None,
-                              "template_id": None, "rerun_blocked": None, "connection": None, "change": None, "proofs": 0,
-                              "proof": None, "pull_request": None, "merge": None, "actions": {}, "real_library": real,
-                              "otto_fix": otto_fix, "proposal": proposal,
-                              "closed_by_retest": bool(retested and newest[item_id]["tone"] == "pass")})
+                fixes.append(
+                    {
+                        "id": fix_id,
+                        "test_kind": kind,
+                        "kind": "text",
+                        "status": "text_only",
+                        "source_kind": "failed_tests",
+                        "answers": [_answer(r) for r in answers],
+                        "component": None,
+                        "template_id": None,
+                        "rerun_blocked": None,
+                        "connection": None,
+                        "change": None,
+                        "proofs": 0,
+                        "proof": None,
+                        "pull_request": None,
+                        "merge": None,
+                        "actions": {},
+                        "real_library": real,
+                        "otto_fix": otto_fix,
+                        "proposal": proposal,
+                        "closed_by_retest": bool(retested and newest[item_id]["tone"] == "pass"),
+                    }
+                )
         return fixes
 
     def _code_fix(self, db, plan: PlanRow, items: list, shown: list[dict], failed: list[dict]) -> dict | None:
@@ -388,15 +505,26 @@ class ChangesMixin:
         change = None
         if connection is None:
             # Not connected yet: would the engine make a change to the bundled code for these failures?
-            files = self._bundled_files(plan) if any(r["phase"] == "first" and r["code"] == "failed" for r in failed) else None
+            files = (
+                self._bundled_files(plan)
+                if any(r["phase"] == "first" and r["code"] == "failed" for r in failed)
+                else None
+            )
             proposed = self._proposal(db, plan, shown, files) if files is not None else None
             if proposed is None:
                 return None
             fix_key, came_from = proposed[0]["template_id"], [_answer(r) for r in proposed[1]]
-            otto, otto_note = proposed[0].get("otto"), proposed[0].get("otto_note")   # phase 5c: a change Otto wrote, or why not
+            otto, otto_note = (
+                proposed[0].get("otto"),
+                proposed[0].get("otto_note"),
+            )  # phase 5c: a change Otto wrote, or why not
         else:
-            change = db.scalars(select(ChangeRow).where(ChangeRow.plan_id == plan.id, ChangeRow.source_kind == "failed_tests")
-                                .order_by(ChangeRow.id.desc()).limit(1)).first()
+            change = db.scalars(
+                select(ChangeRow)
+                .where(ChangeRow.plan_id == plan.id, ChangeRow.source_kind == "failed_tests")
+                .order_by(ChangeRow.id.desc())
+                .limit(1)
+            ).first()
             if change is None:
                 return None
             fix_key, came_from = change.fix_key, [{**run, "phase": "first"} for run in change.source["runs"]]
@@ -404,15 +532,29 @@ class ChangesMixin:
             otto, otto_note = (change.source or {}).get("otto"), (change.source or {}).get("otto_note")
         # The fix answers the results it came from, and every failed result shown now for the same tests on the same code.
         tests, seen = {a["item_id"] for a in came_from}, {a["run_id"] for a in came_from}
-        answers = came_from + [_answer(r) for r in failed
-                               if r["item_id"] in tests and r["run_id"] not in seen and r["version"] == plan.component_version]
+        answers = came_from + [
+            _answer(r)
+            for r in failed
+            if r["item_id"] in tests and r["run_id"] not in seen and r["version"] == plan.component_version
+        ]
         missing = len(items) - sum(1 for r in shown if r["phase"] == "first")
-        fix = {"id": "fix-" + fix_key, "kind": "code", "source_kind": "failed_tests", "answers": answers,
-               "component": {"name": plan.component_name, "version": plan.component_version},
-               "template_id": change.template_id if change is not None else fix_key,
-               "rerun_blocked": self._compare_blocked(plan.id, items, missing),
-               "connection": None, "change": None, "proofs": 0, "proof": None, "pull_request": None, "merge": None,
-               "otto": otto, "otto_note": otto_note}
+        fix = {
+            "id": "fix-" + fix_key,
+            "kind": "code",
+            "source_kind": "failed_tests",
+            "answers": answers,
+            "component": {"name": plan.component_name, "version": plan.component_version},
+            "template_id": change.template_id if change is not None else fix_key,
+            "rerun_blocked": self._compare_blocked(plan.id, items, missing),
+            "connection": None,
+            "change": None,
+            "proofs": 0,
+            "proof": None,
+            "pull_request": None,
+            "merge": None,
+            "otto": otto,
+            "otto_note": otto_note,
+        }
         if change is not None:
             fix.update(self._change_state(db, plan, items, connection, change))
         fix["status"] = _status(fix)
@@ -426,10 +568,18 @@ class ChangesMixin:
             fix["proposal"] = {"id": pid, "state": state}
             if change is None:
                 not_accepted = _no_connect_of_ottos(state)
-        fix["actions"] = {"connect": ("The demo code is already connected for this file." if change is not None
-                                      else not_accepted or fix["rerun_blocked"]),
-                          "run_proof_again": _no_new_proof(fix), "open_pull_request": _no_pull_request(fix), "merge": _no_merge(fix),
-                          "download_patch": _no_patch(fix), "retest_now": _no_retest_now(fix)}
+        fix["actions"] = {
+            "connect": (
+                "The demo code is already connected for this file."
+                if change is not None
+                else not_accepted or fix["rerun_blocked"]
+            ),
+            "run_proof_again": _no_new_proof(fix),
+            "open_pull_request": _no_pull_request(fix),
+            "merge": _no_merge(fix),
+            "download_patch": _no_patch(fix),
+            "retest_now": _no_retest_now(fix),
+        }
         return fix
 
     def _also_answered(self, db, plan: PlanRow, shown: list[dict], change: ChangeRow, have: set[int]) -> list[dict]:
@@ -442,7 +592,11 @@ class ChangesMixin:
             return []
         files = self._bundled_files(plan)
         # A change from the fix template is asked about the fix template only (not about a change Otto would write now).
-        proposed = self._proposal(db, plan, shown, files, template_only=change.written_by == "fix_template") if files is not None else None
+        proposed = (
+            self._proposal(db, plan, shown, files, template_only=change.written_by == "fix_template")
+            if files is not None
+            else None
+        )
         if proposed is None or proposed[0]["template_id"] != change.template_id:
             return []
         return [_answer(r) for r in proposed[1] if r["item_id"] not in have]
@@ -452,28 +606,60 @@ class ChangesMixin:
         proofs = db.scalars(select(ProofRow).where(ProofRow.change_id == change.id).order_by(ProofRow.id)).all()
         pull_request = db.scalars(select(PullRequestRow).where(PullRequestRow.change_id == change.id)).first()
         state = {
-            "connection": {"id": connection.id, "repository": connection.repository, "folder": connection.folder,
-                           "branch": connection.branch, "base_commit": connection.base_commit,
-                           "component": {"name": connection.component_name, "version": connection.component_version},
-                           "is_demo": bool(connection.is_demo), "connected_at": iso(connection.created_at)},
-            "change": {"id": change.id, "fix_key": change.fix_key, "source_kind": change.source_kind, "source": change.source,
-                       "written_by": change.written_by, "template_id": change.template_id, "proposed_by": change.proposed_by,
-                       "title": change.title, "branch": change.branch, "base_commit": change.base_commit,
-                       "head_commit": change.head_commit, "files": change.files, "built": change.built,
-                       "created_at": iso(change.created_at), "problem": None if _known_template(change) else PROOF_CHANGED},
+            "connection": {
+                "id": connection.id,
+                "repository": connection.repository,
+                "folder": connection.folder,
+                "branch": connection.branch,
+                "base_commit": connection.base_commit,
+                "component": {"name": connection.component_name, "version": connection.component_version},
+                "is_demo": bool(connection.is_demo),
+                "connected_at": iso(connection.created_at),
+            },
+            "change": {
+                "id": change.id,
+                "fix_key": change.fix_key,
+                "source_kind": change.source_kind,
+                "source": change.source,
+                "written_by": change.written_by,
+                "template_id": change.template_id,
+                "proposed_by": change.proposed_by,
+                "title": change.title,
+                "branch": change.branch,
+                "base_commit": change.base_commit,
+                "head_commit": change.head_commit,
+                "files": change.files,
+                "built": change.built,
+                "created_at": iso(change.created_at),
+                "problem": None if _known_template(change) else PROOF_CHANGED,
+            },
             "proofs": len(proofs),
             "proof": self._proof_state(db, plan, items, change, proofs[-1]) if proofs else None,
-            "pull_request": None, "merge": None,
+            "pull_request": None,
+            "merge": None,
         }
         if pull_request is not None:
-            approved = {a.reviewer: a for a in db.scalars(select(ApprovalRow).where(ApprovalRow.pull_request_id == pull_request.id)).all()}
+            approved = {
+                a.reviewer: a
+                for a in db.scalars(select(ApprovalRow).where(ApprovalRow.pull_request_id == pull_request.id)).all()
+            }
             merge = db.scalars(select(MergeRow).where(MergeRow.pull_request_id == pull_request.id)).first()
             state["pull_request"] = {
-                "id": pull_request.id, "number": pull_request.number, "title": pull_request.title, "proof_id": pull_request.proof_id,
-                "reviewers": list(pull_request.reviewers), "opened_at": iso(pull_request.opened_at),
-                "approvals": [{"reviewer": r, "name": approved[r].name if r in approved else REVIEWERS.get(r, r),
-                               "approved_at": iso(approved[r].approved_at) if r in approved else None}
-                              for r in pull_request.reviewers]}
+                "id": pull_request.id,
+                "number": pull_request.number,
+                "title": pull_request.title,
+                "proof_id": pull_request.proof_id,
+                "reviewers": list(pull_request.reviewers),
+                "opened_at": iso(pull_request.opened_at),
+                "approvals": [
+                    {
+                        "reviewer": r,
+                        "name": approved[r].name if r in approved else REVIEWERS.get(r, r),
+                        "approved_at": iso(approved[r].approved_at) if r in approved else None,
+                    }
+                    for r in pull_request.reviewers
+                ],
+            }
             if merge is not None:
                 state["merge"] = {"merge_commit": merge.merge_commit, "merged_at": iso(merge.merged_at)}
         return state
@@ -492,29 +678,63 @@ class ChangesMixin:
             run = self._latest_run(db, entry["item_id"], "proof", proof.id)
             # where it runs: a server, the plan's own program (the changed code), or another program from the file
             program = self._program_of(plan, claims, spec) if spec else None
-            target = ("server" if (spec.get("target") or {}).get("kind") == "server" else
-                      "other_program" if program is not None and not program["own"] else "software")
-            out.append({"item_id": entry["item_id"], "kind": entry["kind"], "spec_hash": entry["spec_hash"], "target": target,
-                        "first": self._verdict(db, first) if first is not None else None,
-                        "proof": self._verdict(db, run) if run is not None else None})
+            target = (
+                "server"
+                if (spec.get("target") or {}).get("kind") == "server"
+                else "other_program"
+                if program is not None and not program["own"]
+                else "software"
+            )
+            out.append(
+                {
+                    "item_id": entry["item_id"],
+                    "kind": entry["kind"],
+                    "spec_hash": entry["spec_hash"],
+                    "target": target,
+                    "first": self._verdict(db, first) if first is not None else None,
+                    "proof": self._verdict(db, run) if run is not None else None,
+                }
+            )
         return out
 
     @staticmethod
     def _proof_record(proof: ProofRow, change: ChangeRow, tests: list[dict]) -> dict:
         """The proof record: what the reviewer is given and what the proof's fingerprint is made from. Stored
         facts only, in the form they are read back from the database, so it comes out the same on every read."""
+
         def part(verdict: dict | None, keys: tuple) -> dict | None:
             return {k: verdict[k] for k in keys} if verdict is not None else None
-        return {"schema": PROOF_SCHEMA,
-                "change": {"fix_key": change.fix_key, "template_id": change.template_id, "branch": change.branch,
-                           "base_commit": change.base_commit, "head_commit": change.head_commit, "files": change.files},
-                "built": change.built, "baseline_version": proof.baseline_version, "version": proof.version,
-                "proposed_by": change.proposed_by,
-                # the failed tests the change was made for: the reviewer asks that each of them was rerun and passed
-                "answers": [{"item_id": run["item_id"], "kind": run["kind"]} for run in (change.source or {}).get("runs") or []],
-                "tests": [{"item_id": t["item_id"], "kind": t["kind"], "spec_hash": t["spec_hash"], "target": t["target"],
-                           "first": part(t["first"], ("run_sha256", "code", "reason_code")),
-                           "proof": part(t["proof"], ("run_sha256", "code", "reason_code", "control_outcome"))} for t in tests]}
+
+        return {
+            "schema": PROOF_SCHEMA,
+            "change": {
+                "fix_key": change.fix_key,
+                "template_id": change.template_id,
+                "branch": change.branch,
+                "base_commit": change.base_commit,
+                "head_commit": change.head_commit,
+                "files": change.files,
+            },
+            "built": change.built,
+            "baseline_version": proof.baseline_version,
+            "version": proof.version,
+            "proposed_by": change.proposed_by,
+            # the failed tests the change was made for: the reviewer asks that each of them was rerun and passed
+            "answers": [
+                {"item_id": run["item_id"], "kind": run["kind"]} for run in (change.source or {}).get("runs") or []
+            ],
+            "tests": [
+                {
+                    "item_id": t["item_id"],
+                    "kind": t["kind"],
+                    "spec_hash": t["spec_hash"],
+                    "target": t["target"],
+                    "first": part(t["first"], ("run_sha256", "code", "reason_code")),
+                    "proof": part(t["proof"], ("run_sha256", "code", "reason_code", "control_outcome")),
+                }
+                for t in tests
+            ],
+        }
 
     def _proof_review(self, db, proof: ProofRow, change: ChangeRow, tests: list[dict]) -> dict | None:
         """The read gate for a proof. None while it has no review. Otherwise the stored review, believed only if
@@ -524,17 +744,39 @@ class ChangesMixin:
             return None
         try:
             again = self.reviewer.review_proof(self._proof_record(proof, change, tests))
-            believed = (_known_template(change)
-                        and (stored.reviewer, stored.record_sha256, bool(stored.offered), canonical_bytes(stored.detail))
-                        == (again["reviewer"], again["record_sha256"], again["offered"], canonical_bytes(_detail(again))))
+            believed = _known_template(change) and (
+                stored.reviewer,
+                stored.record_sha256,
+                bool(stored.offered),
+                canonical_bytes(stored.detail),
+            ) == (again["reviewer"], again["record_sha256"], again["offered"], canonical_bytes(_detail(again)))
         except Exception:
             believed = False
         if not believed:
-            return {"reviewed_at": iso(stored.created_at), "believed": False, "offered": False, "problem": PROOF_CHANGED,
-                    "record_sha256": None, "checks": None, "counts": None, "tests": [], "answers": [], "speed": None}
-        return {"reviewed_at": iso(stored.created_at), "believed": True, "offered": bool(stored.offered), "problem": None,
-                "record_sha256": stored.record_sha256, "checks": stored.detail["checks"], "counts": stored.detail["counts"],
-                "tests": stored.detail["tests"], "answers": stored.detail["answers"], "speed": stored.detail["speed"]}
+            return {
+                "reviewed_at": iso(stored.created_at),
+                "believed": False,
+                "offered": False,
+                "problem": PROOF_CHANGED,
+                "record_sha256": None,
+                "checks": None,
+                "counts": None,
+                "tests": [],
+                "answers": [],
+                "speed": None,
+            }
+        return {
+            "reviewed_at": iso(stored.created_at),
+            "believed": True,
+            "offered": bool(stored.offered),
+            "problem": None,
+            "record_sha256": stored.record_sha256,
+            "checks": stored.detail["checks"],
+            "counts": stored.detail["counts"],
+            "tests": stored.detail["tests"],
+            "answers": stored.detail["answers"],
+            "speed": stored.detail["speed"],
+        }
 
     def _proof_state(self, db, plan: PlanRow, items: list, change: ChangeRow, proof: ProofRow) -> dict:
         """The latest proof of a change: each test's first result and proof run, its live job, and the review."""
@@ -550,32 +792,63 @@ class ChangesMixin:
         for t in tests:
             # (a test whose reviewed run is stored by now is finished, even if its job was still live a moment ago)
             job, check = (live.get(t["item_id"]) if t["proof"] is None else None), checks.get(t["item_id"])
-            rows.append({"item_id": t["item_id"], "kind": t["kind"], "target": t["target"],
-                         "first": _shown_verdict(t["first"]), "proof": _shown_verdict(t["proof"]),
-                         "job": live_job_view(job) if job is not None else None,
-                         "check": {k: check[k] for k in ("group", "report_only", "ok", "reason")} if check is not None else None})
+            rows.append(
+                {
+                    "item_id": t["item_id"],
+                    "kind": t["kind"],
+                    "target": t["target"],
+                    "first": _shown_verdict(t["first"]),
+                    "proof": _shown_verdict(t["proof"]),
+                    "job": live_job_view(job) if job is not None else None,
+                    "check": {k: check[k] for k in ("group", "report_only", "ok", "reason")}
+                    if check is not None
+                    else None,
+                }
+            )
         state = "running" if live else "interrupted" if review is None else "passed" if review["offered"] else "failed"
-        return {"id": proof.id, "baseline_version": proof.baseline_version, "version": proof.version,
-                "started_at": iso(proof.started_at), "state": state,
-                "covers_plan": {(e["item_id"], e["spec_hash"]) for e in proof.items} == {(i.id, i.spec_hash) for i in items},
-                "finished": sum(1 for t in tests if t["proof"] is not None), "total": len(tests), "tests": rows, "review": review}
+        return {
+            "id": proof.id,
+            "baseline_version": proof.baseline_version,
+            "version": proof.version,
+            "started_at": iso(proof.started_at),
+            "state": state,
+            "covers_plan": {(e["item_id"], e["spec_hash"]) for e in proof.items}
+            == {(i.id, i.spec_hash) for i in items},
+            "finished": sum(1 for t in tests if t["proof"] is not None),
+            "total": len(tests),
+            "tests": rows,
+            "review": review,
+        }
 
     def _proof_run_finished(self, proof_id: int) -> None:
         """Called by every proof job once its run is reviewed. When the last test of the proof has its reviewed
         run, the proof itself is reviewed and the answer stored, once. Nothing is written while the app is closing."""
         with self._proof_lock, self.db() as db:
             proof = db.get(ProofRow, proof_id)
-            if self._stopping or proof is None or db.scalars(select(ProofReviewRow).where(ProofReviewRow.proof_id == proof_id)).first():
+            if (
+                self._stopping
+                or proof is None
+                or db.scalars(select(ProofReviewRow).where(ProofReviewRow.proof_id == proof_id)).first()
+            ):
                 return
             tests = self._proof_tests(db, proof)
             if any(t["proof"] is None for t in tests):
                 return  # other tests of this proof are still waiting or running
             try:
-                review = self.reviewer.review_proof(self._proof_record(proof, db.get(ChangeRow, proof.change_id), tests))
+                review = self.reviewer.review_proof(
+                    self._proof_record(proof, db.get(ChangeRow, proof.change_id), tests)
+                )
             except ReviewNotAllowed:
                 return  # never reviewed by the engine that proposed it: it then stays not offered
-            db.add(ProofReviewRow(proof_id=proof_id, reviewer=review["reviewer"], record_sha256=review["record_sha256"],
-                                  offered=review["offered"], detail=_detail(review)))
+            db.add(
+                ProofReviewRow(
+                    proof_id=proof_id,
+                    reviewer=review["reviewer"],
+                    record_sha256=review["record_sha256"],
+                    offered=review["offered"],
+                    detail=_detail(review),
+                )
+            )
             db.commit()
 
     def _start_proof(self, db, plan: PlanRow, change: ChangeRow) -> None:
@@ -592,9 +865,21 @@ class ChangesMixin:
             raise Conflict("The changed code is not the same as one of our demo components, so nothing was run.")
         items = self._items(db, plan.id)
         first = {r["item_id"]: r["run_id"] for r in self._shown(db, plan, items) if r["phase"] == "first"}
-        proof = ProofRow(plan_id=plan.id, change_id=change.id, baseline_version=plan.component_version, version=matches["version"],
-                         items=[{"item_id": item.id, "spec_hash": item.spec_hash, "kind": self._kind(db, item.spec_hash),
-                                 "first_run_id": first[item.id]} for item in items])
+        proof = ProofRow(
+            plan_id=plan.id,
+            change_id=change.id,
+            baseline_version=plan.component_version,
+            version=matches["version"],
+            items=[
+                {
+                    "item_id": item.id,
+                    "spec_hash": item.spec_hash,
+                    "kind": self._kind(db, item.spec_hash),
+                    "first_run_id": first[item.id],
+                }
+                for item in items
+            ],
+        )
         db.add(proof)
         db.commit()
         for item in items:
@@ -614,25 +899,47 @@ class ChangesMixin:
             data = None
         if data is None:
             return None
-        code = {"source": "bundled", "component_name": name, "component_version": version, "file_sha256": _sha256(data),
-                "repository": None, "branch": None, "commit": None, "change_id": None, "pull_request_number": None}
+        code = {
+            "source": "bundled",
+            "component_name": name,
+            "component_version": version,
+            "file_sha256": _sha256(data),
+            "repository": None,
+            "branch": None,
+            "commit": None,
+            "change_id": None,
+            "pull_request_number": None,
+        }
         if not a.get("own", True):
-            return code  # another program in the file (phase 3a-fixes): it runs our bundled file, never the connected code
+            return (
+                code  # another program in the file (phase 3a-fixes): it runs our bundled file, never the connected code
+            )
         with self.db() as db:
             if a["phase"] == "proof":
                 change = db.get(ChangeRow, db.get(ProofRow, a["retest_id"]).change_id)
                 connection = db.get(CodeConnectionRow, change.connection_id)
-                code.update(source="repository", repository=connection.repository, branch=change.branch,
-                            commit=change.head_commit, change_id=change.id)
+                code.update(
+                    source="repository",
+                    repository=connection.repository,
+                    branch=change.branch,
+                    commit=change.head_commit,
+                    change_id=change.id,
+                )
                 return code
             if a["phase"] in WATCH_PHASES:
                 # Phase 6d: a watch run records the developer's branch and the commit whose code ran: the change's own
                 # commit, or (for the run on the code before) the commit the change starts from.
                 watch = db.get(WatchRunRow, a["retest_id"])
-                connection = db.scalars(select(CodeConnectionRow).where(CodeConnectionRow.plan_id == a["plan_id"])).first()
+                connection = db.scalars(
+                    select(CodeConnectionRow).where(CodeConnectionRow.plan_id == a["plan_id"])
+                ).first()
                 if watch is not None and connection is not None:
-                    code.update(source="repository", repository=connection.repository, branch=watch.branch,
-                                commit=watch.head_commit if a["phase"] == "watch" else watch.base_commit)
+                    code.update(
+                        source="repository",
+                        repository=connection.repository,
+                        branch=watch.branch,
+                        commit=watch.head_commit if a["phase"] == "watch" else watch.base_commit,
+                    )
                 return code
             connection = db.scalars(select(CodeConnectionRow).where(CodeConnectionRow.plan_id == a["plan_id"])).first()
             if connection is None:
@@ -646,8 +953,11 @@ class ChangesMixin:
             if not same:
                 return code  # the repository does not hold this code now: the run is on the bundled component
             code.update(source="repository", repository=connection.repository, branch=connection.branch, commit=head)
-            merged = db.scalars(select(PullRequestRow).join(MergeRow, MergeRow.pull_request_id == PullRequestRow.id)
-                                .where(PullRequestRow.plan_id == a["plan_id"], MergeRow.merge_commit == head)).first()
+            merged = db.scalars(
+                select(PullRequestRow)
+                .join(MergeRow, MergeRow.pull_request_id == PullRequestRow.id)
+                .where(PullRequestRow.plan_id == a["plan_id"], MergeRow.merge_commit == head)
+            ).first()
             if merged is not None:
                 code.update(change_id=merged.change_id, pull_request_number=merged.number)
         return code
@@ -688,7 +998,9 @@ class ChangesMixin:
             if db.scalars(select(CodeConnectionRow).where(CodeConnectionRow.plan_id == plan_id)).first() is not None:
                 raise Conflict("The demo code is already connected for this file.")
             if components.lookup(plan.component_name, plan.component_version) is None:
-                raise Conflict("Connecting code needs one of our demo signing components, and this file doesn't name one.")
+                raise Conflict(
+                    "Connecting code needs one of our demo signing components, and this file doesn't name one."
+                )
             bundled = demo_repo.bundled(plan.component_name)
             if bundled is None:
                 raise Conflict("There is no demo repository for this signing component.")
@@ -709,10 +1021,15 @@ class ChangesMixin:
                 # A change of Otto's is connected only after a person accepted Otto's proposal. This is asked as the page
                 # showed it (nothing is asked of Claude), and before the click below can ask anything. Otto writes a change
                 # only after an advisory check failed, so a plan without such a failure is not asked twice.
-                if any(r["phase"] == "first" and r["code"] == "failed" and r["kind"] == research.ADVISORY_KIND for r in shown):
+                if any(
+                    r["phase"] == "first" and r["code"] == "failed" and r["kind"] == research.ADVISORY_KIND
+                    for r in shown
+                ):
                     offered = self._proposal(db, plan, shown, files)
                     if offered is not None and offered[0].get("written_by") == "otto":
-                        refused = _no_connect_of_ottos(self._otto_state(db, plan.id, otto_proposals.code_fix_id(offered[0]["template_id"])))
+                        refused = _no_connect_of_ottos(
+                            self._otto_state(db, plan.id, otto_proposals.code_fix_id(offered[0]["template_id"]))
+                        )
                         if refused:
                             raise OttoCouldNot(refused)
                 # The person's click: with Live Otto on, this is where Otto asks Claude (once, within the spending limit).
@@ -721,11 +1038,22 @@ class ChangesMixin:
             except (GitRepoError, OSError, OttoCouldNot) as exc:
                 if folder is not None:
                     shutil.rmtree(folder, ignore_errors=True)
-                why = str(exc) if isinstance(exc, (GitRepoError, OttoCouldNot)) else "The demo repository could not be copied."
+                why = (
+                    str(exc)
+                    if isinstance(exc, (GitRepoError, OttoCouldNot))
+                    else "The demo repository could not be copied."
+                )
                 raise Conflict(f"{why} The code was not connected.") from exc
-            connection = CodeConnectionRow(plan_id=plan_id, repository=plan.component_name, branch=demo_repo.BRANCH, base_commit=base,
-                                           folder=(folder / bundled.name).relative_to(self.settings.data_dir).as_posix(),
-                                           component_name=plan.component_name, component_version=plan.component_version, is_demo=True)
+            connection = CodeConnectionRow(
+                plan_id=plan_id,
+                repository=plan.component_name,
+                branch=demo_repo.BRANCH,
+                base_commit=base,
+                folder=(folder / bundled.name).relative_to(self.settings.data_dir).as_posix(),
+                component_name=plan.component_name,
+                component_version=plan.component_version,
+                is_demo=True,
+            )
             db.add(connection)
             db.flush()
             if change is not None:
@@ -742,36 +1070,69 @@ class ChangesMixin:
                     raise
         return self.fix_states(plan_id)
 
-    def _write_change(self, repo: GitRepo, base: str, files: dict[str, bytes], proposed: tuple[dict, list[dict]], plan: PlanRow) -> ChangeRow:
+    def _write_change(
+        self, repo: GitRepo, base: str, files: dict[str, bytes], proposed: tuple[dict, list[dict]], plan: PlanRow
+    ) -> ChangeRow:
         """Put a proposed change on its own branch (one commit on top of `base`) and describe it: what changed in
         each file, and whether the code it holds is byte for byte one of our registered components."""
         proposal, answered = proposed
         new_files = {name: text.encode("utf-8") for name, text in proposal["files"].items()}
-        written_by = proposal.get("written_by") or "fix_template"      # phase 5c: "otto" for a change Otto wrote
-        head = repo.branch_from(proposal["branch"], base, new_files, f"{proposal['title']}\n\n{proposal['label']}: {proposal['template_id']}",
-                                OTTO_AUTHOR if written_by == "otto" else TEMPLATE_AUTHOR, int(time.time()))
+        written_by = proposal.get("written_by") or "fix_template"  # phase 5c: "otto" for a change Otto wrote
+        head = repo.branch_from(
+            proposal["branch"],
+            base,
+            new_files,
+            f"{proposal['title']}\n\n{proposal['label']}: {proposal['template_id']}",
+            OTTO_AUTHOR if written_by == "otto" else TEMPLATE_AUTHOR,
+            int(time.time()),
+        )
         old_ids, new_ids = repo.file_ids(base), repo.file_ids(head)
         changed = []
         for name in sorted(new_files):
             if new_files[name] != files[name]:
                 added, removed = count_changes(files[name].decode("utf-8"), new_files[name].decode("utf-8"))
-                changed.append({"name": name, "added": added, "removed": removed, "old_blob": old_ids[name], "new_blob": new_ids[name],
-                                "old_sha256": _sha256(files[name]), "new_sha256": _sha256(new_files[name]),
-                                "parts": [{k: v for k, v in edit.items() if k != "file"} for edit in proposal["edits"] if edit["file"] == name]})
+                changed.append(
+                    {
+                        "name": name,
+                        "added": added,
+                        "removed": removed,
+                        "old_blob": old_ids[name],
+                        "new_blob": new_ids[name],
+                        "old_sha256": _sha256(files[name]),
+                        "new_sha256": _sha256(new_files[name]),
+                        "parts": [
+                            {k: v for k, v in edit.items() if k != "file"}
+                            for edit in proposal["edits"]
+                            if edit["file"] == name
+                        ],
+                    }
+                )
         registered = components.lookup(plan.component_name, plan.component_version)
         version = registered_version(plan.component_name, new_files)
-        built = {"file": registered.name, "sha256": _sha256(new_files[registered.name]) if registered.name in new_files else None,
-                 "matches": {"name": plan.component_name, "version": version} if version is not None else None}
+        built = {
+            "file": registered.name,
+            "sha256": _sha256(new_files[registered.name]) if registered.name in new_files else None,
+            "matches": {"name": plan.component_name, "version": version} if version is not None else None,
+        }
         source: dict = {"runs": [{"run_id": r["run_id"], "item_id": r["item_id"], "kind": r["kind"]} for r in answered]}
         if proposal.get("otto"):
             source["otto"] = {**proposal["otto"], "title": proposal["title"]}
         if proposal.get("otto_note"):
             source["otto_note"] = proposal["otto_note"]
-        return ChangeRow(fix_key=proposal["template_id"], source_kind="failed_tests", source=source,
-                         written_by=written_by, template_id=proposal["template_id"],
-                         proposed_by=proposal.get("proposed_by") or self.engine.engine_id,
-                         title=proposal["title"], branch=proposal["branch"], base_commit=base, head_commit=head,
-                         files=changed, built=built)
+        return ChangeRow(
+            fix_key=proposal["template_id"],
+            source_kind="failed_tests",
+            source=source,
+            written_by=written_by,
+            template_id=proposal["template_id"],
+            proposed_by=proposal.get("proposed_by") or self.engine.engine_id,
+            title=proposal["title"],
+            branch=proposal["branch"],
+            base_commit=base,
+            head_commit=head,
+            files=changed,
+            built=built,
+        )
 
     def run_proof_again(self, plan_id: int, fix_id: str) -> list[dict]:
         """Run proof again: only after a proof that failed, was interrupted or no longer covers the plan. Until the
@@ -787,17 +1148,31 @@ class ChangesMixin:
 
     def open_pull_request(self, plan_id: int, fix_id: str, reviewers: list[str]) -> list[dict]:
         """Open pull request: inside the app, for a change whose proof has passed, with the reviewers who must approve."""
-        if (not isinstance(reviewers, list) or not reviewers or not all(isinstance(r, str) and r in REVIEWERS for r in reviewers)
-                or len(set(reviewers)) != len(reviewers)):
+        if (
+            not isinstance(reviewers, list)
+            or not reviewers
+            or not all(isinstance(r, str) and r in REVIEWERS for r in reviewers)
+            or len(set(reviewers)) != len(reviewers)
+        ):
             raise BadRequest("Pick one or more reviewers from the list, each of them once.", field="reviewers")
         with self._plan_lock, self.db() as db:
             fix = self._fix(db, self._plan(db, plan_id), fix_id)
             refused = _no_pull_request(fix)
             if refused:
                 raise Conflict(refused)
-            number = 1 + (db.scalar(select(func.count(PullRequestRow.id)).where(PullRequestRow.plan_id == plan_id)) or 0)
-            db.add(PullRequestRow(plan_id=plan_id, change_id=fix["change"]["id"], proof_id=fix["proof"]["id"], number=number,
-                                  title=fix["change"]["title"], reviewers=[r for r in REVIEWERS if r in reviewers]))
+            number = 1 + (
+                db.scalar(select(func.count(PullRequestRow.id)).where(PullRequestRow.plan_id == plan_id)) or 0
+            )
+            db.add(
+                PullRequestRow(
+                    plan_id=plan_id,
+                    change_id=fix["change"]["id"],
+                    proof_id=fix["proof"]["id"],
+                    number=number,
+                    title=fix["change"]["title"],
+                    reviewers=[r for r in REVIEWERS if r in reviewers],
+                )
+            )
             db.commit()
         return self.fix_states(plan_id)
 
@@ -825,10 +1200,18 @@ class ChangesMixin:
             connection, change, pull_request = fix["connection"], fix["change"], fix["pull_request"]
             try:
                 repo = self._repo(connection["folder"])
-                if repo.branch(change["branch"]) != change["head_commit"] or repo.branch(connection["branch"]) != change["base_commit"]:
+                if (
+                    repo.branch(change["branch"]) != change["head_commit"]
+                    or repo.branch(connection["branch"]) != change["base_commit"]
+                ):
                     raise GitRepoError("The repository has changed since this change was proved. Nothing was merged.")
-                commit = repo.merge(connection["branch"], change["branch"], f"Merge pull request #{pull_request['number']}: {pull_request['title']}",
-                                    MERGE_AUTHOR, int(time.time()))
+                commit = repo.merge(
+                    connection["branch"],
+                    change["branch"],
+                    f"Merge pull request #{pull_request['number']}: {pull_request['title']}",
+                    MERGE_AUTHOR,
+                    int(time.time()),
+                )
             except GitRepoError as exc:
                 raise Conflict(str(exc)) from exc
             except OSError as exc:
@@ -856,12 +1239,16 @@ class ChangesMixin:
         the evidence holds the same text."""
         change = fix["change"]
         repo = self._repo(fix["connection"]["folder"])
-        return format_patch(repo.read_commit(change["head_commit"]), repo.files(change["base_commit"]),
-                            repo.files(change["head_commit"]), PATCH_FOOTER)
+        return format_patch(
+            repo.read_commit(change["head_commit"]),
+            repo.files(change["base_commit"]),
+            repo.files(change["head_commit"]),
+            PATCH_FOOTER,
+        )
 
     def _text_fix_id(self, db, plan: PlanRow, kind: str, item_id: int) -> str:
         """The id of the text-only fix for one failed test, by the rule `_fixes_for_failed_tests` names it with."""
-        same = len([item for item in self._items(db, plan.id) if self._kind(db, item.spec_hash) == kind])   # type: ignore[attr-defined]
+        same = len([item for item in self._items(db, plan.id) if self._kind(db, item.spec_hash) == kind])  # type: ignore[attr-defined]
         return "fix-" + kind.replace("_", "-") + ("" if same == 1 else f"-{item_id}")
 
     @staticmethod
@@ -869,13 +1256,20 @@ class ChangesMixin:
         """The registered versions that merged changes of this plan give, where they are not in the general list of
         versions a retest chooses between (phase 5c: the program a change of Otto's gives)."""
         out = []
-        merged = db.scalars(select(ChangeRow).join(PullRequestRow, PullRequestRow.change_id == ChangeRow.id)
-                            .join(MergeRow, MergeRow.pull_request_id == PullRequestRow.id).where(ChangeRow.plan_id == plan.id)).all()
+        merged = db.scalars(
+            select(ChangeRow)
+            .join(PullRequestRow, PullRequestRow.change_id == ChangeRow.id)
+            .join(MergeRow, MergeRow.pull_request_id == PullRequestRow.id)
+            .where(ChangeRow.plan_id == plan.id)
+        ).all()
         for change in merged:
             matches = (change.built or {}).get("matches") or {}
             version = matches.get("version")
-            if matches.get("name") == plan.component_name and version in components.CHANGE_VERSIONS.get(plan.component_name or "", []) \
-                    and version not in out:
+            if (
+                matches.get("name") == plan.component_name
+                and version in components.CHANGE_VERSIONS.get(plan.component_name or "", [])
+                and version not in out
+            ):
                 out.append(version)
         return out
 
@@ -906,4 +1300,6 @@ def _known_template(change: ChangeRow) -> bool:
 
 
 def _shown_verdict(verdict: dict | None) -> dict | None:
-    return {k: verdict[k] for k in ("run_id", "code", "reason_code", "control_outcome")} if verdict is not None else None
+    return (
+        {k: verdict[k] for k in ("run_id", "code", "reason_code", "control_outcome")} if verdict is not None else None
+    )

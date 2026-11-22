@@ -117,7 +117,9 @@ export const run: VerifyRun = {
       reason: null,
       evidence: [{ ...evidence, title: "Certificate read", command: "openssl x509 -noout -text" }],
       summary: "The server's ID card (its certificate) uses ECDSA P-256, which matches the claim.",
-      also_noticed: ["While checking the certificate, the handshakes showed this server also accepts TLS 1.0 and TLS 1.1."],
+      also_noticed: [
+        "While checking the certificate, the handshakes showed this server also accepts TLS 1.0 and TLS 1.1.",
+      ],
       source_tag: live("localhost:8443"),
     },
     {
@@ -143,7 +145,11 @@ export function quietAssistant(over: Partial<AssistantView> = {}): AssistantView
     assessment_id: 101,
     plan_id: 1,
     title: "Otto",
-    status: { text: "Live Otto is off.", live: false, link: { label: "Settings", link: { page: "settings", item: null, section: "live-otto" } } },
+    status: {
+      text: "Live Otto is off.",
+      live: false,
+      link: { label: "Settings", link: { page: "settings", item: null, section: "live-otto" } },
+    },
     notices: [],
     note: "Looking at this panel runs nothing. Each button here first shows what it will do and waits for Confirm.",
     recorded_as: {
@@ -161,10 +167,23 @@ export function quietAssistant(over: Partial<AssistantView> = {}): AssistantView
     page: "overview",
     page_label: "Overview",
     thread: null,
-    box: { label: "Ask Otto, or tell it what to do", send: "Send", max: 500, chips: ["What can you do?"], questions: [], kept: true, kept_note: null },
+    box: {
+      label: "Ask Otto, or tell it what to do",
+      send: "Send",
+      max: 500,
+      chips: ["What can you do?"],
+      questions: [],
+      kept: true,
+      kept_note: null,
+    },
     tabs: [],
     on_page: { title: "On this page", entries: [], empty: "Nothing is suggested on this page.", empty_link: null },
-    elsewhere: { title: "Elsewhere: 0 more", count: 0, lines: [], empty: "Nothing from Otto is waiting for a decision." },
+    elsewhere: {
+      title: "Elsewhere: 0 more",
+      count: 0,
+      lines: [],
+      empty: "Nothing from Otto is waiting for a decision.",
+    },
     waiting: 0,
     busy: false,
     ...over,
@@ -338,7 +357,12 @@ export const runningPlan: PlanView = {
   can_run_all: false,
   has_results: true,
   tests: [
-    { ...locked(cards[0]!), status: "done", status_text: "Failed", result: { code: "failed", label: "Failed", tone: "fail" } },
+    {
+      ...locked(cards[0]!),
+      status: "done",
+      status_text: "Failed",
+      result: { code: "failed", label: "Failed", tone: "fail" },
+    },
     {
       ...locked(cards[1]!),
       status: "running",
@@ -377,7 +401,8 @@ function fixLine(fix_id: string, lead: string, rest: string, look: FixLine["look
   return { fix_id, lead, rest, look, busy: false, button: "View in Fixes" };
 }
 
-const codeLine = (lead: string, rest: string, look: FixLine["look"]) => fixLine("fix-ecdsa-range-check", lead, rest, look);
+const codeLine = (lead: string, rest: string, look: FixLine["look"]) =>
+  fixLine("fix-ecdsa-range-check", lead, rest, look);
 
 /** The line in each of its states. */
 export const fixLines = {
@@ -443,7 +468,12 @@ export const vectorsResult: LabResult = {
   run_record: {
     title: "Run record",
     command: "acme-sign verify (once per case, JSON in, JSON out), 484 cases from ecdsa_secp256r1_sha256_test.json",
-    outputs: [{ title: "Output summary", text: "cases run: 484   right: 481   wrong: 3\nreview step: pass/fail rule applied => Failed" }],
+    outputs: [
+      {
+        title: "Output summary",
+        text: "cases run: 484   right: 481   wrong: 3\nreview step: pass/fail rule applied => Failed",
+      },
+    ],
     meta: [
       { label: "Time", value: "", time: "2026-11-11T01:42:07.000Z", tag: null },
       { label: "Duration", value: "9.4 s", tag: "measured" },
@@ -462,9 +492,21 @@ export const vectorsResult: LabResult = {
     title: "Test details, locked before the run",
     fields: [
       { label: "Question", lines: ["Does acme-sign give the right answer on every official ECDSA P-256 test case?"] },
-      { label: "Method", lines: ["Run the verify command once per case and compare its answer with the published one."] },
-      { label: "Inputs", lines: ["Wycheproof file (484 cases), pinned to commit dab4ea2.", "The Ed25519 file is run on the reference library."] },
-      { label: "Control", lines: ["The same cases run against a deliberately broken signer, which must get every invalid case wrong."] },
+      {
+        label: "Method",
+        lines: ["Run the verify command once per case and compare its answer with the published one."],
+      },
+      {
+        label: "Inputs",
+        lines: [
+          "Wycheproof file (484 cases), pinned to commit dab4ea2.",
+          "The Ed25519 file is run on the reference library.",
+        ],
+      },
+      {
+        label: "Control",
+        lines: ["The same cases run against a deliberately broken signer, which must get every invalid case wrong."],
+      },
       { label: "Pass/fail rule", lines: ["Passed only if all 484 answers are right. Any wrong answer means Failed."] },
     ],
     locked_at: "2026-11-11T01:41:52.000Z",
@@ -520,7 +562,13 @@ export function result(
 }
 
 export const speedAfter: LabResult = {
-  ...result(25, "no_slowdown", "No slowdown beyond measured noise", "pass", "Sign 7.0 ms, verify 13.4 ms (medians). Noise: ±2.4%."),
+  ...result(
+    25,
+    "no_slowdown",
+    "No slowdown beyond measured noise",
+    "pass",
+    "Sign 7.0 ms, verify 13.4 ms (medians). Noise: ±2.4%.",
+  ),
   component: "acme-sign 1.4.3",
   evidence: [
     {
@@ -568,7 +616,17 @@ function sourceOf(kind: TestKind, r: LabResult): LabResult["source_tag"] {
 
 function row(item_id: number, kind: TestKind, title: string, control_line: string, r: LabResult | null): LabRow {
   const shown = r ? { ...r, source_tag: sourceOf(kind, r) } : r;
-  return { item_id, kind, title, control_line, result: shown, result_status: null, after: null, after_status: null, group: null };
+  return {
+    item_id,
+    kind,
+    title,
+    control_line,
+    result: shown,
+    result_status: null,
+    after: null,
+    after_status: null,
+    group: null,
+  };
 }
 
 export const labRows: LabRow[] = [
@@ -590,7 +648,13 @@ export const labRows: LabRow[] = [
     "Control: a deliberately weak test certificate failed this test, as expected.",
     result(6, "passed", "Passed", "pass", "The certificate is ECDSA P-256, 256 bits, as claimed."),
   ),
-  row(13, "official_vectors", "Official test vectors", "Control: a deliberately broken signer failed this test, as expected.", vectorsResult),
+  row(
+    13,
+    "official_vectors",
+    "Official test vectors",
+    "Control: a deliberately broken signer failed this test, as expected.",
+    vectorsResult,
+  ),
   row(
     15,
     "speed_size",
@@ -603,7 +667,13 @@ export const labRows: LabRow[] = [
     "pq_readiness",
     "Post-quantum readiness",
     "Control: not run, because the test couldn't run.",
-    result(10, "couldnt_run", "Couldn't run (needs OpenSSL 3.5 or newer)", "warn", "The checker on this computer is too old."),
+    result(
+      10,
+      "couldnt_run",
+      "Couldn't run (needs OpenSSL 3.5 or newer)",
+      "warn",
+      "The checker on this computer is too old.",
+    ),
   ),
 ];
 
@@ -634,8 +704,20 @@ export const lab: LabView = {
     progress_text: null,
     menu_title: "Choose the version to retest",
     versions: [
-      { version: "1.4.3", component: "acme-sign", label: "acme-sign 1.4.3", tag: "demo", note: "The corrected demo version." },
-      { version: "1.4.2", component: "acme-sign", label: "acme-sign 1.4.2", tag: "demo", note: "The demo version these results are for." },
+      {
+        version: "1.4.3",
+        component: "acme-sign",
+        label: "acme-sign 1.4.3",
+        tag: "demo",
+        note: "The corrected demo version.",
+      },
+      {
+        version: "1.4.2",
+        component: "acme-sign",
+        label: "acme-sign 1.4.2",
+        tag: "demo",
+        note: "The demo version these results are for.",
+      },
     ],
     menu_note:
       "Choosing a version reruns the same five locked tests on it and shows before and after. Only our two demo versions can be chosen here.",
@@ -665,8 +747,20 @@ export const multiLibraryLab: LabView = {
   retest: {
     ...lab.retest,
     versions: [
-      { version: "0.13.3", component: "python-ecdsa", label: "python-ecdsa 0.13.3", tag: "real software", note: "Newer." },
-      { version: "0.13.2", component: "python-ecdsa", label: "python-ecdsa 0.13.2", tag: "real software", note: "Older." },
+      {
+        version: "0.13.3",
+        component: "python-ecdsa",
+        label: "python-ecdsa 0.13.3",
+        tag: "real software",
+        note: "Newer.",
+      },
+      {
+        version: "0.13.2",
+        component: "python-ecdsa",
+        label: "python-ecdsa 0.13.2",
+        tag: "real software",
+        note: "Older.",
+      },
       { version: "6.5.7", component: "elliptic", label: "elliptic 6.5.7", tag: "real software", note: "Newer." },
       { version: "6.5.6", component: "elliptic", label: "elliptic 6.5.6", tag: "real software", note: "Older." },
     ],
@@ -718,7 +812,10 @@ export const beforeAfter: LabView = {
     result: r.kind === "official_vectors" && r.result ? { ...r.result, fix_line: fixLines.merged } : r.result,
     after:
       r.kind === "official_vectors"
-        ? { ...result(23, "passed", "Passed", "pass", "484 of 484 official cases right."), component: "acme-sign 1.4.3" }
+        ? {
+            ...result(23, "passed", "Passed", "pass", "484 of 484 official cases right."),
+            component: "acme-sign 1.4.3",
+          }
         : r.kind === "speed_size"
           ? speedAfter
           : r.result
@@ -740,7 +837,13 @@ export const retestRunning: LabView = {
           ? { status: "running", status_text: "Running", progress: { text: "reading the certificate", percent: 40 } }
           : { status: "waiting", status_text: "Waiting", progress: null },
   })),
-  retest: { ...lab.retest, can_start: false, blocked_reason: "A retest is running.", running: true, progress_text: "Retest running: 1 of 5 tests finished." },
+  retest: {
+    ...lab.retest,
+    can_start: false,
+    blocked_reason: "A retest is running.",
+    running: true,
+    progress_text: "Retest running: 1 of 5 tests finished.",
+  },
   download: { can_start: false, blocked_reason: "A retest is running." },
   busy: true,
 };
@@ -811,7 +914,9 @@ export const groupedLab: LabView = {
   groups,
   not_tested: notTested,
   rows: [
-    inLabGroup(labRows[0]!, 21, groups[0]!.key, { plain: "localhost:8444 refused every version older than TLS 1.3, so it passed." }),
+    inLabGroup(labRows[0]!, 21, groups[0]!.key, {
+      plain: "localhost:8444 refused every version older than TLS 1.3, so it passed.",
+    }),
     inLabGroup(labRows[1]!, 22, groups[0]!.key),
     inLabGroup(labRows[0]!, 31, groups[1]!.key, {
       plain: "localhost:8445 accepted TLS 1.0 and TLS 1.1, which the file says it refuses, so it failed.",

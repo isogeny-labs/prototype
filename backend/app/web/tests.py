@@ -1,4 +1,5 @@
 """The plan of tests: ordering, adding, removing and running them."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
@@ -17,7 +18,9 @@ def routes(lab, require_login) -> APIRouter:
     def get_plan_for_import(import_id: int):
         return lab.get_plan_for_import(import_id)
 
-    @router.post("/api/import/{import_id}/plan", dependencies=[Depends(require_login)], responses=shows(models.PlanView))
+    @router.post(
+        "/api/import/{import_id}/plan", dependencies=[Depends(require_login)], responses=shows(models.PlanView)
+    )
     def ensure_plan(import_id: int):
         return lab.ensure_plan(import_id)
 
@@ -33,15 +36,25 @@ def routes(lab, require_login) -> APIRouter:
     def add_test(plan_id: int, body: AddTestBody):
         return lab.add_test(plan_id, body.catalog_id)
 
-    @router.post("/api/plans/{plan_id}/tests/{item_id}/remove", dependencies=[Depends(require_login)], responses=shows(models.PlanView))
+    @router.post(
+        "/api/plans/{plan_id}/tests/{item_id}/remove",
+        dependencies=[Depends(require_login)],
+        responses=shows(models.PlanView),
+    )
     def remove_test(plan_id: int, item_id: int):
         return lab.remove_test(plan_id, item_id)
 
-    @router.post("/api/plans/{plan_id}/tests/{item_id}/run", dependencies=[Depends(require_login)], responses=shows(models.PlanView))
+    @router.post(
+        "/api/plans/{plan_id}/tests/{item_id}/run",
+        dependencies=[Depends(require_login)],
+        responses=shows(models.PlanView),
+    )
     def run_test(plan_id: int, item_id: int):
         return lab.run_test(plan_id, item_id)
 
-    @router.post("/api/plans/{plan_id}/run-all", dependencies=[Depends(require_login)], responses=shows(models.PlanView))
+    @router.post(
+        "/api/plans/{plan_id}/run-all", dependencies=[Depends(require_login)], responses=shows(models.PlanView)
+    )
     def run_all(plan_id: int):
         return lab.run_all(plan_id)
 

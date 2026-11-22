@@ -9,6 +9,7 @@ through its S3 interface), or Google Cloud Storage. Chosen by EVIDENCE_LAB_STORA
 What the app puts here is a copy: the scanner file of each import and each evidence download. The database stays the
 record; a copy that could not be written is logged and changes no answer.
 """
+
 from __future__ import annotations
 
 import logging
@@ -79,14 +80,18 @@ class S3Store:
     kind = "s3"
 
     def __init__(self, bucket: str, prefix: str, endpoint_url: str | None = None, region: str | None = None) -> None:
-        import boto3   # optional package (requirements-infra.in)
+        import boto3  # optional package (requirements-infra.in)
         from botocore.config import Config
 
         self.bucket, self.prefix = bucket, prefix.strip("/")
         self.location = f"s3://{bucket}/{self.prefix}" + (f" at {endpoint_url}" if endpoint_url else "")
         # Path-style addressing works with MinIO and other S3-compatible servers as well as AWS.
-        config = Config(s3={"addressing_style": "path"} if endpoint_url else {}, retries={"max_attempts": 3},
-                        connect_timeout=5, read_timeout=30)
+        config = Config(
+            s3={"addressing_style": "path"} if endpoint_url else {},
+            retries={"max_attempts": 3},
+            connect_timeout=5,
+            read_timeout=30,
+        )
         self._s3 = boto3.client("s3", endpoint_url=endpoint_url, region_name=region, config=config)
 
     def _key(self, key: str) -> str:
@@ -98,6 +103,7 @@ class S3Store:
 
     def get(self, key: str) -> bytes | None:
         from botocore.exceptions import ClientError
+
         try:
             return self._s3.get_object(Bucket=self.bucket, Key=self._key(key))["Body"].read()
         except ClientError as exc:
@@ -107,6 +113,7 @@ class S3Store:
 
     def exists(self, key: str) -> bool:
         from botocore.exceptions import ClientError
+
         try:
             self._s3.head_object(Bucket=self.bucket, Key=self._key(key))
             return True
@@ -123,7 +130,7 @@ class GCSStore:
     kind = "gcs"
 
     def __init__(self, bucket: str, prefix: str) -> None:
-        from google.cloud import storage   # optional package (requirements-infra.in)
+        from google.cloud import storage  # optional package (requirements-infra.in)
 
         self.prefix = prefix.strip("/")
         self.location = f"gs://{bucket}/{self.prefix}"
@@ -156,8 +163,12 @@ def make_store(url: str | None) -> BlobStore | None:
     if parsed.scheme == "s3":
         if not parsed.netloc:
             raise SystemExit("EVIDENCE_LAB_STORAGE_URL: s3:// needs a bucket, for example s3://evidence-lab/files")
-        return S3Store(parsed.netloc, parsed.path, endpoint_url=os.environ.get("EVIDENCE_LAB_S3_ENDPOINT_URL") or None,
-                       region=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or None)
+        return S3Store(
+            parsed.netloc,
+            parsed.path,
+            endpoint_url=os.environ.get("EVIDENCE_LAB_S3_ENDPOINT_URL") or None,
+            region=os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION") or None,
+        )
     if parsed.scheme == "gs":
         if not parsed.netloc:
             raise SystemExit("EVIDENCE_LAB_STORAGE_URL: gs:// needs a bucket, for example gs://evidence-lab/files")
@@ -174,6 +185,6 @@ def put_quietly(store: BlobStore, key: str, data: bytes, content_type: str) -> b
     try:
         store.put(key, data, content_type)
         return True
-    except Exception as exc:   # noqa: BLE001 - any storage failure leaves the record in the database as it is
+    except Exception as exc:  # noqa: BLE001 - any storage failure leaves the record in the database as it is
         log.warning("could not store a copy at %s/%s: %s", store.location, key, exc)
         return False

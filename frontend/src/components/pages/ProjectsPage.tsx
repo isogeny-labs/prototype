@@ -2,7 +2,16 @@ import { useMemo, useState } from "react";
 import { api, errorMessage, type Workspace, type WorkspaceProject } from "../../api";
 import { DataTable, EmptyState, FilterSelect, PageHeader, SearchInput, Toolbar, type Column } from "../layout";
 import { DemoDataLabel, ErrorBox, PrimaryButton, SecondaryButton, StatusChip, formatTime } from "../ui";
-import { ActionsMenu, ClaimsCell, FixesCell, InlineForm, SystemsCell, TestsCell, folderLabel, folderOptions } from "./parts";
+import {
+  ActionsMenu,
+  ClaimsCell,
+  FixesCell,
+  InlineForm,
+  SystemsCell,
+  TestsCell,
+  folderLabel,
+  folderOptions,
+} from "./parts";
 
 type Form =
   | { kind: "new-project" }
@@ -76,7 +85,8 @@ export function ProjectsPage({
   }
 
   const visibleProjects = workspace.projects.filter((p) => !p.archived);
-  const selectedFolder = folder !== "all" && folder !== "top" ? workspace.folders.find((f) => f.id === Number(folder)) ?? null : null;
+  const selectedFolder =
+    folder !== "all" && folder !== "top" ? (workspace.folders.find((f) => f.id === Number(folder)) ?? null) : null;
 
   const columns: Column<WorkspaceProject>[] = [
     {
@@ -106,7 +116,11 @@ export function ProjectsPage({
           <div className="min-w-[11rem]">
             <p className="flex items-center gap-2 text-slate-200">
               {p.latest.title}
-              <StatusChip size="sm" label={p.latest.status.label} tone={p.latest.status.key === "open" ? "pass" : "neutral"} />
+              <StatusChip
+                size="sm"
+                label={p.latest.status.label}
+                tone={p.latest.status.key === "open" ? "pass" : "neutral"}
+              />
             </p>
             <p className="truncate text-xs text-slate-500">
               {p.latest.file ? p.latest.file.filename : "No file yet"} · {formatTime(p.latest.created_at)}
@@ -116,10 +130,20 @@ export function ProjectsPage({
           <span className="text-slate-500">None</span>
         ),
     },
-    { key: "claims", header: "Claims", className: "whitespace-nowrap", render: (p) => <ClaimsCell counts={p.counts} /> },
+    {
+      key: "claims",
+      header: "Claims",
+      className: "whitespace-nowrap",
+      render: (p) => <ClaimsCell counts={p.counts} />,
+    },
     { key: "tests", header: "Tests", className: "whitespace-nowrap", render: (p) => <TestsCell counts={p.counts} /> },
     { key: "fixes", header: "Fixes", className: "whitespace-nowrap", render: (p) => <FixesCell counts={p.counts} /> },
-    { key: "systems", header: "Systems", className: "whitespace-nowrap", render: (p) => <SystemsCell counts={p.counts} /> },
+    {
+      key: "systems",
+      header: "Systems",
+      className: "whitespace-nowrap",
+      render: (p) => <SystemsCell counts={p.counts} />,
+    },
     {
       key: "actions",
       header: <span className="sr-only">Actions</span>,
@@ -161,7 +185,11 @@ export function ProjectsPage({
         <InlineForm
           title="New project"
           submitLabel="Create project"
-          destination={{ label: "Folder", options: folderOptions(workspace), initial: selectedFolder ? String(selectedFolder.id) : "" }}
+          destination={{
+            label: "Folder",
+            options: folderOptions(workspace),
+            initial: selectedFolder ? String(selectedFolder.id) : "",
+          }}
           busy={busy}
           error={error}
           onCancel={() => setForm(null)}
@@ -176,7 +204,11 @@ export function ProjectsPage({
         <InlineForm
           title="New folder"
           submitLabel="Create folder"
-          destination={{ label: "Inside", options: folderOptions(workspace), initial: selectedFolder ? String(selectedFolder.id) : "" }}
+          destination={{
+            label: "Inside",
+            options: folderOptions(workspace),
+            initial: selectedFolder ? String(selectedFolder.id) : "",
+          }}
           busy={busy}
           error={error}
           onCancel={() => setForm(null)}
@@ -197,11 +229,17 @@ export function ProjectsPage({
           title={`Move ${form.project.name}`}
           submitLabel="Move"
           nameLabel=""
-          destination={{ label: "To folder", options: folderOptions(workspace), initial: form.project.folder_id ? String(form.project.folder_id) : "" }}
+          destination={{
+            label: "To folder",
+            options: folderOptions(workspace),
+            initial: form.project.folder_id ? String(form.project.folder_id) : "",
+          }}
           busy={busy}
           error={error}
           onCancel={() => setForm(null)}
-          onSubmit={(_name, dest) => void act(() => api.changeProject(form.project.id, { move: true, folder_id: dest ? Number(dest) : null }))}
+          onSubmit={(_name, dest) =>
+            void act(() => api.changeProject(form.project.id, { move: true, folder_id: dest ? Number(dest) : null }))
+          }
         />
       ) : form?.kind === "rename-folder" ? (
         <InlineForm
@@ -226,7 +264,9 @@ export function ProjectsPage({
           busy={busy}
           error={error}
           onCancel={() => setForm(null)}
-          onSubmit={(_name, dest) => void act(() => api.changeFolder(form.id, { move: true, parent_id: dest ? Number(dest) : null }))}
+          onSubmit={(_name, dest) =>
+            void act(() => api.changeFolder(form.id, { move: true, parent_id: dest ? Number(dest) : null }))
+          }
         />
       ) : null}
 
@@ -243,11 +283,14 @@ export function ProjectsPage({
           }
         >
           <p>
-            A <strong className="text-slate-200">project</strong> is one system or product you look after, kept in folders as deep as you
-            like. Each project keeps its history of <strong className="text-slate-200">assessments</strong>: one pass on one scanner file,
-            from import and verify to tests, evidence, fixes and migration. Starting a new assessment never deletes the old one.
+            A <strong className="text-slate-200">project</strong> is one system or product you look after, kept in
+            folders as deep as you like. Each project keeps its history of{" "}
+            <strong className="text-slate-200">assessments</strong>: one pass on one scanner file, from import and
+            verify to tests, evidence, fixes and migration. Starting a new assessment never deletes the old one.
           </p>
-          <p className="mt-2">Load demo projects adds one project for each demo file, with the file already imported.</p>
+          <p className="mt-2">
+            Load demo projects adds one project for each demo file, with the file already imported.
+          </p>
         </EmptyState>
       ) : (
         <>
@@ -276,8 +319,14 @@ export function ProjectsPage({
                   { label: "Rename folder", onClick: () => setForm({ kind: "rename-folder", id: selectedFolder.id }) },
                   { label: "Move folder", onClick: () => setForm({ kind: "move-folder", id: selectedFolder.id }) },
                   selectedFolder.archived
-                    ? { label: "Unarchive folder", onClick: () => void act(() => api.changeFolder(selectedFolder.id, { archived: false })) }
-                    : { label: "Archive folder", onClick: () => void act(() => api.changeFolder(selectedFolder.id, { archived: true })) },
+                    ? {
+                        label: "Unarchive folder",
+                        onClick: () => void act(() => api.changeFolder(selectedFolder.id, { archived: false })),
+                      }
+                    : {
+                        label: "Archive folder",
+                        onClick: () => void act(() => api.changeFolder(selectedFolder.id, { archived: true })),
+                      },
                 ]}
               />
             ) : null}
@@ -292,8 +341,9 @@ export function ProjectsPage({
             empty="No project matches."
           />
           <p className="mt-3 text-xs text-slate-500">
-            Counts come from the assessment of each project worked on last, exactly as its pages show them. "Not yet" means that
-            step has not happened in that assessment. A row opens the project's overview, with every assessment side by side.
+            Counts come from the assessment of each project worked on last, exactly as its pages show them. "Not yet"
+            means that step has not happened in that assessment. A row opens the project's overview, with every
+            assessment side by side.
           </p>
         </>
       )}

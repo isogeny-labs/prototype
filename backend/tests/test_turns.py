@@ -1,5 +1,6 @@
 """Reads take turns (app/web/turns.py): first come, first served, while reads are quick. A request that changes
 something waits for nobody, and a read that is stuck stops holding the others up after its turn."""
+
 from __future__ import annotations
 
 import asyncio
@@ -21,8 +22,8 @@ class _App:
         self.most = 0
         self.order: list[str] = []
         self.done: list[str] = []
-        self.hold_view: dict[str, asyncio.Event] = {}        # a view that is not worked out until its event is set
-        self.hold_body: dict[str, asyncio.Event] = {}        # an answer whose body waits (a slow download)
+        self.hold_view: dict[str, asyncio.Event] = {}  # a view that is not worked out until its event is set
+        self.hold_body: dict[str, asyncio.Event] = {}  # an answer whose body waits (a slow download)
 
     async def __call__(self, scope, receive, send) -> None:
         name = scope["path"]
@@ -66,9 +67,11 @@ def test_reads_are_worked_out_one_at_a_time_in_the_order_they_came():
         return app, names, answers
 
     app, names, answers = asyncio.run(main())
-    assert app.most == 1                                     # never two views at once
-    assert app.order == names and app.done == names          # first come, first served
-    assert all([m["type"] for m in sent] == ["http.response.start", "http.response.body"] for sent in answers)   # every answer whole, none changed
+    assert app.most == 1  # never two views at once
+    assert app.order == names and app.done == names  # first come, first served
+    assert all(
+        [m["type"] for m in sent] == ["http.response.start", "http.response.body"] for sent in answers
+    )  # every answer whole, none changed
 
 
 def test_without_the_turns_the_same_reads_would_be_worked_out_side_by_side():
@@ -87,13 +90,13 @@ def test_a_request_that_changes_something_takes_no_turn_and_waits_for_none():
         gate = OneReadAtATime(app)
         app.hold_view["/api/plans/1/lab"] = asyncio.Event()
         slow = asyncio.create_task(_ask(gate, _scope("/api/plans/1/lab")))
-        await asyncio.sleep(0.02)                            # the read has its turn and is still being worked out
+        await asyncio.sleep(0.02)  # the read has its turn and is still being worked out
         # a change, a page file and a read that is not under /api all go straight through
         for scope in (_scope("/api/plans/1/run-all", "POST"), _scope("/assets/index.js"), _scope("/")):
             await asyncio.wait_for(_ask(gate, scope), timeout=10)
         waiting = asyncio.create_task(_ask(gate, _scope("/api/plans/1/checks")))
         await asyncio.sleep(0.02)
-        assert not slow.done() and not waiting.done()        # the second read waits for the first
+        assert not slow.done() and not waiting.done()  # the second read waits for the first
         assert "/api/plans/1/checks" not in app.order
         app.hold_view["/api/plans/1/lab"].set()
         await asyncio.wait_for(asyncio.gather(slow, waiting), timeout=10)
@@ -109,7 +112,7 @@ def test_the_turn_ends_when_the_answer_starts_so_a_slow_download_holds_nobody_ba
         gate = OneReadAtATime(app)
         app.hold_body["/api/evidence/1/json"] = asyncio.Event()
         download = asyncio.create_task(_ask(gate, _scope("/api/evidence/1/json")))
-        await asyncio.sleep(0.02)                            # its answer has started; the body is still going out
+        await asyncio.sleep(0.02)  # its answer has started; the body is still going out
         after = await asyncio.wait_for(_ask(gate, _scope("/api/plans/1")), timeout=10)
         assert not download.done() and [m["type"] for m in after] == ["http.response.start", "http.response.body"]
         app.hold_body["/api/evidence/1/json"].set()
@@ -145,21 +148,25 @@ def test_a_read_that_is_stuck_holds_the_others_for_one_turn_only_and_then_they_g
     # being applied). Such a read must not stop every other page from reading.
     async def main():
         app = _App()
-        gate = OneReadAtATime(app, limit=0.3)      # (long beside the short waits below, so a busy machine does not blur the order)
+        gate = OneReadAtATime(
+            app, limit=0.3
+        )  # (long beside the short waits below, so a busy machine does not blur the order)
         app.hold_view["/api/import/1/migration"] = asyncio.Event()
         stuck = asyncio.create_task(_ask(gate, _scope("/api/import/1/migration")))
         await asyncio.sleep(0.01)
         waiting = [asyncio.create_task(_ask(gate, _scope(f"/api/plans/{n}"))) for n in (1, 2, 3)]
         await asyncio.sleep(0.01)
-        assert app.order == ["/api/import/1/migration"]              # within its turn the others wait
-        await asyncio.wait_for(asyncio.gather(*waiting), timeout=10)    # after it they are answered, although it never answered
+        assert app.order == ["/api/import/1/migration"]  # within its turn the others wait
+        await asyncio.wait_for(
+            asyncio.gather(*waiting), timeout=10
+        )  # after it they are answered, although it never answered
         assert not stuck.done()
         # while it is stuck nobody waits for a turn: reads that come now are worked out side by side, as before there were turns
         app.most = 0
         app.hold_view["/api/plans/7"] = asyncio.Event()
         slow = asyncio.create_task(_ask(gate, _scope("/api/plans/7")))
         await asyncio.sleep(0.01)
-        await asyncio.wait_for(_ask(gate, _scope("/api/plans/8")), timeout=10)      # not held up by the slow one before it
+        await asyncio.wait_for(_ask(gate, _scope("/api/plans/8")), timeout=10)  # not held up by the slow one before it
         app.hold_view["/api/plans/7"].set()
         await asyncio.wait_for(slow, timeout=10)
         side_by_side = app.most
@@ -172,7 +179,7 @@ def test_a_read_that_is_stuck_holds_the_others_for_one_turn_only_and_then_they_g
 
     side_by_side, in_turn, app = asyncio.run(main())
     assert side_by_side > 1 and in_turn == 1
-    assert "/api/import/1/migration" in app.done                     # the stuck read's own answer went out whole in the end
+    assert "/api/import/1/migration" in app.done  # the stuck read's own answer went out whole in the end
 
 
 def test_a_quick_read_never_runs_past_its_turn():
@@ -181,7 +188,7 @@ def test_a_quick_read_never_runs_past_its_turn():
         app = _App()
         gate = OneReadAtATime(app, limit=0.05)
         await _ask(gate, _scope("/api/plans/1"))
-        await asyncio.sleep(0.1)                                     # well past the limit
+        await asyncio.sleep(0.1)  # well past the limit
         app.most = 0
         await asyncio.gather(*[_ask(gate, _scope(f"/api/plans/{n}")) for n in range(2, 8)])
         return app.most

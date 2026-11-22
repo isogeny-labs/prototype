@@ -2,6 +2,7 @@
 cases. One harness run puts every case to the library; further runs put the cases of each part to that part's
 deliberately broken control. Per case the harness reports only whether the input was refused, a yes/no, and
 the SHA-256 of the answer. Raw answers only: nothing in this file says which answer is right."""
+
 from __future__ import annotations
 
 from app.engine import pq_vectors
@@ -14,8 +15,11 @@ from app.run.execute.signing import NOT_DEMO, component_key, family_of, real_pro
 # The controls always run in the OpenSSL image, whatever library is being examined, so the exams work for any
 # library whose wrapper offers the algorithm.
 CONTROL_FAMILY = "openssl"
-CONTROL_SUBJECTS = {"wrong_answer": "control-pq-wrong-answer", "skip_key_check": "control-pq-skip-key-check",
-                    "accept_all": "control-accept-all"}
+CONTROL_SUBJECTS = {
+    "wrong_answer": "control-pq-wrong-answer",
+    "skip_key_check": "control-pq-skip-key-check",
+    "accept_all": "control-accept-all",
+}
 
 
 def control_cases(control: str, part: str, cases) -> list:
@@ -25,7 +29,7 @@ def control_cases(control: str, part: str, cases) -> list:
         return [c for c in mine if c.expect == "answer"]
     if control == "accept_all":
         return [c for c in mine if c.command == "verify"]
-    return mine   # skip_key_check: every case of the part; it is judged on the bad keys among them
+    return mine  # skip_key_check: every case of the part; it is judged on the bad keys among them
 
 
 def _answers(lines: list[dict], cases) -> tuple[dict, dict]:
@@ -37,7 +41,11 @@ def _answers(lines: list[dict], cases) -> tuple[dict, dict]:
         if line is None or line.get("error") or not isinstance(line.get("declined"), bool):
             no_answer[case.id] = str((line or {}).get("error") or "no answer")[:120]
         else:
-            answers[case.id] = {"refused": line["declined"], "valid": line.get("valid"), "sha256": line.get("answer_sha256")}
+            answers[case.id] = {
+                "refused": line["declined"],
+                "valid": line.get("valid"),
+                "sha256": line.get("answer_sha256"),
+            }
     return answers, no_answer
 
 
@@ -55,7 +63,7 @@ def run_pq_exam(spec: dict, ctx: RunContext) -> dict:
         cases = pq_vectors.load(exam)
     except vectors.VectorFileChanged as exc:
         return problem("vector_file_changed", str(exc))
-    files = {f["file"]: f["sha256"] for f in pq_vectors.file_pins(exam)}   # the hashes the loader checked just now
+    files = {f["file"]: f["sha256"] for f in pq_vectors.file_pins(exam)}  # the hashes the loader checked just now
     if files != {f["file"]: f["sha256"] for f in spec["inputs"]["files"]}:
         return problem("vector_file_changed", "The official test files are not the ones this test was locked with.")
     total, seen = len(cases), {"n": 0}
@@ -66,7 +74,11 @@ def run_pq_exam(spec: dict, ctx: RunContext) -> dict:
             ctx.progress(f"{seen['n']} of {total} cases", int(seen["n"] * 60 / total))
 
     def ask(subject: str, some, progress=None, where: str = family):
-        job = {"op": "kat_batch", "subject": subject, "cases": [{"id": c.id, "command": c.command, "input": c.input} for c in some]}
+        job = {
+            "op": "kat_batch",
+            "subject": subject,
+            "cases": [{"id": c.id, "command": c.command, "input": c.input} for c in some],
+        }
         return ctx.runner.run_job(job, time_limit=280.0, on_line=progress, family=where)
 
     ctx.progress(f"0 of {total} cases", 0)
@@ -88,5 +100,9 @@ def run_pq_exam(spec: dict, ctx: RunContext) -> dict:
             ctx.log(f"control for {part}: {answer.problem}")
             controls[part] = {"control": must["control"], "problem": answer.problem}
     ctx.progress("checking the result", 97)
-    return {"subject": {"key": key, "answers": answers, "no_answer": no_answer}, "controls": controls, "files": files,
-            "batch": batch_info(result)}
+    return {
+        "subject": {"key": key, "answers": answers, "no_answer": no_answer},
+        "controls": controls,
+        "files": files,
+        "batch": batch_info(result),
+    }

@@ -1,6 +1,7 @@
 """Small helpers for the tests that read the screens' views, and `problems`, which says where a view does not have
 exactly the shape the screens receive. The shapes are the ones in app/web/models.py, the same ones the frontend's
 types are generated from (phase 4c+; before, this file held a hand-written copy of the frontend's types)."""
+
 from __future__ import annotations
 
 import json

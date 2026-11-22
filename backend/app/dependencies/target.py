@@ -3,6 +3,7 @@
 Built in this phase: the public pinned copy in our sandbox (`PublicCopy`). Level 3 (a later phase) adds a target
 that is the customer's own container in their network; it implements the same three calls and nothing else changes.
 The label a result carries comes from the target kind, in this one place (`LABELS`)."""
+
 from __future__ import annotations
 
 import subprocess
@@ -22,8 +23,10 @@ class Target(Protocol):
     kind: str
 
     def describe(self) -> dict: ...
-    def run_job(self, job: dict, time_limit: float): ...           # a harness job on this library (keygen, round trips)
-    def tls_client(self, port: int, groups: str) -> dict | None: ... # one TLS 1.3 handshake to 127.0.0.1:port; None: not measured here
+    def run_job(self, job: dict, time_limit: float): ...  # a harness job on this library (keygen, round trips)
+    def tls_client(
+        self, port: int, groups: str
+    ) -> dict | None: ...  # one TLS 1.3 handshake to 127.0.0.1:port; None: not measured here
 
 
 def label_of(target_kind: object) -> str | None:
@@ -32,6 +35,7 @@ def label_of(target_kind: object) -> str | None:
 
 class PublicCopy:
     """The pinned public copy of exactly this library version (real_libraries.CAPABILITY_COPIES), in its own image."""
+
     kind = "public_copy"
 
     def __init__(self, name: str, version: str, runner):
@@ -50,8 +54,14 @@ class PublicCopy:
 
     def describe(self) -> dict:
         image = (self.runner.mode.real_images or {}).get(self.family) if self.runner else None
-        return {"kind": self.kind, "name": self.name, "version": self.version, "label": self.copy["label"], "image": image,
-                "tls_client": self.tls_image()}
+        return {
+            "kind": self.kind,
+            "name": self.name,
+            "version": self.version,
+            "label": self.copy["label"],
+            "image": image,
+            "tls_client": self.tls_image(),
+        }
 
     def run_job(self, job: dict, time_limit: float = TIME_LIMIT_SECONDS):
         return self.runner.run_job({**job, "subject": self.subject}, time_limit=time_limit, family=self.family)
@@ -71,11 +81,17 @@ class PublicCopy:
         name = "evlab-cap-" + secrets.token_hex(6)
         argv = ["docker", "run", "--name", name, *DOCKER_FLAGS, "--entrypoint", "openssl", image, *args]
         try:
-            done = subprocess.run(argv, input="", capture_output=True, text=True, timeout=TIME_LIMIT_SECONDS, env=_docker_env())
+            done = subprocess.run(
+                argv, input="", capture_output=True, text=True, timeout=TIME_LIMIT_SECONDS, env=_docker_env()
+            )
             code, output = done.returncode, (done.stdout + done.stderr)[-4000:]
         except subprocess.TimeoutExpired:
             subprocess.run(["docker", "rm", "-f", name], capture_output=True, timeout=20, env=_docker_env())
             code, output = None, "(no answer before the time limit)"
         except OSError as exc:
             code, output = None, f"(the client could not be started: {exc.__class__.__name__})"
-        return {"command": f"docker run ... --entrypoint openssl {image} " + " ".join(args), "exit": code, "output": output}
+        return {
+            "command": f"docker run ... --entrypoint openssl {image} " + " ".join(args),
+            "exit": code,
+            "output": output,
+        }

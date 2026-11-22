@@ -1,4 +1,5 @@
 """The three ways a request can be turned down. The web API maps them to 404, 422 and 409."""
+
 from __future__ import annotations
 
 

@@ -1,5 +1,14 @@
 import { useState } from "react";
-import { api, errorMessage, type AssessmentView, type OttoWaiting, type OverviewFact, type OverviewGroup, type SourceCount, type Workspace } from "../../api";
+import {
+  api,
+  errorMessage,
+  type AssessmentView,
+  type OttoWaiting,
+  type OverviewFact,
+  type OverviewGroup,
+  type SourceCount,
+  type Workspace,
+} from "../../api";
 import type { Page } from "../../router";
 import { PageHeader } from "../layout";
 import { ItemLinkView } from "../related";
@@ -20,10 +29,21 @@ function Facts({ facts }: { facts: OverviewFact[] }) {
   );
 }
 
-function Counts({ label, counts, link }: { label: string; counts: { open: number; in_progress: number; done: number }; link: { page: string; group: string } }) {
+function Counts({
+  label,
+  counts,
+  link,
+}: {
+  label: string;
+  counts: { open: number; in_progress: number; done: number };
+  link: { page: string; group: string };
+}) {
   return (
     <p className="text-xs text-slate-400">
-      <ItemLinkView link={{ page: link.page, item: null, group: link.group }} className="hover:text-slate-200 hover:underline">
+      <ItemLinkView
+        link={{ page: link.page, item: null, group: link.group }}
+        className="hover:text-slate-200 hover:underline"
+      >
         {label}: Open {counts.open} · In progress {counts.in_progress} · Done {counts.done}
       </ItemLinkView>
     </p>
@@ -34,13 +54,24 @@ function Counts({ label, counts, link }: { label: string; counts: { open: number
  * words (a source with none is left out). It counts what the checks say and decides nothing. */
 function SourceCounts({ counts }: { counts: SourceCount[] }) {
   return (
-    <p data-testid="overview-source-counts" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+    <p
+      data-testid="overview-source-counts"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400"
+    >
       {/* the spaces are for a screen reader and a copy: a flex box draws only the gaps */}
       <span>Where these came from:</span>{" "}
       {counts.map((c, i) => (
-        <span key={c.key} data-testid="overview-source-count" data-source={c.key} className="inline-flex items-center gap-1">
+        <span
+          key={c.key}
+          data-testid="overview-source-count"
+          data-source={c.key}
+          className="inline-flex items-center gap-1"
+        >
           <span className="tabular-nums text-slate-300">{c.count}</span>{" "}
-          <WhereFromTag tag={{ key: c.key, label: c.label, meaning: c.meaning, note: null }} testId="overview-source-tag" />
+          <WhereFromTag
+            tag={{ key: c.key, label: c.label, meaning: c.meaning, note: null }}
+            testId="overview-source-tag"
+          />
           {/* the dot ends an item, so a wrapped line starts with its number */}
           {i < counts.length - 1 ? <span aria-hidden="true"> ·</span> : null}{" "}
         </span>
@@ -52,10 +83,19 @@ function SourceCounts({ counts }: { counts: SourceCount[] }) {
 /** One work group of the assessment on the Overview: its checks and fixes counts and its facts, each a link. */
 function GroupBlock({ group }: { group: OverviewGroup }) {
   return (
-    <section data-testid="overview-group" data-group={group.key} aria-label={group.label} className="rounded-xl border border-slate-800 bg-slate-900/40">
-      <h2 className="rounded-t-xl border-b border-slate-800 bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100">{group.label}</h2>
+    <section
+      data-testid="overview-group"
+      data-group={group.key}
+      aria-label={group.label}
+      className="rounded-xl border border-slate-800 bg-slate-900/40"
+    >
+      <h2 className="rounded-t-xl border-b border-slate-800 bg-slate-900/80 px-4 py-2 text-sm font-semibold text-slate-100">
+        {group.label}
+      </h2>
       <div className="space-y-2 px-4 py-3 text-sm">
-        {group.checks ? <Counts label="Checks" counts={group.checks} link={{ page: "checks", group: group.key }} /> : null}
+        {group.checks ? (
+          <Counts label="Checks" counts={group.checks} link={{ page: "checks", group: group.key }} />
+        ) : null}
         {group.source_counts && group.source_counts.length > 0 ? <SourceCounts counts={group.source_counts} /> : null}
         {group.facts.length > 0 ? <Facts facts={group.facts} /> : null}
         {group.fixes ? <Counts label="Fixes" counts={group.fixes} link={{ page: "fixes", group: group.key }} /> : null}
@@ -156,7 +196,9 @@ export function OverviewPage({
         description={
           <span className="flex flex-col gap-1.5">
             <span className="flex flex-wrap items-center gap-2">
-              {assessment.purpose ? <StatusChip size="sm" label={assessment.purpose.label} tone="neutral" testId="assessment-purpose" /> : null}
+              {assessment.purpose ? (
+                <StatusChip size="sm" label={assessment.purpose.label} tone="neutral" testId="assessment-purpose" />
+              ) : null}
               {assessment.reference ? <span className="text-slate-300">{assessment.reference}</span> : null}
               <StatusChip size="sm" label={assessment.status.label} tone={closed ? "neutral" : "pass"} />
               <span>Started {formatTime(assessment.created_at)}</span>
@@ -169,7 +211,8 @@ export function OverviewPage({
             {assessment.file ? (
               <span className="flex flex-wrap items-center gap-2">
                 <span>
-                  <span className="font-mono text-slate-300">{assessment.file.filename}</span>, imported {formatTime(assessment.file.imported_at)}
+                  <span className="font-mono text-slate-300">{assessment.file.filename}</span>, imported{" "}
+                  {formatTime(assessment.file.imported_at)}
                 </span>
                 {assessment.file.is_demo ? <DemoDataLabel /> : null}
               </span>
@@ -196,8 +239,14 @@ export function OverviewPage({
                 ...(!closed ? [{ label: "Change purpose", onClick: () => setForm("purpose") }] : []),
                 { label: "Move to another project", onClick: () => setForm("move") },
                 assessment.archived
-                  ? { label: "Unarchive", onClick: () => void act(() => api.changeAssessment(assessment.id, { archived: false })) }
-                  : { label: "Archive", onClick: () => void act(() => api.changeAssessment(assessment.id, { archived: true })) },
+                  ? {
+                      label: "Unarchive",
+                      onClick: () => void act(() => api.changeAssessment(assessment.id, { archived: false })),
+                    }
+                  : {
+                      label: "Archive",
+                      onClick: () => void act(() => api.changeAssessment(assessment.id, { archived: true })),
+                    },
               ]}
             />
           </>
@@ -247,7 +296,11 @@ export function OverviewPage({
       {assessment.waiting ? <WaitingBlock waiting={assessment.waiting} /> : null}
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
-        <section aria-label="Next step" data-testid="next-step" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+        <section
+          aria-label="Next step"
+          data-testid="next-step"
+          className="rounded-xl border border-slate-800 bg-slate-900/50 p-5"
+        >
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Next step</p>
           <p className="mt-1.5 text-sm text-slate-300">{assessment.next_step.text}</p>
           <div className="mt-4">
@@ -262,7 +315,11 @@ export function OverviewPage({
             )}
           </div>
         </section>
-        <section aria-label="Brought in" data-testid="brought-in" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 text-sm">
+        <section
+          aria-label="Brought in"
+          data-testid="brought-in"
+          className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 text-sm"
+        >
           <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Brought in</p>
           {assessment.import ? (
             <div className="mt-1.5 space-y-1 text-slate-300">
@@ -271,7 +328,8 @@ export function OverviewPage({
                   <span className="font-mono">{assessment.import.filename}</span>
                 </ItemLinkView>
                 : {assessment.import.claims.length} {assessment.import.claims.length === 1 ? "claim" : "claims"},{" "}
-                {assessment.import.addresses.length} {assessment.import.addresses.length === 1 ? "server" : "servers"} named
+                {assessment.import.addresses.length} {assessment.import.addresses.length === 1 ? "server" : "servers"}{" "}
+                named
               </p>
               <p className="text-slate-400">
                 <ItemLinkView link={{ page: "migration/dependencies", item: null }}>Dependency list</ItemLinkView>:{" "}
@@ -279,7 +337,9 @@ export function OverviewPage({
               </p>
             </div>
           ) : (
-            <p className="mt-1.5 text-slate-400">Nothing yet. Bring in the file your scanner made, or use the demo file.</p>
+            <p className="mt-1.5 text-slate-400">
+              Nothing yet. Bring in the file your scanner made, or use the demo file.
+            </p>
           )}
         </section>
       </div>
@@ -292,7 +352,11 @@ export function OverviewPage({
             ))}
           </div>
           <div className="mb-6 grid gap-4 lg:grid-cols-2">
-            <section aria-label="Open findings" data-testid="open-findings" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 text-sm">
+            <section
+              aria-label="Open findings"
+              data-testid="open-findings"
+              className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 text-sm"
+            >
               <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Open findings</p>
               <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
                 {blocks.findings.map((f) => (
@@ -305,15 +369,26 @@ export function OverviewPage({
               </ul>
               {blocks.watch_list ? (
                 // Sandbox research (prototype): information, never a finding or a result. It opens the Watch list.
-                <p data-testid="overview-watch-list" className="mt-3 break-words border-t border-slate-800 pt-3 text-slate-300">
+                <p
+                  data-testid="overview-watch-list"
+                  className="mt-3 break-words border-t border-slate-800 pt-3 text-slate-300"
+                >
                   {blocks.watch_list.line}{" "}
-                  <ItemLinkView link={blocks.watch_list.link} testId="overview-watch-list-link" className="text-sky-300 underline-offset-2 hover:underline">
+                  <ItemLinkView
+                    link={blocks.watch_list.link}
+                    testId="overview-watch-list-link"
+                    className="text-sky-300 underline-offset-2 hover:underline"
+                  >
                     Open the Watch list
                   </ItemLinkView>
                 </p>
               ) : null}
             </section>
-            <section aria-label="Evidence" data-testid="overview-evidence" className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 text-sm">
+            <section
+              aria-label="Evidence"
+              data-testid="overview-evidence"
+              className="rounded-xl border border-slate-800 bg-slate-900/50 p-5 text-sm"
+            >
               <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Evidence</p>
               <p className="mt-2 text-slate-300">
                 <ItemLinkView link={{ page: "evidence", item: null }}>
@@ -342,7 +417,8 @@ export function OverviewPage({
           <span>
             <span className="block text-sm font-medium text-slate-100">Guided demo</span>
             <span className="mt-1 block text-xs leading-relaxed text-slate-400">
-              Walks the pages in today&apos;s order, with Back and Next at the bottom of each: Import, Verify, Checks, Evidence, Fixes, Migration.
+              Walks the pages in today&apos;s order, with Back and Next at the bottom of each: Import, Verify, Checks,
+              Evidence, Fixes, Migration.
             </span>
           </span>
           <input
@@ -359,7 +435,11 @@ export function OverviewPage({
 
       <p className="text-sm text-slate-400">
         Every assessment of this project, side by side:{" "}
-        <a href={`#/p/${assessment.project.id}`} data-testid="to-project-overview" className="text-sky-300 hover:underline">
+        <a
+          href={`#/p/${assessment.project.id}`}
+          data-testid="to-project-overview"
+          className="text-sky-300 hover:underline"
+        >
           Project overview
         </a>
         .

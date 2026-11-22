@@ -6,14 +6,23 @@ import { linkRoute, routeHref } from "../router";
  * in the open assessment (or the one it names), so a link opens exactly that item and Back returns. */
 const AssessmentLinks = createContext<{ assessmentId: number; planId: number | null } | null>(null);
 
-export function LinkProvider({ assessmentId, planId, children }: { assessmentId: number; planId: number | null; children: ReactNode }) {
+export function LinkProvider({
+  assessmentId,
+  planId,
+  children,
+}: {
+  assessmentId: number;
+  planId: number | null;
+  children: ReactNode;
+}) {
   return <AssessmentLinks.Provider value={{ assessmentId, planId }}>{children}</AssessmentLinks.Provider>;
 }
 
 export function useLinkHref(): (link: ItemLink) => string {
   const ctx = useContext(AssessmentLinks);
   // Phase 5c: a link to Settings (the Test packs section) belongs to no assessment, so it needs none open.
-  return (link) => (ctx ? routeHref(linkRoute(link, ctx.assessmentId)) : link.page === "settings" ? routeHref(linkRoute(link, 0)) : "#");
+  return (link) =>
+    ctx ? routeHref(linkRoute(link, ctx.assessmentId)) : link.page === "settings" ? routeHref(linkRoute(link, 0)) : "#";
 }
 
 export function usePlanId(): number | null {
@@ -21,10 +30,24 @@ export function usePlanId(): number | null {
 }
 
 /** A link to one item, as the backend named it. */
-export function ItemLinkView({ link, children, className, testId }: { link: ItemLink; children: ReactNode; className?: string; testId?: string }) {
+export function ItemLinkView({
+  link,
+  children,
+  className,
+  testId,
+}: {
+  link: ItemLink;
+  children: ReactNode;
+  className?: string;
+  testId?: string;
+}) {
   const href = useLinkHref();
   return (
-    <a href={href(link)} data-testid={testId} className={className ?? "text-sky-300 underline-offset-2 hover:underline"}>
+    <a
+      href={href(link)}
+      data-testid={testId}
+      className={className ?? "text-sky-300 underline-offset-2 hover:underline"}
+    >
       {children}
     </a>
   );
@@ -36,11 +59,20 @@ export function ItemLinkView({ link, children, className, testId }: { link: Item
 export function RelatedBlock({ lines }: { lines: RelatedLine[] | null }) {
   if (!lines || lines.length === 0) return null;
   return (
-    <section data-testid="related" aria-label="Related" className="mt-5 rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+    <section
+      data-testid="related"
+      aria-label="Related"
+      className="mt-5 rounded-lg border border-slate-800 bg-slate-900/50 p-3"
+    >
       <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">Related</h3>
       <dl className="space-y-2 text-sm">
         {lines.map((line) => (
-          <div key={line.kind} data-testid="related-line" data-kind={line.kind} className="grid gap-1 @sm:grid-cols-[8rem_minmax(0,1fr)]">
+          <div
+            key={line.kind}
+            data-testid="related-line"
+            data-kind={line.kind}
+            className="grid gap-1 @sm:grid-cols-[8rem_minmax(0,1fr)]"
+          >
             <dt className="text-xs text-slate-500">{line.title}</dt>
             <dd className="space-y-1">
               {line.items.map((item) => (

@@ -1,5 +1,6 @@
 """Items in a file that this version doesn't check are listed as "skipped", never dropped silently.
 And a failed upload leaves nothing imported."""
+
 import json
 
 from app.config import DEMO_CBOM
@@ -11,10 +12,18 @@ from test_importers import cbom
 
 
 def asset(ref, name, asset_type="algorithm", **props):
-    key = {"algorithm": "algorithmProperties", "related-crypto-material": "relatedCryptoMaterialProperties",
-           "certificate": "certificateProperties", "protocol": "protocolProperties"}[asset_type]
-    return {"type": "cryptographic-asset", "bom-ref": ref, "name": name,
-            "cryptoProperties": {"assetType": asset_type, key: props}}
+    key = {
+        "algorithm": "algorithmProperties",
+        "related-crypto-material": "relatedCryptoMaterialProperties",
+        "certificate": "certificateProperties",
+        "protocol": "protocolProperties",
+    }[asset_type]
+    return {
+        "type": "cryptographic-asset",
+        "bom-ref": ref,
+        "name": name,
+        "cryptoProperties": {"assetType": asset_type, key: props},
+    }
 
 
 def add_hash_and_cipher(doc):
@@ -36,10 +45,17 @@ def test_hash_and_cipher_assets_are_listed_as_skipped_and_claims_are_unchanged()
     parsed = parse_file("scan.json", cbom(add_hash_and_cipher))
     assert parsed.claims == parse_cbom(DEMO_CBOM.read_bytes())
     sha, aes = parsed.skipped
-    assert (sha.name, sha.what, sha.reason) == ("SHA-256", "Hash algorithm", "Hash algorithms are not checked in this version")
+    assert (sha.name, sha.what, sha.reason) == (
+        "SHA-256",
+        "Hash algorithm",
+        "Hash algorithms are not checked in this version",
+    )
     assert sha.source == "components[5] (bom-ref alg-sha256)"
     assert (aes.name, aes.what, aes.reason) == (
-        "AES-256-GCM", "Encryption algorithm", "Encryption algorithms are not checked in this version")
+        "AES-256-GCM",
+        "Encryption algorithm",
+        "Encryption algorithms are not checked in this version",
+    )
     assert aes.source == "components[6] (bom-ref alg-aes)"
 
 
@@ -56,17 +72,34 @@ def test_loose_keys_and_algorithms_only_named_by_a_certificate_or_protocol_are_l
             asset("alg-odd", "Thing", primitive="other"),
         ]
         cert = next(c for c in doc["components"] if c.get("bom-ref") == "cert-server")
-        cert["cryptoProperties"]["certificateProperties"]["signatureAlgorithmRef"] = "alg-rsa"  # value comes from the key
+        cert["cryptoProperties"]["certificateProperties"]["signatureAlgorithmRef"] = (
+            "alg-rsa"  # value comes from the key
+        )
         proto = next(c for c in doc["components"] if c.get("bom-ref") == "proto-tls13")
         proto["cryptoProperties"]["protocolProperties"]["cryptoRefArray"].append("alg-x25519")
         proto["cryptoProperties"]["protocolProperties"]["cipherSuites"] = [
-            {"name": "TLS_AES_128_GCM_SHA256"}, {"name": "not a suite name!"}, {"identifiers": ["0x13", "0x02"]}]
+            {"name": "TLS_AES_128_GCM_SHA256"},
+            {"name": "not a suite name!"},
+            {"identifiers": ["0x13", "0x02"]},
+        ]
+
     parsed = parse_file("scan.json", cbom(m))
-    assert [c.kind for c in parsed.claims] == ["protocol_versions", "cipher_suites", "certificate", "signature_algorithm"]
+    assert [c.kind for c in parsed.claims] == [
+        "protocol_versions",
+        "cipher_suites",
+        "certificate",
+        "signature_algorithm",
+    ]
     assert parsed.claims[2].claimed_value == "ECDSA P-256"
     got = [(s.name, s.what) for s in parsed.skipped]
-    assert got == [("not a suite name!", "Cipher suite"), ("(no name)", "Cipher suite"), ("Old signing key", "Private key"),
-                   ("RSA-2048", "Signature algorithm"), ("X25519", "Key-exchange algorithm"), ("Thing", "Algorithm")]
+    assert got == [
+        ("not a suite name!", "Cipher suite"),
+        ("(no name)", "Cipher suite"),
+        ("Old signing key", "Private key"),
+        ("RSA-2048", "Signature algorithm"),
+        ("X25519", "Key-exchange algorithm"),
+        ("Thing", "Algorithm"),
+    ]
     assert "cipherSuites[1]" in parsed.skipped[0].source and "proto-tls13" in parsed.skipped[0].source
     assert all(s.reason and s.source for s in parsed.skipped)
     assert "not-shown" not in json.dumps([vars(s) for s in parsed.skipped])  # a key's value is never copied
@@ -74,11 +107,19 @@ def test_loose_keys_and_algorithms_only_named_by_a_certificate_or_protocol_are_l
 
 def cbomkit_style() -> dict:
     """Shaped like a source-code scan (many algorithm assets, uuid refs, file-path occurrences)."""
+
     def found(a, path, line):
-        a["evidence"] = {"occurrences": [{"location": path, "line": line, "offset": 12, "additionalContext": "java.security"}]}
+        a["evidence"] = {
+            "occurrences": [{"location": path, "line": line, "offset": 12, "additionalContext": "java.security"}]
+        }
         return a
+
     comps = [
-        found(asset("a1", "SHA256", primitive="hash", parameterSetIdentifier="256", cryptoFunctions=["digest"]), "src/A.java", 10),
+        found(
+            asset("a1", "SHA256", primitive="hash", parameterSetIdentifier="256", cryptoFunctions=["digest"]),
+            "src/A.java",
+            10,
+        ),
         found(asset("a2", "SHA384", primitive="hash", parameterSetIdentifier="384"), "src/A.java", 31),
         found(asset("a3", "AES128-GCM", primitive="ae", parameterSetIdentifier="128", mode="gcm"), "src/B.java", 7),
         found(asset("a4", "AES256-CBC-PKCS5", primitive="block-cipher", mode="cbc", padding="pkcs5"), "src/B.java", 44),
@@ -89,17 +130,42 @@ def cbomkit_style() -> dict:
         found(asset("a9", "ECDH", primitive="key-agree", curve="secp256r1"), "src/E.java", 12),
         found(asset("a10", "SecureRandom", primitive="drbg"), "src/E.java", 40),
         found(asset("a11", "ChaCha20"), "src/F.java", 2),  # no primitive stated
-        found(asset("k1", "secret-key@a3", "related-crypto-material", type="secret-key", algorithmRef="a3", size=128), "src/B.java", 8),
-        found(asset("k2", "key@a8", "related-crypto-material", type="public-key", algorithmRef="a8", size=2048), "src/D.java", 10),
-        found(asset("p1", "TLSv1.2", "protocol", type="tls", version="1.2", cipherSuites=[
-            {"name": "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "algorithms": ["a9", "a3", "a1"]}]), "src/G.java", 1),
+        found(
+            asset("k1", "secret-key@a3", "related-crypto-material", type="secret-key", algorithmRef="a3", size=128),
+            "src/B.java",
+            8,
+        ),
+        found(
+            asset("k2", "key@a8", "related-crypto-material", type="public-key", algorithmRef="a8", size=2048),
+            "src/D.java",
+            10,
+        ),
+        found(
+            asset(
+                "p1",
+                "TLSv1.2",
+                "protocol",
+                type="tls",
+                version="1.2",
+                cipherSuites=[{"name": "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "algorithms": ["a9", "a3", "a1"]}],
+            ),
+            "src/G.java",
+            1,
+        ),
         {"type": "library", "bom-ref": "lib", "name": "bcprov-jdk18on", "version": "1.78"},
     ]
-    return {"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
-            "metadata": {"component": {"type": "application", "bom-ref": "app", "name": "example-app", "version": "0.1"}},
-            "components": comps,
-            "dependencies": [{"ref": "app", "dependsOn": ["lib", "a1", "a7"]}, {"ref": "k1", "dependsOn": ["a3"]},
-                             {"ref": "a7", "dependsOn": ["a1"]}]}
+    return {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.6",
+        "version": 1,
+        "metadata": {"component": {"type": "application", "bom-ref": "app", "name": "example-app", "version": "0.1"}},
+        "components": comps,
+        "dependencies": [
+            {"ref": "app", "dependsOn": ["lib", "a1", "a7"]},
+            {"ref": "k1", "dependsOn": ["a3"]},
+            {"ref": "a7", "dependsOn": ["a1"]},
+        ],
+    }
 
 
 def test_realistic_scan_file_imports_and_every_crypto_asset_is_in_a_claim_or_skipped():
@@ -119,17 +185,29 @@ def test_realistic_scan_file_imports_and_every_crypto_asset_is_in_a_claim_or_ski
 
 # ------------------------------------------------------------------ through the API
 
+
 def test_api_returns_and_keeps_skipped_items(client):
     imp = client.post("/api/import/demo").json()
     assert imp["skipped"] == [] and len(imp["claims"]) == 3
-    assert upload(client, "claims.csv", csv_bytes("localhost:8443,tls,protocol_versions,TLS1.3")).json()["skipped"] == []
+    assert (
+        upload(client, "claims.csv", csv_bytes("localhost:8443,tls,protocol_versions,TLS1.3")).json()["skipped"] == []
+    )
     imp = upload(client, "scan.json", cbom(add_hash_and_cipher)).json()
     assert len(imp["claims"]) == 3
     assert imp["skipped"] == [
-        {"name": "SHA-256", "what": "Hash algorithm", "source": "components[5] (bom-ref alg-sha256)",
-         "reason": "Hash algorithms are not checked in this version"},
-        {"name": "AES-256-GCM", "what": "Encryption algorithm", "source": "components[6] (bom-ref alg-aes)",
-         "reason": "Encryption algorithms are not checked in this version"}]
+        {
+            "name": "SHA-256",
+            "what": "Hash algorithm",
+            "source": "components[5] (bom-ref alg-sha256)",
+            "reason": "Hash algorithms are not checked in this version",
+        },
+        {
+            "name": "AES-256-GCM",
+            "what": "Encryption algorithm",
+            "source": "components[6] (bom-ref alg-aes)",
+            "reason": "Encryption algorithms are not checked in this version",
+        },
+    ]
     assert client.get("/api/import/current").json() == imp
 
 

@@ -432,13 +432,17 @@ export const api = {
   setOrganization: (name: string) => request<Workspace>("/api/organization", { method: "POST", json: { name } }),
   createFolder: (name: string, parentId: number | null) =>
     request<Created>("/api/folders", { method: "POST", json: { name, parent_id: parentId } }),
-  changeFolder: (id: number, change: { name?: string; parent_id?: number | null; move?: boolean; archived?: boolean }) =>
-    request<Created>(`/api/folders/${id}`, { method: "POST", json: change }),
+  changeFolder: (
+    id: number,
+    change: { name?: string; parent_id?: number | null; move?: boolean; archived?: boolean },
+  ) => request<Created>(`/api/folders/${id}`, { method: "POST", json: change }),
   createProject: (name: string, folderId: number | null) =>
     request<Created>("/api/projects", { method: "POST", json: { name, folder_id: folderId } }),
   getProject: (id: number) => request<ProjectView>(`/api/projects/${id}`),
-  changeProject: (id: number, change: { name?: string; folder_id?: number | null; move?: boolean; archived?: boolean }) =>
-    request<Created>(`/api/projects/${id}`, { method: "POST", json: change }),
+  changeProject: (
+    id: number,
+    change: { name?: string; folder_id?: number | null; move?: boolean; archived?: boolean },
+  ) => request<Created>(`/api/projects/${id}`, { method: "POST", json: change }),
   /** Phase 5b: the New assessment box (every field may be left out). It closes nothing. */
   newAssessment: (projectId: number, box: { name?: string; purpose?: string; reference?: string } = {}) =>
     request<Created>(`/api/projects/${projectId}/assessments`, { method: "POST", json: box }),
@@ -469,8 +473,10 @@ export const api = {
   },
   // Phase 5b: every check of an assessment, one check's detail, and the Related block of any item.
   getChecks: (planId: number) => request<ChecksView>(`/api/plans/${planId}/checks`),
-  getCheck: (planId: number, checkId: string) => request<CheckDetail>(`/api/plans/${planId}/checks/${encodeURIComponent(checkId)}`),
-  getRelated: (planId: number, key: string) => request<RelatedView>(`/api/plans/${planId}/related?key=${encodeURIComponent(key)}`),
+  getCheck: (planId: number, checkId: string) =>
+    request<CheckDetail>(`/api/plans/${planId}/checks/${encodeURIComponent(checkId)}`),
+  getRelated: (planId: number, key: string) =>
+    request<RelatedView>(`/api/plans/${planId}/related?key=${encodeURIComponent(key)}`),
   loadDemoProjects: () => request<DemoProjectsLoaded>("/api/demo-projects", { method: "POST" }),
 
   // Phase 5c: Otto. Settings (Test packs, Live Otto) belong to the installation; Advisories and Otto's proposals to one
@@ -479,9 +485,11 @@ export const api = {
   /** Looks in the updates folder on this computer; nothing is downloaded. */
   checkPackUpdates: () => request<OttoSettingsView>("/api/otto/packs/check", { method: "POST" }),
   /** Only the Install button of the Install update box calls this. */
-  installPack: (version: string) => request<OttoSettingsView>("/api/otto/packs/install", { method: "POST", json: { version } }),
+  installPack: (version: string) =>
+    request<OttoSettingsView>("/api/otto/packs/install", { method: "POST", json: { version } }),
   /** Use live Claude on or off, and/or the spending limit per run (US dollars, as typed). */
-  setLiveOtto: (change: { on?: boolean; limit?: string }) => request<OttoSettingsView>("/api/otto/live", { method: "POST", json: change }),
+  setLiveOtto: (change: { on?: boolean; limit?: string }) =>
+    request<OttoSettingsView>("/api/otto/live", { method: "POST", json: change }),
   // Sandbox research (prototype): the switch, its tick and its two spending limits. Answers with the whole Settings view.
   setSandbox: (change: { on?: boolean; by_itself?: boolean; run_limit?: string; day_limit?: string }) =>
     request<OttoSettingsView>("/api/otto/sandbox", { method: "POST", json: change }),
@@ -490,9 +498,11 @@ export const api = {
   getAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories`),
   /** Phase 6, Otto's research loop: one read of the public source about this assessment's libraries (package names
    * only are sent). It runs nothing and proposes nothing. Answers with the page's view as it now stands. */
-  lookForAdvisories: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories/look`, { method: "POST" }),
+  lookForAdvisories: (planId: number) =>
+    request<AdvisoriesView>(`/api/plans/${planId}/advisories/look`, { method: "POST" }),
   /** Design and prove tests for the new advisories of the newest look, in the background. */
-  startResearch: (planId: number) => request<AdvisoriesView>(`/api/plans/${planId}/advisories/research`, { method: "POST" }),
+  startResearch: (planId: number) =>
+    request<AdvisoriesView>(`/api/plans/${planId}/advisories/research`, { method: "POST" }),
   /** Every proposal of Otto's in this assessment, with the "Waiting for you" counts. */
   /** Phase 6a: what the Otto panel shows beside this page of this assessment, with this item open. A read: it runs
    * nothing and asks Claude nothing. */
@@ -515,7 +525,12 @@ export const api = {
   getProposals: (planId: number) => request<OttoProposalsView>(`/api/plans/${planId}/otto/proposals`),
   /** Otto proposes; a person decides: accept, reject (with an optional short reason), undo or reconsider one proposal.
    * It runs nothing. The answer is the proposal as it now stands. */
-  decideProposal: (planId: number, proposalId: string, decision: "accept" | "reject" | "undo" | "reconsider", reason?: string) =>
+  decideProposal: (
+    planId: number,
+    proposalId: string,
+    decision: "accept" | "reject" | "undo" | "reconsider",
+    reason?: string,
+  ) =>
     request<OttoProposal>(`/api/plans/${planId}/otto/proposals/${encodeURIComponent(proposalId)}/${decision}`, {
       method: "POST",
       json: reason ? { reason } : {},
@@ -576,7 +591,10 @@ export const api = {
   getWatchList: (planId: number) => request<WatchListView>(`/api/plans/${planId}/watch-list`),
   watchListLook: (planId: number) => request<WatchListView>(`/api/plans/${planId}/watch-list/look`, { method: "POST" }),
   watchListStop: (planId: number, item: string, reason: string | null) =>
-    request<WatchListView>(`/api/plans/${planId}/watch-list/stop`, { method: "POST", json: reason ? { item, reason } : { item } }),
+    request<WatchListView>(`/api/plans/${planId}/watch-list/stop`, {
+      method: "POST",
+      json: reason ? { item, reason } : { item },
+    }),
   watchListWatch: (planId: number, item: string) =>
     request<WatchListView>(`/api/plans/${planId}/watch-list/watch`, { method: "POST", json: { item } }),
 
@@ -584,7 +602,9 @@ export const api = {
     request<ChangeWatchView>(`/api/plans/${planId}/change-watch/demo/${encodeURIComponent(key)}`, { method: "POST" }),
 
   runPickedTests: (planId: number, changeId: string) =>
-    request<ChangeWatchView>(`/api/plans/${planId}/change-watch/${encodeURIComponent(changeId)}/run`, { method: "POST" }),
+    request<ChangeWatchView>(`/api/plans/${planId}/change-watch/${encodeURIComponent(changeId)}/run`, {
+      method: "POST",
+    }),
 
   // The Fixes step. Every call answers with the whole view as it now stands. Nothing here sends code.
   getFixes: (planId: number) => request<FixesView>(`/api/plans/${planId}/fixes`),
@@ -624,7 +644,10 @@ export const api = {
 
   /** One library (row id), or every library that can be measured (null). Isolated mode only. */
   measureDependencies: (planId: number, row: string | null) =>
-    request<DependenciesView>(`/api/plans/${planId}/dependencies/measure`, { method: "POST", json: row ? { row } : {} }),
+    request<DependenciesView>(`/api/plans/${planId}/dependencies/measure`, {
+      method: "POST",
+      json: row ? { row } : {},
+    }),
 
   // The Migration step. Every call answers with the whole view as it now stands. The GET makes the test plan if there is none.
   getMigration: (importId: number) => request<MigrationView>(`/api/import/${importId}/migration`),
@@ -633,7 +656,10 @@ export const api = {
     request<MigrationView>(`/api/plans/${planId}/migration/measure`, { method: "POST", json: {} }),
 
   saveMigrationSetting: (planId: number, system: string, field: MigrationSettingField["field"], value: string) =>
-    request<MigrationView>(`/api/plans/${planId}/migration/settings`, { method: "POST", json: { system, field, value } }),
+    request<MigrationView>(`/api/plans/${planId}/migration/settings`, {
+      method: "POST",
+      json: { system, field, value },
+    }),
 
   /** Only "Save choice" calls this. */
   saveMigrationChoice: (

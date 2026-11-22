@@ -4,6 +4,7 @@ The same command as `ottolab.agent` (which is not changed), for a run started wi
 whose library has no pinned public copy takes the sandbox path (ottolab/sandbox.py); every other step is passed to
 the research steps as they always were. The prompt is read as DATA: only its "Action:" and "Target id:" lines are used.
 """
+
 from __future__ import annotations
 
 import os
@@ -36,11 +37,14 @@ def act(lab, model, snap: dict, action: str, target: str) -> str:
         # same step again, and with it another call to Claude).
         while before != lab.ledger.head()["head"] and not stopped:
             before = lab.ledger.head()["head"]
-            lines.append(sandbox.propose_test(lab, model, target, advisory, snap, stopped) if about[1] == "test"
-                         else sandbox.propose_fix(lab, model, target, advisory))
+            lines.append(
+                sandbox.propose_test(lab, model, target, advisory, snap, stopped)
+                if about[1] == "test"
+                else sandbox.propose_fix(lab, model, target, advisory)
+            )
             for cid, _ in research.step_claims(lab.state(), about[0]):
                 if not lab.state().settled(cid):
-                    lab.verify(cid)          # the harness's own verify step: it runs the pinned checker
+                    lab.verify(cid)  # the harness's own verify step: it runs the pinned checker
         return " ".join(dict.fromkeys(lines))
     if action == "distill":
         decision = st.get(target, "decision")
@@ -63,7 +67,13 @@ def main() -> int:
             print(act(lab, model, snap, action.group(1), target.group(1)))
         finally:
             research.save_spent(model)
-    except (research.ResearchError, snapshot.SnapshotError, ModelError, KeyError, harness.module("lab").LabError) as exc:
+    except (
+        research.ResearchError,
+        snapshot.SnapshotError,
+        ModelError,
+        KeyError,
+        harness.module("lab").LabError,
+    ) as exc:
         # (also when the harness itself refuses a record: a stop that is said, never a crash that is taken for something)
         print(f"The step stopped: {exc}")
     return 0

@@ -30,7 +30,11 @@ export function ClaimsCell({ counts }: { counts: AssessmentCounts }) {
   return (
     <span className="tabular-nums">
       {c.checked} checked
-      {c.false > 0 ? <span className="block text-xs text-amber-200">{c.false} false</span> : <span className="block text-xs text-slate-500">0 false</span>}
+      {c.false > 0 ? (
+        <span className="block text-xs text-amber-200">{c.false} false</span>
+      ) : (
+        <span className="block text-xs text-slate-500">0 false</span>
+      )}
     </span>
   );
 }
@@ -48,7 +52,10 @@ export function TestsCell({ counts }: { counts: AssessmentCounts }) {
 
 export function FixesCell({ counts }: { counts: AssessmentCounts }) {
   const f = counts.fixes;
-  if (!f) return <span title="Fixes open once a test has a result or the migration plan has something for it">{NOT_YET}</span>;
+  if (!f)
+    return (
+      <span title="Fixes open once a test has a result or the migration plan has something for it">{NOT_YET}</span>
+    );
   return (
     <span className="tabular-nums">
       {f.open} open
@@ -57,7 +64,10 @@ export function FixesCell({ counts }: { counts: AssessmentCounts }) {
   );
 }
 
-export const SYSTEM_STATUS_WORDS: { key: "classical" | "hybrid" | "pq_only" | "couldnt_check" | "not_measured"; label: string }[] = [
+export const SYSTEM_STATUS_WORDS: {
+  key: "classical" | "hybrid" | "pq_only" | "couldnt_check" | "not_measured";
+  label: string;
+}[] = [
   { key: "classical", label: "Classical" },
   { key: "hybrid", label: "Hybrid" },
   { key: "pq_only", label: "Post-quantum only" },
@@ -148,7 +158,11 @@ export function InlineForm({
           >
             {submitLabel}
           </button>
-          <button type="button" onClick={onCancel} className="rounded-lg border border-slate-700 px-3.5 py-1.5 text-sm text-slate-200 hover:bg-slate-800">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-lg border border-slate-700 px-3.5 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
+          >
             Cancel
           </button>
         </div>
@@ -168,7 +182,12 @@ export function ActionsMenu({ label, items }: { label: string; items: { label: s
   const box = useRef<HTMLDivElement>(null);
   useDismiss(open, box, () => setOpen(false));
   return (
-    <div ref={box} className="relative inline-block" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+    <div
+      ref={box}
+      className="relative inline-block"
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
       <button
         type="button"
         aria-label={label}
@@ -180,7 +199,11 @@ export function ActionsMenu({ label, items }: { label: string; items: { label: s
         ⋯
       </button>
       {open ? (
-        <ul role="menu" aria-label={label} className="absolute right-0 top-full z-30 mt-1 min-w-[11rem] rounded-lg border border-slate-700 bg-slate-950 p-1 shadow-xl">
+        <ul
+          role="menu"
+          aria-label={label}
+          className="absolute right-0 top-full z-30 mt-1 min-w-[11rem] rounded-lg border border-slate-700 bg-slate-950 p-1 shadow-xl"
+        >
           {items.map((item) => (
             <li key={item.label} role="none">
               <button

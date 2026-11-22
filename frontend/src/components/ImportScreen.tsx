@@ -161,7 +161,17 @@ interface Props {
   openItem?: string | null;
 }
 
-export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAddressChanged, onVerified, target, targetNote, openItem = null }: Props) {
+export function ImportScreen({
+  demoServer,
+  imp,
+  onImported,
+  onImportFailed,
+  onAddressChanged,
+  onVerified,
+  target,
+  targetNote,
+  openItem = null,
+}: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
   const closed = useReadOnly();
   const [dragging, setDragging] = useState(false);
@@ -226,7 +236,11 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
     }
     if (file.size > MAX_UPLOAD_BYTES) {
       refuseLocally(file);
-      setUploadError({ message: `"${file.name}" is larger than 1 MB, which is the most this app reads.`, line: null, field: null });
+      setUploadError({
+        message: `"${file.name}" is larger than 1 MB, which is the most this app reads.`,
+        line: null,
+        field: null,
+      });
       return;
     }
     void load((assessmentId) => api.importFile(file, assessmentId), true);
@@ -297,7 +311,10 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
       />
 
       {targetNote ? (
-        <p data-testid="import-target-note" className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-sm text-slate-300">
+        <p
+          data-testid="import-target-note"
+          className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-sm text-slate-300"
+        >
           {targetNote}
         </p>
       ) : null}
@@ -315,7 +332,9 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
           }`}
         >
           <span className="text-sm font-medium text-slate-100">Drop a file here, or click to choose one</span>
-          <span className="mt-1 text-xs text-slate-400">CycloneDX CBOM (.json) or our CSV template (.csv), up to 1 MB</span>
+          <span className="mt-1 text-xs text-slate-400">
+            CycloneDX CBOM (.json) or our CSV template (.csv), up to 1 MB
+          </span>
           <input
             ref={fileInput}
             type="file"
@@ -327,7 +346,10 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
           />
         </label>
         <div className="flex items-center justify-center sm:px-2">
-          <SecondaryButton onClick={() => void load((assessmentId) => api.importDemo(assessmentId))} disabled={loading || verifying}>
+          <SecondaryButton
+            onClick={() => void load((assessmentId) => api.importDemo(assessmentId))}
+            disabled={loading || verifying}
+          >
             Use demo file
           </SecondaryButton>
         </div>
@@ -380,7 +402,11 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
                     rowKey={(claim) => String(claim.id)}
                     rowTestId="claim-row"
                     selectedKey={openClaim ? String(openClaim.id) : null}
-                    onRowClick={(claim) => setOpened((cur) => (cur?.claim === claim.id && cur.file === imp.id ? null : { file: imp.id, claim: claim.id }))}
+                    onRowClick={(claim) =>
+                      setOpened((cur) =>
+                        cur?.claim === claim.id && cur.file === imp.id ? null : { file: imp.id, claim: claim.id },
+                      )
+                    }
                   />
                 }
                 panel={
@@ -394,7 +420,10 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
                   >
                     {openClaim ? (
                       <p className="mb-3 text-sm">
-                        <ItemLinkView link={{ page: "inventory/verify", item: `claim-${openClaim.id}` }} testId="claim-to-verify">
+                        <ItemLinkView
+                          link={{ page: "inventory/verify", item: `claim-${openClaim.id}` }}
+                          testId="claim-to-verify"
+                        >
                           Its Verify result
                         </ItemLinkView>
                       </p>
@@ -410,7 +439,11 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
               />
             )}
             {otto ? (
-              <div data-testid="import-otto" data-count={otto.count} className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm">
+              <div
+                data-testid="import-otto"
+                data-count={otto.count}
+                className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3 text-sm"
+              >
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-200">
                   <FromOttoTag label={otto.label} testId="import-otto-label" />
                   <span data-testid="import-otto-text" className="min-w-0 break-words">
@@ -426,7 +459,10 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
               </div>
             ) : null}
             {settings.length > 0 ? (
-              <div data-testid="import-settings" className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3">
+              <div
+                data-testid="import-settings"
+                className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3"
+              >
                 <h3 className="text-sm font-semibold text-slate-100">{imp.settings_title}</h3>
                 <ul className="mt-1.5 space-y-1 text-sm">
                   {settings.map((setting, i) => (
@@ -452,9 +488,13 @@ export function ImportScreen({ demoServer, imp, onImported, onImportFailed, onAd
               </div>
             ) : null}
             {skipped.length > 0 ? (
-              <details data-testid="skipped-note" className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-sm">
+              <details
+                data-testid="skipped-note"
+                className="rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-sm"
+              >
                 <summary className="cursor-pointer text-slate-300">
-                  {skipped.length === 1 ? "1 item skipped" : `${skipped.length} items skipped`}: not checked in this version
+                  {skipped.length === 1 ? "1 item skipped" : `${skipped.length} items skipped`}: not checked in this
+                  version
                 </summary>
                 <ul className="mt-2 space-y-2">
                   {skipped.map((item, i) => (

@@ -1,4 +1,5 @@
 """The open routes of hosting: log in with GitHub, log out, and the health check (21 November 2026)."""
+
 from __future__ import annotations
 
 import html
@@ -18,10 +19,14 @@ def _page(title: str, sentence: str, status: int = 200, go_home: bool = False) -
     """A tiny page. After a login it moves on to the app from this page, so the browser sends the new session cookie
     (SameSite=Strict) on the next request: a redirect that GitHub started would not."""
     refresh = '<meta http-equiv="refresh" content="0;url=/">' if go_home else ""
-    body = (f"<!doctype html><html><head><meta charset='utf-8'><title>{html.escape(title)}</title>{refresh}</head>"
-            f"<body style='font-family:system-ui;background:#020617;color:#e2e8f0;padding:3rem'>"
-            f"<p>{html.escape(sentence)}</p><p><a style='color:#93c5fd' href='/'>Back to the app</a></p></body></html>")
-    return HTMLResponse(body, status_code=status, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
+    body = (
+        f"<!doctype html><html><head><meta charset='utf-8'><title>{html.escape(title)}</title>{refresh}</head>"
+        f"<body style='font-family:system-ui;background:#020617;color:#e2e8f0;padding:3rem'>"
+        f"<p>{html.escape(sentence)}</p><p><a style='color:#93c5fd' href='/'>Back to the app</a></p></body></html>"
+    )
+    return HTMLResponse(
+        body, status_code=status, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
+    )
 
 
 def routes(lab, set_cookie) -> APIRouter:
@@ -39,9 +44,15 @@ def routes(lab, set_cookie) -> APIRouter:
         target, state = github_login.start(settings.github, lab.cache, redirect_uri(request))
         response = RedirectResponse(target, status_code=302)
         # Lax: the cookie must come back on GitHub's redirect to the callback (a top-level navigation from github.com).
-        response.set_cookie(github_login.STATE_COOKIE, state, httponly=True, samesite="lax",
-                            secure=settings.secure_cookies, path=github_login.CALLBACK_PATH,
-                            max_age=github_login.STATE_LIFETIME_SECONDS)
+        response.set_cookie(
+            github_login.STATE_COOKIE,
+            state,
+            httponly=True,
+            samesite="lax",
+            secure=settings.secure_cookies,
+            path=github_login.CALLBACK_PATH,
+            max_age=github_login.STATE_LIFETIME_SECONDS,
+        )
         return response
 
     @router.get(github_login.CALLBACK_PATH, include_in_schema=False)
@@ -54,9 +65,14 @@ def routes(lab, set_cookie) -> APIRouter:
         else:
             try:
                 with lab.db() as db:
-                    token = github_login.finish(settings.github, lab.cache, db, code=query.get("code"),
-                                                state=query.get("state"),
-                                                cookie_state=request.cookies.get(github_login.STATE_COOKIE))
+                    token = github_login.finish(
+                        settings.github,
+                        lab.cache,
+                        db,
+                        code=query.get("code"),
+                        state=query.get("state"),
+                        cookie_state=request.cookies.get(github_login.STATE_COOKIE),
+                    )
             except github_login.LoginRefused as exc:
                 log.info("GitHub login refused: %s", exc)
                 response = _page("Log in", str(exc), 403)
@@ -87,7 +103,7 @@ def routes(lab, set_cookie) -> APIRouter:
             try:
                 check()
                 parts[name] = {"kind": kind, "ok": True}
-            except Exception as exc:   # noqa: BLE001 - any failure is reported as not ok
+            except Exception as exc:  # noqa: BLE001 - any failure is reported as not ok
                 log.warning("health: %s (%s) does not answer: %s", name, kind, exc)
                 parts[name] = {"kind": kind, "ok": False}
         ok = all(p["ok"] for p in parts.values())

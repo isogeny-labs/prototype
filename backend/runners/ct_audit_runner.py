@@ -10,6 +10,7 @@ instrument are fixed choices; the runner constructs every argv, uses a fresh tem
 inherited environment, and shares one wall-clock budget across the processes. Nothing secret is produced: the audit
 plants its own synthetic secrets from a fixed seed.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -68,6 +69,7 @@ def _limits(cpu_s: int):
             # No RLIMIT_AS: Valgrind reserves a large address space up front; memory is bounded by the host.
         except Exception:
             pass
+
     return pre
 
 
@@ -76,9 +78,11 @@ class CtAuditRunner(Runner):
     version = "1.0.0"
     provenance = "measured"
     fixtures = (FIXTURE,)
-    description = ("Runs the crypto crate's dynamic constant-time audit (ct_dynamic_audit) under Valgrind for one allowlisted "
-                   "target: Memcheck taint tracking of the secret and Callgrind instruction counts per call. Fixed argv, "
-                   "fresh temporary directory, no inherited environment, shared wall-clock budget.")
+    description = (
+        "Runs the crypto crate's dynamic constant-time audit (ct_dynamic_audit) under Valgrind for one allowlisted "
+        "target: Memcheck taint tracking of the secret and Callgrind instruction counts per call. Fixed argv, "
+        "fresh temporary directory, no inherited environment, shared wall-clock budget."
+    )
 
     def available(self) -> tuple[bool, str]:
         b, why = _resolve("IEL_CT_AUDIT_BIN", "ct_dynamic_audit")
@@ -88,8 +92,14 @@ class CtAuditRunner(Runner):
         return (v is not None, why)
 
     def _fail(self, msg, **kw) -> RunResult:
-        return RunResult(status="failed", provenance=self.provenance, runner_kind=self.kind, runner_version=self.version,
-                         failures=[msg] if isinstance(msg, str) else msg, **kw)
+        return RunResult(
+            status="failed",
+            provenance=self.provenance,
+            runner_kind=self.kind,
+            runner_version=self.version,
+            failures=[msg] if isinstance(msg, str) else msg,
+            **kw,
+        )
 
     def run(self, req: RunRequest) -> RunResult:
         if req.fixture != FIXTURE:
@@ -113,33 +123,74 @@ class CtAuditRunner(Runner):
         raw.mkdir()
         argvs = []
         if instrument in ("both", "taint"):
-            argvs.append([str(valgrind), "--tool=memcheck", "--xml=yes", f"--xml-file={raw}/memcheck-{target}.xml",
-                          "--leak-check=no", "--track-origins=no", "--num-callers=40", "--error-limit=no",
-                          str(binary), "taint", target])
+            argvs.append(
+                [
+                    str(valgrind),
+                    "--tool=memcheck",
+                    "--xml=yes",
+                    f"--xml-file={raw}/memcheck-{target}.xml",
+                    "--leak-check=no",
+                    "--track-origins=no",
+                    "--num-callers=40",
+                    "--error-limit=no",
+                    str(binary),
+                    "taint",
+                    target,
+                ]
+            )
         if instrument in ("both", "ir"):
-            argvs.append([str(valgrind), "--tool=callgrind", "--collect-atstart=no",
-                          f"--callgrind-out-file={raw}/callgrind.{target}.%p", str(binary), "ir", target])
+            argvs.append(
+                [
+                    str(valgrind),
+                    "--tool=callgrind",
+                    "--collect-atstart=no",
+                    f"--callgrind-out-file={raw}/callgrind.{target}.%p",
+                    str(binary),
+                    "ir",
+                    target,
+                ]
+            )
         argvs.append([str(binary), "analyze", str(raw), str(out)])
-        commands = [{"argv": [a.replace(str(work), "$WORKDIR") for a in argv], "binary_sha256": digest,
-                     "limits": {"timeout_s": timeout, "cpu_s": cpu_s, "shared_wall_clock": True}} for argv in argvs]
+        commands = [
+            {
+                "argv": [a.replace(str(work), "$WORKDIR") for a in argv],
+                "binary_sha256": digest,
+                "limits": {"timeout_s": timeout, "cpu_s": cpu_s, "shared_wall_clock": True},
+            }
+            for argv in argvs
+        ]
         deadline = time.monotonic() + timeout
         try:
             for argv in argvs:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     return self._fail(f"audit exceeded its wall-clock budget of {timeout}s", commands=commands)
-                proc = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, timeout=remaining, env=ENV,
-                                      cwd=str(work), preexec_fn=_limits(cpu_s))
+                proc = subprocess.run(
+                    argv,
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    timeout=remaining,
+                    env=ENV,
+                    cwd=str(work),
+                    preexec_fn=_limits(cpu_s),
+                )
                 if proc.returncode != 0:
-                    return self._fail([f"`{Path(argv[0]).name} {' '.join(argv[1:2])}` exited {proc.returncode}",
-                                       proc.stderr.decode("utf-8", "replace")[-1500:]], commands=commands)
+                    return self._fail(
+                        [
+                            f"`{Path(argv[0]).name} {' '.join(argv[1:2])}` exited {proc.returncode}",
+                            proc.stderr.decode("utf-8", "replace")[-1500:],
+                        ],
+                        commands=commands,
+                    )
             summary = json.loads((out / "summary.json").read_text())
         except subprocess.TimeoutExpired:
             return self._fail(f"audit exceeded its wall-clock budget of {timeout}s", commands=commands)
         except Exception as exc:  # noqa: BLE001
             return self._fail(f"audit did not produce a summary: {type(exc).__name__}: {exc}", commands=commands)
         finally:
-            vg_version = subprocess.run([str(valgrind), "--version"], capture_output=True, text=True, env=ENV).stdout.strip()
+            vg_version = subprocess.run(
+                [str(valgrind), "--version"], capture_output=True, text=True, env=ENV
+            ).stdout.strip()
             shutil.rmtree(work, ignore_errors=True)
 
         entry = next((e for e in summary if e.get("target") == target), None)
@@ -147,15 +198,26 @@ class CtAuditRunner(Runner):
             return self._fail(f"analyzer summary has no entry for {target}", commands=commands)
         result = map_entry(entry, instrument, expect)
         return RunResult(
-            status="completed" if not result["failures"] else "failed", provenance=self.provenance,
-            runner_kind=self.kind, runner_version=f"adapter/{self.version} {vg_version}"[:64],
+            status="completed" if not result["failures"] else "failed",
+            provenance=self.provenance,
+            runner_kind=self.kind,
+            runner_version=f"adapter/{self.version} {vg_version}"[:64],
             fixture_version=f"{FIXTURE}/ct_dynamic_audit-{digest[:12]}",
-            environment={"ct_dynamic_audit_sha256": digest, "valgrind": vg_version,
-                         "isolation": "subprocess + rlimit (CPU, processes); fresh temporary directory; no inherited variables"},
-            commands=commands, repeat_count=1, metrics=result["metrics"], metric_definitions=METRIC_DEFINITIONS,
-            scenarios=result["scenarios"], raw_output=json.dumps({"target": target, "instrument": instrument, "summary": entry}, indent=1).encode(),
-            failures=result["failures"], limitations=list(tool.limitations),
-            extra={"suite_tool": FIXTURE, "target": target, "instrument": instrument})
+            environment={
+                "ct_dynamic_audit_sha256": digest,
+                "valgrind": vg_version,
+                "isolation": "subprocess + rlimit (CPU, processes); fresh temporary directory; no inherited variables",
+            },
+            commands=commands,
+            repeat_count=1,
+            metrics=result["metrics"],
+            metric_definitions=METRIC_DEFINITIONS,
+            scenarios=result["scenarios"],
+            raw_output=json.dumps({"target": target, "instrument": instrument, "summary": entry}, indent=1).encode(),
+            failures=result["failures"],
+            limitations=list(tool.limitations),
+            extra={"suite_tool": FIXTURE, "target": target, "instrument": instrument},
+        )
 
 
 METRIC_DEFINITIONS = {
@@ -181,12 +243,24 @@ def map_entry(entry: dict, instrument: str, expect: str) -> dict:
     if instrument in ("both", "taint"):
         if entry.get("taint_verdict") == "missing":
             failures.append("no Memcheck output for this target")
-        metrics.update({"taint_sites_library": len(lib), "taint_sites_harness": len(harness), "taint_errors": entry.get("taint_errors", 0)})
+        metrics.update(
+            {
+                "taint_sites_library": len(lib),
+                "taint_sites_harness": len(harness),
+                "taint_errors": entry.get("taint_errors", 0),
+            }
+        )
         leak = len(lib) > 0
-        scenarios.append({"id": "taint", "name": "Secret-dependent branch or address (Memcheck taint)",
-                          "expected": "none" if expect == "clean" else "≥ 1 site", "observed": f"{len(lib)} library site(s)",
-                          "pass": (not leak) if expect == "clean" else leak,
-                          "detail": "; ".join(lib[:12]) + (f"; … +{len(lib) - 12}" if len(lib) > 12 else "")})
+        scenarios.append(
+            {
+                "id": "taint",
+                "name": "Secret-dependent branch or address (Memcheck taint)",
+                "expected": "none" if expect == "clean" else "≥ 1 site",
+                "observed": f"{len(lib)} library site(s)",
+                "pass": (not leak) if expect == "clean" else leak,
+                "detail": "; ".join(lib[:12]) + (f"; … +{len(lib) - 12}" if len(lib) > 12 else ""),
+            }
+        )
     if instrument in ("both", "ir"):
         aa = ir.get("aa")
         others = [ir[c] for c in ("random", "short", "lowhw") if ir.get(c)]
@@ -195,18 +269,33 @@ def map_entry(entry: dict, instrument: str, expect: str) -> dict:
         else:
             det = aa["min"] == aa["max"]
             lo, hi = min(o["min"] for o in others), max(o["max"] for o in others)
-            metrics.update({"ir_deterministic": 1 if det else 0, "ir_min": lo, "ir_max": hi, "ir_aa_spread": aa["max"] - aa["min"]})
+            metrics.update(
+                {"ir_deterministic": 1 if det else 0, "ir_min": lo, "ir_max": hi, "ir_aa_spread": aa["max"] - aa["min"]}
+            )
             if det:
                 dep = hi != lo
                 metrics["ir_secret_dependent"] = 1 if dep else 0
-                scenarios.append({"id": "ir", "name": "Instruction count depends on the secret (Callgrind)",
-                                  "expected": "no variation" if expect == "clean" else "variation",
-                                  "observed": f"{lo}–{hi} instructions" if dep else f"constant {lo}",
-                                  "pass": (not dep) if expect == "clean" else dep, "detail": entry.get("ir_verdict", "")})
+                scenarios.append(
+                    {
+                        "id": "ir",
+                        "name": "Instruction count depends on the secret (Callgrind)",
+                        "expected": "no variation" if expect == "clean" else "variation",
+                        "observed": f"{lo}–{hi} instructions" if dep else f"constant {lo}",
+                        "pass": (not dep) if expect == "clean" else dep,
+                        "detail": entry.get("ir_verdict", ""),
+                    }
+                )
             else:
-                scenarios.append({"id": "ir", "name": "Instruction count depends on the secret (Callgrind)",
-                                  "expected": "deterministic A/A arm", "observed": f"A/A spread {aa['max'] - aa['min']}",
-                                  "pass": None, "detail": "Not applicable: repeating one secret already varies the count (randomness or allocator state)."})
+                scenarios.append(
+                    {
+                        "id": "ir",
+                        "name": "Instruction count depends on the secret (Callgrind)",
+                        "expected": "deterministic A/A arm",
+                        "observed": f"A/A spread {aa['max'] - aa['min']}",
+                        "pass": None,
+                        "detail": "Not applicable: repeating one secret already varies the count (randomness or allocator state).",
+                    }
+                )
     return {"metrics": metrics, "scenarios": scenarios, "failures": failures}
 
 

@@ -16,7 +16,11 @@ const LOOKS: Record<TrackStatusCode, { symbol: string; tone: Tone }> = {
 export function StatusPill({ status, large }: { status: { code: TrackStatusCode; label: string }; large?: boolean }) {
   const look = LOOKS[status.code] ?? LOOKS.not_measured;
   return (
-    <span data-testid="migration-status" data-code={status.code} className={`${chipClass(look.tone, large ? "md" : "sm")} text-left`}>
+    <span
+      data-testid="migration-status"
+      data-code={status.code}
+      className={`${chipClass(look.tone, large ? "md" : "sm")} text-left`}
+    >
       <span aria-hidden="true" className="font-mono">
         {look.symbol}
       </span>

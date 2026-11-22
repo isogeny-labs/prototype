@@ -7,7 +7,15 @@ import { Icon } from "./icons";
 export const PAGE_TITLES: Record<string, string> = PAGE_NAMES;
 
 /** Folder / Project / Assessment / Page. Only the project and the assessment are links. */
-function Breadcrumbs({ route, assessment, projectName }: { route: Route; assessment: AssessmentView | null; projectName?: string | null }) {
+function Breadcrumbs({
+  route,
+  assessment,
+  projectName,
+}: {
+  route: Route;
+  assessment: AssessmentView | null;
+  projectName?: string | null;
+}) {
   const crumbs: { label: string; href?: string }[] = [];
   if (route.kind === "projects") crumbs.push({ label: "Projects" });
   else if (route.kind === "settings") crumbs.push({ label: "Settings" });
@@ -16,7 +24,11 @@ function Breadcrumbs({ route, assessment, projectName }: { route: Route; assessm
     for (const f of assessment.path) crumbs.push({ label: f.name });
     crumbs.push({ label: assessment.project.name, href: `#/p/${assessment.project.id}` });
     crumbs.push({ label: assessment.title, href: `#/a/${assessment.id}/overview` });
-    const section = route.page.startsWith("inventory/") ? "Inventory" : route.page.startsWith("migration/") ? "Migration" : null;
+    const section = route.page.startsWith("inventory/")
+      ? "Inventory"
+      : route.page.startsWith("migration/")
+        ? "Migration"
+        : null;
     if (section) crumbs.push({ label: section });
     crumbs.push({ label: PAGE_TITLES[route.page] ?? "" });
   }
@@ -100,7 +112,10 @@ export function TopBar({
   onOpenMenu: () => void;
 }) {
   return (
-    <header data-testid="top-bar" className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-slate-800 bg-slate-950/90 px-4 backdrop-blur sm:px-6">
+    <header
+      data-testid="top-bar"
+      className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-slate-800 bg-slate-950/90 px-4 backdrop-blur sm:px-6"
+    >
       <button
         type="button"
         onClick={onOpenMenu}
@@ -110,12 +125,20 @@ export function TopBar({
         <Icon name="menu" className="h-5 w-5" />
       </button>
       <div className="min-w-0 flex-1">
-        <Breadcrumbs route={route} assessment={route.kind === "assessment" ? assessment : null} projectName={projectName} />
+        <Breadcrumbs
+          route={route}
+          assessment={route.kind === "assessment" ? assessment : null}
+          projectName={projectName}
+        />
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {route.kind === "assessment" && assessment ? (
           <span data-testid="assessment-status" title={assessment.status.closed_line ?? undefined}>
-            <StatusChip size="sm" label={assessment.status.label} tone={assessment.status.key === "open" ? "pass" : "neutral"} />
+            <StatusChip
+              size="sm"
+              label={assessment.status.label}
+              tone={assessment.status.key === "open" ? "pass" : "neutral"}
+            />
           </span>
         ) : null}
         <ModeBadge session={session} />

@@ -25,7 +25,10 @@ const OTTO = "GET /api/otto";
 const CHECK = "POST /api/otto/packs/check";
 const INSTALL = "POST /api/otto/packs/install";
 const LIVE = "POST /api/otto/live";
-const refusal = (status: number, message: string, field: string | null = null) => ({ status, body: { error: { message, line: null, field } } });
+const refusal = (status: number, message: string, field: string | null = null) => ({
+  status,
+  body: { error: { message, line: null, field } },
+});
 
 function Settings({ section = null }: { section?: string | null }) {
   return (
@@ -147,18 +150,23 @@ describe("Settings, the Otto sections", () => {
     await open(view);
     // The only things to type into or switch are the spending limit and Use live Claude.
     expect(packsSection().querySelectorAll("input, textarea, select")).toHaveLength(0);
-    expect(Array.from(liveSection().querySelectorAll("input, textarea, select")).map((el) => el.getAttribute("data-testid"))).toEqual([
-      "live-otto-switch",
-      "live-otto-limit",
-    ]);
+    expect(
+      Array.from(liveSection().querySelectorAll("input, textarea, select")).map((el) => el.getAttribute("data-testid")),
+    ).toEqual(["live-otto-switch", "live-otto-limit"]);
     expect(document.querySelector('input[type="password"]')).toBeNull();
     expect(limit().getAttribute("type") ?? "text").toBe("text");
     const words = `${text(packsSection())} ${text(liveSection())}`;
     expect(words).not.toMatch(/secure|\bscore|\bgrade\b|time.to.hack/i);
     expect(words).not.toMatch(/sk-ant|made-up-key/);
     // And the only buttons are the approved ones.
-    const buttons = [...packs().getAllByRole("button"), ...live().getAllByRole("button")].map((b) => b.getAttribute("data-testid"));
-    expect(buttons).toEqual(["otto-check-updates", ...(view.packs.update ? ["otto-install-update"] : []), "live-otto-save"]);
+    const buttons = [...packs().getAllByRole("button"), ...live().getAllByRole("button")].map((b) =>
+      b.getAttribute("data-testid"),
+    );
+    expect(buttons).toEqual([
+      "otto-check-updates",
+      ...(view.packs.update ? ["otto-install-update"] : []),
+      "live-otto-save",
+    ]);
   });
 
   it("says so in a plain error box when the settings can't be loaded", async () => {
@@ -180,10 +188,16 @@ describe("Settings, Test packs", () => {
       "Test pack 2026.11.1, installed here earlier, can't be read by this version of the app: it was made by an earlier build.";
     await open({
       ...ottoEmpty,
-      packs: { ...ottoEmpty.packs, installed_line: "No installed test pack can be read by this version of the app.", unreadable_line: line },
+      packs: {
+        ...ottoEmpty.packs,
+        installed_line: "No installed test pack can be read by this version of the app.",
+        unreadable_line: line,
+      },
     });
     expect(screen.getByTestId("otto-unreadable-line").textContent).toBe(line);
-    expect(screen.getByTestId("otto-installed-line").textContent).toBe("No installed test pack can be read by this version of the app.");
+    expect(screen.getByTestId("otto-installed-line").textContent).toBe(
+      "No installed test pack can be read by this version of the app.",
+    );
   });
 
   it("shows no such line when every installed pack reads", async () => {
@@ -237,7 +251,11 @@ describe("Settings, Test packs", () => {
     expect(box.getAttribute("role")).toBe("dialog");
     expect(within(box).getByRole("heading", { name: dialog.title })).not.toBeNull();
     expect(Array.from(box.querySelectorAll("p")).map((p) => p.textContent)).toEqual(dialog.lines);
-    expect(within(box).getAllByRole("button").map((b) => [b.getAttribute("data-testid"), b.textContent])).toEqual([
+    expect(
+      within(box)
+        .getAllByRole("button")
+        .map((b) => [b.getAttribute("data-testid"), b.textContent]),
+    ).toEqual([
       ["otto-install-cancel", dialog.cancel],
       ["otto-install-confirm", dialog.confirm],
     ]);
@@ -270,7 +288,11 @@ describe("Settings, Test packs", () => {
     // The next pack in order is offered now, with its own box.
     expect(screen.getByTestId("otto-update-line").textContent).toBe(ottoInstalledOne.packs.update!.line);
     fireEvent.click(screen.getByTestId("otto-install-update"));
-    expect(within(screen.getByTestId("otto-install-dialog")).getByRole("heading", { name: ottoInstalledOne.packs.update!.dialog.title })).not.toBeNull();
+    expect(
+      within(screen.getByTestId("otto-install-dialog")).getByRole("heading", {
+        name: ottoInstalledOne.packs.update!.dialog.title,
+      }),
+    ).not.toBeNull();
   });
 
   it("closes the box and shows the backend's reason, once, when an install is refused", async () => {
@@ -293,7 +315,9 @@ describe("Settings, Test packs", () => {
     const list = await screen.findByTestId("otto-refused");
     expect(list.tagName).toBe("UL");
     const items = within(list).getAllByTestId("otto-refused-item");
-    expect(items.map((li) => Array.from(li.children).map((c) => c.textContent))).toEqual(ottoRefused.packs.refused.map((r) => [r.file, r.reason]));
+    expect(items.map((li) => Array.from(li.children).map((c) => c.textContent))).toEqual(
+      ottoRefused.packs.refused.map((r) => [r.file, r.reason]),
+    );
     expect(items[0]!.children[0]!.className).toContain("font-mono");
     // Calm: not an error box, and nothing is offered to install.
     expect(screen.queryByRole("alert")).toBeNull();
@@ -303,7 +327,10 @@ describe("Settings, Test packs", () => {
   });
 
   it("marks nothing by itself on a pack made on this computer: the pack's own line says so", async () => {
-    const view: OttoSettingsView = { ...ottoInstalledTwo, packs: { ...ottoInstalledTwo.packs, installed: [ottoInstalledTwo.packs.installed[0]!, packMadeHere] } };
+    const view: OttoSettingsView = {
+      ...ottoInstalledTwo,
+      packs: { ...ottoInstalledTwo.packs, installed: [ottoInstalledTwo.packs.installed[0]!, packMadeHere] },
+    };
     await open(view);
     const [shipped, made] = packs().getAllByTestId("otto-pack-card");
     expect(text(made)).toContain(packMadeHere.line);
@@ -385,7 +412,8 @@ describe("Settings, Live Otto", () => {
   });
 
   it("shows the backend's reason when turning it on is refused, and leaves the switch as it was", async () => {
-    const reason = "Live Otto needs an API key on this computer, and none is set (ANTHROPIC_API_KEY). The answers recorded during the build go on being used.";
+    const reason =
+      "Live Otto needs an API key on this computer, and none is set (ANTHROPIC_API_KEY). The answers recorded during the build go on being used.";
     await open(ottoLiveOff, { [LIVE]: refusal(409, reason) });
     fireEvent.click(toggle());
     const error = await screen.findByTestId("otto-error");
@@ -395,7 +423,10 @@ describe("Settings, Live Otto", () => {
   });
 
   it("saves the spending limit as typed, and then shows the amount the backend answers with", async () => {
-    const saved: OttoSettingsView = { ...ottoEmpty, live: { ...ottoEmpty.live, limit: { ...ottoEmpty.live.limit, value: "3.50" } } };
+    const saved: OttoSettingsView = {
+      ...ottoEmpty,
+      live: { ...ottoEmpty.live, limit: { ...ottoEmpty.live.limit, value: "3.50" } },
+    };
     const fetchMock = await open(ottoEmpty, { [LIVE]: { body: saved } });
     expect(limit().value).toBe("2.00");
     fireEvent.change(limit(), { target: { value: "3.5" } });
@@ -411,7 +442,11 @@ describe("Settings, Live Otto", () => {
 
   it("keeps what Check for updates found when the switch or the limit changes", async () => {
     // A Live Otto call answers without looking in the updates folder again: its answer has no found update.
-    const fetchMock = await open(ottoUpdateFound, { [LIVE]: { body: { ...ottoEmpty, live: { ...ottoEmpty.live, limit: { ...ottoEmpty.live.limit, value: "3.50" } } } } });
+    const fetchMock = await open(ottoUpdateFound, {
+      [LIVE]: {
+        body: { ...ottoEmpty, live: { ...ottoEmpty.live, limit: { ...ottoEmpty.live.limit, value: "3.50" } } },
+      },
+    });
     expect(text(packs().getByTestId("otto-update-line"))).toBe(ottoUpdateFound.packs.update!.line);
     fireEvent.change(limit(), { target: { value: "3.5" } });
     fireEvent.click(screen.getByTestId("live-otto-save"));
@@ -437,7 +472,10 @@ describe("Settings, Live Otto", () => {
     expect(live().queryByRole("status")).toBeNull();
     expect(sent(fetchMock, "/api/otto/live")).toEqual([{ limit: "5000" }]);
     // The box goes once the amount is corrected and saved.
-    fetchMock.mockImplementation(async () => new Response(JSON.stringify(ottoEmpty), { status: 200, headers: { "Content-Type": "application/json" } }));
+    fetchMock.mockImplementation(
+      async () =>
+        new Response(JSON.stringify(ottoEmpty), { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
     fireEvent.change(limit(), { target: { value: "2" } });
     fireEvent.click(screen.getByTestId("live-otto-save"));
     await waitFor(() => expect(screen.queryByTestId("otto-error")).toBeNull());
@@ -464,7 +502,10 @@ describe("Settings, the names the end-to-end walk looks for", () => {
   const present = (ids: string[]) => ids.filter((id) => screen.queryAllByTestId(id).length > 0);
 
   it("has every test id of the two sections, the box and an error", async () => {
-    await open(ottoInstalledOne, { [CHECK]: { body: { ...ottoRefused, packs: { ...ottoRefused.packs, update: ottoInstalledOne.packs.update } } }, [LIVE]: refusal(422, "Refused.", "limit") });
+    await open(ottoInstalledOne, {
+      [CHECK]: { body: { ...ottoRefused, packs: { ...ottoRefused.packs, update: ottoInstalledOne.packs.update } } },
+      [LIVE]: refusal(422, "Refused.", "limit"),
+    });
     fireEvent.click(screen.getByTestId("otto-check-updates"));
     await screen.findByTestId("otto-refused");
     fireEvent.click(screen.getByTestId("live-otto-save"));
@@ -500,17 +541,23 @@ describe("Settings, the names the end-to-end walk looks for", () => {
     // The two sections are sections of the page, and the box is a dialog with its two buttons inside.
     expect(packsSection().tagName).toBe("SECTION");
     expect(liveSection().tagName).toBe("SECTION");
-    expect(within(screen.getByTestId("otto-install-dialog")).getAllByRole("button").map((b) => b.getAttribute("data-testid"))).toEqual([
-      "otto-install-cancel",
-      "otto-install-confirm",
-    ]);
+    expect(
+      within(screen.getByTestId("otto-install-dialog"))
+        .getAllByRole("button")
+        .map((b) => b.getAttribute("data-testid")),
+    ).toEqual(["otto-install-cancel", "otto-install-confirm"]);
     expect(limit().tagName).toBe("INPUT");
   });
 });
 
 describe("Settings in the app", () => {
   const routes = (extra: Record<string, unknown> = {}): Routes =>
-    ({ "GET /api/session": { body: session }, "GET /api/workspace": { body: workspace }, [OTTO]: { body: ottoInstalledTwo }, ...extra }) as Routes;
+    ({
+      "GET /api/session": { body: session },
+      "GET /api/workspace": { body: workspace },
+      [OTTO]: { body: ottoInstalledTwo },
+      ...extra,
+    }) as Routes;
 
   beforeEach(() => {
     window.localStorage.clear();
@@ -530,7 +577,11 @@ describe("Settings in the app", () => {
       // (the section is brought into view just after it is drawn: on a busy machine that is a moment later)
       await waitFor(() => expect(scrolled.at(-1)).toBe("test-packs:drawn"));
       expect(scrolled.every((s) => s.startsWith("test-packs:"))).toBe(true);
-      expect(within(screen.getByRole("navigation", { name: "Workspace" })).getByRole("link", { name: "Settings" }).getAttribute("aria-current")).toBe("page");
+      expect(
+        within(screen.getByRole("navigation", { name: "Workspace" }))
+          .getByRole("link", { name: "Settings" })
+          .getAttribute("aria-current"),
+      ).toBe("page");
     } finally {
       delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
     }
@@ -565,7 +616,10 @@ describe("Settings, Who decides", () => {
   const NAME = "POST /api/otto/name";
 
   it("shows who a decision is recorded as, and Save keeps the typed name", async () => {
-    const fetchMock = mockApi({ [OTTO]: { body: { ...ottoEmpty, name: name(null) } }, [NAME]: { body: { ...ottoEmpty, name: name("Kevin Singuyen") } } });
+    const fetchMock = mockApi({
+      [OTTO]: { body: { ...ottoEmpty, name: name(null) } },
+      [NAME]: { body: { ...ottoEmpty, name: name("Kevin Singuyen") } },
+    });
     render(<Settings />);
     const section = await screen.findByTestId("your-name");
     expect(within(section).getByRole("heading", { name: "Who decides" })).not.toBeNull();
@@ -577,7 +631,11 @@ describe("Settings, Who decides", () => {
     expect(calls(fetchMock)).toEqual([OTTO]); // looking sends nothing
     fireEvent.change(field, { target: { value: "Kevin Singuyen" } });
     fireEvent.click(within(section).getByTestId("otto-your-name-save"));
-    await waitFor(() => expect(text(within(section).getByTestId("otto-your-name-line"))).toBe("Recorded as Kevin Singuyen, with the time."));
+    await waitFor(() =>
+      expect(text(within(section).getByTestId("otto-your-name-line"))).toBe(
+        "Recorded as Kevin Singuyen, with the time.",
+      ),
+    );
     expect(calls(fetchMock)).toEqual([OTTO, NAME]);
     const sent = fetchMock.mock.calls.find(([input]) => String(input) === "/api/otto/name")?.[1];
     expect(JSON.parse(String(sent?.body))).toEqual({ name: "Kevin Singuyen" });
@@ -585,12 +643,17 @@ describe("Settings, Who decides", () => {
   });
 
   it("shows the backend's reason when a name is refused, and keeps what was typed", async () => {
-    mockApi({ [OTTO]: { body: { ...ottoEmpty, name: name(null) } }, [NAME]: refusal(422, "Keep the name to 60 characters or fewer.", "name") });
+    mockApi({
+      [OTTO]: { body: { ...ottoEmpty, name: name(null) } },
+      [NAME]: refusal(422, "Keep the name to 60 characters or fewer.", "name"),
+    });
     render(<Settings />);
     const section = await screen.findByTestId("your-name");
     fireEvent.change(within(section).getByLabelText("Your name"), { target: { value: "A name" } });
     fireEvent.click(within(section).getByTestId("otto-your-name-save"));
-    expect(text(await within(section).findByTestId("otto-error"))).toContain("Keep the name to 60 characters or fewer.");
+    expect(text(await within(section).findByTestId("otto-error"))).toContain(
+      "Keep the name to 60 characters or fewer.",
+    );
     expect((within(section).getByLabelText("Your name") as HTMLInputElement).value).toBe("A name");
   });
 });

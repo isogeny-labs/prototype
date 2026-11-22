@@ -8,7 +8,11 @@ function Line({ line }: { line: ImpactLine }) {
     <li data-testid="impact-line" className="min-w-0">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {line.link ? (
-          <ItemLinkView link={line.link} testId="impact-link" className="font-medium text-sky-300 underline-offset-2 hover:underline">
+          <ItemLinkView
+            link={line.link}
+            testId="impact-link"
+            className="font-medium text-sky-300 underline-offset-2 hover:underline"
+          >
             {line.text}
           </ItemLinkView>
         ) : (

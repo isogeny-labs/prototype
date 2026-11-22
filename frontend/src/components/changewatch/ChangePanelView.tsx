@@ -23,7 +23,17 @@ function Tests({ tests, testId }: { tests: ChangeTest[]; testId: string }) {
 }
 
 /** One side of before and now: the reviewer's own word for that run and its plain sentence, with where its evidence is. */
-function Side({ heading, side, note, testId }: { heading: string; side: ChangeResultSide | null; note?: string | null; testId: string }) {
+function Side({
+  heading,
+  side,
+  note,
+  testId,
+}: {
+  heading: string;
+  side: ChangeResultSide | null;
+  note?: string | null;
+  testId: string;
+}) {
   return (
     <div data-testid={testId} className="min-w-0">
       <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">
@@ -37,10 +47,18 @@ function Side({ heading, side, note, testId }: { heading: string; side: ChangeRe
             <WhereFromTag tag={side.source_tag} />
           </span>
           <p className="mt-1.5 break-words text-[13px] leading-snug text-slate-300">{side.plain}</p>
-          {side.source_tag?.note ? <p data-testid="source-note" className="mt-1 break-words text-xs text-slate-400">{side.source_tag.note}</p> : null}
+          {side.source_tag?.note ? (
+            <p data-testid="source-note" className="mt-1 break-words text-xs text-slate-400">
+              {side.source_tag.note}
+            </p>
+          ) : null}
           {side.link ? (
             <p className="mt-1 text-xs">
-              <ItemLinkView link={side.link} testId="change-result-link" className="text-sky-300 underline-offset-2 hover:underline">
+              <ItemLinkView
+                link={side.link}
+                testId="change-result-link"
+                className="text-sky-300 underline-offset-2 hover:underline"
+              >
                 See the evidence
               </ItemLinkView>
             </p>
@@ -56,7 +74,11 @@ function Side({ heading, side, note, testId }: { heading: string; side: ChangeRe
 
 function Result({ result }: { result: ChangeResult }) {
   return (
-    <li data-testid="change-result" data-outcome={result.outcome ?? undefined} className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3">
+    <li
+      data-testid="change-result"
+      data-outcome={result.outcome ?? undefined}
+      className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 break-words text-sm font-medium text-slate-100">{result.title}</p>
         {result.differs ? (
@@ -67,7 +89,11 @@ function Result({ result }: { result: ChangeResult }) {
       </div>
       {result.job ? (
         // The run's own progress, in the runner's words, while it waits or runs.
-        <div data-testid="change-result-job" data-status={result.job.status} className="mt-2 flex items-start gap-2 text-[13px] text-slate-300">
+        <div
+          data-testid="change-result-job"
+          data-status={result.job.status}
+          className="mt-2 flex items-start gap-2 text-[13px] text-slate-300"
+        >
           {result.job.status === "running" ? <Spinner className="mt-0.5 h-3.5 w-3.5" /> : null}
           <div className="min-w-0">
             <p>{result.job.status === "waiting" ? "Waiting for its turn" : "Running"}</p>
@@ -154,7 +180,11 @@ export function ChangePanelView({
                   </p>
                   {file.note ? <p className="mt-1 text-xs text-slate-400">{file.note}</p> : null}
                   {file.blocks.map((block, i) => (
-                    <div key={i} data-testid="change-block" className="mt-2 min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3">
+                    <div
+                      key={i}
+                      data-testid="change-block"
+                      className="mt-2 min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3"
+                    >
                       {block.before.length > 0 ? (
                         <>
                           <p className="mb-1 text-xs text-slate-400">Before</p>
@@ -163,7 +193,9 @@ export function ChangePanelView({
                       ) : null}
                       {block.after.length > 0 ? (
                         <>
-                          <p className={`mb-1 text-xs text-slate-400 ${block.before.length > 0 ? "mt-2.5" : ""}`}>After</p>
+                          <p className={`mb-1 text-xs text-slate-400 ${block.before.length > 0 ? "mt-2.5" : ""}`}>
+                            After
+                          </p>
                           <CodeLines lines={block.after} />
                         </>
                       ) : null}
@@ -186,7 +218,9 @@ export function ChangePanelView({
           </div>
           {panel.not_picked.length > 0 ? (
             <details data-testid="change-not-picked-box" className="rounded-lg border border-slate-800 p-3">
-              <summary className="cursor-pointer text-[13px] font-semibold text-slate-100">Not picked ({panel.not_picked.length})</summary>
+              <summary className="cursor-pointer text-[13px] font-semibold text-slate-100">
+                Not picked ({panel.not_picked.length})
+              </summary>
               <div className="mt-2">
                 <Tests tests={panel.not_picked} testId="change-not-picked" />
               </div>
@@ -226,9 +260,16 @@ export function ChangePanelView({
           ) : null}
 
           {panel.fix_line && panel.fix ? (
-            <p data-testid="change-fix-line" className="break-words rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200">
+            <p
+              data-testid="change-fix-line"
+              className="break-words rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-slate-200"
+            >
               {panel.fix_line}{" "}
-              <ItemLinkView link={panel.fix} testId="change-fix-link" className="text-sky-300 underline-offset-2 hover:underline">
+              <ItemLinkView
+                link={panel.fix}
+                testId="change-fix-link"
+                className="text-sky-300 underline-offset-2 hover:underline"
+              >
                 View in Fixes
               </ItemLinkView>
             </p>
@@ -240,7 +281,11 @@ export function ChangePanelView({
               {panel.flags_note ? <p className="mb-2 text-xs text-slate-400">{panel.flags_note}</p> : null}
               <ul data-testid="change-flags" className="space-y-2">
                 {panel.flags.map((flag, i) => (
-                  <li key={i} data-testid="change-flag" className="min-w-0 rounded-lg border border-slate-700 bg-slate-900/70 p-3">
+                  <li
+                    key={i}
+                    data-testid="change-flag"
+                    className="min-w-0 rounded-lg border border-slate-700 bg-slate-900/70 p-3"
+                  >
                     <p className="text-sm font-medium text-slate-100">{flag.title}</p>
                     <p className="mt-1 break-words text-[13px] text-slate-300">{flag.text}</p>
                     <p data-testid="change-flag-note" className="mt-1 text-[13px] text-slate-300">
@@ -249,7 +294,12 @@ export function ChangePanelView({
                     <p className="mt-1 break-words text-xs text-slate-400">
                       Why it is on the list:{" "}
                       {flag.source.url.startsWith("https://") ? (
-                        <a href={flag.source.url} target="_blank" rel="noreferrer noopener" className="text-sky-300 underline-offset-2 hover:underline">
+                        <a
+                          href={flag.source.url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="text-sky-300 underline-offset-2 hover:underline"
+                        >
                           {flag.source.title}
                         </a>
                       ) : (

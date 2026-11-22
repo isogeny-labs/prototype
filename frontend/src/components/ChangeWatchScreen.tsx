@@ -162,8 +162,18 @@ export function ChangeWatchScreen({ planId, openItem = null, tabs = null }: Prop
         </span>
       ),
     },
-    { key: "files", header: "Files", minWidth: 130, render: (r) => <span className="break-words text-xs text-slate-300">{r.files_line ?? "None read"}</span> },
-    { key: "picked", header: "Tests picked", minWidth: 96, render: (r) => <span className="text-xs text-slate-300">{r.picked_line}</span> },
+    {
+      key: "files",
+      header: "Files",
+      minWidth: 130,
+      render: (r) => <span className="break-words text-xs text-slate-300">{r.files_line ?? "None read"}</span>,
+    },
+    {
+      key: "picked",
+      header: "Tests picked",
+      minWidth: 96,
+      render: (r) => <span className="text-xs text-slate-300">{r.picked_line}</span>,
+    },
     { key: "status", header: "Status", minWidth: 140, render: (r) => <StatusCell row={r} /> },
   ];
   const compactColumns: Column<ChangeRow>[] = [
@@ -178,7 +188,11 @@ export function ChangeWatchScreen({ planId, openItem = null, tabs = null }: Prop
         description={view.subline}
         actions={
           <div ref={menuRef} className="relative">
-            <SecondaryButton expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)} testId="demo-change-button">
+            <SecondaryButton
+              expanded={menuOpen}
+              onClick={() => setMenuOpen((open) => !open)}
+              testId="demo-change-button"
+            >
               {view.menu.button}
             </SecondaryButton>
             {menuOpen ? (
@@ -226,10 +240,18 @@ export function ChangeWatchScreen({ planId, openItem = null, tabs = null }: Prop
 
       {tabs}
       {view.code.line ? (
-        <p data-testid="change-watch-code-line" role="note" className="mb-5 break-words rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-sm text-slate-200">
+        <p
+          data-testid="change-watch-code-line"
+          role="note"
+          className="mb-5 break-words rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-sm text-slate-200"
+        >
           {view.code.line}{" "}
           {view.code.link ? (
-            <ItemLinkView link={view.code.link} testId="change-watch-code-link" className="text-sky-300 underline-offset-2 hover:underline">
+            <ItemLinkView
+              link={view.code.link}
+              testId="change-watch-code-link"
+              className="text-sky-300 underline-offset-2 hover:underline"
+            >
               Open Fixes
             </ItemLinkView>
           ) : null}
@@ -247,7 +269,9 @@ export function ChangeWatchScreen({ planId, openItem = null, tabs = null }: Prop
       ) : null}
       {pollError ? (
         <div className="mb-4" data-testid="change-watch-stale">
-          <ErrorBox title="This page could not be read again, so it may be behind. It asks again every second.">{pollError}</ErrorBox>
+          <ErrorBox title="This page could not be read again, so it may be behind. It asks again every second.">
+            {pollError}
+          </ErrorBox>
         </div>
       ) : null}
 

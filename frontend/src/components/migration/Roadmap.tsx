@@ -71,9 +71,13 @@ export function Roadmap({ view, busy, exported, onDownload, onViewFix, selectedK
                   data-system={row.system_key}
                   onClick={() => onOpenSystem(row.system_key)}
                   className={`grid cursor-pointer gap-x-4 gap-y-1 border-t border-slate-800 px-2 py-2 first:border-t-0 hover:bg-slate-800/40 ${
-                    compact ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]" : "@2xl:grid-cols-[minmax(0,200px)_minmax(0,130px)_minmax(0,230px)_minmax(0,1fr)]"
+                    compact
+                      ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+                      : "@2xl:grid-cols-[minmax(0,200px)_minmax(0,130px)_minmax(0,230px)_minmax(0,1fr)]"
                   } ${
-                    row.system_key === selectedKey ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]" : ""
+                    row.system_key === selectedKey
+                      ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]"
+                      : ""
                   }`}
                 >
                   <button

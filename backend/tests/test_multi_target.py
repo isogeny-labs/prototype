@@ -3,6 +3,7 @@
 The multi-target demo file names the Acme server, three local test servers and two signing programs
 (acme-sign 1.4.2, one of ours, and acme-sign 9.9, which is not). Nothing here touches the internet: every
 server is on this computer, on a spare port."""
+
 import socket
 
 import pytest
@@ -13,7 +14,9 @@ from app.engine.compare import COULDNT, FALSE, TRUE
 from app.engine.reviewer import RuleReviewer
 from conftest import csv_bytes, free_port, make_lab, play_back_speed
 
-ONLY_OURS = "This test couldn't run: only our own demo components can run in this version. So there is no result either way."
+ONLY_OURS = (
+    "This test couldn't run: only our own demo components can run in this version. So there is no result either way."
+)
 NOTE = "This server also accepts TLS 1.0 and TLS 1.1, both retired in 2021. The file didn't ask about this, so it doesn't change the result."
 
 
@@ -52,35 +55,82 @@ def _row(view, group, kind):
 
 def test_every_server_and_every_program_gets_the_tests_that_apply():
     claims = [
-        {"ref": "a", "location": "localhost:1", "location_kind": "server", "kind": "protocol_versions", "claimed_value": "TLS 1.3",
-         "detail": {"versions": ["TLS 1.3"]}},
-        {"ref": "b", "location": "localhost:2", "location_kind": "server", "kind": "certificate", "claimed_value": "ECDSA P-256",
-         "detail": {"algorithm": "ECDSA P-256"}},
-        {"ref": "c", "location": "acme-sign 1.4.2", "location_kind": "software", "kind": "signature_algorithm",
-         "claimed_value": "ECDSA P-256", "detail": {"component": "acme-sign", "version": "1.4.2", "algorithm": "ECDSA P-256"}},
-        {"ref": "d", "location": "acme-sign 9.9", "location_kind": "software", "kind": "signature_algorithm",
-         "claimed_value": "ECDSA P-256", "detail": {"component": "acme-sign", "version": "9.9", "algorithm": "ECDSA P-256"}},
+        {
+            "ref": "a",
+            "location": "localhost:1",
+            "location_kind": "server",
+            "kind": "protocol_versions",
+            "claimed_value": "TLS 1.3",
+            "detail": {"versions": ["TLS 1.3"]},
+        },
+        {
+            "ref": "b",
+            "location": "localhost:2",
+            "location_kind": "server",
+            "kind": "certificate",
+            "claimed_value": "ECDSA P-256",
+            "detail": {"algorithm": "ECDSA P-256"},
+        },
+        {
+            "ref": "c",
+            "location": "acme-sign 1.4.2",
+            "location_kind": "software",
+            "kind": "signature_algorithm",
+            "claimed_value": "ECDSA P-256",
+            "detail": {"component": "acme-sign", "version": "1.4.2", "algorithm": "ECDSA P-256"},
+        },
+        {
+            "ref": "d",
+            "location": "acme-sign 9.9",
+            "location_kind": "software",
+            "kind": "signature_algorithm",
+            "claimed_value": "ECDSA P-256",
+            "detail": {"component": "acme-sign", "version": "9.9", "algorithm": "ECDSA P-256"},
+        },
     ]
     plan = research.RuleEngine().propose_tests(claims)
     got = [(t["kind"], research.target_key(t["kind"], t["target"])) for t in plan["tests"]]
-    assert got == [("tls_versions", "localhost:1"), ("certificate", "localhost:2"),
-                   ("official_vectors", "c"), ("bad_signatures", "c"), ("speed_size", "c"),
-                   ("official_vectors", "d"), ("bad_signatures", "d"), ("speed_size", "d")]
+    assert got == [
+        ("tls_versions", "localhost:1"),
+        ("certificate", "localhost:2"),
+        ("official_vectors", "c"),
+        ("bad_signatures", "c"),
+        ("speed_size", "c"),
+        ("official_vectors", "d"),
+        ("bad_signatures", "d"),
+        ("speed_size", "d"),
+    ]
     # Two versions of the same program are two targets: their locked tests differ only by the claim they are for.
     assert len({research.RuleEngine().propose_tests(claims)["tests"][i]["target"]["claim"] for i in (2, 5)}) == 2
-    assert [(s["kind"], s["target"]) for s in plan["not_suggested"]] == [("certificate", "localhost:1"), ("tls_versions", "localhost:2")]
+    assert [(s["kind"], s["target"]) for s in plan["not_suggested"]] == [
+        ("certificate", "localhost:1"),
+        ("tls_versions", "localhost:2"),
+    ]
     assert all("this server" in s["reason"] for s in plan["not_suggested"])
 
 
 def test_the_two_signing_tests_are_titled_so_the_difference_is_plain():
     assert research.TITLES["official_vectors"] == "Independent exam (Wycheproof)"
     assert research.TITLES["bad_signatures"] == "Attacker tricks (our short list)"
-    claims = [{"ref": "c", "location": "acme-sign 1.4.2", "location_kind": "software", "kind": "signature_algorithm",
-               "claimed_value": "ECDSA P-256", "detail": {"component": "acme-sign", "version": "1.4.2", "algorithm": "ECDSA P-256"}}]
+    claims = [
+        {
+            "ref": "c",
+            "location": "acme-sign 1.4.2",
+            "location_kind": "software",
+            "kind": "signature_algorithm",
+            "claimed_value": "ECDSA P-256",
+            "detail": {"component": "acme-sign", "version": "1.4.2", "algorithm": "ECDSA P-256"},
+        }
+    ]
     tests = {t["kind"]: t for t in research.RuleEngine().propose_tests(claims)["tests"]}
-    assert "outside exam" in tests["official_vectors"]["card"]["why"] and "484" in tests["official_vectors"]["card"]["why"]
+    assert (
+        "outside exam" in tests["official_vectors"]["card"]["why"] and "484" in tests["official_vectors"]["card"]["why"]
+    )
     assert "Google" in tests["official_vectors"]["card"]["why"]
-    assert "our own short list" in tests["bad_signatures"]["card"]["why"] and "14" in tests["bad_signatures"]["card"]["why"]
+    assert (
+        "our own short list" in tests["bad_signatures"]["card"]["why"]
+        and "14" in tests["bad_signatures"]["card"]["why"]
+    )
 
 
 # ------------------------------------------------------------------ the test servers start only for that file
@@ -97,7 +147,9 @@ def test_the_test_servers_start_only_when_the_multi_target_file_is_imported(tmp_
         assert lab.extra.running == []
         imp = lab.import_file("multi-target-demo.csv", extra_servers.file_for(lab.settings.demo_tls_port, ports))
         assert lab.extra.running == sorted(ports)
-        assert imp["notices"] == [f"Demo data: started the three demo test servers for this file on this computer (ports {', '.join(map(str, ports))})."]
+        assert imp["notices"] == [
+            f"Demo data: started the three demo test servers for this file on this computer (ports {', '.join(map(str, ports))})."
+        ]
     finally:
         lab.stop()
     assert lab.extra.running == []
@@ -110,8 +162,10 @@ def test_a_taken_port_is_said_and_the_app_carries_on(tmp_path):
     try:
         imp = lab.import_file("multi-target-demo.csv", extra_servers.file_for(lab.settings.demo_tls_port, ports))
         assert imp["claims"] and lab.extra.running == sorted([ports[0], ports[2]])
-        assert imp["notices"] == [f"Port {ports[1]} on this computer is already used by another program, so the demo test server for "
-                                  f"localhost:{ports[1]} could not start. Its claims will show Couldn't check."]
+        assert imp["notices"] == [
+            f"Port {ports[1]} on this computer is already used by another program, so the demo test server for "
+            f"localhost:{ports[1]} could not start. Its claims will show Couldn't check."
+        ]
     finally:
         lab.stop()
         busy.close()
@@ -140,16 +194,40 @@ def test_verify_gives_every_row_one_plain_sentence_and_the_also_noticed_note(flo
     a, b, c = flow.addr
     assert {k: (r["result"], r["summary"], r["also_noticed"]) for k, r in rows.items()} == {
         f"{flow.demo} accepts TLS 1.3 only": (FALSE, "The server accepts TLS 1.2, so ‘TLS 1.3 only’ is not true.", []),
-        f"{flow.demo} certificate is ECDSA P-256": (TRUE, "The server's ID card (its certificate) uses ECDSA P-256, which matches the claim.", []),
-        f"{a} accepts TLS 1.3 only": (TRUE, "The server accepts TLS 1.3 and refused every other TLS version we tried, so ‘TLS 1.3 only’ is true.", []),
-        f"{b} certificate is ECDSA P-256": (TRUE, "The server's ID card (its certificate) uses ECDSA P-256, which matches the claim.", [NOTE]),
-        f"{c} certificate is RSA 2048": (FALSE, "The server's ID card (its certificate) uses RSA with a 1024-bit key, not RSA 2048 as the file claims.", []),
-        "signing component is acme-sign 1.4.2 implementing ECDSA P-256":
-            (TRUE, "acme-sign 1.4.2 says it uses ECDSA P-256, and a normal sign-and-check round trip worked, which matches the claim.", []),
-        "signing component is acme-sign 9.9 implementing ECDSA P-256":
-            (COULDNT, "We couldn't run acme-sign 9.9: only our own demo components can run in this version, so there is no answer either way.", []),
+        f"{flow.demo} certificate is ECDSA P-256": (
+            TRUE,
+            "The server's ID card (its certificate) uses ECDSA P-256, which matches the claim.",
+            [],
+        ),
+        f"{a} accepts TLS 1.3 only": (
+            TRUE,
+            "The server accepts TLS 1.3 and refused every other TLS version we tried, so ‘TLS 1.3 only’ is true.",
+            [],
+        ),
+        f"{b} certificate is ECDSA P-256": (
+            TRUE,
+            "The server's ID card (its certificate) uses ECDSA P-256, which matches the claim.",
+            [NOTE],
+        ),
+        f"{c} certificate is RSA 2048": (
+            FALSE,
+            "The server's ID card (its certificate) uses RSA with a 1024-bit key, not RSA 2048 as the file claims.",
+            [],
+        ),
+        "signing component is acme-sign 1.4.2 implementing ECDSA P-256": (
+            TRUE,
+            "acme-sign 1.4.2 says it uses ECDSA P-256, and a normal sign-and-check round trip worked, which matches the claim.",
+            [],
+        ),
+        "signing component is acme-sign 9.9 implementing ECDSA P-256": (
+            COULDNT,
+            "We couldn't run acme-sign 9.9: only our own demo components can run in this version, so there is no answer either way.",
+            [],
+        ),
     }
-    assert rows[f"{flow.demo} accepts TLS 1.3 only"]["found"].startswith("Accepts TLS 1.3 and TLS 1.2")  # the technical text stays
+    assert rows[f"{flow.demo} accepts TLS 1.3 only"]["found"].startswith(
+        "Accepts TLS 1.3 and TLS 1.2"
+    )  # the technical text stays
 
 
 def test_also_noticed_never_changes_the_result(tls_server, tmp_path):
@@ -158,7 +236,10 @@ def test_also_noticed_never_changes_the_result(tls_server, tmp_path):
     port = tls_server("legacy")
     lab = make_lab(tmp_path)
     try:
-        imp = lab.import_file("x.csv", csv_bytes(f"127.0.0.1:{port},tls,certificate,ECDSA P-256", f"127.0.0.1:{port},tls,certificate,RSA 2048"))
+        imp = lab.import_file(
+            "x.csv",
+            csv_bytes(f"127.0.0.1:{port},tls,certificate,ECDSA P-256", f"127.0.0.1:{port},tls,certificate,RSA 2048"),
+        )
         lab.confirm_address(imp["id"], f"127.0.0.1:{port}", True)
         rows = lab.verify(imp["id"])["results"]
     finally:
@@ -173,6 +254,7 @@ def test_the_certificate_review_ignores_the_versions_it_also_saw(flow):
     run_id = _row(view, f"server:{flow.addr[1]}", "certificate")["result"]["run_id"]
     from app.db import TestRunRow, TestSpecRow
     from app.lab.testlab import read_spec, run_record
+
     with flow.lab.db() as db:
         run = db.get(TestRunRow, run_id)
         record = run_record(run)
@@ -192,17 +274,30 @@ def test_the_tests_screen_groups_by_target_and_says_what_is_not_tested(flow):
     a, b, c = flow.addr
     assert plan["grouped"] is True
     assert [(g["heading"], g["note"]) for g in plan["groups"]] == [
-        (f"Server: {flow.demo}", None), (f"Server: {a}", None), (f"Server: {b}", None), (f"Server: {c}", None),
-        ("Signing program: acme-sign 1.4.2", None)]   # acme-sign 9.9 can't run: no cards (phase 4a), only its line below
-    assert plan["not_tested"] == {"title": "Not tested, and why", "items": [
-        f"{a}: no Certificate strength test. The file makes no claim about this server's certificate.",
-        f"{b}: no Old TLS versions test. The file makes no claim about which TLS versions this server accepts.",
-        f"{c}: no Old TLS versions test. The file makes no claim about which TLS versions this server accepts.",
-        "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version."]}
+        (f"Server: {flow.demo}", None),
+        (f"Server: {a}", None),
+        (f"Server: {b}", None),
+        (f"Server: {c}", None),
+        ("Signing program: acme-sign 1.4.2", None),
+    ]  # acme-sign 9.9 can't run: no cards (phase 4a), only its line below
+    assert plan["not_tested"] == {
+        "title": "Not tested, and why",
+        "items": [
+            f"{a}: no Certificate strength test. The file makes no claim about this server's certificate.",
+            f"{b}: no Old TLS versions test. The file makes no claim about which TLS versions this server accepts.",
+            f"{c}: no Old TLS versions test. The file makes no claim about which TLS versions this server accepts.",
+            "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.",
+        ],
+    }
     keys = [t["group"] for t in plan["tests"]]
     assert keys == sorted(keys, key=[g["key"] for g in plan["groups"]].index)  # sent group by group
-    assert len(plan["tests"]) == 8 and "Eight tests suggested" in plan["intro"]   # the count leaves the program that can't run out
-    assert plan["subject"][:2] == [{"t": "text", "v": "Testing: "}, {"t": "text", "v": "four servers and two signing programs"}]
+    assert (
+        len(plan["tests"]) == 8 and "Eight tests suggested" in plan["intro"]
+    )  # the count leaves the program that can't run out
+    assert plan["subject"][:2] == [
+        {"t": "text", "v": "Testing: "},
+        {"t": "text", "v": "four servers and two signing programs"},
+    ]
 
 
 def test_every_result_has_its_plain_line_and_nothing_is_skipped(flow):
@@ -210,19 +305,27 @@ def test_every_result_has_its_plain_line_and_nothing_is_skipped(flow):
     a, b, c = flow.addr
     assert view["grouped"] is True and view["not_tested"]["items"]
     assert len(view["rows"]) == 8 and all(r["result"] is not None for r in view["rows"])  # all eight ran
-    assert _row(view, f"server:{flow.demo}", "tls_versions")["result"]["plain"] == "The server accepts TLS 1.2, so ‘TLS 1.3 only’ is not true."
+    assert (
+        _row(view, f"server:{flow.demo}", "tls_versions")["result"]["plain"]
+        == "The server accepts TLS 1.2, so ‘TLS 1.3 only’ is not true."
+    )
     assert _row(view, f"server:{a}", "tls_versions")["result"]["label"] == "Passed"
     cert_b = _row(view, f"server:{b}", "certificate")["result"]
     assert cert_b["label"] == "Passed" and cert_b["also_noticed"] == [NOTE]
     cert_c = _row(view, f"server:{c}", "certificate")["result"]
-    assert cert_c["label"] == "Failed" and cert_c["plain"] == ("The server's ID card (its certificate) uses RSA with a 1024-bit key: "
-                                                               "not RSA 2048 as claimed, and below NIST's minimum of 2048 bits.")
+    assert cert_c["label"] == "Failed" and cert_c["plain"] == (
+        "The server's ID card (its certificate) uses RSA with a 1024-bit key: "
+        "not RSA 2048 as claimed, and below NIST's minimum of 2048 bits."
+    )
     ours = [r for r in view["rows"] if r["group"] == "software:line-7"]
     theirs = [r for r in view["rows"] if r["group"] == "software:line-8"]
     assert [r["result"]["label"] for r in ours] == ["Failed", "Failed", "Measured"]
     assert [r["result"]["component"] for r in ours] == ["acme-sign 1.4.2"] * 3
-    assert theirs == []   # a program that can't run has no result rows: only its line under "Not tested, and why"
-    assert "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version." in view["not_tested"]["items"]
+    assert theirs == []  # a program that can't run has no result rows: only its line under "Not tested, and why"
+    assert (
+        "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version."
+        in view["not_tested"]["items"]
+    )
     for row in view["rows"]:
         text = row["result"]["plain"].lower()
         assert text and "secure" not in text and "score" not in text
@@ -233,7 +336,8 @@ def test_each_failing_server_has_its_own_text_fix_and_the_code_fix_is_for_our_pr
     assert [(f["kind"], f["list_source"]) for f in fixes] == [
         ("code", "Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)"),
         ("text", f"Came from 1 failed test: Old TLS versions on {flow.demo}"),
-        ("text", f"Came from 1 failed test: Certificate strength on {flow.addr[2]}")]
+        ("text", f"Came from 1 failed test: Certificate strength on {flow.addr[2]}"),
+    ]
 
 
 def test_add_test_adds_it_to_every_server(flow):
@@ -247,7 +351,9 @@ def test_add_test_adds_it_to_every_server(flow):
     back = flow.lab.plan_view(flow.plan["id"])
     assert "pq_readiness" in [c["catalog_id"] for c in back["catalog"]]  # one server is missing it again
     again = flow.lab.add_test(flow.plan["id"], "pq_readiness")
-    assert sorted(t["id"] for t in again["tests"] if t["kind"] == "pq_readiness") == sorted(pq)  # the same test came back
+    assert sorted(t["id"] for t in again["tests"] if t["kind"] == "pq_readiness") == sorted(
+        pq
+    )  # the same test came back
     for item in pq:
         flow.lab.remove_test(flow.plan["id"], item)
     assert len(flow.lab.plan_view(flow.plan["id"])["tests"]) == len(before["tests"])
@@ -270,13 +376,16 @@ def test_the_proof_and_the_retest_change_only_our_program(flow):
     assert [r["after"]["component"] for r in view["rows"] if r["group"] == "software:line-7"] == ["acme-sign 1.4.3"] * 3
     assert [r["after"]["label"] for r in view["rows"] if r["group"] == "software:line-7"][:2] == ["Passed", "Passed"]
     assert not [r for r in view["rows"] if r["group"] == "software:line-8"]
-    assert any(part.get("v") == ". Every other server and program was tested again as it is" for part in view["subline"])
+    assert any(
+        part.get("v") == ". Every other server and program was tested again as it is" for part in view["subline"]
+    )
 
 
 def test_the_evidence_file_carries_the_plain_lines_and_notes(flow):
     import json
 
     from app.evidence.export import build_evidence
+
     text = json.dumps(build_evidence(flow.lab, flow.plan["id"]), ensure_ascii=False)
     assert NOTE in text and "\u2018TLS 1.3 only\u2019 is not true" in text
     assert '"plain": "acme-sign 1.4.2 got 3 of the 484 exam cases wrong' in text
@@ -294,8 +403,13 @@ def test_a_second_demo_program_is_run_again_as_it_is_on_retest_and_proof(tmp_pat
     lab = make_lab(tmp_path)
     play_back_speed(lab)
     try:
-        imp = lab.import_file("two.csv", csv_bytes("acme-sign 1.4.2,software,signature_algorithm,ECDSA P-256",
-                                                   "acme-sign 1.4.3,software,signature_algorithm,ECDSA P-256"))
+        imp = lab.import_file(
+            "two.csv",
+            csv_bytes(
+                "acme-sign 1.4.2,software,signature_algorithm,ECDSA P-256",
+                "acme-sign 1.4.3,software,signature_algorithm,ECDSA P-256",
+            ),
+        )
         plan = lab.ensure_plan(imp["id"])
         assert plan["grouped"] is True and len(plan["tests"]) == 6
         lab.run_all(plan["id"])
@@ -305,8 +419,11 @@ def test_a_second_demo_program_is_run_again_as_it_is_on_retest_and_proof(tmp_pat
         code = next(f for f in lab.fix_states(plan["id"]) if f["kind"] == "code")
         assert code["status"] == "ready", code["proof"]["review"]
         from app.db import RunCodeRow, TestRunRow
+
         with lab.db() as db:
-            proof_runs = db.query(TestRunRow).filter(TestRunRow.phase == "proof", TestRunRow.component_version == "1.4.3").all()
+            proof_runs = (
+                db.query(TestRunRow).filter(TestRunRow.phase == "proof", TestRunRow.component_version == "1.4.3").all()
+            )
             sources = {db.query(RunCodeRow).filter(RunCodeRow.run_id == r.id).one().source for r in proof_runs}
         assert sources == {"repository", "bundled"}  # 1.4.2's tests ran the change; the other program its bundled file
         lab.start_retest(plan["id"], "1.4.3")
@@ -323,8 +440,12 @@ def test_no_also_noticed_when_the_file_claims_that_servers_tls_versions(tls_serv
     port = tls_server("legacy")
     lab = make_lab(tmp_path)
     try:
-        imp = lab.import_file("x.csv", csv_bytes(f"127.0.0.1:{port},tls,protocol_versions,TLS1.2;TLS1.3",
-                                                 f"127.0.0.1:{port},tls,certificate,ECDSA P-256"))
+        imp = lab.import_file(
+            "x.csv",
+            csv_bytes(
+                f"127.0.0.1:{port},tls,protocol_versions,TLS1.2;TLS1.3", f"127.0.0.1:{port},tls,certificate,ECDSA P-256"
+            ),
+        )
         lab.confirm_address(imp["id"], f"127.0.0.1:{port}", True)
         rows = lab.verify(imp["id"])["results"]
         assert rows[0]["result"] == FALSE and rows[1]["result"] == TRUE
@@ -343,8 +464,12 @@ def test_another_program_on_a_test_server_port_is_not_reported_on(tmp_path, test
     """A TLS program of someone else holds 8445's port: the import says so, and Verify gives Couldn't check for
     that address instead of reporting on the other program as if it were our test server."""
     from app.servers.demo_server import TlsServer, make_server_context
+
     ports = _ports()
-    other = TlsServer(make_server_context(*test_cert, ciphers="ALL:@SECLEVEL=0", minimum=__import__("ssl").TLSVersion.TLSv1_2), ports[1])
+    other = TlsServer(
+        make_server_context(*test_cert, ciphers="ALL:@SECLEVEL=0", minimum=__import__("ssl").TLSVersion.TLSv1_2),
+        ports[1],
+    )
     lab = make_lab(tmp_path, extra_ports=ports)
     try:
         imp = lab.import_file("multi-target-demo.csv", extra_servers.file_for(lab.settings.demo_tls_port, ports))
@@ -391,19 +516,23 @@ def test_a_plan_from_before_every_target_was_tested_says_what_it_lacks(tmp_path)
         imp = lab.import_file("multi-target-demo.csv", extra_servers.file_for(lab.settings.demo_tls_port, ports))
         plan = lab.ensure_plan(imp["id"])
         from app.db import PlanItemRow
+
         with lab.db() as db:
             for t in plan["tests"]:
                 if t["group"] == f"server:localhost:{ports[0]}":
                     db.delete(db.get(PlanItemRow, t["id"]))
             db.commit()
         items = lab.plan_view(plan["id"])["not_tested"]["items"]
-        assert (f"localhost:{ports[0]}: no Old TLS versions test. This test plan was made by an earlier version that "
-                "tested only the first server and program. Import the file again to test it.") in items
+        assert (
+            f"localhost:{ports[0]}: no Old TLS versions test. This test plan was made by an earlier version that "
+            "tested only the first server and program. Import the file again to test it."
+        ) in items
     finally:
         lab.stop()
 
 
 # ------------------------------------------------------------------ phase 6c: the Otto panel, where tests share a title
+
 
 def test_the_panel_names_exactly_one_of_the_tests_that_share_a_title(flow):
     """This file gives every server its own "Old TLS versions" and "Certificate strength". Where the panel must ask
@@ -414,13 +543,15 @@ def test_the_panel_names_exactly_one_of_the_tests_that_share_a_title(flow):
     aid = lab.assessment_for(plan_id=flow.plan["id"]).id
     rows = lab.lab_view(flow.plan["id"])["rows"]
     tls = [r for r in rows if r["title"] == "Old TLS versions"]
-    assert len(tls) >= 2 and len({r["group"] for r in tls}) == len(tls)                      # one for each server that has it, under the same title
+    assert len(tls) >= 2 and len({r["group"] for r in tls}) == len(
+        tls
+    )  # one for each server that has it, under the same title
 
     def settle(page: str, sentence: str, kinds: tuple[str, ...]) -> list[dict]:
         which = lab.assistant_answer(aid, page, None, sentence)
         assert which["kind"] == "which", (sentence, which["kind"], which["text"])
         labels, says = [o["label"] for o in which["options"]], [o["say"] for o in which["options"]]
-        assert len(set(labels)) == len(labels) and len(set(says)) == len(says), labels          # no two options read the same
+        assert len(set(labels)) == len(labels) and len(set(says)) == len(says), labels  # no two options read the same
         settled = []
         for option in which["options"]:
             again = lab.assistant_answer(aid, page, None, option["say"])
@@ -431,7 +562,9 @@ def test_the_panel_names_exactly_one_of_the_tests_that_share_a_title(flow):
     # a question: each answer is about its own server's test
     answers = settle("evidence", "what does the tls test show?", ("answer",))
     firsts = [a["facts"][0]["text"] for a in answers]
-    assert len(set(firsts)) == len(firsts) == len(tls) and all("Old TLS versions on Server: localhost:" in text for text in firsts)
+    assert len(set(firsts)) == len(firsts) == len(tls) and all(
+        "Old TLS versions on Server: localhost:" in text for text in firsts
+    )
     assert sorted(a["facts"][0]["link"]["item"] for a in answers) == sorted(f"test-{r['item_id']}" for r in tls)
     # with nothing named and nothing open, every result is offered (eight at a time, and it says so), each under its own name
     everything = lab.assistant_answer(aid, "evidence", None, "what does this result show, and what doesn't it?")
@@ -439,7 +572,10 @@ def test_the_panel_names_exactly_one_of_the_tests_that_share_a_title(flow):
     assert everything["kind"] == "which" and len(everything["options"]) == min(8, len(with_result))
     assert len({o["say"] for o in everything["options"]}) == len(everything["options"])
     if len(with_result) > 8:
-        assert everything["text"] == f"Which one? The first 8 of {len(with_result)} that fit are listed. Say more of its name to narrow it down."
+        assert (
+            everything["text"]
+            == f"Which one? The first 8 of {len(with_result)} that fit are listed. Say more of its name to narrow it down."
+        )
     for option in everything["options"]:
         assert lab.assistant_answer(aid, "evidence", None, option["say"])["kind"] == "answer", option["say"]
     # Open and Run: each option leads to its own test

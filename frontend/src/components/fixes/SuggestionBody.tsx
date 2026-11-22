@@ -41,7 +41,13 @@ function CodeBlock({ code }: { code: string }) {
 }
 
 /** A suggestion in words only. The app has not applied or tested it, and it gets no buttons. */
-export function SuggestionBody({ suggestion, advisories }: { suggestion: TextSuggestion; advisories?: Advisories | null }) {
+export function SuggestionBody({
+  suggestion,
+  advisories,
+}: {
+  suggestion: TextSuggestion;
+  advisories?: Advisories | null;
+}) {
   const { warning, where, options, exact } = suggestion;
   return (
     <div data-testid="text-suggestion">
@@ -60,7 +66,10 @@ export function SuggestionBody({ suggestion, advisories }: { suggestion: TextSug
       ) : null}
 
       {warning ? (
-        <div data-testid="suggestion-warning" className="mt-4 rounded-lg border border-slate-400 bg-slate-800 px-3 py-2.5">
+        <div
+          data-testid="suggestion-warning"
+          className="mt-4 rounded-lg border border-slate-400 bg-slate-800 px-3 py-2.5"
+        >
           <p className="flex items-start gap-2 text-sm text-slate-100">
             <span aria-hidden="true" className="font-mono font-semibold">
               !
@@ -138,7 +147,11 @@ export function SuggestionBody({ suggestion, advisories }: { suggestion: TextSug
           <h4 className={`mb-1.5 mt-4 ${H}`}>{options.title}</h4>
           <div className="grid gap-3 md:grid-cols-2">
             {options.items.map((option, i) => (
-              <div key={i} data-testid="suggestion-option" className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3">
+              <div
+                key={i}
+                data-testid="suggestion-option"
+                className="min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3"
+              >
                 <p className="text-sm font-medium text-slate-100">{option.title}</p>
                 <p className="mt-0.5 text-xs text-slate-400">
                   <Words text={option.when} />
@@ -162,7 +175,10 @@ export function SuggestionBody({ suggestion, advisories }: { suggestion: TextSug
       ) : null}
 
       {exact ? (
-        <div data-testid="suggestion-exact" className="mt-3 min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3">
+        <div
+          data-testid="suggestion-exact"
+          className="mt-3 min-w-0 rounded-lg border border-slate-800 bg-slate-950 p-3"
+        >
           <p className="text-sm font-medium text-slate-100">{exact.title}</p>
           <p className="mt-0.5 text-xs text-slate-400">
             <Words text={exact.note} />

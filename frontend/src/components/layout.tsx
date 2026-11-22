@@ -19,7 +19,10 @@ export function PageHeader({
   children?: ReactNode;
 }) {
   return (
-    <header data-testid="page-header" className="mb-6 flex flex-col gap-4 border-b border-slate-800/80 pb-5 md:flex-row md:items-end md:justify-between">
+    <header
+      data-testid="page-header"
+      className="mb-6 flex flex-col gap-4 border-b border-slate-800/80 pb-5 md:flex-row md:items-end md:justify-between"
+    >
       <div className="min-w-0 max-w-3xl">
         {eyebrow ? <p className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">{eyebrow}</p> : null}
         <h1 className="text-2xl font-semibold tracking-tight text-slate-50">{title}</h1>
@@ -43,7 +46,12 @@ export function SummaryCards({ cards, label }: { cards: SummaryCard[]; label: st
   return (
     <ul aria-label={label} className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
       {cards.map((c) => (
-        <li key={c.key} data-testid="summary-card" data-card={c.key} className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3">
+        <li
+          key={c.key}
+          data-testid="summary-card"
+          data-card={c.key}
+          className="rounded-xl border border-slate-800 bg-slate-900/50 px-4 py-3"
+        >
           <p className="text-xs font-medium text-slate-400">{c.label}</p>
           <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight text-slate-50">{c.value}</p>
           {c.sub ? <p className="mt-0.5 text-xs text-slate-500">{c.sub}</p> : null}
@@ -69,7 +77,10 @@ export function SearchInput({
   return (
     <label className="relative block min-w-[12rem] flex-1 sm:max-w-xs">
       <span className="sr-only">{label}</span>
-      <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-slate-500">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-slate-500"
+      >
         ⌕
       </span>
       <input
@@ -179,12 +190,27 @@ export function DataTable<T>({
   const compact = panelOpen && compactColumns !== undefined;
   const shown = compact ? compactColumns : columns;
   return (
-    <div data-testid="data-table" data-compact={compact || undefined} className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/30">
-      <table aria-label={label} className="w-full border-collapse text-left text-sm [overflow-wrap:normal] [word-break:normal]">
+    <div
+      data-testid="data-table"
+      data-compact={compact || undefined}
+      className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/30"
+    >
+      <table
+        aria-label={label}
+        className="w-full border-collapse text-left text-sm [overflow-wrap:normal] [word-break:normal]"
+      >
         <thead>
-          <tr data-testid={headTestId} className="border-b border-slate-800 text-xs font-medium uppercase tracking-wider text-slate-500">
+          <tr
+            data-testid={headTestId}
+            className="border-b border-slate-800 text-xs font-medium uppercase tracking-wider text-slate-500"
+          >
             {shown.map((c) => (
-              <th key={c.key} scope="col" style={c.minWidth ? { minWidth: c.minWidth } : undefined} className={`px-4 py-2.5 font-medium ${c.className ?? ""}`}>
+              <th
+                key={c.key}
+                scope="col"
+                style={c.minWidth ? { minWidth: c.minWidth } : undefined}
+                className={`px-4 py-2.5 font-medium ${c.className ?? ""}`}
+              >
                 {c.header}
               </th>
             ))}
@@ -226,7 +252,11 @@ export function DataTable<T>({
                   } ${selected ? "bg-sky-400/[0.07] shadow-[inset_2px_0_0_var(--color-sky-400)]" : ""}`}
                 >
                   {shown.map((c) => (
-                    <td key={c.key} style={c.minWidth ? { minWidth: c.minWidth } : undefined} className={`px-4 py-3 align-top ${c.className ?? ""}`}>
+                    <td
+                      key={c.key}
+                      style={c.minWidth ? { minWidth: c.minWidth } : undefined}
+                      className={`px-4 py-3 align-top ${c.className ?? ""}`}
+                    >
                       {c.render(row)}
                     </td>
                   ))}
@@ -268,7 +298,8 @@ export const ItemPageContext = createContext<ItemPage | null>(null);
 export const HiddenPageNotesContext = createContext<HTMLElement | null | undefined>(undefined);
 
 /** SPEC section 11: the one line every result screen carries. An item on a page of its own is one. */
-export const STANDING_LINE = "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
+export const STANDING_LINE =
+  "Passing these tests doesn't prove a system secure. It shows these specific checks passed.";
 
 /** A place in every panel's header for buttons that belong to the whole app, not to one page (kept for the Otto
  * assistant of phase 6; nothing fills it yet). It is given the open item's id. */
@@ -282,7 +313,21 @@ const APP_TITLE = "Isogeny Labs";
 
 /** The item's own page: "← Back to Checks", its title as the page's heading, then the same content as the panel. The
  * browser tab is named after the item while it shows. */
-function ItemPageView({ page, item, title, subtitle, children, testId }: { page: ItemPage; item: string | null; title: ReactNode; subtitle?: ReactNode; children: ReactNode; testId: string }) {
+function ItemPageView({
+  page,
+  item,
+  title,
+  subtitle,
+  children,
+  testId,
+}: {
+  page: ItemPage;
+  item: string | null;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  children: ReactNode;
+  testId: string;
+}) {
   const heading = useRef<HTMLHeadingElement>(null);
   const slot = useContext(PanelHeaderSlotContext);
   useEffect(() => {
@@ -309,13 +354,20 @@ function ItemPageView({ page, item, title, subtitle, children, testId }: { page:
           </h1>
           {subtitle ? <div className="mt-1 text-sm text-slate-400">{subtitle}</div> : null}
         </div>
-        {slot ? <div data-testid="panel-header-slot" className="flex shrink-0 items-center gap-1">{slot(item)}</div> : null}
+        {slot ? (
+          <div data-testid="panel-header-slot" className="flex shrink-0 items-center gap-1">
+            {slot(item)}
+          </div>
+        ) : null}
       </header>
       <HiddenPageNotesContext.Provider value={undefined}>
         <div className="@container">{children}</div>
       </HiddenPageNotesContext.Provider>
       {page.standing ? (
-        <p data-testid="item-page-standing" className="mt-6 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+        <p
+          data-testid="item-page-standing"
+          className="mt-6 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300"
+        >
           {STANDING_LINE}
         </p>
       ) : null}
@@ -324,7 +376,13 @@ function ItemPageView({ page, item, title, subtitle, children, testId }: { page:
 }
 
 /** The item's own page when the address names something that is not in this assessment. */
-export function ItemMissing({ page, named = true }: { page: ItemPage; /** Whether the browser tab is named "Not found" while this shows. */ named?: boolean }) {
+export function ItemMissing({
+  page,
+  named = true,
+}: {
+  page: ItemPage;
+  /** Whether the browser tab is named "Not found" while this shows. */ named?: boolean;
+}) {
   useEffect(() => {
     if (!named) return;
     document.title = `Not found · ${APP_TITLE}`;
@@ -341,8 +399,8 @@ export function ItemMissing({ page, named = true }: { page: ItemPage; /** Whethe
       </p>
       <h1 className="text-2xl font-semibold tracking-tight text-slate-50">This item is not here</h1>
       <p className="mt-2 text-sm text-slate-400">
-        This address names an item that is not on {page.backLabel} in this assessment. It may belong to another assessment, or the address may
-        have been cut short.
+        This address names an item that is not on {page.backLabel} in this assessment. It may belong to another
+        assessment, or the address may have been cut short.
       </p>
     </article>
   );
@@ -398,7 +456,8 @@ export function DetailPanel({
       if (e.key !== "Escape") return;
       // Escape in a field the person is typing in (a reason, a date) must not close the panel and lose the draft.
       const t = e.target;
-      if (t instanceof HTMLElement && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
+      if (t instanceof HTMLElement && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)))
+        return;
       // A small dialog on top of the panel (the Reject box of a proposal) takes Escape for itself: it closes, the panel stays.
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       close.current();
@@ -426,7 +485,11 @@ export function DetailPanel({
   }
   return (
     <>
-      <div aria-hidden="true" onClick={onClose} className="fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-[1px] xl:hidden" />
+      <div
+        aria-hidden="true"
+        onClick={onClose}
+        className="fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-[1px] xl:hidden"
+      />
       <aside
         ref={ref}
         tabIndex={-1}
@@ -444,47 +507,51 @@ export function DetailPanel({
             {subtitle ? <div className="mt-0.5 text-xs text-slate-400">{subtitle}</div> : null}
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
-          {/* Phase 6's own buttons go here (see PanelHeaderSlotContext). */}
-          {slot ? <span data-testid="panel-header-slot" className="flex items-center gap-1">{slot(item)}</span> : null}
-          {itemPage && item ? (
-            <a
-              data-testid="open-in-new-tab"
-              href={itemPage.hrefFor(item)}
-              target="_blank"
-              rel="noopener"
-              className="whitespace-nowrap rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+            {/* Phase 6's own buttons go here (see PanelHeaderSlotContext). */}
+            {slot ? (
+              <span data-testid="panel-header-slot" className="flex items-center gap-1">
+                {slot(item)}
+              </span>
+            ) : null}
+            {itemPage && item ? (
+              <a
+                data-testid="open-in-new-tab"
+                href={itemPage.hrefFor(item)}
+                target="_blank"
+                rel="noopener"
+                className="whitespace-nowrap rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+              >
+                Open in new tab <span aria-hidden="true">↗</span>
+              </a>
+            ) : null}
+            {panel ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => panel.setWidth(panel.width + PANEL_STEP)}
+                  disabled={panel.width >= PANEL_MAX}
+                  className="hidden rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
+                >
+                  Wider
+                </button>
+                <button
+                  type="button"
+                  onClick={() => panel.setWidth(panel.width - PANEL_STEP)}
+                  disabled={panel.width <= PANEL_MIN}
+                  className="hidden rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
+                >
+                  Narrower
+                </button>
+              </>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close details"
+              className="rounded-md px-2 py-1 text-lg leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
             >
-              Open in new tab <span aria-hidden="true">↗</span>
-            </a>
-          ) : null}
-          {panel ? (
-            <>
-              <button
-                type="button"
-                onClick={() => panel.setWidth(panel.width + PANEL_STEP)}
-                disabled={panel.width >= PANEL_MAX}
-                className="hidden rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
-              >
-                Wider
-              </button>
-              <button
-                type="button"
-                onClick={() => panel.setWidth(panel.width - PANEL_STEP)}
-                disabled={panel.width <= PANEL_MIN}
-                className="hidden rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-40 xl:inline-block"
-              >
-                Narrower
-              </button>
-            </>
-          ) : null}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close details"
-            className="rounded-md px-2 py-1 text-lg leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-          >
-            ×
-          </button>
+              ×
+            </button>
           </div>
         </div>
         {/* Phase 5b: inside the panel, content lays itself out by the panel's own width (container queries). */}
@@ -728,7 +795,11 @@ export interface GroupNav {
 }
 
 /** Tells the sidebar which tab the page shows, whenever that or the groups change. */
-export function useShowGroups(onShown: ((nav: GroupNav) => void) | undefined, active: string | null, groups: { key: string; label: string }[] | null) {
+export function useShowGroups(
+  onShown: ((nav: GroupNav) => void) | undefined,
+  active: string | null,
+  groups: { key: string; label: string }[] | null,
+) {
   const tell = useRef(onShown);
   tell.current = onShown;
   const said = groups ? groups.map((g) => `${g.key}=${g.label}`).join("\u0000") : "";
@@ -824,7 +895,11 @@ export function GroupSection({
           ) : (
             children
           )}
-          {also ? <div data-testid="group-also" className="mt-2 px-1 text-xs text-slate-400">{also}</div> : null}
+          {also ? (
+            <div data-testid="group-also" className="mt-2 px-1 text-xs text-slate-400">
+              {also}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </section>
@@ -848,15 +923,28 @@ export function PartSection({
 }) {
   const headingId = useId();
   return (
-    <section data-testid="part-section" data-part={part.key} aria-labelledby={headingId} className="mb-4 rounded-xl border border-slate-800/80 bg-slate-950/30">
+    <section
+      data-testid="part-section"
+      data-part={part.key}
+      aria-labelledby={headingId}
+      className="mb-4 rounded-xl border border-slate-800/80 bg-slate-950/30"
+    >
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2">
         <h3 id={headingId} className="m-0 min-w-0">
-          <button type="button" aria-expanded={open} onClick={onToggle} className="flex items-center gap-2 text-left text-sm font-semibold text-slate-100">
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={onToggle}
+            className="flex items-center gap-2 text-left text-sm font-semibold text-slate-100"
+          >
             <span aria-hidden="true" className="inline-block w-3 text-slate-500">
               {open ? "▾" : "▸"}
             </span>
             {part.label}
-            <span data-testid="part-count" className="whitespace-nowrap rounded-full border border-slate-700 px-2 py-0.5 text-[11px] font-medium tabular-nums text-slate-300">
+            <span
+              data-testid="part-count"
+              className="whitespace-nowrap rounded-full border border-slate-700 px-2 py-0.5 text-[11px] font-medium tabular-nums text-slate-300"
+            >
               {part.count_label}
             </span>
           </button>
@@ -899,7 +987,12 @@ export function BlockSection({
   return (
     <section data-testid="block-section" data-block={block.key} aria-labelledby={headingId} className="mb-3 last:mb-0">
       <h4 id={headingId} className="m-0">
-        <button type="button" aria-expanded={open} onClick={onToggle} className="flex w-full flex-wrap items-baseline gap-x-2 gap-y-0.5 text-left">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+          className="flex w-full flex-wrap items-baseline gap-x-2 gap-y-0.5 text-left"
+        >
           <span aria-hidden="true" className="inline-block w-3 text-slate-500">
             {open ? "▾" : "▸"}
           </span>
@@ -915,7 +1008,17 @@ export function BlockSection({
 }
 
 /** Phase 5b: a small dialog (the New assessment, Close and Rerun boxes). Escape or Cancel closes it. */
-export function Modal({ title, onClose, children, testId }: { title: string; onClose: () => void; children: ReactNode; testId?: string }) {
+export function Modal({
+  title,
+  onClose,
+  children,
+  testId,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  testId?: string;
+}) {
   const headingId = useId();
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -929,8 +1032,14 @@ export function Modal({ title, onClose, children, testId }: { title: string; onC
   }, [onClose]);
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/70 px-4 py-16">
-      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={headingId} data-testid={testId}
-           className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+      <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={headingId}
+        data-testid={testId}
+        className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl"
+      >
         <h2 id={headingId} className="mb-3 text-lg font-semibold text-slate-50">
           {title}
         </h2>
@@ -943,7 +1052,10 @@ export function Modal({ title, onClose, children, testId }: { title: string; onC
 /** The calm empty state: what this is, and the buttons that start it. */
 export function EmptyState({ title, children, actions }: { title: string; children: ReactNode; actions?: ReactNode }) {
   return (
-    <div data-testid="empty-state" className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/30 px-6 py-12 text-center">
+    <div
+      data-testid="empty-state"
+      className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/30 px-6 py-12 text-center"
+    >
       <h2 className="text-lg font-semibold text-slate-100">{title}</h2>
       <div className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-slate-400">{children}</div>
       {actions ? <div className="mt-6 flex flex-wrap justify-center gap-2">{actions}</div> : null}

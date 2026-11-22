@@ -7,6 +7,7 @@ glance. Never "secure", never a score, never a judgement beyond what was measure
 
 An "Also noticed" note is something a check saw that the file didn't ask about. It is never a result and never
 changes True / False."""
+
 from __future__ import annotations
 
 from app.engine.compare import COULDNT, FALSE, TRUE
@@ -43,14 +44,18 @@ def lower_first(text: str) -> str:
 def also_noticed_tls(states: dict) -> list[str]:
     """The note for a check whose handshakes show the server accepts TLS 1.0 or 1.1. `states` maps a TLS version to
     "accepted" / "refused" / "unknown" (or to {"state": ...})."""
+
     def state(v: str) -> object:
         s = states.get(v)
         return s.get("state") if isinstance(s, dict) else s
+
     old = [v for v in RETIRED if state(v) == "accepted"]
     if not old:
         return []
     both = "both retired" if len(old) == 2 else "retired"
-    return [f"This server also accepts {join_and(old)}, {both} in 2021. The file didn't ask about this, so it doesn't change the result."]
+    return [
+        f"This server also accepts {join_and(old)}, {both} in 2021. The file didn't ask about this, so it doesn't change the result."
+    ]
 
 
 def tls_claim(claimed: list[str]) -> str:
@@ -82,9 +87,13 @@ def verify_certificate(result: str, claimed: str, found: str | None) -> str:
 
 def verify_software(result: str, label: str, algorithm: str, found: str, key_exchange: bool = False) -> str:
     if result == TRUE and key_exchange:
-        return f"{label} says it uses {algorithm}, and a normal key exchange round trip worked, which matches the claim."
+        return (
+            f"{label} says it uses {algorithm}, and a normal key exchange round trip worked, which matches the claim."
+        )
     if result == TRUE:
-        return f"{label} says it uses {algorithm}, and a normal sign-and-check round trip worked, which matches the claim."
+        return (
+            f"{label} says it uses {algorithm}, and a normal sign-and-check round trip worked, which matches the claim."
+        )
     if result == FALSE:
         return f"{label} doesn't match the claim: {lower_first(found)}"
     return ""
@@ -103,5 +112,17 @@ def verify_fallback(result: str, found: str) -> str:
     return {TRUE: "This matches the claim. ", FALSE: "This doesn't match the claim. "}.get(result, "") + (found or "")
 
 
-__all__ = ["RETIRED", "also_noticed_tls", "verify_tls", "verify_certificate", "verify_software", "couldnt", "verify_fallback",
-           "quoted", "tls_claim", "lower_first", "TLS_VERSIONS", "COULDNT"]
+__all__ = [
+    "RETIRED",
+    "also_noticed_tls",
+    "verify_tls",
+    "verify_certificate",
+    "verify_software",
+    "couldnt",
+    "verify_fallback",
+    "quoted",
+    "tls_claim",
+    "lower_first",
+    "TLS_VERSIONS",
+    "COULDNT",
+]

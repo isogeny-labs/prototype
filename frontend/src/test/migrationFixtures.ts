@@ -93,7 +93,9 @@ function chooseBox(title: string, needsReason: boolean, keep: boolean): Migratio
   return {
     title: `Choose “${title}”`,
     needs_reason: needsReason,
-    reason_label: needsReason ? "Your reason (needed, because this differs from the recommendation)" : "Your reason (optional)",
+    reason_label: needsReason
+      ? "Your reason (needed, because this differs from the recommendation)"
+      : "Your reason (optional)",
     review_date: keep
       ? {
           label: "Review date",
@@ -135,22 +137,49 @@ function serverOptions(recommended: MigrationOption["key"], hybridBlocker: Migra
       { title: "Blockers", lines: [line("None measured.")] },
       manage("Algorithms 2 · Key sets 1 · Libraries 1"),
     ]),
-    opt("hybrid", "Hybrid", "Post-quantum key exchange added to the classical one. Clients that can't do it keep working.", [
-      {
-        title: "Cost",
-        lines: [
-          line(tagged("Key shares grow from 32 to 1,216 bytes (client) and 1,120 bytes (server)", "published: FIPS 203 + X25519")),
-          line("Plainly: two algorithms in every key exchange, two key shares, bigger messages, more to keep up to date."),
-        ],
-      },
-      { title: "Blockers", lines: [hybridBlocker ?? line("None measured.")] },
-      manage("Algorithms 3 · Key sets 1, plus 2 key shares per connection · Libraries 1 (a version with ML-KEM)"),
-    ]),
-    opt("full_pq", "Full post-quantum", "Post-quantum algorithms only. Every connected system must support them, and there is no classical fallback.", [
-      { title: "Cost", lines: [line(tagged("Key shares 1,184 and 1,088 bytes; certificate key 1,952 bytes", "published: FIPS 203, FIPS 204"))] },
-      { title: "Blockers", lines: [line(tagged("1. Every client must support it. This app can't see your clients", "not measured"))] },
-      manage("Algorithms 2 · Key sets 1 (new) · Libraries: this server's and every client's"),
-    ]),
+    opt(
+      "hybrid",
+      "Hybrid",
+      "Post-quantum key exchange added to the classical one. Clients that can't do it keep working.",
+      [
+        {
+          title: "Cost",
+          lines: [
+            line(
+              tagged(
+                "Key shares grow from 32 to 1,216 bytes (client) and 1,120 bytes (server)",
+                "published: FIPS 203 + X25519",
+              ),
+            ),
+            line(
+              "Plainly: two algorithms in every key exchange, two key shares, bigger messages, more to keep up to date.",
+            ),
+          ],
+        },
+        { title: "Blockers", lines: [hybridBlocker ?? line("None measured.")] },
+        manage("Algorithms 3 · Key sets 1, plus 2 key shares per connection · Libraries 1 (a version with ML-KEM)"),
+      ],
+    ),
+    opt(
+      "full_pq",
+      "Full post-quantum",
+      "Post-quantum algorithms only. Every connected system must support them, and there is no classical fallback.",
+      [
+        {
+          title: "Cost",
+          lines: [
+            line(
+              tagged("Key shares 1,184 and 1,088 bytes; certificate key 1,952 bytes", "published: FIPS 203, FIPS 204"),
+            ),
+          ],
+        },
+        {
+          title: "Blockers",
+          lines: [line(tagged("1. Every client must support it. This app can't see your clients", "not measured"))],
+        },
+        manage("Algorithms 2 · Key sets 1 (new) · Libraries: this server's and every client's"),
+      ],
+    ),
     opt(
       "wrap",
       "Wrap the connection",
@@ -166,12 +195,17 @@ function serverOptions(recommended: MigrationOption["key"], hybridBlocker: Migra
 
 const serverCost: MigrationSystem["cost"] = {
   title: "Cost of going post-quantum",
-  intro: "Sizes and times for this server today, and what each step would change. Every number says where it came from.",
+  intro:
+    "Sizes and times for this server today, and what each step would change. Every number says where it came from.",
   columns: ["", "Today (classical)", "Hybrid", "Full post-quantum"],
   rows: [
     {
       label: "Key share, client to server",
-      cells: [tagged("32 bytes", "measured"), tagged("1,216 bytes", "published: FIPS 203 + X25519"), tagged("1,184 bytes", "published: FIPS 203")],
+      cells: [
+        tagged("32 bytes", "measured"),
+        tagged("1,216 bytes", "published: FIPS 203 + X25519"),
+        tagged("1,184 bytes", "published: FIPS 203"),
+      ],
     },
     {
       label: "Handshake time, median of 10",
@@ -181,13 +215,18 @@ const serverCost: MigrationSystem["cost"] = {
   note: "This server doesn't offer hybrid yet, so the hybrid column can't be measured on it.",
 };
 
-function today(sentence: string, facts: [string, RichText][], extra: Partial<MigrationSystem["today"]> = {}): MigrationSystem["today"] {
+function today(
+  sentence: string,
+  facts: [string, RichText][],
+  extra: Partial<MigrationSystem["today"]> = {},
+): MigrationSystem["today"] {
   return {
     title: "Today",
     sentence,
     file_note: null,
     facts: facts.map(([label, value]) => ({ label, value })),
-    control_line: "Control: the same check read our hybrid test server as Hybrid and our classical test server as Classical, as expected.",
+    control_line:
+      "Control: the same check read our hybrid test server as Hybrid and our classical test server as Classical, as expected.",
     details_label: "Details and evidence",
     result: null,
     ...extra,
@@ -242,7 +281,9 @@ const s8451 = server(8451, HYBRID, "Plan: Hybrid · already there", {
     ["A classical-only client connects", tagged("Yes, with TLS 1.3", "measured")],
   ]),
   recommendation: rec("Recommended: Hybrid, already in place", [t("It measured Hybrid.")]),
-  options: serverOptions("hybrid", null).map((o) => (o.key === "hybrid" ? { ...o, tags: ["In place today"], choose: null } : o)),
+  options: serverOptions("hybrid", null).map((o) =>
+    o.key === "hybrid" ? { ...o, tags: ["In place today"], choose: null } : o,
+  ),
 });
 
 const s8452 = server(8452, CLASSICAL, "Plan: Hybrid · Phase 1", {
@@ -267,14 +308,18 @@ const s8452 = server(8452, CLASSICAL, "Plan: Hybrid · Phase 1", {
     ],
     tagged("Evidence: this server measured Classical", "measured"),
   ),
-  options: serverOptions("hybrid", line(tagged("1. It doesn't offer a hybrid key exchange yet", "measured"), HYBRID_FIX)),
+  options: serverOptions(
+    "hybrid",
+    line(tagged("1. It doesn't offer a hybrid key exchange yet", "measured"), HYBRID_FIX),
+  ),
 });
 
 const s8453 = server(8453, CLASSICAL, "Plan: Keep classical · review 14 Nov 2027", {
   settings: settingsOf(fields(["short", "from the file"], ["internal", "from the file"], ["yes", "assumed"])),
-  today: today("It refused every post-quantum key exchange we offered and completed a classical handshake, so it is Classical.", [
-    ["Classical key exchange", tagged("Accepted: X25519", "measured")],
-  ]),
+  today: today(
+    "It refused every post-quantum key exchange we offered and completed a classical handshake, so it is Classical.",
+    [["Classical key exchange", tagged("Accepted: X25519", "measured")]],
+  ),
   recommendation: rec("Recommended: Keep classical for now", [t("Short-lived data, internal.")]),
   options: serverOptions("keep", null),
 });
@@ -289,10 +334,13 @@ const s8454 = server(8454, CLASSICAL, "Plan: Wrap the connection", {
 });
 
 const s8455 = server(8455, PQ_ONLY, "Plan: Full post-quantum · already there", {
-  today: today("It accepted ML-KEM by itself and refused the hybrid and the classical hello, so it is Post-quantum only.", [
-    ["ML-KEM by itself", tagged("Accepted: ML-KEM-768", "measured")],
-    ["Certificate", tagged("ML-DSA-65", "measured")],
-  ]),
+  today: today(
+    "It accepted ML-KEM by itself and refused the hybrid and the classical hello, so it is Post-quantum only.",
+    [
+      ["ML-KEM by itself", tagged("Accepted: ML-KEM-768", "measured")],
+      ["Certificate", tagged("ML-DSA-65", "measured")],
+    ],
+  ),
   recommendation: rec("Recommended: Full post-quantum, already in place", [t("It measured Post-quantum only.")]),
   options: serverOptions("full_pq", null),
 });
@@ -374,7 +422,16 @@ const sign142: MigrationSystem = {
     title: "Cost of going post-quantum",
     intro: "Sizes and times for this program today.",
     columns: ["", "Today (ECDSA P-256)", "Hybrid: both signatures", "Full post-quantum (ML-DSA-65)"],
-    rows: [{ label: "Signature size", cells: [tagged("71 bytes", "measured"), tagged("3,380 bytes", "measured + published"), tagged("3,309 bytes", "published: FIPS 204")] }],
+    rows: [
+      {
+        label: "Signature size",
+        cells: [
+          tagged("71 bytes", "measured"),
+          tagged("3,380 bytes", "measured + published"),
+          tagged("3,309 bytes", "published: FIPS 204"),
+        ],
+      },
+    ],
     note: null,
   },
   recommendation: rec("Recommended: Hybrid: sign with both", [t("Long-lived signatures.")]),
@@ -445,8 +502,16 @@ export const migrationView: MigrationView = {
         sub: "Measured in place. Nothing to do now.",
         look: "plain",
         rows: [
-          row(s8451, "Hybrid", line(tagged("Offers X25519MLKEM768; a classical-only client still connects", "measured"))),
-          row(s8455, "Full post-quantum", line(tagged("Accepts only ML-KEM-768, with an ML-DSA-65 certificate", "measured"))),
+          row(
+            s8451,
+            "Hybrid",
+            line(tagged("Offers X25519MLKEM768; a classical-only client still connects", "measured")),
+          ),
+          row(
+            s8455,
+            "Full post-quantum",
+            line(tagged("Accepts only ML-KEM-768, with an ML-DSA-65 certificate", "measured")),
+          ),
         ],
       },
       {
@@ -461,7 +526,13 @@ export const migrationView: MigrationView = {
         title: "Phase 2",
         sub: "Hybrid or post-quantum on the other systems, once their blockers are fixed.",
         look: "plain",
-        rows: [row(sign142, "Hybrid: sign with both", line(tagged("Blocker: it can't make post-quantum signatures", "measured"), SIGN_FIX))],
+        rows: [
+          row(
+            sign142,
+            "Hybrid: sign with both",
+            line(tagged("Blocker: it can't make post-quantum signatures", "measured"), SIGN_FIX),
+          ),
+        ],
       },
       {
         key: "later",
@@ -482,7 +553,14 @@ export const migrationView: MigrationView = {
         title: "Not placed yet",
         sub: "The status couldn't be measured, so there is no plan.",
         look: "dashed",
-        rows: [row(sign99, "No option yet", line("Couldn't check: only our own demo components can run in this version."), null)],
+        rows: [
+          row(
+            sign99,
+            "No option yet",
+            line("Couldn't check: only our own demo components can run in this version."),
+            null,
+          ),
+        ],
       },
     ],
   },
@@ -506,7 +584,10 @@ export const measuringView: MigrationView = {
         ? { status: "running", status_text: "Running", progress: { text: "hello 2 of 3", percent: null } }
         : { status: "waiting", status_text: "Waiting", progress: null },
   })),
-  roadmap: { ...migrationView.roadmap, download: { ...migrationView.roadmap.download, can_start: false, blocked_reason: "A measurement is running." } },
+  roadmap: {
+    ...migrationView.roadmap,
+    download: { ...migrationView.roadmap.download, can_start: false, blocked_reason: "A measurement is running." },
+  },
 };
 
 /** Replaces one system in a view. */
@@ -516,7 +597,8 @@ export function withSystem(view: MigrationView, key: string, change: Partial<Mig
 
 // ---------------------------------------------------------------- Phase 4b: two tracks, the change box, the roadmap's track column
 
-const TARGET_LINE = "Target: post-quantum on both tracks. Hybrid is an interim step, never the end. No system is “done” until both are there.";
+const TARGET_LINE =
+  "Target: post-quantum on both tracks. Hybrid is an interim step, never the end. No system is “done” until both are there.";
 const NIST = "reference: NIST IR 8547";
 
 const trackStatus = (code: TrackStatusCode, label: string) => ({ code, label });
@@ -549,12 +631,26 @@ function track(
   };
 }
 
-const kex = (status: MigrationTrack["status"], sentence: string, facts: [string, RichText][], next: RichText, why: RichText) =>
-  track("kex", "Track 1 · Key exchange", "Key exchange", status, sentence, facts, next, why);
-const auth = (status: MigrationTrack["status"], sentence: string, facts: [string, RichText][], next: RichText, why: RichText) =>
-  track("auth", "Track 2 · Authentication", "Authentication", status, sentence, facts, next, why);
+const kex = (
+  status: MigrationTrack["status"],
+  sentence: string,
+  facts: [string, RichText][],
+  next: RichText,
+  why: RichText,
+) => track("kex", "Track 1 · Key exchange", "Key exchange", status, sentence, facts, next, why);
+const auth = (
+  status: MigrationTrack["status"],
+  sentence: string,
+  facts: [string, RichText][],
+  next: RichText,
+  why: RichText,
+) => track("auth", "Track 2 · Authentication", "Authentication", status, sentence, facts, next, why);
 
-function twoTracks(system: MigrationSystem, tracks: MigrationTrack[], extra: Partial<MigrationSystem> = {}): MigrationSystem {
+function twoTracks(
+  system: MigrationSystem,
+  tracks: MigrationTrack[],
+  extra: Partial<MigrationSystem> = {},
+): MigrationSystem {
   return {
     ...system,
     tracks,
@@ -567,19 +663,32 @@ function twoTracks(system: MigrationSystem, tracks: MigrationTrack[], extra: Par
   };
 }
 
-const serverWhyKex = tagged("Hybrid is the interim step, not the end. Its classical half is deprecated after 2030 and disallowed after 2035", NIST);
+const serverWhyKex = tagged(
+  "Hybrid is the interim step, not the end. Its classical half is deprecated after 2030 and disallowed after 2035",
+  NIST,
+);
 const ecdsaWhy = tagged("ECDSA P-256 is deprecated after 2030 and disallowed after 2035", NIST);
 
 const s8451b = twoTracks(
   s8451,
   [
-    kex(KEX_HYBRID, "It asked for a hybrid key (X25519MLKEM768) when we offered only hybrid key exchanges, so it is Hybrid.", [
-      ["Chosen by default?", tagged("Yes: it picked X25519MLKEM768", "measured")],
-      ["ML-KEM by itself", tagged("Refused", "measured")],
-    ], t("post-quantum only (ML-KEM by itself), once every client supports it."), serverWhyKex),
-    auth(AUTH_CLASSICAL, "Its certificate key is ECDSA P-256 and it signs the handshake with ECDSA: both classical.", [
-      ["Certificate key", tagged("ECDSA P-256, 65 bytes", "measured")],
-    ], t("an ML-DSA certificate, once your clients can check one."), ecdsaWhy),
+    kex(
+      KEX_HYBRID,
+      "It asked for a hybrid key (X25519MLKEM768) when we offered only hybrid key exchanges, so it is Hybrid.",
+      [
+        ["Chosen by default?", tagged("Yes: it picked X25519MLKEM768", "measured")],
+        ["ML-KEM by itself", tagged("Refused", "measured")],
+      ],
+      t("post-quantum only (ML-KEM by itself), once every client supports it."),
+      serverWhyKex,
+    ),
+    auth(
+      AUTH_CLASSICAL,
+      "Its certificate key is ECDSA P-256 and it signs the handshake with ECDSA: both classical.",
+      [["Certificate key", tagged("ECDSA P-256, 65 bytes", "measured")]],
+      t("an ML-DSA certificate, once your clients can check one."),
+      ecdsaWhy,
+    ),
   ],
   { plan_line: "Next: authentication · Phase 2" },
 );
@@ -587,10 +696,20 @@ const s8451b = twoTracks(
 const s8452b = twoTracks(
   s8452,
   [
-    kex(KEX_CLASSICAL, "It refused every post-quantum key exchange we offered, so it is Classical.", [
-      ["Hybrid key exchange", tagged("Refused: X25519MLKEM768 and two others", "measured")],
-    ], t("turn on hybrid key exchange."), tagged("Long-lived data is exposed to recording today", "from the file")),
-    auth(AUTH_CLASSICAL, "Its certificate key is ECDSA P-256: classical.", [["Certificate key", tagged("ECDSA P-256", "measured")]], t("an ML-DSA certificate, later."), ecdsaWhy),
+    kex(
+      KEX_CLASSICAL,
+      "It refused every post-quantum key exchange we offered, so it is Classical.",
+      [["Hybrid key exchange", tagged("Refused: X25519MLKEM768 and two others", "measured")]],
+      t("turn on hybrid key exchange."),
+      tagged("Long-lived data is exposed to recording today", "from the file"),
+    ),
+    auth(
+      AUTH_CLASSICAL,
+      "Its certificate key is ECDSA P-256: classical.",
+      [["Certificate key", tagged("ECDSA P-256", "measured")]],
+      t("an ML-DSA certificate, later."),
+      ecdsaWhy,
+    ),
   ],
   {
     also_noticed: ["It also accepts TLS 1.0 and TLS 1.1, both retired in 2021. This doesn't change a status."],
@@ -611,8 +730,20 @@ const s8453b = twoTracks(
 const s8454b = twoTracks(
   s8454,
   [
-    kex({ code: "classical", label: "Classical (no TLS 1.3)" }, "It only speaks TLS 1.2, so it is Classical.", [["TLS versions", tagged("1.2 only", "measured")]], t("wrap the connection."), t("it can't be changed.")),
-    auth({ code: "classical", label: "Classical (RSA 2048)" }, "Its certificate key is RSA 2048.", [["Certificate key", tagged("RSA 2048", "measured")]], t("wrap the connection."), t("it can't be changed.")),
+    kex(
+      { code: "classical", label: "Classical (no TLS 1.3)" },
+      "It only speaks TLS 1.2, so it is Classical.",
+      [["TLS versions", tagged("1.2 only", "measured")]],
+      t("wrap the connection."),
+      t("it can't be changed."),
+    ),
+    auth(
+      { code: "classical", label: "Classical (RSA 2048)" },
+      "Its certificate key is RSA 2048.",
+      [["Certificate key", tagged("RSA 2048", "measured")]],
+      t("wrap the connection."),
+      t("it can't be changed."),
+    ),
   ],
   { change: cantTry },
 );
@@ -620,27 +751,67 @@ const s8454b = twoTracks(
 const s8455b = twoTracks(
   s8455,
   [
-    kex(KEX_PQ, "It accepted ML-KEM by itself, so it is Post-quantum only.", [["ML-KEM by itself", tagged("Accepted: ML-KEM-768", "measured")]], t("keep measuring."), t("it is at the target.")),
-    auth({ code: "post_quantum", label: "Post-quantum (ML-DSA-65)" }, "Its certificate key is ML-DSA-65.", [["Certificate key", tagged("ML-DSA-65", "measured")]], t("keep measuring."), t("it is at the target.")),
+    kex(
+      KEX_PQ,
+      "It accepted ML-KEM by itself, so it is Post-quantum only.",
+      [["ML-KEM by itself", tagged("Accepted: ML-KEM-768", "measured")]],
+      t("keep measuring."),
+      t("it is at the target."),
+    ),
+    auth(
+      { code: "post_quantum", label: "Post-quantum (ML-DSA-65)" },
+      "Its certificate key is ML-DSA-65.",
+      [["Certificate key", tagged("ML-DSA-65", "measured")]],
+      t("keep measuring."),
+      t("it is at the target."),
+    ),
   ],
   { plan_line: "At the target · keep measuring" },
 );
 
 const sign142b = twoTracks(
   sign142,
-  [track("signatures", "Signatures", "Signatures", { code: "classical", label: "Classical" }, "It signs with ECDSA P-256.", [["Signs with", tagged("ECDSA P-256", "measured")]], t("sign with both."), ecdsaWhy)],
+  [
+    track(
+      "signatures",
+      "Signatures",
+      "Signatures",
+      { code: "classical", label: "Classical" },
+      "It signs with ECDSA P-256.",
+      [["Signs with", tagged("ECDSA P-256", "measured")]],
+      t("sign with both."),
+      ecdsaWhy,
+    ),
+  ],
   { plan_line: "Next: sign with both · Phase 2" },
 );
 
 const sign99b = twoTracks(
   sign99,
-  [track("signatures", "Signatures", "Signatures", { code: "couldnt_check", label: "Couldn't check" }, "Only our own demo components can run in this version.", [], t("none until it can be measured."), t("no measurement."))],
+  [
+    track(
+      "signatures",
+      "Signatures",
+      "Signatures",
+      { code: "couldnt_check", label: "Couldn't check" },
+      "Only our own demo components can run in this version.",
+      [],
+      t("none until it can be measured."),
+      t("no measurement."),
+    ),
+  ],
   {},
 );
 
 const systems4b = [s8451b, s8452b, s8453b, s8454b, s8455b, sign142b, sign99b];
 
-const rowB = (s: MigrationSystem, trackName: string, option: string, note: MigrationLine, plan_tag: string | null = "recommended, not yet chosen by you") => ({
+const rowB = (
+  s: MigrationSystem,
+  trackName: string,
+  option: string,
+  note: MigrationLine,
+  plan_tag: string | null = "recommended, not yet chosen by you",
+) => ({
   system_key: s.key,
   kind_label: s.kind_label,
   name: s.name,
@@ -663,7 +834,13 @@ export const migrationView4b: MigrationView = {
         look: "plain",
         rows: [
           rowB(s8451, "Key exchange", "Hybrid (interim)", line(tagged("Offers X25519MLKEM768", "measured")), null),
-          rowB(s8455, "Both tracks", "Full post-quantum", line(tagged("ML-KEM-768 with an ML-DSA-65 certificate", "measured")), null),
+          rowB(
+            s8455,
+            "Both tracks",
+            "Full post-quantum",
+            line(tagged("ML-KEM-768 with an ML-DSA-65 certificate", "measured")),
+            null,
+          ),
         ],
       },
       {
@@ -678,7 +855,15 @@ export const migrationView4b: MigrationView = {
         title: "Phase 2",
         sub: "Authentication, and the other systems.",
         look: "plain",
-        rows: [rowB(s8451, "Authentication", "ML-DSA certificate", line("Later: once clients can check one.")), rowB(sign142, "Signatures", "Hybrid: sign with both", line("Blocker: it can't make post-quantum signatures.", SIGN_FIX))],
+        rows: [
+          rowB(s8451, "Authentication", "ML-DSA certificate", line("Later: once clients can check one.")),
+          rowB(
+            sign142,
+            "Signatures",
+            "Hybrid: sign with both",
+            line("Blocker: it can't make post-quantum signatures.", SIGN_FIX),
+          ),
+        ],
       },
       {
         key: "not_placed",

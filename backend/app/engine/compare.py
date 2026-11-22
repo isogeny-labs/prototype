@@ -4,6 +4,7 @@ A result is only ever True or False when the server positively showed it:
   accepted = the handshake completed;  refused = the server sent a real TLS refusal alert;
   unknown  = we could not tell (our own tooling could not offer it, time-out, connection error...).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -15,8 +16,8 @@ TRUE, FALSE, COULDNT = "True", "False", "Couldn't check"
 class SetVerdict:
     result: str
     outside_accepted: list[str] = field(default_factory=list)  # accepted although not claimed
-    claimed_refused: list[str] = field(default_factory=list)   # claimed but the server refused it
-    unknown: list[str] = field(default_factory=list)           # could not be tested either way
+    claimed_refused: list[str] = field(default_factory=list)  # claimed but the server refused it
+    unknown: list[str] = field(default_factory=list)  # could not be tested either way
 
 
 def compare_only_claim(claimed: list[str], observed: dict[str, str]) -> SetVerdict:

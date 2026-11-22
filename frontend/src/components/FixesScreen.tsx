@@ -6,7 +6,16 @@ import { FixTable } from "./fixes/FixTable";
 import { FixSections } from "./fixes/FixSections";
 import { FixSummary, type FixRequest } from "./fixes/FixSummary";
 import { ImpactBlock } from "./impact/ImpactBlock";
-import { DetailPanel, ItemPageContext, PageHeader, SummaryCards, TableWithPanel, useGroupTab, useShowGroups, type GroupNav } from "./layout";
+import {
+  DetailPanel,
+  ItemPageContext,
+  PageHeader,
+  SummaryCards,
+  TableWithPanel,
+  useGroupTab,
+  useShowGroups,
+  type GroupNav,
+} from "./layout";
 import { RelatedFor } from "./related";
 import { DemoDataLabel, ErrorBox } from "./ui";
 
@@ -29,7 +38,16 @@ interface Props {
 }
 
 /** The Fixes step. Every word, status and button comes from the backend; this screen works nothing out. */
-export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onPlanChanged, group = null, onGroup, onGroupShown }: Props) {
+export function FixesScreen({
+  planId,
+  selectedId,
+  onSelect,
+  onRetestStarted,
+  onPlanChanged,
+  group = null,
+  onGroup,
+  onGroupShown,
+}: Props) {
   const tabIds = useId();
   const [view, setView] = useState<FixesView | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +83,8 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
     onGroup,
     pick: () => {
       if (!view) return null;
-      const holds = (g: (typeof fixGroups)[number], id: string) => g.fix_ids.includes(id) || (g.apart?.fix_ids ?? []).includes(id);
+      const holds = (g: (typeof fixGroups)[number], id: string) =>
+        g.fix_ids.includes(id) || (g.apart?.fix_ids ?? []).includes(id);
       const named = selectedId !== null ? fixGroups.find((g) => holds(g, selectedId)) : undefined;
       const filled = fixGroups.find((g) => g.fix_ids.length > 0 || (g.apart?.fix_ids ?? []).length > 0);
       return (named ?? filled ?? fixGroups[0])?.key ?? null;
@@ -146,9 +165,13 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
   const current = view;
   // The first fix of the open tab (Fixes opens on it, as it opened on the first fix before the tabs).
   const tabGroup = (current.groups ?? []).find((g) => g.key === activeTab);
-  const firstId = tabGroup ? (tabGroup.fix_ids[0] ?? tabGroup.apart?.fix_ids[0] ?? null) : (current.fixes[0]?.id ?? null);
+  const firstId = tabGroup
+    ? (tabGroup.fix_ids[0] ?? tabGroup.apart?.fix_ids[0] ?? null)
+    : (current.fixes[0]?.id ?? null);
   // (On a page of its own, the 5c fixes, only the fix the address names is shown: never the first one in its place.)
-  const fix = current.fixes.find((f) => f.id === openId) ?? (dismissed || asPage ? null : (current.fixes.find((f) => f.id === firstId) ?? null));
+  const fix =
+    current.fixes.find((f) => f.id === openId) ??
+    (dismissed || asPage ? null : (current.fixes.find((f) => f.id === firstId) ?? null));
   const choose = (fixId: string) => {
     setOpenId(fixId);
     setDismissed(false);
@@ -245,7 +268,10 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
         </div>
       ) : null}
 
-      <p data-testid="disclaimer" className="mb-2 mt-4 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+      <p
+        data-testid="disclaimer"
+        className="mb-2 mt-4 rounded-lg border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300"
+      >
         {current.disclaimer}
       </p>
 
@@ -258,13 +284,13 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
       {current.fixes.length > 0 || (current.groups ?? []).length > 0 ? (
         <div className="mt-6">
           {counted.length > 0 ? (
-          <SummaryCards
-            label="Fixes summary"
-            cards={[
-              { key: "fixes", label: "Fixes", value: counted.length },
-              ...Array.from(byStatus, ([key, { word, n }]) => ({ key, label: word, value: n })).slice(0, 3),
-            ]}
-          />
+            <SummaryCards
+              label="Fixes summary"
+              cards={[
+                { key: "fixes", label: "Fixes", value: counted.length },
+                ...Array.from(byStatus, ([key, { word, n }]) => ({ key, label: word, value: n })).slice(0, 3),
+              ]}
+            />
           ) : null}
           <TableWithPanel
             panelOpen={fix !== null}
@@ -281,12 +307,7 @@ export function FixesScreen({ planId, selectedId, onSelect, onRetestStarted, onP
               />
             }
             panel={
-              <DetailPanel
-                open={fix !== null}
-                item={fix?.id ?? null}
-                title={fix?.title ?? ""}
-                onClose={closePanel}
-              >
+              <DetailPanel open={fix !== null} item={fix?.id ?? null} title={fix?.title ?? ""} onClose={closePanel}>
                 {fix ? (
                   <div className="flex min-w-0 flex-col gap-3">
                     {/* The key gives each fix its own ticks and its own confirm box. */}

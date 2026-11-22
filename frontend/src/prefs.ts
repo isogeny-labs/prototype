@@ -54,7 +54,8 @@ export const prefs = {
       return { closed: {}, seen: {} };
     }
   },
-  setOttoTabs: (assessmentId: number, value: OttoTabs) => write(`evidence-lab-otto-tabs-${assessmentId}`, JSON.stringify(value)),
+  setOttoTabs: (assessmentId: number, value: OttoTabs) =>
+    write(`evidence-lab-otto-tabs-${assessmentId}`, JSON.stringify(value)),
   // Phase 6a: the panel asks for a name once (its first Confirm of a decision). Asked or not is kept here; the name
   // itself is kept by the app, in Settings.
   ottoNameAsked: () => read("evidence-lab-otto-name") === "asked",

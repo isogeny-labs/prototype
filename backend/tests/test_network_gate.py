@@ -8,8 +8,11 @@ NETWORK = ("tls_versions", "certificate", "pq_readiness")
 
 
 def plan_for(client, host, port):
-    data = csv_bytes(f"{host}:{port},tls,protocol_versions,TLS1.3", f"{host}:{port},tls,certificate,ECDSA P-256",
-                     "acme-sign 1.4.2,software,signature_algorithm,ECDSA P-256")
+    data = csv_bytes(
+        f"{host}:{port},tls,protocol_versions,TLS1.3",
+        f"{host}:{port},tls,certificate,ECDSA P-256",
+        "acme-sign 1.4.2,software,signature_algorithm,ECDSA P-256",
+    )
     imp = upload(client, "claims.csv", data).json()
     lab = client.app.state.lab
     plan = lab.ensure_plan(imp["id"])
@@ -47,7 +50,9 @@ def test_unticking_between_run_and_retest_blocks_the_retest(client, listener):
     lab.confirm_address(imp["id"], address, True)
     lab.run_all(pid)
     lab.wait_until_idle(pid, 90)
-    assert listener.connections() > 0  # confirmed: it was contacted (it does not speak TLS, so there is no answer to judge)
+    assert (
+        listener.connections() > 0
+    )  # confirmed: it was contacted (it does not speak TLS, so there is no answer to judge)
     first = labels(lab.lab_view(pid))
     assert first["tls_versions"] == first["certificate"] == "Couldn't run (the server did not answer)"
     lab.confirm_address(imp["id"], address, False)
@@ -89,6 +94,9 @@ def test_tests_connect_only_to_the_pinned_ip(client, tls_server):
             if "subject" in run.raw and "ip" in run.raw["subject"]:
                 assert run.raw["subject"]["ip"] == "127.0.0.1"
     pq_result = result_of(view, "pq_readiness")
-    assert pq_result["label"] == "Not offered"   # since phase 4a: no OpenSSL program or Docker needed
+    assert pq_result["label"] == "Not offered"  # since phase 4a: no OpenSSL program or Docker needed
     assert "(connected to 127.0.0.1)" in pq_result["run_record"]["command"]
-    assert "to 127.0.0.1:" in pq_result["run_record"]["outputs"][0]["text"] and "server name shop.example.test" in pq_result["run_record"]["outputs"][0]["text"]
+    assert (
+        "to 127.0.0.1:" in pq_result["run_record"]["outputs"][0]["text"]
+        and "server name shop.example.test" in pq_result["run_record"]["outputs"][0]["text"]
+    )

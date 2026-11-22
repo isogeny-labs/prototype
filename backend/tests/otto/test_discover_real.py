@@ -5,6 +5,7 @@ source is a recorded copy of the three elliptic advisories of the dated snapshot
 build fit them and no key is needed. A person looks, then presses Design and prove tests. The research command reads
 each advisory, designs a test, and tries it on elliptic 6.5.6 and 6.5.7 in their containers; what it proves is signed
 into a pack made on this computer, which the same click installs. Slow: it needs Docker and takes several minutes."""
+
 import re
 
 import pytest
@@ -23,28 +24,42 @@ REAL_FILE = research_demo.REPO / "demo" / "real-libraries.csv"
 
 
 @pytest.mark.needs_otto
-def test_a_real_research_run_proves_a_test_on_public_copies_and_the_proven_check_is_proposed(tmp_path, monkeypatch, docker_ready):
-    monkeypatch.delenv(model.KEY_ENV, raising=False)             # no key: only the answers recorded during the build
+def test_a_real_research_run_proves_a_test_on_public_copies_and_the_proven_check_is_proposed(
+    tmp_path, monkeypatch, docker_ready
+):
+    monkeypatch.delenv(model.KEY_ENV, raising=False)  # no key: only the answers recorded during the build
     updates, source = research_demo.prepare(tmp_path / "demo")
-    lab = Lab(Settings(data_dir=tmp_path / "data", demo_tls_port=free_port(), otto_updates_dir=updates, advisory_source_dir=source,
-                       speed_rounds=25, speed_repeats=4))
+    lab = Lab(
+        Settings(
+            data_dir=tmp_path / "data",
+            demo_tls_port=free_port(),
+            otto_updates_dir=updates,
+            advisory_source_dir=source,
+            speed_rounds=25,
+            speed_repeats=4,
+        )
+    )
     lab.start()
     try:
         assert lab.mode.name == "isolated"
         imp = lab.import_file(REAL_FILE.name, REAL_FILE.read_bytes())
         pid = lab.ensure_plan(imp["id"])["id"]
-        assert lab.otto_view()["packs"]["installed"] == []       # nobody has installed a test pack
+        assert lab.otto_view()["packs"]["installed"] == []  # nobody has installed a test pack
 
         # ---- the first click: look
         block = lab.look_for_advisories(pid)["lookup"]
         found = {r["id"]: r for r in block["last"]["rows"]}
         assert set(found) == {"CVE-2024-42459", "CVE-2024-42460", "CVE-2024-42461"}
         assert all(r["state"]["key"] == "new" for r in found.values())
-        assert block["last"]["source_line"] == "Read from recorded answers in a folder on this computer. Nothing was sent."
+        assert (
+            block["last"]["source_line"] == "Read from recorded answers in a folder on this computer. Nothing was sent."
+        )
         research = block["research"]
         assert research["can"] is True and research["label"] == "Design and prove tests (3)"
-        assert any("the built-in test pack not installed yet (2026.11.1)" in line for line in research["dialog"]["lines"])
-        assert lab.otto_proposals(pid, ("check",)) == []         # looking proposed nothing
+        assert any(
+            "the built-in test pack not installed yet (2026.11.1)" in line for line in research["dialog"]["lines"]
+        )
+        assert lab.otto_proposals(pid, ("check",)) == []  # looking proposed nothing
 
         # ---- the second click: design and prove
         runs_before = _runs(lab)
@@ -55,7 +70,12 @@ def test_a_real_research_run_proves_a_test_on_public_copies_and_the_proven_check
         assert end.exit_code == 0, end.output[-20:]
         # (a pack made here is named by the month it is made in: 2026.11.2 in November 2026, 2026.12.1 a month later)
         made = end.pack_version
-        assert end.installed_first == ["2026.11.1"] and made and re.fullmatch(r"\d{4}\.\d{1,2}\.\d+", made) and made != "2026.11.1"
+        assert (
+            end.installed_first == ["2026.11.1"]
+            and made
+            and re.fullmatch(r"\d{4}\.\d{1,2}\.\d+", made)
+            and made != "2026.11.1"
+        )
         assert end.live is False
         view = lab.advisories_view(pid)
         assert problems(view, models.AdvisoriesView, "advisories after a research run") == []
@@ -71,11 +91,21 @@ def test_a_real_research_run_proves_a_test_on_public_copies_and_the_proven_check
         assert listed["CVE-2024-42460"]["test"]["key"] == "ready" and listed["CVE-2024-42460"]["new"] is not None
         proposed = lab.otto_proposals(pid, ("check",))
         mine = [p for p in proposed if p["about"]["advisory"] == "CVE-2024-42460" and p["about"]["pack"] == made]
-        assert mine and all(p["state"] == "proposed" for p in mine)                 # proposed, never added: a person decides
+        assert mine and all(p["state"] == "proposed" for p in mine)  # proposed, never added: a person decides
         assert any("elliptic 6.5.6" in p["about"]["program"] for p in mine)
         # the proof is the pack's own trial on public copies: it failed on the affected copy, passed on the fixed one
-        tried = [line for p in mine for line in p["lines"] if line.startswith("Tried on public copies before the pack was signed")]
-        assert tried and "elliptic 6.5.6 got" in tried[0] and "elliptic 6.5.7 got 0 wrong" in tried[0] and "the control that must fail did" in tried[0]
+        tried = [
+            line
+            for p in mine
+            for line in p["lines"]
+            if line.startswith("Tried on public copies before the pack was signed")
+        ]
+        assert (
+            tried
+            and "elliptic 6.5.6 got" in tried[0]
+            and "elliptic 6.5.7 got 0 wrong" in tried[0]
+            and "the control that must fail did" in tried[0]
+        )
         # nothing of the assessment ran, and nothing was added to its test plan
         assert _runs(lab) == runs_before
         assert not any(t["kind"] == "advisory_cases" for t in lab.plan_view(pid)["tests"])

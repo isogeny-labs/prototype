@@ -7,7 +7,13 @@ const VERIFIED_AT = "2026-11-10T09:10:00Z";
 const RAN_AT = "2026-11-10T09:20:00Z";
 const RETESTED_AT = "2026-11-10T10:05:00Z";
 
-function claimRow(id: number, name: string, ranOn: string, label: "True" | "False" | "Couldn't check", plain: string): CheckRow {
+function claimRow(
+  id: number,
+  name: string,
+  ranOn: string,
+  label: "True" | "False" | "Couldn't check",
+  plain: string,
+): CheckRow {
   const tone = label === "True" ? "pass" : label === "False" ? "fail" : "warn";
   const code = label === "True" ? "true" : label === "False" ? "false" : "couldnt_check";
   return {
@@ -30,7 +36,14 @@ function claimRow(id: number, name: string, ranOn: string, label: "True" | "Fals
   };
 }
 
-function testRow(id: number, name: string, ranOn: string, passed: boolean, origin: "plan" | "retest" = "plan", runs = 1): CheckRow {
+function testRow(
+  id: number,
+  name: string,
+  ranOn: string,
+  passed: boolean,
+  origin: "plan" | "retest" = "plan",
+  runs = 1,
+): CheckRow {
   const key = origin === "plan" ? "test" : "retest";
   return {
     id: `${key}-${id}`,
@@ -43,7 +56,9 @@ function testRow(id: number, name: string, ranOn: string, passed: boolean, origi
     evidence_link: { page: "evidence", item: `${key}-${id}` },
     state: "done",
     status: null,
-    result: passed ? { label: "Passed", tone: "pass", code: "passed" } : { label: "Failed", tone: "fail", code: "failed" },
+    result: passed
+      ? { label: "Passed", tone: "pass", code: "passed" }
+      : { label: "Failed", tone: "fail", code: "failed" },
     plain: passed ? "Every case gave the expected answer." : "Some cases did not give the expected answer.",
     source_tag: ranOn.includes(":") ? live(ranOn) : labCopy(ranOn),
     last_run_at: origin === "plan" ? RAN_AT : RETESTED_AT,
@@ -53,7 +68,13 @@ function testRow(id: number, name: string, ranOn: string, passed: boolean, origi
 
 export const verifyRows: CheckRow[] = [
   claimRow(1, "Uses TLS 1.3 only", "localhost:8443", "False", "The server also accepts TLS 1.2."),
-  claimRow(2, "Certificate signed with ECDSA P-256", "localhost:8443", "True", "The certificate is signed with ECDSA P-256."),
+  claimRow(
+    2,
+    "Certificate signed with ECDSA P-256",
+    "localhost:8443",
+    "True",
+    "The certificate is signed with ECDSA P-256.",
+  ),
   claimRow(3, "acme-sign uses ML-DSA-65", "acme-sign 1.4.2", "Couldn't check", "Nothing was run for this claim."),
 ];
 
@@ -63,7 +84,14 @@ export const planRows: CheckRow[] = [
   testRow(3, "Old TLS versions", "localhost:8443", false),
 ];
 
-export const retestRow: CheckRow = testRow(1, "Official test vectors", "acme-sign 1.4.3 (the new version)", true, "retest", 1);
+export const retestRow: CheckRow = testRow(
+  1,
+  "Official test vectors",
+  "acme-sign 1.4.3 (the new version)",
+  true,
+  "retest",
+  1,
+);
 
 // ---- The 5c fixes: the Crypto tests group in four labelled parts, as the backend sends them ----
 
@@ -138,7 +166,13 @@ export const tryRow: CheckRow = {
 };
 
 export function encryptionParts(
-  over: { retests?: CheckBlock[]; proofs?: CheckBlock[]; tries?: CheckRow[]; tests?: number; changes?: CheckBlock[] } = {},
+  over: {
+    retests?: CheckBlock[];
+    proofs?: CheckBlock[];
+    tries?: CheckRow[];
+    tests?: number;
+    changes?: CheckBlock[];
+  } = {},
 ): EncryptionParts {
   const retests = over.retests ?? [newestBlock];
   const proofs = over.proofs ?? [];
@@ -172,8 +206,12 @@ export function encryptionParts(
       label: "Fix proofs",
       count: proofs.length,
       count_label: counted(proofs.length, "proof"),
-      note: proofs.length ? "One block for each proof of a change, the newest first. A proof is started in Fixes." : null,
-      empty_text: proofs.length ? null : "No fix proof yet. A proof starts in Fixes, when the code of a fix is connected.",
+      note: proofs.length
+        ? "One block for each proof of a change, the newest first. A proof is started in Fixes."
+        : null,
+      empty_text: proofs.length
+        ? null
+        : "No fix proof yet. A proof starts in Fixes, when the code of a fix is connected.",
       blocks: proofs,
       rows: [],
     },
@@ -213,7 +251,13 @@ export const watchBlock: CheckBlock = {
   newest: true,
   rows: [
     {
-      ...testRow(1, "Official test vectors", "acme-sign 1.4.2, the change on dev/revert-range-check (commit bd2fc09)", false, "retest"),
+      ...testRow(
+        1,
+        "Official test vectors",
+        "acme-sign 1.4.2, the change on dev/revert-range-check (commit bd2fc09)",
+        false,
+        "retest",
+      ),
       id: "watch-1-in-1",
       alias: null,
       mark: null,
@@ -223,11 +267,16 @@ export const watchBlock: CheckBlock = {
   ],
 };
 
-export function checkGroups(over: { verification?: CheckRow[]; encryption?: CheckRow[]; parts?: EncryptionParts | null } = {}): CheckGroup[] {
+export function checkGroups(
+  over: { verification?: CheckRow[]; encryption?: CheckRow[]; parts?: EncryptionParts | null } = {},
+): CheckGroup[] {
   const verification = over.verification ?? verifyRows;
   const encryption = over.encryption ?? [...planRows, retestRow];
   // (the backend always sends the parts with this group; `parts: null` is a view from before the 5c fixes)
-  const parts = over.parts === undefined ? encryptionParts(over.encryption && !over.encryption.includes(retestRow) ? { retests: [] } : {}) : over.parts;
+  const parts =
+    over.parts === undefined
+      ? encryptionParts(over.encryption && !over.encryption.includes(retestRow) ? { retests: [] } : {})
+      : over.parts;
   const counts = (rows: CheckRow[]) => ({
     open: rows.filter((r) => r.state === "open").length,
     in_progress: rows.filter((r) => r.state === "in_progress").length,
@@ -308,14 +357,38 @@ export const retestDetail: CheckDetail = {
   result: null,
   verify: null,
   runs: [
-    { run_id: 12, verify_run_id: null, at: RETESTED_AT, came_from: "Retest", label: "Passed", tone: "pass", fingerprint: "9f2c41aa07d3b5e1" },
-    { run_id: 4, verify_run_id: null, at: RAN_AT, came_from: "Test plan", label: "Failed", tone: "fail", fingerprint: "1b7e02cc93a4f0d8" },
+    {
+      run_id: 12,
+      verify_run_id: null,
+      at: RETESTED_AT,
+      came_from: "Retest",
+      label: "Passed",
+      tone: "pass",
+      fingerprint: "9f2c41aa07d3b5e1",
+    },
+    {
+      run_id: 4,
+      verify_run_id: null,
+      at: RAN_AT,
+      came_from: "Test plan",
+      label: "Failed",
+      tone: "fail",
+      fingerprint: "1b7e02cc93a4f0d8",
+    },
   ],
   related: [
     {
       kind: "claim",
       title: "Claim",
-      items: [{ key: "claim-3", label: "acme-sign uses ML-DSA-65", sub: "Couldn't check", link: { page: "inventory/verify", item: "claim-3" }, also: null }],
+      items: [
+        {
+          key: "claim-3",
+          label: "acme-sign uses ML-DSA-65",
+          sub: "Couldn't check",
+          link: { page: "inventory/verify", item: "claim-3" },
+          also: null,
+        },
+      ],
     },
     {
       kind: "fix",

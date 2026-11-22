@@ -55,19 +55,32 @@ describe("Migration 4b, two tracks", () => {
   it("draws one line per track on the list card, then the plan line", async () => {
     await open(migrationView4b);
     // Beside the open panel the row is compact: its name, its plan line and each track's name with its pill.
-    expect(text(card("localhost:8451"))).toBe("localhost:8451Next: authentication · Phase 2Key exchange◑Hybrid (interim)Authentication○Classical Observed live");
+    expect(text(card("localhost:8451"))).toBe(
+      "localhost:8451Next: authentication · Phase 2Key exchange◑Hybrid (interim)Authentication○Classical Observed live",
+    );
     fireEvent.click(within(screen.getByTestId("detail-panel")).getByRole("button", { name: "Close details" }));
     const first = card("localhost:8451");
-    expect(within(first).getAllByTestId("card-track").map((r) => text(r))).toEqual(["Key exchange◑Hybrid (interim)", "Authentication○Classical"]);
-    expect(text(first)).toBe("Serverlocalhost:8451Key exchange◑Hybrid (interim)Authentication○Classical Observed liveNext: authentication · Phase 2");
-    expect(text(within(card("localhost:8455")).getAllByTestId("card-track")[1])).toBe("Authentication●Post-quantum (ML-DSA-65)");
+    expect(
+      within(first)
+        .getAllByTestId("card-track")
+        .map((r) => text(r)),
+    ).toEqual(["Key exchange◑Hybrid (interim)", "Authentication○Classical"]);
+    expect(text(first)).toBe(
+      "Serverlocalhost:8451Key exchange◑Hybrid (interim)Authentication○Classical Observed liveNext: authentication · Phase 2",
+    );
+    expect(text(within(card("localhost:8455")).getAllByTestId("card-track")[1])).toBe(
+      "Authentication●Post-quantum (ML-DSA-65)",
+    );
     expect(text(within(card("acme-sign 1.4.2")).getByTestId("card-track"))).toBe("Signatures○Classical");
     expect(text(within(card("acme-sign 9.9")).getByTestId("card-track"))).toBe("Signatures?Couldn't check");
     expect(document.body.textContent).not.toMatch(/score/i);
   });
 
   it("falls back to one pill when a system has no tracks yet", async () => {
-    await open({ ...migrationView4b, systems: migrationView4b.systems.map((s) => ({ ...s, tracks: [], tracks_brief: [] })) });
+    await open({
+      ...migrationView4b,
+      systems: migrationView4b.systems.map((s) => ({ ...s, tracks: [], tracks_brief: [] })),
+    });
     expect(within(card("localhost:8451")).queryAllByTestId("card-track")).toHaveLength(0);
     expect(within(card("localhost:8451")).getAllByTestId("migration-status")).toHaveLength(1);
   });
@@ -83,8 +96,14 @@ describe("Migration 4b, two tracks", () => {
     expect(text(tracks[0]!)).toContain("Track 1 · Key exchange");
     expect(within(tracks[0]!).getByTestId("migration-status").getAttribute("data-code")).toBe("hybrid");
     expect(text(within(tracks[0]!).getByTestId("track-sentence"))).toMatch(/^It asked for a hybrid key/);
-    expect(within(tracks[0]!).getAllByRole("term").map((d) => d.textContent)).toEqual(["Chosen by default?", "ML-KEM by itself"]);
-    expect(text(within(tracks[0]!).getByTestId("track-next"))).toBe("Next: post-quantum only (ML-KEM by itself), once every client supports it.");
+    expect(
+      within(tracks[0]!)
+        .getAllByRole("term")
+        .map((d) => d.textContent),
+    ).toEqual(["Chosen by default?", "ML-KEM by itself"]);
+    expect(text(within(tracks[0]!).getByTestId("track-next"))).toBe(
+      "Next: post-quantum only (ML-KEM by itself), once every client supports it.",
+    );
     expect(text(within(tracks[0]!).getByTestId("track-why"))).toMatch(/^Why: Hybrid is the interim step/);
     expect(text(within(tracks[0]!).getByTestId("track-why"))).toContain("reference: NIST IR 8547");
     expect(within(tracks[1]!).getByTestId("migration-status").getAttribute("data-code")).toBe("classical");
@@ -92,7 +111,10 @@ describe("Migration 4b, two tracks", () => {
 
   it("gives each pill its own shape as well as its words, including post-quantum and not measured", async () => {
     await open(migrationView4b);
-    const shapes = (name: string) => within(card(name)).getAllByTestId("migration-status").map((p) => text(p).charAt(0));
+    const shapes = (name: string) =>
+      within(card(name))
+        .getAllByTestId("migration-status")
+        .map((p) => text(p).charAt(0));
     expect(shapes("localhost:8451")).toEqual(["◑", "○"]);
     expect(shapes("localhost:8455")).toEqual(["●", "●"]);
   });
@@ -103,7 +125,9 @@ describe("Migration 4b, two tracks", () => {
     fireEvent.click(card("localhost:8452"));
     const notes = screen.getAllByTestId("also-noticed");
     expect(notes).toHaveLength(1);
-    expect(text(notes[0])).toBe("Also noticed: It also accepts TLS 1.0 and TLS 1.1, both retired in 2021. This doesn't change a status.");
+    expect(text(notes[0])).toBe(
+      "Also noticed: It also accepts TLS 1.0 and TLS 1.1, both retired in 2021. This doesn't change a status.",
+    );
   });
 
   it("keeps the file note and the general facts of 4a above the tracks", async () => {
@@ -153,7 +177,11 @@ describe("Migration 4b, the change box in each state", () => {
     expect(text(sections[2])).toContain("bigger first messages");
 
     expect(box().queryByTestId("change-try")).toBeNull();
-    expect(box().getAllByRole("button").map((b) => b.textContent)).toEqual(["Try on a test copy", "Apply to localhost:8452", "Download change"]);
+    expect(
+      box()
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["Try on a test copy", "Apply to localhost:8452", "Download change"]);
     expect((box().getByRole("button", { name: "Apply to localhost:8452" }) as HTMLButtonElement).disabled).toBe(true);
     expect((box().getByRole("button", { name: "Try on a test copy" }) as HTMLButtonElement).disabled).toBe(false);
     expect(box().getByTestId("change-reason").textContent).toBe("Try it on a test copy first.");
@@ -162,7 +190,9 @@ describe("Migration 4b, the change box in each state", () => {
 
   it("while it runs: the status instead of the table", async () => {
     await openWith(trying);
-    expect(within(screen.getByTestId("change-try")).getByTestId("job-status").getAttribute("data-status")).toBe("running");
+    expect(within(screen.getByTestId("change-try")).getByTestId("job-status").getAttribute("data-status")).toBe(
+      "running",
+    );
     expect(screen.getByRole("heading", { level: 4, name: "Try on a test copy: running" })).not.toBeNull();
     expect(screen.queryByTestId("change-verdict")).toBeNull();
     expect((box().getByRole("button", { name: "Try on a test copy" }) as HTMLButtonElement).disabled).toBe(true);
@@ -175,10 +205,19 @@ describe("Migration 4b, the change box in each state", () => {
     expect(tried.getByRole("heading", { level: 4, name: "Try on a test copy: passed" })).not.toBeNull();
     // each column says where it came from under its name (22 November 2026): before is read live, after is the test copy
     expect(tried.getAllByRole("columnheader").map((h) => text(h))).toEqual(
-      triedPassedPicker.try!.columns.map((c, i) => [c, triedPassedPicker.try!.column_source_tags![i]?.label].filter(Boolean).join(" ")),
+      triedPassedPicker.try!.columns.map((c, i) =>
+        [c, triedPassedPicker.try!.column_source_tags![i]?.label].filter(Boolean).join(" "),
+      ),
     );
-    expect(tried.getAllByTestId("column-source-tag").map((t) => t.textContent)).toEqual(["Observed live", "Proven in the lab"]);
-    expect(tried.getAllByRole("rowheader").map((h) => h.textContent)).toEqual(["Key exchange", "Classical-only clients", "First message"]);
+    expect(tried.getAllByTestId("column-source-tag").map((t) => t.textContent)).toEqual([
+      "Observed live",
+      "Proven in the lab",
+    ]);
+    expect(tried.getAllByRole("rowheader").map((h) => h.textContent)).toEqual([
+      "Key exchange",
+      "Classical-only clients",
+      "First message",
+    ]);
     // Cells keep their source tags.
     expect(tried.getAllByText("measured on the copy")).toHaveLength(3);
     const verdict = tried.getByTestId("change-verdict");
@@ -187,7 +226,9 @@ describe("Migration 4b, the change box in each state", () => {
       "Try passed. Proven in the lab The copy measures what Hybrid promises, and the control was read correctly. " +
         "Run on a test copy of the server on this computer, with the change. Your live server was not changed.",
     );
-    expect(tried.getByTestId("change-try-note").textContent).toBe("Real nginx was not tried: that needs isolated mode (Docker).");
+    expect(tried.getByTestId("change-try-note").textContent).toBe(
+      "Real nginx was not tried: that needs isolated mode (Docker).",
+    );
 
     const disclosure = tried.getByRole("button", { name: "Details and evidence: the test copy" });
     expect(disclosure.getAttribute("aria-expanded")).toBe("false");
@@ -204,14 +245,22 @@ describe("Migration 4b, the change box in each state", () => {
     expect((approvals.getByLabelText(/Demo reviewer B/) as HTMLInputElement).checked).toBe(false);
     expect(approvals.getAllByText("Demo data")).toHaveLength(2);
     expect((approvals.getByRole("button", { name: "Ask for approval" }) as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.getByText("This version has one login and no separate accounts. Each approval is recorded by name only.")).not.toBeNull();
-    expect(box().getByTestId("change-reason").textContent).toBe("Apply stays off until everyone you asked has approved.");
+    expect(
+      screen.getByText("This version has one login and no separate accounts. Each approval is recorded by name only."),
+    ).not.toBeNull();
+    expect(box().getByTestId("change-reason").textContent).toBe(
+      "Apply stays off until everyone you asked has approved.",
+    );
   });
 
   it("a verdict that did not pass or could not be told keeps its own look", async () => {
     const failed: ChangeView = {
       ...triedPassedPicker,
-      try: { ...triedPassedPicker.try!, title: "Try on a test copy: did not pass", verdict: { label: "Try did not pass.", look: "fail", text: "The copy is still Classical." } },
+      try: {
+        ...triedPassedPicker.try!,
+        title: "Try on a test copy: did not pass",
+        verdict: { label: "Try did not pass.", look: "fail", text: "The copy is still Classical." },
+      },
     };
     await openWith(failed);
     expect(screen.getByTestId("change-verdict").getAttribute("data-look")).toBe("fail");
@@ -233,7 +282,11 @@ describe("Migration 4b, the change box in each state", () => {
     await openWith(readyToApply);
     expect((box().getByRole("button", { name: "Apply to localhost:8452" }) as HTMLButtonElement).disabled).toBe(false);
     expect(box().queryByTestId("change-reason")).toBeNull();
-    expect(box().getAllByTestId("change-approval-row").every((r) => within(r).queryByRole("button") === null)).toBe(true);
+    expect(
+      box()
+        .getAllByTestId("change-approval-row")
+        .every((r) => within(r).queryByRole("button") === null),
+    ).toBe(true);
   });
 
   it("applied and matching: the After Apply part with its badge, paragraphs and history, and Roll back", async () => {
@@ -246,14 +299,22 @@ describe("Migration 4b, the change box in each state", () => {
       "Applied 14 Nov 2026, 5:30 PM, by You.",
       "Rolled back 13 Nov 2026, 9:02 AM, by You.",
     ]);
-    expect(box().getAllByRole("button").map((b) => b.textContent)).toEqual(["▸Details and evidence: the test copy", "Roll back", "Download change"]);
+    expect(
+      box()
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["▸Details and evidence: the test copy", "Roll back", "Download change"]);
   });
 
   it("applied and not matching: the differences are listed and the failed step is marked", async () => {
     await openWith(appliedMismatch);
     const applied = within(screen.getByTestId("change-applied"));
     expect(applied.getByTestId("change-applied-badge").getAttribute("data-look")).toBe("fail");
-    expect(within(applied.getByTestId("change-differences")).getAllByRole("listitem").map((li) => li.textContent)).toEqual(appliedMismatch.applied!.differences);
+    expect(
+      within(applied.getByTestId("change-differences"))
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(appliedMismatch.applied!.differences);
     const last = box().getAllByTestId("change-step").at(-1)!;
     expect(last.getAttribute("data-state")).toBe("failed");
     expect(text(last)).toBe("✗Measured afterdoes not match the try");
@@ -284,15 +345,18 @@ describe("Migration 4b, the change box's buttons", () => {
     ["Try on a test copy", readyToTry, "try"],
     ["Apply to localhost:8452", readyToApply, "apply"],
     ["Roll back", appliedMatches, "rollback"],
-  ] as const)("%s calls its route with the change id, loads the view again and tells the app", async (label, change, route) => {
-    const { fetchMock, onPlanChanged } = await openWith(change, { [`POST ${PLAN}/${route}`]: after });
-    const before = onPlanChanged.mock.calls.length;
-    fireEvent.click(box().getByRole("button", { name: label }));
-    await waitFor(() => expect(calls(fetchMock).filter((c) => c === GET)).toHaveLength(2));
-    expect(body(fetchMock, `POST ${PLAN}/${route}`)).toEqual({ change: CHANGE_ID });
-    // The app is told once the view has come back, which is after the request for it was made: it is waited for.
-    await waitFor(() => expect(onPlanChanged.mock.calls.length).toBe(before + 1));
-  });
+  ] as const)(
+    "%s calls its route with the change id, loads the view again and tells the app",
+    async (label, change, route) => {
+      const { fetchMock, onPlanChanged } = await openWith(change, { [`POST ${PLAN}/${route}`]: after });
+      const before = onPlanChanged.mock.calls.length;
+      fireEvent.click(box().getByRole("button", { name: label }));
+      await waitFor(() => expect(calls(fetchMock).filter((c) => c === GET)).toHaveLength(2));
+      expect(body(fetchMock, `POST ${PLAN}/${route}`)).toEqual({ change: CHANGE_ID });
+      // The app is told once the view has come back, which is after the request for it was made: it is waited for.
+      await waitFor(() => expect(onPlanChanged.mock.calls.length).toBe(before + 1));
+    },
+  );
 
   it("the picker button sends the ticked reviewers, nobody else", async () => {
     const { fetchMock } = await openWith(triedPassedPicker, { [`POST ${PLAN}/ask-approval`]: after });
@@ -301,13 +365,19 @@ describe("Migration 4b, the change box's buttons", () => {
     fireEvent.click(box().getByLabelText(/Demo reviewer B/));
     fireEvent.click(box().getByRole("button", { name: "Ask for approval" }));
     await waitFor(() => expect(calls(fetchMock)).toContain(`POST ${PLAN}/ask-approval`));
-    expect(body(fetchMock, `POST ${PLAN}/ask-approval`)).toEqual({ change: CHANGE_ID, reviewers: ["reviewer-a", "reviewer-b"] });
+    expect(body(fetchMock, `POST ${PLAN}/ask-approval`)).toEqual({
+      change: CHANGE_ID,
+      reviewers: ["reviewer-a", "reviewer-b"],
+    });
   });
 
   it("the picker button is off with its reason when it is not enabled", async () => {
     const off: ChangeView = {
       ...triedPassedPicker,
-      approvals: { ...triedPassedPicker.approvals!, picker: { ...triedPassedPicker.approvals!.picker!, enabled: false, reason: "Tick at least one reviewer." } },
+      approvals: {
+        ...triedPassedPicker.approvals!,
+        picker: { ...triedPassedPicker.approvals!.picker!, enabled: false, reason: "Tick at least one reviewer." },
+      },
     };
     await openWith(off);
     expect((box().getByRole("button", { name: "Ask for approval" }) as HTMLButtonElement).disabled).toBe(true);
@@ -336,7 +406,9 @@ describe("Migration 4b, the change box's buttons", () => {
   });
 
   it("shows the error in the box when a call fails, and does not reload", async () => {
-    const { fetchMock, onPlanChanged } = await openWith(readyToTry, { [`POST ${PLAN}/try`]: ERROR("A try is already running.") });
+    const { fetchMock, onPlanChanged } = await openWith(readyToTry, {
+      [`POST ${PLAN}/try`]: ERROR("A try is already running."),
+    });
     const before = onPlanChanged.mock.calls.length;
     fireEvent.click(box().getByRole("button", { name: "Try on a test copy" }));
     expect((await box().findByRole("alert")).textContent).toBe("A try is already running.");
@@ -359,7 +431,9 @@ describe("Migration 4b, polling", () => {
     fireEvent.click(card("localhost:8452"));
     expect(screen.getByTestId("change-box").getAttribute("data-busy")).toBe("true");
     // Two asks a second apart: wait for the not-busy answer on screen, however slow the machine (it ends as soon as it holds).
-    await waitFor(() => expect(screen.getByTestId("change-box").getAttribute("data-busy")).toBe("false"), { timeout: 15_000 });
+    await waitFor(() => expect(screen.getByTestId("change-box").getAttribute("data-busy")).toBe("false"), {
+      timeout: 15_000,
+    });
     expect(calls(fetchMock)).toEqual([GET, GET, GET]);
     await new Promise((resolve) => setTimeout(resolve, 1300));
     expect(calls(fetchMock)).toHaveLength(3);
@@ -374,17 +448,27 @@ describe("Migration 4b, Roadmap view", () => {
     expect(bands.map((b) => b.getAttribute("data-band"))).toEqual(["done_for_now", "phase1", "phase2", "not_placed"]);
     expect(bands.map((b) => b.getAttribute("data-look"))).toEqual(["plain", "highlight", "plain", "dashed"]);
     const phase1 = within(bands[1]!).getByTestId("roadmap-row");
-    expect(text(phase1)).toBe("Serverlocalhost:8452Key exchangeHybrid recommended, not yet chosen by youTo do: turn on hybrid key exchange. View in Fixes");
+    expect(text(phase1)).toBe(
+      "Serverlocalhost:8452Key exchangeHybrid recommended, not yet chosen by youTo do: turn on hybrid key exchange. View in Fixes",
+    );
     const done = within(bands[0]!).getAllByTestId("roadmap-row");
     expect(done.map((r) => text(within(r).getByTestId("roadmap-track")))).toEqual(["Key exchange", "Both tracks"]);
     // The same system can stand in two bands, once for each track.
     const phase2 = within(bands[2]!).getAllByTestId("roadmap-row");
     expect(phase2.map((r) => text(within(r).getByTestId("roadmap-track")))).toEqual(["Authentication", "Signatures"]);
-    expect(within(screen.getByTestId("migration-roadmap")).queryByRole("button", { name: "localhost:8451" })).toBeNull();
+    expect(
+      within(screen.getByTestId("migration-roadmap")).queryByRole("button", { name: "localhost:8451" }),
+    ).toBeNull();
   });
 
   it("an older answer without tracks draws an empty track cell", async () => {
-    const old = { ...migrationView4b, roadmap: { ...migrationView4b.roadmap, bands: migrationView4b.roadmap.bands.map((b) => ({ ...b, rows: b.rows.map(({ track: _t, ...r }) => r) })) } };
+    const old = {
+      ...migrationView4b,
+      roadmap: {
+        ...migrationView4b.roadmap,
+        bands: migrationView4b.roadmap.bands.map((b) => ({ ...b, rows: b.rows.map(({ track: _t, ...r }) => r) })),
+      },
+    };
     await open(old);
     fireEvent.click(button("Roadmap"));
     expect(screen.getAllByTestId("roadmap-track").every((c) => c.textContent === "")).toBe(true);
@@ -399,7 +483,15 @@ describe("Fixes 4b, the change box in an entry", () => {
 
   async function openFixes(view: FixesView, routes: Parameters<typeof mockApi>[0] = {}, onPlanChanged = vi.fn()) {
     const fetchMock = mockApi({ "GET /api/plans/1/fixes": { body: view }, ...routes });
-    render(<FixesScreen planId={1} selectedId={TLS_FIX} onSelect={vi.fn()} onRetestStarted={vi.fn()} onPlanChanged={onPlanChanged} />);
+    render(
+      <FixesScreen
+        planId={1}
+        selectedId={TLS_FIX}
+        onSelect={vi.fn()}
+        onRetestStarted={vi.fn()}
+        onPlanChanged={onPlanChanged}
+      />,
+    );
     await screen.findByTestId("fix-summary");
     return { fetchMock, onPlanChanged };
   }
@@ -419,7 +511,9 @@ describe("Fixes 4b, the change box in an entry", () => {
   });
 
   it("its Try button calls the change route, loads the fixes again and tells the app", async () => {
-    const { fetchMock, onPlanChanged } = await openFixes(fixesWithChange(tlsChange), { [`POST ${PLAN}/try`]: { body: { ok: true } } });
+    const { fetchMock, onPlanChanged } = await openFixes(fixesWithChange(tlsChange), {
+      [`POST ${PLAN}/try`]: { body: { ok: true } },
+    });
     fireEvent.click(box().getByRole("button", { name: "Try on a test copy" }));
     await waitFor(() => expect(calls(fetchMock).filter((c) => c === "GET /api/plans/1/fixes")).toHaveLength(2));
     expect(body(fetchMock, `POST ${PLAN}/try`)).toEqual({ change: TLS_CHANGE_ID });
@@ -436,7 +530,9 @@ describe("Fixes 4b, the change box in an entry", () => {
     });
     render(<FixesScreen planId={1} selectedId={TLS_FIX} onSelect={vi.fn()} onRetestStarted={vi.fn()} />);
     await screen.findByTestId("change-box");
-    await waitFor(() => expect(screen.getByTestId("change-box").getAttribute("data-busy")).toBe("false"), { timeout: 3000 });
+    await waitFor(() => expect(screen.getByTestId("change-box").getAttribute("data-busy")).toBe("false"), {
+      timeout: 3000,
+    });
     expect(calls(fetchMock)).toHaveLength(2);
   });
 });

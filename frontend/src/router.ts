@@ -105,7 +105,8 @@ function filtersOf(params: URLSearchParams): Pick<AssessmentRoute, "result" | "f
 }
 
 export function routeHref(route: Route): string {
-  if (route.kind === "settings") return route.section ? `#/settings?${new URLSearchParams({ section: route.section }).toString()}` : "#/settings";
+  if (route.kind === "settings")
+    return route.section ? `#/settings?${new URLSearchParams({ section: route.section }).toString()}` : "#/settings";
   if (route.kind === "project") return `#/p/${route.id}`;
   if (route.kind === "assessment") {
     const params = new URLSearchParams();
@@ -149,10 +150,17 @@ export const PAGE_NAMES: Record<Page, string> = {
 /** A link the backend sent (page and item): where it goes, in this assessment or the one it names. Phase 5c: a link
  * whose page is "settings" opens Settings (on the section it names), which belongs to no assessment. */
 export function linkRoute(
-  link: { page: string; item?: string | null; group?: string | null; section?: string | null; assessment_id?: number | null },
+  link: {
+    page: string;
+    item?: string | null;
+    group?: string | null;
+    section?: string | null;
+    assessment_id?: number | null;
+  },
   assessmentId: number,
 ): AssessmentRoute | SettingsRoute {
-  if (link.page === "settings") return link.section ? { kind: "settings", section: link.section } : { kind: "settings" };
+  if (link.page === "settings")
+    return link.section ? { kind: "settings", section: link.section } : { kind: "settings" };
   return {
     kind: "assessment",
     id: link.assessment_id ?? assessmentId,

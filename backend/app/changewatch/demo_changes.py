@@ -12,6 +12,7 @@ change leaves behind may run is decided later, by the byte-for-byte check, exact
 
 Only the keys in `ORDER` are read. No path is ever made from a name that came from outside.
 """
+
 from __future__ import annotations
 
 import json
@@ -25,8 +26,11 @@ from app.run import components
 
 CHANGES_DIR = DEMO_DIR / "changes"
 SCHEMA = "evidence-lab-demo-change-1"
-ORDER = ("revert-range-check", "allow-tls-1-0")     # the menu's order
-OFFERED = ("connected", "after_merge")              # when the menu offers a change: once the code is connected, or once a fix is merged
+ORDER = ("revert-range-check", "allow-tls-1-0")  # the menu's order
+OFFERED = (
+    "connected",
+    "after_merge",
+)  # when the menu offers a change: once the code is connected, or once a fix is merged
 
 MAX_BYTES = 64 * 1024
 MAX_FILES = 5
@@ -39,7 +43,11 @@ _PROGRAM_ENDINGS = (".py", ".pyc", ".pyw", ".sh", ".js", ".mjs", ".rb", ".pl", "
 def _program_files() -> set[str]:
     """The file names of our registered demo programs: a text file of a change may not take one of them."""
     names = set(components.VERSIONS) | set(components.CHANGE_VERSIONS)
-    paths = (components.lookup(n, v) for n in sorted(names) for v in components.VERSIONS.get(n, []) + components.CHANGE_VERSIONS.get(n, []))
+    paths = (
+        components.lookup(n, v)
+        for n in sorted(names)
+        for v in components.VERSIONS.get(n, []) + components.CHANGE_VERSIONS.get(n, [])
+    )
     return {path.name for path in paths if path is not None}
 
 
@@ -50,8 +58,8 @@ class DemoChangeError(Exception):
 @dataclass(frozen=True)
 class DemoFile:
     name: str
-    text: str | None                          # the content, written in the change
-    registered: tuple[str, str] | None        # or: one of our registered demo programs (name, version)
+    text: str | None  # the content, written in the change
+    registered: tuple[str, str] | None  # or: one of our registered demo programs (name, version)
 
 
 @dataclass(frozen=True)
@@ -83,18 +91,26 @@ def _file(entry: object) -> DemoFile:
     if "text" in entry:
         # (a program is never written out in a change: it comes only by the name of one of our registered demo programs)
         if name.lower().endswith(_PROGRAM_ENDINGS) or name in _program_files():
-            raise DemoChangeError("A file of the demo change is a program written out in the change, which this app does not accept.")
+            raise DemoChangeError(
+                "A file of the demo change is a program written out in the change, which this app does not accept."
+            )
         text = _text(entry["text"], "file text", MAX_TEXT, lines=True)
         if not text.endswith("\n"):
             raise DemoChangeError("A file of the demo change does not end with a line break.")
         return DemoFile(name, text, None)
     named = entry.get("registered")
-    if not isinstance(named, dict) or set(named) != {"name", "version"} or not all(isinstance(v, str) for v in named.values()):
+    if (
+        not isinstance(named, dict)
+        or set(named) != {"name", "version"}
+        or not all(isinstance(v, str) for v in named.values())
+    ):
         raise DemoChangeError("A file of the demo change is not written as this app expects.")
     path = components.lookup(named["name"], named["version"])
     # (the file must be that program's own file: a change cannot put a registered program under another name)
     if path is None or path.name != name:
-        raise DemoChangeError("A file of the demo change names a program that is not one of our registered demo programs.")
+        raise DemoChangeError(
+            "A file of the demo change names a program that is not one of our registered demo programs."
+        )
     return DemoFile(name, None, (named["name"], named["version"]))
 
 
@@ -123,8 +139,15 @@ def read_change(data: bytes) -> DemoChange:
     read = tuple(_file(entry) for entry in files)
     if len({f.name for f in read}) != len(read):
         raise DemoChangeError("The demo change names a file twice.")
-    return DemoChange(key=key, title=_text(raw["title"], "title", 80), what_it_does=_text(raw["what_it_does"], "description", 300),
-                      branch=branch, message=_text(raw["message"], "commit message", 1000, lines=True), offered=raw["offered"], files=read)
+    return DemoChange(
+        key=key,
+        title=_text(raw["title"], "title", 80),
+        what_it_does=_text(raw["what_it_does"], "description", 300),
+        branch=branch,
+        message=_text(raw["message"], "commit message", 1000, lines=True),
+        offered=raw["offered"],
+        files=read,
+    )
 
 
 def bundled(folder: Path | None = None) -> list[DemoChange]:
@@ -154,7 +177,9 @@ def content(change: DemoChange) -> dict[str, bytes]:
         if file.registered is not None:
             path = components.lookup(*file.registered)
             if path is None:
-                raise DemoChangeError("The demo change names a program that is not one of our registered demo programs.")
+                raise DemoChangeError(
+                    "The demo change names a program that is not one of our registered demo programs."
+                )
             try:
                 out[file.name] = path.read_bytes()
             except OSError as exc:
@@ -164,4 +189,16 @@ def content(change: DemoChange) -> dict[str, bytes]:
     return out
 
 
-__all__ = ["CHANGES_DIR", "DemoChange", "DemoChangeError", "DemoFile", "OFFERED", "ORDER", "SCHEMA", "bundled", "content", "find", "read_change"]
+__all__ = [
+    "CHANGES_DIR",
+    "DemoChange",
+    "DemoChangeError",
+    "DemoFile",
+    "OFFERED",
+    "ORDER",
+    "SCHEMA",
+    "bundled",
+    "content",
+    "find",
+    "read_change",
+]

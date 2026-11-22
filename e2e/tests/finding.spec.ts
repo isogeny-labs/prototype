@@ -39,7 +39,9 @@ test.afterAll(async () => {
   await stopCopy(copy);
 });
 
-test("one finding, end to end: claim, check, evidence, fix, migration track and the Project overview", async ({ browser }) => {
+test("one finding, end to end: claim, check, evidence, fix, migration track and the Project overview", async ({
+  browser,
+}) => {
   copy = await startCopy(browser, 5, "demo");
   const page = copy.page;
   const claim = `${copy.server} accepts TLS 1.3 only`;
@@ -79,12 +81,17 @@ test("one finding, end to end: claim, check, evidence, fix, migration track and 
   // ---- 2. The same claim on Checks, in Verification (the tab Checks opens on: the first group with something in it),
   // with the test that checks it in Related.
   await stepLink(page, "Checks").click();
-  const verification = page.getByTestId("group-section").filter({ has: page.getByRole("heading", { name: "Verification" }) });
+  const verification = page
+    .getByTestId("group-section")
+    .filter({ has: page.getByRole("heading", { name: "Verification" }) });
   await verification.getByTestId("check-row").filter({ hasText: claim }).click();
   const checkPanel = page.getByTestId("check-panel");
   await expect(checkPanel).toBeVisible();
   await expect(checkPanel.getByTestId("result-badge").first()).toHaveText("False");
-  await expect(checkPanel.getByTestId("open-where-started")).toHaveAttribute("href", /\/inventory\/verify\?item=claim-\d+$/);
+  await expect(checkPanel.getByTestId("open-where-started")).toHaveAttribute(
+    "href",
+    /\/inventory\/verify\?item=claim-\d+$/,
+  );
   const toTest = related(page, "test", "Old TLS versions");
   await expect(toTest).toHaveCount(1);
   await shots(page, "finding-03-check-on-checks");
@@ -103,8 +110,13 @@ test("one finding, end to end: claim, check, evidence, fix, migration track and 
   await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
   const fixPanel = page.getByTestId("detail-panel");
   await expect(fixPanel.getByRole("heading", { level: 2, name: "Server accepts TLS 1.2" })).toBeVisible();
-  const encryption = page.getByTestId("group-section").filter({ has: page.getByRole("heading", { name: "Crypto tests" }) });
-  await expect(encryption.getByTestId("fix-row").filter({ hasText: "Server accepts TLS 1.2" })).toHaveAttribute("aria-selected", "true");
+  const encryption = page
+    .getByTestId("group-section")
+    .filter({ has: page.getByRole("heading", { name: "Crypto tests" }) });
+  await expect(encryption.getByTestId("fix-row").filter({ hasText: "Server accepts TLS 1.2" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await expect(related(page, "test", "Old TLS versions")).toHaveCount(1);
   const toSystem = related(page, "system", copy.server);
   await expect(toSystem).toHaveCount(1);
@@ -113,13 +125,18 @@ test("one finding, end to end: claim, check, evidence, fix, migration track and 
   // ---- 5. The system's migration track, on the Roadmap, with the fix in its Related block.
   await toSystem.click();
   await expect(page).toHaveURL(/\/migration\/roadmap\?item=server%3Alocalhost%3A\d+$/);
-  await expect(page.getByTestId("detail-panel").getByTestId("migration-system")).toHaveAttribute("data-system", `server:${copy.server}`);
+  await expect(page.getByTestId("detail-panel").getByTestId("migration-system")).toHaveAttribute(
+    "data-system",
+    `server:${copy.server}`,
+  );
   await expect(related(page, "fix", "Server accepts TLS 1.2")).toHaveCount(1);
   await shots(page, "finding-06-system-on-roadmap");
   // Back returns to the fix.
   await page.goBack();
   await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
-  await expect(page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: "Server accepts TLS 1.2" })).toBeVisible();
+  await expect(
+    page.getByTestId("detail-panel").getByRole("heading", { level: 2, name: "Server accepts TLS 1.2" }),
+  ).toBeVisible();
 
   // ---- 6. The Project overview: the assessment with its counts, as its pages count them.
   await page.getByTestId("sidebar").first().getByRole("link", { name: "Project overview" }).click();

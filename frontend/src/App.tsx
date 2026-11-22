@@ -37,7 +37,14 @@ import { VerifyScreen } from "./components/VerifyScreen";
 import { setAlgorithmNames } from "./plainNames";
 import { applyTheme, prefs, type Theme } from "./prefs";
 import { CLOSED_SENTENCE, ReadOnlyProvider } from "./readOnly";
-import { type GroupNav, HiddenPageNotesContext, ItemMissing, ItemPageContext, type ItemPage, OpenItemContext } from "./components/layout";
+import {
+  type GroupNav,
+  HiddenPageNotesContext,
+  ItemMissing,
+  ItemPageContext,
+  type ItemPage,
+  OpenItemContext,
+} from "./components/layout";
 import { PAGE_NAMES, itemPageHref, pageHref, useRoute, type Page } from "./router";
 import { usePanelStamp } from "./changes";
 
@@ -164,7 +171,12 @@ export default function App() {
     // (only another assessment starts this; the fix the address names is read at that moment)
   }, [loggedIn, routeId, assessment?.id, loadAssessment]);
 
-  const projectId = route.kind === "project" ? route.id : route.kind === "assessment" && assessment?.id === route.id ? assessment.project.id : null;
+  const projectId =
+    route.kind === "project"
+      ? route.id
+      : route.kind === "assessment" && assessment?.id === route.id
+        ? assessment.project.id
+        : null;
   const loadProject = useCallback(async (id: number) => {
     try {
       setProjectView(await api.getProject(id));
@@ -238,7 +250,11 @@ export default function App() {
         const fresh = next.import ?? null;
         // (only that line, and only when it differs: nothing else on the page is replaced by this read)
         if (live && fresh)
-          setImp((c) => (c && c.id === fresh.id && JSON.stringify(c.otto) !== JSON.stringify(fresh.otto) ? { ...c, otto: fresh.otto } : c));
+          setImp((c) =>
+            c && c.id === fresh.id && JSON.stringify(c.otto) !== JSON.stringify(fresh.otto)
+              ? { ...c, otto: fresh.otto }
+              : c,
+          );
       })
       .catch(() => undefined);
     return () => {
@@ -331,7 +347,8 @@ export default function App() {
     "migration/dependencies": withFile,
   };
   // A page whose data is not there (yet) falls back to Import, as the step bar did.
-  const page: Page | null = current && route.kind === "assessment" ? (access[route.page].open ? route.page : "inventory/import") : null;
+  const page: Page | null =
+    current && route.kind === "assessment" ? (access[route.page].open ? route.page : "inventory/import") : null;
 
   function go(next: Page, item?: string | null, group?: string | null) {
     if (!current) return;
@@ -346,7 +363,12 @@ export default function App() {
     from: route.kind === "assessment" ? (route.from ?? null) : null,
     decision: route.kind === "assessment" ? (route.decision ?? null) : null,
   };
-  function setFilters(change: { result?: string | null; from?: string | null; decision?: string | null; group?: string | null }) {
+  function setFilters(change: {
+    result?: string | null;
+    from?: string | null;
+    decision?: string | null;
+    group?: string | null;
+  }) {
     if (route.kind !== "assessment") return;
     navigate({ ...route, ...change });
   }
@@ -359,14 +381,29 @@ export default function App() {
   const showGroups = (shownOn: Page) => (nav: GroupNav) => setGroupNav({ page: shownOn, nav });
 
   /** Where an answer of Otto's leads (phase 6b): a page, one item on it, and the filters of its table; or Settings. */
-  function goTo(where: { page: string; item: string | null; group: string | null; result: string | null; came_from: string | null; decision: string | null }) {
+  function goTo(where: {
+    page: string;
+    item: string | null;
+    group: string | null;
+    result: string | null;
+    came_from: string | null;
+    decision: string | null;
+  }) {
     if (where.page === "settings") {
       navigate({ kind: "settings" });
       return;
     }
     if (!current) return;
-    navigate({ kind: "assessment", id: current.id, page: where.page as Page, item: where.item, group: where.group, result: where.result,
-               from: where.came_from, decision: where.decision });
+    navigate({
+      kind: "assessment",
+      id: current.id,
+      page: where.page as Page,
+      item: where.item,
+      group: where.group,
+      result: where.result,
+      from: where.came_from,
+      decision: where.decision,
+    });
   }
 
   function openAssessment(id: number, next: Page = "overview") {
@@ -395,10 +432,15 @@ export default function App() {
     setBoxError(null);
     try {
       const made =
-        box.kind === "rerun" ? await api.rerunAssessment(box.assessment.id, fields) : box.kind === "new" ? await api.newAssessment(box.projectId, fields) : null;
+        box.kind === "rerun"
+          ? await api.rerunAssessment(box.assessment.id, fields)
+          : box.kind === "new"
+            ? await api.newAssessment(box.projectId, fields)
+            : null;
       setBox(null);
       await loadWorkspace();
-      if (made) openAssessment(made.id, box.kind === "rerun" ? "inventory/import" : box.kind === "new" ? box.then : "overview");
+      if (made)
+        openAssessment(made.id, box.kind === "rerun" ? "inventory/import" : box.kind === "new" ? box.then : "overview");
     } catch (e) {
       setBoxError(errorMessage(e));
     } finally {
@@ -411,7 +453,11 @@ export default function App() {
     setBoxBusy(true);
     setBoxError(null);
     try {
-      const now = await api.changeAssessment(box.assessment.id, { close: true, signed_off_by: fields.signed_off_by, note: fields.note });
+      const now = await api.changeAssessment(box.assessment.id, {
+        close: true,
+        signed_off_by: fields.signed_off_by,
+        note: fields.note,
+      });
       setBox(null);
       // The answer is the assessment as it stands now: it is shown at once, so the page reads Closed without waiting
       // for everything else to be read again (on a large assessment that takes a few seconds more).
@@ -492,7 +538,13 @@ export default function App() {
   }
 
   const migrationTab: MigrationTab | undefined =
-    page === "migration/roadmap" ? "roadmap" : page === "migration/dependencies" ? "dependencies" : page === "migration/systems" ? "systems" : undefined;
+    page === "migration/roadmap"
+      ? "roadmap"
+      : page === "migration/dependencies"
+        ? "dependencies"
+        : page === "migration/systems"
+          ? "systems"
+          : undefined;
 
   const sidebar = (
     <Sidebar
@@ -616,19 +668,30 @@ export default function App() {
         onVerified={(next) => {
           setRun(next);
           void loadWorkspace();
-          void api.getAssessment(current.id).then(setAssessment).catch(() => undefined);
+          void api
+            .getAssessment(current.id)
+            .then(setAssessment)
+            .catch(() => undefined);
           go("inventory/verify");
         }}
       />
     );
   } else if (page === "inventory/verify" && imp) {
     // (Continue to checks opens Crypto tests, where the test plan and Run all are: Kevin's decision of 20 November 2026)
-    content = <VerifyScreen imp={imp} run={run} onContinue={() => go("checks", null, "encryption")} openItem={routeItem} />;
+    content = (
+      <VerifyScreen imp={imp} run={run} onContinue={() => go("checks", null, "encryption")} openItem={routeItem} />
+    );
   } else if (page === "advisories" && plan) {
     // Phase 5c: accepting one of Otto's proposed checks puts a test in the plan (and Undo takes it out), so the app's
     // copy of the plan is read again after every decision.
     content = (
-      <AdvisoriesScreen planId={plan.id} openItem={routeItem} onPlanChanged={() => void reloadPlan()} decision={filters.decision} onFilters={setFilters} />
+      <AdvisoriesScreen
+        planId={plan.id}
+        openItem={routeItem}
+        onPlanChanged={() => void reloadPlan()}
+        decision={filters.decision}
+        onFilters={setFilters}
+      />
     );
   } else if (page === "checks" && imp) {
     content = (
@@ -673,7 +736,13 @@ export default function App() {
     );
   } else if (page === "change-watch" && plan) {
     // Phase 6d: a developer's change in the connected demo repository; its picked tests run only on a click.
-    content = <ChangeWatchPage planId={plan.id} openItem={routeItem} section={route.kind === "assessment" ? (route.section ?? null) : null} />;
+    content = (
+      <ChangeWatchPage
+        planId={plan.id}
+        openItem={routeItem}
+        section={route.kind === "assessment" ? (route.section ?? null) : null}
+      />
+    );
   } else if (migrationTab && imp) {
     content = (
       <MigrationScreen
@@ -693,7 +762,10 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen">
-      <aside aria-label="Sidebar" className="sticky top-0 hidden h-screen shrink-0 border-r border-slate-800 bg-slate-950 lg:block">
+      <aside
+        aria-label="Sidebar"
+        className="sticky top-0 hidden h-screen shrink-0 border-r border-slate-800 bg-slate-950 lg:block"
+      >
         {sidebar}
       </aside>
       {menuOpen ? (
@@ -756,38 +828,42 @@ export default function App() {
                 {current ? (
                   <LinkProvider assessmentId={current.id} planId={plan?.id ?? null}>
                     <ItemPageContext.Provider value={itemPage}>
-                     <OpenItemContext.Provider value={setOpenItem}>
-                      {/* The 5c fixes: an item on a page of its own ("Open in new tab"). The open panel draws itself in
+                      <OpenItemContext.Provider value={setOpenItem}>
+                        {/* The 5c fixes: an item on a page of its own ("Open in new tab"). The open panel draws itself in
                           this place, and the list it belongs to is kept, hidden, so every button works as in the panel. */}
-                      {asItemPage ? (
-                        <>
-                          <div ref={setItemNotes} data-testid="item-page-notes" className="peer/notes" />
-                          <div ref={setItemRoot} data-testid="item-page-root" className="peer/root" />
-                          {/* Shown only while nothing is drawn above: the page is still loading, or (when it has no list
+                        {asItemPage ? (
+                          <>
+                            <div ref={setItemNotes} data-testid="item-page-notes" className="peer/notes" />
+                            <div ref={setItemRoot} data-testid="item-page-root" className="peer/root" />
+                            {/* Shown only while nothing is drawn above: the page is still loading, or (when it has no list
                               to look in, or stays empty) the address names nothing that is here. Not shown under a reason
                               the page gave, such as a page that could not be loaded. */}
-                          <div className="hidden peer-empty/root:peer-empty/notes:block">
-                            {itemPage && (content === null || itemLate) ? (
-                              <ItemMissing page={itemPage} named={false} />
-                            ) : (
-                              <p role="status" className="text-sm text-slate-400">
-                                Loading…
-                              </p>
-                            )}
-                          </div>
-                        </>
-                      ) : null}
-                      <div hidden={asItemPage || undefined} data-testid="page-content">
-                        <HiddenPageNotesContext.Provider value={asItemPage ? itemNotes : undefined}>{content}</HiddenPageNotesContext.Provider>
-                      </div>
-                     </OpenItemContext.Provider>
+                            <div className="hidden peer-empty/root:peer-empty/notes:block">
+                              {itemPage && (content === null || itemLate) ? (
+                                <ItemMissing page={itemPage} named={false} />
+                              ) : (
+                                <p role="status" className="text-sm text-slate-400">
+                                  Loading…
+                                </p>
+                              )}
+                            </div>
+                          </>
+                        ) : null}
+                        <div hidden={asItemPage || undefined} data-testid="page-content">
+                          <HiddenPageNotesContext.Provider value={asItemPage ? itemNotes : undefined}>
+                            {content}
+                          </HiddenPageNotesContext.Provider>
+                        </div>
+                      </OpenItemContext.Provider>
                     </ItemPageContext.Provider>
                   </LinkProvider>
                 ) : (
                   content
                 )}
               </ReadOnlyProvider>
-              {guided && current && page && page !== "overview" && !asItemPage ? <GuidedBar page={page} access={access} onGo={go} /> : null}
+              {guided && current && page && page !== "overview" && !asItemPage ? (
+                <GuidedBar page={page} access={access} onGo={go} />
+              ) : null}
             </div>
           </main>
           {/* Phase 6a: the Otto assistant sits beside the pages of an assessment (it is about the page on screen), not
@@ -795,7 +871,13 @@ export default function App() {
           {copilotShown && current && page ? (
             <ReadOnlyProvider readOnly={closed}>
               <LinkProvider assessmentId={current.id} planId={plan?.id ?? null}>
-                <OttoPanel assessmentId={current.id} page={page} item={openItem} onGo={(next, item) => go(next, item ?? null)} onGoTo={goTo} />
+                <OttoPanel
+                  assessmentId={current.id}
+                  page={page}
+                  item={openItem}
+                  onGo={(next, item) => go(next, item ?? null)}
+                  onGoTo={goTo}
+                />
               </LinkProvider>
             </ReadOnlyProvider>
           ) : null}
@@ -805,7 +887,11 @@ export default function App() {
         <NewAssessmentBox
           title={box.kind === "rerun" ? "Rerun as new assessment" : "New assessment"}
           defaultName={
-            box.kind === "rerun" ? `${box.assessment.title} (again)` : projectView?.id === box.projectId ? projectView.next_name : ""
+            box.kind === "rerun"
+              ? `${box.assessment.title} (again)`
+              : projectView?.id === box.projectId
+                ? projectView.next_name
+                : ""
           }
           defaultPurpose={box.kind === "rerun" ? (box.assessment.purpose?.key ?? "full_review") : "full_review"}
           defaultReference={box.kind === "rerun" ? (box.assessment.reference ?? "") : ""}

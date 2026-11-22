@@ -16,6 +16,7 @@ on and then reads the database, the ledgers and the evidence file for one).
 A date with no time of day (a pack's build date, an advisory's publication date, a review date) is not a moment:
 it is written as it is, for every reader.
 """
+
 from __future__ import annotations
 
 import re
@@ -83,7 +84,20 @@ def for_files():
     return for_screen(False)
 
 
-_MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+_MONTHS = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
 
 
 _MARK = re.compile(re.escape(OPEN) + r"(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})Z" + re.escape(CLOSE))
@@ -109,7 +123,7 @@ def remarked(text: str, written: list[str] | None) -> str:
         if when is None:
             continue
         words_ = f"{when.day} {_MONTHS[when.month - 1]} {when.year}, {when.strftime('%H:%M')} UTC"
-        out = out.replace(words_, mark(when) or words_, 1)       # (one place for one moment, in the order they were written)
+        out = out.replace(words_, mark(when) or words_, 1)  # (one place for one moment, in the order they were written)
     return out
 
 
@@ -129,4 +143,18 @@ class MarkTimes:
         await self.app(scope, receive, send)
 
 
-__all__ = ["HEADER", "ASKS", "OPEN", "CLOSE", "MarkTimes", "for_files", "for_screen", "instant", "mark", "marked", "moments", "remarked", "written"]
+__all__ = [
+    "HEADER",
+    "ASKS",
+    "OPEN",
+    "CLOSE",
+    "MarkTimes",
+    "for_files",
+    "for_screen",
+    "instant",
+    "mark",
+    "marked",
+    "moments",
+    "remarked",
+    "written",
+]

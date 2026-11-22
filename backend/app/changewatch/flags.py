@@ -7,6 +7,7 @@ has not tested what such a line does, and every flag says so.
 
 A removed line never gives a flag, and neither does a line that was already there.
 """
+
 from __future__ import annotations
 
 import re
@@ -14,10 +15,10 @@ import re
 from app.engine.guidance import OLD_CRYPTOGRAPHY
 
 NOT_TESTED = "The app has not tested what this line does."
-MAX_LINE = 2000        # a longer line is read up to here
-MAX_FLAGS = 50         # for one change; more are counted, not listed
+MAX_LINE = 2000  # a longer line is read up to here
+MAX_FLAGS = 50  # for one change; more are counted, not listed
 
-_BEFORE = r"(?<![A-Za-z0-9])"     # the name starts here: "RC4" is not found inside "src4"
+_BEFORE = r"(?<![A-Za-z0-9])"  # the name starts here: "RC4" is not found inside "src4"
 
 
 def _compiled(words: list[dict]) -> list[tuple[dict, list[re.Pattern]]]:
@@ -27,17 +28,28 @@ def _compiled(words: list[dict]) -> list[tuple[dict, list[re.Pattern]]]:
 _WORDS = _compiled(OLD_CRYPTOGRAPHY)
 
 
-def named_in(file: str, added: list[tuple[int, str]], words: list[tuple[dict, list[re.Pattern]]] | None = None) -> list[dict]:
+def named_in(
+    file: str, added: list[tuple[int, str]], words: list[tuple[dict, list[re.Pattern]]] | None = None
+) -> list[dict]:
     """The names of old cryptography in the lines a change adds to one file. `added` is (line number as people count
     it, the line's text). One flag for each name on each line, in the order of the lines."""
     out = []
     for n, text in added:
         line = text[:MAX_LINE]
-        for word, patterns in (_WORDS if words is None else words):
+        for word, patterns in _WORDS if words is None else words:
             found = next((m for p in patterns if (m := p.search(line)) is not None), None)
             if found is not None:
-                out.append({"kind": "old_cryptography", "word": word["word"], "as_written": found.group(0), "file": file, "line": n,
-                            "text": line.strip()[:200], "source": dict(word["source"])})
+                out.append(
+                    {
+                        "kind": "old_cryptography",
+                        "word": word["word"],
+                        "as_written": found.group(0),
+                        "file": file,
+                        "line": n,
+                        "text": line.strip()[:200],
+                        "source": dict(word["source"]),
+                    }
+                )
     return out
 
 
@@ -52,9 +64,17 @@ def read_words(raw: object) -> list[tuple[dict, list[re.Pattern]]]:
         source = w["source"]
         if not isinstance(w["word"], str) or not w["word"].strip() or len(w["word"]) > 40:
             raise ValueError("A name of the word list is empty or too long.")
-        if not isinstance(w["written"], list) or not 1 <= len(w["written"]) <= 10 or not all(isinstance(p, str) and 0 < len(p) <= 100 for p in w["written"]):
+        if (
+            not isinstance(w["written"], list)
+            or not 1 <= len(w["written"]) <= 10
+            or not all(isinstance(p, str) and 0 < len(p) <= 100 for p in w["written"])
+        ):
             raise ValueError("A name of the word list does not say how it is written.")
-        if not isinstance(source, dict) or set(source) != {"title", "url"} or not all(isinstance(v, str) and v for v in source.values()):
+        if (
+            not isinstance(source, dict)
+            or set(source) != {"title", "url"}
+            or not all(isinstance(v, str) and v for v in source.values())
+        ):
             raise ValueError("A name of the word list has no source.")
     try:
         return _compiled(raw)

@@ -20,7 +20,13 @@ export function ShortHash({ value }: { value: string }) {
 /** A source by its name: a link when its address is an https one (a publisher's page), plain text otherwise. */
 export function SourceName({ name, href }: { name: string; href: string }) {
   return href.startsWith("https://") ? (
-    <a href={href} target="_blank" rel="noreferrer noopener" data-testid="source-link" className="underline underline-offset-2 hover:text-slate-100">
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer noopener"
+      data-testid="source-link"
+      className="underline underline-offset-2 hover:text-slate-100"
+    >
       {name}
     </a>
   ) : (
@@ -107,7 +113,11 @@ export function LedgerView({ ledger }: { ledger: AdvisoryLedger }) {
       </summary>
       <ol className="mt-2 space-y-1.5">
         {ledger.entries.map((e) => (
-          <li key={`${e.seq}-${e.id}`} data-testid="advisory-ledger-entry" className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-2 text-xs text-slate-300">
+          <li
+            key={`${e.seq}-${e.id}`}
+            data-testid="advisory-ledger-entry"
+            className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-x-2 text-xs text-slate-300"
+          >
             <span className="tabular-nums text-slate-500">{e.seq}</span>
             <span className="min-w-0">
               <span className="block break-words">{e.what}</span>

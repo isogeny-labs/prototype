@@ -40,7 +40,8 @@ const detail = (label: string) => {
 const detailCells = (label: string) => detail(label).queryAllByTestId("dependency-cell");
 const allRows = (v: View) => v.groups.flatMap((g) => g.rows);
 const fixtureRow = (v: View, label: string) => allRows(v).find((r) => r.label === label)!;
-const button = (el: HTMLElement, name: string | RegExp) => within(el).getByRole("button", { name }) as HTMLButtonElement;
+const button = (el: HTMLElement, name: string | RegExp) =>
+  within(el).getByRole("button", { name }) as HTMLButtonElement;
 
 describe("Dependencies view: empty", () => {
   it("shows the empty text and the add button, with no groups", async () => {
@@ -57,7 +58,11 @@ describe("Dependencies view: empty", () => {
   it("shows the legend as sent", async () => {
     await open(DEPENDENCIES_EMPTY);
     const legend = screen.getByRole("list", { name: "What the labels mean" });
-    expect(within(legend).getAllByRole("listitem").map((li) => li.textContent)).toEqual(DEPENDENCIES_EMPTY.legend.map((l) => l.words));
+    expect(
+      within(legend)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual(DEPENDENCIES_EMPTY.legend.map((l) => l.words));
   });
 });
 
@@ -79,7 +84,9 @@ describe("Dependencies view: answers and labels", () => {
     }
     // Three cells per row, one per question, in the order sent.
     for (const r of rows()) {
-      expect(cells(r).map((c) => c.getAttribute("data-question"))).toEqual(DEPENDENCIES_DEMO.questions.map((q) => q.key));
+      expect(cells(r).map((c) => c.getAttribute("data-question"))).toEqual(
+        DEPENDENCIES_DEMO.questions.map((q) => q.key),
+      );
     }
   });
 
@@ -96,7 +103,9 @@ describe("Dependencies view: answers and labels", () => {
     await open(DEPENDENCIES_ISOLATED);
     const measured = cells().filter((c) => c.getAttribute("data-state") === "measured");
     expect(measured.length).toBe(
-      allRows(DEPENDENCIES_ISOLATED).flatMap((r) => r.cells).filter((c) => c.state === "measured").length,
+      allRows(DEPENDENCIES_ISOLATED)
+        .flatMap((r) => r.cells)
+        .filter((c) => c.state === "measured").length,
     );
     expect(measured.length).toBeGreaterThan(0);
     for (const c of measured) expect(c.textContent).toContain("Measured on a public copy");
@@ -162,7 +171,13 @@ describe("Dependencies view: measure buttons", () => {
     const all = screen.getByRole("button", { name: "Measure all" }) as HTMLButtonElement;
     expect(all.disabled).toBe(true);
     expect(screen.getByTestId("measure-all-blocked").textContent).toBe(DEPENDENCIES_DEMO.measure_all!.blocked_reason);
-    for (const label of ["openssl 3.0.22", "python-ecdsa 0.13.2", "openjdk 17.0.2", "elliptic 6.5.6", "openssl 3.5.9"]) {
+    for (const label of [
+      "openssl 3.0.22",
+      "python-ecdsa 0.13.2",
+      "openjdk 17.0.2",
+      "elliptic 6.5.6",
+      "openssl 3.5.9",
+    ]) {
       const r = detail(label);
       expect(r.getByRole("button", { name: "Measure on a public copy" }).hasAttribute("disabled"), label).toBe(true);
       expect(r.getByTestId("row-measure-blocked").textContent, label).toBe("Measuring needs isolated mode (Docker).");
@@ -207,10 +222,14 @@ describe("Dependencies view: measure buttons", () => {
     const onChanged = vi.fn();
     render(<DependenciesView importId={1} onViewFix={vi.fn()} onChanged={onChanged} />);
     await screen.findByTestId("dependencies-subline");
-    expect((screen.getByRole("button", { name: DEPENDENCIES_ISOLATED.upload.label }) as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      (screen.getByRole("button", { name: DEPENDENCIES_ISOLATED.upload.label }) as HTMLButtonElement).disabled,
+    ).toBe(true);
     await waitFor(() => expect(onChanged).toHaveBeenCalled(), { timeout: 4000 });
     expect(get.mock.calls.length).toBeGreaterThanOrEqual(2);
-    expect((screen.getByRole("button", { name: DEPENDENCIES_ISOLATED.upload.label }) as HTMLButtonElement).disabled).toBe(false);
+    expect(
+      (screen.getByRole("button", { name: DEPENDENCIES_ISOLATED.upload.label }) as HTMLButtonElement).disabled,
+    ).toBe(false);
   });
 });
 
@@ -221,7 +240,9 @@ describe("Dependencies view: Part of", () => {
     expect(groups.map((g) => g.getAttribute("aria-label"))).toEqual(DEPENDENCIES_DEMO.groups.map((g) => g.label));
     const select = screen.getByLabelText("Part of: acme-pay-server 1.0.0") as HTMLSelectElement;
     expect(select.value).toBe("server:localhost:8443");
-    expect(Array.from(select.options).map((o) => o.textContent)).toEqual(DEPENDENCIES_DEMO.groups[1]!.picker.options.map((o) => o.name));
+    expect(Array.from(select.options).map((o) => o.textContent)).toEqual(
+      DEPENDENCIES_DEMO.groups[1]!.picker.options.map((o) => o.name),
+    );
     expect(within(groups[2]!).getByTestId("tie-words").textContent).toBe(DEPENDENCIES_DEMO.groups[2]!.tie_words);
   });
 
@@ -230,7 +251,9 @@ describe("Dependencies view: Part of", () => {
     await open(DEPENDENCIES_DEMO);
     const select = screen.getByLabelText("Part of: acme-ledger 5.1.0");
     fireEvent.change(select, { target: { value: "server:localhost:8443" } });
-    await waitFor(() => expect(tie).toHaveBeenCalledWith(DEPENDENCIES_DEMO.plan_id, "acme-ledger", "server:localhost:8443"));
+    await waitFor(() =>
+      expect(tie).toHaveBeenCalledWith(DEPENDENCIES_DEMO.plan_id, "acme-ledger", "server:localhost:8443"),
+    );
   });
 
   it("choosing 'None of these' sends an empty system", async () => {
@@ -306,19 +329,27 @@ describe("Dependencies view: systems and blockers", () => {
     expect(server.textContent).toContain(s.kind_label);
     expect(server.textContent).toContain(s.name);
     expect(server.textContent).toContain(`from ${s.tied_from}`);
-    expect(within(server).getAllByTestId("blocker-line").map((l) => l.textContent)).toEqual(s.blocker_lines.map((l) => `${l.text} View in Fixes`));
+    expect(
+      within(server)
+        .getAllByTestId("blocker-line")
+        .map((l) => l.textContent),
+    ).toEqual(s.blocker_lines.map((l) => `${l.text} View in Fixes`));
     expect(server.textContent).toContain(s.without_answer_text!);
     expect(server.textContent).toContain(s.environment_line);
   });
 
   it("a system's blocker line has 'View in Fixes' and sends the fix id; a line with no fix has none", async () => {
     const { onViewFix } = await open(DEPENDENCIES_DEMO);
-    const server = screen.getAllByTestId("dependency-system").find((b) => b.getAttribute("data-system") === "server:localhost:8443")!;
+    const server = screen
+      .getAllByTestId("dependency-system")
+      .find((b) => b.getAttribute("data-system") === "server:localhost:8443")!;
     const lines = within(server).getAllByTestId("blocker-line");
     const fixId = DEPENDENCIES_DEMO.systems.find((x) => x.key === "server:localhost:8443")!.blocker_lines[0]!.fix_id!;
     fireEvent.click(within(lines[0]!).getByRole("button", { name: "View in Fixes" }));
     expect(onViewFix).toHaveBeenCalledWith(fixId);
-    const signing = screen.getAllByTestId("dependency-system").find((b) => b.getAttribute("data-system") === "software:lib-acme-sign")!;
+    const signing = screen
+      .getAllByTestId("dependency-system")
+      .find((b) => b.getAttribute("data-system") === "software:lib-acme-sign")!;
     expect(within(signing).queryByRole("button", { name: "View in Fixes" })).toBeNull();
   });
 
@@ -326,7 +357,9 @@ describe("Dependencies view: systems and blockers", () => {
     const { onViewFix } = await open(DEPENDENCIES_DEMO);
     const blocks = within(detail("openssl 3.0.22").getByTestId("row-blocks")).getAllByRole("listitem");
     const fixture = fixtureRow(DEPENDENCIES_DEMO, "openssl 3.0.22").blocks;
-    expect(blocks.map((b) => text(b))).toEqual(fixture.map((b) => `Blocks the ${b.track_words} track of ${b.system}. View in Fixes`));
+    expect(blocks.map((b) => text(b))).toEqual(
+      fixture.map((b) => `Blocks the ${b.track_words} track of ${b.system}. View in Fixes`),
+    );
     fireEvent.click(within(blocks[1]!).getByRole("button", { name: "View in Fixes" }));
     expect(onViewFix).toHaveBeenCalledWith(fixture[1]!.fix_id);
     expect(detail("openssl 3.5.9").queryByTestId("row-blocks")).toBeNull();
@@ -365,9 +398,13 @@ describe("Dependencies view: details and evidence", () => {
     expect(m.textContent).toContain(fixture.measurement!.copy_label);
     expect(m.textContent).toContain("Measured on a public copy");
     expect(m.textContent).toContain(fixture.measurement!.controls_words);
-    expect(within(m).getByTestId("result-detail").getAttribute("data-run-id")).toBe(String(fixture.measurement!.result!.run_id));
+    expect(within(m).getByTestId("result-detail").getAttribute("data-run-id")).toBe(
+      String(fixture.measurement!.result!.run_id),
+    );
     // The same-copy note comes from the backend and shows only where sent.
-    expect(detail("openssl 3.5.9").getByTestId("measurement").textContent).toContain(fixtureRow(DEPENDENCIES_ISOLATED, "openssl 3.5.9").same_copy_note!);
+    expect(detail("openssl 3.5.9").getByTestId("measurement").textContent).toContain(
+      fixtureRow(DEPENDENCIES_ISOLATED, "openssl 3.5.9").same_copy_note!,
+    );
     expect(detail("python-ecdsa 0.13.2").queryByText(/capable control/)).toBeNull();
   });
 
@@ -421,7 +458,11 @@ describe("Migration screen: Dependencies tab", () => {
 
 /** The demo list, with the 5b words the backend now sends on the openssl 3.0.22 row. */
 function with5b(): View {
-  const reasons = ["OpenSSL added this in 3.5.0; you have 3.0.22.", "OpenSSL added this in 3.5.0; you have 3.0.22.", "OpenSSL added this in 3.5.0; you have 3.0.22."];
+  const reasons = [
+    "OpenSSL added this in 3.5.0; you have 3.0.22.",
+    "OpenSSL added this in 3.5.0; you have 3.0.22.",
+    "OpenSSL added this in 3.5.0; you have 3.0.22.",
+  ];
   return {
     ...DEPENDENCIES_DEMO,
     groups: DEPENDENCIES_DEMO.groups.map((g) => ({
@@ -441,7 +482,10 @@ function with5b(): View {
 }
 
 describe("Dependencies view: the library row (phase 5b)", () => {
-  const headers = () => within(screen.getAllByTestId("data-table")[0]!).getAllByRole("columnheader").map((h) => text(h));
+  const headers = () =>
+    within(screen.getAllByTestId("data-table")[0]!)
+      .getAllByRole("columnheader")
+      .map((h) => text(h));
 
   it("names each library once, with 'direct' or 'through …' under it, and has no Part of column", async () => {
     await open(with5b());
@@ -449,7 +493,9 @@ describe("Dependencies view: the library row (phase 5b)", () => {
     expect(headers()).not.toContain("Part of");
     expect(headers()).toHaveLength(1 + DEPENDENCIES_DEMO.questions.length);
     const openssl = row("openssl 3.0.22");
-    expect(within(openssl).getByTestId("via-words").textContent).toContain(fixtureRow(DEPENDENCIES_DEMO, "openssl 3.0.22").via_words);
+    expect(within(openssl).getByTestId("via-words").textContent).toContain(
+      fixtureRow(DEPENDENCIES_DEMO, "openssl 3.0.22").via_words,
+    );
     // The name breaks only where it has a space or a dot, never between letters.
     expect(openssl.querySelector("p.font-mono")!.className).not.toContain("break-all");
   });
@@ -467,7 +513,9 @@ describe("Dependencies view: the library row (phase 5b)", () => {
 
   it("heads each question with its plain name and the technical name under it", async () => {
     await open(with5b());
-    const algo = within(screen.getAllByTestId("data-table")[0]!).getAllByTestId("algo-name").map((a) => Array.from(a.children).map((c) => c.textContent));
+    const algo = within(screen.getAllByTestId("data-table")[0]!)
+      .getAllByTestId("algo-name")
+      .map((a) => Array.from(a.children).map((c) => c.textContent));
     expect(algo).toEqual([
       ["Quantum-safe key exchange", "ML-KEM-768"],
       ["Hybrid connection", "X25519MLKEM768"],
@@ -477,7 +525,11 @@ describe("Dependencies view: the library row (phase 5b)", () => {
 
   it("says why under every No, in one line", async () => {
     await open(with5b());
-    expect(within(row("openssl 3.0.22")).getAllByTestId("no-reason").map((p) => p.textContent)).toEqual([
+    expect(
+      within(row("openssl 3.0.22"))
+        .getAllByTestId("no-reason")
+        .map((p) => p.textContent),
+    ).toEqual([
       "OpenSSL added this in 3.5.0; you have 3.0.22.",
       "OpenSSL added this in 3.5.0; you have 3.0.22.",
       "OpenSSL added this in 3.5.0; you have 3.0.22.",
@@ -488,8 +540,12 @@ describe("Dependencies view: the library row (phase 5b)", () => {
 
   it("marks a library that blocks a track, under its name", async () => {
     await open(with5b());
-    const marks = within(row("openssl 3.0.22")).getAllByTestId("blocks-marker").map((m) => m.textContent);
-    expect(marks).toEqual(fixtureRow(DEPENDENCIES_DEMO, "openssl 3.0.22").blocks.map((b) => `Blocks ${b.track_words} on ${b.system}`));
+    const marks = within(row("openssl 3.0.22"))
+      .getAllByTestId("blocks-marker")
+      .map((m) => m.textContent);
+    expect(marks).toEqual(
+      fixtureRow(DEPENDENCIES_DEMO, "openssl 3.0.22").blocks.map((b) => `Blocks ${b.track_words} on ${b.system}`),
+    );
     expect(within(row("python 3.12.3")).queryAllByTestId("blocks-marker")).toHaveLength(0);
   });
 
@@ -510,7 +566,11 @@ describe("Dependencies, where each answer came from", () => {
     ...v,
     groups: v.groups.map((g) => ({
       ...g,
-      rows: g.rows.map((r) => ({ ...r, source_tag: ofLibrary(), cells: r.cells.map((c) => ({ ...c, source_tag: ofAnswer(c.label, c.answer) })) })),
+      rows: g.rows.map((r) => ({
+        ...r,
+        source_tag: ofLibrary(),
+        cells: r.cells.map((c) => ({ ...c, source_tag: ofAnswer(c.label, c.answer) })),
+      })),
     })),
   });
 
@@ -520,17 +580,28 @@ describe("Dependencies, where each answer came from", () => {
     for (const r of allRows(view)) {
       const el = row(r.label);
       // the library's own tag, then one per answer
-      expect(within(el).getAllByTestId("source-tag").map((t) => t.getAttribute("data-source"))).toEqual([
-        "file",
-        ...r.cells.map((c) => ofAnswer(c.label, c.answer).key),
-      ]);
+      expect(
+        within(el)
+          .getAllByTestId("source-tag")
+          .map((t) => t.getAttribute("data-source")),
+      ).toEqual(["file", ...r.cells.map((c) => ofAnswer(c.label, c.answer).key)]);
     }
     const openssl = allRows(view).find((r) => r.cells.some((c) => c.label === "release_notes"))!;
-    expect(cells(row(openssl.label)).map((c) => within(c).queryByTestId("source-tag")?.textContent)).toContain("Published");
+    expect(cells(row(openssl.label)).map((c) => within(c).queryByTestId("source-tag")?.textContent)).toContain(
+      "Published",
+    );
     // the answer's own label keeps its words and takes its tag's look, in the table too
     const label = openssl.cells.find((c) => c.label === "release_notes")!.label_words!;
-    expect(within(row(openssl.label)).getAllByText(label).map((l) => l.getAttribute("data-source"))).toContain("published");
-    expect(allRows(view).flatMap((r) => r.cells).some((c) => c.answer === "doesnt_apply")).toBe(true);
+    expect(
+      within(row(openssl.label))
+        .getAllByText(label)
+        .map((l) => l.getAttribute("data-source")),
+    ).toContain("published");
+    expect(
+      allRows(view)
+        .flatMap((r) => r.cells)
+        .some((c) => c.answer === "doesnt_apply"),
+    ).toBe(true);
   });
 
   it("its panel says why the library is there, and each answer keeps its own label in its tag's look", async () => {

@@ -13,6 +13,7 @@ Mixed into Lab. Rules kept here:
     recorded. Everything else works as before.
   - A closed assessment keeps showing the packs that were installed when it was signed off.
 """
+
 from __future__ import annotations
 
 import json
@@ -24,8 +25,21 @@ from sqlalchemy import func, select
 
 from app.canonical import canonical_bytes, sha256_hex
 from app.db import (
-    AppSettingRow, AssessmentRow, ImportRow, OttoCheckRow, OttoDecisionRow, OttoPackRow, OttoStepRow, PlanItemRow, PlanRow, RetestRow,
-    ReviewRow, RunCodeRow, TestRunRow, TestSpecRow, iso,
+    AppSettingRow,
+    AssessmentRow,
+    ImportRow,
+    OttoCheckRow,
+    OttoDecisionRow,
+    OttoPackRow,
+    OttoStepRow,
+    PlanItemRow,
+    PlanRow,
+    RetestRow,
+    ReviewRow,
+    RunCodeRow,
+    TestRunRow,
+    TestSpecRow,
+    iso,
 )
 from app.engine import research
 from app.errors import BadRequest, Conflict
@@ -37,7 +51,7 @@ from app.present import otto as present_otto
 from app.run import components
 
 LIVE_KEY, LIMIT_KEY = "otto_live", "otto_limit_nano"
-NAME_KEY, NAME_MAX = "decision_name", 60        # phase 6a: the name a person typed once, for the decisions they record
+NAME_KEY, NAME_MAX = "decision_name", 60  # phase 6a: the name a person typed once, for the decisions they record
 # The tests a fix is held to besides its own advisory check: the ones that say pass or fail. Speed is left out, as it is
 # in the trial on public copies (timings hold only for the computer they are measured on).
 PASS_OR_FAIL_KINDS = ("official_vectors", "bad_signatures", research.ADVISORY_KIND)
@@ -63,7 +77,7 @@ class OttoMixin:
     sandbox_section: Callable[[], dict]
 
     def _init_otto(self) -> None:
-        self._otto_lock = threading.Lock()                 # one pack install, one decision on a proposal at a time
+        self._otto_lock = threading.Lock()  # one pack install, one decision on a proposal at a time
         self._otto_pack_cache: dict[str, packs.Pack] = {}  # installed packs as read, by fingerprint
 
     # ---------------------------------------------------------------- installed packs
@@ -82,9 +96,11 @@ class OttoMixin:
             pack = self._otto_pack_cache.get(row.fingerprint)
             if pack is None:
                 try:
-                    pack = packs.read_envelope(row.envelope.encode("utf-8"), {row.public_key: (row.signer, bool(row.made_here))})
+                    pack = packs.read_envelope(
+                        row.envelope.encode("utf-8"), {row.public_key: (row.signer, bool(row.made_here))}
+                    )
                 except packs.PackError:
-                    continue      # a stored pack that no longer reads is left out, never half-used
+                    continue  # a stored pack that no longer reads is left out, never half-used
                 self._otto_pack_cache[row.fingerprint] = pack
             out.append((row, pack))
         return out
@@ -112,7 +128,7 @@ class OttoMixin:
             good, bad = packs.found_in(folder, keys)
             found += good
             refused += bad
-        if not self.sandbox_on():        # type: ignore[attr-defined]
+        if not self.sandbox_on():  # type: ignore[attr-defined]
             # A pack that carries asking code (the second format) is taken only while Sandbox research is on.
             held = [p for p in found if p.pack["schema"] == packs.PACK_SCHEMA_2]
             found = [p for p in found if p.pack["schema"] != packs.PACK_SCHEMA_2]
@@ -121,16 +137,42 @@ class OttoMixin:
         rows = self._pack_rows(db)
         installed = {r.fingerprint for r in rows}
         newest = {"version": rows[-1].version, "fingerprint": rows[-1].fingerprint} if rows else None
-        newer = [p for p in found if p.fingerprint not in installed and (newest is None or packs.version_key(p.version) > packs.version_key(newest["version"]))]
+        newer = [
+            p
+            for p in found
+            if p.fingerprint not in installed
+            and (newest is None or packs.version_key(p.version) > packs.version_key(newest["version"]))
+        ]
         if not newer:
-            return None, refused, ("No newer test pack in the updates folder." if found or rows else "No test pack in the updates folder.")
+            return (
+                None,
+                refused,
+                (
+                    "No newer test pack in the updates folder."
+                    if found or rows
+                    else "No test pack in the updates folder."
+                ),
+            )
         for pack in newer:
             if packs.follows(pack, newest) is None:
                 more = len(newer) - 1
-                return pack, refused, (f"Test pack {pack.version} is ready to install." +
-                                       (f" {more} more {'pack follows' if more == 1 else 'packs follow'} it; packs install in order." if more else ""))
-        return None, refused + [{"file": f"{newer[0].version}.json", "reason": packs.follows(newer[0], newest)}], \
-            "A newer pack is in the updates folder, but it does not follow the installed one."
+                return (
+                    pack,
+                    refused,
+                    (
+                        f"Test pack {pack.version} is ready to install."
+                        + (
+                            f" {more} more {'pack follows' if more == 1 else 'packs follow'} it; packs install in order."
+                            if more
+                            else ""
+                        )
+                    ),
+                )
+        return (
+            None,
+            refused + [{"file": f"{newer[0].version}.json", "reason": packs.follows(newer[0], newest)}],
+            "A newer pack is in the updates folder, but it does not follow the installed one.",
+        )
 
     def otto_view(self, scan: bool = False) -> dict:
         """Settings: the Test packs section, the two status lines, and the Live Otto section."""
@@ -140,11 +182,20 @@ class OttoMixin:
             live_on, limit = self._otto_live_on(db), self._otto_limit(db)
             answers = self._answers_line(db, installed)
             unreadable = self._unreadable_packs(db)
-        view = present_otto.settings_view(installed=[(iso(row.installed_at), pack) for row, pack in installed], update=update, refused=refused,
-                                          unreadable=unreadable,
-                                          scan_line=line, harness_status=harness.public_status(), live_on=live_on, limit_nano=limit,
-                                          key_present=model.key_present(), answers_line=answers, name=self._typed_name())
-        view["sandbox"] = self.sandbox_section()        # (prototype: the Sandbox research block)
+        view = present_otto.settings_view(
+            installed=[(iso(row.installed_at), pack) for row, pack in installed],
+            update=update,
+            refused=refused,
+            unreadable=unreadable,
+            scan_line=line,
+            harness_status=harness.public_status(),
+            live_on=live_on,
+            limit_nano=limit,
+            key_present=model.key_present(),
+            answers_line=answers,
+            name=self._typed_name(),
+        )
+        view["sandbox"] = self.sandbox_section()  # (prototype: the Sandbox research block)
         return view
 
     def check_pack_updates(self) -> dict:
@@ -156,9 +207,17 @@ class OttoMixin:
             update, _, line = self._scan_updates(db)
             if update is None or update.version != str(version):
                 raise Conflict(f"Test pack {str(version)[:20]} can't be installed now. {line}")
-            db.add(OttoPackRow(version=update.version, fingerprint=update.fingerprint, public_key=update.public_key, signer=update.signer,
-                               made_here=update.made_here, built_at=update.pack["built_at"],
-                               envelope=canonical_bytes(update.envelope).decode("utf-8")))
+            db.add(
+                OttoPackRow(
+                    version=update.version,
+                    fingerprint=update.fingerprint,
+                    public_key=update.public_key,
+                    signer=update.signer,
+                    made_here=update.made_here,
+                    built_at=update.pack["built_at"],
+                    envelope=canonical_bytes(update.envelope).decode("utf-8"),
+                )
+            )
             db.commit()
         return self.otto_view(scan=True)
 
@@ -222,8 +281,10 @@ class OttoMixin:
                 _set(db, LIMIT_KEY, str(nano))
             if on is not None:
                 if on and not model.key_present():
-                    raise Conflict(f"Live Otto needs an API key on this computer, and none is set ({model.KEY_ENV}). "
-                                   "The answers recorded during the build go on being used.")
+                    raise Conflict(
+                        f"Live Otto needs an API key on this computer, and none is set ({model.KEY_ENV}). "
+                        "The answers recorded during the build go on being used."
+                    )
                 _set(db, LIVE_KEY, "on" if on else "off")
             db.commit()
         return self.otto_view()
@@ -233,7 +294,9 @@ class OttoMixin:
         this call allows them, the switch is on and a key is present. Each run has its own spending limit."""
         with self.db() as db:
             on, limit = self._otto_live_on(db), self._otto_limit(db)
-        return model.OttoModel(recorded_dirs=(self.settings.otto_recorded,), live=bool(live and on), budget=model.Budget(limit_nano=limit))
+        return model.OttoModel(
+            recorded_dirs=(self.settings.otto_recorded,), live=bool(live and on), budget=model.Budget(limit_nano=limit)
+        )
 
     def otto_live_ready(self) -> bool:
         with self.db() as db:
@@ -268,7 +331,9 @@ class OttoMixin:
         return a.closed_at if a is not None else None
 
     def _otto_checks(self, db, plan_id: int) -> list[OttoCheckRow]:
-        return list(db.scalars(select(OttoCheckRow).where(OttoCheckRow.plan_id == plan_id).order_by(OttoCheckRow.id)).all())
+        return list(
+            db.scalars(select(OttoCheckRow).where(OttoCheckRow.plan_id == plan_id).order_by(OttoCheckRow.id)).all()
+        )
 
     def advisories_view(self, plan_id: int) -> dict:
         """Every published advisory in the installed test packs, for one assessment. It words no result and decides
@@ -276,7 +341,7 @@ class OttoMixin:
         upto = self._closed_at(plan_id)
         lab_rows = {r["item_id"]: r for r in self.lab_view(plan_id)["rows"]}
         fixes = self.fixes_view(plan_id).get("fixes") or []
-        states = {f["id"]: f for f in self.fix_states(plan_id)}     # type: ignore[attr-defined]
+        states = {f["id"]: f for f in self.fix_states(plan_id)}  # type: ignore[attr-defined]
         with self.db() as db:
             plan = self._plan(db, plan_id)
             claims = self._claims(db.get(ImportRow, plan.import_id))
@@ -286,7 +351,7 @@ class OttoMixin:
             added = {(c.advisory_id, c.plan_item_id): c for c in self._otto_checks(db, plan_id)}
             # Otto's proposals for this file: one for each ready test and each program it fits, with where a person's
             # decisions on it stand. (Worked out here; nothing is written by looking.)
-            proposed = {p["id"]: p for p in self._proposals(db, plan, ("check",))}     # type: ignore[attr-defined]
+            proposed = {p["id"]: p for p in self._proposals(db, plan, ("check",))}  # type: ignore[attr-defined]
             # The 5c fixes: an advisory is "New" when the pack it first arrived with is the newest one installed (for a
             # closed assessment: the newest one installed when it was closed). One that a later pack only updates
             # arrived earlier, so it is not new.
@@ -298,7 +363,9 @@ class OttoMixin:
             rows = []
             for pack, advisory in entries:
                 here = []
-                design_sha: str | None = advisory["test"]["design_sha256"] if advisory["test"]["state"] == "ready" else None
+                design_sha: str | None = (
+                    advisory["test"]["design_sha256"] if advisory["test"]["state"] == "ready" else None
+                )
                 for program in fitting if design_sha is not None else []:
                     item = checks.existing_item(self, db, plan_id, design_sha or "", program["ref"])
                     shown, first, ledger = None, None, []
@@ -311,26 +378,56 @@ class OttoMixin:
                         if check is not None:
                             ledger = self._ledger_about(plan_id, check.objective_id)
                     proposal = proposed.get(otto_proposals.check_id(advisory["id"], design_sha or "", program["ref"]))
-                    here.append({"program": program["label"], "item_id": item.id if item is not None and not item.removed else None,
-                                 "result": shown, "first": first, "ledger": ledger, "proposal": proposal,
-                                 "decision_ledger": (self.otto_ledger_about(plan_id, proposal["objective_id"])      # type: ignore[attr-defined]
-                                                     if proposal is not None and proposal.get("objective_id") else []),
-                                 # the assessment's own program (one of our demo components), not a real library
-                                 "own_code": components.lookup(program["component"], program["version"]) is not None})
+                    here.append(
+                        {
+                            "program": program["label"],
+                            "item_id": item.id if item is not None and not item.removed else None,
+                            "result": shown,
+                            "first": first,
+                            "ledger": ledger,
+                            "proposal": proposal,
+                            "decision_ledger": (
+                                self.otto_ledger_about(plan_id, proposal["objective_id"])  # type: ignore[attr-defined]
+                                if proposal is not None and proposal.get("objective_id")
+                                else []
+                            ),
+                            # the assessment's own program (one of our demo components), not a real library
+                            "own_code": components.lookup(program["component"], program["version"]) is not None,
+                        }
+                    )
                 item_ids = {h["item_id"] for h in here if h["item_id"] is not None}
-                answering = [f for f in fixes if any(a.get("item_id") in item_ids for a in (states.get(f["id"]) or {}).get("answers") or [])]
+                answering = [
+                    f
+                    for f in fixes
+                    if any(a.get("item_id") in item_ids for a in (states.get(f["id"]) or {}).get("answers") or [])
+                ]
                 # where several programs failed this check, the link goes to a fix that Otto proposes, if there is one
                 fix = next((f for f in answering if f.get("labels")), answering[0] if answering else None)
-                rows.append({"pack": pack, "advisory": advisory, "design": pack.design(design_sha) if design_sha else None, "here": here, "fix": fix,
-                             "arrived": arrived.get(advisory["id"]), "new": arrived.get(advisory["id"]) == newest})
+                rows.append(
+                    {
+                        "pack": pack,
+                        "advisory": advisory,
+                        "design": pack.design(design_sha) if design_sha else None,
+                        "here": here,
+                        "fix": fix,
+                        "arrived": arrived.get(advisory["id"]),
+                        "new": arrived.get(advisory["id"]) == newest,
+                    }
+                )
             a = self.assessment_for(plan_id=plan_id)
             answers = self._pack_answers_line(installed)
         status = harness.public_status()
-        view = present_otto.advisories_view(rows=rows, packs=[pack for _, pack in installed], fitting=[p["label"] for p in fitting],
-                                            closed=upto is not None, harness_status=status, answers_line=answers,
-                                            assessment_id=a.id if a is not None else None)
+        view = present_otto.advisories_view(
+            rows=rows,
+            packs=[pack for _, pack in installed],
+            fitting=[p["label"] for p in fitting],
+            closed=upto is not None,
+            harness_status=status,
+            answers_line=answers,
+            assessment_id=a.id if a is not None else None,
+        )
         # Phase 6, Otto's research loop: the block "New advisories" (Look for new advisories; Design and prove tests).
-        view["lookup"] = self.lookup_view(plan_id)        # type: ignore[attr-defined]
+        view["lookup"] = self.lookup_view(plan_id)  # type: ignore[attr-defined]
         return view
 
     def otto_relations(self, plan_id: int) -> list[dict]:
@@ -349,8 +446,14 @@ class OttoMixin:
                     linked.setdefault(str(advisory_id), []).append(item.id)
             for _, advisory in self._pack_advisories(db, upto):
                 name = (advisory["reading"] or {}).get("plain_name") or "An advisory that could not be read"
-                out.append({"id": advisory["id"], "name": name, "sub": present_otto.TEST_LABELS[advisory["test"]["state"]][0],
-                            "items": linked.get(advisory["id"], [])})
+                out.append(
+                    {
+                        "id": advisory["id"],
+                        "name": name,
+                        "sub": present_otto.TEST_LABELS[advisory["test"]["state"]][0],
+                        "items": linked.get(advisory["id"], []),
+                    }
+                )
         return out
 
     def otto_found(self, db, imp: ImportRow) -> dict:
@@ -360,14 +463,16 @@ class OttoMixin:
         upto = a.closed_at if a is not None else None
         fitting = checks.programs_that_fit(self._claims(imp))
         ready = [advisory for _, advisory in self._pack_advisories(db, upto) if advisory["test"]["state"] == "ready"]
-        return present_otto.found_line(packs=len(self._installed_packs(db, upto)), ready=len(ready), programs=[p["label"] for p in fitting])
+        return present_otto.found_line(
+            packs=len(self._installed_packs(db, upto)), ready=len(ready), programs=[p["label"] for p in fitting]
+        )
 
     def otto_new_checks(self, plan_id: int | None) -> int:
         """How many of Otto's proposed checks in this assessment nobody has decided yet (for the Overview's next step).
         It adds nothing."""
         if plan_id is None or not harness.status().installed or self._closed_at(plan_id) is not None:
             return 0
-        return int(self.otto_waiting(plan_id)["check"])      # type: ignore[attr-defined]
+        return int(self.otto_waiting(plan_id)["check"])  # type: ignore[attr-defined]
 
     def _ledger_about(self, plan_id: int, objective_id: str) -> list[dict]:
         a = self.assessment_for(plan_id=plan_id)
@@ -399,19 +504,40 @@ class OttoMixin:
             return None
         pack, advisory = found
         fix = advisory["fix"]
-        about = {"advisory": advisory["id"], "plain_name": (advisory["reading"] or {}).get("plain_name"), "pack": pack.version,
-                 "item_id": item_id}
+        about = {
+            "advisory": advisory["id"],
+            "plain_name": (advisory["reading"] or {}).get("plain_name"),
+            "pack": pack.version,
+            "item_id": item_id,
+        }
         if fix["kind"] == "update" and program is not None and fix["library"] != program:
             # The advisory is about another library. Its publisher's fix is for that library and says nothing about this one.
-            return {**about, "state": "none", "kind": "none", "library": fix["library"], "version": fix["version"], "summary": None,
-                    "quote": None,
-                    "reason": (f"The advisory is about {fix['library']}, and the fixed version its publisher names is a version of "
-                               f"{fix['library']}. This check failed on {program}, and the test pack holds no fix for {program}.")}
+            return {
+                **about,
+                "state": "none",
+                "kind": "none",
+                "library": fix["library"],
+                "version": fix["version"],
+                "summary": None,
+                "quote": None,
+                "reason": (
+                    f"The advisory is about {fix['library']}, and the fixed version its publisher names is a version of "
+                    f"{fix['library']}. This check failed on {program}, and the test pack holds no fix for {program}."
+                ),
+            }
         quote = None
         if fix["quote"] is not None:
             quote = present_otto._quoted(advisory, fix["quote"])
-        out = {**about, "state": fix["state"], "kind": fix["kind"], "library": fix["library"], "version": fix["version"],
-               "summary": fix["summary"], "reason": fix["reason"], "quote": quote}
+        out = {
+            **about,
+            "state": fix["state"],
+            "kind": fix["kind"],
+            "library": fix["library"],
+            "version": fix["version"],
+            "summary": fix["summary"],
+            "reason": fix["reason"],
+            "quote": quote,
+        }
         if fix["kind"] == "update":
             # The two proof rows of a library's fix: how the update did on public copies before the pack was signed (from
             # the pack, with the research ledger's entries), and what this assessment's own retests show.
@@ -434,7 +560,7 @@ class OttoMixin:
           "not_yet"     no retest on the fixed version has a result for this check (`live`: one is running now)."""
         mine, _ = read_spec(db.get(TestSpecRow, item.spec_hash))
         program = (mine.get("target") or {}).get("claim")
-        expected = []              # every pass-or-fail test of the plan for this same program, this check among them
+        expected = []  # every pass-or-fail test of the plan for this same program, this check among them
         for other in self._items(db, item.plan_id):
             row = db.get(TestSpecRow, other.spec_hash)
             if row is None or row.kind not in PASS_OR_FAIL_KINDS:
@@ -443,20 +569,40 @@ class OttoMixin:
             if other.id == item.id or (program is not None and (spec.get("target") or {}).get("claim") == program):
                 expected.append((other, row.kind, research.title_of(row.kind, spec)))
         # is a retest on that fixed version running right now? (the newest retest of the plan, and a job of it not done)
-        newest_retest = db.scalars(select(RetestRow).where(RetestRow.plan_id == item.plan_id).order_by(RetestRow.id.desc()).limit(1)).first()
+        newest_retest = db.scalars(
+            select(RetestRow).where(RetestRow.plan_id == item.plan_id).order_by(RetestRow.id.desc()).limit(1)
+        ).first()
         live = False
         if newest_retest is not None and newest_retest.version == fixed:
-            live = any((job := self.jobs.get((other.id, "retest"))) is not None and job.status != "done" for other, _, _ in expected)
-        runs = db.scalars(select(TestRunRow).where(TestRunRow.plan_item_id == item.id, TestRunRow.phase == "retest",
-                                                   TestRunRow.component_name == library, TestRunRow.component_version == fixed)
-                          .order_by(TestRunRow.id.desc())).all()
+            live = any(
+                (job := self.jobs.get((other.id, "retest"))) is not None and job.status != "done"
+                for other, _, _ in expected
+            )
+        runs = db.scalars(
+            select(TestRunRow)
+            .where(
+                TestRunRow.plan_item_id == item.id,
+                TestRunRow.phase == "retest",
+                TestRunRow.component_name == library,
+                TestRunRow.component_version == fixed,
+            )
+            .order_by(TestRunRow.id.desc())
+        ).all()
         for run in runs:
             result = self._result(db, run)
             if result is None:
                 continue
-            same = db.scalars(select(TestRunRow).where(TestRunRow.plan_id == item.plan_id, TestRunRow.phase == "retest",
-                                                       TestRunRow.retest_id == run.retest_id, TestRunRow.component_name == library,
-                                                       TestRunRow.component_version == fixed).order_by(TestRunRow.id)).all()
+            same = db.scalars(
+                select(TestRunRow)
+                .where(
+                    TestRunRow.plan_id == item.plan_id,
+                    TestRunRow.phase == "retest",
+                    TestRunRow.retest_id == run.retest_id,
+                    TestRunRow.component_name == library,
+                    TestRunRow.component_version == fixed,
+                )
+                .order_by(TestRunRow.id)
+            ).all()
             newest: dict[int, TestRunRow] = {}
             for other in same:
                 newest[other.plan_item_id] = other
@@ -468,7 +614,15 @@ class OttoMixin:
                 if said is None:
                     missing.append({"item_id": other.id, "kind": kind, "title": title})
                 else:
-                    others.append({"item_id": other.id, "kind": kind, "title": title, "code": said["code"], "label": said["label"]})
+                    others.append(
+                        {
+                            "item_id": other.id,
+                            "kind": kind,
+                            "title": title,
+                            "code": said["code"],
+                            "label": said["label"],
+                        }
+                    )
             failing = [o for o in others if o["code"] != "passed"]
             still_running = live and newest_retest is not None and run.retest_id == newest_retest.id
             if result["code"] != "passed" or failing:
@@ -477,13 +631,27 @@ class OttoMixin:
                 state = "running" if still_running else "unfinished"
             else:
                 state = "passed"
-            return {"state": state, "library": library, "version": fixed, "item_id": item.id, "run_id": run.id, "retest_id": run.retest_id,
-                    "finished_at": run.finished_at, "check": {"code": result["code"], "label": result["label"]},
-                    "tests": len(others) + len(missing) + 1, "done": len(others) + 1, "failing": len(failing), "others": others,
-                    "missing": missing, "live": bool(still_running)}
+            return {
+                "state": state,
+                "library": library,
+                "version": fixed,
+                "item_id": item.id,
+                "run_id": run.id,
+                "retest_id": run.retest_id,
+                "finished_at": run.finished_at,
+                "check": {"code": result["code"], "label": result["label"]},
+                "tests": len(others) + len(missing) + 1,
+                "done": len(others) + 1,
+                "failing": len(failing),
+                "others": others,
+                "missing": missing,
+                "live": bool(still_running),
+            }
         return {"state": "not_yet", "library": library, "version": fixed, "item_id": item.id, "live": bool(live)}
 
-    def otto_result_fix(self, db, spec: dict, name: str | None, version: str | None, plan_id: int | None = None) -> dict | None:
+    def otto_result_fix(
+        self, db, spec: dict, name: str | None, version: str | None, plan_id: int | None = None
+    ) -> dict | None:
         """What the Suggested fix line of an advisory check's result may say: Otto's fix for this program, when the
         installed packs carry one. For the assessment's own demo program it points to Fixes."""
         advisory_id = ((spec.get("inputs") or {}).get("advisory") or {}).get("id")
@@ -496,8 +664,14 @@ class OttoMixin:
         if fix["kind"] == "update" and fix["library"] == name:
             # (the first proof row only: it comes from the pack and never changes. The second row depends on later retests,
             #  so it is said in Fixes and on Evidence's fix line, not in a result's own words.)
-            return {"state": fix["state"], "kind": "update", "library": fix["library"], "version": fix["version"], "reason": fix["reason"],
-                    "public_line": present_otto.public_copies_row(fix, found[1])["line"]}
+            return {
+                "state": fix["state"],
+                "kind": "update",
+                "library": fix["library"],
+                "version": fix["version"],
+                "reason": fix["reason"],
+                "public_line": present_otto.public_copies_row(fix, found[1])["line"],
+            }
         return None
 
     # ---------------------------------------------------------------- hooks around a run of an advisory check
@@ -524,11 +698,22 @@ class OttoMixin:
             record = run_record(run)
             stored = review_dict(review)
             code = db.scalars(select(RunCodeRow).where(RunCodeRow.run_id == run_id)).first()
-            ran_on = {"name": run.component_name, "version": run.component_version, "mode": run.mode,
-                      "commit": code.commit if code is not None else None}
-            entry = dict(spec_hash=run.spec_hash, run_id=run.id, run_sha256=sha256_hex(record),
-                         review_sha256=review_fingerprint(stored),
-                         proposed_by=stored["proposed_by"], reviewer=stored["reviewer"], phase=run.phase, ran_on=ran_on)
+            ran_on = {
+                "name": run.component_name,
+                "version": run.component_version,
+                "mode": run.mode,
+                "commit": code.commit if code is not None else None,
+            }
+            entry = dict(
+                spec_hash=run.spec_hash,
+                run_id=run.id,
+                run_sha256=sha256_hex(record),
+                review_sha256=review_fingerprint(stored),
+                proposed_by=stored["proposed_by"],
+                reviewer=stored["reviewer"],
+                phase=run.phase,
+                ran_on=ran_on,
+            )
             objective, plan_id = check.objective_id, run.plan_id
         a = self.assessment_for(plan_id=plan_id)
         if a is None:
@@ -536,9 +721,11 @@ class OttoMixin:
         try:
             assurance.Ledger(self.settings.data_dir, a.id).record_run(objective, **entry)
         except harness.OttoNotInstalled:
-            pass      # (the run was refused before it started when Otto is missing; this only guards a removal in between)
+            pass  # (the run was refused before it started when Otto is missing; this only guards a removal in between)
 
-    def otto_record_step(self, plan_id: int, advisory_id: str, step: model.Step, outcome: str, refusal: str | None) -> int:
+    def otto_record_step(
+        self, plan_id: int, advisory_id: str, step: model.Step, outcome: str, refusal: str | None
+    ) -> int:
         """Keep one Claude step taken in the app: in the database (so a view never asks twice) and, in full, in the
         assessment's Otto ledger. Returns the stored row's id."""
         record = step.record()
@@ -546,14 +733,31 @@ class OttoMixin:
         a = self.assessment_for(plan_id=plan_id)
         if a is not None:
             try:
-                claim, _ = assurance.Ledger(self.settings.data_dir, a.id).record_step(advisory_id, record, outcome, refusal)
+                claim, _ = assurance.Ledger(self.settings.data_dir, a.id).record_step(
+                    advisory_id, record, outcome, refusal
+                )
             except harness.OttoNotInstalled:
                 claim = None
         with self.db() as db:
-            row = OttoStepRow(plan_id=plan_id, step=step.step, advisory_id=advisory_id, source=step.source, model=step.model, prompt=step.prompt,
-                              answer=step.answer, prompt_sha256=step.prompt_sha256, answer_sha256=step.answer_sha256,
-                              input_tokens=step.input_tokens, output_tokens=step.output_tokens, cost_nano_usd=step.cost_nano_usd, at=step.at,
-                              how=step.how[:300], outcome=outcome, refusal=(refusal or None) and str(refusal)[:300], claim_id=claim)
+            row = OttoStepRow(
+                plan_id=plan_id,
+                step=step.step,
+                advisory_id=advisory_id,
+                source=step.source,
+                model=step.model,
+                prompt=step.prompt,
+                answer=step.answer,
+                prompt_sha256=step.prompt_sha256,
+                answer_sha256=step.answer_sha256,
+                input_tokens=step.input_tokens,
+                output_tokens=step.output_tokens,
+                cost_nano_usd=step.cost_nano_usd,
+                at=step.at,
+                how=step.how[:300],
+                outcome=outcome,
+                refusal=(refusal or None) and str(refusal)[:300],
+                claim_id=claim,
+            )
             db.add(row)
             db.commit()
             return row.id
@@ -561,13 +765,29 @@ class OttoMixin:
     def otto_stored_step(self, plan_id: int, step: str, prompt_sha256: str) -> dict | None:
         """The stored Claude step for exactly this prompt in this assessment, if one was taken before."""
         with self.db() as db:
-            row = db.scalars(select(OttoStepRow).where(OttoStepRow.plan_id == plan_id, OttoStepRow.step == step,
-                                                       OttoStepRow.prompt_sha256 == prompt_sha256).order_by(OttoStepRow.id.desc())).first()
+            row = db.scalars(
+                select(OttoStepRow)
+                .where(
+                    OttoStepRow.plan_id == plan_id, OttoStepRow.step == step, OttoStepRow.prompt_sha256 == prompt_sha256
+                )
+                .order_by(OttoStepRow.id.desc())
+            ).first()
             if row is None:
                 return None
-            return {"id": row.id, "answer": row.answer, "source": row.source, "model": row.model, "how": row.how, "at": row.at,
-                    "outcome": row.outcome, "refusal": row.refusal, "prompt_sha256": row.prompt_sha256, "answer_sha256": row.answer_sha256,
-                    "claim_id": row.claim_id, "cost_nano_usd": row.cost_nano_usd}
+            return {
+                "id": row.id,
+                "answer": row.answer,
+                "source": row.source,
+                "model": row.model,
+                "how": row.how,
+                "at": row.at,
+                "outcome": row.outcome,
+                "refusal": row.refusal,
+                "prompt_sha256": row.prompt_sha256,
+                "answer_sha256": row.answer_sha256,
+                "claim_id": row.claim_id,
+                "cost_nano_usd": row.cost_nano_usd,
+            }
 
     # ---------------------------------------------------------------- what the evidence file gets
 
@@ -577,17 +797,22 @@ class OttoMixin:
         into the ledger, and every Claude step taken in the app. None when the assessment has nothing of Otto's."""
         a = self.assessment_for(plan_id=plan_id)
         # Phase 6, Otto's research loop: every look for new advisories and every research run of this assessment.
-        lookups = self.lookups_evidence(plan_id)                 # type: ignore[attr-defined]
+        lookups = self.lookups_evidence(plan_id)  # type: ignore[attr-defined]
         made_by_runs = {str(run["pack_version"]) for run in lookups["research"] if run.get("pack_version")}
         # Sandbox research (a prototype): a watched weakness that reads "Test proposed" says so because an installed
         # pack holds a proven test for it. That pack goes into the file with the list, whichever assessment's run made
         # it, so the file itself shows what the word rests on (and the verify command can check it).
         # (Only where the list itself goes into the file: with the switch on, or where a person's stop or watch again is
         #  kept. With the switch off and no such mark the file is exactly what it was.)
-        watched = self.watch_list_evidence(plan_id)          # type: ignore[attr-defined]
-        if watched is not None and not (self.sandbox_on() or watched["marks"]):      # type: ignore[attr-defined]
+        watched = self.watch_list_evidence(plan_id)  # type: ignore[attr-defined]
+        if watched is not None and not (self.sandbox_on() or watched["marks"]):  # type: ignore[attr-defined]
             watched = None
-        proposed = {str(i).upper() for item in (watched or {}).get("items") or [] if item["test"]["key"] == "test_proposed" for i in item["ids"]}
+        proposed = {
+            str(i).upper()
+            for item in (watched or {}).get("items") or []
+            if item["test"]["key"] == "test_proposed"
+            for i in item["ids"]
+        }
         with self.db() as db:
             added = self._otto_checks(db, plan_id)
             steps = db.scalars(select(OttoStepRow).where(OttoStepRow.plan_id == plan_id).order_by(OttoStepRow.id)).all()
@@ -596,36 +821,81 @@ class OttoMixin:
             # A run on such a copy names its image, and the image is named after the copy set: the pack is what says
             # which files and which asking code that is, so it goes into the file with the run.
             plan = self._plan(db, plan_id)
-            named = {(p["component"], p["version"]) for p in research.programs(self._claims(db.get(ImportRow, plan.import_id)))}
+            named = {
+                (p["component"], p["version"])
+                for p in research.programs(self._claims(db.get(ImportRow, plan.import_id)))
+            }
             describes = set()
             for row, pack in self._installed_packs(db, self._closed_at(plan_id)):
                 for entry in pack.pack["advisories"]:
-                    if proposed and entry["test"]["state"] == "ready" and \
-                            proposed & {str(i).upper() for i in [entry["id"], *(entry.get("aliases") or [])]}:
+                    if (
+                        proposed
+                        and entry["test"]["state"] == "ready"
+                        and proposed & {str(i).upper() for i in [entry["id"], *(entry.get("aliases") or [])]}
+                    ):
                         describes.add(row.fingerprint)
                 for entry in pack.pack["advisories"] if pack.pack["schema"] == packs.PACK_SCHEMA_2 else []:
                     copies = (entry["test"].get("sandbox") or {}).get("set")
                     if copies and any((copies["library"], v["version"]) in named for v in copies["versions"]):
                         describes.add(row.fingerprint)
-            if not added and not steps and not decided and not lookups["looks"] and not lookups["research"] and not describes:
+            if (
+                not added
+                and not steps
+                and not decided
+                and not lookups["looks"]
+                and not lookups["research"]
+                and not describes
+            ):
                 return None
             # the packs this assessment's checks came from, and every pack a research run of this assessment made
             # (the proof of what that run found is in its pack, whether or not a check of it was accepted)
             wanted = {c.pack_fingerprint for c in added} | describes
-            envelopes = [json.loads(row.envelope) for row in self._pack_rows(db) if row.fingerprint in wanted or row.version in made_by_runs]
+            envelopes = [
+                json.loads(row.envelope)
+                for row in self._pack_rows(db)
+                if row.fingerprint in wanted or row.version in made_by_runs
+            ]
             checks_out = []
             for c in added:
                 row = db.get(TestSpecRow, c.spec_hash)
                 spec, _ = read_spec(row)
                 item = db.get(PlanItemRow, c.plan_item_id)
-                checks_out.append({"item_id": c.plan_item_id, "title": research.title_of(research.ADVISORY_KIND, spec), "advisory": c.advisory_id,
-                                   "spec_hash": c.spec_hash, "spec": spec, "design_sha256": c.design_sha256, "pack": c.pack_version,
-                                   "pack_fingerprint": c.pack_fingerprint, "lock_entry": c.objective_id, "added_at": iso(c.created_at),
-                                   "in_plan": bool(item is not None and not item.removed)})
-            steps_out = [{"step": s.step, "advisory": s.advisory_id, "source": s.source, "model": s.model, "prompt": s.prompt, "answer": s.answer,
-                          "prompt_sha256": s.prompt_sha256, "answer_sha256": s.answer_sha256, "input_tokens": s.input_tokens,
-                          "output_tokens": s.output_tokens, "cost_nano_usd": s.cost_nano_usd, "at": s.at, "how": s.how, "outcome": s.outcome,
-                          "refusal": s.refusal, "ledger_entry": s.claim_id} for s in steps]
+                checks_out.append(
+                    {
+                        "item_id": c.plan_item_id,
+                        "title": research.title_of(research.ADVISORY_KIND, spec),
+                        "advisory": c.advisory_id,
+                        "spec_hash": c.spec_hash,
+                        "spec": spec,
+                        "design_sha256": c.design_sha256,
+                        "pack": c.pack_version,
+                        "pack_fingerprint": c.pack_fingerprint,
+                        "lock_entry": c.objective_id,
+                        "added_at": iso(c.created_at),
+                        "in_plan": bool(item is not None and not item.removed),
+                    }
+                )
+            steps_out = [
+                {
+                    "step": s.step,
+                    "advisory": s.advisory_id,
+                    "source": s.source,
+                    "model": s.model,
+                    "prompt": s.prompt,
+                    "answer": s.answer,
+                    "prompt_sha256": s.prompt_sha256,
+                    "answer_sha256": s.answer_sha256,
+                    "input_tokens": s.input_tokens,
+                    "output_tokens": s.output_tokens,
+                    "cost_nano_usd": s.cost_nano_usd,
+                    "at": s.at,
+                    "how": s.how,
+                    "outcome": s.outcome,
+                    "refusal": s.refusal,
+                    "ledger_entry": s.claim_id,
+                }
+                for s in steps
+            ]
         status = harness.public_status()
         ledger: dict = {"height": 0, "head": None, "root": None, "lines": []}
         bound: list[dict] = []
@@ -635,34 +905,62 @@ class OttoMixin:
                 head = book.head()
                 if head is not None:
                     ledger = {**head, "lines": book.lines()}
-                    bound = [{"ledger_entry": book.record_id(entry), "lock_entry": entry["payload"]["objective_id"],
-                              "run_id": entry["payload"]["artifact"]["run_id"]}
-                             for entry in book.entries() if entry["kind"] == "claim" and "run_id" in entry["payload"]["artifact"]]
+                    bound = [
+                        {
+                            "ledger_entry": book.record_id(entry),
+                            "lock_entry": entry["payload"]["objective_id"],
+                            "run_id": entry["payload"]["artifact"]["run_id"],
+                        }
+                        for entry in book.entries()
+                        if entry["kind"] == "claim" and "run_id" in entry["payload"]["artifact"]
+                    ]
             except harness.OttoNotInstalled:
-                ledger["note"] = "The Otto harness was not installed when this file was made, so the ledger could not be read."
+                ledger["note"] = (
+                    "The Otto harness was not installed when this file was made, so the ledger could not be read."
+                )
         runs_out = []
         with self.db() as db:
             for link in bound:
                 # Every run the ledger binds, in full: its record as fingerprinted and its review, so the binding can be
                 # recomputed from this file alone.
                 run = db.get(TestRunRow, link["run_id"])
-                review = db.scalars(select(ReviewRow).where(ReviewRow.run_id == link["run_id"])).first() if run is not None else None
+                review = (
+                    db.scalars(select(ReviewRow).where(ReviewRow.run_id == link["run_id"])).first()
+                    if run is not None
+                    else None
+                )
                 if run is None or review is None:
                     continue
-                runs_out.append({**link, "phase": run.phase, "record": run_record(run), "review": review_part(review_dict(review))})
-        return {"schema": "isogeny.otto-evidence/1",
-                "harness": {"repository": status["repository"], "commit": status["commit"], "version": status["version"],
-                            "installed": status["installed"]},
-                "packs": envelopes, "checks": checks_out, "ledger": ledger, "runs": runs_out, "steps": steps_out,
-                # Otto proposes; a person decides: every proposal of this assessment as it stands, and every accept, reject,
-                # undo and reconsider on it, each with who and when and its entry in the ledger.
-                "proposals": self.otto_proposals_evidence(plan_id),      # type: ignore[attr-defined]
-                "lookups": lookups,
-                "decisions_note": ("Each proposal is decided by a person. A decision is recorded with who and when, in this file and in the "
-                                   "ledger. This version has one login: whoever is at the keyboard records each decision, under the name "
-                                   "shown. A decision is not a result."),
-                "note": ("The ledger binds each run of an advisory check to the test that was locked before it, and shows that the reviewer was "
-                         "not the proposer. It holds no result: results are in the checks of this file, decided by the reviewer.")}
+                runs_out.append(
+                    {**link, "phase": run.phase, "record": run_record(run), "review": review_part(review_dict(review))}
+                )
+        return {
+            "schema": "isogeny.otto-evidence/1",
+            "harness": {
+                "repository": status["repository"],
+                "commit": status["commit"],
+                "version": status["version"],
+                "installed": status["installed"],
+            },
+            "packs": envelopes,
+            "checks": checks_out,
+            "ledger": ledger,
+            "runs": runs_out,
+            "steps": steps_out,
+            # Otto proposes; a person decides: every proposal of this assessment as it stands, and every accept, reject,
+            # undo and reconsider on it, each with who and when and its entry in the ledger.
+            "proposals": self.otto_proposals_evidence(plan_id),  # type: ignore[attr-defined]
+            "lookups": lookups,
+            "decisions_note": (
+                "Each proposal is decided by a person. A decision is recorded with who and when, in this file and in the "
+                "ledger. This version has one login: whoever is at the keyboard records each decision, under the name "
+                "shown. A decision is not a result."
+            ),
+            "note": (
+                "The ledger binds each run of an advisory check to the test that was locked before it, and shows that the reviewer was "
+                "not the proposer. It holds no result: results are in the checks of this file, decided by the reviewer."
+            ),
+        }
 
 
 def review_fingerprint(stored: dict) -> str:
@@ -673,6 +971,7 @@ def review_fingerprint(stored: dict) -> str:
 
 def _aware(value: datetime) -> datetime:
     from datetime import timezone
+
     return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
 
 
@@ -693,7 +992,9 @@ def _dollars(text: object) -> int:
             raise ValueError
         nano = int(whole) * model.NANO + int((cents + "00")[:2]) * (model.NANO // 100)
     except ValueError:
-        raise BadRequest("The spending limit is a number of US dollars, for example 2 or 2.50.", field="limit") from None
+        raise BadRequest(
+            "The spending limit is a number of US dollars, for example 2 or 2.50.", field="limit"
+        ) from None
     if not 0 < nano <= MAX_LIMIT_NANO:
         raise BadRequest("The spending limit must be more than 0 and at most 1000 US dollars.", field="limit")
     return nano

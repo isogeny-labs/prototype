@@ -82,7 +82,9 @@ class Session(Shape):
     login: LoginMethods
     user: SessionUser | None = Field(description="Who is logged in with GitHub; null for the password login.")
     mode: Mode
-    mode_line: str = Field(description="The sentence under the header saying how software is run, written by the backend.")
+    mode_line: str = Field(
+        description="The sentence under the header saying how software is run, written by the backend."
+    )
     demo_server: DemoServer
 
 
@@ -132,13 +134,19 @@ class Import(Shape):
         description="Plain sentences about what the upload started on this computer (for example the demo test servers). Only on the upload reply.",
     )
     assessment_id: int | None = Field(default=None, description="Phase 5a: the assessment this import belongs to.")
-    settings_title: str = Field(default=None, description='The heading of the settings list, e.g. "System settings from the file".')
+    settings_title: str = Field(
+        default=None, description='The heading of the settings list, e.g. "System settings from the file".'
+    )
     settings: list[ImportSetting] = Field(
         default=None,
         description="Settings rows the file carries (not claims: nothing checks them). Optional: older stored answers may lack it.",
     )
-    otto: "ImportOtto | None" = Field(default=None, description='Phase 5c: "N checks may apply", marked From Otto. Nothing runs on import.')
-    claim_source_tag: Source | None = Field(default=None, description="22 November 2026: where every claim on this page came from (From your file).")
+    otto: "ImportOtto | None" = Field(
+        default=None, description='Phase 5c: "N checks may apply", marked From Otto. Nothing runs on import.'
+    )
+    claim_source_tag: Source | None = Field(
+        default=None, description="22 November 2026: where every claim on this page came from (From your file)."
+    )
 
 
 class ImportSetting(Shape):
@@ -165,12 +173,17 @@ class Result(Shape):
     found: str
     reason: str | None
     evidence: list[Evidence]
-    summary: str = Field(description="One plain sentence: what was found and why that gives this result. Shown on top of the row.")
+    summary: str = Field(
+        description="One plain sentence: what was found and why that gives this result. Shown on top of the row."
+    )
     also_noticed: list[str] = Field(
         description="Things the check saw that the file didn't ask about. Side notes, never a result. Often empty."
     )
-    source_tag: Source | None = Field(default=None, description="Where it came from (22 November 2026): Observed live for a server, Proven in "
-                                                            "the lab for a signing program, From your file where it couldn't be checked.")
+    source_tag: Source | None = Field(
+        default=None,
+        description="Where it came from (22 November 2026): Observed live for a server, Proven in "
+        "the lab for a signing program, From your file where it couldn't be checked.",
+    )
 
 
 class VerifyRun(Shape):
@@ -179,7 +192,9 @@ class VerifyRun(Shape):
     started_at: str
     finished_at: str
     results: list[Result]
-    otto_note: str = Field(default="", description="Phase 5c: one sentence. Verify is unchanged and nothing is proposed on it yet.")
+    otto_note: str = Field(
+        default="", description="Phase 5c: one sentence. Verify is unchanged and nothing is proposed on it yet."
+    )
 
 
 # ---- Phase 2: test plan and Evidence Lab. All wording comes from the backend. ----
@@ -228,6 +243,7 @@ SourceKey = Literal["live", "lab", "file", "published"]
 class Source(Shape):
     """The one tag beside a result's, a status's or a fix's own word: Observed live, Proven in the lab, From your file or
     Published. It decides nothing and changes no result."""
+
     key: SourceKey
     label: str
     meaning: str = Field(description="What the tag means, in one line, wherever it is shown.")
@@ -236,6 +252,7 @@ class Source(Shape):
 
 class SourceCount(Shape):
     """How many of a group's checks rest on one source (the Overview's line)."""
+
     key: SourceKey
     label: str
     meaning: str
@@ -280,10 +297,18 @@ class TestCard(Shape):
     can_run: bool
     can_remove: bool
     group: str | None = Field(description="The key of the group this card is under, when the plan is grouped.")
-    advisory: CardAdvisory | None = Field(default=None, description="Phase 5c, an advisory check only: the advisory it came from.")
-    from_otto: str | None = Field(default=None, description='Phase 5c: "From Otto" on a check that came from an accepted proposal.')
-    remove_blocked: str | None = Field(default=None, description="Phase 5c: why this card has no remove button (it is undone on Advisories).")
-    source_tag: Source | None = Field(default=None, description="22 November 2026: where its result came from; null until it has one.")
+    advisory: CardAdvisory | None = Field(
+        default=None, description="Phase 5c, an advisory check only: the advisory it came from."
+    )
+    from_otto: str | None = Field(
+        default=None, description='Phase 5c: "From Otto" on a check that came from an accepted proposal.'
+    )
+    remove_blocked: str | None = Field(
+        default=None, description="Phase 5c: why this card has no remove button (it is undone on Advisories)."
+    )
+    source_tag: Source | None = Field(
+        default=None, description="22 November 2026: where its result came from; null until it has one."
+    )
 
 
 class CardAdvisory(Shape):
@@ -325,12 +350,16 @@ class PlanView(Shape):
     running: bool
     can_run_all: bool
     has_results: bool
-    has_migration: bool = Field(description="A migration measurement exists for this plan (the Fixes step opens for it too).")
+    has_migration: bool = Field(
+        description="A migration measurement exists for this plan (the Fixes step opens for it too)."
+    )
     max_parallel: int
     grouped: bool = Field(
         description="True when the file has more than one server or signing program: cards are drawn under group headings."
     )
-    groups: list[PlanGroup] = Field(description="In display order. Sent even when not grouped (the screen then ignores them).")
+    groups: list[PlanGroup] = Field(
+        description="In display order. Sent even when not grouped (the screen then ignores them)."
+    )
     not_tested: NotTested | None
     tests: list[TestCard] = Field(description="When grouped, already ordered group by group, in the order of `groups`.")
     catalog_title: str
@@ -462,8 +491,12 @@ class LabResult(Badge):
     evidence: list[EvidenceBlock]
     run_record: RunRecordView
     locked_test: LockedTestView
-    real: bool = Field(description="True when the component is a real library, not one of our demo components (phase 4c).")
-    sandbox_copy: bool = Field(default=False, description="Sandbox research: the run was on a public copy sandbox research made.")
+    real: bool = Field(
+        description="True when the component is a real library, not one of our demo components (phase 4c)."
+    )
+    sandbox_copy: bool = Field(
+        default=False, description="Sandbox research: the run was on a public copy sandbox research made."
+    )
     fix_title: str
     suggested_fix: str | None
     fix_line: FixLine | None = Field(
@@ -471,14 +504,18 @@ class LabResult(Badge):
     )
     reviewed: LabResultReviewed | None
     research: ResearchView | None
-    advisories: Advisories | None = Field(description="Phase 4c: advisories for this version (null for our own demo code).")
+    advisories: Advisories | None = Field(
+        description="Phase 4c: advisories for this version (null for our own demo code)."
+    )
     otto: OttoResultBlock | None = Field(
         default=None,
         description="Phase 5c, on a result of an advisory check only: where the check came from, the trial on public copies, "
-                    "the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result.",
+        "the decisions on its proposal with who and when, and its Otto ledger entries. Records, never a result.",
     )
-    source_tag: Source | None = Field(default=None, description="Where it came from (22 November 2026): what this rests on; null where nothing was observed or proven (a check not run yet, or that couldn't run).")
-
+    source_tag: Source | None = Field(
+        default=None,
+        description="Where it came from (22 November 2026): what this rests on; null where nothing was observed or proven (a check not run yet, or that couldn't run).",
+    )
 
 
 class MeasurementResult(LabResult):
@@ -487,6 +524,7 @@ class MeasurementResult(LabResult):
 
     code: ResultCode | Literal["hybrid", "pq_only", "classical", "post_quantum"]
     fix_line: FixLine | None = Field(default=None, description="Not sent here: a measurement has no fix line.")
+
 
 class RowStatus(Shape):
     status: JobStatus
@@ -544,7 +582,9 @@ class LabView(Shape):
     is_demo: bool
     view: Literal["results", "before_after"]
     subline: RichText
-    code_line: RichText | None = Field(description='"Code they ran on: before, ...; after, ..." (before/after view only).')
+    code_line: RichText | None = Field(
+        description='"Code they ran on: before, ...; after, ..." (before/after view only).'
+    )
     disclaimer: str
     columns: LabViewColumns | None
     grouped: bool
@@ -582,7 +622,9 @@ class FixLine(Shape):
     look: Literal["plain", "pass", "fail", "dashed"]
     busy: bool = Field(description="true while the proof runs: a small spinner before the words")
     button: str = Field(description='"View in Fixes"')
-    rows: list[str] | None = Field(default=None, description="Phase 5c: a library's fix from Otto: its two proof rows, word for word as in Fixes.")
+    rows: list[str] | None = Field(
+        default=None, description="Phase 5c: a library's fix from Otto: its two proof rows, word for word as in Fixes."
+    )
 
 
 FixStatusKey = Literal[
@@ -604,7 +646,7 @@ class FixStatus(Shape):
 
 
 class StrongLabel(Shape):
-    """"Before: " + strong + rest, e.g. lead "Before:", strong "acme-sign 1.4.2", rest ", nothing removed here"."""
+    """ "Before: " + strong + rest, e.g. lead "Before:", strong "acme-sign 1.4.2", rest ", nothing removed here"."""
 
     lead: str
     strong: str
@@ -654,7 +696,9 @@ class ProofRow(Shape):
     proof: ProofCell | None = Field(description="null while this test has no proof result yet")
     waiting: ProofWaiting | None = Field(description="set while it is waiting or running")
     control: str = Field(description="the control line under the proof cell")
-    check: ProofRowCheck = Field(description='"Passed", "No slowdown", "Same as before", "Did not pass", "Not finished yet"')
+    check: ProofRowCheck = Field(
+        description='"Passed", "No slowdown", "Same as before", "Did not pass", "Not finished yet"'
+    )
 
 
 class ProofTable(Shape):
@@ -849,7 +893,10 @@ class FixDetailProof(Shape):
     badge: FixDetailProofBadge | None
     text: str
     muted: str | None = Field(description='"Not offered yet."')
-    source_tag: Source | None = Field(default=None, description="22 November 2026: Proven in the lab once a proof has passed or failed; null otherwise.")
+    source_tag: Source | None = Field(
+        default=None,
+        description="22 November 2026: Proven in the lab once a proof has passed or failed; null otherwise.",
+    )
 
 
 class FixDetailPullRequest(Shape):
@@ -891,22 +938,31 @@ class ImpactLineText(Shape):
 class Impact(Shape):
     """Phase 4e: where the part a change touches is used. Read from the scanner files, the dependency lists and the
     knowledge base; it decides nothing."""
+
     title: str = Field(description='"What this change touches" on a fix, "Where it is used" on a library.')
     part: str = Field(description='The part: "localhost:8443" | "acme-sign 1.4.2" | "openssl 3.0.22".')
-    count: int = Field(description="Systems of this assessment it reaches, plus one for each other project that names it.")
+    count: int = Field(
+        description="Systems of this assessment it reaches, plus one for each other project that names it."
+    )
     count_line: str
     here: ImpactPart
     elsewhere: ImpactPart
     notes: list[str]
-    compatible: ImpactLineText | None = Field(description='"Can the parts that use it take 1.4.3?" with "Not known" and why.')
-    connect: ImpactLineText | None = Field(description='"Who can still connect": whether a client check applies, and where it is.')
+    compatible: ImpactLineText | None = Field(
+        description='"Can the parts that use it take 1.4.3?" with "Not known" and why.'
+    )
+    connect: ImpactLineText | None = Field(
+        description='"Who can still connect": whether a client check applies, and where it is.'
+    )
 
 
 class FixDetail(Shape):
     id: str = Field(description='"fix-ecdsa-range-check" | "fix-tls-versions"')
     kind: Literal["code", "text"]
     title: str
-    list_source: str = Field(description='in the list: "Came from 2 failed tests: Official test vectors, Bad signatures"')
+    list_source: str = Field(
+        description='in the list: "Came from 2 failed tests: Official test vectors, Bad signatures"'
+    )
     source: RichText = Field(
         description='in the summary: "Came from 2 failed tests on signing component acme-sign 1.4.2: ..."'
     )
@@ -924,17 +980,31 @@ class FixDetail(Shape):
     sections_note: str | None = Field(description="shown instead of sections before the code is connected")
     change_box: ChangeView | None = Field(description="Phase 4b: the change box, drawn first in the fix's detail.")
     advisories: Advisories | None = Field(description="Phase 4c: advisories for a text-only fix on a real library.")
-    proof_rows: list["FixProofRow"] | None = Field(default=None, description="Phase 5c: a library's fix from Otto: two rows in place of the Proof line.")
-    proposal: "OttoProposal | None" = Field(default=None, description="Phase 5c: a fix of Otto's is a proposal: its state, decisions and buttons.")
+    proof_rows: list["FixProofRow"] | None = Field(
+        default=None, description="Phase 5c: a library's fix from Otto: two rows in place of the Proof line."
+    )
+    proposal: "OttoProposal | None" = Field(
+        default=None, description="Phase 5c: a fix of Otto's is a proposal: its state, decisions and buttons."
+    )
     group: str = Field(default="encryption", description="Phase 5b: the work group it came from.")
     group_label: str = ""
-    came_from_links: list["FixCameFrom"] = Field(default_factory=list, description="Phase 5b: where it came from, as links.")
+    came_from_links: list["FixCameFrom"] = Field(
+        default_factory=list, description="Phase 5b: where it came from, as links."
+    )
     fix_state: Literal["open", "in_progress", "done"] = "open"
-    apart: bool = Field(default=False, description="Phase 6d: listed under its group's own heading for a developer's change and "
-                                                    "never counted with the findings.")
-    impact: Impact | None = Field(default=None, description="Phase 4e: what this change touches; null for Change watch's entry.")
-    source_tag: Source | None = Field(default=None, description="22 November 2026: where the finding this fix answers came from (Observed live, "
-                                                            "Proven in the lab or From your file); its proof lines carry their own.")
+    apart: bool = Field(
+        default=False,
+        description="Phase 6d: listed under its group's own heading for a developer's change and "
+        "never counted with the findings.",
+    )
+    impact: Impact | None = Field(
+        default=None, description="Phase 4e: what this change touches; null for Change watch's entry."
+    )
+    source_tag: Source | None = Field(
+        default=None,
+        description="22 November 2026: where the finding this fix answers came from (Observed live, "
+        "Proven in the lab or From your file); its proof lines carry their own.",
+    )
 
 
 class FixesView(Shape):
@@ -1032,7 +1102,9 @@ class MigrationOption(Shape):
     sections: list[MigrationOptionSection]
     not_offered: str | None = Field(description="When set: no Choose button, this sentence instead.")
     choose_label: str
-    choose: MigrationChooseBox | None = Field(description='The box that opens in the card when "Choose this option" is pressed.')
+    choose: MigrationChooseBox | None = Field(
+        description='The box that opens in the card when "Choose this option" is pressed.'
+    )
 
 
 class MigrationSystemToday(Shape):
@@ -1056,7 +1128,9 @@ class MigrationSystemRecommendation(Shape):
     tag: str | None
     reasons: list[RichText]
     evidence: RichText | None
-    evidence_link: str | None = Field(description='"See the evidence": opens the details disclosure above and scrolls to it.')
+    evidence_link: str | None = Field(
+        description='"See the evidence": opens the details disclosure above and scrolls to it.'
+    )
     none_text: str | None = Field(description="Shown instead of reasons when there is no recommendation.")
 
 
@@ -1104,9 +1178,14 @@ class MigrationSystem(Shape):
     also_noticed_title: str = None
     also_noticed: list[str] = None
     change: ChangeView | None = None
-    otto: "OttoPlanBlock | None" = Field(default=None, description="Phase 5c: Otto's proposed changes to this system's plan.")
-    source_tag: Source | None = Field(default=None, description="Where its status came from (22 November 2026): Observed live for a "
-                                                                   "server, Proven in the lab for a signing program, From your file before a measurement.")
+    otto: "OttoPlanBlock | None" = Field(
+        default=None, description="Phase 5c: Otto's proposed changes to this system's plan."
+    )
+    source_tag: Source | None = Field(
+        default=None,
+        description="Where its status came from (22 November 2026): Observed live for a "
+        "server, Proven in the lab for a signing program, From your file before a measurement.",
+    )
 
 
 TrackKey = Literal["kex", "auth", "signatures"]
@@ -1203,9 +1282,13 @@ class TryClientRow(Shape):
     name: str = Field(description='"Payment terminal, old firmware"')
     offers: str = Field(description="What its profile offers, in one plain line.")
     label: str = Field(description='"Demo data"')
-    today: str = Field(description='Its handshake with the server as it is today: "TLS 1.2, classical (X25519)" | "Refused (protocol version)".')
+    today: str = Field(
+        description='Its handshake with the server as it is today: "TLS 1.2, classical (X25519)" | "Refused (protocol version)".'
+    )
     on_copy: str = Field(description="Its handshake with the test copy, in the same words.")
-    word: str = Field(description="The reviewer's word: Connects, Falls back, Breaks, Didn't connect before either, Couldn't check.")
+    word: str = Field(
+        description="The reviewer's word: Connects, Falls back, Breaks, Didn't connect before either, Couldn't check."
+    )
     word_key: Literal["connects", "falls_back", "breaks", "not_before", "couldnt_check"]
     tone: Tone
     note: str | None = Field(description='"New: it can\'t connect today." when it connects only on the copy.')
@@ -1213,16 +1296,21 @@ class TryClientRow(Shape):
 
 class TryClients(Shape):
     """Phase 4e: who can still connect, measured on the try's first copy. Information: it decides nothing about the try."""
+
     title: str
     running: RowStatus | None
     summary: str | None = Field(description='"1 breaks, 2 connect, 1 didn\'t connect before either."')
-    warning: str | None = Field(description='"Sort out the 1 that breaks before you apply this change." Holds nothing off.')
+    warning: str | None = Field(
+        description='"Sort out the 1 that breaks before you apply this change." Holds nothing off.'
+    )
     columns: list[str]
     rows: list[TryClientRow]
     note: str
     decides: str = Field(description="That it is information and holds Apply off nothing.")
     control: str | None
-    no_answer: str | None = Field(description="Set when the stand-ins' run gave no answer (it could not run, or its control misread).")
+    no_answer: str | None = Field(
+        description="Set when the stand-ins' run gave no answer (it could not run, or its control misread)."
+    )
 
 
 class TryView(Shape):
@@ -1233,10 +1321,17 @@ class TryView(Shape):
     rows: list[TryViewRow]
     notes: list[str]
     results: list[TryViewResult]
-    clients: TryClients | None = Field(default=None, description="Phase 4e: who can still connect; null for a try made before it.")
-    source_tag: Source | None = Field(default=None, description="22 November 2026: where the try came from (Proven in the lab: test copies).")
-    column_source_tags: list[Source | None] = Field(default_factory=list, description="22 November 2026: one per column: none for the label "
-                                                "column, Observed live for the server as measured before, Proven in the lab for each copy.")
+    clients: TryClients | None = Field(
+        default=None, description="Phase 4e: who can still connect; null for a try made before it."
+    )
+    source_tag: Source | None = Field(
+        default=None, description="22 November 2026: where the try came from (Proven in the lab: test copies)."
+    )
+    column_source_tags: list[Source | None] = Field(
+        default_factory=list,
+        description="22 November 2026: one per column: none for the label "
+        "column, Observed live for the server as measured before, Proven in the lab for each copy.",
+    )
 
 
 class ApprovalsPickerOption(Shape):
@@ -1280,8 +1375,11 @@ class ApplyView(Shape):
     paragraphs: list[RichText]
     differences: list[str]
     history: list[str]
-    source_tag: Source | None = Field(default=None, description="22 November 2026: Observed live once the server was measured again after Apply "
-                                                            "or Roll back; null while it is measured, or when Apply was refused.")
+    source_tag: Source | None = Field(
+        default=None,
+        description="22 November 2026: Observed live once the server was measured again after Apply "
+        "or Roll back; null while it is measured, or when Apply was refused.",
+    )
 
 
 class ChangeView(Shape):
@@ -1310,7 +1408,9 @@ class MigrationRoadmapRow(Shape):
     track: str = Field(
         default=None, description='Phase 4b: "Key exchange" | "Authentication" | "Signatures" | "Both tracks".'
     )
-    otto: "OttoRoadmapMark | None" = Field(default=None, description="Phase 5c: the mark of a proposal of Otto's for this system.")
+    otto: "OttoRoadmapMark | None" = Field(
+        default=None, description="Phase 5c: the mark of a proposal of Otto's for this system."
+    )
 
 
 class MigrationRoadmapBand(Shape):
@@ -1366,7 +1466,9 @@ class MigrationView(Shape):
 # decides no answer, label, tie or blocker. ----
 
 DependencyQuestionKey = Literal["ml_kem_768", "x25519mlkem768", "ml_dsa_65"]
-DependencyAnswer = Literal["yes", "no", "doesnt_apply", "not_in_knowledge_base", "couldnt_tell_version", "needs_your_environment"]
+DependencyAnswer = Literal[
+    "yes", "no", "doesnt_apply", "not_in_knowledge_base", "couldnt_tell_version", "needs_your_environment"
+]
 # "your_environment" is in the legend's vocabulary for later (Level 3) and is never sent in this version.
 DependencyLabel = Literal["release_notes", "public_copy"]
 DependencyState = Literal["measured", "not_measured", "couldnt_check", "couldnt_trust", "not_offered"]
@@ -1417,7 +1519,9 @@ class DependencySystem(Shape):
     without_answer: int
     without_answer_text: str | None
     environment_line: str
-    otto_lines: list[str] = Field(default_factory=list, description="Phase 5c: what a person accepted from Otto for a library of this system.")
+    otto_lines: list[str] = Field(
+        default_factory=list, description="Phase 5c: what a person accepted from Otto for a library of this system."
+    )
 
 
 class DependencyPickerOption(Shape):
@@ -1445,9 +1549,15 @@ class DependencyCell(Shape):
     state_words: str
     agreement: Literal["agrees", "differs"] | None
     agreement_words: str | None
-    no_reason: str | None = Field(default=None, description='Phase 5b: under a No, the reason in one line ("OpenSSL added this in 3.5.0; you have 3.0.22.").')
-    source_tag: Source | None = Field(default=None, description="Where this answer came from (22 November 2026): Published (release notes), "
-                                                            "Proven in the lab (a public copy), or From your file (no answer yet).")
+    no_reason: str | None = Field(
+        default=None,
+        description='Phase 5b: under a No, the reason in one line ("OpenSSL added this in 3.5.0; you have 3.0.22.").',
+    )
+    source_tag: Source | None = Field(
+        default=None,
+        description="Where this answer came from (22 November 2026): Published (release notes), "
+        "Proven in the lab (a public copy), or From your file (no answer yet).",
+    )
 
 
 class DependencyBlock(Shape):
@@ -1481,7 +1591,9 @@ class DependencyMeasurement(Shape):
     code: ResultCode
     run_id: int
     finished_at: str | None
-    result: MeasurementResult | None = Field(description="The reviewed run, worded: its locked test, raw record and review.")
+    result: MeasurementResult | None = Field(
+        description="The reviewed run, worded: its locked test, raw record and review."
+    )
     controls: str | None
     controls_words: str
 
@@ -1490,19 +1602,31 @@ class DependencyRow(Shape):
     id: str
     label: str
     via_words: str = Field(description='"direct" | "through python 3.12.3"')
-    library: str | None = Field(description="the knowledge base's name for it; null when it is not in the knowledge base")
+    library: str | None = Field(
+        description="the knowledge base's name for it; null when it is not in the knowledge base"
+    )
     cells: list[DependencyCell] = Field(description="one per question, in the order of questions")
-    answers_short: str = Field(default="", description='Phase 5b: the answers in a few words, for the compact table ("No to all three").')
-    source_tag: Source | None = Field(default=None, description="Where the library came from (22 November 2026): From your file (the list names it).")
+    answers_short: str = Field(
+        default="", description='Phase 5b: the answers in a few words, for the compact table ("No to all three").'
+    )
+    source_tag: Source | None = Field(
+        default=None, description="Where the library came from (22 November 2026): From your file (the list names it)."
+    )
     blocks: list[DependencyBlock]
     measure: DependencyMeasure
     same_copy_note: str | None
     lookups: list[DependencyLookup]
     measurement: DependencyMeasurement | None
     job: RowStatus | None
-    advisories: list["DependencyAdvisory"] = Field(default_factory=list, description='Phase 5c: "Named by advisory X: ..." lines.')
-    otto_proposals: list["OttoProposal"] = Field(default_factory=list, description="Phase 5c: the proposals to change this library's status.")
-    otto_status: "DependencyOttoStatus | None" = Field(default=None, description="Phase 5c: the status a person accepted.")
+    advisories: list["DependencyAdvisory"] = Field(
+        default_factory=list, description='Phase 5c: "Named by advisory X: ..." lines.'
+    )
+    otto_proposals: list["OttoProposal"] = Field(
+        default_factory=list, description="Phase 5c: the proposals to change this library's status."
+    )
+    otto_status: "DependencyOttoStatus | None" = Field(
+        default=None, description="Phase 5c: the status a person accepted."
+    )
     impact: Impact | None = Field(default=None, description="Phase 4e: where this library is used.")
 
 
@@ -1528,7 +1652,9 @@ class DependenciesView(Shape):
     questions: list[DependencyQuestion]
     legend: list[DependencyLegendItem]
     upload: DependenciesUpload
-    list_file: DependencyListInfo | None = Field(description="The list in force: the newest one added. Null before the first.")
+    list_file: DependencyListInfo | None = Field(
+        description="The list in force: the newest one added. Null before the first."
+    )
     measure_all: DependenciesMeasureAll | None
     systems: list[DependencySystem]
     groups: list[DependencyGroup]
@@ -1543,6 +1669,7 @@ class Ok(Shape):
 
 
 # ---- Phase 5a: folders, projects and assessments. Every count is read from the views the pages draw; null = not yet. ----
+
 
 class ClaimCounts(Shape):
     checked: int
@@ -1588,7 +1715,9 @@ class AssessmentStatus(Shape):
     key: Literal["open", "closed"]
     label: str
     closed_line: str | None = Field(description="Why it is closed, then the closed sentence; null when open.")
-    signoff: Signoff | None = Field(description="Phase 5b: who signed it off and when; null when open or closed by the earlier rule.")
+    signoff: Signoff | None = Field(
+        description="Phase 5b: who signed it off and when; null when open or closed by the earlier rule."
+    )
 
 
 class Purpose(Shape):
@@ -1609,7 +1738,9 @@ class AssessmentBrief(Shape):
     number: int
     title: str = Field(description='"Assessment 2", or the name the person gave it')
     name: str | None
-    purpose: Purpose | None = Field(description="Phase 5b: what it is for (a label only); null for one made before phase 5b.")
+    purpose: Purpose | None = Field(
+        description="Phase 5b: what it is for (a label only); null for one made before phase 5b."
+    )
     reference: str | None
     status: AssessmentStatus
     archived: bool
@@ -1652,7 +1783,9 @@ class Workspace(Shape):
     projects: list[WorkspaceProject]
     purposes: list[Purpose] = Field(description="Phase 5b: the purposes an assessment can have, in order.")
     one_login_line: str = Field(description="Phase 5b: said in the Close box: who records the sign-off name.")
-    algorithm_names: list["AlgorithmName"] = Field(default_factory=list, description="Phase 5b: plain name first, technical under it.")
+    algorithm_names: list["AlgorithmName"] = Field(
+        default_factory=list, description="Phase 5b: plain name first, technical under it."
+    )
 
 
 class AlgorithmName(Shape):
@@ -1663,7 +1796,9 @@ class AlgorithmName(Shape):
 class Created(Shape):
     id: int
     assessment_id: int | None = Field(default=None, description="A new project's first assessment.")
-    notices: list[str] | None = Field(default=None, description="Phase 5b: Rerun as new assessment, the import's notices.")
+    notices: list[str] | None = Field(
+        default=None, description="Phase 5b: Rerun as new assessment, the import's notices."
+    )
 
 
 class ProjectView(Shape):
@@ -1694,15 +1829,19 @@ class AssessmentView(AssessmentBrief):
     organization: str
     project: AssessmentProject
     path: list[PathStep]
-    import_: Import | None = Field(alias="imp" "ort")   # written in two parts: tests/test_prepare.py scans for the bare word
+    import_: Import | None = Field(alias="imp" "ort")  # written in two parts: tests/test_prepare.py scans for the bare word  # fmt: skip
     plan_id: int | None
     has_verify: bool
     has_results: bool
     has_migration: bool
     counts: AssessmentCounts
     next_step: NextStep
-    blocks: "OverviewBlocks | None" = Field(default=None, description="Phase 5b: the Overview's blocks (null before a file).")
-    waiting: "OttoWaiting | None" = Field(default=None, description='Phase 5c: "Waiting for you": the proposals nobody has decided yet.')
+    blocks: "OverviewBlocks | None" = Field(
+        default=None, description="Phase 5b: the Overview's blocks (null before a file)."
+    )
+    waiting: "OttoWaiting | None" = Field(
+        default=None, description='Phase 5c: "Waiting for you": the proposals nobody has decided yet.'
+    )
 
 
 # ---- Phase 5b: one connected assessment. Every word comes from the page each item lives on. ----
@@ -1713,8 +1852,16 @@ ItemState = Literal["open", "in_progress", "done"]
 
 # ---------------------------------------------------------------- phase 6d: Change watch
 
-ChangeStatusKey = Literal["not_run", "running", "no_difference", "passed_before_fails_now", "failed_before_passes_now",
-                          "nothing_to_run", "cant_run", "couldnt_trust"]
+ChangeStatusKey = Literal[
+    "not_run",
+    "running",
+    "no_difference",
+    "passed_before_fails_now",
+    "failed_before_passes_now",
+    "nothing_to_run",
+    "cant_run",
+    "couldnt_trust",
+]
 ChangeOutcome = Literal["fails_now", "passes_now", "same", "slower_now", "not_slower", "not_compared", "not_trusted"]
 
 
@@ -1722,7 +1869,9 @@ class ChangeStatus(Shape):
     """The status word of a developer's change. It is the change's, never a test result."""
 
     key: ChangeStatusKey
-    word: str = Field(description='"Not run yet", "Running", "No difference found", "Passed before, fails now (1 test)", ...')
+    word: str = Field(
+        description='"Not run yet", "Running", "No difference found", "Passed before, fails now (1 test)", ...'
+    )
     tone: Tone
     busy: bool = Field(description="its picked tests are running: ask again in a second")
     reason: str | None = Field(description="one sentence under the word that says why")
@@ -1758,7 +1907,9 @@ class ChangeResultSide(Shape):
     plain: str
     ran_on: str | None
     link: "ItemLink | None" = Field(description="where that run's evidence is shown")
-    source_tag: Source | None = Field(default=None, description="22 November 2026: where this run came from (a copy of the code: Proven in the lab).")
+    source_tag: Source | None = Field(
+        default=None, description="22 November 2026: where this run came from (a copy of the code: Proven in the lab)."
+    )
 
 
 class ChangeJob(Shape):
@@ -1774,7 +1925,9 @@ class ChangeResult(Shape):
     before_note: str | None = Field(description="where the result before comes from")
     now: ChangeResultSide | None
     job: ChangeJob | None
-    differs: str | None = Field(description='"Passed before, fails now", "Failed before, passes now", "Same as before", ...; null until reviewed')
+    differs: str | None = Field(
+        description='"Passed before, fails now", "Failed before, passes now", "Same as before", ...; null until reviewed'
+    )
     outcome: ChangeOutcome | None
 
 
@@ -1814,7 +1967,9 @@ class ChangePanel(Shape):
     flags: list[ChangeFlag]
     flags_note: str | None
     more_flags: str | None
-    fix_line: str | None = Field(description="one line when Fixes has an entry for this change (tests that passed fail on it)")
+    fix_line: str | None = Field(
+        description="one line when Fixes has an entry for this change (tests that passed fail on it)"
+    )
     fix: "ItemLink | None" = Field(description="the way to that entry on Fixes")
 
 
@@ -1867,22 +2022,38 @@ class ChangeWatchView(Shape):
 
 class ItemLink(Shape):
     page: str = Field(description='The page that holds the item, e.g. "evidence", "fixes", "migration/systems".')
-    item: str | None = Field(description="The item to open there (a check, claim, fix, system or library id); null for the page.")
+    item: str | None = Field(
+        description="The item to open there (a check, claim, fix, system or library id); null for the page."
+    )
     section: str | None = None
     group: str | None = Field(default=None, description="The work group to filter the page to.")
-    assessment_id: int | None = Field(default=None, description="Another assessment (the Project overview links into each).")
+    assessment_id: int | None = Field(
+        default=None, description="Another assessment (the Project overview links into each)."
+    )
 
 
 # ---------------------------------------------------------------- sandbox research: the Watch list (Change watch's second view)
 
-WatchStatusKey = Literal["no_fix", "fix_published", "being_tested", "test_proposed", "no_test", "not_yours", "withdrawn", "gone", "not_watched"]
+WatchStatusKey = Literal[
+    "no_fix",
+    "fix_published",
+    "being_tested",
+    "test_proposed",
+    "no_test",
+    "not_yours",
+    "withdrawn",
+    "gone",
+    "not_watched",
+]
 
 
 class WatchStatus(Shape):
     """Where a watched weakness stands. Information, never a result."""
 
     key: WatchStatusKey
-    word: str = Field(description='"No fix yet", "Fix published", "Being tested", "Test proposed", "No test possible", ...')
+    word: str = Field(
+        description='"No fix yet", "Fix published", "Being tested", "Test proposed", "No test possible", ...'
+    )
     tone: Tone = Field(description='Only "warn" or "neutral": a status is not a result.')
 
 
@@ -1995,8 +2166,11 @@ class OverviewGroup(Shape):
     label: str
     question: str
     checks: StateCounts | None
-    source_counts: list[SourceCount] = Field(default_factory=list, description="22 November 2026: where the group's items came from, counted "
-                                                                         "as Checks counts them (Observed live, Proven in the lab, ...).")
+    source_counts: list[SourceCount] = Field(
+        default_factory=list,
+        description="22 November 2026: where the group's items came from, counted "
+        "as Checks counts them (Observed live, Proven in the lab, ...).",
+    )
     fixes: StateCounts | None
     facts: list[OverviewFact]
     empty_text: str | None
@@ -2023,9 +2197,13 @@ class OverviewWatchList(Shape):
 
 class OverviewBlocks(Shape):
     groups: list[OverviewGroup]
-    findings: list[OverviewFact] = Field(description="False claims, failed tests, dependency blockers: each its own count.")
+    findings: list[OverviewFact] = Field(
+        description="False claims, failed tests, dependency blockers: each its own count."
+    )
     evidence: OverviewEvidence
-    watch_list: OverviewWatchList | None = Field(default=None, description="Only while Sandbox research is on and the list holds something.")
+    watch_list: OverviewWatchList | None = Field(
+        default=None, description="Only while Sandbox research is on and the list holds something."
+    )
 
 
 class Headline(AssessmentCounts):
@@ -2073,7 +2251,9 @@ class ProjectOverview(Shape):
     compare: Compare | None
     shared: list[SharedSystem]
     choices: list[SharedAssessment]
-    otto: "OttoProjectBlock | None" = Field(default=None, description="Phase 5c: proposals waiting per assessment, and what changed since the newest pack.")
+    otto: "OttoProjectBlock | None" = Field(
+        default=None, description="Phase 5c: proposals waiting per assessment, and what changed since the newest pack."
+    )
 
 
 class StateCounts(Shape):
@@ -2084,7 +2264,9 @@ class StateCounts(Shape):
 
 class CameFrom(Shape):
     key: str
-    label: str = Field(description='"Verify", "Test plan", "Retest", "Fix proof", "Try on a test copy", "After Apply", ...')
+    label: str = Field(
+        description='"Verify", "Test plan", "Retest", "Fix proof", "Try on a test copy", "After Apply", ...'
+    )
 
 
 class CheckResult(Shape):
@@ -2103,7 +2285,9 @@ class SameMeasurement(Shape):
 
 
 class CheckRow(Shape):
-    id: str = Field(description='"claim-3", "test-12", "retest-12", "proof-12", "try-<change>-try", "system-<key>", "library-<row>"')
+    id: str = Field(
+        description='"claim-3", "test-12", "retest-12", "proof-12", "try-<change>-try", "system-<key>", "library-<row>"'
+    )
     group: GroupKey
     kind: str
     name: str
@@ -2117,14 +2301,27 @@ class CheckRow(Shape):
     plain: str | None
     last_run_at: str | None
     runs: int
-    same_as: list[SameMeasurement] = Field(default_factory=list,
-                                           description="Phase 5b: the same measurement made elsewhere (decisions 3 and 4); each keeps its own run.")
-    from_otto: "CheckFromOtto | None" = Field(default=None, description='Phase 5c: "From Otto" on an advisory check, with the way to its advisory.')
-    mark: str | None = Field(default=None, description='The 5c fixes, in a retest\'s block: "tested again as it is" for a server, or a '
-                                                       "program the retest did not move.")
-    alias: str | None = Field(default=None, description='The 5c fixes: the older id of this row ("retest-12"), which still opens it '
-                                                        "while this is the newest block of its test.")
-    source_tag: Source | None = Field(default=None, description="Where it came from (22 November 2026): what this rests on; null where nothing was observed or proven (a check not run yet, or that couldn't run).")
+    same_as: list[SameMeasurement] = Field(
+        default_factory=list,
+        description="Phase 5b: the same measurement made elsewhere (decisions 3 and 4); each keeps its own run.",
+    )
+    from_otto: "CheckFromOtto | None" = Field(
+        default=None, description='Phase 5c: "From Otto" on an advisory check, with the way to its advisory.'
+    )
+    mark: str | None = Field(
+        default=None,
+        description='The 5c fixes, in a retest\'s block: "tested again as it is" for a server, or a '
+        "program the retest did not move.",
+    )
+    alias: str | None = Field(
+        default=None,
+        description='The 5c fixes: the older id of this row ("retest-12"), which still opens it '
+        "while this is the newest block of its test.",
+    )
+    source_tag: Source | None = Field(
+        default=None,
+        description="Where it came from (22 November 2026): what this rests on; null where nothing was observed or proven (a check not run yet, or that couldn't run).",
+    )
 
 
 class StartedOn(Shape):
@@ -2134,6 +2331,7 @@ class StartedOn(Shape):
 
 class CheckBlock(Shape):
     """The 5c fixes: one version a retest ran on, or one proof of a change, with the rows of its own runs."""
+
     key: str = Field(description='"on-3" (the block retest 3 opened) or "proof-2".')
     title: str = Field(description='"acme-sign 1.4.3", or "acme-sign 1.4.3-otto (the changed code)".')
     line: str
@@ -2143,23 +2341,31 @@ class CheckBlock(Shape):
 
 class CheckPart(Shape):
     """The 5c fixes: one labelled, foldable part of the Crypto tests group on Checks, with its count."""
+
     key: Literal["plan", "retests", "proofs", "tries", "changes"]
     label: str
     count: int
     count_label: str = Field(description='"8 tests", "1 version", "2 proofs", "1 try".')
     note: str | None
     empty_text: str | None = Field(description='Set when the part has nothing yet: "No retest yet. ..."')
-    blocks: list[CheckBlock] = Field(description="Retests by version and Fix proofs: one block for each version, or each proof.")
+    blocks: list[CheckBlock] = Field(
+        description="Retests by version and Fix proofs: one block for each version, or each proof."
+    )
     rows: list[CheckRow] = Field(description="Tries on a test copy: a plain list.")
 
 
 class EncryptionParts(Shape):
     """The 5c fixes: Checks shows the Crypto tests group in four parts. A run shows in one part only."""
-    plan: CheckPart = Field(description="The test plan itself (drawn from the plan view); its heading names the version the file names.")
+
+    plan: CheckPart = Field(
+        description="The test plan itself (drawn from the plan view); its heading names the version the file names."
+    )
     retests: CheckPart
     proofs: CheckPart
     tries: CheckPart | None = Field(description="Only when a server change was tried on a test copy.")
-    changes: CheckPart | None = Field(default=None, description="Phase 6d: only when the tests picked for a developer's change were run.")
+    changes: CheckPart | None = Field(
+        default=None, description="Phase 6d: only when the tests picked for a developer's change were run."
+    )
 
 
 class CheckGroup(Shape):
@@ -2171,11 +2377,18 @@ class CheckGroup(Shape):
     note: str | None
     started_on: StartedOn
     rows: list[CheckRow]
-    source_counts: list[SourceCount] = Field(default_factory=list, description="22 November 2026: how many of the group's items rest on each "
-                                                                         "source (the Overview's line); the ones with none left out.")
-    also: list[SameMeasurement] = Field(default_factory=list,
-                                        description="Checks of another group linked from this group's foot (\"Also relates to this group\").")
-    parts: "EncryptionParts | None" = Field(default=None, description="The 5c fixes: set on the Crypto tests group only.")
+    source_counts: list[SourceCount] = Field(
+        default_factory=list,
+        description="22 November 2026: how many of the group's items rest on each "
+        "source (the Overview's line); the ones with none left out.",
+    )
+    also: list[SameMeasurement] = Field(
+        default_factory=list,
+        description='Checks of another group linked from this group\'s foot ("Also relates to this group").',
+    )
+    parts: "EncryptionParts | None" = Field(
+        default=None, description="The 5c fixes: set on the Crypto tests group only."
+    )
 
 
 class LibraryEvidenceRow(Shape):
@@ -2187,8 +2400,12 @@ class LibraryEvidenceRow(Shape):
     blocks: list[DependencyBlock]
     measured: bool
     state: ItemState
-    source_tag: Source | None = Field(default=None, description="Where its answers came from (22 November 2026), taken together.")
-    lookups: list[DependencyLookup] = Field(default_factory=list, description="Each lookup's source, quoted line and date checked.")
+    source_tag: Source | None = Field(
+        default=None, description="Where its answers came from (22 November 2026), taken together."
+    )
+    lookups: list[DependencyLookup] = Field(
+        default_factory=list, description="Each lookup's source, quoted line and date checked."
+    )
     cells: list[DependencyCell] = Field(default_factory=list, description="Its answers as Dependencies words them.")
 
 
@@ -2264,8 +2481,11 @@ class FixGroup(Shape):
     counts: StateCounts = Field(description="of fix_ids only: an entry listed apart is never counted")
     fix_ids: list[str]
     empty_text: str | None
-    apart: FixGroupApart | None = Field(default=None, description="Phase 6d: the group's entries for a developer's change, under "
-                                                                  "their own heading; None when there are none.")
+    apart: FixGroupApart | None = Field(
+        default=None,
+        description="Phase 6d: the group's entries for a developer's change, under "
+        "their own heading; None when there are none.",
+    )
     also: list[FixGroupAlso] = Field(description='"Also relates to this group": fixes listed in another group.')
 
 
@@ -2277,6 +2497,7 @@ class DemoProjectsLoaded(Shape):
 
 
 # ---------------------------------------------------------------- phase 5c: Otto (test packs, Live Otto, Advisories)
+
 
 class OttoPackCard(Shape):
     version: str
@@ -2320,12 +2541,16 @@ class OttoPacksSection(Shape):
     intro: str
     installed: list[OttoPackCard] = Field(description="Oldest first. Packs are never removed.")
     installed_line: str
-    unreadable_line: str | None = Field(description="Set when a pack installed by an earlier build can't be read by this version.")
+    unreadable_line: str | None = Field(
+        description="Set when a pack installed by an earlier build can't be read by this version."
+    )
     counts_line: str | None
     check: OttoCheckButton
     checked_line: str | None = Field(description="Set after Check for updates: what was found in the updates folder.")
     refused: list[OttoRefusedPack]
-    update: OttoUpdate | None = Field(description="The pack that can be installed next, after Check for updates found one.")
+    update: OttoUpdate | None = Field(
+        description="The pack that can be installed next, after Check for updates found one."
+    )
     order_note: str
 
 
@@ -2335,7 +2560,9 @@ class OttoHarnessLine(Shape):
 
 
 class OttoAnswersLine(Shape):
-    line: str = Field(description='"Answers recorded during the build, 17 November 2026" or "Live: Claude, through your key"')
+    line: str = Field(
+        description='"Answers recorded during the build, 17 November 2026" or "Live: Claude, through your key"'
+    )
     live: bool
 
 
@@ -2421,7 +2648,9 @@ class OttoSandboxSection(Shape):
     day_limit: SandboxLimit
     limits_note: str
     status_line: str
-    spent_line: str | None = Field(description="What research runs spent in the last 24 hours; only while the switch is on.")
+    spent_line: str | None = Field(
+        description="What research runs spent in the last 24 hours; only while the switch is on."
+    )
 
 
 class OttoSettingsView(Shape):
@@ -2432,7 +2661,9 @@ class OttoSettingsView(Shape):
     answers: OttoAnswersLine
     live: OttoLiveSection
     name: OttoName | None = Field(default=None, description="Phase 6a: always sent by the current backend.")
-    sandbox: OttoSandboxSection | None = Field(default=None, description="Sandbox research: always sent by the current backend.")
+    sandbox: OttoSandboxSection | None = Field(
+        default=None, description="Sandbox research: always sent by the current backend."
+    )
 
 
 class AdvisoryQuote(Shape):
@@ -2468,11 +2699,14 @@ class AdvisoryTrial(Shape):
 
 # ---------------------------------------------------------------- sandbox research: how a test was proven, as one piece
 
+
 class TestProofRow(Shape):
     key: str
     label: str = Field(description="What ran: our reference library, a public copy, or the control.")
-    count: str = Field(description="The count for that part of the trial (the separate reviewer's for a copy and for the reference; "
-                                   "the pinned trial script's for the control). A count, never Passed or Failed.")
+    count: str = Field(
+        description="The count for that part of the trial (the separate reviewer's for a copy and for the reference; "
+        "the pinned trial script's for the control). A count, never Passed or Failed."
+    )
     must: str = Field(description="What had to happen, as it was frozen before the first run.")
 
 
@@ -2505,7 +2739,9 @@ class TestProofCode(Shape):
     """The code that asked the library its questions, shown as text. It is data here: nothing on a screen runs it."""
 
     title: str
-    label: str | None = Field(description='"Written by Otto" when Claude wrote it; null for the app\'s own asking code.')
+    label: str | None = Field(
+        description='"Written by Otto" when Claude wrote it; null for the app\'s own asking code.'
+    )
     author: str
     file: str
     lines: int
@@ -2561,7 +2797,9 @@ class AdvisoryTestBlock(Shape):
     design_fingerprint: str
     trial: AdvisoryTrial
     ledger: AdvisoryLedger
-    proof: TestProofBlock | None = Field(default=None, description="Sandbox research: the proof of a test tried on sandbox copies.")
+    proof: TestProofBlock | None = Field(
+        default=None, description="Sandbox research: the proof of a test tried on sandbox copies."
+    )
 
 
 class AdvisoryNoTest(Shape):
@@ -2569,7 +2807,9 @@ class AdvisoryNoTest(Shape):
     reason: str
     trial: AdvisoryTrial | None
     ledger: AdvisoryLedger | None
-    proof: TestProofBlock | None = Field(default=None, description="Sandbox research: what a design's trial on sandbox copies showed.")
+    proof: TestProofBlock | None = Field(
+        default=None, description="Sandbox research: what a design's trial on sandbox copies showed."
+    )
 
 
 class AdvisoryHereResult(Shape):
@@ -2580,15 +2820,25 @@ class AdvisoryHereResult(Shape):
     plain: str
     component: str | None
     finished_at: str | None
-    ran_on: str | None = Field(default=None, description="After a retest: which version this result is of, and what the first run read.")
-    source_tag: Source | None = Field(default=None, description="22 November 2026: where this result came from (Proven in the lab).")
-    sandbox_copy: bool = Field(default=False, description="Sandbox research: the run was on a public copy sandbox research made.")
+    ran_on: str | None = Field(
+        default=None, description="After a retest: which version this result is of, and what the first run read."
+    )
+    source_tag: Source | None = Field(
+        default=None, description="22 November 2026: where this result came from (Proven in the lab)."
+    )
+    sandbox_copy: bool = Field(
+        default=False, description="Sandbox research: the run was on a public copy sandbox research made."
+    )
 
 
 class AdvisoryHereRow(Shape):
     program: str
-    status: str | None = Field(description='The proposal\'s word ("Proposed", "Not added (reason)") or "Not run yet"; null once there is a result.')
-    proposal: "OttoProposal | None" = Field(description="Otto's proposed check for this program, with its state, decisions and buttons.")
+    status: str | None = Field(
+        description='The proposal\'s word ("Proposed", "Not added (reason)") or "Not run yet"; null once there is a result.'
+    )
+    proposal: "OttoProposal | None" = Field(
+        description="Otto's proposed check for this program, with its state, decisions and buttons."
+    )
     result: AdvisoryHereResult | None
     checks_link: ItemLink | None = Field(description="Open in Checks.")
     evidence_link: ItemLink | None = Field(description="See the evidence.")
@@ -2676,11 +2926,15 @@ class AdvisoryTestCell(Shape):
 
 
 class AdvisoryResultCell(Shape):
-    key: str = Field(description='"pass", "fail", "warn", "neutral", "not_run", "not_added" or "none" (for the Result filter)')
+    key: str = Field(
+        description='"pass", "fail", "warn", "neutral", "not_run", "not_added" or "none" (for the Result filter)'
+    )
     label: str
     tone: Tone
     text: str | None
-    source_tag: Source | None = Field(default=None, description="22 November 2026: where the result came from; null where there is none.")
+    source_tag: Source | None = Field(
+        default=None, description="22 November 2026: where the result came from; null where there is none."
+    )
 
 
 class AdvisoryProposalCell(Shape):
@@ -2693,6 +2947,7 @@ class AdvisoryProposalCell(Shape):
 
 class AdvisoryNew(Shape):
     """The 5c fixes: the tag beside an advisory that first arrived with the most recently installed test pack."""
+
     label: str = Field(description='"New"')
     title: str = Field(description='Said on hover and to a screen reader: "Arrived with test pack 2026.11.2".')
 
@@ -2700,7 +2955,9 @@ class AdvisoryNew(Shape):
 class AdvisoryRow(Shape):
     id: str
     name: str
-    new: AdvisoryNew | None = Field(description="Null for an advisory of an earlier pack (also one a later pack only updates).")
+    new: AdvisoryNew | None = Field(
+        description="Null for an advisory of an earlier pack (also one a later pack only updates)."
+    )
     published: str
     published_text: str
     package: str
@@ -2729,7 +2986,9 @@ class AdvisoryWaiting(Shape):
     """Above the table: how many proposed checks nobody has decided yet. There is no button that decides several."""
 
     count: int
-    blocked_reason: str | None = Field(description="Why nothing can be decided here right now (closed, or Otto not installed).")
+    blocked_reason: str | None = Field(
+        description="Why nothing can be decided here right now (closed, or Otto not installed)."
+    )
     line: str
     note: str
 
@@ -2770,12 +3029,17 @@ class LookupRow(Shape):
     published: str
     fits: str = Field(description="What it says about the versions this assessment has.")
     state: LookupRowState
-    reason: str | None = Field(description='Why there is no test yet, or where the advisory is now.')
+    reason: str | None = Field(description="Why there is no test yet, or where the advisory is now.")
     link: ItemLink | None = Field(description="Its row on this page, once a test pack holds it.")
     publisher: str
     url: str
-    sandbox: bool = Field(default=False, description="Sandbox research: a test for it would be tried on public copies fetched from a registry.")
-    watch: LabelledLink | None = Field(default=None, description="Sandbox research: its row on the Watch list, while it has no fix yet.")
+    sandbox: bool = Field(
+        default=False,
+        description="Sandbox research: a test for it would be tried on public copies fetched from a registry.",
+    )
+    watch: LabelledLink | None = Field(
+        default=None, description="Sandbox research: its row on the Watch list, while it has no fix yet."
+    )
 
 
 class LookupLast(Shape):
@@ -2808,7 +3072,9 @@ class AdvisoryLookup(Shape):
     title: str
     intro: str
     covers: str
-    sandbox_line: str | None = Field(default=None, description="Sandbox research: what the research runs of the last day did and spent.")
+    sandbox_line: str | None = Field(
+        default=None, description="Sandbox research: what the research runs of the last day did and spent."
+    )
     libraries_line: str
     look: LookupButton
     last: LookupLast | None
@@ -2832,7 +3098,9 @@ class AdvisoriesView(Shape):
     rows: list[AdvisoryRow]
     empty: str | None
     assessment_id: int | None
-    lookup: AdvisoryLookup | None = Field(default=None, description="Phase 6: the block New advisories. Always sent by the current backend.")
+    lookup: AdvisoryLookup | None = Field(
+        default=None, description="Phase 6: the block New advisories. Always sent by the current backend."
+    )
 
 
 # ---- Phase 5c, second part: Otto proposes, a person decides. Every word comes from the backend. ----
@@ -2848,9 +3116,14 @@ class FixProofRow(Shape):
     line: str = Field(description="The row in one line, the same words wherever it is shown.")
     links: list["LabeledLink"]
     ledger: AdvisoryLedger | None = Field(description="The research ledger's entries behind the first row.")
-    note: str | None = Field(default=None, description="Under the second row: what a retest here runs on (a public copy, not your system).")
-    source_tag: Source | None = Field(default=None, description="22 November 2026: Proven in the lab (both rows are runs on public copies); null "
-                                                            "while the row reads Not yet.")
+    note: str | None = Field(
+        default=None, description="Under the second row: what a retest here runs on (a public copy, not your system)."
+    )
+    source_tag: Source | None = Field(
+        default=None,
+        description="22 November 2026: Proven in the lab (both rows are runs on public copies); null "
+        "while the row reads Not yet.",
+    )
 
 
 class LabeledLink(Shape):
@@ -2941,7 +3214,9 @@ class OttoProposal(Shape):
     history: OttoProposalHistory
     link: ItemLink
     proposed_at: str | None
-    proof: TestProofBlock | None = Field(default=None, description="Sandbox research: how the proposed test was proven, folded under the card.")
+    proof: TestProofBlock | None = Field(
+        default=None, description="Sandbox research: how the proposed test was proven, folded under the card."
+    )
 
 
 class OttoWaitingItem(Shape):
@@ -3084,20 +3359,39 @@ class AssistantDecision(Shape):
 class AssistantAction(Shape):
     """The request of the page's own button. The browser sends it on Confirm, through the same call the page uses."""
 
-    type: Literal["verify", "run", "run_all", "retest", "run_picked_tests", "connect", "run_proof_again", "open_pull_request", "retest_now", "try",
-                  "ask_approval", "measure_library", "measure_all", "measure_status", "open"]
+    type: Literal[
+        "verify",
+        "run",
+        "run_all",
+        "retest",
+        "run_picked_tests",
+        "connect",
+        "run_proof_again",
+        "open_pull_request",
+        "retest_now",
+        "try",
+        "ask_approval",
+        "measure_library",
+        "measure_all",
+        "measure_status",
+        "open",
+    ]
     plan_id: int | None
     import_id: int | None
     item_id: int | None = Field(description="A test of the plan (Run).")
     fix_id: str | None
-    change: str | None = Field(description="A server change's key (Try on a test copy, Ask for approval), or the id of a developer's "
-                                           "change (Run the picked tests).")
+    change: str | None = Field(
+        description="A server change's key (Try on a test copy, Ask for approval), or the id of a developer's "
+        "change (Run the picked tests)."
+    )
     row: str | None = Field(description="A library row (Measure on a public copy).")
     version: str | None
     component: str | None
     reviewers: list[str] | None = Field(description="The reviewers the page ticks by default.")
-    link: ItemLink | None = Field(description='"open": where it goes; opening a page needs no Confirm. "retest_now": where the page itself '
-                                              "goes once its request is answered (Evidence, on the result the fix came from).")
+    link: ItemLink | None = Field(
+        description='"open": where it goes; opening a page needs no Confirm. "retest_now": where the page itself '
+        "goes once its request is answered (Evidence, on the result the fix came from)."
+    )
 
 
 class AssistantStep(Shape):
@@ -3120,7 +3414,9 @@ class AssistantFact(Shape):
 
     text: str
     link: ItemLink | None
-    label: str | None = Field(description='What the link is called: "See the evidence", "Open the advisory", "View in Fixes".')
+    label: str | None = Field(
+        description='What the link is called: "See the evidence", "Open the advisory", "View in Fixes".'
+    )
 
 
 class AssistantEntry(Shape):
@@ -3131,7 +3427,9 @@ class AssistantEntry(Shape):
     kind: Literal["suggestion", "next", "meaning", "result", "fix_step", "said"]
     what: str = Field(description='Its line in the one table of kinds, e.g. "next:run_all".')
     thread: AssistantThread | None
-    mark: str = Field(description='"From Otto", "Next step", "What this means", "Result", "Fix" or (phase 6b) "You said"')
+    mark: str = Field(
+        description='"From Otto", "Next step", "What this means", "Result", "Fix" or (phase 6b) "You said"'
+    )
     title: str
     text: str | None
     at: str | None = Field(description="When its cause happened (ISO): the order of a thread so far.")
@@ -3142,14 +3440,18 @@ class AssistantEntry(Shape):
     decisions: list[AssistantDecision]
     step: AssistantStep | None
     open_item: bool = Field(description="It is about the item that is open on the page.")
-    facts: list[AssistantFact] = Field(default_factory=list, description="Phase 6c: a kept answer to a fixed question: its facts.")
+    facts: list[AssistantFact] = Field(
+        default_factory=list, description="Phase 6c: a kept answer to a fixed question: its facts."
+    )
 
 
 class AssistantTab(Shape):
     key: AssistantThread
     label: str
     waiting: int = Field(description="How many of this thread's suggestions nobody has decided yet.")
-    mark: str = Field(description="Changes when the thread gets a new entry: the browser keeps it for a closed tab and for the dot.")
+    mark: str = Field(
+        description="Changes when the thread gets a new entry: the browser keeps it for a closed tab and for the dot."
+    )
     so_far_title: str
     so_far: list[AssistantEntry]
     so_far_empty: str | None
@@ -3179,11 +3481,15 @@ class AssistantElsewhere(Shape):
 class AssistantBox(Shape):
     """Phase 6b: the text box at the foot of the panel."""
 
-    label: str = Field(description='"Ask Otto, or tell it what to do" (phase 6c; in 6b alone it read "Tell Otto where to go or what to do")')
+    label: str = Field(
+        description='"Ask Otto, or tell it what to do" (phase 6c; in 6b alone it read "Tell Otto where to go or what to do")'
+    )
     send: str
     max: int
     chips: list[str] = Field(description="Up to three examples fitted to the page. A chip sends its own words.")
-    questions: list[str] = Field(description="Phase 6c: up to three of the six fixed questions that fit the page and the open item.")
+    questions: list[str] = Field(
+        description="Phase 6c: up to three of the six fixed questions that fit the page and the open item."
+    )
     kept: bool = Field(description="False in a closed assessment: what is typed there is answered and not kept.")
     kept_note: str | None
 
@@ -3200,8 +3506,12 @@ class AssistantGo(Shape):
 
 
 class AssistantOpen(Shape):
-    key: Literal["accept", "reject", "undo", "reconsider", "step"] = Field(description="Which button of the card shows its Confirm step.")
-    reason: str | None = Field(description="A reject's reason, cut from the person's own words. Nothing is sent before Confirm.")
+    key: Literal["accept", "reject", "undo", "reconsider", "step"] = Field(
+        description="Which button of the card shows its Confirm step."
+    )
+    reason: str | None = Field(
+        description="A reject's reason, cut from the person's own words. Nothing is sent before Confirm."
+    )
 
 
 class AssistantOption(Shape):
@@ -3224,14 +3534,18 @@ class WhatIfSource(Shape):
     """Where a fact is quoted from: the publisher's package file or release notes, or a test pack's copy of a publisher's line."""
 
     title: str
-    url: str | None = Field(description="An https address of the publisher, or null where the line is quoted from an installed test pack.")
+    url: str | None = Field(
+        description="An https address of the publisher, or null where the line is quoted from an installed test pack."
+    )
     quote: str | None
     read_on: str | None = Field(description="The day it was read, YYYY-MM-DD, where the source records one.")
 
 
 class WhatIfLine(Shape):
     text: str
-    label: str | None = Field(description='Where it comes from: "From your file", "Package file says", "Release notes say", "Test pack 2026.11.2", ...')
+    label: str | None = Field(
+        description='Where it comes from: "From your file", "Package file says", "Release notes say", "Test pack 2026.11.2", ...'
+    )
     link: ItemLink | None = Field(description="Where the app shows it.")
     source: WhatIfSource | None
 
@@ -3277,11 +3591,15 @@ class WhatIf(Shape):
     library: WhatIfLibrary
     version: str
     version_read: bool
-    have: list[str] = Field(description="The versions of this library the assessment has (its dependency list, its scanner file).")
+    have: list[str] = Field(
+        description="The versions of this library the assessment has (its dependency list, its scanner file)."
+    )
     title: str
     facts_title: str
     facts: list[WhatIfGroup]
-    test_copy: WhatIfTry = Field(description="The try on a test copy: Evidence's own Retest new version, pointed at this version.")
+    test_copy: WhatIfTry = Field(
+        description="The try on a test copy: Evidence's own Retest new version, pointed at this version."
+    )
     explanation: str
     hypotheses_title: str
     hypotheses_note: str
@@ -3301,9 +3619,15 @@ class AssistantReply(Shape):
     can: list[AssistantCan] = Field(description="What can be said on this page, from the one list.")
     tab: AssistantTabChange | None
     thread: AssistantThread | None = Field(description="The tab the exchange is filed under, if any.")
-    question: str | None = Field(default=None, description="Phase 6c: the fixed question that was answered, in its own wording.")
-    label: str | None = Field(default=None, description='Phase 6c: where an answer is from: "From this assessment\'s records".')
-    facts: list[AssistantFact] = Field(default_factory=list, description="Phase 6c: an answer's facts, each with its link.")
+    question: str | None = Field(
+        default=None, description="Phase 6c: the fixed question that was answered, in its own wording."
+    )
+    label: str | None = Field(
+        default=None, description='Phase 6c: where an answer is from: "From this assessment\'s records".'
+    )
+    facts: list[AssistantFact] = Field(
+        default_factory=list, description="Phase 6c: an answer's facts, each with its link."
+    )
     whatif: WhatIf | None = Field(default=None, description="Phase 6e: the four parts of a what-if.")
 
 

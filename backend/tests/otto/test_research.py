@@ -2,6 +2,7 @@
 own demo program: read, design, try on "public copies" (acme-sign 1.4.2 and 1.4.3), propose the fix, try that,
 replay under a second author, and sign a pack. A design that can't catch the affected version must come out refuted
 and stay out of the pack."""
+
 import json
 import subprocess
 import sys
@@ -14,17 +15,18 @@ import otto_research_fixtures as fixtures
 from app.otto import harness, packs
 from ottolab import build, research, snapshot
 
-pytestmark: list = []   # marks are on the tests that need the harness
+pytestmark: list = []  # marks are on the tests that need the harness
 
 
 @pytest.fixture(scope="module")
 def built(tmp_path_factory):
     """One run of the whole loop (about a minute and a half), shared by the tests of this file."""
     import os
+
     folder = tmp_path_factory.mktemp("research")
     snapshot_path = fixtures.write(folder)
     old = {k: os.environ.get(k) for k in ("EVIDENCE_LAB_MODE", "ANTHROPIC_API_KEY")}
-    os.environ["EVIDENCE_LAB_MODE"] = "demo"            # the made-up advisories are about our own demo program
+    os.environ["EVIDENCE_LAB_MODE"] = "demo"  # the made-up advisories are about our own demo program
     os.environ.pop("ANTHROPIC_API_KEY", None)
     lines = []
     real_say, build.say = build.say, lines.append
@@ -32,8 +34,21 @@ def built(tmp_path_factory):
         lab = research.open_lab(folder / "lab")
         key = Ed25519PrivateKey.generate()
         ids = tuple(a["id"] for a in fixtures.SNAPSHOT["advisories"])
-        pack = build.build_pack(lab, snapshot.read_snapshot(snapshot_path), snapshot_path, "2026.11.1", ids, None, key, "A key made for a test",
-                                folder / "packs", folder / "recorded", live=False, limit_nano=2_000_000_000, spent_file=folder / "spent.json")
+        pack = build.build_pack(
+            lab,
+            snapshot.read_snapshot(snapshot_path),
+            snapshot_path,
+            "2026.11.1",
+            ids,
+            None,
+            key,
+            "A key made for a test",
+            folder / "packs",
+            folder / "recorded",
+            live=False,
+            limit_nano=2_000_000_000,
+            spent_file=folder / "spent.json",
+        )
         yield {"folder": folder, "lab": lab, "pack": pack, "lines": lines, "key": build._public_hex(key)}
     finally:
         build.say = real_say
@@ -60,7 +75,9 @@ def test_a_design_that_catches_the_affected_version_ships_with_its_trial(built):
     assert arms["fixed"]["wrong"] == 0 and arms["reference"]["wrong"] == 0 and arms["accept-all"]["wrong"] == 64
     design = built["pack"].design(entry["test"]["design_sha256"])
     assert design["advisory"] == "TEST-2026-0001" and "168" in design["cases"]["ids"]
-    assert [t["design_sha256"] for t in built["pack"].pack["tests"]] == [entry["test"]["design_sha256"]]   # the only test in the pack
+    assert [t["design_sha256"] for t in built["pack"].pack["tests"]] == [
+        entry["test"]["design_sha256"]
+    ]  # the only test in the pack
 
 
 @pytest.mark.needs_otto
@@ -82,15 +99,22 @@ def test_a_design_that_only_repeats_another_check_for_the_same_library_is_refuse
     """Advisory 5's design selects exactly the cases of advisory 1's check, and both are about the same library. A
     trial could not tell the two weaknesses apart, so the design is refused: no trial is registered and no test ships."""
     entry = _advisory(built, 5)
-    assert entry["test"]["state"] == "none" and entry["test"]["trial"] is None and entry["test"]["design_sha256"] is None
-    assert entry["test"]["reason"] == ("No test yet: The design selects exactly the published cases of the check for TEST-2026-0001 (this "
-                                       "build), an advisory about the same library, acme-sign. That would be the same check under a second "
-                                       "name: it could not tell this advisory's weakness from that one's.")
-    assert [(s["step"], s["outcome"]) for s in entry["steps"]] == [("read_advisory", "used"), ("design_test", "refused")]
+    assert (
+        entry["test"]["state"] == "none" and entry["test"]["trial"] is None and entry["test"]["design_sha256"] is None
+    )
+    assert entry["test"]["reason"] == (
+        "No test yet: The design selects exactly the published cases of the check for TEST-2026-0001 (this "
+        "build), an advisory about the same library, acme-sign. That would be the same check under a second "
+        "name: it could not tell this advisory's weakness from that one's."
+    )
+    assert [(s["step"], s["outcome"]) for s in entry["steps"]] == [
+        ("read_advisory", "used"),
+        ("design_test", "refused"),
+    ]
     assert entry["fix"]["state"] == "none" and "no test" in entry["fix"]["reason"]
     st, lab = built["lab"].state(), built["lab"]
-    assert research.trials_of(st, "TEST-2026-0005", "test", lab) == []           # nothing was registered, so nothing was run
-    assert len(built["pack"].pack["tests"]) == 1                                 # one check ships, under one name
+    assert research.trials_of(st, "TEST-2026-0005", "test", lab) == []  # nothing was registered, so nothing was run
+    assert len(built["pack"].pack["tests"]) == 1  # one check ships, under one name
 
 
 @pytest.mark.needs_otto
@@ -109,25 +133,35 @@ def test_a_design_is_not_refused_for_repeating_a_design_that_never_became_a_chec
 @pytest.mark.slow
 def test_no_test_and_a_refused_reading_are_said_plainly(built):
     none = _advisory(built, 3)
-    assert none["test"]["state"] == "none" and none["test"]["reason"].startswith("No test yet: The weakness is in a part")
+    assert none["test"]["state"] == "none" and none["test"]["reason"].startswith(
+        "No test yet: The weakness is in a part"
+    )
     assert none["test"]["trial"] is None and none["reading"]["plain_name"] == "Out-of-range signature accepted"
     refused = _advisory(built, 4)
     assert refused["reading"] is None and "not in the publisher's text" in refused["reading_refused"]
     assert refused["test"]["state"] == "none" and [s["outcome"] for s in refused["steps"]] == ["refused"]
-    assert [s["step"] for s in refused["steps"]] == ["read_advisory"]     # nothing more was asked after a refused reading
+    assert [s["step"] for s in refused["steps"]] == ["read_advisory"]  # nothing more was asked after a refused reading
 
 
 @pytest.mark.needs_otto
 @pytest.mark.slow
 def test_the_fix_is_proven_only_by_its_own_trial(built):
     fix = _advisory(built, 1)["fix"]
-    assert fix["state"] == "proven" and fix["kind"] == "update" and (fix["library"], fix["version"]) == ("acme-sign", "1.4.3")
+    assert (
+        fix["state"] == "proven"
+        and fix["kind"] == "update"
+        and (fix["library"], fix["version"]) == ("acme-sign", "1.4.3")
+    )
     assert fix["quote"]["text"] == "The check was added in acme-sign 1.4.3."
     arms = fix["trial"]["arms"]
     # the Independent exam, Attacker tricks and the advisory check: all three fail on 1.4.2 and none on 1.4.3
     assert arms["affected"] == {"version": "1.4.2", "failing": 3, "tests": 3} == {**arms["affected-again"]}
     assert arms["fixed"] == {"version": "1.4.3", "failing": 0, "tests": 3}
-    assert fix["trial"]["outcome"] == "supported" and fix["trial"]["replayed"] is True and "Speed was not part" in fix["reason"]
+    assert (
+        fix["trial"]["outcome"] == "supported"
+        and fix["trial"]["replayed"] is True
+        and "Speed was not part" in fix["reason"]
+    )
 
 
 @pytest.mark.needs_otto
@@ -146,7 +180,10 @@ def test_every_claude_step_is_in_the_ledger_whole_and_checked(built):
     assert [s["claim"] for s in in_pack] == [cid for cid, _ in steps] and all("prompt" not in s for s in in_pack)
     # the design in the pack names the recorded answer it was made from
     design = built["pack"].pack["tests"][0]["design"]
-    assert design["model_step"] == {"prompt_sha256": in_pack[1]["prompt_sha256"], "answer_sha256": in_pack[1]["answer_sha256"]}
+    assert design["model_step"] == {
+        "prompt_sha256": in_pack[1]["prompt_sha256"],
+        "answer_sha256": in_pack[1]["answer_sha256"],
+    }
 
 
 @pytest.mark.needs_otto
@@ -158,7 +195,7 @@ def test_the_harness_judged_and_a_second_author_replayed(built):
     assert {r["author"] for _, r in st.of("run")} == {research.EXECUTOR}
     audits = [a for _, a in st.of("audit")]
     assert audits and all(a["author"] == research.VALIDATOR and not a["mismatches"] and a["code_ok"] for a in audits)
-    assert not any(r for _, r in st.of("review"))                 # the model judge of Adam's loop was never used
+    assert not any(r for _, r in st.of("review"))  # the model judge of Adam's loop was never used
     assert built["lab"].audit(reverify=True) == []
     head = built["lab"].ledger.head()
     assert built["pack"].pack["otto"]["ledger"]["height"] <= head["height"]
@@ -193,9 +230,16 @@ def test_the_pack_file_is_signed_and_reads_back(built):
 def test_the_ledger_file_was_written_only_by_the_harness(built):
     """The ledger is a hash chain: Otto's own command line audits it from the pinned copy."""
     found = harness.status()
-    done = subprocess.run([sys.executable, "-m", "otto", "--lab", str(built["folder"] / "lab"), "audit"], cwd=found.path,
-                          capture_output=True, text=True, timeout=300)
-    assert done.returncode == 0 and "chain intact, every decision re-derived" in done.stdout, done.stdout[-400:] + done.stderr[-400:]
+    done = subprocess.run(
+        [sys.executable, "-m", "otto", "--lab", str(built["folder"] / "lab"), "audit"],
+        cwd=found.path,
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert done.returncode == 0 and "chain intact, every decision re-derived" in done.stdout, (
+        done.stdout[-400:] + done.stderr[-400:]
+    )
 
 
 def test_the_app_never_imports_the_research_side():

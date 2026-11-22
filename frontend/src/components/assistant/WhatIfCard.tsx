@@ -12,7 +12,13 @@ function Source({ line }: { line: WhatIfLine }) {
   return (
     <span data-testid="whatif-source" className="mt-0.5 block text-xs text-slate-400">
       {source.url && source.url.startsWith("https://") ? (
-        <a href={source.url} target="_blank" rel="noreferrer noopener" data-testid="whatif-source-link" className="underline underline-offset-2 hover:text-slate-100">
+        <a
+          href={source.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          data-testid="whatif-source-link"
+          className="underline underline-offset-2 hover:text-slate-100"
+        >
           {source.title}
         </a>
       ) : (
@@ -20,7 +26,10 @@ function Source({ line }: { line: WhatIfLine }) {
       )}
       {source.read_on ? <span>, read on {source.read_on}</span> : null}
       {source.quote ? (
-        <code data-testid="whatif-quote" className="mt-0.5 block whitespace-pre-wrap break-words rounded bg-slate-950 px-1.5 py-1 font-mono text-[11px] text-slate-300">
+        <code
+          data-testid="whatif-quote"
+          className="mt-0.5 block whitespace-pre-wrap break-words rounded bg-slate-950 px-1.5 py-1 font-mono text-[11px] text-slate-300"
+        >
           {source.quote}
         </code>
       ) : null}
@@ -43,9 +52,16 @@ export function WhatIfCard({ whatif, tryCard }: { whatif: WhatIf; tryCard: React
             <dt className="text-xs font-medium text-slate-300">{group.title}</dt>
             <dd className="mt-0.5 space-y-1.5">
               {group.lines.map((line, n) => (
-                <p key={`${n}-${line.text}`} data-testid="whatif-line" className="break-words text-[13px] text-slate-200">
+                <p
+                  key={`${n}-${line.text}`}
+                  data-testid="whatif-line"
+                  className="break-words text-[13px] text-slate-200"
+                >
                   {line.label ? (
-                    <span data-testid="whatif-label" className="mr-1.5 inline-block rounded border border-slate-600 px-1 text-[11px] text-slate-300">
+                    <span
+                      data-testid="whatif-label"
+                      className="mr-1.5 inline-block rounded border border-slate-600 px-1 text-[11px] text-slate-300"
+                    >
                       {line.label}
                     </span>
                   ) : null}
@@ -53,7 +69,11 @@ export function WhatIfCard({ whatif, tryCard }: { whatif: WhatIf; tryCard: React
                   {line.link ? (
                     <>
                       {" "}
-                      <ItemLinkView link={line.link} testId="whatif-link" className="whitespace-nowrap text-xs text-sky-300 underline-offset-2 hover:underline">
+                      <ItemLinkView
+                        link={line.link}
+                        testId="whatif-link"
+                        className="whitespace-nowrap text-xs text-sky-300 underline-offset-2 hover:underline"
+                      >
                         See where
                       </ItemLinkView>
                     </>
@@ -78,7 +98,10 @@ export function WhatIfCard({ whatif, tryCard }: { whatif: WhatIf; tryCard: React
             says it is not offered (the review of 19 November 2026). */}
         {tried.offered ? (
           <>
-            <ul data-testid="whatif-try-changes" className="list-disc space-y-0.5 pl-5 text-xs text-slate-300 marker:text-slate-500">
+            <ul
+              data-testid="whatif-try-changes"
+              className="list-disc space-y-0.5 pl-5 text-xs text-slate-300 marker:text-slate-500"
+            >
               {tried.changes.map((change) => (
                 <li key={change} className="break-words">
                   {change}
@@ -100,7 +123,10 @@ export function WhatIfCard({ whatif, tryCard }: { whatif: WhatIf; tryCard: React
 
       <h3 className={H}>{whatif.hypotheses_title}</h3>
       <p className="mt-1 break-words text-xs text-slate-400">{whatif.hypotheses_note}</p>
-      <ul data-testid="whatif-hypotheses" className="mt-1 list-disc space-y-1 pl-5 text-[13px] text-slate-200 marker:text-slate-500">
+      <ul
+        data-testid="whatif-hypotheses"
+        className="mt-1 list-disc space-y-1 pl-5 text-[13px] text-slate-200 marker:text-slate-500"
+      >
         {whatif.hypotheses.map((hypothesis) => (
           <li key={hypothesis.text} data-testid="whatif-hypothesis" className="break-words">
             {hypothesis.text}

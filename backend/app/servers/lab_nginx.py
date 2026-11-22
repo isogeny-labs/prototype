@@ -10,6 +10,7 @@ Used three ways: as the second copy in "Try on a test copy" (the change's exact 
 and measured); as the lab nginx server of demo/lab-nginx.csv, which Apply changes and reloads; and to put the
 earlier settings back on Roll back. A setting nginx refuses is reported with nginx's own words, and the settings
 that were in force stay in force."""
+
 from __future__ import annotations
 
 import hashlib
@@ -29,9 +30,32 @@ from app.run.runner import _docker, _docker_env, docker_running, image_present
 
 NGINX_VERSION_WORDS = "nginx 1.31.8 with OpenSSL 3.5.9"
 NGINX_UID = "101:101"
-FLAGS = ("-i", "--label", "evidence-lab-nginx=1", "--pull", "never", "--network", "host", "--read-only",
-         "--tmpfs", "/run/lab:rw,nosuid,nodev,size=4m,uid=101,gid=101,mode=700", "--user", NGINX_UID, "--cap-drop", "ALL",
-         "--security-opt", "no-new-privileges", "--memory", "64m", "--memory-swap", "64m", "--cpus", "1", "--pids-limit", "32")
+FLAGS = (
+    "-i",
+    "--label",
+    "evidence-lab-nginx=1",
+    "--pull",
+    "never",
+    "--network",
+    "host",
+    "--read-only",
+    "--tmpfs",
+    "/run/lab:rw,nosuid,nodev,size=4m,uid=101,gid=101,mode=700",
+    "--user",
+    NGINX_UID,
+    "--cap-drop",
+    "ALL",
+    "--security-opt",
+    "no-new-privileges",
+    "--memory",
+    "64m",
+    "--memory-swap",
+    "64m",
+    "--cpus",
+    "1",
+    "--pids-limit",
+    "32",
+)
 START_SECONDS = 15.0
 EXEC_SECONDS = 20.0
 _ready_cache: dict = {}
@@ -51,7 +75,10 @@ def ready(mode) -> tuple[bool, str]:
     if not docker_running():
         value = (False, "Real nginx in the lab needs Docker, and Docker is not running.")
     elif not image_present(NGINX_IMAGE):
-        value = (False, "Real nginx in the lab needs its pinned image, which is not prepared yet (./run-demo.sh prepares it).")
+        value = (
+            False,
+            "Real nginx in the lab needs its pinned image, which is not prepared yet (./run-demo.sh prepares it).",
+        )
     else:
         value = (True, "")
     _ready_cache.update(at=now, value=value)
@@ -71,8 +98,14 @@ def _archive(files: dict[str, bytes]) -> bytes:
 def _exec(name: str, script: str, data: bytes | None = None) -> tuple[int | None, str]:
     """Run one fixed shell script inside our container (argument list, no host shell)."""
     try:
-        done = subprocess.run(["docker", "exec", "-i", name, "sh", "-c", script], input=data, capture_output=True,
-                              timeout=EXEC_SECONDS, env=_docker_env(), shell=False)
+        done = subprocess.run(
+            ["docker", "exec", "-i", name, "sh", "-c", script],
+            input=data,
+            capture_output=True,
+            timeout=EXEC_SECONDS,
+            env=_docker_env(),
+            shell=False,
+        )
     except (OSError, subprocess.TimeoutExpired):
         return None, "nginx did not answer in time"
     return done.returncode, (done.stdout + done.stderr).decode("utf-8", "replace").strip()
@@ -116,14 +149,37 @@ class LabNginx:
         with self._lock:
             s = lab_servers.normal(settings)
             keep = pqtls.test_certificate(s["certificate"], "lab-nginx")
-            _docker(["rm", "-f", self.name], 10)      # a container of this name left by an earlier crash
-            files = {"nginx.conf": lab_servers.nginx_config(s, self.port).encode(), "cert.pem": keep[0], "key.pem": keep[1]}
-            script = ("tar -x -C /run/lab && nginx -t -q -c /run/lab/nginx.conf 2>&1 && "
-                      "exec nginx -c /run/lab/nginx.conf -g 'daemon off;'")
+            _docker(["rm", "-f", self.name], 10)  # a container of this name left by an earlier crash
+            files = {
+                "nginx.conf": lab_servers.nginx_config(s, self.port).encode(),
+                "cert.pem": keep[0],
+                "key.pem": keep[1],
+            }
+            script = (
+                "tar -x -C /run/lab && nginx -t -q -c /run/lab/nginx.conf 2>&1 && "
+                "exec nginx -c /run/lab/nginx.conf -g 'daemon off;'"
+            )
             self._output = []
             try:
-                proc = subprocess.Popen(["docker", "run", "--rm", "--name", self.name, *FLAGS, "--entrypoint", "sh", NGINX_IMAGE, "-c", script],
-                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=_docker_env())
+                proc = subprocess.Popen(
+                    [
+                        "docker",
+                        "run",
+                        "--rm",
+                        "--name",
+                        self.name,
+                        *FLAGS,
+                        "--entrypoint",
+                        "sh",
+                        NGINX_IMAGE,
+                        "-c",
+                        script,
+                    ],
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    env=_docker_env(),
+                )
             except OSError as exc:
                 raise NginxUnavailable(f"The lab nginx could not be started ({exc.__class__.__name__}).") from None
             proc.stdin.write(_archive(files))
@@ -133,7 +189,9 @@ class LabNginx:
             while time.monotonic() < deadline:
                 if proc.poll() is not None:
                     time.sleep(0.2)
-                    raise NginxUnavailable(f"nginx did not start with these settings: {_last_line(chr(10).join(self._output)) or 'no reason given'}.")
+                    raise NginxUnavailable(
+                        f"nginx did not start with these settings: {_last_line(chr(10).join(self._output)) or 'no reason given'}."
+                    )
                 try:
                     socket.create_connection(("127.0.0.1", self.port), timeout=0.3).close()
                     break
@@ -153,16 +211,26 @@ class LabNginx:
                 return False, "The lab nginx is not running."
             s = lab_servers.normal(settings)
             if keep is None:
-                keep = self._keep if self._keep and lab_servers.keep_kind(self._keep) == s["certificate"] else pqtls.test_certificate(s["certificate"], "lab-nginx")
-            files = {"nginx.conf": lab_servers.nginx_config(s, self.port).encode(), "cert.pem": keep[0], "key.pem": keep[1]}
-            script = ("mkdir -p /run/lab/new /run/lab/before && rm -f /run/lab/new/* && tar -x -C /run/lab/new && "
-                      "cp /run/lab/nginx.conf /run/lab/cert.pem /run/lab/key.pem /run/lab/before/ && cp /run/lab/new/* /run/lab/ && "
-                      "if nginx -t -q -c /run/lab/nginx.conf 2>&1; then nginx -c /run/lab/nginx.conf -s reload 2>&1 && echo RELOADED; "
-                      "else cp /run/lab/before/* /run/lab/ && echo REFUSED; fi")
+                keep = (
+                    self._keep
+                    if self._keep and lab_servers.keep_kind(self._keep) == s["certificate"]
+                    else pqtls.test_certificate(s["certificate"], "lab-nginx")
+                )
+            files = {
+                "nginx.conf": lab_servers.nginx_config(s, self.port).encode(),
+                "cert.pem": keep[0],
+                "key.pem": keep[1],
+            }
+            script = (
+                "mkdir -p /run/lab/new /run/lab/before && rm -f /run/lab/new/* && tar -x -C /run/lab/new && "
+                "cp /run/lab/nginx.conf /run/lab/cert.pem /run/lab/key.pem /run/lab/before/ && cp /run/lab/new/* /run/lab/ && "
+                "if nginx -t -q -c /run/lab/nginx.conf 2>&1; then nginx -c /run/lab/nginx.conf -s reload 2>&1 && echo RELOADED; "
+                "else cp /run/lab/before/* /run/lab/ && echo REFUSED; fi"
+            )
             code, out = _exec(self.name, script, _archive(files))
             if code != 0 or "RELOADED" not in out:
                 return False, _last_line(out.replace("REFUSED", "")) or "nginx refused the settings"
-            time.sleep(0.8)   # the new worker takes over
+            time.sleep(0.8)  # the new worker takes over
             self._previous, self._keep, self.settings = self._keep, keep, s
             self.fingerprint = hashlib.sha256(keep[2]).hexdigest()
             return True, "nginx -t: the configuration test is successful; nginx reloaded"
@@ -189,8 +257,12 @@ def nginx_copy(settings: dict):
     server.name = f"evlab-nginx-copy-{secrets.token_hex(4)}"
     try:
         server.start(settings)
-        yield {"port": server.port, "fingerprint": server.fingerprint, "settings": server.settings,
-               "accepted": "nginx -t passed and nginx started"}
+        yield {
+            "port": server.port,
+            "fingerprint": server.fingerprint,
+            "settings": server.settings,
+            "accepted": "nginx -t passed and nginx started",
+        }
     finally:
         server.stop()
 

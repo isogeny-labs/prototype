@@ -75,14 +75,25 @@ export function OttoSettings({ section }: { section: string | null }) {
   const loaded = view !== null;
   useEffect(() => {
     // (phase 6a: the Otto panel's status line links to the Live Otto section the same way)
-    if (section !== "test-packs" && section !== "live-otto" && section !== "your-name" && section !== "sandbox-research") return;
+    if (
+      section !== "test-packs" &&
+      section !== "live-otto" &&
+      section !== "your-name" &&
+      section !== "sandbox-research"
+    )
+      return;
     // jsdom has no scrollIntoView; a browser always does.
     document.getElementById(section)?.scrollIntoView?.({ block: "start" });
   }, [section, loaded]);
 
   /** Makes one call and shows the view it answers with, or its refusal in the section it belongs to. `settled` runs in
    * the same moment as the answer is shown (the install box closes with it). */
-  async function run(what: Busy, where: Where, call: () => Promise<OttoSettingsView>, settled?: () => void): Promise<boolean> {
+  async function run(
+    what: Busy,
+    where: Where,
+    call: () => Promise<OttoSettingsView>,
+    settled?: () => void,
+  ): Promise<boolean> {
     setBusy(what);
     setError(null);
     setLimitSaved(false);
@@ -91,7 +102,9 @@ export function OttoSettings({ section }: { section: string | null }) {
       settled?.();
       // A Live Otto call answers without looking in the updates folder again, so what Check for updates found (and
       // everything else about the packs) stays on screen as it was.
-      setView((before) => ((where === "live" || where === "sandbox") && before ? { ...next, packs: before.packs } : next));
+      setView((before) =>
+        (where === "live" || where === "sandbox") && before ? { ...next, packs: before.packs } : next,
+      );
       return true;
     } catch (e) {
       settled?.();
@@ -103,7 +116,8 @@ export function OttoSettings({ section }: { section: string | null }) {
   }
 
   // Installed or refused, the box closes: a refusal is shown in the section.
-  const install = (update: OttoUpdate) => void run("install", "packs", () => api.installPack(update.version), closeDialog);
+  const install = (update: OttoUpdate) =>
+    void run("install", "packs", () => api.installPack(update.version), closeDialog);
 
   async function saveLimit(e: FormEvent, saved: string) {
     e.preventDefault();
@@ -183,7 +197,11 @@ export function OttoSettings({ section }: { section: string | null }) {
 
           <div>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <SecondaryButton testId="otto-check-updates" disabled={busy !== null} onClick={() => void run("check", "packs", () => api.checkPackUpdates())}>
+              <SecondaryButton
+                testId="otto-check-updates"
+                disabled={busy !== null}
+                onClick={() => void run("check", "packs", () => api.checkPackUpdates())}
+              >
                 {busy === "check" ? <Spinner className="h-3.5 w-3.5" /> : null}
                 {packs.check.button}
               </SecondaryButton>
@@ -198,7 +216,10 @@ export function OttoSettings({ section }: { section: string | null }) {
 
           {/* A file in the updates folder that was not taken, with the backend's one plain reason: a calm warning. */}
           {packs.refused.length > 0 ? (
-            <ul data-testid="otto-refused" className="space-y-2 rounded-lg border border-dashed border-slate-500 bg-slate-900 p-3">
+            <ul
+              data-testid="otto-refused"
+              className="space-y-2 rounded-lg border border-dashed border-slate-500 bg-slate-900 p-3"
+            >
               {packs.refused.map((r, i) => (
                 <li key={`${r.file}-${i}`} data-testid="otto-refused-item" className="min-w-0 text-[13px]">
                   <span className="block break-words font-mono text-slate-100">{r.file}</span>
@@ -232,7 +253,11 @@ export function OttoSettings({ section }: { section: string | null }) {
           <li
             data-testid="otto-harness-line"
             data-installed={view.harness.installed}
-            className={view.harness.installed ? "break-words px-1" : "break-words rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-sm text-slate-200"}
+            className={
+              view.harness.installed
+                ? "break-words px-1"
+                : "break-words rounded-xl border border-slate-700 bg-slate-900/70 px-4 py-3 text-sm text-slate-200"
+            }
           >
             {view.harness.line}
           </li>
@@ -284,7 +309,12 @@ export function OttoSettings({ section }: { section: string | null }) {
                   maxLength={view.name.max}
                   className="w-72 max-w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100"
                 />
-                <PrimaryButton type="submit" testId="otto-your-name-save" disabled={busy !== null && busy !== "name"} busy={busy === "name"}>
+                <PrimaryButton
+                  type="submit"
+                  testId="otto-your-name-save"
+                  disabled={busy !== null && busy !== "name"}
+                  busy={busy === "name"}
+                >
                   {view.name.save}
                 </PrimaryButton>
                 {nameSaved ? (
@@ -315,7 +345,11 @@ export function OttoSettings({ section }: { section: string | null }) {
                 {live.switch.label}
               </label>
               {live.switch.blocked_reason ? (
-                <p id="live-otto-switch-reason" data-testid="live-otto-switch-reason" className={`mt-1 break-words ${SMALL}`}>
+                <p
+                  id="live-otto-switch-reason"
+                  data-testid="live-otto-switch-reason"
+                  className={`mt-1 break-words ${SMALL}`}
+                >
                   {live.switch.blocked_reason}
                 </p>
               ) : null}
@@ -358,7 +392,12 @@ export function OttoSettings({ section }: { section: string | null }) {
                   maxLength={12}
                   className="w-40 rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-sm text-slate-100"
                 />
-                <PrimaryButton type="submit" testId="live-otto-save" disabled={busy !== null && busy !== "limit"} busy={busy === "limit"}>
+                <PrimaryButton
+                  type="submit"
+                  testId="live-otto-save"
+                  disabled={busy !== null && busy !== "limit"}
+                  busy={busy === "limit"}
+                >
                   {live.limit.save}
                 </PrimaryButton>
                 {limitSaved ? (

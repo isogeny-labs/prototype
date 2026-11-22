@@ -20,6 +20,7 @@ The answer key is written independently of the build (it is not in the repositor
 never written here. With no key, the answers are printed and nothing is graded. Otto must be installed: without the
 pinned harness an advisory check can't be added, so there is nothing to grade.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -39,9 +40,9 @@ from app.evidence.export import sign_envelope
 from app.lab.hub import Lab
 from app.otto import harness, packs
 
-EXPECTED_OTTO_JSON = DEMO_DIR / "expected-otto.json"   # the fifth answer key: read-only, never written by the app
+EXPECTED_OTTO_JSON = DEMO_DIR / "expected-otto.json"  # the fifth answer key: read-only, never written by the app
 REAL_FILE = DEMO_DIR / "real-libraries.csv"
-DEPENDENCIES_FILE = DEMO_DIR / "dependencies-demo.cdx.json"      # the Acme Pay demo's dependency list (Demo data)
+DEPENDENCIES_FILE = DEMO_DIR / "dependencies-demo.cdx.json"  # the Acme Pay demo's dependency list (Demo data)
 WAIT_SECONDS = 1500.0
 RETESTS = (("openjdk", "17.0.3"), ("python-ecdsa", "0.13.3"), ("elliptic", "6.5.7"))
 NO_OTTO, NO_KEY = 3, 2
@@ -112,6 +113,7 @@ def _runs(lab: Lab, plan_id: int) -> int:
     from sqlalchemy import func
 
     from app.db import TestRunRow
+
     with lab.db() as db:
         return int(db.scalar(select(func.count(TestRunRow.id)).where(TestRunRow.plan_id == plan_id)) or 0)
 
@@ -135,6 +137,7 @@ def _advisory_rows(lab: Lab, plan_id: int) -> dict[tuple[str, str], dict]:
 def _verify(args: list[str]) -> tuple[int, str]:
     """The verify command, run in this process: (its exit code, what it printed)."""
     from evidence.__main__ import main
+
     out = io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
         try:
@@ -162,7 +165,9 @@ def _packs_part(settings: Settings, answers: dict, notes: list[str]) -> list[pac
                 answers[f"trial.{advisory['id']}.affected_wrong"] = arms["affected"].get("wrong")
                 answers[f"trial.{advisory['id']}.fixed_wrong"] = arms["fixed"].get("wrong")
                 control, total = arms["accept-all"].get("wrong"), arms["accept-all"].get("total")
-                answers[f"trial.{advisory['id']}.control_wrong_on_every_case"] = control is not None and control == total
+                answers[f"trial.{advisory['id']}.control_wrong_on_every_case"] = (
+                    control is not None and control == total
+                )
             fix_trial = advisory["fix"]["trial"]
             if fix_trial is not None:
                 answers[f"fixtrial.{advisory['id']}.outcome"] = fix_trial["outcome"]
@@ -173,9 +178,11 @@ def _packs_part(settings: Settings, answers: dict, notes: list[str]) -> list[pac
         raw = canonical_bytes(first.envelope)
         marker = b'"plain_name":"'
         at = raw.find(marker) + len(marker)
-        changed = raw[:at] + bytes([raw[at] ^ 0x01]) + raw[at + 1:]
-        for name, data, keys in (("pack.refused.one_byte_changed", changed, packs.trusted_keys(settings.data_dir)),
-                                 ("pack.refused.unknown_key", raw, {})):
+        changed = raw[:at] + bytes([raw[at] ^ 0x01]) + raw[at + 1 :]
+        for name, data, keys in (
+            ("pack.refused.one_byte_changed", changed, packs.trusted_keys(settings.data_dir)),
+            ("pack.refused.unknown_key", raw, {}),
+        ):
             try:
                 packs.read_envelope(data, keys)
                 answers[name] = "accepted"
@@ -200,7 +207,9 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                     answers["pack.refused.out_of_order"] = "accepted"
                 except Conflict:
                     answers["pack.refused.out_of_order"] = "refused"
-            progress("  ... Acme Pay: Check for updates, Install, Otto's proposed checks (accept, reject, undo, reconsider), Run all")
+            progress(
+                "  ... Acme Pay: Check for updates, Install, Otto's proposed checks (accept, reject, undo, reconsider), Run all"
+            )
             update = lab.check_pack_updates()["packs"]["update"]
             answers["acme.update_found"] = update["version"] if update else None
             lab.install_pack(found[0].version)
@@ -209,26 +218,36 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             proposed = _proposed(lab, pid, "check")
             answers["acme.proposals.checks_proposed_from_first_pack"] = len(proposed)
             answers["acme.proposals.every_check_says_why_it_applies"] = all(p["why"].strip() for p in proposed)
-            answers["acme.waiting_for_you.before_any_decision"] = lab.assessment_view(_assessment_id(lab, pid))["waiting"]["total"]
+            answers["acme.waiting_for_you.before_any_decision"] = lab.assessment_view(_assessment_id(lab, pid))[
+                "waiting"
+            ]["total"]
             if len(proposed) >= 2:
                 first_id, second_id = proposed[0]["id"], proposed[1]["id"]
                 lab.otto_decide(pid, first_id, "accept")
                 answers["acme.decision.accept.status"] = _status(lab, pid, first_id)
                 lab.otto_decide(pid, second_id, "reject", "Not this quarter")
                 answers["acme.decision.reject.status"] = _status(lab, pid, second_id)
-                answers["acme.decision.reject.kept_on_record"] = any(p["id"] == second_id for p in lab.otto_proposals(pid, ("check",)))
+                answers["acme.decision.reject.kept_on_record"] = any(
+                    p["id"] == second_id for p in lab.otto_proposals(pid, ("check",))
+                )
                 lab.otto_decide(pid, first_id, "undo")
                 answers["acme.decision.undo.status"] = _status(lab, pid, first_id)
-                answers["acme.decision.undo.check_left_the_plan"] = not any(t["kind"] == "advisory_cases" for t in lab.plan_view(pid)["tests"])
+                answers["acme.decision.undo.check_left_the_plan"] = not any(
+                    t["kind"] == "advisory_cases" for t in lab.plan_view(pid)["tests"]
+                )
                 lab.otto_decide(pid, first_id, "accept")
                 lab.otto_decide(pid, second_id, "reconsider")
                 answers["acme.decision.reconsider.status"] = _status(lab, pid, second_id)
                 lab.otto_decide(pid, second_id, "accept")
             _accept_each_check(lab, pid)
             view = lab.advisories_view(pid)
-            answers["acme.checks_added_from_first_pack"] = sum(1 for r in view["rows"] if r["result"]["key"] == "not_run")
+            answers["acme.checks_added_from_first_pack"] = sum(
+                1 for r in view["rows"] if r["result"]["key"] == "not_run"
+            )
             answers["acme.decision.accepting_ran_nothing"] = _runs(lab, pid) == runs_before
-            answers["acme.checks.marked_from_otto"] = sum(1 for t in lab.plan_view(pid)["tests"] if t.get("from_otto") == "From Otto")
+            answers["acme.checks.marked_from_otto"] = sum(
+                1 for t in lab.plan_view(pid)["tests"] if t.get("from_otto") == "From Otto"
+            )
             lab.run_all(pid)
             lab.wait_until_idle(pid, WAIT_SECONDS)
             first = _advisory_rows(lab, pid)
@@ -240,16 +259,24 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             answers["acme.wording.no_banned_words"] = not any(w in t.lower() for t in shown for w in BANNED)
             progress("  ... Acme Pay: the fix (connect the code, proof, pull request, approvals, merge, Retest now)")
             fix = next((f for f in lab.fix_states(pid) if f["kind"] == "code"), None)
-            answers["acme.fix.written_by_before_connect"] = "otto" if fix and fix.get("otto") else "fix_template" if fix else None
+            answers["acme.fix.written_by_before_connect"] = (
+                "otto" if fix and fix.get("otto") else "fix_template" if fix else None
+            )
             answers["acme.fix.ottos_own_change"] = _own_change(fix)
             # after the first run an accepted check can no longer be undone
             ran = next((p for p in _proposed(lab, pid, "check") if p["state"] == "accepted"), None)
-            answers["acme.decision.undo_after_a_run"] = "refused" if ran is not None and ran["actions"].get("undo") else "allowed"
+            answers["acme.decision.undo_after_a_run"] = (
+                "refused" if ran is not None and ran["actions"].get("undo") else "allowed"
+            )
             fix_proposal = next((p for p in _proposed(lab, pid, "fix")), None)
-            answers["acme.fix.proposal.status_before_a_decision"] = _status(lab, pid, fix_proposal["id"]) if fix_proposal else None
+            answers["acme.fix.proposal.status_before_a_decision"] = (
+                _status(lab, pid, fix_proposal["id"]) if fix_proposal else None
+            )
             # A change to a system's plan needs a plan: nothing is proposed until Measure status has placed the system.
-            answers["acme.plan.proposal.made_before_the_status_is_measured"] = next((p for p in _proposed(lab, pid, "plan")), None) is not None
-            lab.measure_migration(pid)                       # the Measure status button
+            answers["acme.plan.proposal.made_before_the_status_is_measured"] = (
+                next((p for p in _proposed(lab, pid, "plan")), None) is not None
+            )
+            lab.measure_migration(pid)  # the Measure status button
             lab.wait_until_measured(pid, 300)
             plan_proposal = next((p for p in _proposed(lab, pid, "plan")), None)
             answers["acme.plan.proposal.made_after_the_failed_check"] = plan_proposal is not None
@@ -264,7 +291,10 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             if plan_proposal is not None:
                 lab.otto_decide(pid, plan_proposal["id"], "accept")
                 answers["acme.plan.proposal.status_after_accept"] = _status(lab, pid, plan_proposal["id"])
-            if fix is not None and next((f for f in lab.fix_states(pid) if f["kind"] == "code"), {}).get("change") is None:
+            if (
+                fix is not None
+                and next((f for f in lab.fix_states(pid) if f["kind"] == "code"), {}).get("change") is None
+            ):
                 lab.connect_code(pid)
                 lab.wait_until_idle(pid, WAIT_SECONDS)
                 fix = next(f for f in lab.fix_states(pid) if f["kind"] == "code")
@@ -274,11 +304,17 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 answers["acme.fix.changed_code_is"] = (fix["change"]["built"]["matches"] or {}).get("version")
                 review = (fix.get("proof") or {}).get("review") or {}
                 answers["acme.fix.offered_after_proof"] = bool(review.get("offered"))
-                answers["acme.fix.proof_reran_advisory_checks"] = sum(1 for t in review.get("tests") or [] if t["kind"] == "advisory_cases")
-                answers["acme.fix.proof_advisory_checks_ok"] = all(t["ok"] for t in review.get("tests") or [] if t["kind"] == "advisory_cases")
+                answers["acme.fix.proof_reran_advisory_checks"] = sum(
+                    1 for t in review.get("tests") or [] if t["kind"] == "advisory_cases"
+                )
+                answers["acme.fix.proof_advisory_checks_ok"] = all(
+                    t["ok"] for t in review.get("tests") or [] if t["kind"] == "advisory_cases"
+                )
                 answers["acme.fix.status"] = fix["status"]
-                with lab.db() as db:    # what was kept of Claude's step when the person connected the code
-                    answers["acme.fix.ottos_step_kept_as"] = [s.outcome for s in db.scalars(select(OttoStepRow).order_by(OttoStepRow.id))]
+                with lab.db() as db:  # what was kept of Claude's step when the person connected the code
+                    answers["acme.fix.ottos_step_kept_as"] = [
+                        s.outcome for s in db.scalars(select(OttoStepRow).order_by(OttoStepRow.id))
+                    ]
                 if fix["status"] == "ready":
                     lab.open_pull_request(pid, fix_id, ["a", "you"])
                     lab.approve(pid, fix_id, "you")
@@ -290,8 +326,14 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                         answers[f"acme.after_merge.{advisory}.result"] = (row["after"] or {}).get("label")
                         answers[f"acme.after_merge.{advisory}.program"] = (row["after"] or {}).get("component")
                         answers[f"acme.after_merge.{advisory}.same_locked_test"] = bool(
-                            row["result"] and row["after"] and row["result"]["locked_test"]["fingerprint"] == row["after"]["locked_test"]["fingerprint"])
-                    if plan_proposal is not None:      # the accepted plan change reads done once the check passes on the fixed code
+                            row["result"]
+                            and row["after"]
+                            and row["result"]["locked_test"]["fingerprint"]
+                            == row["after"]["locked_test"]["fingerprint"]
+                        )
+                    if (
+                        plan_proposal is not None
+                    ):  # the accepted plan change reads done once the check passes on the fixed code
                         after = lab.otto_proposal(pid, plan_proposal["id"])
                         answers["acme.plan.proposal.done_after_the_retest"] = bool(after["facts"].get("done"))
             older_raw = lab.evidence_file(lab.export_evidence(pid)["id"], "json")[1]
@@ -299,7 +341,9 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 progress("  ... Acme Pay: the second pack")
                 lab.install_pack(found[1].version)
                 # every earlier step has a result by now, so the Overview's next step is the new pack's checks
-                answers["acme.second_pack.next_step_page"] = lab.assessment_view(_assessment_id(lab, pid))["next_step"]["page"]
+                answers["acme.second_pack.next_step_page"] = lab.assessment_view(_assessment_id(lab, pid))["next_step"][
+                    "page"
+                ]
                 answers["acme.second_pack.checks_ready_to_add"] = lab.otto_new_checks(pid)
                 before = set(_advisory_rows(lab, pid))
                 _accept_each_check(lab, pid)
@@ -311,7 +355,9 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 for key in added:
                     answers[f"acme.second_pack.{key[1]}.result"] = (rows[key]["result"] or {}).get("label")
                     answers[f"acme.second_pack.{key[1]}.program"] = (rows[key]["result"] or {}).get("component")
-            progress("  ... Acme Pay: the dependency list, the libraries an advisory names, and Otto's proposed updates")
+            progress(
+                "  ... Acme Pay: the dependency list, the libraries an advisory names, and Otto's proposed updates"
+            )
             lab.add_dependency_list(pid, DEPENDENCIES_FILE.name, DEPENDENCIES_FILE.read_bytes())
 
             def libraries() -> dict[str, dict]:
@@ -319,12 +365,19 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
 
             def blockers() -> list:
                 return [system["blocker_lines"] for system in lab.dependencies_view(pid)["systems"]]
+
             listed = libraries()
-            answers["acme.dependencies.named_by_an_advisory"] = sorted(label for label, row in listed.items() if row.get("advisories"))
+            answers["acme.dependencies.named_by_an_advisory"] = sorted(
+                label for label, row in listed.items() if row.get("advisories")
+            )
             for label, row in sorted(listed.items()):
                 if row.get("advisories"):
-                    answers[f"acme.dependencies.{label}.named"] = [f"{a['id']}: {a['state']['label']}" for a in row["advisories"]]
-            updates = sorted((u for u in _proposed(lab, pid, "dependency") if u["state"] == "proposed"), key=lambda u: u["title"])
+                    answers[f"acme.dependencies.{label}.named"] = [
+                        f"{a['id']}: {a['state']['label']}" for a in row["advisories"]
+                    ]
+            updates = sorted(
+                (u for u in _proposed(lab, pid, "dependency") if u["state"] == "proposed"), key=lambda u: u["title"]
+            )
             answers["acme.dependencies.updates_proposed"] = [u["title"] for u in updates]
             if len(updates) >= 2:
                 blockers_before, runs_then = blockers(), _runs(lab, pid)
@@ -336,7 +389,9 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 answers["acme.dependency.accept.library_status"] = (now[accepted].get("otto_status") or {}).get("label")
                 answers["acme.dependency.reject.proposal_status"] = _status(lab, pid, updates[1]["id"])
                 answers["acme.dependency.reject.library_status"] = (now[rejected].get("otto_status") or {}).get("label")
-                answers["acme.dependency.deciding_changed_no_blocker_and_ran_nothing"] = blockers() == blockers_before and _runs(lab, pid) == runs_then
+                answers["acme.dependency.deciding_changed_no_blocker_and_ran_nothing"] = (
+                    blockers() == blockers_before and _runs(lab, pid) == runs_then
+                )
             progress("  ... Acme Pay: Download evidence, and the verify command on it and on changed copies")
             folder = Path(scratch) / "files"
             folder.mkdir()
@@ -380,18 +435,29 @@ def _acme_walk(settings: Settings, answers: dict, notes: list[str], found: list[
 
             otto_part = json.loads(newer_raw)["evidence"]["otto"]
             answers["evidence.decisions_in_the_file"] = sum(len(p["decisions"]) for p in otto_part["proposals"])
-            answers["evidence.every_decision_names_who_and_when"] = all(d["by"] and d["at"] for p in otto_part["proposals"] for d in p["decisions"])
-            answers["evidence.rejected_proposal_with_its_reason"] = any(d["decision"] == "reject" and d["reason"] == "Not this quarter"
-                                                                        for p in otto_part["proposals"] for d in p["decisions"])
+            answers["evidence.every_decision_names_who_and_when"] = all(
+                d["by"] and d["at"] for p in otto_part["proposals"] for d in p["decisions"]
+            )
+            answers["evidence.rejected_proposal_with_its_reason"] = any(
+                d["decision"] == "reject" and d["reason"] == "Not this quarter"
+                for p in otto_part["proposals"]
+                for d in p["decisions"]
+            )
             answers["evidence.decision_changed_and_signed_again"] = resigned(decision_changed)
             answers["evidence.decision_removed_and_signed_again"] = resigned(decision_removed)
             answers["evidence.ledger_line_changed_and_signed_again"] = resigned(line_changed)
             answers["evidence.ledger_line_removed_and_signed_again"] = resigned(line_removed)
             answers["evidence.pack_swapped_and_signed_again"] = resigned(pack_swapped)
-            answers["evidence.previous_later_download"] = _verify(["verify", str(folder / "newer.json"), "--previous", str(folder / "older.json"), *data])[0]
-            answers["evidence.previous_with_a_shorter_ledger"] = _verify(["verify", str(folder / "older.json"), "--previous", str(folder / "newer.json"), *data])[0]
+            answers["evidence.previous_later_download"] = _verify(
+                ["verify", str(folder / "newer.json"), "--previous", str(folder / "older.json"), *data]
+            )[0]
+            answers["evidence.previous_with_a_shorter_ledger"] = _verify(
+                ["verify", str(folder / "older.json"), "--previous", str(folder / "newer.json"), *data]
+            )[0]
             # Phase 6d: Change watch, on the same assessment and after everything above (so no earlier answer moves).
-            progress("  ... Acme Pay: Change watch (both demo changes, the picked tests of the one that undoes the fix, the evidence)")
+            progress(
+                "  ... Acme Pay: Change watch (both demo changes, the picked tests of the one that undoes the fix, the evidence)"
+            )
             _change_watch_part(lab, pid, answers, folder, data)
         finally:
             lab.stop()
@@ -404,11 +470,13 @@ def _change_watch_part(lab: Lab, pid: int, answers: dict, folder: Path, data: li
     """Change watch through the same path as its buttons: Bring in a demo change (twice), what is picked for each and
     why it can or cannot run, Run the picked tests for the change that undoes the merged fix, what Fixes then lists,
     and the verify command on a download and on two changed copies."""
-    def own() -> str:        # the assessment's own results, as Evidence and Advisories read them
+
+    def own() -> str:  # the assessment's own results, as Evidence and Advisories read them
         return json.dumps([lab.lab_view(pid)["rows"], lab.advisories_view(pid)["rows"]], sort_keys=True, default=str)
 
     def change(key: str) -> dict | None:
         return next((c for c in lab.change_watch_view(pid)["changes"] if c["branch"] == CHANGE_BRANCHES[key]), None)
+
     runs_before, own_before = _runs(lab, pid), own()
     for key in CHANGE_BRANCHES:
         offered = next(m for m in lab.change_watch_view(pid)["menu"]["items"] if m["key"] == key)
@@ -432,7 +500,7 @@ def _change_watch_part(lab: Lab, pid: int, answers: dict, folder: Path, data: li
     revert = change("revert-range-check")
     if revert is None or not revert["panel"]["run"]["can"]:
         return
-    lab.run_picked_tests(pid, revert["id"])              # the Run the picked tests button
+    lab.run_picked_tests(pid, revert["id"])  # the Run the picked tests button
     lab.wait_until_idle(pid, WAIT_SECONDS)
     done = change("revert-range-check") or revert
     answers["change.revert-range-check.status_after_the_run"] = done["status"]["word"]
@@ -442,7 +510,8 @@ def _change_watch_part(lab: Lab, pid: int, answers: dict, folder: Path, data: li
         answers[f"change.revert-range-check.{result['title']}.reads"] = result["differs"]
     answers["change.revert-range-check.own_results_unchanged"] = own() == own_before
     answers["change.revert-range-check.fixes_entry"] = next(
-        (f["title"] for f in lab.fixes_view(pid)["fixes"] if f["id"] == f"fix-{done['id']}"), None)
+        (f["title"] for f in lab.fixes_view(pid)["fixes"] if f["id"] == f"fix-{done['id']}"), None
+    )
     entry = next((f for f in lab.fixes_view(pid)["fixes"] if f["id"] == f"fix-{done['id']}"), None)
     answers["change.revert-range-check.fixes_entry_status"] = entry["status"]["word"] if entry else None
     raw_file = lab.evidence_file(lab.export_evidence(pid)["id"], "json")[1]
@@ -463,6 +532,7 @@ def _change_watch_part(lab: Lab, pid: int, answers: dict, folder: Path, data: li
 
     def part_removed(evidence: dict) -> None:
         del evidence["change_watch"]
+
     answers["evidence.change_watch.reviewers_word_changed_and_signed_again"] = resigned(word_changed)
     answers["evidence.change_watch.run_record_changed_and_signed_again"] = resigned(run_record_changed)
     answers["evidence.change_watch.part_removed_and_signed_again"] = resigned(part_removed)
@@ -480,7 +550,7 @@ def _whatif_part(lab: Lab, pid: int, answers: dict) -> None:
         said = lab.whatif_plain(pid, name, version)
         key, needs = f"whatif.{name} {version}", said["needs"]
         answers[f"{key}.dependencies"] = needs["answer"]
-        for compared in needs["compared"][:1]:         # against the one version the file names
+        for compared in needs["compared"][:1]:  # against the one version the file names
             answers[f"{key}.dependencies_added"] = compared["added"]
             answers[f"{key}.dependencies_removed"] = compared["removed"]
             answers[f"{key}.dependencies_changed"] = compared["changed"]
@@ -488,7 +558,9 @@ def _whatif_part(lab: Lab, pid: int, answers: dict) -> None:
         answers[f"{key}.advisories_not_worked_out"] = sorted(said["advisories"]["not_worked_out"])
         for question in said["post_quantum"].values():
             answers[f"{key}.post_quantum.{question['question']}.new_version"] = question["new"]
-            answers[f"{key}.post_quantum.{question['question']}.version_you_have"] = next(iter(question["have"].values()), None)
+            answers[f"{key}.post_quantum.{question['question']}.version_you_have"] = next(
+                iter(question["have"].values()), None
+            )
 
 
 def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[packs.Pack], progress) -> None:
@@ -511,7 +583,9 @@ def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 lab.wait_until_idle(pid, 300.0)
                 row = next(r for r in lab.lab_view(pid)["rows"] if r["item_id"] == item)
                 answers["real.demo_mode.advisory_check_on_a_real_library"] = (row["result"] or {}).get("label")
-                notes.append("This run is in demo mode. Real libraries run only in isolated mode (Docker), so only the demo-mode answer applies here.")
+                notes.append(
+                    "This run is in demo mode. Real libraries run only in isolated mode (Docker), so only the demo-mode answer applies here."
+                )
                 return
             progress(f"  ... Real libraries: Run all ({len(lab.plan_view(pid)['tests'])} tests)")
             lab.run_all(pid)
@@ -519,17 +593,25 @@ def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[
             for (program, advisory), row in _advisory_rows(lab, pid).items():
                 answers[f"real.first.{program}.{advisory}.result"] = (row["result"] or {}).get("label")
                 answers[f"real.first.{program}.{advisory}.wrong_cases"] = _wrong(lab, row["result"])
-            for name, version in WHAT_IFS:       # with first results in, the what-if's try is Retest new version itself
-                answers[f"real.whatif.{name} {version}.try_offered_after_the_first_run"] = lab.whatif_plain(pid, name, version)["try_offered"]
+            for name, version in WHAT_IFS:  # with first results in, the what-if's try is Retest new version itself
+                answers[f"real.whatif.{name} {version}.try_offered_after_the_first_run"] = lab.whatif_plain(
+                    pid, name, version
+                )["try_offered"]
             for fix in lab.fixes_view(pid)["fixes"]:
                 if "From Otto" in (fix.get("labels") or []):
                     answers[f"real.fix.{fix['title']}"] = fix["labels"]
-            answers["real.fixes_from_otto"] = sorted(f["title"] for f in lab.fixes_view(pid)["fixes"] if "From Otto" in (f.get("labels") or []))
+            answers["real.fixes_from_otto"] = sorted(
+                f["title"] for f in lab.fixes_view(pid)["fixes"] if "From Otto" in (f.get("labels") or [])
+            )
 
             def proof_rows() -> dict[str, dict[str, str]]:
                 """{the fix's title: {"public": the first row's word, "here": the second row's word}} for Otto's library fixes."""
-                return {f["title"]: {row["key"]: row["badge"]["label"] for row in f.get("proof_rows") or []}
-                        for f in lab.fixes_view(pid)["fixes"] if f.get("proof_rows")}
+                return {
+                    f["title"]: {row["key"]: row["badge"]["label"] for row in f.get("proof_rows") or []}
+                    for f in lab.fixes_view(pid)["fixes"]
+                    if f.get("proof_rows")
+                }
+
             for title, rows in proof_rows().items():
                 answers[f"real.fix.{title}.proven_on_public_copies"] = rows.get("public")
                 answers[f"real.fix.{title}.proven_on_your_system_before_a_retest"] = rows.get("here")
@@ -540,8 +622,10 @@ def _real_walk(settings: Settings, answers: dict, notes: list[str], found: list[
                 lab.otto_decide(pid, proposal["id"], "accept")
             # a failed advisory check on a program the advisory is not about: the pack holds no fix for it
             answers["real.failed_checks_with_no_fix_from_otto"] = sorted(
-                str(f.get("list_source")) for f in lab.fixes_view(pid)["fixes"]
-                if str(f.get("title", "")).startswith("Advisory check:") and "From Otto" not in (f.get("labels") or []))
+                str(f.get("list_source"))
+                for f in lab.fixes_view(pid)["fixes"]
+                if str(f.get("title", "")).startswith("Advisory check:") and "From Otto" not in (f.get("labels") or [])
+            )
             for name, version in RETESTS:
                 progress(f"  ... Real libraries: Retest new version: {name} {version}")
                 lab.start_retest(pid, version, name)
@@ -584,36 +668,59 @@ def _sandbox_walk(settings: Settings, answers: dict, notes: list[str], progress)
     files_here = all((prepare.DOWNLOADS_DIR / pin["file"]).is_file() for pin in research_demo.SANDBOX_PINS)
     kept = {name: os.environ.get(name) for name in (SANDBOX_ENV, "EVIDENCE_LAB_REGISTRY_SOURCE")}
     with tempfile.TemporaryDirectory(prefix="evidence-lab-accuracy-") as scratch:
-        source, registry = (research_demo.prepare_sandbox(Path(scratch) / "demo", day=1) if files_here else
-                            (research_demo.sandbox_source(Path(scratch) / "demo" / "advisories", 1), None))
-        os.environ[SANDBOX_ENV] = "1"                          # (the research command, a process of its own, reads it too)
+        source, registry = (
+            research_demo.prepare_sandbox(Path(scratch) / "demo", day=1)
+            if files_here
+            else (research_demo.sandbox_source(Path(scratch) / "demo" / "advisories", 1), None)
+        )
+        os.environ[SANDBOX_ENV] = "1"  # (the research command, a process of its own, reads it too)
         if registry is not None:
             os.environ["EVIDENCE_LAB_REGISTRY_SOURCE"] = str(registry)
-        lab = Lab(dataclasses.replace(settings, data_dir=Path(scratch) / "data", advisory_source_dir=source, registry_source_dir=registry,
-                                      sandbox_research=True, watch_clock=False), allow_external_demo_server=True)
+        lab = Lab(
+            dataclasses.replace(
+                settings,
+                data_dir=Path(scratch) / "data",
+                advisory_source_dir=source,
+                registry_source_dir=registry,
+                sandbox_research=True,
+                watch_clock=False,
+            ),
+            allow_external_demo_server=True,
+        )
         lab.start()
         try:
             answers["sandbox.switch.default"] = bool(lab.sandbox_on())
             if lab.mode.name != "isolated":
                 answers["sandbox.demo_mode.can_turn_on"] = not lab.sandbox_blocked()
-                notes.append("Sandbox research: in demo mode only the switch is asked about. The rest of its questions need isolated mode.")
+                notes.append(
+                    "Sandbox research: in demo mode only the switch is asked about. The rest of its questions need isolated mode."
+                )
                 return
             if not files_here:
-                notes.append("Sandbox research: its walk was not made. The six public package files of the sandbox demo are not on this "
-                             "computer (run once, with internet: cd backend && .venv/bin/python tools/research_demo.py --sandbox DIR).")
+                notes.append(
+                    "Sandbox research: its walk was not made. The six public package files of the sandbox demo are not on this "
+                    "computer (run once, with internet: cd backend && .venv/bin/python tools/research_demo.py --sandbox DIR)."
+                )
                 return
-            progress("  ... Sandbox research: a weakness with no fix yet, the day its fix is published, then Design and prove tests (about three minutes)")
+            progress(
+                "  ... Sandbox research: a weakness with no fix yet, the day its fix is published, then Design and prove tests (about three minutes)"
+            )
             lab.set_sandbox(on=True)
             imp = lab.import_file(research_demo.SANDBOX_FILE.name, research_demo.SANDBOX_FILE.read_bytes())
             pid = lab.ensure_plan(imp["id"])["id"]
 
             def item_word() -> str | None:
-                return next((i["status"]["word"] for i in lab.watch_list_look(pid)["items"] if i["key"] == SANDBOX_ITEM), None)
+                return next(
+                    (i["status"]["word"] for i in lab.watch_list_look(pid)["items"] if i["key"] == SANDBOX_ITEM), None
+                )
 
             def advisory_state() -> str | None:
                 rows = (lab.lookup_view(pid).get("last") or {}).get("rows") or []
-                return next((r["state"]["key"] for r in rows if SANDBOX_ID in (r.get("id"), *(r.get("aliases") or []))),
-                            rows[0]["state"]["key"] if len(rows) == 1 else None)
+                return next(
+                    (r["state"]["key"] for r in rows if SANDBOX_ID in (r.get("id"), *(r.get("aliases") or []))),
+                    rows[0]["state"]["key"] if len(rows) == 1 else None,
+                )
+
             answers[f"sandbox.watch.{SANDBOX_ITEM}.day1"] = item_word()
             answers[f"sandbox.advisory.{SANDBOX_ID}.day1"] = advisory_state()
             research_demo.sandbox_source(source, 2)
@@ -622,15 +729,30 @@ def _sandbox_walk(settings: Settings, answers: dict, notes: list[str], progress)
             lab.start_research(pid)
             lab.wait_until_research_done(3600)
             with lab.db() as db:
-                end = db.scalars(select(OttoResearchRow).where(OttoResearchRow.kind == "finished").order_by(OttoResearchRow.id.desc())).first()
-                made = next((pack for _, pack in lab._installed_packs(db) if end is not None and pack.version == end.pack_version), None)
+                end = db.scalars(
+                    select(OttoResearchRow)
+                    .where(OttoResearchRow.kind == "finished")
+                    .order_by(OttoResearchRow.id.desc())
+                ).first()
+                made = next(
+                    (
+                        pack
+                        for _, pack in lab._installed_packs(db)
+                        if end is not None and pack.version == end.pack_version
+                    ),
+                    None,
+                )
             if made is None:
-                notes.append("Sandbox research: the research run made no test pack, so the questions about its trial have no answer. "
-                             + (str(end.reason) if end is not None and end.reason else ""))
+                notes.append(
+                    "Sandbox research: the research run made no test pack, so the questions about its trial have no answer. "
+                    + (str(end.reason) if end is not None and end.reason else "")
+                )
                 return
             entry = made.advisory(SANDBOX_ID)
             if entry is None:
-                notes.append("Sandbox research: the pack the research run made does not hold the advisory, so the questions about its trial have no answer.")
+                notes.append(
+                    "Sandbox research: the pack the research run made does not hold the advisory, so the questions about its trial have no answer."
+                )
                 return
             test, extra = entry["test"], entry["test"].get("sandbox") or {}
             arms = (test.get("trial") or {}).get("arms") or {}
@@ -642,7 +764,9 @@ def _sandbox_walk(settings: Settings, answers: dict, notes: list[str], progress)
             answers[f"{prefix}.control.wrong"] = (arms.get("accept-all") or {}).get("wrong")
             answers[f"{prefix}.cases"] = (arms.get("affected") or {}).get("total")
             answers[f"{prefix}.authors_agree"] = bool(arms.get("affected-b")) and all(
-                (arms.get(arm) or {}).get("agree") == (arms.get(arm) or {}).get("total") for arm in ("affected-b", "fixed-b"))
+                (arms.get(arm) or {}).get("agree") == (arms.get(arm) or {}).get("total")
+                for arm in ("affected-b", "fixed-b")
+            )
             answers[f"{prefix}.left_out"] = sorted(str(v.get("version")) for v in chosen.get("left_out") or [])
             answers[f"sandbox.test.{SANDBOX_ID}"] = test["state"]
             answers[f"sandbox.fix.{SANDBOX_ID}"] = entry["fix"]["state"]
@@ -650,8 +774,12 @@ def _sandbox_walk(settings: Settings, answers: dict, notes: list[str], progress)
             other = Ed25519PrivateKey.generate()
             public = other.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw).hex()
             fingerprint = sha256_hex(made.pack)
-            envelope = {"pack": made.pack, "fingerprint": fingerprint, "public_key": public,
-                        "signature": other.sign(packs.SIGNING_CONTEXT + fingerprint.encode("ascii")).hex()}
+            envelope = {
+                "pack": made.pack,
+                "fingerprint": fingerprint,
+                "public_key": public,
+                "signature": other.sign(packs.SIGNING_CONTEXT + fingerprint.encode("ascii")).hex(),
+            }
             try:
                 packs.read_envelope(canonical_bytes(envelope), {public: ("a key that is not this computer's", False)})
                 answers["sandbox.pack.other_key"] = True
@@ -661,7 +789,9 @@ def _sandbox_walk(settings: Settings, answers: dict, notes: list[str], progress)
             answers[f"sandbox.proposal.{SANDBOX_ID}.before_accept.runs"] = _runs(lab, pid)
             mine = next((p for p in _proposed(lab, pid, "check") if p["about"]["advisory"] == SANDBOX_ID), None)
             if mine is None:
-                notes.append("Sandbox research: no check was proposed for the advisory, so the questions about its run have no answer.")
+                notes.append(
+                    "Sandbox research: no check was proposed for the advisory, so the questions about its run have no answer."
+                )
                 return
             lab.otto_decide(pid, mine["id"], "accept")
             item_id = next(r["item_id"] for r in lab.lab_view(pid)["rows"] if SANDBOX_ID in str(r.get("title")))
@@ -674,7 +804,9 @@ def _sandbox_walk(settings: Settings, answers: dict, notes: list[str], progress)
             name, raw, _ = lab.evidence_file(export["id"], "json")
             path = Path(scratch) / name
             path.write_bytes(raw)
-            answers["sandbox.evidence.verify"] = _verify(["verify", str(path), "--data-dir", str(lab.settings.data_dir)])[0]
+            answers["sandbox.evidence.verify"] = _verify(
+                ["verify", str(path), "--data-dir", str(lab.settings.data_dir)]
+            )[0]
         finally:
             lab.stop()
             for name, value in kept.items():
@@ -691,6 +823,7 @@ def collect_otto(settings: Settings | None = None, say=None) -> dict:
     out: dict = {"mode": None, "notes": [], "stopped": None, "answers": {}}
     try:
         from app.run import runner
+
         out["mode"] = runner.detect_mode(settings).name
         found = _packs_part(settings, out["answers"], out["notes"])
         if not found:
@@ -710,31 +843,64 @@ def compare_otto(expected: object, answers: dict) -> dict:
     wanted = expected.get("answers") if isinstance(expected, dict) else None
     lines = []
     if not isinstance(wanted, dict):
-        return {"lines": [{"id": "key", "match": False, "expected": "an object named answers", "actual": type(wanted).__name__,
-                           "what": "the answer key is not in the form docs/OTTO-KEY.md describes"}], "matched": 0, "total": 1, "not_applicable": 0}
+        return {
+            "lines": [
+                {
+                    "id": "key",
+                    "match": False,
+                    "expected": "an object named answers",
+                    "actual": type(wanted).__name__,
+                    "what": "the answer key is not in the form docs/OTTO-KEY.md describes",
+                }
+            ],
+            "matched": 0,
+            "total": 1,
+            "not_applicable": 0,
+        }
     skipped = 0
     for question in sorted(wanted):
         # (sandbox research is asked in isolated mode, but for its switch; whether the switch can be turned on in demo mode
         #  is asked in demo mode only)
         isolated_only = question.startswith(("real.first.", "real.retest.", "real.fix")) or (
-            question.startswith("sandbox.") and question not in ("sandbox.switch.default", "sandbox.demo_mode.can_turn_on"))
+            question.startswith("sandbox.")
+            and question not in ("sandbox.switch.default", "sandbox.demo_mode.can_turn_on")
+        )
         demo_only = question.startswith(("real.demo_mode.", "sandbox.demo_mode."))
-        if (isolated_only and "real.demo_mode.advisory_check_on_a_real_library" in answers) or (demo_only and question not in answers):
+        if (isolated_only and "real.demo_mode.advisory_check_on_a_real_library" in answers) or (
+            demo_only and question not in answers
+        ):
             skipped += 1
             continue
         actual = answers.get(question, "(no answer)")
-        lines.append({"id": question, "match": actual == wanted[question], "expected": wanted[question], "actual": actual, "what": ""})
-    return {"lines": lines, "matched": sum(1 for line in lines if line["match"]), "total": len(lines), "not_applicable": skipped}
+        lines.append(
+            {
+                "id": question,
+                "match": actual == wanted[question],
+                "expected": wanted[question],
+                "actual": actual,
+                "what": "",
+            }
+        )
+    return {
+        "lines": lines,
+        "matched": sum(1 for line in lines if line["match"]),
+        "total": len(lines),
+        "not_applicable": skipped,
+    }
 
 
 def print_otto_report(settings: Settings | None, say=print, required: bool = False) -> int:
     """Otto's loop against demo/expected-otto.json. `required`: the command was asked for this part alone.
     Exit code 0 only if the key is there and all match; 3 when Otto is not installed and this part was asked for."""
     say("")
-    say("Otto accuracy check against demo/expected-otto.json (test packs, trials, advisory checks, the fix, the evidence file)")
+    say(
+        "Otto accuracy check against demo/expected-otto.json (test packs, trials, advisory checks, the fix, the evidence file)"
+    )
     status = harness.status()
     if not status.installed:
-        say(f"  NOT RUN  {status.sentence} Advisory checks can't be added without it, so Otto's answers are not graded here.")
+        say(
+            f"  NOT RUN  {status.sentence} Advisory checks can't be added without it, so Otto's answers are not graded here."
+        )
         say("Otto accuracy: not run (Otto is not installed)")
         return NO_OTTO if required else 0
     collected = collect_otto(settings, say)
@@ -747,9 +913,14 @@ def print_otto_report(settings: Settings | None, say=print, required: bool = Fal
     if not EXPECTED_OTTO_JSON.exists():
         for question in sorted(answers):
             say(f"  {question} = {json.dumps(answers[question], ensure_ascii=False)}")
-        say("  NOT COMPARED  demo/expected-otto.json is not in this copy of the repository. It is written independently of the build "
-            "(docs/OTTO-KEY.md lists the questions); until it is there, the answers above are shown and nothing is graded.")
-        say(f"Otto accuracy: not compared (answer key missing); {len(answers)} answers collected" + ("; the walk stopped early" if collected["stopped"] else ""))
+        say(
+            "  NOT COMPARED  demo/expected-otto.json is not in this copy of the repository. It is written independently of the build "
+            "(docs/OTTO-KEY.md lists the questions); until it is there, the answers above are shown and nothing is graded."
+        )
+        say(
+            f"Otto accuracy: not compared (answer key missing); {len(answers)} answers collected"
+            + ("; the walk stopped early" if collected["stopped"] else "")
+        )
         return (NO_KEY if required else 0) if not collected["stopped"] else 1
     try:
         expected = json.loads(EXPECTED_OTTO_JSON.read_text(encoding="utf-8"))
@@ -758,7 +929,9 @@ def print_otto_report(settings: Settings | None, say=print, required: bool = Fal
         return 1
     report = compare_otto(expected, answers)
     for line in report["lines"]:
-        say(f"  {'MATCH   ' if line['match'] else 'MISMATCH'}  {line['id']}: expected {line['expected']!r}, app says {line['actual']!r}")
+        say(
+            f"  {'MATCH   ' if line['match'] else 'MISMATCH'}  {line['id']}: expected {line['expected']!r}, app says {line['actual']!r}"
+        )
     if report["not_applicable"]:
         say(f"  {report['not_applicable']} questions of the key apply in the other mode only and were not graded.")
     say(f"Otto accuracy ({collected['mode']} mode): {report['matched']} of {report['total']} match")

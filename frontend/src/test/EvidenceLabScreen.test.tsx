@@ -57,7 +57,8 @@ const label = (el: HTMLElement) => el.lastElementChild?.textContent;
 
 /** The calls of the Evidence page itself. Since phase 5b it also asks for the checks (the other groups) once the lab's
  * answer is in and whenever it changes; those are counted by their own test. */
-const labCalls = (fetchMock: Parameters<typeof calls>[0]) => calls(fetchMock).filter((c) => !c.startsWith("GET /api/plans/1/checks"));
+const labCalls = (fetchMock: Parameters<typeof calls>[0]) =>
+  calls(fetchMock).filter((c) => !c.startsWith("GET /api/plans/1/checks"));
 
 describe("Evidence Lab, results view", () => {
   it("shows the heading, Demo data, subline, the disclaimer line and the two buttons", async () => {
@@ -68,9 +69,16 @@ describe("Evidence Lab, results view", () => {
     expect(text(screen.getByTestId("lab-subline"))).toMatch(
       /^Results by test for server localhost:8443 and signing component acme-sign 1\.4\.2\. Run finished .+\.$/,
     );
-    expect(screen.getByTestId("lab-subline").querySelector("time")?.getAttribute("datetime")).toBe("2026-11-11T01:42:16.000Z");
+    expect(screen.getByTestId("lab-subline").querySelector("time")?.getAttribute("datetime")).toBe(
+      "2026-11-11T01:42:16.000Z",
+    );
     expect(screen.getByTestId("disclaimer").textContent).toBe(DISCLAIMER);
-    expect(screen.getAllByRole("button").map((b) => b.textContent).slice(0, 2)).toEqual(["Retest new version", "Download evidence"]);
+    expect(
+      screen
+        .getAllByRole("button")
+        .map((b) => b.textContent)
+        .slice(0, 2),
+    ).toEqual(["Retest new version", "Download evidence"]);
   });
 
   it("uses the word 'secure' exactly once, has no score, no upload control and no mockup marker", async () => {
@@ -95,7 +103,9 @@ describe("Evidence Lab, results view", () => {
       "Couldn't run (needs OpenSSL 3.5 or newer)",
     ]);
     const vectors = within(rowOf("Official test vectors"));
-    expect(vectors.getByText("acme-sign 1.4.2 accepted 3 forged signatures out of 484 official cases, so it failed.")).not.toBeNull();
+    expect(
+      vectors.getByText("acme-sign 1.4.2 accepted 3 forged signatures out of 484 official cases, so it failed."),
+    ).not.toBeNull();
     // The technical summary waits inside the opened result.
     expect(vectors.queryByText(/^3 of 484 official cases wrong\. Headline: case 168/)).toBeNull();
     expect(screen.queryByTestId("technical-summary")).toBeNull();
@@ -111,7 +121,14 @@ describe("Evidence Lab, results view", () => {
   });
 
   it("gives Couldn't trust this run the same badge look as Couldn't run", async () => {
-    const view = { ...lab, rows: lab.rows.map((r, i) => (i === 0 ? { ...r, result: result(5, "couldnt_trust", "Couldn't trust this run", "warn", "The control did not fail.") } : r)) };
+    const view = {
+      ...lab,
+      rows: lab.rows.map((r, i) =>
+        i === 0
+          ? { ...r, result: result(5, "couldnt_trust", "Couldn't trust this run", "warn", "The control did not fail.") }
+          : r,
+      ),
+    };
     await open(view);
     const badges = screen.getAllByTestId("result-badge");
     expect(label(badges[0]!)).toBe("Couldn't trust this run");
@@ -164,7 +181,12 @@ describe("Evidence Lab, results view", () => {
       "Right answer",
       "acme-sign 1.4.2 said",
     ]);
-    expect(table.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["168", "171", "364"]);
+    expect(
+      table
+        .getAllByRole("row")
+        .slice(1)
+        .map((r) => within(r).getAllByRole("cell")[0]!.textContent),
+    ).toEqual(["168", "171", "364"]);
     expect(table.getByText("168").className).toContain("font-mono");
 
     // Run record with provenance tags and our own source link.
@@ -179,7 +201,15 @@ describe("Evidence Lab, results view", () => {
     // Locked test details and fingerprint.
     const lockedBox = within(d.getByTestId("locked-test"));
     expect(d.getByText("Test details, locked before the run")).not.toBeNull();
-    for (const term of ["Question", "Method", "Inputs", "Control", "Pass/fail rule", "Locked", "Fingerprint of these details (SHA-256)"]) {
+    for (const term of [
+      "Question",
+      "Method",
+      "Inputs",
+      "Control",
+      "Pass/fail rule",
+      "Locked",
+      "Fingerprint of these details (SHA-256)",
+    ]) {
       expect(lockedBox.getByText(term)).not.toBeNull();
     }
     expect(lockedBox.getByText(/before the run started/)).not.toBeNull();
@@ -192,7 +222,11 @@ describe("Evidence Lab, results view", () => {
     expect(d.queryByTestId("suggested-fix")).toBeNull();
 
     // The three buttons, and nothing else.
-    expect(d.getAllByRole("button").map((b) => b.textContent)).toEqual(["View in Fixes", "Mark reviewed", "Dig deeper"]);
+    expect(d.getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "View in Fixes",
+      "Mark reviewed",
+      "Dig deeper",
+    ]);
     expect(d.queryByTestId("research-request")).toBeNull();
 
     fireEvent.click(toggle);
@@ -220,7 +254,9 @@ describe("Evidence Lab, results view", () => {
   });
 
   it("Mark reviewed calls the API and then shows its recorded state", async () => {
-    const reviewed = withResult(lab, 13, { reviewed: { at: "2026-11-11T01:46:02.000Z", text: "You marked this result as reviewed." } });
+    const reviewed = withResult(lab, 13, {
+      reviewed: { at: "2026-11-11T01:46:02.000Z", text: "You marked this result as reviewed." },
+    });
     const fetchMock = await open(lab, { "POST /api/runs/7/mark-reviewed": { body: reviewed } });
     expand("Official test vectors");
     fireEvent.click(button("Mark reviewed"));
@@ -243,7 +279,8 @@ describe("Evidence Lab, results view", () => {
     expect(box.getByText("Research request saved")).not.toBeNull();
     expect(box.getByText("Queued")).not.toBeNull();
     expect(box.getByText("Status: waiting for research engine")).not.toBeNull();
-    for (const term of ["Finding", "Question", "Evidence attached", "Saved"]) expect(box.getByText(term)).not.toBeNull();
+    for (const term of ["Finding", "Question", "Evidence attached", "Saved"])
+      expect(box.getByText(term)).not.toBeNull();
     expect(box.getByText(/^No answer yet\./)).not.toBeNull();
     const queued = button("Dig deeper: queued");
     expect(queued.disabled).toBe(true);
@@ -255,7 +292,14 @@ describe("Evidence Lab, results view", () => {
     const view: LabView = {
       ...lab,
       rows: lab.rows.map((r, i) =>
-        i === 1 ? { ...r, control_line: "", result: null, result_status: { status: "not_run", status_text: "Not run yet", progress: null } } : r,
+        i === 1
+          ? {
+              ...r,
+              control_line: "",
+              result: null,
+              result_status: { status: "not_run", status_text: "Not run yet", progress: null },
+            }
+          : r,
       ),
       retest: { ...lab.retest, can_start: false, blocked_reason: "Run every test in the plan first." },
     };
@@ -312,26 +356,34 @@ describe("Evidence Lab, retest", () => {
 
   it("shows before and after side by side, with rows still expandable", async () => {
     await open(beforeAfter);
-    expect(Array.from(screen.getByTestId("lab-columns").children).map((c) => c.firstElementChild?.firstChild?.textContent ?? c.firstChild?.textContent ?? "")).toEqual([
-      "Test",
-      "Before: acme-sign 1.4.2",
-      "After: acme-sign 1.4.3",
-    ]);
-    expect(text(screen.getByTestId("lab-subline"))).toMatch(/^Before and after: the same five locked tests, run on acme-sign 1\.4\.2 and then on acme-sign 1\.4\.3\./);
+    expect(
+      Array.from(screen.getByTestId("lab-columns").children).map(
+        (c) => c.firstElementChild?.firstChild?.textContent ?? c.firstChild?.textContent ?? "",
+      ),
+    ).toEqual(["Test", "Before: acme-sign 1.4.2", "After: acme-sign 1.4.3"]);
+    expect(text(screen.getByTestId("lab-subline"))).toMatch(
+      /^Before and after: the same five locked tests, run on acme-sign 1\.4\.2 and then on acme-sign 1\.4\.3\./,
+    );
 
     const vectors = within(rowOf("Official test vectors"));
     expect(vectors.getByText("Control failed as expected in both runs.")).not.toBeNull();
     const before = within(vectors.getByTestId("lab-cell-before"));
     const after = within(vectors.getByTestId("lab-cell-after"));
     expect(label(before.getByTestId("result-badge"))).toBe("Failed");
-    expect(before.getByText("acme-sign 1.4.2 accepted 3 forged signatures out of 484 official cases, so it failed.")).not.toBeNull();
-    expect(before.queryByText("3 of 484 official cases wrong (168, 171, 364), all from one missing range check.")).toBeNull();
+    expect(
+      before.getByText("acme-sign 1.4.2 accepted 3 forged signatures out of 484 official cases, so it failed."),
+    ).not.toBeNull();
+    expect(
+      before.queryByText("3 of 484 official cases wrong (168, 171, 364), all from one missing range check."),
+    ).toBeNull();
     expect(label(after.getByTestId("result-badge"))).toBe("Passed");
     expect(after.getByText("484 of 484 official cases right.")).not.toBeNull();
 
     const speed = within(rowOf("Speed and size"));
     expect(label(within(speed.getByTestId("lab-cell-before")).getByTestId("result-badge"))).toBe("Measured");
-    expect(label(within(speed.getByTestId("lab-cell-after")).getByTestId("result-badge"))).toBe("No slowdown beyond measured noise");
+    expect(label(within(speed.getByTestId("lab-cell-after")).getByTestId("result-badge"))).toBe(
+      "No slowdown beyond measured noise",
+    );
 
     expand("Official test vectors");
     const details = within(panel()).getAllByTestId("result-detail");
@@ -440,7 +492,11 @@ describe("Evidence Lab, the line that points to a fix", () => {
     expect(el.className).toContain(look);
     // The spinner shows only while the proof runs, and always next to the words.
     expect(el.querySelector(".animate-spin") !== null).toBe(line.busy);
-    expect(within(el).getAllByRole("button").map((b) => b.textContent)).toEqual(["View in Fixes"]);
+    expect(
+      within(el)
+        .getAllByRole("button")
+        .map((b) => b.textContent),
+    ).toEqual(["View in Fixes"]);
   });
 
   it("never calls a fix ready in a line whose proof has not passed", async () => {
@@ -486,9 +542,12 @@ describe("Evidence Lab, the line that points to a fix", () => {
     // A proof is not a retest: the retest progress line stays away.
     expect(screen.queryByTestId("retest-progress")).toBeNull();
 
-    await waitFor(() => expect(words(lineOf("Official test vectors"))).toBe("Fix ready: 3 lines added and 1 removed, proof passed"), {
-      timeout: 5000,
-    });
+    await waitFor(
+      () => expect(words(lineOf("Official test vectors"))).toBe("Fix ready: 3 lines added and 1 removed, proof passed"),
+      {
+        timeout: 5000,
+      },
+    );
     // The opened row stayed open, and the buttons are back.
     expect(button("Retest new version").disabled).toBe(false);
     expect(button("Download evidence").disabled).toBe(false);
@@ -621,7 +680,10 @@ describe("Evidence Lab, download", () => {
 
   it("shows the server's reason if the evidence can't be made", async () => {
     await open(lab, {
-      "POST /api/plans/1/evidence": { status: 409, body: { error: { message: "Wait for the tests to finish.", line: null, field: null } } },
+      "POST /api/plans/1/evidence": {
+        status: 409,
+        body: { error: { message: "Wait for the tests to finish.", line: null, field: null } },
+      },
     });
     fireEvent.click(button("Download evidence"));
     expect(text(await screen.findByRole("alert"))).toContain("Wait for the tests to finish.");
@@ -642,19 +704,23 @@ describe("Evidence Lab, grouped by target", () => {
       "A local test server started for this file (Demo data).",
     ]);
     expect(within(sections[1]!).getByTestId("lab-group-note")).not.toBeNull();
-    expect(sections.map((g) => Array.from(g.querySelectorAll("[data-kind]")).map((r) => r.getAttribute("data-kind")))).toEqual([
-      ["tls_versions", "certificate"],
-      ["tls_versions", "certificate"],
-      ["official_vectors"],
-    ]);
-    expect(within(sections[0]!).getByText("localhost:8444 refused every version older than TLS 1.3, so it passed.")).not.toBeNull();
+    expect(
+      sections.map((g) => Array.from(g.querySelectorAll("[data-kind]")).map((r) => r.getAttribute("data-kind"))),
+    ).toEqual([["tls_versions", "certificate"], ["tls_versions", "certificate"], ["official_vectors"]]);
+    expect(
+      within(sections[0]!).getByText("localhost:8444 refused every version older than TLS 1.3, so it passed."),
+    ).not.toBeNull();
   });
 
   it("shows the Not tested, and why box with one line per item, calmly and not as an error", async () => {
     await open(groupedLab);
     const box = screen.getByTestId("not-tested");
     expect(within(box).getByRole("heading").textContent).toBe("Not tested, and why");
-    expect(within(box).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+    expect(
+      within(box)
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual([
       "acme-sign 9.9: its tests can't run. Only our own demo components can run in this version.",
       "localhost:8446: Post-quantum readiness wasn't added to the plan.",
     ]);
@@ -668,7 +734,9 @@ describe("Evidence Lab, grouped by target", () => {
     expect(notes).toHaveLength(1);
     const certRow = within(screen.getAllByTestId("lab-group")[1]!).getAllByTestId("evidence-row")[1]!;
     expect(certRow.contains(notes[0]!)).toBe(true);
-    expect(text(notes[0])).toBe("Also noticed: The handshakes for this check showed the server also accepts TLS 1.0 and TLS 1.1.");
+    expect(text(notes[0])).toBe(
+      "Also noticed: The handshakes for this check showed the server also accepts TLS 1.0 and TLS 1.1.",
+    );
     expect(within(certRow).getByTestId("lab-row-header").contains(notes[0]!)).toBe(false);
     expect(notes[0]!.className).not.toMatch(/amber|green|red|emerald/);
     expect(within(certRow).getAllByTestId("result-badge").map(label)).toEqual(["Passed"]);
@@ -692,7 +760,9 @@ describe("Evidence Lab, grouped by target", () => {
     expect(screen.getByTestId("lab-columns")).not.toBeNull();
     const row = within(within(sections[1]!).getAllByTestId("evidence-row")[0]!);
     expect(within(row.getByTestId("lab-cell-before")).getByText(/^localhost:8445 accepted TLS 1\.0/)).not.toBeNull();
-    expect(within(row.getByTestId("lab-cell-after")).getByText(/^After: localhost:8445 accepted TLS 1\.0/)).not.toBeNull();
+    expect(
+      within(row.getByTestId("lab-cell-after")).getByText(/^After: localhost:8445 accepted TLS 1\.0/),
+    ).not.toBeNull();
     // The newer result has no notes, so none is shown.
     expect(screen.queryByTestId("also-noticed")).toBeNull();
     expect(screen.getByTestId("not-tested")).not.toBeNull();
@@ -713,7 +783,9 @@ describe("Evidence Lab, published advisories", () => {
     expect(box.getByText("from the advisory, not a result")).not.toBeNull();
     expect(box.getByText("CVE-2022-21449")).not.toBeNull();
     expect(box.getByText(/Java 15 to 18 accept a blank ECDSA signature/)).not.toBeNull();
-    expect(box.getByText("The Independent exam and the Attacker tricks test both try a blank signature.")).not.toBeNull();
+    expect(
+      box.getByText("The Independent exam and the Attacker tricks test both try a blank signature."),
+    ).not.toBeNull();
     const link = box.getByRole("link", { name: "OpenJDK advisory, 19 April 2022" });
     expect(link.getAttribute("href")).toBe("https://openjdk.org/groups/vulnerability/advisories/2022-04-19");
     expect(link.getAttribute("target")).toBe("_blank");
@@ -775,7 +847,11 @@ describe("Evidence Lab, an advisory check (phase 5c)", () => {
   it("offers the fix the failed check led to, with View in Fixes", async () => {
     await open(withAdvisoryCheck);
     expand(title);
-    fireEvent.click(within(within(panel()).getByTestId("result-detail")).getByRole("button", { name: advisoryCheckRow.result!.fix_line!.button! }));
+    fireEvent.click(
+      within(within(panel()).getByTestId("result-detail")).getByRole("button", {
+        name: advisoryCheckRow.result!.fix_line!.button!,
+      }),
+    );
     expect(viewed).toEqual([advisoryCheckRow.result!.fix_line!.fix_id]);
   });
 });
@@ -794,7 +870,10 @@ describe("Evidence Lab, table, panel, search and cards", () => {
 
   it("counts rows by their badge code in the summary cards, and filters by search and result", async () => {
     await open();
-    const card = (key: string) => within(screen.getAllByTestId("summary-card").find((c) => c.getAttribute("data-card") === key)!).getAllByText(/^\d+$/)[0]!.textContent;
+    const card = (key: string) =>
+      within(screen.getAllByTestId("summary-card").find((c) => c.getAttribute("data-card") === key)!).getAllByText(
+        /^\d+$/,
+      )[0]!.textContent;
     expect([card("with-result"), card("failed"), card("passed"), card("couldnt-run")]).toEqual(["5", "2", "1", "1"]);
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "speed" } });
     expect(rows()).toHaveLength(1);
@@ -865,7 +944,10 @@ const groupOf = (key: string) => {
   return screen.getAllByTestId("group-section").find((g) => g.getAttribute("data-group") === key)!;
 };
 /** Evidence with the four groups: the lab's results and the checks. */
-async function openGrouped(routes: Routes = withGroups(), props: Partial<Parameters<typeof EvidenceLabScreen>[0]> = {}) {
+async function openGrouped(
+  routes: Routes = withGroups(),
+  props: Partial<Parameters<typeof EvidenceLabScreen>[0]> = {},
+) {
   const fetchMock = mockApi({ "GET /api/plans/1/lab": { body: lab }, ...routes });
   render(<EvidenceLabScreen planId={1} onViewFix={(fixId) => viewed.push(fixId)} {...props} />);
   await screen.findAllByTestId("group-section");
@@ -875,33 +957,36 @@ async function openGrouped(routes: Routes = withGroups(), props: Partial<Paramet
 describe("Evidence, the four work groups", () => {
   it("has the four groups as tabs, opens on the first with something in it, and puts today's results under Crypto tests", async () => {
     await openGrouped();
-    expect(within(screen.getByRole("tablist", { name: "Work groups" })).getAllByRole("tab").map((t) => t.textContent)).toEqual([
-      "Verification",
-      "Crypto tests",
-      "Migration",
-      "Dependencies",
-    ]);
+    expect(
+      within(screen.getByRole("tablist", { name: "Work groups" }))
+        .getAllByRole("tab")
+        .map((t) => t.textContent),
+    ).toEqual(["Verification", "Crypto tests", "Migration", "Dependencies"]);
     // One group at a time: the first with something in it.
     expect(shownGroups()).toEqual(["verification"]);
     expect(screen.queryAllByTestId("evidence-row")).toHaveLength(0);
     // Verification: one row per claim checked, with Verify's own word.
-    expect(within(groupOf("verification")).getAllByTestId("check-row").map((r) => r.getAttribute("data-check"))).toEqual([
-      "claim-1",
-      "claim-2",
-      "claim-3",
-    ]);
+    expect(
+      within(groupOf("verification"))
+        .getAllByTestId("check-row")
+        .map((r) => r.getAttribute("data-check")),
+    ).toEqual(["claim-1", "claim-2", "claim-3"]);
     // Crypto tests holds the results table as it was, under its question.
     expect(within(groupOf("encryption")).getAllByTestId("evidence-row")).toHaveLength(rows().length);
     expect(shownGroups()).toEqual(["encryption"]);
     expect(within(groupOf("encryption")).getByRole("heading", { level: 2, name: "Crypto tests" })).not.toBeNull();
-    expect(within(groupOf("encryption")).getByTestId("group-question").textContent).toBe("Is the cryptography built right?");
+    expect(within(groupOf("encryption")).getByTestId("group-question").textContent).toBe(
+      "Is the cryptography built right?",
+    );
     // Dependencies: one row per library with its answers as Dependencies words them, and its Blocks marker.
     const lib = within(groupOf("dependencies")).getByTestId("library-row");
     expect(text(lib)).toContain("OpenSSL 3.0.22");
     expect(text(lib)).toContain("No to all three");
     expect(within(lib).getByTestId("blocks-marker").textContent).toBe("Blocks key exchange on localhost:8461");
     // An empty group says why.
-    expect(within(groupOf("migration")).getByTestId("group-empty").textContent).toBe("Nothing measured yet. Measure status is on Migration.");
+    expect(within(groupOf("migration")).getByTestId("group-empty").textContent).toBe(
+      "Nothing measured yet. Measure status is on Migration.",
+    );
     expect(screen.queryByRole("combobox", { name: "Group" })).toBeNull();
   });
 
@@ -924,13 +1009,22 @@ describe("Evidence, the four work groups", () => {
     const said: { result?: string | null; group?: string | null }[] = [];
     await openGrouped(withGroups(), { onFilters: (f) => said.push(f) });
     const matches = () =>
-      Object.fromEntries(screen.getAllByTestId("group-tab").map((t) => [t.getAttribute("data-group"), within(t).queryByTestId("group-tab-matches")?.textContent]));
+      Object.fromEntries(
+        screen
+          .getAllByTestId("group-tab")
+          .map((t) => [t.getAttribute("data-group"), within(t).queryByTestId("group-tab-matches")?.textContent]),
+      );
     expect(screen.queryAllByTestId("group-tab-matches")).toHaveLength(0);
     fireEvent.change(screen.getByRole("searchbox", { name: "Search results" }), { target: { value: "openssl" } });
     expect(matches()).toEqual({ verification: "0", encryption: expect.any(String), migration: "0", dependencies: "1" });
     fireEvent.change(screen.getByRole("searchbox", { name: "Search results" }), { target: { value: "" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Result" }), { target: { value: "failed" } });
-    expect(matches()).toEqual({ verification: undefined, encryption: expect.any(String), migration: undefined, dependencies: undefined });
+    expect(matches()).toEqual({
+      verification: undefined,
+      encryption: expect.any(String),
+      migration: undefined,
+      dependencies: undefined,
+    });
     // the filter goes to the address with the open tab, so the tab stays where it is
     expect(said.at(-1)).toEqual({ result: "failed", group: "verification" });
     expect(shownGroups()).toEqual(["verification"]);
@@ -982,13 +1076,17 @@ describe("Evidence, the four work groups", () => {
     const late = new Promise<Response>((resolve) => (answer = resolve));
     const fetchMock = mockApi({ "GET /api/plans/1/lab": { body: lab } });
     const answered = fetchMock.getMockImplementation()!;
-    fetchMock.mockImplementation((input, init) => (String(input) === "/api/plans/1/checks" ? late : answered(input, init)));
+    fetchMock.mockImplementation((input, init) =>
+      String(input) === "/api/plans/1/checks" ? late : answered(input, init),
+    );
     render(screenUnderTest());
     await screen.findByTestId("page-header");
     await waitFor(() => expect(calls(fetchMock)).toContain("GET /api/plans/1/checks"));
     expect(screen.queryAllByTestId("evidence-row")).toHaveLength(0);
     expect(screen.queryAllByTestId("group-tab")).toHaveLength(0);
-    answer(new Response(JSON.stringify({ detail: "no" }), { status: 500, headers: { "Content-Type": "application/json" } }));
+    answer(
+      new Response(JSON.stringify({ detail: "no" }), { status: 500, headers: { "Content-Type": "application/json" } }),
+    );
     expect(await screen.findAllByTestId("evidence-row")).toHaveLength(lab.rows.length);
   });
 });
@@ -1009,7 +1107,10 @@ describe("Evidence, the compact row (phase 5b)", () => {
 describe("Evidence, where each result came from", () => {
   it("draws one tag beside each row's result, and none for a test that couldn't run", async () => {
     const fetchMock = await open();
-    const tagOf = (title: string) => within(rowOf(title)).queryAllByTestId("source-tag").map((t) => t.getAttribute("data-source"));
+    const tagOf = (title: string) =>
+      within(rowOf(title))
+        .queryAllByTestId("source-tag")
+        .map((t) => t.getAttribute("data-source"));
     expect(tagOf("Old TLS versions")).toEqual(["live"]);
     expect(tagOf("Certificate strength")).toEqual(["live"]);
     expect(tagOf("Official test vectors")).toEqual(["lab"]);
@@ -1030,15 +1131,21 @@ describe("Evidence, where a library's answers came from", () => {
   };
 
   it("tags the library's row once, and each answer in its panel by its own label", async () => {
-    await openGrouped({ "GET /api/plans/1/checks": { body: { ...checksView, libraries: [tagged] } } }, { openItem: tagged.id });
+    await openGrouped(
+      { "GET /api/plans/1/checks": { body: { ...checksView, libraries: [tagged] } } },
+      { openItem: tagged.id },
+    );
     const libraryPanel = await screen.findByTestId("library-panel");
-    const row = within(groupOf("dependencies")).getAllByTestId("source-tag").filter((t) => !libraryPanel.contains(t));
+    const row = within(groupOf("dependencies"))
+      .getAllByTestId("source-tag")
+      .filter((t) => !libraryPanel.contains(t));
     expect(row.map((t) => t.textContent)).toEqual(["Published"]);
     const inPanel = within(libraryPanel).getAllByTestId("source-tag");
     expect(inPanel.map((t) => t.getAttribute("data-source"))).toEqual(["published"]);
     // the source the release notes are quoted from keeps its words and takes Published's look
-    const sources = within(within(libraryPanel).getByRole("region", { name: "Sources" })).getAllByText("Release notes say");
+    const sources = within(within(libraryPanel).getByRole("region", { name: "Sources" })).getAllByText(
+      "Release notes say",
+    );
     expect(sources.map((t) => t.getAttribute("data-source"))).toEqual(["published"]);
   });
 });
-

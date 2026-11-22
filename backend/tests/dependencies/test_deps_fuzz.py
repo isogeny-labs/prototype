@@ -1,5 +1,6 @@
 """Phase 4d: a seeded run of damaged copies of the demo lists through the reader. The only allowed outcomes are a
 plain refusal (one ImportFileError) or a normal read, each within a time limit. No new package: random only."""
+
 import json
 import random
 import time
@@ -24,7 +25,7 @@ def _damage_bytes(rng: random.Random, data: bytes) -> bytes:
         op = rng.randrange(4)
         i = rng.randrange(len(b)) if b else 0
         if op == 0 and b:
-            del b[i:i + rng.randint(1, 40)]
+            del b[i : i + rng.randint(1, 40)]
         elif op == 1:
             b[i:i] = bytes(rng.randrange(256) for _ in range(rng.randint(1, 12)))
         elif op == 2 and b:
@@ -34,7 +35,22 @@ def _damage_bytes(rng: random.Random, data: bytes) -> bytes:
     return bytes(b)
 
 
-ODD = [None, 0, -1, 1e308, True, "", "x" * 2000, [], {}, [None], {"a": {"b": []}}, "pkg:", "../../etc/passwd", "1.0" * 50]
+ODD = [
+    None,
+    0,
+    -1,
+    1e308,
+    True,
+    "",
+    "x" * 2000,
+    [],
+    {},
+    [None],
+    {"a": {"b": []}},
+    "pkg:",
+    "../../etc/passwd",
+    "1.0" * 50,
+]
 
 
 def _damage_json(rng: random.Random, value):
@@ -44,7 +60,7 @@ def _damage_json(rng: random.Random, value):
         return {**value, k: _damage_json(rng, value[k])}
     if isinstance(value, list) and value and rng.random() < 0.85:
         i = rng.randrange(len(value))
-        return value[:i] + [_damage_json(rng, value[i])] + value[i + 1:]
+        return value[:i] + [_damage_json(rng, value[i])] + value[i + 1 :]
     return rng.choice(ODD)
 
 
@@ -61,7 +77,7 @@ def test_damaged_copies_are_read_or_refused_plainly(name):
         try:
             dl = read_dependency_list(data)
             tree = build_tree(dl, [("acme-sign", "1.4.2")])
-            for r in tree.rows:                      # the lookup must take whatever the list says, too
+            for r in tree.rows:  # the lookup must take whatever the list says, too
                 kb.look_up(r.purl, r.name, r.version)
             outcomes["read"] += 1
         except ImportFileError as exc:

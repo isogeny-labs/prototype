@@ -1,4 +1,5 @@
 """Importing a scanner file (or the demo file), confirming addresses, and Verify."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
@@ -42,15 +43,23 @@ def routes(lab, require_login) -> APIRouter:
     def current_import():
         return lab.current_import()
 
-    @router.post("/api/import/{import_id}/confirm-address", dependencies=[Depends(require_login)], responses=shows(models.Address))
+    @router.post(
+        "/api/import/{import_id}/confirm-address",
+        dependencies=[Depends(require_login)],
+        responses=shows(models.Address),
+    )
     def confirm_address(import_id: int, body: ConfirmBody):
         return lab.confirm_address(import_id, body.address, body.confirmed)
 
-    @router.post("/api/import/{import_id}/verify", dependencies=[Depends(require_login)], responses=shows(models.VerifyRun))
+    @router.post(
+        "/api/import/{import_id}/verify", dependencies=[Depends(require_login)], responses=shows(models.VerifyRun)
+    )
     def run_verify(import_id: int):
         return lab.verify(import_id)
 
-    @router.get("/api/import/{import_id}/verify", dependencies=[Depends(require_login)], responses=shows(models.VerifyRun))
+    @router.get(
+        "/api/import/{import_id}/verify", dependencies=[Depends(require_login)], responses=shows(models.VerifyRun)
+    )
     def latest_verify(import_id: int):
         return lab.latest_verify(import_id)
 

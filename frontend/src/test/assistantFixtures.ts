@@ -23,10 +23,26 @@ export const HOME: Record<OttoProposal["kind"], { page: string; label: string; t
 };
 
 const ACCEPT_LINES: Record<OttoProposal["kind"], string[]> = {
-  check: ["Adds this check to the test plan, as “+ Add test” would.", "Runs nothing.", "You can undo it until the check has run."],
-  fix: ["Records your decision to take this fix.", "Runs nothing and changes nothing on any system.", "You can undo it until the fix has run or been applied."],
-  plan: ["Adds this to the migration plan as something to fix first.", "Runs nothing and changes nothing on any system.", "You can undo it until a newer result of the check passes."],
-  dependency: ["Marks this library “update first”.", "Runs nothing and changes nothing on any system.", "You can undo it at any time."],
+  check: [
+    "Adds this check to the test plan, as “+ Add test” would.",
+    "Runs nothing.",
+    "You can undo it until the check has run.",
+  ],
+  fix: [
+    "Records your decision to take this fix.",
+    "Runs nothing and changes nothing on any system.",
+    "You can undo it until the fix has run or been applied.",
+  ],
+  plan: [
+    "Adds this to the migration plan as something to fix first.",
+    "Runs nothing and changes nothing on any system.",
+    "You can undo it until a newer result of the check passes.",
+  ],
+  dependency: [
+    "Marks this library “update first”.",
+    "Runs nothing and changes nothing on any system.",
+    "You can undo it at any time.",
+  ],
 };
 
 function confirmOf(kind: OttoProposal["kind"], key: AssistantDecision["key"], label: string): AssistantConfirm {
@@ -34,11 +50,19 @@ function confirmOf(kind: OttoProposal["kind"], key: AssistantDecision["key"], la
     key === "accept"
       ? ACCEPT_LINES[kind]
       : key === "reject"
-        ? ["It is not deleted: it stays on the record as “Not added”, with your reason, and can be taken up again later.", "Runs nothing."]
+        ? [
+            "It is not deleted: it stays on the record as “Not added”, with your reason, and can be taken up again later.",
+            "Runs nothing.",
+          ]
         : key === "undo"
           ? ["Takes your accept back.", "Runs nothing. The proposal is open for a decision again."]
           : ["Opens this proposal for a decision again.", "Runs nothing. The earlier decisions stay on the record."];
-  const titles = { accept: `Accept this ${kind}?`, reject: `Reject this ${kind}?`, undo: "Undo this accept?", reconsider: `Take this ${kind} up again?` };
+  const titles = {
+    accept: `Accept this ${kind}?`,
+    reject: `Reject this ${kind}?`,
+    undo: "Undo this accept?",
+    reconsider: `Take this ${kind} up again?`,
+  };
   return {
     title: titles[key],
     lines,
@@ -103,7 +127,14 @@ export function nextStep(
     running: false,
     progress: null,
     confirm: can
-      ? { title: `${title}?`, lines: [`Presses ${title}.`, "It changes nothing on any system."], names: `This is the ${title} button on ${pageLabel}.`, confirm: "Confirm", cancel: "Cancel", reason: null }
+      ? {
+          title: `${title}?`,
+          lines: [`Presses ${title}.`, "It changes nothing on any system."],
+          names: `This is the ${title} button on ${pageLabel}.`,
+          confirm: "Confirm",
+          cancel: "Cancel",
+          reason: null,
+        }
       : null,
     ...over,
   };
@@ -167,12 +198,43 @@ export function result(n: number, label = "Passed", tone: "pass" | "fail" = "pas
 
 export function tab(key: AssistantThread, over: Partial<AssistantTab> = {}): AssistantTab {
   const labels = { testing: "Testing", fixing: "Fixing", planning: "Planning" };
-  return { key, label: labels[key], waiting: 0, mark: `${key}-mark-1`, so_far_title: "This thread so far", so_far: [], so_far_empty: "Nothing has been decided or run in this thread yet.", ...over };
+  return {
+    key,
+    label: labels[key],
+    waiting: 0,
+    mark: `${key}-mark-1`,
+    so_far_title: "This thread so far",
+    so_far: [],
+    so_far_empty: "Nothing has been decided or run in this thread yet.",
+    ...over,
+  };
 }
 
 export function panel(page: string, over: Partial<AssistantView> = {}): AssistantView {
-  const labels: Record<string, string> = { checks: "Checks", advisories: "Advisories", evidence: "Evidence", fixes: "Fixes", overview: "Overview", "migration/systems": "Systems", "migration/dependencies": "Dependencies", "inventory/import": "Import", "inventory/verify": "Verify", "migration/roadmap": "Roadmap" };
-  const threads: Record<string, AssistantThread | null> = { checks: "testing", advisories: "testing", evidence: "testing", "inventory/import": "testing", "inventory/verify": "testing", fixes: "fixing", "migration/dependencies": "fixing", "migration/systems": "planning", "migration/roadmap": "planning", overview: null };
+  const labels: Record<string, string> = {
+    checks: "Checks",
+    advisories: "Advisories",
+    evidence: "Evidence",
+    fixes: "Fixes",
+    overview: "Overview",
+    "migration/systems": "Systems",
+    "migration/dependencies": "Dependencies",
+    "inventory/import": "Import",
+    "inventory/verify": "Verify",
+    "migration/roadmap": "Roadmap",
+  };
+  const threads: Record<string, AssistantThread | null> = {
+    checks: "testing",
+    advisories: "testing",
+    evidence: "testing",
+    "inventory/import": "testing",
+    "inventory/verify": "testing",
+    fixes: "fixing",
+    "migration/dependencies": "fixing",
+    "migration/systems": "planning",
+    "migration/roadmap": "planning",
+    overview: null,
+  };
   return quietAssistant({ page, page_label: labels[page] ?? page, thread: threads[page] ?? null, ...over });
 }
 
@@ -181,12 +243,20 @@ export function answer(kind: AssistantReply["kind"], text: string, over: Partial
   return { kind, text, go: null, entry: null, open: null, options: [], can: [], tab: null, thread: null, ...over };
 }
 
-export function goTo(page: string, over: Partial<NonNullable<AssistantReply["go"]>> = {}): NonNullable<AssistantReply["go"]> {
+export function goTo(
+  page: string,
+  over: Partial<NonNullable<AssistantReply["go"]>> = {},
+): NonNullable<AssistantReply["go"]> {
   return { page, item: null, group: null, result: null, came_from: null, decision: null, ...over };
 }
 
 export function onPage(entries: AssistantEntry[]): AssistantView["on_page"] {
-  return { title: "On this page", entries, empty: entries.length ? null : "Nothing is suggested on this page.", empty_link: null };
+  return {
+    title: "On this page",
+    entries,
+    empty: entries.length ? null : "Nothing is suggested on this page.",
+    empty_link: null,
+  };
 }
 
 export function elsewhere(lines: AssistantView["elsewhere"]["lines"]): AssistantView["elsewhere"] {
@@ -234,5 +304,15 @@ export const dependencyProposal: OttoProposal = proposal({
 export function decided(of: OttoProposal, how: "accepted" | "rejected", reason = "Not this quarter"): OttoProposal {
   const base = how === "accepted" ? acceptedProposal() : rejectedProposal(reason);
   const word = how === "accepted" ? (of.kind === "check" ? "Added" : "Accepted") : base.status.word;
-  return { ...base, id: of.id, kind: of.kind, kind_label: of.kind_label, title: of.title, why: of.why, why_label: of.why_label, link: of.link, status: { ...base.status, word } };
+  return {
+    ...base,
+    id: of.id,
+    kind: of.kind,
+    kind_label: of.kind_label,
+    title: of.title,
+    why: of.why,
+    why_label: of.why_label,
+    link: of.link,
+    status: { ...base.status, word },
+  };
 }

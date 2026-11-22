@@ -20,14 +20,33 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  BACKEND, DISCLAIMER, PYTHON, REPO, continueToChecks, enterApp, layoutProblems, openFreshAssessment, openGroupTab, openPageGroup, openResult,
-  screenshotFolder, startCopy, stepLink, stopCopy, type Copy,
+  BACKEND,
+  DISCLAIMER,
+  PYTHON,
+  REPO,
+  continueToChecks,
+  enterApp,
+  layoutProblems,
+  openFreshAssessment,
+  openGroupTab,
+  openPageGroup,
+  openResult,
+  screenshotFolder,
+  startCopy,
+  stepLink,
+  stopCopy,
+  type Copy,
 } from "./shared";
 
 const SHOTS = screenshotFolder("source-tags");
 const LIST = path.join(REPO, "demo/dependencies-demo.cdx.json");
 const BANNED = [/\bsecure\b/i, /\bscore\b/i, /\bseverity\b/i, /time to hack/i];
-const LABELS: Record<string, string> = { live: "Observed live", lab: "Proven in the lab", file: "From your file", published: "Published" };
+const LABELS: Record<string, string> = {
+  live: "Observed live",
+  lab: "Proven in the lab",
+  file: "From your file",
+  published: "Published",
+};
 
 let copy: Copy | null = null;
 let page: Page;
@@ -72,7 +91,11 @@ async function shots(name: string, focus?: Locator): Promise<void> {
 
 /** The words of every tag inside `where`, as [key, words]. */
 async function tagsIn(where: Locator): Promise<[string, string][]> {
-  return where.getByTestId("source-tag").evaluateAll((all) => all.map((t) => [t.getAttribute("data-source") ?? "", (t.textContent ?? "").trim()] as [string, string]));
+  return where
+    .getByTestId("source-tag")
+    .evaluateAll((all) =>
+      all.map((t) => [t.getAttribute("data-source") ?? "", (t.textContent ?? "").trim()] as [string, string]),
+    );
 }
 
 /** Every tag shows its own words for its key (colour is a help, never the whole message). */
@@ -101,7 +124,11 @@ async function noBannedWords(where: string): Promise<void> {
 }
 
 async function pickFix(title: string): Promise<void> {
-  await page.getByRole("navigation", { name: /^Open findings with a fix/ }).getByRole("button").filter({ hasText: title }).click();
+  await page
+    .getByRole("navigation", { name: /^Open findings with a fix/ })
+    .getByRole("button")
+    .filter({ hasText: title })
+    .click();
   await expect(detail().getByRole("heading", { name: title, level: 2 })).toBeVisible();
 }
 
@@ -109,7 +136,9 @@ async function pickFix(title: string): Promise<void> {
 async function runCount(): Promise<number> {
   const view = await (await page.request.get(`/api/assessments/${assessment}`)).json();
   const checks = await (await page.request.get(`/api/plans/${view.plan_id}/checks`)).json();
-  return (checks.groups as { rows: { runs?: number }[] }[]).flatMap((g) => g.rows).reduce((sum, r) => sum + (r.runs ?? 0), 0);
+  return (checks.groups as { rows: { runs?: number }[] }[])
+    .flatMap((g) => g.rows)
+    .reduce((sum, r) => sum + (r.runs ?? 0), 0);
 }
 
 test.describe.configure({ mode: "serial", timeout: 900_000 });
@@ -145,10 +174,15 @@ test("part 1: one finding followed through its tags, from the claim on Import to
   await expect(page.getByRole("heading", { name: "Verify", level: 1 })).toBeVisible();
   const results = page.getByTestId("result-row");
   await expect(results.getByTestId("result-badge")).toHaveText(["False", "True", "True"]);
-  expect(await Promise.all((await results.all()).map((r) => tagsIn(r).then((t) => t.map(([k]) => k))))).toEqual([["live"], ["live"], ["lab"]]);
+  expect(await Promise.all((await results.all()).map((r) => tagsIn(r).then((t) => t.map(([k]) => k))))).toEqual([
+    ["live"],
+    ["live"],
+    ["lab"],
+  ]);
   await results.first().getByRole("button", { name: "Details and evidence" }).click();
   await expect(detail().getByTestId("source-line")).toHaveText(
-    `Observed live Read from ${server}, an address in your file that you confirmed, with handshakes only.`);
+    `Observed live Read from ${server}, an address in your file that you confirmed, with handshakes only.`,
+  );
   await shots("02-verify-observed-live", detail().getByTestId("source-line"));
   expect(await layoutProblems(page), "Verify").toEqual([]);
 
@@ -158,7 +192,8 @@ test("part 1: one finding followed through its tags, from the claim on Import to
   await page.getByRole("button", { name: "Run all" }).click();
   const cards = page.getByTestId("test-card");
   await expect(cards.getByTestId("result-badge")).toHaveCount(5, { timeout: 180_000 });
-  const cardTag = (title: string) => cards.filter({ has: page.getByRole("heading", { name: title, exact: true }) }).getByTestId("source-tag");
+  const cardTag = (title: string) =>
+    cards.filter({ has: page.getByRole("heading", { name: title, exact: true }) }).getByTestId("source-tag");
   await expect(cardTag("Old TLS versions")).toHaveText("Observed live");
   await expect(cardTag("Independent exam (Wycheproof)")).toHaveText("Proven in the lab");
   await wordsMatchKeys(page.getByTestId("page-content"));
@@ -166,7 +201,9 @@ test("part 1: one finding followed through its tags, from the claim on Import to
 
   // ---- Checks: every row with a result carries one tag, in each group's own tab
   await openGroupTab(page, "Verification");
-  const verification = page.locator('[data-testid="group-section"][data-group="verification"]').getByTestId("check-row");
+  const verification = page
+    .locator('[data-testid="group-section"][data-group="verification"]')
+    .getByTestId("check-row");
   expect(await oneTagPerResultRow(verification, "Checks, Verification")).toBe(3);
   await verification.first().click();
   await expect(detail().getByTestId("source-line")).toContainText("Observed live");
@@ -190,20 +227,28 @@ test("part 1: one finding followed through its tags, from the claim on Import to
   await stepLink(page, "Fixes").click();
   await openGroupTab(page, "Crypto tests", "Fixes");
   await pickFix("Server accepts TLS 1.2");
-  await expect(page.getByTestId("fix-row").filter({ hasText: "Server accepts TLS 1.2" }).getByTestId("source-tag")).toHaveText("Observed live");
-  await expect(detail().getByTestId("fix-summary").getByTestId("source-line")).toContainText(`Observed live Read from ${server}`);
+  await expect(
+    page.getByTestId("fix-row").filter({ hasText: "Server accepts TLS 1.2" }).getByTestId("source-tag"),
+  ).toHaveText("Observed live");
+  await expect(detail().getByTestId("fix-summary").getByTestId("source-line")).toContainText(
+    `Observed live Read from ${server}`,
+  );
   await box().getByRole("button", { name: "Try on a test copy" }).click();
   await expect(box().getByTestId("change-verdict")).toContainText("Try passed.", { timeout: 120_000 });
   await expect(box()).toHaveAttribute("data-busy", "false", { timeout: 60_000 });
   const tried = box().getByTestId("change-try");
   await expect(tried.getByTestId("column-source-tag")).toHaveText(["Observed live", "Proven in the lab"]);
   await expect(box().getByTestId("change-verdict").getByTestId("source-tag")).toHaveText("Proven in the lab");
-  await expect(box().getByTestId("change-verdict").getByTestId("source-note")).toContainText("Your live server was not changed.");
+  await expect(box().getByTestId("change-verdict").getByTestId("source-note")).toContainText(
+    "Your live server was not changed.",
+  );
   await shots("06-fix-try-on-a-test-copy", tried);
   expect(await layoutProblems(page), "Fixes, the try").toEqual([]);
   await box().getByRole("button", { name: "Ask for approval" }).click();
   await box().getByRole("button", { name: "Approve for You" }).click();
-  await box().getByRole("button", { name: `Apply to ${server}` }).click();
+  await box()
+    .getByRole("button", { name: `Apply to ${server}` })
+    .click();
   const applied = box().getByTestId("change-applied");
   await expect(applied.getByTestId("source-tag")).toHaveText("Observed live", { timeout: 90_000 });
   await expect(applied.getByTestId("source-tag")).toHaveAttribute("title", /handshakes only/);
@@ -221,17 +266,22 @@ test("part 1: Migration, Dependencies, the signing program's fix and Change watc
   await page.getByRole("button", { name: "Measure status" }).click();
   await expect(page.getByRole("button", { name: "Measure again" })).toBeEnabled({ timeout: 120_000 });
   await expect(systems.filter({ hasText: copy!.server }).getByTestId("source-tag")).toHaveText("Observed live");
-  await expect(systems.filter({ hasText: "acme-sign 1.4.2" }).getByTestId("source-tag")).toHaveText("Proven in the lab");
+  await expect(systems.filter({ hasText: "acme-sign 1.4.2" }).getByTestId("source-tag")).toHaveText(
+    "Proven in the lab",
+  );
   await systems.filter({ hasText: "acme-sign 1.4.2" }).click();
   const today = page.getByTestId("migration-today");
   await expect(today.getByTestId("source-line")).toHaveText(
-    "Proven in the lab Measured by running a copy of acme-sign 1.4.2 on this computer. Your live system was not touched.");
+    "Proven in the lab Measured by running a copy of acme-sign 1.4.2 on this computer. Your live system was not touched.",
+  );
   await shots("08-migration-live-and-lab");
   expect(await layoutProblems(page), "Migration, Systems").toEqual([]);
 
   // ---- Dependencies: what the maker's release notes say is Published; what the app has not got rests on the list
   await page.getByRole("button", { name: "Dependencies", exact: true }).click();
-  const added = page.waitForResponse((r) => /\/api\/plans\/\d+\/dependencies\?/.test(r.url()) && r.request().method() === "POST");
+  const added = page.waitForResponse(
+    (r) => /\/api\/plans\/\d+\/dependencies\?/.test(r.url()) && r.request().method() === "POST",
+  );
   await page.getByLabel("Choose a dependency list").setInputFiles(LIST);
   expect((await added).status()).toBe(200);
   const libraries = page.getByTestId("dependency-row");
@@ -242,7 +292,9 @@ test("part 1: Migration, Dependencies, the signing program's fix and Change watc
   expect((await tagsIn(python)).map(([k]) => k)).toEqual(["file", "file", "file", "file"]);
   await wordsMatchKeys(page.getByTestId("page-content"));
   await openssl.locator("p.font-mono").click();
-  await expect(detail().getByTestId("source-line").first()).toContainText("From your file Listed in your dependency list.");
+  await expect(detail().getByTestId("source-line").first()).toContainText(
+    "From your file Listed in your dependency list.",
+  );
   await shots("09-dependencies-published-and-from-your-file");
   expect(await layoutProblems(page), "Dependencies, panel open").toEqual([]);
 
@@ -251,7 +303,9 @@ test("part 1: Migration, Dependencies, the signing program's fix and Change watc
   await openGroupTab(page, "Crypto tests", "Fixes");
   await pickFix("acme-sign accepts out-of-range signatures");
   const fix = page.getByTestId("fix-summary");
-  await expect(fix.getByTestId("source-line")).toContainText("From tests that failed on a copy of acme-sign 1.4.2 on this computer.");
+  await expect(fix.getByTestId("source-line")).toContainText(
+    "From tests that failed on a copy of acme-sign 1.4.2 on this computer.",
+  );
   await fix.getByRole("button", { name: "Connect demo code" }).click();
   await expect(fix.getByTestId("fix-status")).toHaveAttribute("data-status", "ready", { timeout: 300_000 });
   await expect(fix.getByTestId("fix-proof").getByTestId("source-tag")).toHaveText("Proven in the lab");
@@ -269,10 +323,14 @@ test("part 1: Migration, Dependencies, the signing program's fix and Change watc
   const panel = page.getByTestId("change-panel");
   await panel.getByTestId("change-run-button").click();
   await expect(panel.getByTestId("change-panel-status")).toHaveText(/^Passed before, fails now/, { timeout: 300_000 });
-  for (const side of await panel.locator('[data-testid="change-result-before"], [data-testid="change-result-now"]').all()) {
+  for (const side of await panel
+    .locator('[data-testid="change-result-before"], [data-testid="change-result-now"]')
+    .all()) {
     expect(await tagsIn(side)).toEqual([["lab", "Proven in the lab"]]);
   }
-  await expect(panel.getByTestId("change-result-now").first().getByTestId("source-note")).toContainText("on this computer");
+  await expect(panel.getByTestId("change-result-now").first().getByTestId("source-note")).toContainText(
+    "on this computer",
+  );
   await shots("11-change-watch-before-and-now", panel.getByTestId("change-results"));
   expect(await layoutProblems(page), "Change watch, panel open").toEqual([]);
   await noBannedWords("Change watch");
@@ -282,15 +340,22 @@ test("part 1: the Overview counts each group's checks by tag; reading the pages 
   const before = await runCount();
   await page.goto(`/#/a/${assessment}/overview`);
   const verification = page.locator('[data-testid="overview-group"][data-group="verification"]');
-  await expect(verification.getByTestId("overview-source-counts")).toHaveText("Where these came from: 2 Observed live · 1 Proven in the lab");
-  const crypto = page.locator('[data-testid="overview-group"][data-group="encryption"]').getByTestId("overview-source-counts");
+  await expect(verification.getByTestId("overview-source-counts")).toHaveText(
+    "Where these came from: 2 Observed live · 1 Proven in the lab",
+  );
+  const crypto = page
+    .locator('[data-testid="overview-group"][data-group="encryption"]')
+    .getByTestId("overview-source-counts");
   await expect(crypto).toContainText("Observed live");
   await expect(crypto).toContainText("Proven in the lab");
   await shots("12-overview-where-these-came-from");
   await noBannedWords("Overview");
 
   // every page with results, every group tab: one tag per row with a result, and the words of its key
-  for (const [step, on] of [["Checks", "Checks"], ["Evidence", "Evidence"]] as const) {
+  for (const [step, on] of [
+    ["Checks", "Checks"],
+    ["Evidence", "Evidence"],
+  ] as const) {
     await stepLink(page, step).click();
     for (const group of ["Verification", "Crypto tests", "Migration", "Dependencies"]) {
       await openGroupTab(page, group, on);
@@ -304,7 +369,9 @@ test("part 1: the Overview counts each group's checks by tag; reading the pages 
 
   // the signed evidence file: the tag is words on the pages only; the file holds none, and the verify command confirms it
   await stepLink(page, "Roadmap").click();
-  const created = page.waitForResponse((r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST");
+  const created = page.waitForResponse(
+    (r) => /\/api\/plans\/\d+\/evidence$/.test(r.url()) && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Download evidence" }).click();
   const made = await created;
   expect(made.status()).toBe(200);
@@ -312,21 +379,28 @@ test("part 1: the Overview counts each group's checks by tag; reading the pages 
   expect(raw.toString("utf-8")).not.toContain("source_tag");
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-source-")), "evidence.json");
   fs.writeFileSync(file, raw);
-  const run = spawnSync(PYTHON, ["-m", "evidence", "verify", file, "--data-dir", copy!.dataDir], { cwd: BACKEND, encoding: "utf-8" });
+  const run = spawnSync(PYTHON, ["-m", "evidence", "verify", file, "--data-dir", copy!.dataDir], {
+    cwd: BACKEND,
+    encoding: "utf-8",
+  });
   expect(run.status, `the evidence file should check: ${run.stdout} ${run.stderr}`).toBe(0);
 });
 
 test("part 2: an advisory check's result on Advisories is Proven in the lab", async () => {
   const otto = await (await page.request.get("/api/otto")).json();
-  test.skip(!otto.harness.installed,
-            `Skipped: ${otto.harness.line} Run ./run-demo.sh once (or: cd backend && .venv/bin/python -m app.prepare --otto).`);
+  test.skip(
+    !otto.harness.installed,
+    `Skipped: ${otto.harness.line} Run ./run-demo.sh once (or: cd backend && .venv/bin/python -m app.prepare --otto).`,
+  );
   // the first built-in test pack, from Settings
   await page.goto("/#/settings?section=test-packs");
   const packs = page.getByTestId("test-packs");
   await packs.getByTestId("otto-check-updates").click();
   await expect(packs.getByTestId("otto-update-line")).toContainText("2026.11.1");
   await packs.getByTestId("otto-install-update").click();
-  const installed = page.waitForResponse((r) => new URL(r.url()).pathname === "/api/otto/packs/install" && r.request().method() === "POST");
+  const installed = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === "/api/otto/packs/install" && r.request().method() === "POST",
+  );
   await page.getByTestId("otto-install-dialog").getByTestId("otto-install-confirm").click();
   expect((await installed).status()).toBe(200);
 
@@ -340,9 +414,13 @@ test("part 2: an advisory check's result on Advisories is Proven in the lab", as
   await page.goto(`/#/a/${id}/advisories`);
   const row = page.locator('[data-testid="advisory-row"][data-advisory="CVE-2022-21449"]');
   await row.click();
-  const proposal = page.locator('[data-testid="advisory-panel"][data-advisory="CVE-2022-21449"]')
-    .locator('[data-testid="advisory-here-row"][data-program="acme-sign 1.4.2"]').getByTestId("otto-proposal");
-  const accepted = page.waitForResponse((r) => /\/otto\/proposals\/[^/]+\/accept$/.test(new URL(r.url()).pathname) && r.request().method() === "POST");
+  const proposal = page
+    .locator('[data-testid="advisory-panel"][data-advisory="CVE-2022-21449"]')
+    .locator('[data-testid="advisory-here-row"][data-program="acme-sign 1.4.2"]')
+    .getByTestId("otto-proposal");
+  const accepted = page.waitForResponse(
+    (r) => /\/otto\/proposals\/[^/]+\/accept$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
+  );
   await proposal.getByTestId("proposal-accept").click();
   expect((await accepted).status()).toBe(200);
   // before it has run, the result has no tag
@@ -359,7 +437,9 @@ test("part 2: an advisory check's result on Advisories is Proven in the lab", as
   }
   await row.click();
   const here = page.locator('[data-testid="advisory-here-row"][data-program="acme-sign 1.4.2"]');
-  await expect(here.getByTestId("source-line")).toContainText("Proven in the lab Run on a copy of acme-sign 1.4.2 on this computer");
+  await expect(here.getByTestId("source-line")).toContainText(
+    "Proven in the lab Run on a copy of acme-sign 1.4.2 on this computer",
+  );
   await shots("13-advisories-result-proven-in-the-lab", here);
   expect(await layoutProblems(page), "Advisories, panel open").toEqual([]);
   await noBannedWords("Advisories");

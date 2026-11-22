@@ -8,17 +8,50 @@
 //
 // It starts from its own fresh import (Use demo file again), so it works after phase1 and phase2 in
 // the same run, on the same app and data folder, and also alone.
-import { expect, test, type APIResponse, type BrowserContext, type Download, type Locator, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIResponse,
+  type BrowserContext,
+  type Download,
+  type Locator,
+  type Page,
+} from "@playwright/test";
 import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { BACKEND, DISCLAIMER, enterApp, importVerifyAndOpenTests, password, PYTHON, REPO, screenshotFolder, sidebarLinksOn, stepLink, stepName, stepNav, openFreshAssessment, openGroupTab, closeResult, evidenceRow, openResult, expectPageOpen } from "./shared";
+import {
+  BACKEND,
+  DISCLAIMER,
+  enterApp,
+  importVerifyAndOpenTests,
+  password,
+  PYTHON,
+  REPO,
+  screenshotFolder,
+  sidebarLinksOn,
+  stepLink,
+  stepName,
+  stepNav,
+  openFreshAssessment,
+  openGroupTab,
+  closeResult,
+  evidenceRow,
+  openResult,
+  expectPageOpen,
+} from "./shared";
 
 const SHOTS = screenshotFolder("phase3a");
 const PQ_TOO_OLD = "Couldn't run (needs OpenSSL 3.5 or newer)";
-const SUGGESTED = ["Old TLS versions", "Certificate strength", "Independent exam (Wycheproof)", "Attacker tricks (our short list)", "Speed and size"];
+const SUGGESTED = [
+  "Old TLS versions",
+  "Certificate strength",
+  "Independent exam (Wycheproof)",
+  "Attacker tricks (our short list)",
+  "Speed and size",
+];
 const ALL_SIX = [...SUGGESTED, "Post-quantum readiness"];
 
 const CODE_FIX = "fix-ecdsa-range-check";
@@ -30,7 +63,8 @@ const PATCH_NAME = "acme-sign-pull-request-1.patch";
 const ONE_LOGIN =
   "This version has one login and no separate accounts. Whoever is at the keyboard records each approval, under the name shown.";
 // What the summary says about the server finding: before a proof has passed it must not say the change fixes anything.
-const SERVER_LINE_UNPROVEN = "This change is for the signing program only. The server finding is separate and still open.";
+const SERVER_LINE_UNPROVEN =
+  "This change is for the signing program only. The server finding is separate and still open.";
 const SERVER_LINE_PROVEN = "This fixes the signing program. The server finding is separate and still open.";
 const PROOF_PASSED =
   "All 3 tests that run the changed code passed, every control behaved as expected, and the 3 server tests came out the same as before.";
@@ -42,8 +76,16 @@ const TLS_LINE = "Server setting change: try it on a test copy, then apply";
 const KEY = JSON.parse(fs.readFileSync(path.join(REPO, "demo/expected.json"), "utf8"));
 // Which row of Evidence Lab answers which entry of the key (the same pairing as backend/app/accuracy.py).
 const KEY_ROWS: Record<string, string> = {
-  T1: "tls_versions", T2: "certificate", T3: "official_vectors", T4: "bad_signatures", T5: "speed_size",
-  R1: "tls_versions", R2: "certificate", R3: "official_vectors", R4: "bad_signatures", R5: "speed_size",
+  T1: "tls_versions",
+  T2: "certificate",
+  T3: "official_vectors",
+  T4: "bad_signatures",
+  T5: "speed_size",
+  R1: "tls_versions",
+  R2: "certificate",
+  R3: "official_vectors",
+  R4: "bad_signatures",
+  R5: "speed_size",
 };
 
 let context: BrowserContext;
@@ -64,7 +106,7 @@ function card(title: string | RegExp): Locator {
 }
 
 function labRow(title: string): Locator {
-  return evidenceRow(page, title);   // phase 5a: the table row; its details open in the detail panel
+  return evidenceRow(page, title); // phase 5a: the table row; its details open in the detail panel
 }
 
 /** The words of a result badge, without its symbol. */
@@ -73,10 +115,13 @@ function badge(scope: Locator): Locator {
 }
 
 async function cardTitles(): Promise<string[]> {
-  return page.getByTestId("test-card").getByRole("heading").evaluateAll((all) =>
-    // The heading may carry a small tag after the title; the title is its first text.
-    all.map((h) => (h.firstChild?.textContent ?? "").trim()),
-  );
+  return page
+    .getByTestId("test-card")
+    .getByRole("heading")
+    .evaluateAll((all) =>
+      // The heading may carry a small tag after the title; the title is its first text.
+      all.map((h) => (h.firstChild?.textContent ?? "").trim()),
+    );
 }
 
 async function cardStatuses(): Promise<string[]> {
@@ -111,7 +156,8 @@ async function goTo(step: string): Promise<void> {
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText(stepName(step));
   // (the old steps Tests and Evidence Lab are the test plan and the results: since 20 November 2026 they are the
   // Crypto tests tab of Checks and of Evidence)
-  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step)) await openGroupTab(page, "Crypto tests", stepName(step) as "Checks" | "Evidence");
+  if (["3. Tests", "Checks", "4. Evidence Lab", "Evidence"].includes(step))
+    await openGroupTab(page, "Crypto tests", stepName(step) as "Checks" | "Evidence");
 }
 
 /** Opens a result in Evidence Lab (if it is closed) and hands back its row. */
@@ -127,7 +173,11 @@ async function closeLabRow(title: string): Promise<void> {
 }
 
 /** A failed result that has a fix shows one line with View in Fixes, and no "Suggested fix" box. */
-async function expectFixLine(detail: Locator, words: string, look: "plain" | "pass" | "fail" | "dashed"): Promise<void> {
+async function expectFixLine(
+  detail: Locator,
+  words: string,
+  look: "plain" | "pass" | "fail" | "dashed",
+): Promise<void> {
   const line = detail.getByTestId("fix-line");
   await expect(line).toHaveCount(1);
   await expect(line.locator("p")).toHaveText(words);
@@ -187,7 +237,9 @@ async function expectStatus(key: string, word: string): Promise<void> {
 
 /** Before a proof has passed, the summary never calls the change ready and never says that it fixes anything. */
 async function expectUnproven(): Promise<void> {
-  expect(await summary().innerText()).not.toMatch(/Ready for review|Ready to merge|Proof passed|Fix ready|This fixes|What it fixes/);
+  expect(await summary().innerText()).not.toMatch(
+    /Ready for review|Ready to merge|Proof passed|Fix ready|This fixes|What it fixes/,
+  );
   await expect(summary().getByTestId("server-line")).toHaveText(SERVER_LINE_UNPROVEN);
 }
 
@@ -266,12 +318,16 @@ async function expectProofRow(kind: string, before: string, proof: string, check
   await expect(badge(row.getByTestId("proof-cell-proof"))).toHaveText(proof);
   await expect(row.getByTestId("proof-check")).toHaveAttribute("data-ok", "true");
   await expect(row.getByTestId("proof-check").locator("span:last-child")).toHaveText(check);
-  if (!proof.startsWith("Couldn't run")) await expect(row.getByTestId("proof-cell-proof")).toContainText(/Control: .* as expected\./);
+  if (!proof.startsWith("Couldn't run"))
+    await expect(row.getByTestId("proof-cell-proof")).toContainText(/Control: .* as expected\./);
 }
 
 /** One fact of Technical details, by its label. */
 function fact(label: string): Locator {
-  return section("details").getByTestId("detail-fact").filter({ has: page.getByText(label, { exact: true }) }).locator("dd");
+  return section("details")
+    .getByTestId("detail-fact")
+    .filter({ has: page.getByText(label, { exact: true }) })
+    .locator("dd");
 }
 
 /** The "Code" item of an opened result's run record, which must come right after "Component". */
@@ -313,7 +369,7 @@ test("a fresh import: Verify, the five suggested tests plus Post-quantum readine
   await expect(cards.getByTestId("test-status")).toHaveText(Array(5).fill("Not run yet"));
 
   // Phase 5b: once a file is in, every page opens, Evidence and Fixes included.
-  await expect(stepNav(page).getByRole("link")).toHaveText(sidebarLinksOn("Checks"));   // (Checks' four groups under it)
+  await expect(stepNav(page).getByRole("link")).toHaveText(sidebarLinksOn("Checks")); // (Checks' four groups under it)
   await expectPageOpen(page, "4. Evidence Lab");
   await expectPageOpen(page, "5. Fixes");
 
@@ -386,7 +442,12 @@ test("Evidence Lab: each failed result that has a fix shows one line with View i
 
 test("View in Fixes opens the right fix; Fixes lists the two findings with their statuses", async () => {
   // From the signing failure: the code fix.
-  await (await openLabRow("Attacker tricks (our short list)")).getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
+  await (
+    await openLabRow("Attacker tricks (our short list)")
+  )
+    .getByTestId("fix-line")
+    .getByRole("button", { name: "View in Fixes" })
+    .click();
   await expect(page.getByRole("heading", { name: "Fixes", level: 1 })).toBeVisible();
   await expect(stepNav(page).locator('[aria-current="page"]')).toHaveText("Fixes");
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
@@ -397,7 +458,9 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
   await expect(page.getByTestId("disclaimer")).toHaveText(DISCLAIMER);
   await expect(page.getByText("Demo data", { exact: true }).first()).toBeVisible();
 
-  await expect(fixList().getByRole("heading", { name: /^Open findings with a fix/ })).toHaveText("Open findings with a fix (2)");
+  await expect(fixList().getByRole("heading", { name: /^Open findings with a fix/ })).toHaveText(
+    "Open findings with a fix (2)",
+  );
   // Phase 5a follow-up: the list is a table; each row's title is the button that opens the fix in the detail panel.
   const rows = fixList().getByTestId("fix-row");
   const items = rows.locator("td:first-child button");
@@ -411,7 +474,9 @@ test("View in Fixes opens the right fix; Fixes lists the two findings with their
   await expect(items.nth(1)).not.toHaveAttribute("aria-current", "true");
   // Phase 5b: where a fix came from is in the full row, so with the panel closed (beside it a row is the fix and its status).
   await page.getByTestId("detail-panel").getByRole("button", { name: "Close details" }).click();
-  await expect(rows.nth(0)).toContainText("Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)");
+  await expect(rows.nth(0)).toContainText(
+    "Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)",
+  );
   await expect(rows.nth(1)).toContainText("Came from 1 failed test: Old TLS versions");
 
   // From the other failed signing test: the same fix (one fix answers both).
@@ -451,9 +516,11 @@ test("the server fix has a change box (Ready to try) and its suggestion; the sum
   );
   await expect(s.getByTestId("fix-what")).toContainText("A server setting, not a code change");
   await expect(s.getByTestId("fix-proof")).toHaveText(
-    "In the change box below: a try on a test copy of the demo server comes first, then the approvals, then Apply.");
+    "In the change box below: a try on a test copy of the demo server comes first, then the approvals, then Apply.",
+  );
   await expect(s.getByTestId("fix-approvers")).toHaveText(
-    "Pick them in the change box below. The app changes the demo server only when a person presses Apply.");
+    "Pick them in the change box below. The app changes the demo server only when a person presses Apply.",
+  );
   await expect(s).not.toContainText("From a fix template");
 
   // No button in the summary, and none of a code fix's anywhere on the screen. The change box has its own.
@@ -462,8 +529,17 @@ test("the server fix has a change box (Ready to try) and its suggestion; the sum
   await expect(page.getByTestId("change-box")).toHaveCount(1);
   await expect(page.getByTestId("change-box").getByRole("button", { name: "Try on a test copy" })).toBeEnabled();
   await expect(page.getByTestId("change-box").getByTestId("change-badge")).toContainText("Ready to try");
-  await expect(page.getByRole("checkbox")).toHaveCount(3);   // the reviewers of the change box
-  for (const name of ["Connect demo code", "Run proof again", "Open pull request", /^Approve/, "Merge pull request", "Download patch", "Retest now", "Prepare change"]) {
+  await expect(page.getByRole("checkbox")).toHaveCount(3); // the reviewers of the change box
+  for (const name of [
+    "Connect demo code",
+    "Run proof again",
+    "Open pull request",
+    /^Approve/,
+    "Merge pull request",
+    "Download patch",
+    "Retest now",
+    "Prepare change",
+  ]) {
     await expect(page.getByRole("button", { name })).toHaveCount(0);
   }
   await expect(page.getByTestId("code-line")).toHaveCount(0);
@@ -477,7 +553,9 @@ test("the server fix has a change box (Ready to try) and its suggestion; the sum
   await expect(text).toContainText("The server accepted TLS 1.2, with the older cipher suite");
   await expect(text).toContainText("ECDHE-ECDSA-AES128-SHA");
   await expect(text.getByTestId("suggestion-warning")).toContainText("Before you switch TLS 1.2 off:");
-  await expect(text.getByTestId("suggestion-warning")).toContainText("older clients and partner systems that can't use TLS 1.3 will no longer be able to connect.");
+  await expect(text.getByTestId("suggestion-warning")).toContainText(
+    "older clients and partner systems that can't use TLS 1.3 will no longer be able to connect.",
+  );
   await expect(text).toContainText("Where the setting lives");
   for (const place of ["nginx", "Apache", "A cloud load balancer", "Your own application"]) {
     await expect(text.getByText(place, { exact: true }).first()).toBeVisible();
@@ -554,7 +632,9 @@ test("Connect demo code: the proof starts by itself; while it runs the status is
   // The Proof section can be opened while the proof runs: every test of the plan is listed, none is judged yet.
   await setSection("proof", true);
   const open = await section("proof").evaluate((el) => ({
-    status: document.querySelector('[data-testid="fix-summary"] [data-testid="fix-status"]')?.getAttribute("data-status") ?? "",
+    status:
+      document.querySelector('[data-testid="fix-summary"] [data-testid="fix-status"]')?.getAttribute("data-status") ??
+      "",
     words: (el.textContent ?? "").replace(/\s+/g, " "),
     rows: el.querySelectorAll('[data-testid="proof-row"]').length,
     waiting: el.querySelectorAll('[data-testid="proof-waiting"]').length,
@@ -563,7 +643,9 @@ test("Connect demo code: the proof starts by itself; while it runs the status is
   }));
   expect(open.status, "the proof was still running when its section was opened").toBe("proving");
   // While it runs, the section speaks in the present: it does not say that the tests "were rerun" yet.
-  expect(open.words).toContain("is now rerunning every locked test in your plan, with the old and the new version timed side by side");
+  expect(open.words).toContain(
+    "is now rerunning every locked test in your plan, with the old and the new version timed side by side",
+  );
   expect(open.words).not.toContain("then reran");
   expect(open.rows).toBe(6);
   expect(open.waiting).toBeGreaterThanOrEqual(1);
@@ -616,14 +698,23 @@ test("while the proof runs, Evidence Lab's line says so, and Retest new version 
 
 test("with nobody pressing anything, the status goes from Proving to Ready for review, with Proof passed", async () => {
   // Back to Fixes through the line's own button. From here nothing is pressed until the proof has ended.
-  await (await openLabRow("Attacker tricks (our short list)")).getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
+  await (
+    await openLabRow("Attacker tricks (our short list)")
+  )
+    .getByTestId("fix-line")
+    .getByRole("button", { name: "View in Fixes" })
+    .click();
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
   const watched = await watchProof();
-  test.info().annotations.push({ type: "proof", description: `statuses seen: ${watched.statuses.join(" -> ")}; progress: ${watched.progress.join(" | ")}` });
+  test.info().annotations.push({
+    type: "proof",
+    description: `statuses seen: ${watched.statuses.join(" -> ")}; progress: ${watched.progress.join(" | ")}`,
+  });
   // It was still running when we came back, it never read Proof failed on the way, and it ended as Ready for review.
   expect(watched.statuses).toEqual(["proving", "ready"]);
   expect(watched.progress.length).toBeGreaterThanOrEqual(1);
-  for (const sentence of watched.progress) expect(sentence).toMatch(/^Running: \d of 6 tests finished\. Not offered yet\.$/);
+  for (const sentence of watched.progress)
+    expect(sentence).toMatch(/^Running: \d of 6 tests finished\. Not offered yet\.$/);
   expect(watched.buttonsWhileProving).toEqual([]);
 
   const s = summary();
@@ -662,7 +753,9 @@ test("with nobody pressing anything, the status goes from Proving to Ready for r
   // With the proof over, tests can be started again.
   await goTo("3. Tests");
   await expect(page.getByRole("button", { name: "Run all" })).toBeEnabled();
-  await expect(card("Attacker tricks (our short list)").getByRole("button", { name: "Run Attacker tricks (our short list)" })).toBeEnabled();
+  await expect(
+    card("Attacker tricks (our short list)").getByRole("button", { name: "Run Attacker tricks (our short list)" }),
+  ).toBeEnabled();
   await goTo("5. Fixes");
   await expect(summary()).toHaveAttribute("data-fix-id", CODE_FIX);
   await expectStatus("ready", "Ready for review");
@@ -678,7 +771,11 @@ test("the change is 3 lines added and 1 removed; the proof tables show every tes
   await expect(change.getByTestId("change-part")).toHaveCount(2);
   const added = change.locator('[data-testid="code-line"][data-mark="+"]');
   const removed = change.locator('[data-testid="code-line"][data-mark="-"]');
-  await expect(added.locator("span:nth-child(3)")).toHaveText(['if not (1 <= r < N and 1 <= s < N):', 'return {"valid": False}', 'VERSION = "1.4.3"']);
+  await expect(added.locator("span:nth-child(3)")).toHaveText([
+    "if not (1 <= r < N and 1 <= s < N):",
+    'return {"valid": False}',
+    'VERSION = "1.4.3"',
+  ]);
   await expect(added.locator("span:nth-child(1)")).toHaveText(["169", "170", "20"]);
   await expect(removed.locator("span:nth-child(3)")).toHaveText(['VERSION = "1.4.2"']);
   await expect(removed.locator("span:nth-child(1)")).toHaveText(["20"]);
@@ -689,11 +786,18 @@ test("the change is 3 lines added and 1 removed; the proof tables show every tes
   await setSection("proof", true);
   const proof = section("proof");
   await expect(proof.getByTestId("fix-section-line")).toHaveText(`Passed: a${PROOF_PASSED.slice(1)}`);
-  await expect(proof).toContainText("then reran every locked test in your plan, with the old and the new version timed side by side");
+  await expect(proof).toContainText(
+    "then reran every locked test in your plan, with the old and the new version timed side by side",
+  );
   const tables = proof.getByTestId("proof-table");
   await expect(tables).toHaveCount(2);
   await expect(tables.nth(0)).toContainText("Tests that run the changed code");
-  await expect(tables.nth(0).getByTestId("proof-columns").locator("span")).toHaveText(["Test", "Before: acme-sign 1.4.2", "On the changed code", "Rule check"]);
+  await expect(tables.nth(0).getByTestId("proof-columns").locator("span")).toHaveText([
+    "Test",
+    "Before: acme-sign 1.4.2",
+    "On the changed code",
+    "Rule check",
+  ]);
   await expect(tables.nth(0).getByTestId("proof-row")).toHaveCount(3);
   await expect(tables.nth(1)).toContainText("Tests that don't run this code (they test the server)");
   await expect(tables.nth(1).getByTestId("proof-row")).toHaveCount(3);
@@ -705,14 +809,24 @@ test("the change is 3 lines added and 1 removed; the proof tables show every tes
   await expectProofRow("speed_size", "Measured", "No slowdown beyond measured noise", "No slowdown");
   await expectProofRow("tls_versions", "Failed", "Failed", "Same as before");
   await expectProofRow("certificate", "Passed", "Passed", "Same as before");
-  const pq = (await badge(page.locator('[data-testid="proof-row"][data-kind="pq_readiness"]').getByTestId("proof-cell-before")).innerText()).trim();
+  const pq = (
+    await badge(
+      page.locator('[data-testid="proof-row"][data-kind="pq_readiness"]').getByTestId("proof-cell-before"),
+    ).innerText()
+  ).trim();
   expect(["Not offered", PQ_TOO_OLD]).toContain(pq);
   await expectProofRow("pq_readiness", pq, pq, "Same as before");
   const row = (kind: string) => page.locator(`[data-testid="proof-row"][data-kind="${kind}"]`);
-  await expect(row("official_vectors").getByTestId("proof-cell-proof")).toContainText("484 of 484 official cases right.");
+  await expect(row("official_vectors").getByTestId("proof-cell-proof")).toContainText(
+    "484 of 484 official cases right.",
+  );
   await expect(row("bad_signatures").getByTestId("proof-cell-proof")).toContainText("Rejects r=0, s=0");
-  await expect(row("speed_size").getByTestId("proof-cell-proof")).toContainText(/on acme-sign 1\.4\.3, against .* on acme-sign 1\.4\.2, measured side by side/);
-  await expect(row("tls_versions").getByTestId("proof-cell-proof")).toContainText("Server still accepts TLS 1.2. This change doesn't touch the server.");
+  await expect(row("speed_size").getByTestId("proof-cell-proof")).toContainText(
+    /on acme-sign 1\.4\.3, against .* on acme-sign 1\.4\.2, measured side by side/,
+  );
+  await expect(row("tls_versions").getByTestId("proof-cell-proof")).toContainText(
+    "Server still accepts TLS 1.2. This change doesn't touch the server.",
+  );
   await expect(page.getByText("Couldn't trust this run")).toHaveCount(0);
 
   const verdict = proof.getByTestId("proof-verdict");
@@ -723,7 +837,9 @@ test("the change is 3 lines added and 1 removed; the proof tables show every tes
     "Every control behaved as expected.",
     "The 3 server tests came out the same as before.",
   ]);
-  await expect(verdict).toContainText("It doesn't show that the change is free of other faults, and it does nothing about the server finding.");
+  await expect(verdict).toContainText(
+    "It doesn't show that the change is free of other faults, and it does nothing about the server finding.",
+  );
   // Six rows and three reasons, every one ticked.
   await expect(proof.getByTestId("proof-check")).toHaveCount(9);
   await expect(proof.locator('[data-testid="proof-check"]:not([data-ok="true"])')).toHaveCount(0);
@@ -731,7 +847,9 @@ test("the change is 3 lines added and 1 removed; the proof tables show every tes
   // Technical details: repository, branches, commit ids, fingerprints, mode.
   await setSection("details", true);
   const details = section("details");
-  await expect(fact("Repository")).toHaveText(/^acme-sign\s*Demo data, the app's own copy\. Nothing is sent anywhere else\.$/);
+  await expect(fact("Repository")).toHaveText(
+    /^acme-sign\s*Demo data, the app's own copy\. Nothing is sent anywhere else\.$/,
+  );
   await expect(fact("Starting point")).toHaveText(/^branch main, commit [0-9a-f]{7} \(acme-sign 1\.4\.2\)$/);
   await expect(fact("Change branch")).toHaveText(/^fix\/ecdsa-range-check, commit [0-9a-f]{7}$/);
   await expect(fact("File changed")).toHaveText(`acme_sign.py: ${SIZE}`);
@@ -749,7 +867,10 @@ test("the change is 3 lines added and 1 removed; the proof tables show every tes
   await expect(ranOn).toContainText("This version of Evidence Lab only ever runs our own demo software.");
   const prints = (await ranOn.locator("dd").allInnerTexts()).map((t) => t.trim().slice(0, 64));
   expect(prints).toHaveLength(2);
-  const bundled = crypto.createHash("sha256").update(fs.readFileSync(path.join(REPO, "demo/components/acme-sign-1.4.3/acme_sign.py"))).digest("hex");
+  const bundled = crypto
+    .createHash("sha256")
+    .update(fs.readFileSync(path.join(REPO, "demo/components/acme-sign-1.4.3/acme_sign.py")))
+    .digest("hex");
   expect(prints).toEqual([bundled, bundled]);
 
   await expectNoSoftwareUpload();
@@ -781,7 +902,7 @@ test("after the proof Evidence Lab's line reads Fix ready, and the server failur
   await tls.getByTestId("fix-line").getByRole("button", { name: "View in Fixes" }).click();
   await expect(summary()).toHaveAttribute("data-fix-id", TLS_FIX);
   await expect(summary().getByTestId("fix-status")).toHaveText("Ready to try");
-  await expect(summary().getByRole("button")).toHaveCount(0);   // its buttons are in the change box below
+  await expect(summary().getByRole("button")).toHaveCount(0); // its buttons are in the change box below
   await expect(listedRow(CODE_FIX_TITLE).getByTestId("fix-status")).toHaveText("Ready for review");
   await expect(page.getByTestId("change-box")).toBeVisible();
   await shot("11-fixes-server-tls-text-only.png");
@@ -800,7 +921,9 @@ test("Open pull request with You and Demo reviewer A; Merge pull request stays o
 
   await expectStatus("waiting", "Waiting for approval");
   await expect(s.getByTestId("fix-pull-request")).toContainText("#1 Reject signatures whose r or s is out of range.");
-  await expect(s.getByTestId("fix-pull-request")).toContainText("It stays inside the app; nothing is sent anywhere else.");
+  await expect(s.getByTestId("fix-pull-request")).toContainText(
+    "It stays inside the app; nothing is sent anywhere else.",
+  );
   await expect(badge(s.getByTestId("fix-proof"))).toHaveText("Proof passed");
   // The two picked reviewers, each with their own Approve button. Demo reviewer B was not picked.
   const rows = s.getByTestId("approval-row");
@@ -813,7 +936,12 @@ test("Open pull request with You and Demo reviewer A; Merge pull request stays o
   await expect(reviewerA.getByText("Demo data", { exact: true })).toBeVisible();
   await expect(s).not.toContainText("Demo reviewer B");
   await expect(page.getByRole("checkbox")).toHaveCount(0);
-  await expect(s.getByRole("button")).toHaveText(["Approve", "Approve as Demo reviewer A", "Merge pull request", "Download patch"]);
+  await expect(s.getByRole("button")).toHaveText([
+    "Approve",
+    "Approve as Demo reviewer A",
+    "Merge pull request",
+    "Download patch",
+  ]);
   const merge = s.getByRole("button", { name: "Merge pull request" });
   await expect(merge).toBeDisabled();
   await expect(s.getByRole("button", { name: "Download patch" })).toBeEnabled();
@@ -829,7 +957,10 @@ test("Open pull request with You and Demo reviewer A; Merge pull request stays o
   expect(await codeFixStatus(plan)).toBe("waiting");
 
   // The patch can be downloaded as soon as the pull request is open.
-  const [earlyPatch] = await Promise.all([page.waitForEvent("download"), s.getByRole("button", { name: "Download patch" }).click()]);
+  const [earlyPatch] = await Promise.all([
+    page.waitForEvent("download"),
+    s.getByRole("button", { name: "Download patch" }).click(),
+  ]);
   expect(earlyPatch.suggestedFilename()).toBe(PATCH_NAME);
   await earlyPatch.saveAs(path.join(downloads, "before-merge.patch"));
 
@@ -841,7 +972,11 @@ test("Open pull request with You and Demo reviewer A; Merge pull request stays o
   await expectStatus("waiting", "Waiting for approval");
   await expect(merge).toBeDisabled();
   await expect(s.getByTestId("fix-actions")).toContainText("waiting for Demo reviewer A.");
-  await expect(s.getByRole("button")).toHaveText(["Approve as Demo reviewer A", "Merge pull request", "Download patch"]);
+  await expect(s.getByRole("button")).toHaveText([
+    "Approve as Demo reviewer A",
+    "Merge pull request",
+    "Download patch",
+  ]);
   await expect(s.getByTestId("fix-approvers")).toContainText(ONE_LOGIN);
   await expectNoSoftwareUpload();
   await expectCarefulWording();
@@ -868,7 +1003,9 @@ test("Merge pull request asks first: Cancel merges nothing, Confirm merge merges
   await expect(dialog).toContainText(
     "This puts the change on the main branch of the app's own copy of the demo repository acme-sign. After the merge, that branch holds acme-sign 1.4.3.",
   );
-  await expect(dialog).toContainText("Every reviewer has approved. The app deploys nothing, and a merge can't be undone here.");
+  await expect(dialog).toContainText(
+    "Every reviewer has approved. The app deploys nothing, and a merge can't be undone here.",
+  );
   await expect(dialog.getByRole("button")).toHaveText(["Cancel", "Confirm merge"]);
   // The keyboard starts on Cancel, so Enter pressed straight away merges nothing.
   await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
@@ -915,7 +1052,10 @@ test("Merge pull request asks first: Cancel merges nothing, Confirm merge merges
 
 test("Download patch gives acme-sign-pull-request-1.patch: the two added lines and the version line, and git accepts it on 1.4.2", async () => {
   const pagesBefore = context.pages().length;
-  const [download] = await Promise.all([page.waitForEvent("download"), summary().getByRole("button", { name: "Download patch" }).click()]);
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    summary().getByRole("button", { name: "Download patch" }).click(),
+  ]);
   expect(download.suggestedFilename()).toBe(PATCH_NAME);
   const file = path.join(downloads, PATCH_NAME);
   await download.saveAs(file);
@@ -932,28 +1072,45 @@ test("Download patch gives acme-sign-pull-request-1.patch: the two added lines a
   const lines = patchText.split("\n");
   const added = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++"));
   const removed = lines.filter((l) => l.startsWith("-") && !l.startsWith("---") && l !== "-- ");
-  expect(added).toEqual(['+VERSION = "1.4.3"', "+    if not (1 <= r < N and 1 <= s < N):", '+        return {"valid": False}']);
+  expect(added).toEqual([
+    '+VERSION = "1.4.3"',
+    "+    if not (1 <= r < N and 1 <= s < N):",
+    '+        return {"valid": False}',
+  ]);
   expect(removed).toEqual(['-VERSION = "1.4.2"']);
   expect(patchText.includes("PRIVATE KEY")).toBe(false);
 
   // With git on this machine: the patch applies to a scratch copy of the bundled 1.4.2 and gives the bundled 1.4.3, byte for byte.
   if (spawnSync("git", ["--version"], { encoding: "utf8" }).status !== 0) {
-    test.info().annotations.push({ type: "git", description: "git is not installed here, so `git apply --check` was not tried" });
+    test.info().annotations.push({
+      type: "git",
+      description: "git is not installed here, so `git apply --check` was not tried",
+    });
     return;
   }
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "evidence-lab-e2e-patch-"));
   try {
-    fs.copyFileSync(path.join(REPO, "demo/components/acme-sign-1.4.2/acme_sign.py"), path.join(scratch, "acme_sign.py"));
+    fs.copyFileSync(
+      path.join(REPO, "demo/components/acme-sign-1.4.2/acme_sign.py"),
+      path.join(scratch, "acme_sign.py"),
+    );
     // The scratch folder is outside any repository, and git is told not to look for one above it.
     const git = (args: string[]) =>
-      spawnSync("git", args, { cwd: scratch, encoding: "utf8", env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(scratch) } });
+      spawnSync("git", args, {
+        cwd: scratch,
+        encoding: "utf8",
+        env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(scratch) },
+      });
     const check = git(["apply", "--check", "--verbose", file]);
     expect(check.status, `git apply --check: ${check.stdout}${check.stderr}`).toBe(0);
     const apply = git(["apply", file]);
     expect(apply.status, `git apply: ${apply.stdout}${apply.stderr}`).toBe(0);
     const result = fs.readFileSync(path.join(scratch, "acme_sign.py"));
     expect(result.equals(fs.readFileSync(path.join(REPO, "demo/components/acme-sign-1.4.3/acme_sign.py")))).toBe(true);
-    test.info().annotations.push({ type: "git", description: "git apply --check accepted the patch; applied to 1.4.2 it gives 1.4.3 byte for byte" });
+    test.info().annotations.push({
+      type: "git",
+      description: "git apply --check accepted the patch; applied to 1.4.2 it gives 1.4.3 byte for byte",
+    });
   } finally {
     fs.rmSync(scratch, { recursive: true, force: true });
   }
@@ -983,12 +1140,17 @@ test("Retest now runs the retest and lands on Evidence Lab's before and after, w
   // The answer key, entry by entry: T1 to T5 before, R1 to R5 after.
   expect(KEY.tests_on_1_4_2.map((e: any) => e.id)).toEqual(["T1", "T2", "T3", "T4", "T5"]);
   expect(KEY.tests_on_1_4_3.map((e: any) => e.id)).toEqual(["R1", "R2", "R3", "R4", "R5"]);
-  for (const entry of KEY.tests_on_1_4_2) expect(await before(KEY_ROWS[entry.id]), `${entry.id} ${entry.test}`).toBe(entry.expected);
-  for (const entry of KEY.tests_on_1_4_3) expect(await after(KEY_ROWS[entry.id]), `${entry.id} ${entry.test}`).toBe(entry.expected);
+  for (const entry of KEY.tests_on_1_4_2)
+    expect(await before(KEY_ROWS[entry.id]), `${entry.id} ${entry.test}`).toBe(entry.expected);
+  for (const entry of KEY.tests_on_1_4_3)
+    expect(await after(KEY_ROWS[entry.id]), `${entry.id} ${entry.test}`).toBe(entry.expected);
   // In words: the two signature tests now pass, speed shows no slowdown, the server tests are unchanged.
   expect([await before("official_vectors"), await after("official_vectors")]).toEqual(["Failed", "Passed"]);
   expect([await before("bad_signatures"), await after("bad_signatures")]).toEqual(["Failed", "Passed"]);
-  expect([await before("speed_size"), await after("speed_size")]).toEqual(["Measured", "No slowdown beyond measured noise"]);
+  expect([await before("speed_size"), await after("speed_size")]).toEqual([
+    "Measured",
+    "No slowdown beyond measured noise",
+  ]);
   expect([await before("tls_versions"), await after("tls_versions")]).toEqual(["Failed", "Failed"]);
   expect([await before("certificate"), await after("certificate")]).toEqual(["Passed", "Passed"]);
   const addOn = KEY.add_on[0];
@@ -1002,7 +1164,10 @@ test("Retest now runs the retest and lands on Evidence Lab's before and after, w
 
   // Which code each side ran on: the bundled 1.4.2 before, the merged fix after, with the merge commit Fixes showed.
   expect(mergeCommit).toMatch(/^[0-9a-f]{7}$/);
-  await expect(page.getByTestId("lab-column-note")).toHaveText(["the bundled demo version", `the merged fix, commit ${mergeCommit}`]);
+  await expect(page.getByTestId("lab-column-note")).toHaveText([
+    "the bundled demo version",
+    `the merged fix, commit ${mergeCommit}`,
+  ]);
   await expect(page.getByTestId("lab-code-line")).toHaveText(
     `Code they ran on: before, the bundled demo version of acme-sign 1.4.2; after, the merged fix: branch main, commit ${mergeCommit} (pull request #1), the same byte for byte as our bundled acme-sign 1.4.3.`,
   );
@@ -1020,10 +1185,18 @@ test("the opened row after the retest: the code each side ran on, the Code item,
   await expect(details).toHaveCount(2);
   const after = details.nth(0);
   const before = details.nth(1);
-  await expect(after.getByRole("heading", { name: `After: acme-sign 1.4.3, the merged fix (commit ${mergeCommit})`, exact: true })).toBeVisible();
+  await expect(
+    after.getByRole("heading", { name: `After: acme-sign 1.4.3, the merged fix (commit ${mergeCommit})`, exact: true }),
+  ).toBeVisible();
   await expect(badge(after).first()).toHaveText("Passed");
   // The case that failed before now passes: the signature r=0, s=0 is rejected.
-  const zeroCase = (detail: Locator) => detail.getByRole("table").first().locator("tbody tr").filter({ hasText: /r\s?=\s?0.*s\s?=\s?0/ }).first();
+  const zeroCase = (detail: Locator) =>
+    detail
+      .getByRole("table")
+      .first()
+      .locator("tbody tr")
+      .filter({ hasText: /r\s?=\s?0.*s\s?=\s?0/ })
+      .first();
   await expect(zeroCase(after)).toContainText("rejected");
   await expect(zeroCase(after)).not.toContainText("accepted");
   await expect(zeroCase(before)).toContainText("accepted (wrong)");
@@ -1032,10 +1205,14 @@ test("the opened row after the retest: the code each side ran on, the Code item,
   await expect(after.getByTestId("fix-line")).toHaveCount(0);
   await expect(after.getByTestId("suggested-fix")).toContainText("None needed. Every bad signature was rejected.");
   expect(await codeItem(after)).toMatch(
-    new RegExp(`^Code: the merged fix: branch main, commit ${mergeCommit} \\(pull request #1\\), the same byte for byte as our bundled acme-sign 1\\.4\\.3 demo$`),
+    new RegExp(
+      `^Code: the merged fix: branch main, commit ${mergeCommit} \\(pull request #1\\), the same byte for byte as our bundled acme-sign 1\\.4\\.3 demo$`,
+    ),
   );
 
-  await expect(before.getByRole("heading", { name: "Before: acme-sign 1.4.2, the bundled demo version", exact: true })).toBeVisible();
+  await expect(
+    before.getByRole("heading", { name: "Before: acme-sign 1.4.2, the bundled demo version", exact: true }),
+  ).toBeVisible();
   await expect(badge(before).first()).toHaveText("Failed");
   await expectFixLine(before, `Fix merged: ${SIZE}, proof passed`, "plain");
   expect(await codeItem(before)).toBe("Code: the bundled demo version of acme-sign 1.4.2 demo");
@@ -1093,21 +1270,33 @@ test("Download evidence: the verify command passes, and the file holds the fix, 
   expect(evidence.disclaimer).toBe(DISCLAIMER);
   expect(evidence.tests).toHaveLength(6);
   // The connected code.
-  expect(evidence.code).toMatchObject({ repository: "acme-sign", branch: "main", is_demo: true, component: { name: "acme-sign", version: "1.4.2" } });
+  expect(evidence.code).toMatchObject({
+    repository: "acme-sign",
+    branch: "main",
+    is_demo: true,
+    component: { name: "acme-sign", version: "1.4.2" },
+  });
   expect(evidence.code.base_commit).toMatch(/^[0-9a-f]{40}$/);
 
   expect(evidence.fixes.map((f: any) => [f.id, f.kind, f.status])).toEqual([
     [CODE_FIX, "code", "Merged"],
-    [TLS_FIX, "text", "Ready to try"],   // since phase 4b the change box's status
+    [TLS_FIX, "text", "Ready to try"], // since phase 4b the change box's status
   ]);
   const fix = evidence.fixes[0];
   expect(fix.title).toBe(CODE_FIX_TITLE);
-  expect(fix.source.text).toBe("Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)");
+  expect(fix.source.text).toBe(
+    "Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)",
+  );
   expect(fix.proof_summary).toEqual({ state: "passed", label: "Proof passed", text: PROOF_PASSED });
   // The fix: the change, labelled, with exactly the patch that Download patch gave.
   expect(fix.change).toMatchObject({
-    label: "From a fix template", written_by: "fix_template", template_id: "ecdsa-range-check", branch: "fix/ecdsa-range-check",
-    size: SIZE, title: "Reject signatures whose r or s is out of range", built: { file: "acme_sign.py", matches: { name: "acme-sign", version: "1.4.3" } },
+    label: "From a fix template",
+    written_by: "fix_template",
+    template_id: "ecdsa-range-check",
+    branch: "fix/ecdsa-range-check",
+    size: SIZE,
+    title: "Reject signatures whose r or s is out of range",
+    built: { file: "acme_sign.py", matches: { name: "acme-sign", version: "1.4.3" } },
   });
   expect(fix.change.files).toHaveLength(1);
   expect(fix.change.files[0]).toMatchObject({ name: "acme_sign.py", added: 3, removed: 1 });
@@ -1121,17 +1310,38 @@ test("Download evidence: the verify command passes, and the file holds the fix, 
   expect(Object.values(proof.review.checks).every((v) => v === true)).toBe(true);
   expect(proof.outcome).toBe("The proof passed.");
   expect([proof.baseline_version, proof.version]).toEqual(["1.4.2", "1.4.3"]);
-  expect(proof.tests.map((t: any) => t.kind).sort()).toEqual(["bad_signatures", "certificate", "official_vectors", "pq_readiness", "speed_size", "tls_versions"]);
+  expect(proof.tests.map((t: any) => t.kind).sort()).toEqual([
+    "bad_signatures",
+    "certificate",
+    "official_vectors",
+    "pq_readiness",
+    "speed_size",
+    "tls_versions",
+  ]);
   for (const t of proof.tests) {
     expect(t.check.ok, t.kind).toBe(true);
     expect(t.run.phase, t.kind).toBe("proof");
     expect(t.run.run_sha256, t.kind).toMatch(/^[0-9a-f]{64}$/);
     // Each proof run of the signing program says which code it ran on: the change branch.
-    if (t.target === "software") expect(t.run.code).toMatchObject({ source: "repository", branch: "fix/ecdsa-range-check", commit: fix.change.head_commit, component_version: "1.4.3" });
+    if (t.target === "software")
+      expect(t.run.code).toMatchObject({
+        source: "repository",
+        branch: "fix/ecdsa-range-check",
+        commit: fix.change.head_commit,
+        component_version: "1.4.3",
+      });
   }
   // The pull request, the approvals with name and time, and the merge.
-  expect(fix.pull_request).toMatchObject({ number: 1, reviewers: ["you", "a"], title: "Reject signatures whose r or s is out of range", approvals_note: ONE_LOGIN });
-  expect(fix.approvals.map((a: any) => [a.reviewer, a.name, a.label])).toEqual([["you", "You", null], ["a", "Demo reviewer A", "Demo data"]]);
+  expect(fix.pull_request).toMatchObject({
+    number: 1,
+    reviewers: ["you", "a"],
+    title: "Reject signatures whose r or s is out of range",
+    approvals_note: ONE_LOGIN,
+  });
+  expect(fix.approvals.map((a: any) => [a.reviewer, a.name, a.label])).toEqual([
+    ["you", "You", null],
+    ["a", "Demo reviewer A", "Demo data"],
+  ]);
   for (const a of fix.approvals) expect(a.approved_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
   expect(fix.merge.merge_commit).toMatch(/^[0-9a-f]{40}$/);
   expect(fix.merge.merge_commit.startsWith(mergeCommit)).toBe(true);
@@ -1141,11 +1351,19 @@ test("Download evidence: the verify command passes, and the file holds the fix, 
   expect(evidence.fixes[1].suggestion.warning.title).toBe("Before you switch TLS 1.2 off:");
 
   // Every run of the signing program says which code it ran on: bundled before, the merged fix after.
-  for (const t of evidence.tests.filter((x: any) => ["official_vectors", "bad_signatures", "speed_size"].includes(x.kind))) {
+  for (const t of evidence.tests.filter((x: any) =>
+    ["official_vectors", "bad_signatures", "speed_size"].includes(x.kind),
+  )) {
     const first = t.runs.find((r: any) => r.phase === "first");
     const retest = t.runs.find((r: any) => r.phase === "retest");
     expect(first.code, t.kind).toMatchObject({ source: "bundled", component_version: "1.4.2" });
-    expect(retest.code, t.kind).toMatchObject({ source: "repository", branch: "main", commit: fix.merge.merge_commit, pull_request_number: 1, component_version: "1.4.3" });
+    expect(retest.code, t.kind).toMatchObject({
+      source: "repository",
+      branch: "main",
+      commit: fix.merge.merge_commit,
+      pull_request_number: 1,
+      component_version: "1.4.3",
+    });
   }
 });
 
@@ -1197,21 +1415,29 @@ test("the report shows the Fixes part: the change, the proof, the approvals, the
     const body = report.locator("body");
     await expect(body).toContainText("Code connected: the app's own copy of the repository acme-sign, branch main");
     await expect(report.getByRole("heading", { name: CODE_FIX_TITLE, exact: true })).toBeVisible();
-    await expect(body).toContainText("Merged Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)");
+    await expect(body).toContainText(
+      "Merged Came from 2 failed tests: Independent exam (Wycheproof), Attacker tricks (our short list)",
+    );
     await expect(body).toContainText(`Proof passed: ${PROOF_PASSED}`);
     await expect(body).toContainText("From a fix template");
     await expect(body).toContainText(`Reject signatures whose r or s is out of range. ${SIZE}.`);
-    await expect(body).toContainText("is byte for byte the same as our bundled demo component acme-sign 1.4.3, and that component is what the proof ran.");
+    await expect(body).toContainText(
+      "is byte for byte the same as our bundled demo component acme-sign 1.4.3, and that component is what the proof ran.",
+    );
     // The change itself, as the patch (folded until it is opened).
-    await expect(report.locator("details").filter({ hasText: "The change as a patch" })).toContainText("+    if not (1 <= r < N and 1 <= s < N):");
+    await expect(report.locator("details").filter({ hasText: "The change as a patch" })).toContainText(
+      "+    if not (1 <= r < N and 1 <= s < N):",
+    );
     await expect(body).toContainText("The proof passed.");
     await expect(body).toContainText(proofFingerprint);
     await expect(report.getByRole("heading", { name: "Pull request #1", exact: true })).toBeVisible();
     await expect(body).toContainText("Demo reviewer A (Demo data): approved");
     await expect(body).toContainText(ONE_LOGIN);
-    await expect(body).toContainText(/Merged \S+ \(UTC\) by the person logged in, after confirming \(merge commit [0-9a-f]{40}\)\. Nothing was deployed\./);
+    await expect(body).toContainText(
+      /Merged \S+ \(UTC\) by the person logged in, after confirming \(merge commit [0-9a-f]{40}\)\. Nothing was deployed\./,
+    );
     await expect(report.getByRole("heading", { name: TLS_FIX_TITLE, exact: true })).toBeVisible();
-    await expect(body).toContainText("its try on a test copy, approvals, Apply and Roll back are in part 6");   // since phase 4b
+    await expect(body).toContainText("its try on a test copy, approvals, Apply and Roll back are in part 6"); // since phase 4b
     await expect(body).toContainText("Before you switch TLS 1.2 off:");
     // Which code each run ran on is in the report too.
     await expect(body).toContainText("the merged fix: branch main, commit");
@@ -1261,7 +1487,9 @@ test("the report shows the Fixes part: the change, the proof, the approvals, the
         lastLine: (document.querySelector("main")?.lastElementChild?.textContent ?? "").trim(),
       }));
     const at = await place();
-    expect(at.lastLine).toBe("End of report. The JSON file is the record. This page is a readable copy and is not signed.");
+    expect(at.lastLine).toBe(
+      "End of report. The JSON file is the record. This page is a readable copy and is not signed.",
+    );
     const from = Math.max(0, Math.floor(at.top) - 24);
     await report.screenshot({
       path: path.join(SHOTS, "14-evidence-report-fixes-part.png"),
@@ -1320,18 +1548,24 @@ test("a second import gets its own fresh copy of the code; with the address not 
   );
   // It offers nothing: no reviewers to pick, no pull request, no approval, no merge, no patch. Only the proof can be run again.
   await expectUnproven();
-  await expect(s.getByTestId("fix-approvers")).toHaveText("Nobody yet: a change that is not offered can't get a pull request.");
+  await expect(s.getByTestId("fix-approvers")).toHaveText(
+    "Nobody yet: a change that is not offered can't get a pull request.",
+  );
   await expect(page.getByRole("checkbox")).toHaveCount(0);
   await expect(s.getByTestId("fix-pull-request")).toHaveCount(0);
   await expect(s.getByRole("button")).toHaveText(["Run proof again"]);
   await expect(s.getByRole("button", { name: "Run proof again" })).toBeEnabled();
-  await expect(s.getByTestId("fix-actions")).toContainText("Reruns all 5 tests in your plan. The change is offered only if the proof passes.");
+  await expect(s.getByTestId("fix-actions")).toContainText(
+    "Reruns all 5 tests in your plan. The change is offered only if the proof passes.",
+  );
   await expectNothingOffered(plan);
 
   // The failed proof is shown: which tests did not come out the same, and why the change is not offered.
   await setSection("proof", true);
   const proof = section("proof");
-  await expect(proof.getByTestId("fix-section-line")).toHaveText("Did not pass: the 2 server tests did not come out the same as before.");
+  await expect(proof.getByTestId("fix-section-line")).toHaveText(
+    "Did not pass: the 2 server tests did not come out the same as before.",
+  );
   for (const kind of ["tls_versions", "certificate"]) {
     const row = proof.locator(`[data-testid="proof-row"][data-kind="${kind}"]`);
     await expect(badge(row.getByTestId("proof-cell-proof"))).toHaveText("Couldn't run (address not confirmed)");
@@ -1339,7 +1573,9 @@ test("a second import gets its own fresh copy of the code; with the address not 
     await expect(row.getByTestId("proof-check").locator("span:last-child")).toHaveText("Not the same as before");
   }
   for (const kind of ["official_vectors", "bad_signatures", "speed_size"]) {
-    await expect(proof.locator(`[data-testid="proof-row"][data-kind="${kind}"]`).getByTestId("proof-check")).toHaveAttribute("data-ok", "true");
+    await expect(
+      proof.locator(`[data-testid="proof-row"][data-kind="${kind}"]`).getByTestId("proof-check"),
+    ).toHaveAttribute("data-ok", "true");
   }
   const verdict = proof.getByTestId("proof-verdict");
   await expect(verdict).toHaveAttribute("data-tone", "fail");
@@ -1413,12 +1649,18 @@ test("a test added after the proof passed puts the proof out of date: Proof fail
   );
   await expectUnproven();
   await expect(page.getByRole("checkbox")).toHaveCount(0);
-  await expect(s.getByTestId("fix-approvers")).toHaveText("Nobody yet: a change that is not offered can't get a pull request.");
+  await expect(s.getByTestId("fix-approvers")).toHaveText(
+    "Nobody yet: a change that is not offered can't get a pull request.",
+  );
   // Run proof again is there. It is switched off until the added test has a first result to compare with.
   await expect(s.getByRole("button")).toHaveText(["Run proof again"]);
   await expect(s.getByRole("button", { name: "Run proof again" })).toBeDisabled();
-  await expect(s.getByTestId("fix-actions")).toContainText("Run every test in the plan first, so there is a result to compare with.");
-  await expect(section("proof").getByTestId("fix-section-line")).toHaveText("Out of date: the test plan has changed since the proof ran.");
+  await expect(s.getByTestId("fix-actions")).toContainText(
+    "Run every test in the plan first, so there is a result to compare with.",
+  );
+  await expect(section("proof").getByTestId("fix-section-line")).toHaveText(
+    "Out of date: the test plan has changed since the proof ran.",
+  );
   await expectNothingOffered(plan);
   await setSection("proof", true);
   await expect(section("proof")).toContainText("then reran every locked test that was in your plan at the time");
@@ -1434,7 +1676,11 @@ test("a test added after the proof passed puts the proof out of date: Proof fail
 
   await goTo("4. Evidence Lab");
   const bad = await openLabRow("Attacker tricks (our short list)");
-  await expectFixLine(bad.getByTestId("result-detail"), "Fix not offered: the test plan changed after the proof", "fail");
+  await expectFixLine(
+    bad.getByTestId("result-detail"),
+    "Fix not offered: the test plan changed after the proof",
+    "fail",
+  );
   await shot("19-lab-fix-line-plan-changed.png");
 
   // Run the added test; then Run proof again is switched on, and the new proof covers all six tests.
@@ -1449,7 +1695,9 @@ test("a test added after the proof passed puts the proof out of date: Proof fail
   await selectFix(CODE_FIX_TITLE, CODE_FIX);
   await expectStatus("failed", "Proof failed");
   await expect(s.getByRole("button", { name: "Run proof again" })).toBeEnabled();
-  await expect(s.getByTestId("fix-actions")).toContainText("Reruns all 6 tests in your plan. The change is offered only if the proof passes.");
+  await expect(s.getByTestId("fix-actions")).toContainText(
+    "Reruns all 6 tests in your plan. The change is offered only if the proof passes.",
+  );
   await s.getByRole("button", { name: "Run proof again" }).click();
   await expectStatus("proving", "Proving");
   const watched = await watchProof();
@@ -1511,7 +1759,9 @@ test("an open pull request does not shield a proof that is out of date: nothing 
   ];
   for (const [what, answer] of refused) {
     expect(answer.status(), what).toBe(409);
-    expect((await answer.json()).error.message, what).toBe("The test plan has changed since the proof ran. Run the proof again first.");
+    expect((await answer.json()).error.message, what).toBe(
+      "The test plan has changed since the proof ran. Run the proof again first.",
+    );
   }
   expect(await codeFixStatus(plan)).toBe("failed");
   await expectNoSoftwareUpload();
@@ -1561,23 +1811,33 @@ test("a third import: Fixes says when no failed test has a fix, and Connect demo
   // Run one test that fails. Its fix is listed, but the code can't be connected yet: the proof needs a result
   // for every test in the plan to compare with (the same rule as Retest).
   await goTo("3. Tests");
-  await card("Attacker tricks (our short list)").getByRole("button", { name: "Run Attacker tricks (our short list)" }).click();
+  await card("Attacker tricks (our short list)")
+    .getByRole("button", { name: "Run Attacker tricks (our short list)" })
+    .click();
   await expect(badge(card("Attacker tricks (our short list)"))).toHaveText("Failed", { timeout: 120_000 });
   await goTo("5. Fixes");
-  await expect(fixList().getByRole("heading", { name: /^Open findings with a fix/ })).toHaveText("Open findings with a fix (1)");
+  await expect(fixList().getByRole("heading", { name: /^Open findings with a fix/ })).toHaveText(
+    "Open findings with a fix (1)",
+  );
   await expectStatus("not_connected", "Code not connected");
   const s = summary();
   // (beside the open panel a row is the fix and its status; where it came from is checked below, with the panel closed)
   await expect(listedRow(CODE_FIX_TITLE)).toContainText(CODE_FIX_TITLE);
   await expect(s.getByRole("button")).toHaveText(["Connect demo code"]);
   await expect(s.getByRole("button", { name: "Connect demo code" })).toBeDisabled();
-  await expect(s.getByTestId("fix-actions")).toContainText("Run every test in the plan first, so there is a result to compare with.");
-  expect(await s.innerText()).not.toMatch(/Ready for review|Ready to merge|Proof passed|Fix ready|This fixes|What it fixes/);
+  await expect(s.getByTestId("fix-actions")).toContainText(
+    "Run every test in the plan first, so there is a result to compare with.",
+  );
+  expect(await s.innerText()).not.toMatch(
+    /Ready for review|Ready to merge|Proof passed|Fix ready|This fixes|What it fixes/,
+  );
   // The address behind the button refuses as well, with the same sentence, and connects nothing.
   const plan = await planId();
   const answer = await page.request.post(`/api/plans/${plan}/fixes/connect`);
   expect(answer.status()).toBe(409);
-  expect((await answer.json()).error.message).toBe("Run every test in the plan first, so there is a result to compare with.");
+  expect((await answer.json()).error.message).toBe(
+    "Run every test in the plan first, so there is a result to compare with.",
+  );
   expect(await codeFixStatus(plan)).toBe("not_connected");
   await expectNoSoftwareUpload();
   await expectCarefulWording();

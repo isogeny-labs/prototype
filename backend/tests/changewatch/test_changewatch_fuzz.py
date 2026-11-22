@@ -6,6 +6,7 @@ or a normal read, each within a time limit. No new package: random only.
 - Change watch's read of the connected repository (`change_watch_state` and the page's view): a repository with one
   file damaged or gone at a time.
 """
+
 import json
 import random
 import re
@@ -27,8 +28,28 @@ from conftest import demo_plan, make_lab
 SEEDS = {"revert-range-check": 20261119, "allow-tls-1-0": 20261120}
 COPIES = 400
 TIME_LIMIT = 2.0
-ODD = [None, 0, -1, 1e308, True, "", "x" * 5000, [], {}, [None], {"a": {"b": []}}, "../../etc/passwd", "a\x00b", "dev/../main", ".lock",
-       {"name": "acme_sign.py", "text": "print('hi')\n"}, {"name": "acme-sign", "version": "9.9.9"}, "a{2,1}", "[", "\ud800"]
+ODD = [
+    None,
+    0,
+    -1,
+    1e308,
+    True,
+    "",
+    "x" * 5000,
+    [],
+    {},
+    [None],
+    {"a": {"b": []}},
+    "../../etc/passwd",
+    "a\x00b",
+    "dev/../main",
+    ".lock",
+    {"name": "acme_sign.py", "text": "print('hi')\n"},
+    {"name": "acme-sign", "version": "9.9.9"},
+    "a{2,1}",
+    "[",
+    "\ud800",
+]
 
 
 def _damage_bytes(rng: random.Random, data: bytes) -> bytes:
@@ -37,7 +58,7 @@ def _damage_bytes(rng: random.Random, data: bytes) -> bytes:
         op = rng.randrange(4)
         i = rng.randrange(len(b)) if b else 0
         if op == 0 and b:
-            del b[i:i + rng.randint(1, 40)]
+            del b[i : i + rng.randint(1, 40)]
         elif op == 1:
             b[i:i] = bytes(rng.randrange(256) for _ in range(rng.randint(1, 12)))
         elif op == 2 and b:
@@ -54,7 +75,7 @@ def _damage_json(rng: random.Random, value):
         return {**value, k: _damage_json(rng, value[k])}
     if isinstance(value, list) and value and rng.random() < 0.85:
         i = rng.randrange(len(value))
-        return value[:i] + [_damage_json(rng, value[i])] + value[i + 1:]
+        return value[:i] + [_damage_json(rng, value[i])] + value[i + 1 :]
     return rng.choice(ODD)
 
 
@@ -83,7 +104,9 @@ def test_damaged_copies_of_a_demo_change_are_read_or_refused_plainly(key):
             for file in change.files:
                 assert (file.text is None) != (file.registered is None)
                 assert file.registered is not None or not file.name.endswith(".py")
-            demo_changes.content(change)        # and its bytes can be made (a registered program's are read from the registry)
+            demo_changes.content(
+                change
+            )  # and its bytes can be made (a registered program's are read from the registry)
         assert time.monotonic() - start < TIME_LIMIT
     assert outcomes["refused"] > COPIES // 2 and outcomes["read"] >= 1, outcomes
 
@@ -91,20 +114,31 @@ def test_damaged_copies_of_a_demo_change_are_read_or_refused_plainly(key):
 def test_a_demo_change_cannot_carry_a_program_of_its_own_under_a_registered_name():
     doc = json.loads((demo_changes.CHANGES_DIR / "revert-range-check.json").read_bytes())
     # the registered program under another file name, and a version that is not registered: both refused
-    for files in ([{"name": "other.py", "registered": {"name": "acme-sign", "version": "1.4.2"}}],
-                  [{"name": "acme_sign.py", "registered": {"name": "acme-sign", "version": "9.9.9"}}],
-                  [{"name": "acme_sign.py", "registered": {"name": "../acme-sign", "version": "1.4.2"}}],
-                  [{"name": "../acme_sign.py", "text": "x\n"}],
-                  [{"name": "acme_sign.py", "text": "print('a program written out in the change')\n"}],
-                  [{"name": "helper.py", "text": "x = 1\n"}], [{"name": "run.SH", "text": "echo hi\n"}],
-                  [{"name": "a.conf", "text": "x\n", "registered": {"name": "acme-sign", "version": "1.4.2"}}],
-                  [{"name": "a.conf", "text": "no line break at the end"}],
-                  [{"name": "a.conf", "text": "x\n"}, {"name": "a.conf", "text": "y\n"}],
-                  []):
+    for files in (
+        [{"name": "other.py", "registered": {"name": "acme-sign", "version": "1.4.2"}}],
+        [{"name": "acme_sign.py", "registered": {"name": "acme-sign", "version": "9.9.9"}}],
+        [{"name": "acme_sign.py", "registered": {"name": "../acme-sign", "version": "1.4.2"}}],
+        [{"name": "../acme_sign.py", "text": "x\n"}],
+        [{"name": "acme_sign.py", "text": "print('a program written out in the change')\n"}],
+        [{"name": "helper.py", "text": "x = 1\n"}],
+        [{"name": "run.SH", "text": "echo hi\n"}],
+        [{"name": "a.conf", "text": "x\n", "registered": {"name": "acme-sign", "version": "1.4.2"}}],
+        [{"name": "a.conf", "text": "no line break at the end"}],
+        [{"name": "a.conf", "text": "x\n"}, {"name": "a.conf", "text": "y\n"}],
+        [],
+    ):
         with pytest.raises(demo_changes.DemoChangeError):
             demo_changes.read_change(json.dumps({**doc, "files": files}).encode())
-    for field, value in (("branch", "dev/../main"), ("branch", "main.lock"), ("key", "Revert"), ("offered", "always"), ("schema", "other"),
-                         ("title", ""), ("title", "x" * 81), ("message", "a\x00b")):
+    for field, value in (
+        ("branch", "dev/../main"),
+        ("branch", "main.lock"),
+        ("key", "Revert"),
+        ("offered", "always"),
+        ("schema", "other"),
+        ("title", ""),
+        ("title", "x" * 81),
+        ("message", "a\x00b"),
+    ):
         with pytest.raises(demo_changes.DemoChangeError):
             demo_changes.read_change(json.dumps({**doc, field: value}).encode())
     with pytest.raises(demo_changes.DemoChangeError):
@@ -117,7 +151,7 @@ def test_a_missing_or_damaged_bundled_change_is_left_out_of_the_menu(tmp_path):
     good = (demo_changes.CHANGES_DIR / "allow-tls-1-0.json").read_bytes()
     (tmp_path / "allow-tls-1-0.json").write_bytes(good)
     (tmp_path / "revert-range-check.json").write_bytes(b"{ not json")
-    (tmp_path / "something-else.json").write_bytes(good)                      # not one of our keys: never read
+    (tmp_path / "something-else.json").write_bytes(good)  # not one of our keys: never read
     assert [c.key for c in demo_changes.bundled(tmp_path)] == ["allow-tls-1-0"]
     # a file whose own key is another one's is not taken under this name
     (tmp_path / "revert-range-check.json").write_bytes(good)
@@ -128,7 +162,17 @@ def test_a_missing_or_damaged_bundled_change_is_left_out_of_the_menu(tmp_path):
 def test_damaged_word_lists_are_read_or_refused_plainly_and_the_rule_reads_odd_lines():
     rng = random.Random(20261121)
     outcomes = {"read": 0, "refused": 0}
-    lines = ["TLS 1.0", "x" * 5000, "", "\x00\x01", "tls" * 2000, "TLSv1" + "." * 3000, "sha" + "-" * 3000 + "1", "ssl 3" * 500, "🙂 TLS 1.0 🙂"]
+    lines = [
+        "TLS 1.0",
+        "x" * 5000,
+        "",
+        "\x00\x01",
+        "tls" * 2000,
+        "TLSv1" + "." * 3000,
+        "sha" + "-" * 3000 + "1",
+        "ssl 3" * 500,
+        "🙂 TLS 1.0 🙂",
+    ]
     for _ in range(COPIES):
         damaged = _damage_json(rng, OLD_CRYPTOGRAPHY)
         start = time.monotonic()
@@ -150,16 +194,23 @@ def test_damaged_word_lists_are_read_or_refused_plainly_and_the_rule_reads_odd_l
         found = flags.named_in("f.conf", [(n + 1, line)])
         assert len({f["word"] for f in found}) == len(found)
     assert time.monotonic() - start < TIME_LIMIT
-    for bad in (None, [], "x", [{}], [{"word": "A", "written": ["("], "source": {"title": "t", "url": "u"}}],
-                [{"word": "", "written": ["a"], "source": {"title": "t", "url": "u"}}],
-                [{"word": "A", "written": [], "source": {"title": "t", "url": "u"}}],
-                [{"word": "A", "written": ["a"], "source": {"title": "t"}}]):
+    for bad in (
+        None,
+        [],
+        "x",
+        [{}],
+        [{"word": "A", "written": ["("], "source": {"title": "t", "url": "u"}}],
+        [{"word": "", "written": ["a"], "source": {"title": "t", "url": "u"}}],
+        [{"word": "A", "written": [], "source": {"title": "t", "url": "u"}}],
+        [{"word": "A", "written": ["a"], "source": {"title": "t"}}],
+    ):
         with pytest.raises(ValueError):
             flags.read_words(bad)
     assert isinstance(flags.read_words(OLD_CRYPTOGRAPHY)[0][1][0], re.Pattern)
 
 
 # ---------------------------------------------------------------- the connected repository, damaged
+
 
 @pytest.fixture(scope="module")
 def connected_by_hand(tmp_path_factory):
@@ -175,15 +226,41 @@ def connected_by_hand(tmp_path_factory):
         repo = GitRepo(folder)
         main = repo.branch("main")
         with lab.db() as db:
-            db.add(CodeConnectionRow(plan_id=plan.id, repository="acme-sign", branch="main", base_commit=main, is_demo=True,
-                                     folder=folder.relative_to(lab.settings.data_dir).as_posix(), component_name="acme-sign", component_version="1.4.2"))
+            db.add(
+                CodeConnectionRow(
+                    plan_id=plan.id,
+                    repository="acme-sign",
+                    branch="main",
+                    base_commit=main,
+                    is_demo=True,
+                    folder=folder.relative_to(lab.settings.data_dir).as_posix(),
+                    component_name="acme-sign",
+                    component_version="1.4.2",
+                )
+            )
             db.commit()
         someone = Person("A developer", "dev@example.invalid")
         v142, v143 = (components.lookup("acme-sign", v).read_bytes() for v in ("1.4.2", "1.4.3"))
         repo.branch_from("dev/fix", main, {"acme_sign.py": v143}, "Check the range of r and s", someone, 1794400000)
-        repo.branch_from("dev/conf", main, {"acme_sign.py": v142, "gateway.conf": b"minimum_protocol = TLS 1.0\n"}, "Allow TLS 1.0", someone, 1794400100)
-        first = repo.branch_from("dev/two-commits", main, {"acme_sign.py": v142, "a.txt": b"one\n"}, "Add a note", someone, 1794400200)
-        repo.commit("dev/two-commits", {"acme_sign.py": v142, "a.txt": b"one\ntwo\n"}, "Add to the note", someone, 1794400300, first)
+        repo.branch_from(
+            "dev/conf",
+            main,
+            {"acme_sign.py": v142, "gateway.conf": b"minimum_protocol = TLS 1.0\n"},
+            "Allow TLS 1.0",
+            someone,
+            1794400100,
+        )
+        first = repo.branch_from(
+            "dev/two-commits", main, {"acme_sign.py": v142, "a.txt": b"one\n"}, "Add a note", someone, 1794400200
+        )
+        repo.commit(
+            "dev/two-commits",
+            {"acme_sign.py": v142, "a.txt": b"one\ntwo\n"},
+            "Add to the note",
+            someone,
+            1794400300,
+            first,
+        )
         yield lab, plan, repo
     finally:
         lab.stop()
@@ -192,7 +269,11 @@ def connected_by_hand(tmp_path_factory):
 def test_a_repository_with_one_file_damaged_or_gone_is_read_or_said_plainly_and_never_stops_the_page(connected_by_hand):
     lab, plan, repo = connected_by_hand
     whole = lab.change_watch_state(plan.id)
-    assert whole["code"]["state"] == "connected" and sorted(c["branch"] for c in whole["changes"]) == ["dev/conf", "dev/fix", "dev/two-commits"]
+    assert whole["code"]["state"] == "connected" and sorted(c["branch"] for c in whole["changes"]) == [
+        "dev/conf",
+        "dev/fix",
+        "dev/two-commits",
+    ]
     assert all(c["problem"] is None for c in whole["changes"])
     files = sorted(p for p in repo.path.rglob("*") if p.is_file())
     assert len(files) > 12
@@ -215,15 +296,21 @@ def test_a_repository_with_one_file_damaged_or_gone_is_read_or_said_plainly_and_
             target.write_bytes(original)
             target.chmod(mode)
         assert time.monotonic() - start < TIME_LIMIT
-        ChangeWatchView.model_validate(page)                    # the page's view keeps its shape
+        ChangeWatchView.model_validate(page)  # the page's view keeps its shape
         assert state["code"]["state"] in ("connected", "unreadable")
         if state["code"]["state"] == "unreadable":
             outcomes["repository unreadable"] += 1
-            assert state["changes"] == [] and page["changes"] == [] and page["code"]["line"] == "The connected repository could not be read, so its changes are not listed."
+            assert (
+                state["changes"] == []
+                and page["changes"] == []
+                and page["code"]["line"] == "The connected repository could not be read, so its changes are not listed."
+            )
             continue
         for change in state["changes"]:
             assert change["status"] in STATUS_WORDS and change["problem"] in (None, "no_start", "unreadable")
-            if change["problem"] is not None:           # a branch that can't be read is listed with why, and nothing of it can run
+            if (
+                change["problem"] is not None
+            ):  # a branch that can't be read is listed with why, and nothing of it can run
                 assert change["status"] == "cant_run" and change["picked"] == [] and change["gives"] is None
         for row in page["changes"]:
             assert row["status"]["reason"] or row["status"]["key"] == "not_run"
@@ -235,5 +322,7 @@ def test_a_repository_with_one_file_damaged_or_gone_is_read_or_said_plainly_and_
             outcomes["a change unreadable"] += 1
         else:
             outcomes["read differently"] += 1
-    assert lab.change_watch_state(plan.id) == whole             # every file is back: it reads as before
-    assert outcomes["repository unreadable"] >= 1 and outcomes["a change unreadable"] >= 1 and outcomes["as before"] >= 1, outcomes
+    assert lab.change_watch_state(plan.id) == whole  # every file is back: it reads as before
+    assert (
+        outcomes["repository unreadable"] >= 1 and outcomes["a change unreadable"] >= 1 and outcomes["as before"] >= 1
+    ), outcomes

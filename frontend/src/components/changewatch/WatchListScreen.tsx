@@ -138,14 +138,22 @@ function ItemPanel({
   const { panel } = row;
   return (
     <div data-testid="watch-panel" data-item={row.key}>
-      <DetailPanel open item={row.key} title={row.title} subtitle={<span className="break-words">{panel.ids_line}</span>} onClose={onClose}>
+      <DetailPanel
+        open
+        item={row.key}
+        title={row.title}
+        subtitle={<span className="break-words">{panel.ids_line}</span>}
+        onClose={onClose}
+      >
         <div className="space-y-5 text-sm text-slate-300">
           <div>
             <span className="flex flex-wrap items-center gap-1.5">
               <StatusChip label={row.status.word} tone={row.status.tone} wrap testId="watch-panel-status" />
               <WhereFromTag tag={row.source} />
             </span>
-            {row.status_line ? <p className="mt-1.5 break-words text-[13px] text-slate-300">{row.status_line}</p> : null}
+            {row.status_line ? (
+              <p className="mt-1.5 break-words text-[13px] text-slate-300">{row.status_line}</p>
+            ) : null}
             {row.source.note ? (
               <p data-testid="source-note" className="mt-1 break-words text-xs text-slate-400">
                 {row.source.note}
@@ -161,12 +169,18 @@ function ItemPanel({
               <h3 className={H}>{panel.quote.title}</h3>
               <div className={BOX}>
                 {panel.quote.lines.map((line) => (
-                  <blockquote key={line} className="mb-2 break-words border-l-2 border-slate-600 pl-3 text-[13px] leading-snug text-slate-200 last:mb-0">
+                  <blockquote
+                    key={line}
+                    className="mb-2 break-words border-l-2 border-slate-600 pl-3 text-[13px] leading-snug text-slate-200 last:mb-0"
+                  >
                     {line}
                   </blockquote>
                 ))}
                 <p className="mt-2 break-words text-xs text-slate-400">
-                  <span data-testid="watch-quote-tag" className="rounded border border-slate-700 px-1.5 py-0.5 text-[11px]">
+                  <span
+                    data-testid="watch-quote-tag"
+                    className="rounded border border-slate-700 px-1.5 py-0.5 text-[11px]"
+                  >
                     {panel.quote.tag}
                   </span>{" "}
                   {panel.quote.source_line}
@@ -199,7 +213,11 @@ function ItemPanel({
               {panel.test.line ? <p className="break-words text-[13px]">{panel.test.line}</p> : null}
               {panel.test.link && panel.test.link_label ? (
                 <p className="mt-1 text-xs">
-                  <ItemLinkView link={panel.test.link} testId="watch-test-link" className="text-sky-300 underline-offset-2 hover:underline">
+                  <ItemLinkView
+                    link={panel.test.link}
+                    testId="watch-test-link"
+                    className="text-sky-300 underline-offset-2 hover:underline"
+                  >
                     {panel.test.link_label}
                   </ItemLinkView>
                 </p>
@@ -272,9 +290,19 @@ export function WatchListScreen({ planId, view, onView, openItem = null, tabs }:
   const opened = all.find((r) => r.key === openKey) ?? null;
   const columns: Column<WatchItem>[] = [
     { key: "weakness", header: "Weakness", minWidth: 190, render: (r) => <NameCell row={r} /> },
-    { key: "library", header: "Library", minWidth: 150, render: (r) => <span className="break-words text-xs text-slate-300">{r.yours}</span> },
+    {
+      key: "library",
+      header: "Library",
+      minWidth: 150,
+      render: (r) => <span className="break-words text-xs text-slate-300">{r.yours}</span>,
+    },
     { key: "status", header: "Status", minWidth: 170, render: (r) => <StatusCell row={r} /> },
-    { key: "since", header: "Since", minWidth: 130, render: (r) => <span className="break-words text-xs text-slate-400">{r.since}</span> },
+    {
+      key: "since",
+      header: "Since",
+      minWidth: 130,
+      render: (r) => <span className="break-words text-xs text-slate-400">{r.since}</span>,
+    },
   ];
   const compact: Column<WatchItem>[] = [
     { key: "weakness", header: "Weakness", minWidth: 170, render: (r) => <NameCell row={r} /> },
@@ -337,7 +365,12 @@ export function WatchListScreen({ planId, view, onView, openItem = null, tabs }:
         panelOpen={opened !== null}
         table={
           <>
-            {table(view.items, "Watch list", "watch-table", view.empty_line ?? (view.items.length === 0 ? "Nothing is being watched." : null))}
+            {table(
+              view.items,
+              "Watch list",
+              "watch-table",
+              view.empty_line ?? (view.items.length === 0 ? "Nothing is being watched." : null),
+            )}
             {view.stopped.length > 0 ? (
               <div className="mt-6">
                 <h3 className="mb-2 text-sm font-semibold text-slate-200">Not watched ({view.stopped.length})</h3>

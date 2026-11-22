@@ -1,4 +1,5 @@
 """Pick the reader for an uploaded file (CycloneDX CBOM or our CSV) and run it."""
+
 from __future__ import annotations
 
 from app.config import MAX_UPLOAD_BYTES

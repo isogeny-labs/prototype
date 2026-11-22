@@ -1,4 +1,5 @@
 """Phase 5a: the organization, folders, projects and assessments, Load demo projects, and the closed guard."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends, Request
@@ -25,6 +26,7 @@ class ProjectBody(BaseModel):
 
 class FolderChangeBody(BaseModel):
     """Rename, move or archive. Only the fields sent change (move to the top level with parent_id null)."""
+
     name: StrictStr | None = Field(default=None, max_length=200)
     parent_id: StrictInt | None = None
     move: StrictBool = False
@@ -43,7 +45,7 @@ class AssessmentChangeBody(BaseModel):
     project_id: StrictInt | None = None
     archived: StrictBool | None = None
     close: StrictBool = False
-    signed_off_by: StrictStr | None = Field(default=None, max_length=200)   # phase 5b: required to close
+    signed_off_by: StrictStr | None = Field(default=None, max_length=200)  # phase 5b: required to close
     note: StrictStr | None = Field(default=None, max_length=1000)
     purpose: StrictStr | None = Field(default=None, max_length=40)
     reference: StrictStr | None = Field(default=None, max_length=400)
@@ -51,12 +53,13 @@ class AssessmentChangeBody(BaseModel):
 
 class NewAssessmentBody(BaseModel):
     """Phase 5b: the New assessment box (and Rerun as new assessment). Every field may be left out."""
+
     name: StrictStr | None = Field(default=None, max_length=200)
     purpose: StrictStr | None = Field(default=None, max_length=40)
     reference: StrictStr | None = Field(default=None, max_length=400)
 
 
-OPTIONAL_BODY = Body(None)   # the box's fields may all be left out, and so may the body
+OPTIONAL_BODY = Body(None)  # the box's fields may all be left out, and so may the body
 
 
 def _changes(body: BaseModel, move_field: str | None) -> dict:
@@ -145,8 +148,8 @@ def routes(lab, require_login) -> APIRouter:
 
 # Changing requests that stay allowed on a closed assessment: they change nothing in it.
 ALLOWED_WHEN_CLOSED = (
-    ("/api/plans/", "/evidence"),   # Download evidence builds and signs the file
-    ("/api/import/", "/plan"),      # opening Tests makes the suggested list; it decides nothing
+    ("/api/plans/", "/evidence"),  # Download evidence builds and signs the file
+    ("/api/import/", "/plan"),  # opening Tests makes the suggested list; it decides nothing
 )
 
 

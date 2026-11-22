@@ -34,7 +34,10 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
 
   const fits = (fix: FixDetail) =>
     (statusFilter === "all" || fix.status.word === statusFilter) &&
-    (!needle || [fix.title, fix.list_source, fix.status.word, fix.proposal?.status.word ?? ""].some((t) => t.toLowerCase().includes(needle)));
+    (!needle ||
+      [fix.title, fix.list_source, fix.status.word, fix.proposal?.status.word ?? ""].some((t) =>
+        t.toLowerCase().includes(needle),
+      ));
   // The open fix stays listed whatever the search, as before the panel.
   const keep = (fix: FixDetail) => fix.id === selectedId || fits(fix);
 
@@ -116,8 +119,11 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
   // While a search or the status filter is on, each tab says how many of its fixes match. An entry listed apart (a
   // developer's change) is counted nowhere (CLAUDE.md), so not here either; the search still lists it under its heading.
   const matches =
-    needle || statusFilter !== "all" ? Object.fromEntries(shownGroups.map((g) => [g.key, entries(g.fix_ids).filter(fits).length])) : null;
-  const holderOf = (fixId: string) => shownGroups.find((g) => g.fix_ids.includes(fixId) || (g.apart?.fix_ids ?? []).includes(fixId))?.key;
+    needle || statusFilter !== "all"
+      ? Object.fromEntries(shownGroups.map((g) => [g.key, entries(g.fix_ids).filter(fits).length]))
+      : null;
+  const holderOf = (fixId: string) =>
+    shownGroups.find((g) => g.fix_ids.includes(fixId) || (g.apart?.fix_ids ?? []).includes(fixId))?.key;
   return (
     <nav aria-labelledby="fix-list-title" className="min-w-0">
       <h2 id="fix-list-title" className="mb-3 text-xs font-medium uppercase tracking-wider text-slate-500">
@@ -191,7 +197,10 @@ export function FixTable({ title, fixes, groups, selectedId, onSelect, active, o
                 )}
                 {g.apart && apartAll.length > 0 ? (
                   <section data-testid="fix-apart" aria-label={g.apart.label} className="mt-4">
-                    <h3 data-testid="fix-apart-title" className="px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
+                    <h3
+                      data-testid="fix-apart-title"
+                      className="px-1 text-xs font-medium uppercase tracking-wider text-slate-500"
+                    >
                       {g.apart.label} ({apartAll.length})
                     </h3>
                     <p data-testid="fix-apart-note" className="mb-2 mt-1 px-1 text-xs text-slate-400">
